@@ -123,6 +123,29 @@ class BeadWorkError(RuntimeError):
         self.retry_requires_push = retry_requires_push
 
 
+class EpicGraphRelocatedError(BeadWorkError):
+    """The launch's own epic graph moved during publication; nothing launched."""
+
+    def __init__(
+        self,
+        original_epic_id: str,
+        relocated_epic_id: str,
+        *,
+        bead_relocations: tuple[Any, ...] = (),
+    ) -> None:
+        super().__init__(
+            f"epic {original_epic_id} was renumbered to {relocated_epic_id} "
+            f"during publication because {original_epic_id} was already "
+            "published by another clone; no agents were spawned. "
+            f"Resume with: sase bead work {relocated_epic_id}",
+            agents_spawned=False,
+            graph_published=True,
+        )
+        self.original_epic_id = original_epic_id
+        self.relocated_epic_id = relocated_epic_id
+        self.bead_relocations = tuple(bead_relocations)
+
+
 def make_bead_work_timer(
     target: str,
     *,
@@ -556,13 +579,52 @@ def launch_epic_bead_work(
         ) from exc
 
     if graph_relocations:
+        import dataclasses
+
         from sase.bead.relocation import (
+            relocations_for_subtree,
             resolve_created_bead_id,
-            rewrite_text_for_bead_relocations,
+            resolve_own_bead_id,
         )
 
-        epic_id = resolve_created_bead_id(epic_id, graph_relocations)
-        query = rewrite_text_for_bead_relocations(query, graph_relocations)
+        own_relocations = relocations_for_subtree(epic_id, graph_relocations)
+        try:
+            moved_epic_id = resolve_own_bead_id(proj.show, issue, own_relocations)
+        except ValueError as exc:
+            if _pre_publication_bead_still_matches(proj, issue, epic_id):
+                rollback_work_launch(
+                    proj,
+                    epic_id,
+                    marked_ready_this_run=marked_ready_this_run,
+                    rollback_preclaims=rollback_preclaims,
+                    no_push=True,
+                )
+            raise BeadWorkError(
+                f"epic graph publication relocated {epic_id} but the moved "
+                f"epic could not be located: {exc}. "
+                "For broader diagnostics, run `sase doctor -v`.",
+                graph_published=True,
+            ) from exc
+        if moved_epic_id != epic_id:
+            mapped_preclaims = tuple(
+                dataclasses.replace(
+                    prior,
+                    bead_id=resolve_created_bead_id(prior.bead_id, own_relocations),
+                )
+                for prior in rollback_preclaims
+            )
+            rollback_work_launch(
+                proj,
+                moved_epic_id,
+                marked_ready_this_run=marked_ready_this_run,
+                rollback_preclaims=mapped_preclaims,
+                no_push=no_push or defer_push,
+            )
+            raise EpicGraphRelocatedError(
+                epic_id,
+                moved_epic_id,
+                bead_relocations=own_relocations,
+            )
 
     try:
         with timer.stage("agent_launch"):
@@ -575,18 +637,6 @@ def launch_epic_bead_work(
                     plan_ref=issue.design,
                     plan_snapshot=plan_snapshot,
                     launch_names=selection.launch_names,
-                )
-            if graph_relocations:
-                segment_env = tuple(
-                    {
-                        key: (
-                            rewrite_text_for_bead_relocations(value, graph_relocations)
-                            if isinstance(value, str)
-                            else value
-                        )
-                        for key, value in segment.items()
-                    }
-                    for segment in segment_env
                 )
             results = launch_bead_work_agents(
                 query,
@@ -628,6 +678,23 @@ def launch_epic_bead_work(
         launched_agent_names=_ordered_selected_names(plan, selection.launch_names),
         preserved_agent_names=selection.preserved_names,
         workspace_num=results[0].workspace_num,
+    )
+
+
+def _pre_publication_bead_still_matches(
+    proj: BeadProject, before: Any, bead_id: str
+) -> bool:
+    """Return whether ``bead_id`` still holds ``before``'s creation identity."""
+
+    try:
+        current = proj.show(bead_id)
+    except (KeyError, ValueError):
+        return False
+    return (
+        getattr(current, "issue_type", None) == getattr(before, "issue_type", None)
+        and getattr(current, "title", None) == getattr(before, "title", None)
+        and getattr(current, "created_at", None) == getattr(before, "created_at", None)
+        and getattr(current, "created_by", None) == getattr(before, "created_by", None)
     )
 
 

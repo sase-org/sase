@@ -100,7 +100,20 @@ def test_work_uses_sync_push_even_when_config_flag_disabled(
     assert "Pushed to remote." in out
 
 
-def test_work_rewrites_launch_query_and_env_after_graph_relocation(
+def _assert_fake_launch_names_match(query: str, expected_names: set[str]) -> None:
+    from sase.agent.multi_prompt_references import (
+        extract_static_name_directive,
+    )
+
+    rendered = {
+        name
+        for segment in query.split("\n---\n")
+        if (name := extract_static_name_directive(segment)) is not None
+    }
+    assert rendered == set(expected_names)
+
+
+def test_work_ignores_foreign_relocation_and_launches_original_ids(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -115,6 +128,7 @@ def test_work_rewrites_launch_query_and_env_after_graph_relocation(
         expected_names: set[str],
         launch_context: Any,
     ) -> list[FakeLaunchResult]:
+        _assert_fake_launch_names_match(query, expected_names)
         captured["query"] = query
         captured["segment_extra_env"] = segment_extra_env
         captured["expected_names"] = expected_names
@@ -144,17 +158,93 @@ def test_work_rewrites_launch_query_and_env_after_graph_relocation(
             ),
         )
 
-    assert result.epic_id == relocated_id
-    assert relocated_id in captured["query"]
-    assert epic_id not in captured["query"]
+    assert result.epic_id == epic_id
+    assert result.launch_state == "launched"
+    assert epic_id in captured["query"]
+    assert relocated_id not in captured["query"]
     env_values = [
         value
         for segment in captured["segment_extra_env"]
         for value in segment.values()
         if isinstance(value, str)
     ]
-    assert any(relocated_id in value for value in env_values)
-    assert all(epic_id not in value for value in env_values)
+    assert all(relocated_id not in value for value in env_values)
+
+
+def test_work_rolls_back_on_moved_ids_when_own_graph_relocated(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_handler import EpicGraphRelocatedError
+
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    relocated_id = "sase-99"
+    rollbacks: list[dict[str, Any]] = []
+
+    def fake_launch(**_kwargs: Any) -> list[FakeLaunchResult]:
+        pytest.fail("relocated launch must not spawn agents")
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        fake_launch,
+    )
+    monkeypatch.setattr(
+        "sase.bead.relocation.resolve_own_bead_id",
+        lambda _show, _before, _relocations: relocated_id,
+    )
+
+    def fake_rollback(
+        proj: Any,
+        rollback_epic_id: str,
+        *,
+        marked_ready_this_run: bool,
+        rollback_preclaims: Any = (),
+        **_kwargs: Any,
+    ) -> None:
+        rollbacks.append(
+            {
+                "epic_id": rollback_epic_id,
+                "marked_ready_this_run": marked_ready_this_run,
+                "preclaim_ids": tuple(prior.bead_id for prior in rollback_preclaims),
+            }
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.rollback_work_launch",
+        fake_rollback,
+    )
+
+    with BeadProject(project_dir) as project:
+        with pytest.raises(EpicGraphRelocatedError) as excinfo:
+            launch_epic_bead_work(
+                project,
+                epic_id,
+                dry_run=False,
+                yes=True,
+                no_push=True,
+                before_agent_launch=lambda _proj, _epic_id: SimpleNamespace(
+                    bead_relocations=(
+                        BeadIdRelocation(
+                            epic_id,
+                            relocated_id,
+                            "top_level_duplicate",
+                        ),
+                    )
+                ),
+            )
+
+    assert excinfo.value.original_epic_id == epic_id
+    assert excinfo.value.relocated_epic_id == relocated_id
+    assert excinfo.value.graph_published is True
+    assert excinfo.value.agents_spawned is False
+    assert f"sase bead work {relocated_id}" in str(excinfo.value)
+    assert len(rollbacks) == 1
+    assert rollbacks[0]["epic_id"] == relocated_id
+    assert rollbacks[0]["preclaim_ids"]
+    assert all(
+        preclaim_id == relocated_id or preclaim_id.startswith(f"{relocated_id}.")
+        for preclaim_id in rollbacks[0]["preclaim_ids"]
+    )
 
 
 def test_work_no_push_flag_overrides_config(

@@ -618,3 +618,68 @@ def test_invalid_task_status_is_rejected_without_mutation(
 
     assert excinfo.value.code == 1
     assert f"cannot be launched from status={status.value}" in capsys.readouterr().err
+
+
+def test_task_work_rolls_back_moved_task_without_launch(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_commit import LaunchCheckpointResult
+    from sase.bead.cli_work_task import TaskBeadWorkError, launch_task_bead_work
+    from sase.bead.relocation import BeadIdRelocation
+
+    task_id = seed_task(project_dir)
+    moved_id = "sase-99"
+    rollbacks: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        lambda *_args, **_kwargs: LaunchCheckpointResult(
+            True,
+            (BeadIdRelocation(task_id, moved_id, "top_level_duplicate"),),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.bead.relocation.resolve_own_bead_id",
+        lambda _show, _before, _relocations: moved_id,
+    )
+
+    def fake_rollback(
+        proj: Any,
+        rollback_task_id: str,
+        *,
+        prior_status: Any,
+        prior_assignee: str,
+        **_kwargs: Any,
+    ) -> None:
+        rollbacks.append(
+            {
+                "task_id": rollback_task_id,
+                "prior_status": prior_status,
+                "prior_assignee": prior_assignee,
+            }
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.rollback_task_work_launch",
+        fake_rollback,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: pytest.fail("relocated task must not launch"),
+    )
+
+    with BeadProject(project_dir) as project:
+        with pytest.raises(TaskBeadWorkError) as excinfo:
+            launch_task_bead_work(
+                project,
+                task_id,
+                dry_run=False,
+                yes=True,
+                no_push=True,
+            )
+
+    assert f"task {task_id} was renumbered to {moved_id}" in str(excinfo.value)
+    assert f"sase bead work {moved_id}" in str(excinfo.value)
+    assert len(rollbacks) == 1
+    assert rollbacks[0]["task_id"] == moved_id

@@ -123,7 +123,7 @@ def checkpoint_task_work_launch(
     *,
     no_push: bool,
     timer: LaunchTimingRecorder,
-) -> bool:
+) -> LaunchCheckpointResult:
     """Commit and, when required, publish one task assignment before spawn."""
     from sase.bead.sync import (
         PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
@@ -151,7 +151,7 @@ def checkpoint_task_work_launch(
                 "agent was spawned"
             )
         print(f"Committed task launch checkpoint for {task_id}.")
-        return False
+        return LaunchCheckpointResult(False)
 
     with timer.stage("push", mode="sync"):
         outcome = push_bead_work_launch(
@@ -177,7 +177,10 @@ def checkpoint_task_work_launch(
 
     suffix = " Pushed to remote." if outcome.pushed else ""
     print(f"Committed task launch checkpoint for {task_id}.{suffix}")
-    return outcome.pushed
+    return LaunchCheckpointResult(
+        outcome.pushed,
+        tuple(getattr(outcome, "bead_relocations", ())),
+    )
 
 
 def _requires_remote_publication(beads_dir: Path) -> bool:

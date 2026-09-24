@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import re
 import tempfile
 
 
@@ -96,14 +97,88 @@ def resolve_created_bead_id(
         seen.add(current)
 
 
+class BeadRelocationIdentityError(ValueError):
+    """A relocation record could not be proven to move (or miss) our bead."""
+
+
+def relocations_for_subtree(
+    root_id: str,
+    relocations: Iterable[BeadIdRelocation] | None,
+) -> tuple[BeadIdRelocation, ...]:
+    """Return only records whose ``old_id`` names ``root_id`` or its children."""
+
+    prefix = f"{root_id}."
+    return tuple(
+        record
+        for record in relocations or ()
+        if record.old_id == root_id or record.old_id.startswith(prefix)
+    )
+
+
+def _creation_identity_matches(before: Any, current: Any) -> bool:
+    """Compare creation identity, never mutable fields such as status/assignee."""
+
+    return (
+        getattr(current, "issue_type", None) == getattr(before, "issue_type", None)
+        and getattr(current, "title", None) == getattr(before, "title", None)
+        and getattr(current, "created_at", None) == getattr(before, "created_at", None)
+        and getattr(current, "created_by", None) == getattr(before, "created_by", None)
+    )
+
+
+def resolve_own_bead_id(
+    show: Callable[[str], Any],
+    before: Any,
+    relocations: Iterable[BeadIdRelocation] | None,
+) -> str:
+    """Verify a relocation moved our own bead and return its current ID.
+
+    ``before`` is the bead as read before publication. When no relocation
+    names it, its ID is returned unchanged. Otherwise the move is proven by
+    matching creation identity in the post-publication store: a match at the
+    candidate means our bead moved, a match at the original means a foreign
+    bead moved and the record is ignored. Anything else raises
+    :class:`BeadRelocationIdentityError` naming both IDs.
+    """
+
+    candidate = resolve_created_bead_id(before.id, relocations)
+    if candidate == before.id:
+        return candidate
+    try:
+        moved = show(candidate)
+    except (KeyError, ValueError):
+        moved = None
+    if moved is not None and _creation_identity_matches(before, moved):
+        return candidate
+    try:
+        staying = show(before.id)
+    except (KeyError, ValueError):
+        staying = None
+    if staying is not None and _creation_identity_matches(before, staying):
+        return before.id
+    raise BeadRelocationIdentityError(
+        f"cannot locate bead {before.id} after relocation to {candidate}: "
+        "neither ID matches the pre-publication creation identity"
+    )
+
+
 def rewrite_text_for_bead_relocations(
     value: str,
     relocations: Iterable[BeadIdRelocation] | None,
 ) -> str:
-    rewritten = value
-    for relocation in relocations or ():
-        rewritten = rewritten.replace(relocation.old_id, relocation.new_id)
-    return rewritten
+    mapping = {
+        relocation.old_id: relocation.new_id
+        for relocation in relocations or ()
+        if relocation.old_id and relocation.new_id
+    }
+    if not mapping:
+        return value
+    pattern = re.compile(
+        "(?<![A-Za-z0-9_-])("
+        + "|".join(re.escape(old) for old in sorted(mapping, key=len, reverse=True))
+        + ")(?![A-Za-z0-9_])"
+    )
+    return pattern.sub(lambda match: mapping[match.group(1)], value)
 
 
 def rewrite_head_subject_for_bead_relocations(
@@ -158,9 +233,12 @@ def rewrite_head_subject_for_bead_relocations(
 
 __all__ = [
     "BeadIdRelocation",
+    "BeadRelocationIdentityError",
     "compose_bead_relocations",
     "normalize_bead_relocations",
+    "relocations_for_subtree",
     "resolve_created_bead_id",
+    "resolve_own_bead_id",
     "rewrite_head_subject_for_bead_relocations",
     "rewrite_text_for_bead_relocations",
 ]

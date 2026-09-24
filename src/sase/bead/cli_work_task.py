@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.bead._store_contention import (
     BeadStoreContentionError,
@@ -302,14 +302,16 @@ def launch_task_bead_work(
     except (BeadStoreContentionError, KeyError, ValueError) as exc:
         raise TaskBeadWorkError(str(exc)) from exc
 
+    task_relocations: tuple[Any, ...] = ()
     try:
         with timer.stage("graph_publication"):
-            checkpoint_task_work_launch(
+            checkpoint_result = checkpoint_task_work_launch(
                 proj.beads_dir,
                 task_id,
                 no_push=no_push,
                 timer=timer,
             )
+            task_relocations = tuple(getattr(checkpoint_result, "bead_relocations", ()))
     except TaskLaunchCheckpointError as exc:
         rollback_task_work_launch(
             proj,
@@ -330,6 +332,43 @@ def launch_task_bead_work(
         raise TaskBeadWorkError(
             f"task launch checkpoint failed before agent launch for {task_id}: {exc}"
         ) from exc
+
+    if task_relocations:
+        from sase.bead.relocation import (
+            relocations_for_subtree,
+            resolve_own_bead_id,
+        )
+
+        own_relocations = relocations_for_subtree(task_id, task_relocations)
+        try:
+            moved_task_id = resolve_own_bead_id(proj.show, issue, own_relocations)
+        except ValueError as exc:
+            if _pre_publication_task_still_matches(proj, issue, task_id):
+                rollback_task_work_launch(
+                    proj,
+                    task_id,
+                    prior_status=prior_status,
+                    prior_assignee=prior_assignee,
+                    no_push=no_push,
+                )
+            raise TaskBeadWorkError(
+                f"task launch publication relocated {task_id} but the moved "
+                f"task could not be located: {exc}. "
+                "For broader diagnostics, run `sase doctor -v`."
+            ) from exc
+        if moved_task_id != task_id:
+            rollback_task_work_launch(
+                proj,
+                moved_task_id,
+                prior_status=prior_status,
+                prior_assignee=prior_assignee,
+                no_push=no_push,
+            )
+            raise TaskBeadWorkError(
+                f"task {task_id} was renumbered to {moved_task_id} "
+                "during publication; "
+                f"resume with: sase bead work {moved_task_id}"
+            )
 
     try:
         with timer.stage("agent_launch"):
@@ -382,6 +421,21 @@ def launch_task_bead_work(
         agent_name=task_id,
         launch_state="launched",
         workspace_num=workspace_num,
+    )
+
+
+def _pre_publication_task_still_matches(proj: Any, before: Any, task_id: str) -> bool:
+    """Return whether ``task_id`` still holds ``before``'s creation identity."""
+
+    try:
+        current = proj.show(task_id)
+    except (KeyError, ValueError):
+        return False
+    return (
+        getattr(current, "issue_type", None) == getattr(before, "issue_type", None)
+        and getattr(current, "title", None) == getattr(before, "title", None)
+        and getattr(current, "created_at", None) == getattr(before, "created_at", None)
+        and getattr(current, "created_by", None) == getattr(before, "created_by", None)
     )
 
 

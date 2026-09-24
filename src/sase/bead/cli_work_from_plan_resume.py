@@ -40,7 +40,7 @@ class _CheckpointAndPublishGraph(Protocol):
         epic_id: str,
         no_push: bool,
         render: bool,
-    ) -> None: ...
+    ) -> Any: ...
 
 
 class _PushStoreAfterLaunch(Protocol):
@@ -112,8 +112,8 @@ def resume_linked_epic(
             def publish_resumed_graph(
                 active_project: BeadProject,
                 active_epic_id: str,
-            ) -> None:
-                checkpoint_and_publish_graph(
+            ) -> Any:
+                return checkpoint_and_publish_graph(
                     store=store,
                     project=active_project,
                     epic_id=active_epic_id,
