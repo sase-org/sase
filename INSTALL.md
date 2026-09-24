@@ -112,10 +112,10 @@ snapshot-only update of SASE, providers, and agents without opening Admin Center
 install and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
 
 - The tab lists every SASE core package, plugin, and supported agent CLI as a row. Its
-  **SASE** section shows the installed and latest versions of the `sase` and
-  `sase-core-rs` packages, with an `↑` marker when a newer version is available. sase's
-  TUI also surfaces startup and top-bar update signals when SASE or an installed plugin
-  is behind.
+  **SASE** section shows the installed and latest versions of the `sase` and `sase-core`
+  (distribution `sase-core-rs`) packages, with an `↑` marker when a newer version is
+  available. sase's TUI also surfaces startup and top-bar update signals when SASE or an
+  installed plugin is behind.
 - Press `u` to update SASE core **plus every installed plugin together** (the TUI analog
   of `sase update`, which delegates to `uv tool upgrade sase`).
 - Press `U` to update only the highlighted installed plugin when its row shows an update
@@ -124,9 +124,10 @@ install and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
   (cache-only) mode.
 - Press `m` to switch the install mode between managed PyPI wheels and dev (editable)
   checkouts — the TUI analog of `sase update --to dev|pypi`.
-- In the **Agent CLIs** section, press `A` to update marked (or every safely updatable)
-  provider CLIs, and `i` on a missing CLI (or on `Space`-marked ones) to install it —
-  the TUI analog of `sase agent-cli update` / `sase agent-cli install`.
+- For provider CLIs, press `A` (from any row) to update the update-marked CLIs, or every
+  safely updatable one when none are marked, and press `i` on a missing CLI in the
+  **Agent CLIs** section (or with CLIs marked via `Space`) to install it — the TUI
+  analogs of `sase agent-cli update` and `sase agent-cli install`.
 - Every mutation previews first: the confirm modal shows the exact `uv` command (or the
   git fast-forward plan for editable dev checkouts) before anything changes. The
   confirmation _is_ the dry run.

@@ -111,8 +111,8 @@ origin:external       match Patches whose PR_ORIGIN is "external"
 ```
 
 Valid property keys: `status`, `project`, `ancestor`, `name`, `sibling`, and `origin`.
-Values can be bare words (alphanumeric, `_`, `-`) or quoted strings (e.g.
-`status:"in progress"`).
+Values can be bare words (starting with a letter, digit, or `_` and continuing with
+letters, digits, `_`, `-`, `.`, or `*`) or quoted strings (e.g. `status:"in progress"`).
 
 The `project:` filter uses the ProjectSpec's configured `PROJECT_NAME` when present and
 valid; otherwise it falls back to the canonical project directory key. A configured name
@@ -124,16 +124,23 @@ workspace lookup, and VCS operations continue using the canonical directory key.
 
 A `*` inside a string-field property value is a wildcard matching any run of characters,
 including an empty run. Matching stays case-insensitive, consecutive `*` collapse, and
-`?` is not special. Negation (`-id:sase-x7.*`), comma lists (`id:sase-16n,sase-16n.*`),
-and boolean dialects all compose with globs, and values without `*` behave exactly as
-before. Bare values in the Boolean dialects (and in the Patch query language) cannot
-start with `*` or contain `/`, so quote such values there, as in `path:"*tags*"` or
-`path:"202609/*tags"`. Those dialects also do not accept `-` negation or comma lists, so
-use `NOT` and `OR` instead.
+`?` is not special. Values without `*` behave exactly as before.
 
-In the Patch query language documented on this page, only `name:` and `project:` treat
-`*` as an anchored glob; `status:`, `ancestor:`, `sibling:`, and `origin:` compare the
-value literally.
+Query panes use one of two dialects, and globs compose with each dialect's own syntax:
+
+- **Flat dialects** (Beads, Plans, Files, Stitches, and document-provider panes) accept
+  `-` negation (`-id:sase-x7.*`) and comma lists (`id:sase-16n,sase-16n.*`), and bare
+  values may start with `*` or contain `/` (`path:202609/*tags`).
+- **Boolean dialects** (the Patch query language on this page, the Agents tab filter,
+  and Artifacts ▸ Agent / `sase agent search`) use `NOT` (or `!`) and `OR` instead of
+  `-` and commas. Their bare values must start with a letter, digit, or `_` and contain
+  only letters, digits, `_`, `-`, `.`, and `*`, so quote anything else, as in
+  `name:"*_fix"` or `model:"*opus*"`.
+
+In the Patch query language documented on this page, all six property filters are
+exact-match fields, so a `*` in any of them is an anchored whole-value glob: `status:`
+globs the base status and `sibling:` compares the family name with any `__<N>` suffix
+removed.
 
 | Field kind                                                         | `*` semantics                                    | Example                                                                                   |
 | ------------------------------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |

@@ -226,7 +226,7 @@ keeps the current `limit:`, raising it only when the family would not fit:
 | Bead phase `sase-16n.7`             | `id:sase-16n.*`                                                                                    | `epic sase-16n`                        |
 | Bead epic `sase-16n`                | `id:sase-16n id:sase-16n.*`, epic fold expands                                                     | `epic sase-16n`                        |
 | Bead task or flag `sase-abc`        | `id:sase-abc`                                                                                      | `bead sase-abc`                        |
-| Agent hood member `sase-16n.7`      | `name:sase-16n.*` (OR `name:sase-16n` when the root exists)                                        | `sase-16n hood`                        |
+| Agent hood member `sase-16n.7`      | `name:sase-16n.*`, or `(name:sase-16n OR name:sase-16n.*)` when the root exists                    | `sase-16n hood`                        |
 | Lone agent `x`                      | `name:x`                                                                                           | `agent x`                              |
 | Agent family shell `x--y`           | `family:x`                                                                                         | `family x`                             |
 | File                                | `agent:<creating agent>`, else `id:<file>`                                                         | `files from <agent>`, else `file <id>` |
@@ -256,9 +256,10 @@ epic sase-16n · ^ restore · Ctrl+O back
 Extra lines appear only when they apply: `scope  <old> → <new>` (project display names,
 or `All projects`), `fetched  outside the loaded rows` after an Acquire, and
 `Agents tab filter hides it — showing Artifacts ▸ Agent`. The `was` line names the terms
-that hid the target, or `past limit:N` when only the limit did. The key names follow the
-live keymap, and the toast stays for about 8 seconds. Selecting, fold-expanding,
-switching scope, or fetching without a rewrite shows no toast.
+that hid the target (`hidden by your query` in a Boolean-dialect pane, or
+`hidden by the project scope`), or `past limit:N` when only the limit did. The key names
+follow the live keymap, and the toast stays for about 8 seconds. Selecting,
+fold-expanding, switching scope, or fetching without a rewrite shows no toast.
 
 While a rewrite is live, the pane's info header shows a reversible **lens chip** —
 `↩ sase-16n.7 · epic sase-16n` in the pane's accent color, followed by a dim
@@ -1415,8 +1416,9 @@ What counts as a target depends on the selected row:
 - A **family container** collects every pending gate across its members, plus the
   family's Patch (or, when the container has none, the Patch of its most recently
   started member). A gate reachable through both a gate shell row and its inbox
-  notification counts once, so a family waiting on a single tale plan runs `Enter`
-  directly (footer `review tale plan`).
+  notification counts once, so a family waiting on a single tale plan, with no Patch,
+  runs `Enter` directly (footer `review tale plan`); a family that also has a Patch
+  shows the `choose action` footer instead.
 - A **family member** or standalone agent targets gates it created and gate
   notifications matched to it. An agent stopped on a question, or a workflow step
   waiting for input, falls back to the answer flow when no gate notification matches.
@@ -1887,18 +1889,18 @@ reads and output paths so they can be opened with the normal file-hint flow.
 
 Artifact panel controls:
 
-| Key         | Action                                                                  |
-| ----------- | ----------------------------------------------------------------------- |
-| selector    | Open the artifact with that one-key selector (`1`-`0`, then letters)    |
-| `j` / `k`   | Move through artifact rows                                              |
-| `m`         | Mark / unmark the highlighted artifact and advance to the next row      |
-| `%`         | Open the file-kind **Copy as…** palette                                 |
-| `y`         | Copy Markdown contents (an accelerator for the palette's `c` row)       |
-| `Y`         | Copy the preferred anchored stored/source path                          |
-| `Enter`     | Open marked artifacts in list order, or the highlighted row if unmarked |
-| `A`         | Open all artifacts in list order, ignoring marks                        |
-| `z`         | Open marked artifacts (or the highlighted row) in a zoomed tmux pane    |
-| `q` / `Esc` | Close the panel                                                         |
+| Key         | Action                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| selector    | Open the artifact with that one-key selector (`1`-`0`, then letters)                                                     |
+| `j` / `k`   | Move through artifact rows                                                                                               |
+| `m`         | Mark / unmark the highlighted artifact and advance to the next row                                                       |
+| `%`         | Open the file-kind **Copy as…** palette                                                                                  |
+| `y`         | Copy Markdown contents (an accelerator for the palette's `c` row)                                                        |
+| `Y`         | Copy the preferred anchored stored/source path                                                                           |
+| `Enter`     | Open marked artifacts in list order, or the highlighted row if unmarked                                                  |
+| `A`         | Open all artifacts in list order, ignoring marks                                                                         |
+| `z`         | Open marked artifacts (or the highlighted row) in a zoomed tmux pane; outside tmux it opens them normally with a warning |
+| `q` / `Esc` | Close the panel                                                                                                          |
 
 The modal-local file palette offers `@` prompt-form references, `l` Markdown links, `c`
 Markdown contents, `p` stored paths, `P` source paths, `J` metadata JSON, and `s`
@@ -2154,11 +2156,11 @@ itself lives in the jump panel): it maps what each agent in the tribe was asked 
 Its number chips are the same digits as the roster jump targets. Identical prompt bodies
 are listed once with a `×N` badge and a shared-by list. `za`/`zA` on a prompt entry
 opens just that prompt. It is the level-1 exception: unlike most sections, it shows
-prompt headlines at Glance instead of only a heading. Entries also carry dim xprompt
-chips and, for multi-line prompts, a line count. When the tribe's prompts target more
-than one known project, each entry ends with that project's accent-colored `+<project>`
-chip (or its `#<workflow>:<name>` spelling when the name is not tag-shaped); unknown
-targets and Patch refs get no chip.
+prompt headlines at Glance instead of only a heading. Entries also carry green xprompt
+chips and, for multi-line prompts, a dim line count, separated by dim `·` dividers. When
+the tribe's prompts target more than one known project, each entry ends with that
+project's accent-colored `+<project>` chip (or its `#<workflow>:<name>` spelling when
+the name is not tag-shaped); unknown targets and Patch refs get no chip.
 
 `CLAN SUMMARIES` sits before `PROMPTS` in the metadata body (the `TRIBE MEMBERS` roster
 itself lives in the jump panel): it maps the curated summary of every clan in the tribe,
@@ -5186,15 +5188,18 @@ Enable it with `sase flag enable agent_decks` or from the
 column picks its layout when it is built. With the flag on, the metadata panel and its
 single File or LLM Calls panel are replaced by one deck panel between the sticky header
 panel and the jump panel. The deck panel's border title names the deck (`◆ MAIN`) and
-lists its cards — `Context` (details and prompt), `Reply` (`Output` for a workflow step,
-led by any `TRACEBACK`), and `Summary` for clan and tribe documents — with the active
-card highlighted and an `N/M` position. The border subtitle is a `main · files · tools`
-switcher that shows each deck's card, file, or LLM-call count when known and dims decks
-with no content. In this early phase the panel always shows the Main deck's default card
-(`Context`, or `Summary` for a clan or tribe); keys for switching decks and cards are
-not wired yet. While the flag is on, the `p` view picker (it warns
-`Agent decks replace the view picker`), `Z` zoom, and `,/` metadata search are
-unavailable on the Agents tab, and the Agents header omits its `view:` element.
+lists its cards — `Context` (details and prompt), `Reply` (`Output` for a workflow step;
+either card is led by any `TRACEBACK`), and `Summary` for clan and tribe documents —
+with the active card highlighted and, when the deck has more than one card, an `N/M`
+position. The border subtitle is a `main · files · tools` switcher that shows each
+deck's card, file, or LLM-call count when known and dims decks with no content. In this
+early phase the panel always shows the Main deck's default card (`Context`, or `Summary`
+for a clan or tribe); keys for switching decks and cards are not wired yet. While the
+flag is on, the `p` view picker, `Z` zoom, and `,/` metadata search are disabled on the
+Agents tab (the keys do nothing), and the Agents header omits its `view:` element. The
+Files and Tools decks correspond to the File and LLM Calls panels; the metadata, sticky
+header, and jump panels they sit beside are described in
+[Agents Tab Metadata Panel](#agents-tab-metadata-panel).
 
 ## Agents Tab Metadata Panel
 
@@ -5449,8 +5454,9 @@ pinned attempt view resets the cursor.
   when the family has not published variables. These values are stored in
   `agent_meta.json`, so they are visible metadata rather than secret storage.
 - **TRACEBACK**: When an agent or workflow step recorded an error traceback, it renders
-  under its own `TRACEBACK` heading after the prompt, directly above `AGENT REPLY` (or
-  `STEP OUTPUT`), and is a `Ctrl+J`/`Ctrl+K` stop.
+  under its own `TRACEBACK` heading after the prompt, directly above the reply heading
+  (`AGENT REPLY` while running, `AGENT CHAT` once done or failed, or `STEP OUTPUT` for a
+  workflow step), and is a `Ctrl+J`/`Ctrl+K` stop.
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from
   `live_reply.md` during execution and read from the artifacts directory after
   completion. When per-turn reply timestamps are available (recorded in
@@ -7833,19 +7839,19 @@ an `[npm]` or `[script]` badge and carry the same install verb as plugins: `i` i
 the highlighted CLI (or every install-marked row), and `Space` / `I` marks it for a bulk
 install. On any markable row — an installable plugin or CLI, or an updatable CLI — `*`
 marks every visible row in that section with the same action, or unmarks them when all
-are already marked. Marked rows show `[✓]`, and `Esc` clears every mark (including
-filter-hidden ones) before it closes the Admin Center. A filter that matches nothing in
-the current scope names the scopes holding matches, with `[` / `]` to switch. Every
-install opens a confirm preview first — the exact command, plus for a script-installed
-agent CLI the script URL, size, and full SHA-256, target directory, and PATH status —
-then runs the previewed plan sequentially in one tracked proc, CLIs before plugins when
-a marked set mixes both. CLIs SASE cannot install toast their manual instructions
-instead. Providers that opt out of independent CLI management, including the bundled
-internal Fakey provider, are omitted from the Agent CLIs section. The plain substring
-filter (`/`) searches every row's own fields — name, owner/repo, description, and topics
-for plugins; name, display name, binary, install method, route, package, and
-`not installed` for agent CLIs; package name for SASE rows — across all sections at
-once.
+are already marked. Marked rows show `[✓]`. `Esc` first clears every mark (including
+filter-hidden ones); with nothing marked, `Esc` closes the Admin Center. A filter that
+matches nothing in the current scope names the scopes holding matches, with `[` / `]` to
+switch. Every install opens a confirm preview first — the exact command, plus for an
+agent CLI its target directory and PATH status and, for a script install, the script
+URL, size, and full SHA-256 — then runs the previewed plan sequentially in one tracked
+proc, CLIs before plugins when a marked set mixes both. CLIs SASE cannot install toast
+their manual instructions instead. Providers that opt out of independent CLI management,
+including the bundled internal Fakey provider, are omitted from the Agent CLIs section.
+The plain substring filter (`/`) searches every row's own fields — name, owner/repo,
+description, and topics for plugins; name, display name, binary, install method, route,
+package, and `not installed` for agent CLIs; package name for SASE rows — across all
+sections at once.
 
 Every sase-managed agent-CLI update run from `,U`, `,E`, `A`, or `sase agent-cli update`
 — and every install run from the Updates tab — is appended to

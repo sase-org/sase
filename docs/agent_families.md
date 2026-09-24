@@ -54,8 +54,9 @@ See [XPrompt template directives](xprompt.md#directives) for `{@<id>}` and `{@<i
 
 The declaring member can attach a short description to its clan generation. sase's TUI
 displays this description near the top of the clan's `CLAN` panel; it is metadata and is
-not sent to the member as work instructions. When the clan belongs to a tribe, the tribe
-panel's `CLAN SUMMARIES` section also indexes this description (see
+not sent to the member as work instructions. When the clan belongs to a tribe, the
+tribe's `TRIBE` document (shown when the whole tribe panel is focused) also indexes this
+description in its `CLAN SUMMARIES` section (see
 [Tribe Side Panels](ace.md#tribe-side-panels)). Use a literal for stable context, the
 double-colon shorthand for a larger text block, or an executable when the description
 depends on state available as the runner starts. A literal keeps the work prompt
@@ -565,11 +566,12 @@ carry.
 Press `N` in sase's TUI to set or clear the focused agent's tribe (or every marked
 agent). On a clan row or any clan member, the modal targets `clan <name>` and sets the
 whole clan generation's recorded tribe (see
-[Launch-time clan summaries](#launch-time-clan-summaries)). For the declaring clan
-member, sase's TUI also rewrites the stored `%clan(<clan>, tribe=<tribe>)` and its
-`clan_tribe` metadata. For a joiner, sase's TUI updates only the metadata and never
-invents a second `%clan` declaration. The CLI manages the per-agent assignment store for
-any named agent:
+[Launch-time clan summaries](#launch-time-clan-summaries)). When the focused or marked
+agent is the declaring clan member itself, sase's TUI also rewrites its stored
+`%clan(<clan>, tribe=<tribe>)` and its `clan_tribe` metadata. For a joiner, sase's TUI
+updates only the metadata and never invents a second `%clan` declaration. Pressing `N`
+on the clan row itself writes only the clan record and leaves member prompts alone. The
+CLI manages the per-agent assignment store for any named agent:
 
 ```bash
 sase agent tribe set -n <agent> -t <tribe>
@@ -684,12 +686,12 @@ behavior and footer labels.
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four
 `zz` metadata detail levels are:
 
-| Level | Name      | Tribe summary content                                                                                                                                              |
-| ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1     | Glance    | Header, compact numbered top-level roster, attention previews, clan-summary and prompt headline indexes (up to 8 each), and headings/counts for non-empty sections |
-| 2     | Triage    | Bounded previews for every represented section                                                                                                                     |
-| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds                                                                                 |
-| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, and all-time runtime statistics and percentiles                                                      |
+| Level | Name      | Tribe summary content                                                                                                                                                                  |
+| ----- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Glance    | Header, compact numbered top-level roster (in the jump panel), attention previews, clan-summary and prompt headline indexes (up to 8 each), and headings/counts for non-empty sections |
+| 2     | Triage    | Bounded previews for every represented section                                                                                                                                         |
+| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds                                                                                                     |
+| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, and all-time runtime statistics and percentiles                                                                          |
 
 From levels 1-3, `zZ` opens every fold to level 4; at level 4, it closes every fold to
 level 1. `za` and `zA` adjust the section, or the `CLAN SUMMARIES`/`PROMPTS` entry, at

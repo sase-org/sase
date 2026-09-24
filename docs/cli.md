@@ -442,14 +442,14 @@ unless `--force` is passed. Project arguments also accept the
 `sase project show sase`. `sase project list` has a `TAG` column and `sase project show`
 a `Tag:` line with each project's `+<name>` spelling (`-` or omitted when the name does
 not fit tag syntax), colored by project accent on a color terminal; their `--json`
-output adds `tag`, `workflow_type`, and `accent` (`null` for disabled projects). Legacy
-active/inactive values and the deprecated lifecycle command aliases remain
-read-compatible. sase's TUI **Projects** tab (in the SASE Admin Center, opened with `#`)
-provides the interactive counterpart, including marking multiple projects, editing a
-ProjectSpec in `$EDITOR`, and deleting obsolete SASE project directories after
-confirmation. There is no CLI delete subcommand; full project-directory deletion is only
-available from sase's TUI Projects tab and removes state under `~/.sase/projects/`, not
-workspace checkouts.
+output adds `tag` (`null` when the name does not fit tag syntax), `workflow_type`, and
+`accent` (`null` for disabled projects). Legacy active/inactive values and the
+deprecated lifecycle command aliases remain read-compatible. sase's TUI **Projects** tab
+(in the SASE Admin Center, opened with `#`) provides the interactive counterpart,
+including marking multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting
+obsolete SASE project directories after confirmation. There is no CLI delete subcommand;
+full project-directory deletion is only available from sase's TUI Projects tab and
+removes state under `~/.sase/projects/`, not workspace checkouts.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`,
 `remove PROJECT ALIAS`, and `clear PROJECT` manage ProjectSpec aliases. sase's TUI

@@ -669,12 +669,14 @@ still validates tags.
 
 CLI views follow the same display rules: `sase agent show`, `sase prompt list`,
 `sase prompt search`, and `sase prompt show -f markdown` load the project catalog and
-show known-project refs as `+<project>` tags, accent-colored on a color terminal, while
-`sase prompt show` raw and JSON output keep the exact stored text. `sase xprompt show`
-accent-colors tags in its highlighted body, and `sase project list` and
-`sase project show` print each project's tag. The
-[SASE Pager](pager.md#syntax-highlighting) colors resolved tags in Markdown prose the
-same way.
+show known-project refs as `+<project>` tags. The first three accent-color the tags on a
+color terminal; `sase prompt show -f markdown` writes them as plain text. Raw and JSON
+output (`sase prompt show`, `sase prompt list --json`, and `sase prompt search -f json`)
+keeps the exact stored text. `sase xprompt show` accent-colors tags in its highlighted
+body, and `sase project list` and `sase project show` print each project's tag. The
+[SASE Pager](pager.md#syntax-highlighting) colors resolved tags in Markdown prose with
+the same accent styling when the project catalog is already loaded (in practice, inside
+sase's TUI).
 
 ### Artifact References
 

@@ -4,14 +4,14 @@ SASE normally orchestrates an existing coding-agent CLI; the exception is the bu
 `fakey` testing provider. You need **at least one** supported real provider CLI
 installed **and authenticated** for production work. This page collects the install
 command, the authentication command, and a link to each vendor's canonical documentation
-for every provider SASE currently supports. Claude Code, Codex CLI, Qwen Code, and Grok
-Build install via `npm` (so they need `node` and `npm` on your `PATH`); OpenCode, the
-Antigravity CLI, and Muse Code document their own install methods, shown in their
-sections below. SASE can install most providers for you with
-[`sase agent-cli install`](#inventory-and-updates): every npm-packaged CLI (Claude Code,
-Codex CLI, OpenCode, Qwen Code, Grok Build) installs via `npm install -g <package>`, and
-Muse Code installs from its provider-declared install script. The Antigravity CLI is the
-one built-in provider you install yourself.
+for every provider SASE currently supports. Claude Code, Codex CLI, OpenCode, Qwen Code,
+and Grok Build are npm packages (so installing them needs `node` and `npm` on your
+`PATH`; OpenCode's section also links its vendor installer), while the Antigravity CLI
+and Muse Code use their own install methods, shown in their sections below. SASE can
+install most providers for you with [`sase agent-cli install`](#inventory-and-updates):
+every npm-packaged CLI installs via `npm install -g <package>`, and Muse Code installs
+from its provider-declared install script. The Antigravity CLI is the one built-in
+provider you install yourself.
 
 `sase doctor` — specifically `sase doctor -C llm.auth -v` — is the authoritative
 readiness check. It prints the same per-provider install and auth hints documented here,
@@ -165,13 +165,13 @@ never cost a real model turn on a refresh tick.
 
 The probe runs on the normal background cadence
 (`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while Muse is
-in active use, never faster than Muse's 180-second polling floor), costs about three
-seconds of wall clock per refresh, and follows the same eligibility rules as every other
-provider: Muse must be resolvable and either referenced by a model alias or explicitly
-enabled. The user-facing switch is `llm_provider.usage_metrics.providers.muse.enabled`.
-Inspect the result with `sase usage list -p muse`. A host that has not yet reported any
-usage — for example a logged-out one — is shown as no observation rather than as `0%`
-used.
+[in active use](configuration.md#llm_providerusage_metrics), never faster than Muse's
+180-second polling floor), costs about three seconds of wall clock per refresh, and
+follows the same eligibility rules as every other provider: Muse must be resolvable and
+either referenced by a model alias or explicitly enabled. The user-facing switch is
+`llm_provider.usage_metrics.providers.muse.enabled`. Inspect the result with
+`sase usage list -p muse`. A host that has not yet reported any usage — for example a
+logged-out one — is shown as no observation rather than as `0%` used.
 
 Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-code/>
 
@@ -290,12 +290,12 @@ temp dir rather than `~/.gemini/…`, and auto-update is disabled for the probe 
 
 The probe runs on the normal background cadence
 (`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while agy is
-in active use, never faster than its 120-second polling floor), costs about three to
-five seconds of wall clock per refresh, and follows the same eligibility rules as every
-other provider: agy must be resolvable and either referenced by a model alias or
-explicitly enabled. The Gemini buckets are `model_family`-scoped to `gemini` and the
-Claude/GPT buckets to `3p`. The user-facing switch is
-`llm_provider.usage_metrics.providers.agy.enabled`. Inspect the result with
+[in active use](configuration.md#llm_providerusage_metrics), never faster than its
+120-second polling floor), costs about three to five seconds of wall clock per refresh,
+and follows the same eligibility rules as every other provider: agy must be resolvable
+and either referenced by a model alias or explicitly enabled. The Gemini buckets are
+`model_family`-scoped to `gemini` and the Claude/GPT buckets to `3p`. The user-facing
+switch is `llm_provider.usage_metrics.providers.agy.enabled`. Inspect the result with
 `sase usage list -p agy`.
 
 Canonical docs: <https://antigravity.google/docs/cli-install>

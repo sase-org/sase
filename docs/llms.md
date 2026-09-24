@@ -2434,11 +2434,12 @@ sase usage refresh -p grok --json
 sase usage list -p grok --json
 ```
 
-Configuration controls the idle and hot refresh cadences (each at least 60 seconds;
-automatic refreshes never run faster than a provider's polling floor) and
-warning/critical thresholds as percentages used; UI copy converts those to percentage
-left. See [`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and
-the [`sase usage` flags](configuration.md#sase-usage).
+Configuration controls the idle and hot refresh cadences (each at least 60 seconds, with
+the hot cadence capped at the idle one; automatic refreshes never run faster than a
+provider's polling floor) and warning/critical thresholds as percentages used; UI copy
+converts those to percentage left. See
+[`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and the
+[`sase usage` flags](configuration.md#sase-usage).
 
 ## Usage-Limit Auto-Disable
 

@@ -295,10 +295,11 @@ write goes through one of these mechanisms instead:
   launches, task launches, and background bead writers (claim acquisition, periodic
   reconciliation, external issue mirroring) all acquire a lease — or reuse an already
   claimed workspace when its store is a separate workspace-local sidecar — rather than
-  resolving a canonical primary store for writing. Checkout preparation retries a
-  transient `git fetch` transport failure (connection reset, timeout, DNS) up to three
-  attempts and re-checks a `Permission denied (publickey)` refusal once after about 10
-  seconds before failing the lease; see [Service host](init.md#service-host).
+  resolving a canonical primary store for writing. Checkout preparation makes up to
+  three `git fetch` attempts in total: it retries transient transport failures
+  (connection reset, timeout, DNS) and re-checks an authentication refusal such as
+  `Permission denied (publickey)` once after about 10 seconds, before failing the lease;
+  see [Service host](init.md#service-host).
 - **Reset-and-replay conflict recovery** (`sase.workspace_provider.reset_replay`)
   recovers a stale rebase, merge conflict, or non-fast-forward publication race by
   hard-resetting only a live, leased, machine-owned checkout to its verified upstream
