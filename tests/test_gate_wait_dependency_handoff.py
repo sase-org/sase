@@ -44,7 +44,7 @@ def test_gate_handoff_resolves_after_successful_successor(
         [],
         [_identity_dep(root_dir, name="gate-lane")],
     ).resolved
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     assert family is not None
     assert family.is_resolved
     assert family.is_done
@@ -73,7 +73,7 @@ def test_gate_handoff_waits_for_missing_successor(tmp_path: Path) -> None:
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     assert family is not None
     assert not family.is_resolved
     assert not family.is_failed
@@ -96,7 +96,7 @@ def test_gate_handoff_reports_failed_successor_not_gate(
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     assert family is not None
     assert not family.is_resolved
     assert family.is_failed
@@ -186,7 +186,7 @@ def test_start_failed_gate_superseded_by_retry_resolves_family(
     assert gate_candidate.shell_member_kind == "gate"
     assert gate_candidate.outcome == "failed"
 
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     assert family is not None
     assert family.is_resolved
     assert family.is_done

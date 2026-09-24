@@ -42,7 +42,6 @@ from sase.ops.commands._agent_revert import (
     serialize_bulk_revert_preview,
 )
 from sase.stats._view_builders import build_runtime_view
-from sase.stats.query import normalize_runtime_group_by
 
 __all__: list[str] = []
 
@@ -318,9 +317,6 @@ def test_requester_identity_prefers_session_context() -> None:
 
 
 def test_stats_group_by_normalizes_legacy_family(monkeypatch: Any) -> None:
-    assert normalize_runtime_group_by("family") == "session"
-    assert normalize_runtime_group_by("session") == "session"
-
     from sase.stats import query as stats_query
 
     requests: list[dict[str, Any]] = []
@@ -330,13 +326,17 @@ def test_stats_group_by_normalizes_legacy_family(monkeypatch: Any) -> None:
         return {}
 
     monkeypatch.setattr(stats_query, "require_rust_binding", lambda _name: binding)
-    stats_query.query_run_stats(
-        start_ts=0,
-        end_ts=100,
-        runtime_group_by="family",  # type: ignore[arg-type]
-        index_path=Path("/tmp/index"),
-    )
-    assert requests[0]["runtime_group_by"] == "session"
+    for group_by in ("family", "session"):
+        stats_query.query_run_stats(
+            start_ts=0,
+            end_ts=100,
+            runtime_group_by=group_by,  # type: ignore[arg-type]
+            index_path=Path("/tmp/index"),
+        )
+    assert [request["runtime_group_by"] for request in requests] == [
+        "session",
+        "session",
+    ]
 
 
 def test_stats_view_normalizes_core_family_group() -> None:

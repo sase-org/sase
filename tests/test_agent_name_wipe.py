@@ -584,11 +584,20 @@ def test_batch_wipe_shares_catalog_and_registry_rebuild(tmp_path: Path) -> None:
             id="clan",
         ),
         pytest.param(
-            "family",
+            "session",
             "review",
             ("review--0", "review--code"),
             {"agent_session": "review", "agent_session_parallel": False},
-            id="family",
+            id="session",
+        ),
+        # legacy agent-family spelling: pre-rename meta and bundles still
+        # resolve to a session container.
+        pytest.param(
+            "session",
+            "review",
+            ("review--0", "review--code"),
+            {"agent_family": "review", "agent_family_parallel": False},
+            id="legacy-family-keys",
         ),
     ],
 )

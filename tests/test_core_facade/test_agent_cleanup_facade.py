@@ -16,6 +16,7 @@ from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     KILL_KIND_RUNNING,
     agent_cleanup_wire_to_json_dict,
+    cleanup_targets_for_core,
 )
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
@@ -28,6 +29,7 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_clan_sequential_family_dismiss,
     _scenario_explicit_clan_sequential_family_dismiss,
     _scenario_marked_set,
+    _scenario_parallel_family_root,
 )
 
 
@@ -86,10 +88,47 @@ def test_plan_agent_cleanup_uses_rust_binding_when_available(
     ]
     assert captured == [
         (
-            agent_cleanup_wire_to_json_dict(targets),
+            cleanup_targets_for_core(targets),
             agent_cleanup_wire_to_json_dict(request),
         )
     ]
+
+
+def test_plan_agent_cleanup_sends_legacy_parallel_key_to_rust_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents, request = _scenario_parallel_family_root()
+    targets = agents_to_cleanup_targets(agents)
+    assert any(target.agent_session_parallel for target in targets)
+    captured: list[list[dict[str, Any]]] = []
+
+    def fake_plan(
+        target_payload: list[dict[str, Any]], request_payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        captured.append(target_payload)
+        plan = _plan_agent_cleanup_python(target_payload, request_payload)
+        return agent_cleanup_wire_to_json_dict(plan)
+
+    fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
+    fake.agent_cleanup_wire_schema_version = (  # type: ignore[attr-defined]
+        lambda: AGENT_CLEANUP_WIRE_SCHEMA_VERSION
+    )
+    fake.plan_agent_cleanup = fake_plan  # type: ignore[attr-defined]
+    patch_rust_extension(monkeypatch, fake)
+
+    plan_agent_cleanup(targets, request)
+
+    [target_payload] = captured
+    assert all("agent_session_parallel" not in item for item in target_payload)
+    assert [item["agent_family_parallel"] for item in target_payload] == [
+        target.agent_session_parallel for target in targets
+    ]
+    assert any(item["agent_family_parallel"] is True for item in target_payload)
+    # ACE callers keep the new spelling.
+    assert all(
+        "agent_family_parallel" not in item
+        for item in agent_cleanup_wire_to_json_dict(targets)
+    )
 
 
 def test_plan_agent_cleanup_falls_back_when_binding_is_missing(

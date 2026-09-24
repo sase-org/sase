@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from sase.agent import _family_attach_types as _types
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
 
 def agent_family_snapshot(project_name: str) -> Any:
@@ -170,7 +170,7 @@ def known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
             continue
         if meta.name:
             local_name = current_owner_agent_name_key(meta.name)
-            prefix = f"{parent_key}{AGENT_FAMILY_SEPARATOR}"
+            prefix = f"{parent_key}{AGENT_SESSION_SEPARATOR}"
             if local_name.startswith(prefix):
                 suffixes.append(local_name[len(parent_key) :])
     return suffixes
@@ -184,7 +184,7 @@ def known_family_suffixes_from_siblings(
 
     suffixes: list[str] = []
     parent_key = current_owner_agent_name_key(parent_base)
-    prefix = f"{parent_key}{AGENT_FAMILY_SEPARATOR}"
+    prefix = f"{parent_key}{AGENT_SESSION_SEPARATOR}"
     for sibling in siblings:
         if (
             sibling.family_base
@@ -346,7 +346,7 @@ def _candidate_matches_parent(candidate: dict[str, Any], parent_name: str) -> bo
             return True
     name = candidate.get("name")
     return isinstance(name, str) and name.startswith(
-        f"{parent_name}{AGENT_FAMILY_SEPARATOR}"
+        f"{parent_name}{AGENT_SESSION_SEPARATOR}"
     )
 
 

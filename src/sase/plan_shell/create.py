@@ -14,7 +14,7 @@ from sase.gate_shell.transaction import GateShellCreation, create_gate_shell
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_base,
+    agent_session_base,
     agent_session_value,
 )
 
@@ -333,7 +333,7 @@ def _plan_lane(
     if isinstance(raw_family, str) and raw_family:
         return raw_family
     for candidate in (source_plan_agent_name, agent_name):
-        lane = agent_family_base(candidate) if candidate else None
+        lane = agent_session_base(candidate) if candidate else None
         if lane:
             return lane
         if candidate:

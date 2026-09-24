@@ -96,8 +96,8 @@ class DismissedProjectionSyncReport:
     changed: bool = False
     healed: bool = False
     quarantined_path: Path | None = None
-    dismissal_family_rows_backfilled: int = 0
-    dismissal_family_rows_skipped_live_or_unknown: int = 0
+    dismissal_agent_session_rows_backfilled: int = 0
+    dismissal_agent_session_rows_skipped_live_or_unknown: int = 0
     terminalized_active_rows: int = 0
     hidden_terminal_rows_retained: int = 0
     hidden_terminal_rows_pruned: int = 0
@@ -213,7 +213,7 @@ def _sync_projection(
             if _is_corruption_error(error):
                 raise _CorruptArtifactIndexError from error
             log.warning(
-                "agent artifact index dismissed-family reconciliation failed",
+                "agent artifact index dismissed agent-session reconciliation failed",
                 exc_info=True,
             )
             return DismissedProjectionSyncReport(synced=False)
@@ -226,10 +226,10 @@ def _sync_projection(
     return DismissedProjectionSyncReport(
         synced=True,
         changed=True,
-        dismissal_family_rows_backfilled=(
+        dismissal_agent_session_rows_backfilled=(
             0 if reconcile is None else reconcile.rows_backfilled
         ),
-        dismissal_family_rows_skipped_live_or_unknown=(
+        dismissal_agent_session_rows_skipped_live_or_unknown=(
             0 if reconcile is None else reconcile.rows_skipped_live_or_unknown
         ),
     )
@@ -263,9 +263,11 @@ def _heal_corrupt_index_and_resync(
         changed=report.changed,
         healed=True,
         quarantined_path=quarantined,
-        dismissal_family_rows_backfilled=(report.dismissal_family_rows_backfilled),
-        dismissal_family_rows_skipped_live_or_unknown=(
-            report.dismissal_family_rows_skipped_live_or_unknown
+        dismissal_agent_session_rows_backfilled=(
+            report.dismissal_agent_session_rows_backfilled
+        ),
+        dismissal_agent_session_rows_skipped_live_or_unknown=(
+            report.dismissal_agent_session_rows_skipped_live_or_unknown
         ),
         terminalized_active_rows=report.terminalized_active_rows,
         hidden_terminal_rows_retained=report.hidden_terminal_rows_retained,
@@ -301,9 +303,11 @@ def _run_active_tier_maintenance(
         changed=True,
         healed=report.healed,
         quarantined_path=report.quarantined_path,
-        dismissal_family_rows_backfilled=(report.dismissal_family_rows_backfilled),
-        dismissal_family_rows_skipped_live_or_unknown=(
-            report.dismissal_family_rows_skipped_live_or_unknown
+        dismissal_agent_session_rows_backfilled=(
+            report.dismissal_agent_session_rows_backfilled
+        ),
+        dismissal_agent_session_rows_skipped_live_or_unknown=(
+            report.dismissal_agent_session_rows_skipped_live_or_unknown
         ),
         terminalized_active_rows=terminalized,
         hidden_terminal_rows_retained=retained,

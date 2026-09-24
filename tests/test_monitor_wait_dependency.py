@@ -27,7 +27,7 @@ def test_successful_monitor_resolves_family_and_clan(
     )
 
     assert index.is_resolved("monitor-lane")
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     clan = index.clan_candidate("monitor-clan")
     assert family is not None and family.is_resolved and family.is_done
     assert clan is not None and clan.is_resolved and clan.is_done
@@ -50,7 +50,7 @@ def test_unsuccessful_monitor_blocks_and_is_reported_as_terminal(
     )
 
     assert not index.is_resolved("monitor-lane")
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     clan = index.clan_candidate("monitor-clan")
     assert family is not None and family.is_failed
     assert clan is not None and clan.is_failed
@@ -131,7 +131,7 @@ def test_settled_monitor_without_terminal_outcome_waits_for_handoff_successor(
     assert not monitor_candidate.is_resolved
     assert not index.is_resolved(monitor_candidate.name)
 
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     assert family is not None
     assert not family.is_resolved
     assert family.is_done

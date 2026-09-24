@@ -380,7 +380,7 @@ def parse_proc_duration_seconds(raw: str) -> int:
 
 
 def validate_standalone_proc_shell_name(name: str | None) -> None:
-    """Reject family-qualified or malformed stand-alone proc names."""
+    """Reject agent-session-qualified or malformed stand-alone proc names."""
 
     require_rust_binding("validate_standalone_proc_shell_name")(name)
 

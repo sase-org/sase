@@ -7,7 +7,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_base,
+    agent_session_base,
     canonical_plan_chain_suffix,
 )
 
@@ -121,7 +121,7 @@ def agent_family_name(agent: Agent) -> str | None:
     if agent.agent_session:
         return agent.agent_session
     if agent.agent_name:
-        base = agent_family_base(
+        base = agent_session_base(
             agent.agent_name,
             include_legacy_dash=canonical_plan_chain_suffix(agent.role_suffix)
             is not None,

@@ -6,7 +6,7 @@ import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sase.plan_chain import allocate_agent_family_child_suffix
+from sase.plan_chain import allocate_agent_session_child_suffix
 
 SuffixAllocator = Callable[[str, str], str]
 
@@ -48,7 +48,7 @@ def allocate_shell_suffix(
     """Return the next free suffix for a sequential shell kind in *lane*."""
     if not has_existing_shell:
         return spec.first_suffix
-    allocate = allocator or allocate_agent_family_child_suffix
+    allocate = allocator or allocate_agent_session_child_suffix
     return allocate(lane, spec.sequence_template)
 
 

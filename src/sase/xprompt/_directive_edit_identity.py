@@ -151,11 +151,11 @@ def rewrite_prompt_family_member_name(
     syntax is intentionally dropped: the family resolver restores inherited
     clan and tribe context from the authoritative parent.
     """
-    from sase.plan_chain import agent_family_suffix_token, canonical_plan_chain_suffix
+    from sase.plan_chain import agent_session_suffix_token, canonical_plan_chain_suffix
     from sase.xprompt.directives import extract_prompt_directives
 
     canonical_suffix = canonical_plan_chain_suffix(role_suffix)
-    suffix = agent_family_suffix_token(canonical_suffix or role_suffix)
+    suffix = agent_session_suffix_token(canonical_suffix or role_suffix)
     if not family_name or not suffix:
         raise ValueError("Cannot rewrite a family member without a family and suffix.")
 

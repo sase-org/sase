@@ -1,4 +1,4 @@
-"""Thin Python facade for clan/family wall-clock runtime aggregation."""
+"""Thin Python facade for clan/agent-session wall-clock runtime aggregation."""
 
 from __future__ import annotations
 

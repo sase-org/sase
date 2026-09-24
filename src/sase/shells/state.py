@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from sase.plan_chain import agent_family_role_for_suffix
+from sase.plan_chain import agent_session_role_for_suffix
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +39,7 @@ def is_shell_member_role(
     """Return whether a row is a member for *config*'s shell role."""
     if isinstance(agent_session_role, str) and agent_session_role.strip():
         return agent_session_role.strip() == config.family_role
-    return agent_family_role_for_suffix(role_suffix) == config.family_role
+    return agent_session_role_for_suffix(role_suffix) == config.family_role
 
 
 def is_real_shell_member(

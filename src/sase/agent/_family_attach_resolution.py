@@ -10,7 +10,7 @@ from typing import Any
 from sase.agent import _family_attach_candidates as _candidates
 from sase.agent import _family_attach_directives as _directives
 from sase.agent import _family_attach_types as _types
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR, canonical_plan_chain_suffix
+from sase.plan_chain import AGENT_SESSION_SEPARATOR, canonical_plan_chain_suffix
 
 _AgentFamilySnapshot = Callable[[str], Any]
 _DismissedIdentityDicts = Callable[[], list[dict[str, str | None]]]
@@ -237,17 +237,17 @@ def _resolve_role_suffix(
         ),
     ]
     if suffix_arg == "@":
-        from sase.plan_chain import allocate_agent_family_child_suffix
+        from sase.plan_chain import allocate_agent_session_child_suffix
 
-        return allocate_agent_family_child_suffix(
+        return allocate_agent_session_child_suffix(
             parent_base,
-            f"{AGENT_FAMILY_SEPARATOR}@",
+            f"{AGENT_SESSION_SEPARATOR}@",
             extra_reserved_suffixes=tuple(known_suffixes),
         )
-    if suffix_arg.startswith(AGENT_FAMILY_SEPARATOR) and suffix_arg.endswith("@"):
-        from sase.plan_chain import allocate_agent_family_child_suffix
+    if suffix_arg.startswith(AGENT_SESSION_SEPARATOR) and suffix_arg.endswith("@"):
+        from sase.plan_chain import allocate_agent_session_child_suffix
 
-        return allocate_agent_family_child_suffix(
+        return allocate_agent_session_child_suffix(
             parent_base,
             suffix_arg,
             extra_reserved_suffixes=tuple(known_suffixes),
@@ -275,25 +275,25 @@ def _ensure_generated_family_name(
 
     if generated_agent_name_is_valid(agent_name):
         return
-    role = role_suffix.removeprefix(AGENT_FAMILY_SEPARATOR)
+    role = role_suffix.removeprefix(AGENT_SESSION_SEPARATOR)
     raise _types.FamilyAttachError(
         f"Cannot attach family member '{role}' to '{directive.parent}': the "
         f"generated name '{agent_name}' would place its "
-        f"'{AGENT_FAMILY_SEPARATOR}{role}' suffix outside the final name "
+        f"'{AGENT_SESSION_SEPARATOR}{role}' suffix outside the final name "
         "segment. Relaunch the parent under a name without "
-        f"'{AGENT_FAMILY_SEPARATOR}' and attach the member to it."
+        f"'{AGENT_SESSION_SEPARATOR}' and attach the member to it."
     )
 
 
 def _family_role(role_suffix: str, suffix_arg: str) -> str:
-    from sase.plan_chain import agent_family_role_for_suffix
+    from sase.plan_chain import agent_session_role_for_suffix
 
     if suffix_arg == "@":
         return "agent"
-    role = agent_family_role_for_suffix(role_suffix)
+    role = agent_session_role_for_suffix(role_suffix)
     if role is not None:
         return role
-    token = role_suffix.removeprefix(AGENT_FAMILY_SEPARATOR)
+    token = role_suffix.removeprefix(AGENT_SESSION_SEPARATOR)
     if token.isdigit():
         return "agent"
     return token

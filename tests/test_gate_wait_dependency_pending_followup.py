@@ -49,7 +49,7 @@ def test_gate_next_action_without_followup_disposition_blocks_handoff_window(
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     assert family is not None
     assert not family.is_resolved
     assert not family.is_failed

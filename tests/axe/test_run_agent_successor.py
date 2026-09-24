@@ -71,7 +71,7 @@ def test_allocated_suffix_forwards_template_and_reservations(tmp_path: Path) -> 
     reserved = ("--plan", "--1")
 
     with patch(
-        "sase.axe.run_agent_successor.allocate_agent_family_child_suffix",
+        "sase.axe.run_agent_successor.allocate_agent_session_child_suffix",
         return_value="--plan-0",
     ) as allocate:
         name = continue_as_successor(

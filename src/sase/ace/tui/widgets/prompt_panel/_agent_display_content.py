@@ -16,8 +16,8 @@ from sase.plan_chain import (
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_role_for_suffix,
-    agent_family_suffix_token,
+    agent_session_role_for_suffix,
+    agent_session_suffix_token,
     canonical_plan_chain_suffix,
     plan_chain_feedback_round,
 )
@@ -65,7 +65,7 @@ def get_phase_label(agent: Agent) -> str:
     their shell-kind labels.
     """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
-    role = agent_family_role_for_suffix(
+    role = agent_session_role_for_suffix(
         agent.role_suffix,
         agent_session_role=agent.agent_session_role,
     )
@@ -89,7 +89,7 @@ def get_phase_label(agent: Agent) -> str:
     )
     if feedback_round is not None:
         return _agent_role_label(f"plan round {feedback_round}")
-    return _agent_role_label(agent_family_suffix_token(agent.role_suffix))
+    return _agent_role_label(agent_session_suffix_token(agent.role_suffix))
 
 
 def _gate_role_label(agent: Agent) -> str:

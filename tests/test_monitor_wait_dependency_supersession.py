@@ -106,7 +106,7 @@ def test_start_failed_monitor_superseded_by_retry_resolves_family(
     assert mon_candidate.outcome == "failed"
 
     assert dependency_resolution_status(index, ["sase-zt.6.5.3"]).resolved
-    family = index.family_candidate("sase-zt.6.5.3")
+    family = index.agent_session_candidate("sase-zt.6.5.3")
     assert family is not None
     assert family.is_resolved
     assert family.is_done
@@ -178,7 +178,7 @@ def test_failed_monitor_not_superseded_by_newer_different_kind_shell_member(
     gate_candidate = index.artifacts_by_dir[str(gate_dir)]
     assert gate_candidate.shell_member_kind == "gate"
 
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     assert family is not None
     assert not family.is_resolved
     assert family.is_failed

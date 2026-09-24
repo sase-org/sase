@@ -34,7 +34,7 @@ def test_successful_gate_resolves_family_and_clan(
     )
 
     assert index.is_resolved("gate-lane")
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
     assert family is not None and family.is_resolved and family.is_done
     assert clan is not None and clan.is_resolved and clan.is_done
@@ -59,7 +59,7 @@ def test_unsuccessful_gate_blocks_and_is_reported_as_terminal(
     )
 
     assert not index.is_resolved("gate-lane")
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
     assert family is not None and family.is_failed
     assert clan is not None and clan.is_failed
@@ -167,7 +167,7 @@ def test_settled_gate_members_resolve_interleaved_family_and_clan(
         [],
         [_identity_dep(root_dir, name="gate-lane")],
     ).resolved
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
     assert family is not None and family.is_resolved and family.is_done
     assert clan is not None and clan.is_resolved and clan.is_done
@@ -216,7 +216,7 @@ def test_pending_gate_member_does_not_resolve_from_workflow_state_fallback(
     assert not gate_candidate.is_resolved
     assert not index.is_resolved(gate_candidate.name)
 
-    family = index.family_candidate("gate-lane")
+    family = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
     assert family is not None and not family.is_resolved and family.is_done
     assert clan is not None and not clan.is_resolved and not clan.is_failed

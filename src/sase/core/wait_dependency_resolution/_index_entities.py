@@ -43,7 +43,7 @@ def _is_superseded_terminal_shell_member(
     A lane is sequential and only ever has one active monitor/gate at a
     time, so a newer same-kind shell member in the same generation is by
     construction a retry that recovered from *candidate*'s terminal
-    failure. Excluding it here keeps a family wait from staying blocked
+    failure. Excluding it here keeps a session wait from staying blocked
     forever on a start-failed shell member the lane already recovered
     from, while a shell member that is still the newest of its kind (or
     superseded only by a different kind) keeps blocking as before.
@@ -62,7 +62,7 @@ def _is_superseded_terminal_shell_member(
 class WaitDependencyEntityQueries:
     named: dict[str, WaitCandidate]
     workflows: dict[str, list[ArtifactCandidate]]
-    families: dict[str, list[ArtifactCandidate]]
+    agent_sessions: dict[str, list[ArtifactCandidate]]
     clans: dict[str, dict[str, list[ArtifactCandidate]]]
     artifacts_by_dir: dict[str, ArtifactCandidate]
     _artifacts_by_dir_key_cache: dict[str, ArtifactCandidate] | None
@@ -93,28 +93,28 @@ class WaitDependencyEntityQueries:
             members=members,
         )
 
-    def _family_entity(
+    def _agent_session_entity(
         self,
         name: str,
         *,
         exclude_artifact_dir: str | Path | None = None,
     ) -> WaitEntity | None:
         extra_present_names = self._excluded_present_names(exclude_artifact_dir)
-        family_agents = self._aggregate_candidates(
-            self.families.get(name),
+        session_agents = self._aggregate_candidates(
+            self.agent_sessions.get(name),
             exclude_artifact_dir=exclude_artifact_dir,
             exclude_queued=False,
         )
-        if not family_agents:
+        if not session_agents:
             return None
 
         roots = [
-            candidate for candidate in family_agents if not candidate.parent_timestamp
+            candidate for candidate in session_agents if not candidate.parent_timestamp
         ]
         if roots:
             root = max(roots, key=lambda candidate: candidate.timestamp)
-            generation = tuple(self._family_generation(family_agents, root))
-            effective_generation, handoffs_present = self._family_handoff_state(
+            generation = tuple(self._agent_session_chain(session_agents, root))
+            effective_generation, handoffs_present = self._agent_session_handoff_state(
                 generation,
                 extra_present_names=extra_present_names,
             )
@@ -132,18 +132,18 @@ class WaitDependencyEntityQueries:
                 members=effective_generation,
             )
 
-        effective_family_agents, handoffs_present = self._family_handoff_state(
-            tuple(family_agents),
+        effective_session_agents, handoffs_present = self._agent_session_handoff_state(
+            tuple(session_agents),
             extra_present_names=extra_present_names,
         )
         return WaitEntity(
-            timestamp=max(candidate.timestamp for candidate in family_agents),
+            timestamp=max(candidate.timestamp for candidate in session_agents),
             is_resolved=(
                 handoffs_present
-                and all(candidate.is_resolved for candidate in effective_family_agents)
+                and all(candidate.is_resolved for candidate in effective_session_agents)
             ),
-            is_done=any(candidate.is_done for candidate in effective_family_agents),
-            members=effective_family_agents,
+            is_done=any(candidate.is_done for candidate in effective_session_agents),
+            members=effective_session_agents,
         )
 
     def _workflow_entity(
@@ -298,11 +298,11 @@ class WaitDependencyEntityQueries:
         return frozenset((excluded_name,)) if excluded_name is not None else frozenset()
 
     @staticmethod
-    def _family_generation(
+    def _agent_session_chain(
         candidates: list[ArtifactCandidate],
         root: ArtifactCandidate,
     ) -> list[ArtifactCandidate]:
-        """Return every descendant in the root's sequential family chain."""
+        """Return every descendant in the root's sequential agent-session chain."""
         generation = [root]
         timestamps = {root.timestamp}
         remaining = [candidate for candidate in candidates if candidate is not root]
@@ -322,7 +322,7 @@ class WaitDependencyEntityQueries:
         return generation
 
     @staticmethod
-    def _family_members_after_shell_handoffs(
+    def _agent_session_members_after_shell_handoffs(
         candidates: tuple[ArtifactCandidate, ...],
         *,
         extra_present_names: frozenset[str] = frozenset(),
@@ -357,14 +357,14 @@ class WaitDependencyEntityQueries:
         )
 
     @classmethod
-    def _family_handoff_state(
+    def _agent_session_handoff_state(
         cls,
         candidates: tuple[ArtifactCandidate, ...],
         *,
         extra_present_names: frozenset[str] = frozenset(),
     ) -> tuple[tuple[ArtifactCandidate, ...], bool]:
         return (
-            cls._family_members_after_shell_handoffs(
+            cls._agent_session_members_after_shell_handoffs(
                 candidates,
                 extra_present_names=extra_present_names,
             ),

@@ -20,9 +20,6 @@ from sase.core.agent_scan_wire_agent_session_shell import (
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.wire import known_field_kwargs, with_agent_session_keys
 from sase.plan_chain import (
-    AGENT_FAMILY_FIELD,
-    AGENT_FAMILY_ROLE_FIELD,
-    AGENT_FAMILY_SEPARATOR,
     AGENT_SESSION_KEY,
     AGENT_SESSION_PARALLEL_KEY,
     AGENT_SESSION_ROLE_KEY,
@@ -32,10 +29,6 @@ from sase.plan_chain import (
     LEGACY_AGENT_FAMILY_PARALLEL_KEY,
     LEGACY_AGENT_FAMILY_ROLE_KEY,
     LEGACY_AGENT_FAMILY_SHELL_KEY,
-    agent_family_base,
-    agent_family_phase_name,
-    agent_family_role_for_suffix,
-    agent_family_suffix_token,
     agent_session_base,
     agent_session_parallel_value,
     agent_session_phase_name,
@@ -44,7 +37,6 @@ from sase.plan_chain import (
     agent_session_shell_value,
     agent_session_suffix_token,
     agent_session_value,
-    is_agent_family_member,
     is_agent_session_member,
     set_agent_session_fields,
     strip_legacy_agent_family_keys,
@@ -64,13 +56,10 @@ def test_canonical_constants_match_wire_spellings() -> None:
     assert AGENT_SESSION_PARALLEL_KEY == "agent_session_parallel"
     assert AGENT_SESSION_SHELL_KEY == "agent_session_shell"
     assert AGENT_SESSION_SEPARATOR == "--"
-    assert LEGACY_AGENT_FAMILY_KEY == AGENT_FAMILY_FIELD == "agent_family"
-    assert (
-        LEGACY_AGENT_FAMILY_ROLE_KEY == AGENT_FAMILY_ROLE_FIELD == "agent_family_role"
-    )
+    assert LEGACY_AGENT_FAMILY_KEY == "agent_family"
+    assert LEGACY_AGENT_FAMILY_ROLE_KEY == "agent_family_role"
     assert LEGACY_AGENT_FAMILY_PARALLEL_KEY == "agent_family_parallel"
     assert LEGACY_AGENT_FAMILY_SHELL_KEY == "family_shell"
-    assert AGENT_FAMILY_SEPARATOR == AGENT_SESSION_SEPARATOR
 
 
 def test_accessors_read_new_keys() -> None:
@@ -262,13 +251,9 @@ def test_wire_bridge_keeps_new_spelling_authoritative() -> None:
     assert with_agent_session_keys(new) == new
 
 
-def test_renamed_helpers_match_deprecated_aliases() -> None:
-    assert agent_session_base("acme--plan") == agent_family_base("acme--plan") == "acme"
-    assert agent_session_phase_name("acme", "--plan") == agent_family_phase_name(
-        "acme", "--plan"
-    )
-    assert agent_session_suffix_token("--plan") == agent_family_suffix_token("--plan")
-    assert is_agent_session_member("acme--plan") == is_agent_family_member("acme--plan")
-    assert agent_session_role_for_suffix("--plan") == agent_family_role_for_suffix(
-        "--plan"
-    )
+def test_renamed_agent_session_helpers() -> None:
+    assert agent_session_base("acme--plan") == "acme"
+    assert agent_session_phase_name("acme", "--plan") == "acme--plan"
+    assert agent_session_suffix_token("--plan") == "plan"
+    assert is_agent_session_member("acme--plan") is True
+    assert agent_session_role_for_suffix("--plan") == "plan"

@@ -17,8 +17,8 @@ from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 from sase.core.process_identity import process_identity_token
 from sase.plan_chain import (
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
-    agent_family_base,
-    agent_family_role_for_suffix,
+    agent_session_base,
+    agent_session_role_for_suffix,
     agent_session_value,
     canonical_plan_chain_suffix,
     is_plan_chain_artifact_meta,
@@ -204,9 +204,9 @@ def create_followup_artifacts(
     family_name = (
         workflow_name
         or (str(base_session) if base_session else None)
-        or agent_family_base(agent_name_override)
+        or agent_session_base(agent_name_override)
     )
-    family_role = agent_session_role or agent_family_role_for_suffix(canonical_suffix)
+    family_role = agent_session_role or agent_session_role_for_suffix(canonical_suffix)
     set_agent_session_fields(
         followup_meta,
         session=family_name if family_name else None,

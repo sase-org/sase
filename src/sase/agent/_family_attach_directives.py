@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from sase.agent import _family_attach_types as _types
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
 _SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
 _NAME_DIRECTIVE_KEYWORDS = frozenset({"bead", "clan", "family", "tribe"})
@@ -226,8 +226,8 @@ def _prompt_segment_at_offset(
 
 def normalize_family_suffix_arg(suffix: str) -> str:
     if suffix == "@":
-        return f"{AGENT_FAMILY_SEPARATOR}@"
-    if suffix.startswith((".", "-")) or AGENT_FAMILY_SEPARATOR in suffix:
+        return f"{AGENT_SESSION_SEPARATOR}@"
+    if suffix.startswith((".", "-")) or AGENT_SESSION_SEPARATOR in suffix:
         raise ValueError(
             f"Invalid %i family suffix '{suffix}'. Pass the bare suffix "
             "without a family separator, e.g. %i(reviewer, family=parent)."
@@ -237,7 +237,7 @@ def normalize_family_suffix_arg(suffix: str) -> str:
             f"Invalid %i family suffix '{suffix}'. Use letters, numbers, "
             "and underscores only, or @ to allocate the next free suffix."
         )
-    return f"{AGENT_FAMILY_SEPARATOR}{suffix}"
+    return f"{AGENT_SESSION_SEPARATOR}{suffix}"
 
 
 __all__ = [

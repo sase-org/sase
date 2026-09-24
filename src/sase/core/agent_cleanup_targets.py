@@ -79,7 +79,7 @@ def agents_to_cleanup_targets(
 
 
 def is_workflow_child(target: AgentCleanupTargetWire) -> bool:
-    """True for any child row: workflow steps, family members, and monitors.
+    """True for any child row: workflow steps, agent-session members, and monitors.
 
     The wire's ``is_workflow_child`` flag is a historical alias for this
     broader predicate. New cascade-only decisions must use
@@ -95,7 +95,7 @@ def is_workflow_child(target: AgentCleanupTargetWire) -> bool:
 def is_workflow_step_child(target: AgentCleanupTargetWire) -> bool:
     """True only for a workflow step child covered by its parent's cascade.
 
-    Family members and monitor proc shells carry a ``parent_timestamp`` but
+    Agent-session members and monitor proc shells carry a ``parent_timestamp`` but
     are independent agent rows with their own PID, artifacts, and dismissal
     record.
     """

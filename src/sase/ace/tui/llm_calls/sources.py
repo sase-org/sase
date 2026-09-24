@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.plan_chain import (
-    AGENT_FAMILY_SEPARATOR,
-    agent_family_base,
-    agent_family_role_for_suffix,
+    AGENT_SESSION_SEPARATOR,
+    agent_session_base,
+    agent_session_role_for_suffix,
     plan_chain_feedback_round,
 )
 
@@ -257,7 +257,7 @@ def _source_label(agent: Agent, *, root: Agent) -> str:
     if feedback_round is not None:
         return f"fb{feedback_round}"
 
-    role = agent_family_role_for_suffix(
+    role = agent_session_role_for_suffix(
         agent.role_suffix,
         agent_session_role=agent.agent_session_role,
     )
@@ -268,14 +268,14 @@ def _source_label(agent: Agent, *, root: Agent) -> str:
         return agent.step_name
 
     if agent.agent_name:
-        base = agent_family_base(root.agent_name)
-        if base and agent.agent_name.startswith(f"{base}{AGENT_FAMILY_SEPARATOR}"):
-            return agent.agent_name[len(base) + len(AGENT_FAMILY_SEPARATOR) :]
+        base = agent_session_base(root.agent_name)
+        if base and agent.agent_name.startswith(f"{base}{AGENT_SESSION_SEPARATOR}"):
+            return agent.agent_name[len(base) + len(AGENT_SESSION_SEPARATOR) :]
         if root.agent_name and agent.agent_name.startswith(
-            f"{root.agent_name}{AGENT_FAMILY_SEPARATOR}"
+            f"{root.agent_name}{AGENT_SESSION_SEPARATOR}"
         ):
             return agent.agent_name[
-                len(root.agent_name) + len(AGENT_FAMILY_SEPARATOR) :
+                len(root.agent_name) + len(AGENT_SESSION_SEPARATOR) :
             ]
         return agent.presented_agent_name or agent.agent_name
 

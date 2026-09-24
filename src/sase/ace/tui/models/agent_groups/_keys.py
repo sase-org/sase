@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.core.time import local_now
-from sase.plan_chain import agent_family_base, canonical_plan_chain_suffix
+from sase.plan_chain import agent_session_base, canonical_plan_chain_suffix
 
 from ..agent import Agent
 from .._agent_tree import (
@@ -31,7 +31,7 @@ from ._buckets import (
 def _agent_family_base_from_row(agent: Agent, name: str) -> str | None:
     """Infer a family base only for rows carrying known family metadata."""
     if canonical_plan_chain_suffix(agent.role_suffix) is not None:
-        return agent_family_base(name, include_legacy_dash=True)
+        return agent_session_base(name, include_legacy_dash=True)
     return None
 
 

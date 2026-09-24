@@ -13,7 +13,7 @@ from sase.agent.family_attach import (
 from sase.agent.launch_validation import validate_launch_name_requests
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
 from sase.plan_chain import (
-    agent_family_role_for_suffix,
+    agent_session_role_for_suffix,
     is_plan_chain_artifact_meta,
 )
 from sase.xprompt._exceptions import DirectiveError
@@ -150,7 +150,7 @@ def test_custom_family_role_classifies_plan_chain_metadata() -> None:
         "agent_session_role": "reviewer",
     }
 
-    assert agent_family_role_for_suffix(
+    assert agent_session_role_for_suffix(
         "--reviewer", agent_session_role="reviewer"
     ) == ("reviewer")
     assert is_plan_chain_artifact_meta(meta)

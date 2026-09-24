@@ -39,7 +39,7 @@ def test_failed_monitor_handoff_resolves_after_successful_successor(
         [],
         [_identity_dep(root_dir, name="monitor-lane")],
     ).resolved
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     assert family is not None
     assert family.is_resolved
     assert family.is_done
@@ -65,7 +65,7 @@ def test_failed_monitor_handoff_waits_for_missing_successor(tmp_path: Path) -> N
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     assert family is not None
     assert not family.is_resolved
     assert family.is_failed
@@ -85,7 +85,7 @@ def test_failed_monitor_handoff_waits_for_running_successor(tmp_path: Path) -> N
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     assert family is not None
     assert not family.is_resolved
     assert not family.is_failed
@@ -193,7 +193,7 @@ def test_failed_monitor_handoff_reports_failed_successor_not_monitor(
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.family_candidate("monitor-lane")
+    family = index.agent_session_candidate("monitor-lane")
     assert family is not None
     assert not family.is_resolved
     assert family.is_failed

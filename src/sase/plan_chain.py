@@ -19,12 +19,6 @@ LEGACY_AGENT_FAMILY_KEY = "agent_family"
 LEGACY_AGENT_FAMILY_ROLE_KEY = "agent_family_role"
 LEGACY_AGENT_FAMILY_PARALLEL_KEY = "agent_family_parallel"
 LEGACY_AGENT_FAMILY_SHELL_KEY = "family_shell"
-# Deprecated aliases for the replaced AGENT_FAMILY_* names. New code uses the
-# AGENT_SESSION_* / LEGACY_AGENT_FAMILY_* constants above.
-AGENT_FAMILY_FIELD = LEGACY_AGENT_FAMILY_KEY
-AGENT_FAMILY_ROLE_FIELD = LEGACY_AGENT_FAMILY_ROLE_KEY
-AGENT_FAMILY_PARALLEL_FIELD = LEGACY_AGENT_FAMILY_PARALLEL_KEY
-AGENT_FAMILY_SEPARATOR = AGENT_SESSION_SEPARATOR
 PLAN_CHAIN_PLAN_SUFFIX = f"{AGENT_SESSION_SEPARATOR}plan"
 PLAN_CHAIN_CODER_SUFFIX = f"{AGENT_SESSION_SEPARATOR}code"
 PLAN_CHAIN_EPIC_SUFFIX = f"{AGENT_SESSION_SEPARATOR}epic"
@@ -78,8 +72,6 @@ _EXPLICIT_SESSION_ROLES = {
     "monitor",
     "gate",
 }
-# Deprecated alias for the replaced private role set.
-_EXPLICIT_FAMILY_ROLES = _EXPLICIT_SESSION_ROLES
 
 
 def _agent_session_field(source: object, new_key: str, legacy_key: str) -> Any:
@@ -557,86 +549,3 @@ def _plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
 def is_plan_chain_artifact_meta(meta: Mapping[str, object]) -> bool:
     """Return whether artifact metadata describes a plan-chain phase."""
     return _plan_chain_suffix_from_meta(meta) is not None
-
-
-# Deprecated wrappers for the renamed agent-family helpers. New code uses the
-# agent_session_* names above; these stay until runtime-cutover renames the
-# remaining family-concept identifiers.
-def _stored_family_role(role: object) -> str | None:
-    return _stored_session_role(role)
-
-
-def agent_family_phase_name(base_name: str, suffix: str) -> str:
-    """Return the visible agent-family phase name (deprecated alias)."""
-    return agent_session_phase_name(base_name, suffix)
-
-
-def _split_agent_family_name(
-    name: object, *, include_legacy_dash: bool = False
-) -> tuple[str, str] | None:
-    return _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
-
-
-def agent_family_base(name: object, *, include_legacy_dash: bool = False) -> str | None:
-    """Return the base family name (deprecated alias)."""
-    return agent_session_base(name, include_legacy_dash=include_legacy_dash)
-
-
-def _agent_family_suffix(
-    name: object, *, include_legacy_dash: bool = False
-) -> str | None:
-    return _agent_session_suffix(name, include_legacy_dash=include_legacy_dash)
-
-
-def agent_family_suffix_token(suffix: object) -> str | None:
-    """Return the bare token from an agent-family suffix (deprecated alias)."""
-    return agent_session_suffix_token(suffix)
-
-
-def is_agent_family_member(name: object, *, include_legacy_dash: bool = False) -> bool:
-    """Return whether *name* has a known agent-family suffix (deprecated alias)."""
-    return is_agent_session_member(name, include_legacy_dash=include_legacy_dash)
-
-
-def agent_family_role_for_suffix(
-    suffix: object,
-    *,
-    agent_session_role: object = None,
-) -> str | None:
-    """Return the metadata role for a suffix (deprecated alias)."""
-    return agent_session_role_for_suffix(suffix, agent_session_role=agent_session_role)
-
-
-def _reserved_agent_family_names(
-    base_name: str,
-    *,
-    extra_suffixes: list[str] | tuple[str, ...] = (),
-) -> set[str]:
-    return _reserved_agent_session_names(base_name, extra_suffixes=extra_suffixes)
-
-
-def _allocate_agent_family_child_name(
-    base_name: str,
-    suffix_template: str,
-    *,
-    extra_reserved_suffixes: list[str] | tuple[str, ...] = (),
-) -> str:
-    return _allocate_agent_session_child_name(
-        base_name,
-        suffix_template,
-        extra_reserved_suffixes=extra_reserved_suffixes,
-    )
-
-
-def allocate_agent_family_child_suffix(
-    base_name: str,
-    suffix_template: str,
-    *,
-    extra_reserved_suffixes: list[str] | tuple[str, ...] = (),
-) -> str:
-    """Allocate only the suffix portion for a family child (deprecated alias)."""
-    return allocate_agent_session_child_suffix(
-        base_name,
-        suffix_template,
-        extra_reserved_suffixes=extra_reserved_suffixes,
-    )

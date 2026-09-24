@@ -38,7 +38,7 @@ class ArtifactCandidate:
     project_name: str
     artifact_dir: str
     parent_timestamp: str | None
-    family_name: str | None
+    agent_session_name: str | None
     is_resolved: bool
     is_done: bool
     is_identity_success: bool
@@ -67,7 +67,7 @@ class TribeCandidate:
 
 
 @dataclass(frozen=True)
-class FamilyCandidate:
+class AgentSessionCandidate:
     timestamp: str
     is_resolved: bool
     is_done: bool

@@ -32,7 +32,7 @@ from sase.llm_provider.config import (
     normalize_model_alias_reference,
 )
 from sase.plan_chain import (
-    allocate_agent_family_child_suffix,
+    allocate_agent_session_child_suffix,
     plan_chain_agent_name,
 )
 
@@ -69,7 +69,7 @@ def handle_pipe_marker(
         suffix = f"--{name_token}"
         family_role = name_token
     elif ctx.agent_name:
-        suffix = allocate_agent_family_child_suffix(
+        suffix = allocate_agent_session_child_suffix(
             ctx.agent_name,
             "--@",
             extra_reserved_suffixes=tuple(

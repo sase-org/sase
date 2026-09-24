@@ -143,7 +143,7 @@ def test_family_attach_does_not_inherit_plan_project_as_unit_ref() -> None:
         )
     agent = plan.units[0].payload
     assert isinstance(agent, AgentUnitWire)
-    assert agent.family_attach_parent == "parent"
+    assert agent.agent_session_attach_parent == "parent"
     assert agent.workspace_reference is None
     rebuilt = agent_unit_dispatch_prompt(agent)
     assert "#gh:" not in rebuilt

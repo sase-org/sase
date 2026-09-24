@@ -20,7 +20,7 @@ from sase.core.artifact_file_facade import store_explicit_artifact_file
 from sase.plan_chain import (
     AGENT_SESSION_ROLE_KEY,
     LEGACY_AGENT_FAMILY_ROLE_KEY,
-    agent_family_base,
+    agent_session_base,
 )
 from sase.running_field import (
     WorkspaceClaim,
@@ -482,7 +482,7 @@ def fork_target_for_settled_starter(
         return family
     if not starter:
         return None
-    return agent_family_base(starter) or starter
+    return agent_session_base(starter) or starter
 
 
 def starter_identity(

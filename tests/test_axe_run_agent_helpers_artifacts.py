@@ -14,7 +14,7 @@ from sase.axe.run_agent_helpers import (
 )
 from sase.plan_chain import (
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
-    allocate_agent_family_child_suffix,
+    allocate_agent_session_child_suffix,
 )
 
 
@@ -108,7 +108,7 @@ def test_promote_to_workflow_ignores_preexisting_hood_neighbor_prefix(
         meta = json.loads((root_dir / "agent_meta.json").read_text(encoding="utf-8"))
         assert meta["name"] == "sq--plan"
         assert meta["agent_session"] == "sq"
-        assert lookup_registered_name("sq")["container_kind"] == "family"
+        assert lookup_registered_name("sq")["container_kind"] == "session"
 
 
 def test_promote_to_workflow_renames_generic_root_to_zero_member(tmp_path) -> None:
@@ -134,7 +134,7 @@ def test_promoted_plan_root_leaves_plan_zero_for_feedback_allocation(
 
     with patch.object(Path, "home", return_value=tmp_path):
         promote_to_workflow(str(artifact_dir), "a")
-        suffix = allocate_agent_family_child_suffix("a", "--plan-@")
+        suffix = allocate_agent_session_child_suffix("a", "--plan-@")
 
     assert suffix == "--plan-0"
 

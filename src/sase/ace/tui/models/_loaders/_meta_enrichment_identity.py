@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 from sase.core.agent_identity_facade import imported_source_owner_from_mapping
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_phase_name,
-    agent_family_role_for_suffix,
+    agent_session_phase_name,
+    agent_session_role_for_suffix,
     agent_session_role_value,
     agent_session_value,
     canonical_plan_chain_suffix,
@@ -186,10 +186,10 @@ def apply_workflow_child_identity_from_meta(
     if family is None:
         return
     child_suffix = _root_child_suffix_from_meta(data)
-    child_name = agent_family_phase_name(family, child_suffix)
+    child_name = agent_session_phase_name(family, child_suffix)
     agent.agent_name = child_name
     agent.agent_session = family
-    agent.agent_session_role = agent_family_role_for_suffix(child_suffix)
+    agent.agent_session_role = agent_session_role_for_suffix(child_suffix)
     agent.role_suffix = child_suffix
 
 
@@ -224,8 +224,8 @@ def apply_workflow_child_identity_from_meta_wire(
     if family is None:
         return
     child_suffix = _root_child_suffix_from_meta_wire(meta)
-    child_name = agent_family_phase_name(family, child_suffix)
+    child_name = agent_session_phase_name(family, child_suffix)
     agent.agent_name = child_name
     agent.agent_session = family
-    agent.agent_session_role = agent_family_role_for_suffix(child_suffix)
+    agent.agent_session_role = agent_session_role_for_suffix(child_suffix)
     agent.role_suffix = child_suffix

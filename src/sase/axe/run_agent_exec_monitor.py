@@ -16,7 +16,7 @@ from sase.axe.run_agent_helpers import (
 from sase.axe.runner_signals import reset_killed
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR, canonical_plan_chain_suffix
+from sase.plan_chain import AGENT_SESSION_SEPARATOR, canonical_plan_chain_suffix
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -191,7 +191,7 @@ def _promoted_starter_suffix(
     name = _text(starter_meta.get("name"))
     if not name or not ctx_agent_name:
         return None
-    prefix = f"{ctx_agent_name}{AGENT_FAMILY_SEPARATOR}"
+    prefix = f"{ctx_agent_name}{AGENT_SESSION_SEPARATOR}"
     if not name.startswith(prefix):
         return None
     suffix = name[len(ctx_agent_name) :]

@@ -8,8 +8,8 @@ nested shell, never a second family container.
 from __future__ import annotations
 
 from sase.plan_chain import (
-    agent_family_role_for_suffix,
-    is_agent_family_member,
+    agent_session_role_for_suffix,
+    is_agent_session_member,
 )
 
 from .agent import Agent
@@ -21,13 +21,13 @@ def _is_concrete_family_shell(agent: Agent) -> bool:
     """Return whether *agent* is a nested family shell, not a root."""
     if agent.is_monitor or agent.is_gate or agent.is_proc_shell:
         return True
-    role = agent_family_role_for_suffix(
+    role = agent_session_role_for_suffix(
         agent.role_suffix,
         agent_session_role=agent.agent_session_role,
     )
     if role in _SHELL_ROLES:
         return True
-    return is_agent_family_member(agent.agent_name) or is_agent_family_member(
+    return is_agent_session_member(agent.agent_name) or is_agent_session_member(
         agent.role_suffix
     )
 

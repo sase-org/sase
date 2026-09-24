@@ -161,12 +161,12 @@ def _rebuild_exec_inputs(
     artifacts_dir: str, meta: Mapping[str, Any]
 ) -> tuple[Any, Any]:
     from sase.axe.run_agent_exec_types import AgentExecContext, LoopState
-    from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, agent_family_base
+    from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, agent_session_base
 
     source_agent = _str(meta.get("plan_shell_source_plan_agent_name"))
     agent_name = _str(meta.get("plan_shell_agent_name"))
     if agent_name is None and source_agent:
-        agent_name = agent_family_base(source_agent) or source_agent
+        agent_name = agent_session_base(source_agent) or source_agent
 
     source_artifacts_dir = (
         _str(meta.get("plan_shell_source_artifacts_dir")) or artifacts_dir

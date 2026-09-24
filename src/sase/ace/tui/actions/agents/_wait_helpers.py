@@ -11,7 +11,7 @@ from sase.ace.tui.agent_completion import (
     agent_prompt_name,
     build_agent_completion_candidates,
 )
-from sase.plan_chain import agent_family_role_for_suffix
+from sase.plan_chain import agent_session_role_for_suffix
 from sase.xprompt.directive_edit import PromptWaitDirective
 
 from ...models.agent_status import is_failed_agent_status, is_resumable_done_status
@@ -38,7 +38,7 @@ _PLAN_HANDOFF_DONE_STATUSES: frozenset[str] = frozenset({"PLAN DONE", "TALE DONE
 
 def is_coder_followup_suffix(suffix: str | None) -> bool:
     """Return True for the coder follow-up suffix."""
-    return agent_family_role_for_suffix(suffix) == "code"
+    return agent_session_role_for_suffix(suffix) == "code"
 
 
 def is_agent_family_root(agent: Agent) -> bool:

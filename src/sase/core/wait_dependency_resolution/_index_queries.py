@@ -17,7 +17,7 @@ from ._index_identity_queries import WaitDependencyIdentityQueries
 from ._tribe_binding import TribeMemberRow, resolve_tribe_wait_binding
 from ._types import (
     ArtifactCandidate,
-    FamilyCandidate,
+    AgentSessionCandidate,
     TribeCandidate,
     WAIT_SUCCESS_OUTCOMES,
     WaitCandidate,
@@ -169,12 +169,12 @@ class WaitDependencyIndexQueries(
         name: str,
         *,
         exclude_artifact_dir: str | Path | None = None,
-    ) -> FamilyCandidate | None:
+    ) -> AgentSessionCandidate | None:
         """Return aggregate completion for the newest rootless clan generation."""
         entity = self._clan_entity(name, exclude_artifact_dir=exclude_artifact_dir)
         if entity is None:
             return None
-        return FamilyCandidate(
+        return AgentSessionCandidate(
             timestamp=entity.timestamp,
             is_resolved=entity.is_resolved,
             is_done=entity.is_done,
@@ -184,16 +184,18 @@ class WaitDependencyIndexQueries(
             is_failed=any(member.is_failed for member in entity.members),
         )
 
-    def family_candidate(
+    def agent_session_candidate(
         self,
         name: str,
         *,
         exclude_artifact_dir: str | Path | None = None,
-    ) -> FamilyCandidate | None:
-        entity = self._family_entity(name, exclude_artifact_dir=exclude_artifact_dir)
+    ) -> AgentSessionCandidate | None:
+        entity = self._agent_session_entity(
+            name, exclude_artifact_dir=exclude_artifact_dir
+        )
         if entity is None:
             return None
-        return FamilyCandidate(
+        return AgentSessionCandidate(
             timestamp=entity.timestamp,
             is_resolved=entity.is_resolved,
             is_done=entity.is_done,
@@ -203,32 +205,32 @@ class WaitDependencyIndexQueries(
             is_failed=any(candidate.is_failed for candidate in entity.members),
         )
 
-    def family_candidate_for_root(
+    def agent_session_candidate_for_root(
         self,
         root: ArtifactCandidate,
         *,
         exclude_artifact_dir: str | Path | None = None,
-    ) -> FamilyCandidate | None:
+    ) -> AgentSessionCandidate | None:
         if root.parent_timestamp:
             return None
-        family_name = root.family_name or root.name
-        if not family_name:
+        agent_session_name = root.agent_session_name or root.name
+        if not agent_session_name:
             return None
-        family_agents = self._aggregate_candidates(
-            self.families.get(family_name),
+        session_agents = self._aggregate_candidates(
+            self.agent_sessions.get(agent_session_name),
             exclude_artifact_dir=exclude_artifact_dir,
         )
-        if not family_agents:
+        if not session_agents:
             return None
-        generation = self._family_generation(family_agents, root)
+        generation = self._agent_session_chain(session_agents, root)
         if not generation:
             return None
-        effective_generation, handoffs_present = self._family_handoff_state(
+        effective_generation, handoffs_present = self._agent_session_handoff_state(
             tuple(generation),
             extra_present_names=self._excluded_present_names(exclude_artifact_dir),
         )
         newest_timestamp = max(candidate.timestamp for candidate in generation)
-        return FamilyCandidate(
+        return AgentSessionCandidate(
             timestamp=newest_timestamp,
             is_resolved=(
                 handoffs_present
@@ -300,7 +302,9 @@ class WaitDependencyIndexQueries(
             candidate
             for candidate in (
                 self.clan_candidate(name, exclude_artifact_dir=exclude_artifact_dir),
-                self.family_candidate(name, exclude_artifact_dir=exclude_artifact_dir),
+                self.agent_session_candidate(
+                    name, exclude_artifact_dir=exclude_artifact_dir
+                ),
                 self.workflow_candidate(
                     name,
                     exclude_artifact_dir=exclude_artifact_dir,
@@ -355,7 +359,9 @@ class WaitDependencyIndexQueries(
             entity
             for entity in (
                 self._clan_entity(name, exclude_artifact_dir=exclude_artifact_dir),
-                self._family_entity(name, exclude_artifact_dir=exclude_artifact_dir),
+                self._agent_session_entity(
+                    name, exclude_artifact_dir=exclude_artifact_dir
+                ),
                 self._workflow_entity(name, exclude_artifact_dir=exclude_artifact_dir),
                 self._named_entity(name),
             )

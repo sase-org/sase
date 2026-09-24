@@ -190,12 +190,12 @@ def build_family_attach_sibling_from_spawn(
         return None
 
     from sase.core.agent_artifact_paths import canonical_agent_artifact_path
-    from sase.plan_chain import agent_family_base
+    from sase.plan_chain import agent_session_base
 
     artifact_timestamp = _candidates.artifacts_timestamp_from_launch_timestamp(
         request.timestamp
     )
-    base = family_base or agent_family_base(name) or name
+    base = family_base or agent_session_base(name) or name
     from sase.llm_provider.launch_alias_overrides import SASE_MODEL_ALIAS_OVERRIDES_ENV
 
     raw_overrides = (request.extra_env or {}).get(SASE_MODEL_ALIAS_OVERRIDES_ENV, "")

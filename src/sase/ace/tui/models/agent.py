@@ -16,7 +16,7 @@ from sase.gate_shell.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_base,
+    agent_session_base,
     canonical_plan_chain_suffix,
 )
 from sase.project_display_names import humanize_cl_name
@@ -110,7 +110,7 @@ class Agent(AgentState):
             return self.agent_session
         if self.agent_name:
             return (
-                agent_family_base(self.agent_name, include_legacy_dash=True)
+                agent_session_base(self.agent_name, include_legacy_dash=True)
                 or self.agent_name
             )
         return None

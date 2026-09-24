@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 from ._index_entities import WaitEntity
-from ._types import ArtifactCandidate, FamilyCandidate, WaitDependencyStatus
+from ._types import ArtifactCandidate, AgentSessionCandidate, WaitDependencyStatus
 
 
 class _ForkQueryIndex(Protocol):
@@ -28,7 +28,7 @@ class _ForkQueryIndex(Protocol):
         exclude_artifact_dir: str | Path | None = None,
     ) -> WaitEntity | None: ...
 
-    def _family_entity(
+    def _agent_session_entity(
         self,
         name: str,
         *,
@@ -40,12 +40,12 @@ class _ForkQueryIndex(Protocol):
         dependency: Mapping[str, Any],
     ) -> ArtifactCandidate | None: ...
 
-    def family_candidate_for_root(
+    def agent_session_candidate_for_root(
         self,
         root: ArtifactCandidate,
         *,
         exclude_artifact_dir: str | Path | None = None,
-    ) -> FamilyCandidate | None: ...
+    ) -> AgentSessionCandidate | None: ...
 
     def is_resolved(
         self,
@@ -89,15 +89,15 @@ class WaitDependencyForkQueries:
         if kind in ("session", "family"):
             candidate = index._identity_candidate(dependency)
             if candidate is not None:
-                family = index.family_candidate_for_root(
+                session = index.agent_session_candidate_for_root(
                     candidate,
                     exclude_artifact_dir=exclude_artifact_dir,
                 )
-                if family is not None:
+                if session is not None:
                     return _fork_status(
-                        (family.is_resolved and family.is_done) or family.is_failed
+                        (session.is_resolved and session.is_done) or session.is_failed
                     )
-            return self._fork_family_name_status(
+            return self._fork_agent_session_name_status(
                 name,
                 exclude_artifact_dir=exclude_artifact_dir,
             )
@@ -114,7 +114,7 @@ class WaitDependencyForkQueries:
             exclude_artifact_dir=exclude_artifact_dir,
         )
 
-    def _fork_family_name_status(
+    def _fork_agent_session_name_status(
         self,
         name: str | None,
         *,
@@ -123,7 +123,9 @@ class WaitDependencyForkQueries:
         index = cast(_ForkQueryIndex, self)
         if not name:
             return WaitDependencyStatus("waiting")
-        entity = index._family_entity(name, exclude_artifact_dir=exclude_artifact_dir)
+        entity = index._agent_session_entity(
+            name, exclude_artifact_dir=exclude_artifact_dir
+        )
         if entity is None:
             return self._fork_name_fallback_status(
                 name,

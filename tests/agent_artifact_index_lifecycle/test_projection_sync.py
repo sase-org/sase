@@ -587,7 +587,7 @@ def test_authoritative_dismissed_sync_updates_when_projection_digest_differs(
 
     assert report.synced
     assert report.changed
-    assert report.dismissal_family_rows_backfilled == 2
+    assert report.dismissal_agent_session_rows_backfilled == 2
     assert len(calls) == 2
     assert calls[0][0] == "replace"
     replaced = calls[0][2]

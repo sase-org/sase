@@ -81,7 +81,7 @@ def test_legacy_agent_unit_json_defaults_to_plain_identity() -> None:
     assert agent.clan is None
     assert agent.clan_declared is False
     assert agent.tribe is None
-    assert agent.family_attach_parent is None
+    assert agent.agent_session_attach_parent is None
     assert agent.workspace_reference is None
     assert agent.dispatch_target is None
     payload = agent_launch_wire_to_json_dict(agent)
@@ -127,8 +127,8 @@ def test_legacy_agent_unit_json_defaults_to_plain_identity() -> None:
         (
             "%id(reviewer, family=parent)\nReview",
             {
-                "family_attach_parent": "parent",
-                "family_attach_suffix": "reviewer",
+                "agent_session_attach_parent": "parent",
+                "agent_session_attach_suffix": "reviewer",
                 "identity": None,
             },
         ),
@@ -165,9 +165,9 @@ def test_plan_typed_launch_units_preserves_identity_forms(
         assert directives.clan == agent.clan
         assert directives.clan_declared is False
         assert directives.name == f"{agent.clan}.{agent.identity}"
-    elif agent.family_attach_parent is not None:
-        assert directives.family_attach_parent == agent.family_attach_parent
-        assert directives.family_attach_suffix == agent.family_attach_suffix
+    elif agent.agent_session_attach_parent is not None:
+        assert directives.family_attach_parent == agent.agent_session_attach_parent
+        assert directives.family_attach_suffix == agent.agent_session_attach_suffix
     elif agent.tribe is not None:
         assert directives.tribe == agent.tribe
         if agent.identity is not None:

@@ -189,7 +189,7 @@ def agent_session_settled(
     root = index.artifacts_by_dir.get(str(Path(artifact_dir)))
     if root is None:
         return True
-    session = index.family_candidate_for_root(root)
+    session = index.agent_session_candidate_for_root(root)
     return session is not None and session.is_resolved
 
 

@@ -1,6 +1,6 @@
 """Agent-session role predicates for TUI status overrides."""
 
-from sase.plan_chain import agent_family_role_for_suffix, is_plan_feedback_suffix
+from sase.plan_chain import agent_session_role_for_suffix, is_plan_feedback_suffix
 
 from .agent import Agent
 
@@ -20,7 +20,7 @@ def is_coder_followup_suffix(
     agent_session_role: str | None = None,
 ) -> bool:
     """Check if a role suffix is the coder follow-up suffix."""
-    role = agent_family_role_for_suffix(
+    role = agent_session_role_for_suffix(
         suffix,
         agent_session_role=agent_session_role,
     )
@@ -28,7 +28,7 @@ def is_coder_followup_suffix(
 
 
 def agent_session_role(agent: Agent) -> str | None:
-    return agent_family_role_for_suffix(
+    return agent_session_role_for_suffix(
         agent.role_suffix,
         agent_session_role=agent.agent_session_role,
     )

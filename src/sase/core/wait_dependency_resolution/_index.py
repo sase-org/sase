@@ -53,7 +53,7 @@ _NO_RECORDED_TRIBE: object = object()
 class WaitDependencyIndex(WaitDependencyIndexQueries):
     named: dict[str, WaitCandidate]
     workflows: dict[str, list[ArtifactCandidate]]
-    families: dict[str, list[ArtifactCandidate]]
+    agent_sessions: dict[str, list[ArtifactCandidate]]
     clans: dict[str, dict[str, list[ArtifactCandidate]]]
     tribes: dict[str, list[ArtifactCandidate]]
     effective_clan_tribes: dict[tuple[str, str], str]
@@ -91,7 +91,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         return cls(
             named={},
             workflows={},
-            families={},
+            agent_sessions={},
             clans={},
             tribes={},
             effective_clan_tribes={},
@@ -260,7 +260,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             )
 
         # A submitted-and-waiting planner row has no successful done.json, so it
-        # never feeds the workflow/family aggregate below. Index it as a
+        # never feeds the workflow/agent-session aggregate below. Index it as a
         # resolved named candidate under its canonical ``<base>--plan`` row name
         # so a ``%wait`` on that planner row unblocks while the plan is in
         # review, without making the whole plan chain look complete.
@@ -277,7 +277,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             )
 
         workflow_name = meta.get("workflow_name")
-        family_name = agent_session_base_from_meta(meta)
+        agent_session_name = agent_session_base_from_meta(meta)
         parent_timestamp = (
             meta.get("parent_timestamp")
             if isinstance(meta.get("parent_timestamp"), str)
@@ -311,7 +311,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             project_name=project_name,
             artifact_dir=str(artifact_dir),
             parent_timestamp=parent_timestamp,
-            family_name=family_name,
+            agent_session_name=agent_session_name,
             is_resolved=is_resolved,
             is_done=is_done,
             is_identity_success=is_identity_success,
@@ -332,8 +332,8 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
 
         if isinstance(workflow_name, str):
             self.workflows.setdefault(workflow_name, []).append(artifact)
-            if family_name is not None:
-                self.families.setdefault(family_name, []).append(artifact)
+            if agent_session_name is not None:
+                self.agent_sessions.setdefault(agent_session_name, []).append(artifact)
 
         if clan_name is not None and generation is not None:
             self.clans.setdefault(clan_name, {}).setdefault(generation, []).append(

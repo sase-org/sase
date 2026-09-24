@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from sase.agent.force_reuse_bead import ForceReuseBeadAssociation
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
 __all__ = [
     "AgentNameLaunchCollisionError",
@@ -111,7 +111,7 @@ class AgentNameSyntaxError(_LaunchNameValidationError):
     def __init__(self, name: str) -> None:
         self.name = name
         super().__init__(
-            f"Agent name '{name}' cannot contain '{AGENT_FAMILY_SEPARATOR}'; "
+            f"Agent name '{name}' cannot contain '{AGENT_SESSION_SEPARATOR}'; "
             "double dash is reserved for agent-family phases."
         )
 
@@ -154,7 +154,7 @@ def validate_user_agent_name(name: str) -> None:
     Historical artifact names are read separately; this is only for explicit
     user entry points such as ``%id``, mobile launch names, and TUI naming.
     """
-    if AGENT_FAMILY_SEPARATOR in name:
+    if AGENT_SESSION_SEPARATOR in name:
         raise AgentNameSyntaxError(name)
     _reject_unresolved_key_marker(name)
     from sase.core.agent_identity_facade import (

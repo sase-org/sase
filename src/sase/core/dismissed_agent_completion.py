@@ -105,7 +105,7 @@ class _ArtifactArchiveIdentity:
 def effective_done_outcome(done_data: Mapping[str, Any]) -> str | None:
     """Return the outcome wait resolution should use for one done marker.
 
-    Family-shell markers retain their distinct raw outcome for display and
+    Agent-session shell markers retain their distinct raw outcome for display and
     diagnostics, while the shell state determines whether they satisfy or fail
     a wait. Unknown, missing, or kind-mismatched shell states fail closed.
     """

@@ -11,7 +11,7 @@ that already carried a role suffix; these helpers close that door.
 
 from __future__ import annotations
 
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
 __all__ = [
     "GeneratedAgentNameError",
@@ -69,7 +69,7 @@ def generated_child_name_base(name: str) -> str:
         return name
     if parsed.kind is AgentSessionNameKind.MEMBER:
         base = parsed.agent_session_name
-    if AGENT_FAMILY_SEPARATOR not in base:
+    if AGENT_SESSION_SEPARATOR not in base:
         return base
     try:
         return agent_local_hood(name)

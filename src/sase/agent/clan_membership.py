@@ -181,12 +181,12 @@ def _reject_family_marked_clan_name(clan_name: str) -> None:
     family marker pushes that marker out of the final segment and produces a
     name strict identity rules cannot classify.
     """
-    from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+    from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
-    if AGENT_FAMILY_SEPARATOR not in clan_name:
+    if AGENT_SESSION_SEPARATOR not in clan_name:
         return
     raise ClanMembershipError(
-        f"Clan '{clan_name}' cannot contain '{AGENT_FAMILY_SEPARATOR}': its "
+        f"Clan '{clan_name}' cannot contain '{AGENT_SESSION_SEPARATOR}': its "
         f"members would be named '{clan_name}.<suffix>', placing the family "
         "role suffix outside the final name segment. Choose a clan name "
         "without a family role suffix."

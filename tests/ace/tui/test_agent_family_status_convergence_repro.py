@@ -354,7 +354,8 @@ def _load_production_completion() -> Notification:
     assert notification.action_data["agent_name"] == "0l4"
     assert notification.action_data["cl_name"] == "0l4"
     assert notification.action_data["raw_suffix"] == _MONITOR_TS
-    assert notification.action_data["family_root_suffix"] == _ROOT_TS
+    assert notification.action_data["agent_session_root_suffix"] == _ROOT_TS
+    assert "family_root_suffix" not in notification.action_data
     assert notification.action_data["agent_root_timestamp"] == _ROOT_TS
     assert "Epic sase-117 launched from approved_epic.md" in notification.notes
     return notification

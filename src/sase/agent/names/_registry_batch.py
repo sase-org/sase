@@ -33,7 +33,7 @@ RegistryReservationOperation = Literal[
     "claim_planned",
     "reserve_clan",
     "claim_clan",
-    "convert_family",
+    "convert_session",
     "reserve_template",
     "release_planned",
     "release_planned_clan",

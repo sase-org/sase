@@ -14,7 +14,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
 )
 from sase.plan_chain import (
-    AGENT_FAMILY_SEPARATOR,
+    AGENT_SESSION_SEPARATOR,
     agent_session_base,
     agent_session_value,
 )
@@ -564,9 +564,9 @@ def _same_path(left: str | None, right: str | None) -> bool:
 
 
 def _session_from_name(name: str | None) -> str | None:
-    if not name or AGENT_FAMILY_SEPARATOR not in name:
+    if not name or AGENT_SESSION_SEPARATOR not in name:
         return None
-    base, _, _suffix = name.partition(AGENT_FAMILY_SEPARATOR)
+    base, _, _suffix = name.partition(AGENT_SESSION_SEPARATOR)
     return base or None
 
 

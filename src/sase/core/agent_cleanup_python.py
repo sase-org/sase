@@ -431,7 +431,7 @@ def plan_agent_cleanup_python(
 
         if wire_request.mode == CLEANUP_MODE_DISMISS_COMPLETED:
             if dismissable:
-                live_family_members = [
+                live_session_members = [
                     member
                     for member in _parallel_agent_session_members(
                         target,
@@ -439,11 +439,13 @@ def plan_agent_cleanup_python(
                     )
                     if not _target_is_dismissable(member, wire_request)
                 ]
-                if live_family_members:
+                if live_session_members:
                     _add_skip(
                         skipped_items,
                         target,
                         SKIPPED_NOT_DISMISSABLE,
+                        # Byte-identical to the Rust planner's skip reason
+                        # (parity tests) until core-contract.
                         "parallel family still active",
                     )
                     continue

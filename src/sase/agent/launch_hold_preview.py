@@ -153,7 +153,9 @@ def _armer_from_typed_payload(
     identity = payload.get("identity")
     if not isinstance(identity, str) or not identity:
         return None
-    family = payload.get("family_attach_parent")
+    from sase.core.agent_launch_wire_from_dict import agent_session_attach_value
+
+    family = agent_session_attach_value(payload, "parent")
     clan = payload.get("clan")
     return {
         "kind": "agent",

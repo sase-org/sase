@@ -24,10 +24,10 @@ from sase.core.agent_identity_facade import (
     parse_agent_session_name,
 )
 from sase.plan_chain import (
-    agent_family_base,
+    agent_session_base,
     agent_session_parallel_value,
     agent_session_value,
-    is_agent_family_member,
+    is_agent_session_member,
     is_plan_chain_artifact_meta,
 )
 
@@ -117,7 +117,7 @@ def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
         return workflow_name
 
     name = meta.get("name")
-    if isinstance(name, str) and agent_family_base(name) == workflow_name:
+    if isinstance(name, str) and agent_session_base(name) == workflow_name:
         return workflow_name
 
     return None

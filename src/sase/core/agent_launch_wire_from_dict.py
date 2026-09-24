@@ -34,6 +34,22 @@ def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
+def agent_session_attach_value(data: Any, field: str) -> str | None:
+    """Read an agent-session attach field (``parent``/``suffix``) from *data*.
+
+    Payloads Python builds carry ``agent_session_attach_<field>``; values
+    core returns still use the legacy ``family_attach_<field>`` spelling until
+    core-contract, so the new key wins and the legacy key is the fallback.
+    """
+    if not hasattr(data, "get"):
+        return None
+    value = data.get(f"agent_session_attach_{field}")
+    if value is None:
+        # legacy agent-family spelling: core-emitted launch payloads.
+        value = data.get(f"family_attach_{field}")
+    return _optional_str(value)
+
+
 def _optional_queue_capacity(data: dict[str, Any]) -> int | None:
     if "queue_capacity" in data:
         raw = data.get("queue_capacity")
@@ -214,8 +230,8 @@ def _launch_unit_payload_from_dict(
             clan_tribe=_optional_str(data.get("clan_tribe")),
             clan_summary=_optional_str(data.get("clan_summary")),
             clan_summary_script=_optional_str(data.get("clan_summary_script")),
-            family_attach_parent=_optional_str(data.get("family_attach_parent")),
-            family_attach_suffix=_optional_str(data.get("family_attach_suffix")),
+            agent_session_attach_parent=agent_session_attach_value(data, "parent"),
+            agent_session_attach_suffix=agent_session_attach_value(data, "suffix"),
             tribe=_optional_str(data.get("tribe")),
             model=_optional_str(data.get("model")),
             reasoning_effort=_optional_str(data.get("reasoning_effort")),

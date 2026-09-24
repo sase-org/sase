@@ -28,10 +28,10 @@ from sase.axe.run_agent_helpers import (
 from sase.axe.run_agent_successor import SuccessorRequest, continue_as_successor
 from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
-    AGENT_FAMILY_SEPARATOR,
-    agent_family_base,
-    agent_family_role_for_suffix,
-    agent_family_suffix_token,
+    AGENT_SESSION_SEPARATOR,
+    agent_session_base,
+    agent_session_role_for_suffix,
+    agent_session_suffix_token,
     agent_session_role_value,
     agent_session_value,
     canonical_plan_chain_suffix,
@@ -77,15 +77,15 @@ def _question_interrupted_suffix_and_role(
     if interrupted_suffix is None:
         interrupted_suffix = canonical_plan_chain_suffix(base_meta.get("role_suffix"))
     if interrupted_suffix is None:
-        interrupted_suffix = f"{AGENT_FAMILY_SEPARATOR}0"
+        interrupted_suffix = f"{AGENT_SESSION_SEPARATOR}0"
     if state.agent_step == 1:
         update_meta_suffix(state.current_artifacts_dir, interrupted_suffix)
 
     interrupted_role = _meta_family_role(base_meta)
     if interrupted_role is None:
-        interrupted_role = agent_family_role_for_suffix(interrupted_suffix)
+        interrupted_role = agent_session_role_for_suffix(interrupted_suffix)
     if interrupted_role is None:
-        token = agent_family_suffix_token(interrupted_suffix)
+        token = agent_session_suffix_token(interrupted_suffix)
         interrupted_role = (
             token
             if token is not None and token != "q" and not token.isdigit()
@@ -96,12 +96,12 @@ def _question_interrupted_suffix_and_role(
 
 def _question_successor_fallback_token(reserved_suffixes: tuple[str, ...]) -> str:
     """Return the first numeric suffix token not already used in this handoff."""
-    reserved = {f"{AGENT_FAMILY_SEPARATOR}0"}
+    reserved = {f"{AGENT_SESSION_SEPARATOR}0"}
     for suffix in reserved_suffixes:
         canonical = canonical_plan_chain_suffix(suffix)
         reserved.add(canonical or suffix)
     token = 0
-    while f"{AGENT_FAMILY_SEPARATOR}{token}" in reserved:
+    while f"{AGENT_SESSION_SEPARATOR}{token}" in reserved:
         token += 1
     return str(token)
 
@@ -144,7 +144,7 @@ def handle_questions_marker(
     lane = (
         meta_family
         if isinstance(meta_family, str) and meta_family
-        else agent_family_base(creator_agent) or creator_agent
+        else agent_session_base(creator_agent) or creator_agent
     )
 
     parent_artifacts_dir = resolve_question_chain_parent(
@@ -281,7 +281,7 @@ def _continue_after_auto_answered_question(
         *(suffix for suffix, _path in state.saved_chat_paths if suffix),
         interrupted_suffix,
     )
-    suffix_template = f"{AGENT_FAMILY_SEPARATOR}@"
+    suffix_template = f"{AGENT_SESSION_SEPARATOR}@"
     followup_role = interrupted_role
     fallback_token = _question_successor_fallback_token(reserved_suffixes)
     followup_prompt = assemble_question_followup_prompt(base_prompt, rounds)

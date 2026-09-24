@@ -180,20 +180,20 @@ def _root_reuse_name(
         return facing_family
     if not facing_agent:
         return None
-    from sase.plan_chain import agent_family_base
+    from sase.plan_chain import agent_session_base
 
-    return agent_family_base(facing_agent, include_legacy_dash=True) or facing_agent
+    return agent_session_base(facing_agent, include_legacy_dash=True) or facing_agent
 
 
 def _non_family_reuse_name(facing_agent: str | None) -> str | None:
     if not facing_agent:
         return None
-    from sase.plan_chain import AGENT_FAMILY_SEPARATOR, agent_family_base
+    from sase.plan_chain import AGENT_SESSION_SEPARATOR, agent_session_base
 
     # Legacy callers without family metadata retain the old base-name
     # behavior. Real family rows take the explicit family branch.
-    if AGENT_FAMILY_SEPARATOR in facing_agent:
-        return agent_family_base(facing_agent) or facing_agent
+    if AGENT_SESSION_SEPARATOR in facing_agent:
+        return agent_session_base(facing_agent) or facing_agent
     return facing_agent
 
 
@@ -290,7 +290,7 @@ def _is_family_origin_suffix(role_suffix: str | None) -> bool:
         return False
     from sase.plan_chain import (
         PLAN_CHAIN_PLAN_SUFFIX,
-        agent_family_suffix_token,
+        agent_session_suffix_token,
         canonical_plan_chain_suffix,
     )
 
@@ -299,7 +299,7 @@ def _is_family_origin_suffix(role_suffix: str | None) -> bool:
         f"{PLAN_CHAIN_PLAN_SUFFIX}-"
     ):
         return True
-    return agent_family_suffix_token(canonical) == "0"
+    return agent_session_suffix_token(canonical) == "0"
 
 
 def _prompt_clan_name(prompt: str) -> str | None:
@@ -404,10 +404,10 @@ def _verify_family_form(
             produced=rewritten,
         )
     if facing_agent:
-        from sase.plan_chain import agent_family_base
+        from sase.plan_chain import agent_session_base
 
         shell_family = _facing_name(
-            agent_family_base(facing_agent, include_legacy_dash=True)
+            agent_session_base(facing_agent, include_legacy_dash=True)
         )
         if shell_family and shell_family != family_parent:
             raise KillAndEditPromptError(
@@ -486,9 +486,9 @@ def _names_match_relaunched(actual: str, expected: str) -> bool:
     facing_expected = _facing_name(expected)
     if facing_actual == facing_expected:
         return True
-    from sase.plan_chain import agent_family_base
+    from sase.plan_chain import agent_session_base
 
-    expected_base = agent_family_base(
+    expected_base = agent_session_base(
         facing_expected or expected,
         include_legacy_dash=True,
     )

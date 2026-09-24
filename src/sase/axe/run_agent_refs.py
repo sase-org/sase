@@ -174,7 +174,7 @@ def _resolve_wait_dependency_entry(
         resolve_agent_name_template_reference,
     )
     from sase.agent.names._lookup_artifacts import is_success_outcome
-    from sase.plan_chain import is_agent_family_member
+    from sase.plan_chain import is_agent_session_member
 
     try:
         resume_agent = resolve_resume_agent_name(wait_name)
@@ -212,7 +212,7 @@ def _resolve_wait_dependency_entry(
                 )
                 producer_dirs = tuple(str(member.artifacts_dir) for member in producers)
 
-        if selected is None and not is_agent_family_member(name):
+        if selected is None and not is_agent_session_member(name):
             family = find_agent_family(name)
             if family is not None:
                 producers = _matching_group_members(

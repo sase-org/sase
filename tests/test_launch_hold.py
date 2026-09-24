@@ -144,7 +144,7 @@ def test_launch_unit_armer_for_agent_unit_sets_identity() -> None:
             prompt="hello",
             identity="planner",
             identity_explicit=True,
-            family_attach_parent="fam",
+            agent_session_attach_parent="fam",
             clan="clanX",
         ),
     )

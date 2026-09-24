@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.plan_chain import (
-    agent_family_base,
+    agent_session_base,
     agent_session_parallel_value,
     agent_session_value,
 )
@@ -280,11 +280,11 @@ def _epic_launch_lane(
     if raw_family:
         return raw_family
     if exact_name:
-        return agent_family_base(exact_name) or exact_name
+        return agent_session_base(exact_name) or exact_name
 
     raw_action_name = host_action_data.get("agent_name")
     if raw_action_name:
-        return agent_family_base(raw_action_name) or raw_action_name
+        return agent_session_base(raw_action_name) or raw_action_name
     return None
 
 

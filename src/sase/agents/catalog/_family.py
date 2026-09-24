@@ -1,7 +1,7 @@
 """Name-based family/role derivation for agent-family (``--``) members.
 
 Deliberately independent from :mod:`sase.plan_chain`, whose
-``agent_family_base``/``agent_family_role_for_suffix`` helpers classify
+``agent_session_base``/``agent_session_role_for_suffix`` helpers classify
 suffixes against a fixed plan-chain vocabulary (``--plan``, ``--code``,
 ``--mon-*``, feedback rounds, phase questions, ...) and also treat ``.``
 as a family separator for legacy spellings. The catalog's family/member

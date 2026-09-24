@@ -13,7 +13,7 @@ from sase.agent.status_buckets import (
 from sase.core.time import local_now
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_role_for_suffix,
+    agent_session_role_for_suffix,
     canonical_plan_chain_suffix,
 )
 
@@ -120,7 +120,7 @@ def _is_planner_phase_row(agent: "Agent") -> bool:
 
 def is_code_phase_row(agent: "Agent") -> bool:
     return (
-        agent_family_role_for_suffix(
+        agent_session_role_for_suffix(
             agent.role_suffix,
             agent_session_role=agent.agent_session_role,
         )

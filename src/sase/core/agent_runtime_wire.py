@@ -1,4 +1,4 @@
-"""Wire records for Rust-backed clan/family runtime aggregation."""
+"""Wire records for Rust-backed clan/agent-session runtime aggregation."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ class ClanRuntimeMemberWire:
 
 @dataclass(frozen=True)
 class ClanRuntimeWire:
-    """Wall-clock runtime for a clan or sequential family."""
+    """Wall-clock runtime for a clan or sequential agent session."""
 
     wall_clock_seconds: float = 0.0
     active: bool = False

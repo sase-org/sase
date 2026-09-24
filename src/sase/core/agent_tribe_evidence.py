@@ -83,7 +83,7 @@ def _build_stored_tribe_names(
     index = WaitDependencyIndex(
         named={},
         workflows={},
-        families={},
+        agent_sessions={},
         clans={},
         tribes={},
         effective_clan_tribes={},

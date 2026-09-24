@@ -7,7 +7,7 @@ family member with this six-step sequence. The order is load-bearing:
    reaches 2 and the agent is named. Promotion turns a lone agent into a
    family root and must happen before follow-up artifacts are created.
 2. Resolve the successor suffix: ``request.suffix`` verbatim, otherwise
-   ``allocate_agent_family_child_suffix`` on ``request.suffix_template``,
+   ``allocate_agent_session_child_suffix`` on ``request.suffix_template``,
    otherwise an unnamed-agent template render (``fallback_token``).
 3. Set ``state.current_role_suffix``, then ``create_followup_artifacts``
    with ``agent_name_override=plan_chain_agent_name(...)``.
@@ -45,7 +45,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.plan_chain import (
-    allocate_agent_family_child_suffix,
+    allocate_agent_session_child_suffix,
     plan_chain_agent_name,
 )
 
@@ -185,7 +185,7 @@ def _resolved_suffix(
         return request.suffix
     assert request.suffix_template is not None
     if ctx.agent_name:
-        return allocate_agent_family_child_suffix(
+        return allocate_agent_session_child_suffix(
             ctx.agent_name,
             request.suffix_template,
             extra_reserved_suffixes=request.extra_reserved_suffixes,

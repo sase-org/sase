@@ -71,10 +71,10 @@ def retry_mobile_agent(request: dict[str, Any]) -> dict[str, Any]:
         if not result.success and result.reason == "permission_denied":
             raise_lifecycle_error(result)
 
-    from sase.plan_chain import agent_family_base
+    from sase.plan_chain import agent_session_base
 
     retry_source_name = (
-        agent_family_base(context["agent_name"]) or context["agent_name"]
+        agent_session_base(context["agent_name"]) or context["agent_name"]
     )
     retry_name = allocate_retry_name(retry_source_name)
     retry_prompt = rewrite_retry_prompt_name(prompt, retry_name)

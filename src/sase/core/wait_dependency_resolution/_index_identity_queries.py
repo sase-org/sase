@@ -6,19 +6,19 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from ._types import ArtifactCandidate, FamilyCandidate, WaitDependencyStatus
+from ._types import ArtifactCandidate, AgentSessionCandidate, WaitDependencyStatus
 
 
 class _IdentityQueryIndex(Protocol):
     artifacts: dict[tuple[str, str], ArtifactCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
 
-    def family_candidate_for_root(
+    def agent_session_candidate_for_root(
         self,
         root: ArtifactCandidate,
         *,
         exclude_artifact_dir: str | Path | None = None,
-    ) -> FamilyCandidate | None: ...
+    ) -> AgentSessionCandidate | None: ...
 
     def is_resolved(
         self,
@@ -47,18 +47,21 @@ class WaitDependencyIdentityQueries:
                 exclude_artifact_dir=exclude_artifact_dir,
             )
 
-        family_candidate = index.family_candidate_for_root(
+        agent_session_candidate = index.agent_session_candidate_for_root(
             candidate,
             exclude_artifact_dir=exclude_artifact_dir,
         )
-        if family_candidate is not None:
-            if family_candidate.is_failed:
+        if agent_session_candidate is not None:
+            if agent_session_candidate.is_failed:
                 return self._identity_name_fallback_status(
                     dependency,
                     exclude_artifact_dir=exclude_artifact_dir,
-                    newer_than=family_candidate.timestamp,
+                    newer_than=agent_session_candidate.timestamp,
                 )
-            if family_candidate.is_resolved and family_candidate.is_identity_success:
+            if (
+                agent_session_candidate.is_resolved
+                and agent_session_candidate.is_identity_success
+            ):
                 return WaitDependencyStatus("resolved")
             return WaitDependencyStatus("waiting")
 

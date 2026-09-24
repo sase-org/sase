@@ -1,7 +1,7 @@
 """Rust-backed batched query facade for waited producers' artifact metadata.
 
 This is the exact-producer counterpart to ``artifact_file_query_facade``: it
-does not accept an ``agent`` name filter or perform any family/clan
+does not accept an ``agent`` name filter or perform any agent-session/clan
 membership resolution itself. Callers already resolved each named
 dependency to its exact producer artifact directories (in stable producer
 order) before reaching this facade; see the wait-context runtime layer.

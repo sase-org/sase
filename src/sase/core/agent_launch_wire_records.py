@@ -176,8 +176,8 @@ class AgentUnitWire:
     clan_tribe: str | None = None
     clan_summary: str | None = None
     clan_summary_script: str | None = None
-    family_attach_parent: str | None = None
-    family_attach_suffix: str | None = None
+    agent_session_attach_parent: str | None = None
+    agent_session_attach_suffix: str | None = None
     tribe: str | None = None
     model: str | None = None
     reasoning_effort: str | None = None

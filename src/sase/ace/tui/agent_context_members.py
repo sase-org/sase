@@ -15,13 +15,13 @@ from dataclasses import dataclass
 
 from sase.ace.tui.models.agent import Agent
 from sase.plan_chain import (
-    AGENT_FAMILY_SEPARATOR,
+    AGENT_SESSION_SEPARATOR,
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
     PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_role_for_suffix,
-    agent_family_suffix_token,
+    agent_session_role_for_suffix,
+    agent_session_suffix_token,
     canonical_plan_chain_suffix,
     plan_chain_feedback_round,
 )
@@ -69,8 +69,8 @@ def _normalize_artifacts_dir(value: str | None) -> str | None:
 
 def _compact_suffix_label(suffix: str) -> str:
     """Return a compact suffix label by stripping the leading ``--``."""
-    if suffix.startswith(AGENT_FAMILY_SEPARATOR):
-        return suffix[len(AGENT_FAMILY_SEPARATOR) :]
+    if suffix.startswith(AGENT_SESSION_SEPARATOR):
+        return suffix[len(AGENT_SESSION_SEPARATOR) :]
     return suffix
 
 
@@ -85,12 +85,12 @@ def compact_role_label(agent: Agent) -> str:
     renderer is responsible for truncating long labels.
     """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
-    role = agent_family_role_for_suffix(
+    role = agent_session_role_for_suffix(
         agent.role_suffix,
         agent_session_role=agent.agent_session_role,
     )
     if agent.agent_session_role == "root" and not agent.plan_chain_root:
-        token = agent_family_suffix_token(agent.role_suffix)
+        token = agent_session_suffix_token(agent.role_suffix)
         if token is not None:
             return token
     if role == "code":

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR
+from sase.plan_chain import AGENT_SESSION_SEPARATOR
 from sase.agent.names._templates import (
     AgentNameTemplateError,
     AgentNameTemplateNotFoundError,
@@ -60,9 +60,9 @@ def indexed_agent_name_base(template: str) -> str:
         rendered = render_agent_name_template(template, "0")
     except AgentNameTemplateError as exc:
         raise InvalidIndexedAgentNameTemplateError(template, _reason(exc)) from exc
-    if AGENT_FAMILY_SEPARATOR in rendered:
+    if AGENT_SESSION_SEPARATOR in rendered:
         raise InvalidIndexedAgentNameTemplateError(
-            template, f"rendered name cannot contain '{AGENT_FAMILY_SEPARATOR}'"
+            template, f"rendered name cannot contain '{AGENT_SESSION_SEPARATOR}'"
         )
     return agent_name_template_base(template)
 

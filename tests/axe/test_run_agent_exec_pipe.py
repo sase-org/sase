@@ -40,7 +40,7 @@ def test_handle_pipe_marker_default_suffix_and_fork(tmp_path: Path) -> None:
         patch("sase.axe.run_agent_exec_pipe.update_meta_field"),
         patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
         patch(
-            "sase.axe.run_agent_exec_pipe.allocate_agent_family_child_suffix",
+            "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
             allocate,
         ),
         patch("sase.axe.run_agent_exec_pipe.create_followup_artifacts", create),
@@ -95,7 +95,7 @@ def test_handle_pipe_marker_saves_parent_chat_before_successor(
         patch("sase.axe.run_agent_exec_pipe.update_meta_field"),
         patch("sase.axe.run_agent_exec_pipe.update_step_marker_chat_path"),
         patch(
-            "sase.axe.run_agent_exec_pipe.allocate_agent_family_child_suffix",
+            "sase.axe.run_agent_exec_pipe.allocate_agent_session_child_suffix",
             return_value="--1",
         ),
         patch("sase.axe.run_agent_exec_pipe.create_followup_artifacts", create),

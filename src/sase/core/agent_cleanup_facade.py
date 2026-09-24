@@ -29,6 +29,7 @@ from sase.core.agent_cleanup_wire import (
     AgentCleanupTargetWire,
     agent_cleanup_wire_to_json_dict,
     cleanup_plan_from_dict,
+    cleanup_targets_for_core,
 )
 from sase.core.rust import require_rust_binding
 
@@ -57,7 +58,7 @@ def plan_agent_cleanup(
         return plan_agent_cleanup_python(wire_targets, wire_request)
 
     payload: dict[str, Any] = binding(
-        agent_cleanup_wire_to_json_dict(wire_targets),
+        cleanup_targets_for_core(wire_targets),
         agent_cleanup_wire_to_json_dict(wire_request),
     )
     plan = cleanup_plan_from_dict(payload)

@@ -203,12 +203,12 @@ class EntryRelaunchMixin:
         if agent.agent_name:
             try:
                 from sase.agent.names import allocate_retry_name
-                from sase.plan_chain import AGENT_FAMILY_SEPARATOR, agent_family_base
+                from sase.plan_chain import AGENT_SESSION_SEPARATOR, agent_session_base
 
                 retry_source_name = prompt_facing_agent_name(agent.agent_name)
-                if AGENT_FAMILY_SEPARATOR in retry_source_name:
+                if AGENT_SESSION_SEPARATOR in retry_source_name:
                     retry_source_name = (
-                        agent_family_base(retry_source_name) or retry_source_name
+                        agent_session_base(retry_source_name) or retry_source_name
                     )
                 retry_name = prompt_facing_agent_name(
                     allocate_retry_name(retry_source_name)

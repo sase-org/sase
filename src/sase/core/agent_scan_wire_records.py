@@ -207,7 +207,7 @@ class AgentArtifactIndexUpdateWire:
 
 @dataclass(frozen=True)
 class AgentArtifactIndexDismissalReconcileWire:
-    """Summary returned by dismissed-family index reconciliation."""
+    """Summary returned by dismissed agent-session index reconciliation."""
 
     schema_version: int
     index_path: str

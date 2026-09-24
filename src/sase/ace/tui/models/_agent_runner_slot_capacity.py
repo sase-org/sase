@@ -10,7 +10,11 @@ from typing import Any
 from sase.agent.status_buckets import PRE_RUN_WAIT_STATUSES, agent_status_bucket
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
-from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT, runner_slot_queue_display_key
+from sase.core.runner_slots import (
+    DEFAULT_QUEUE_WEIGHT,
+    capacity_session_keys_for_core,
+    runner_slot_queue_display_key,
+)
 
 from .agent import Agent
 from .agent_status import DISMISSABLE_STATUSES
@@ -67,16 +71,14 @@ def capacity_record_from_agent(
         "pid": agent.pid,
         "run_started_at": _capacity_run_started_at(agent),
         "parent_timestamp": agent.parent_timestamp,
-        "agent_session": _capacity_agent_session(agent),
-        "agent_session_role": agent.agent_session_role,
-        # legacy agent-family spelling: the pinned core capacity struct has
-        # no ``agent_session_parallel`` alias yet; Python keeps sending the
-        # legacy spelling of that one field here until core-contract renames
-        # the struct (same boundary as capacity_session_keys_for_core).
-        "agent_family_parallel": agent.agent_session_parallel,
-        "family_shell_kind": _family_shell_kind(agent),
-        "family_shell_id": _family_shell_id(agent),
-        "family_shell_state": _family_shell_state(agent),
+        **capacity_session_keys_for_core(
+            agent_session=_capacity_agent_session(agent),
+            agent_session_role=agent.agent_session_role,
+            agent_session_parallel=agent.agent_session_parallel,
+            shell_kind=_agent_session_shell_kind(agent),
+            shell_id=_agent_session_shell_id(agent),
+            shell_state=_agent_session_shell_state(agent),
+        ),
         "queue_weight": None
         if agent.queue_weight_invalid
         else finite_float(agent.queue_weight),
@@ -201,19 +203,19 @@ def _capacity_agent_session(agent: Agent) -> str | None:
     )
 
 
-def _family_shell_kind(agent: Agent) -> str | None:
+def _agent_session_shell_kind(agent: Agent) -> str | None:
     if agent.is_gate:
         return "gate"
     return "monitor" if agent.is_monitor else None
 
 
-def _family_shell_id(agent: Agent) -> str | None:
+def _agent_session_shell_id(agent: Agent) -> str | None:
     if agent.is_gate:
         return agent.gate_id
     return agent.monitor_id if agent.is_monitor else None
 
 
-def _family_shell_state(agent: Agent) -> str | None:
+def _agent_session_shell_state(agent: Agent) -> str | None:
     if agent.is_gate:
         return agent.gate_state
     return agent.monitor_state if agent.is_monitor else None

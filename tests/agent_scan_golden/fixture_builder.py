@@ -103,12 +103,15 @@ def _build_ace_run_running(root: Path) -> None:
     artifact_dir = root / "myproj" / "artifacts" / "ace-run" / TS_ACE_RUN_RUNNING
     _write_json(
         artifact_dir / "agent_meta.json",
+        # Legacy-shape (pre-rename) agent meta: core derives the legacy
+        # ``agent_clan`` from the ``agent_family*`` keys, so keep the legacy
+        # agent-family spelling here.
         {
             "name": "running_alpha",
             "workflow_name": "wf_alpha",
-            "agent_session": "legacy_clan",
-            "agent_session_role": "phase",
-            "agent_session_parallel": True,
+            "agent_family": "legacy_clan",
+            "agent_family_role": "phase",
+            "agent_family_parallel": True,
             "pid": 22222,
             "model": "claude-sonnet-4-6",
             "llm_provider": "claude",

@@ -25,6 +25,12 @@ from sase.core.agent_group_archive_wire import (
     saved_agent_group_wire_to_json_dict,
 )
 from sase.core.agent_hold_facade import agent_armer_wire_for_artifacts
+from sase.core.agent_launch_wire import (
+    AgentUnitWire,
+    LaunchUnitWire,
+    agent_launch_wire_to_json_dict,
+    launch_plan_from_dict,
+)
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     agent_scan_wire_from_dict,
@@ -348,3 +354,79 @@ def test_fleet_locator_wire_emits_new_and_matches_core_key() -> None:
     assert "family_id" not in legacy
     key = require_rust_binding("fleet_logical_locator_key")(legacy)
     assert "|family:8:family-1|" in key
+
+
+def _launch_plan_with_attach(parent_key: str, suffix_key: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "launch_kind": "auto",
+        "selected_project": "sase",
+        "content_digest": "a" * 64,
+        "units": [
+            {
+                "logical_id": "unit-1",
+                "source_order": 0,
+                "waits": [],
+                "payload": {
+                    "kind": "agent",
+                    "prompt": "Review",
+                    parent_key: "parent",
+                    suffix_key: "reviewer",
+                },
+            }
+        ],
+        "diagnostics": [],
+    }
+
+
+def test_launch_agent_unit_hydrates_either_attach_spelling() -> None:
+    """Core-returned (legacy) and Python-built (new) launch units match."""
+    legacy = launch_plan_from_dict(
+        _launch_plan_with_attach("family_attach_parent", "family_attach_suffix")
+    )
+    new = launch_plan_from_dict(
+        _launch_plan_with_attach(
+            "agent_session_attach_parent", "agent_session_attach_suffix"
+        )
+    )
+    assert legacy == new
+    agent = new.units[0].payload
+    assert isinstance(agent, AgentUnitWire)
+    assert agent.agent_session_attach_parent == "parent"
+    assert agent.agent_session_attach_suffix == "reviewer"
+
+
+def test_launch_agent_unit_json_emits_only_new_attach_spelling() -> None:
+    agent = AgentUnitWire(
+        prompt="Review",
+        agent_session_attach_parent="parent",
+        agent_session_attach_suffix="reviewer",
+    )
+    payload = agent_launch_wire_to_json_dict(agent)
+    assert payload["agent_session_attach_parent"] == "parent"
+    assert payload["agent_session_attach_suffix"] == "reviewer"
+    assert "family_attach_parent" not in payload
+    assert "family_attach_suffix" not in payload
+    bare = agent_launch_wire_to_json_dict(AgentUnitWire(prompt="Review"))
+    assert "agent_session_attach_parent" not in bare
+    assert "agent_session_attach_suffix" not in bare
+
+
+def test_launch_unit_real_round_trip_accepts_new_attach_spelling() -> None:
+    """Real core reads the new attach keys Python sends as aliases."""
+    unit = LaunchUnitWire(
+        logical_id="u1",
+        source_order=0,
+        payload=AgentUnitWire(
+            prompt="Review",
+            agent_session_attach_parent="parent",
+            agent_session_attach_suffix="reviewer",
+        ),
+    )
+    payload = agent_launch_wire_to_json_dict(unit)
+    assert "family_attach_parent" not in payload["payload"]
+    armer = require_rust_binding("launch_unit_hold_armer")(
+        payload, "req-attach", "sase", 4242, "/tmp/done.json"
+    )
+    assert armer["agent_name"] == "parent--reviewer"
+    assert armer["family"] == "parent"

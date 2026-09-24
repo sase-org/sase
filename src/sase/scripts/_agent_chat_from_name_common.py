@@ -35,7 +35,7 @@ from sase.plan_chain import (
     AGENT_SESSION_ROLE_KEY,
     LEGACY_AGENT_FAMILY_ROLE_KEY,
 )
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import agent_session_base
 
 _MAX_LAUNCH_PROMPT_CHARS = 2000
 
@@ -139,7 +139,7 @@ def find_family_member(name: str) -> AgentFamilyMember | None:
     """Return the exact member represented by a recognized family-child name."""
     base_name = _canonical_family_member_base(name)
     if base_name is None:
-        base_name = agent_family_base(name, include_legacy_dash=True)
+        base_name = agent_session_base(name, include_legacy_dash=True)
         if base_name is None or find_agent_family(name) is not None:
             return None
     family = find_agent_family(base_name)

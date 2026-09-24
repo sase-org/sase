@@ -28,7 +28,7 @@ RuntimeGroupBy = Literal[
 LEGACY_RUNTIME_GROUP_BY = "family"
 
 
-def normalize_runtime_group_by(value: str) -> str:
+def _normalize_runtime_group_by(value: str) -> str:
     """Map a stored or requested group-by to the spelling sent to core."""
     return "session" if value == LEGACY_RUNTIME_GROUP_BY else value
 
@@ -64,7 +64,7 @@ def query_run_stats(
         {
             "start_ts": int(start_ts),
             "end_ts": int(end_ts),
-            "runtime_group_by": normalize_runtime_group_by(runtime_group_by),
+            "runtime_group_by": _normalize_runtime_group_by(runtime_group_by),
             "bucket_seconds": int(resolved_bucket_seconds),
             "top_n": int(top_n),
             "project": project,
@@ -112,7 +112,6 @@ def query_activity_stats(
 __all__ = [
     "LEGACY_RUNTIME_GROUP_BY",
     "RuntimeGroupBy",
-    "normalize_runtime_group_by",
     "query_activity_stats",
     "query_run_stats",
 ]

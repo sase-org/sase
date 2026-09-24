@@ -25,7 +25,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.llm_provider.fakey import FakeyProvider
-from sase.plan_chain import AGENT_FAMILY_PARALLEL_FIELD
+from sase.plan_chain import LEGACY_AGENT_FAMILY_PARALLEL_KEY
 
 _WAIT_TIMEOUT = 30.0
 _FAKEY_RELEASE_TIMEOUT = 60.0
@@ -131,7 +131,10 @@ class _RunnerSlotFakeyHarness:
         if agent_session is not None:
             meta["agent_session"] = agent_session
         if agent_session_parallel:
-            meta[AGENT_FAMILY_PARALLEL_FIELD] = True
+            # legacy agent-family spelling: no current writer emits a parallel
+            # marker, and the pinned core scanner reads only the legacy key
+            # (core-contract), so parallel members are legacy-shape fixtures.
+            meta[LEGACY_AGENT_FAMILY_PARALLEL_KEY] = True
         if monitor_id is not None:
             meta["monitor_id"] = monitor_id
         write_agent_meta(str(artifacts_dir), meta)
