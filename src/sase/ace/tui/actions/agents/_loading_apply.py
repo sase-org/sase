@@ -363,6 +363,14 @@ class AgentLoadingApplyMixin(
             [*self._agents_with_children, *self._agents],
         )
         self._fold_counts = fold_counts
+        try:
+            from ._notification_completion_arrival import (
+                reconcile_arrival_status_overlays,
+            )
+
+            reconcile_arrival_status_overlays(self)
+        except Exception:
+            pass
 
         # An authoritative complete-history roster retires sticky panels
         # whose nodes are gone however they left; bounded and incomplete

@@ -99,6 +99,8 @@ class AgentLoadingStateMixin:
 
     # Transient status overrides for optimistic response state.
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]
+    # Short-lived arrival status overlays installed by the completion poll.
+    _agents_arrival_status_overlays: dict[tuple[AgentType, str, str | None], Any]
 
     # Agent search/filter query
     _agent_search_query: str

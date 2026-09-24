@@ -287,3 +287,85 @@ async def test_off_tab_delta_failure_retains_dirty_state_without_broad_load() ->
     assert "agents" not in app.refresh_calls
     assert app._dirty_agents is True
     assert app._dirty_agent_artifact_dirs == (Path("/tmp/artifacts/a"),)
+
+
+@pytest.mark.asyncio
+async def test_tick_poll_arrival_still_requests_delta_while_loading(
+    tmp_path: Path,
+) -> None:
+    """The tick's own arrival is not dropped when a load is in flight."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_notifications = True
+    app._poll_agent_completions_result = True
+    app._agents_loading = True
+    artifacts_dir = tmp_path / "artifacts" / "arrival"
+    artifacts_dir.mkdir(parents=True)
+    agent = _make_agent(
+        status="DONE",
+        cl_name="race-agent",
+        raw_suffix="20260722090000",
+        artifacts_dir=str(artifacts_dir),
+    )
+    app._agents_with_children = [agent]  # type: ignore[attr-defined]
+    app._last_new_completion_notifications = [  # type: ignore[attr-defined]
+        SimpleNamespace(
+            sender="user-agent",
+            action="JumpToAgent",
+            dismissed=False,
+            action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+        )
+    ]
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["notifications", "delta:notification:1"]
+    assert app.delta_requests == [("notification", (artifacts_dir,))]
+    assert app.refresh_requests == []
+
+
+@pytest.mark.asyncio
+async def test_tick_poll_arrival_still_requests_delta_in_hint_mode(
+    tmp_path: Path,
+) -> None:
+    """The tick's own arrival is not dropped in transient input modes."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_notifications = True
+    app._poll_agent_completions_result = True
+    app._hint_mode_active = True  # type: ignore[attr-defined]
+    artifacts_dir = tmp_path / "artifacts" / "arrival"
+    artifacts_dir.mkdir(parents=True)
+    agent = _make_agent(
+        status="DONE",
+        cl_name="race-agent",
+        raw_suffix="20260722090000",
+        artifacts_dir=str(artifacts_dir),
+    )
+    app._agents_with_children = [agent]  # type: ignore[attr-defined]
+    app._last_new_completion_notifications = [  # type: ignore[attr-defined]
+        SimpleNamespace(
+            sender="user-agent",
+            action="JumpToAgent",
+            dismissed=False,
+            action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+        )
+    ]
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["notifications", "delta:notification:1"]
+    assert app.delta_requests == [("notification", (artifacts_dir,))]
+
+
+@pytest.mark.asyncio
+async def test_quiet_tick_while_loading_reloads_no_surfaces() -> None:
+    """Without an arrival, a loading tick stays quiet."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_notifications = True
+    app._poll_agent_completions_result = False
+    app._agents_loading = True
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["notifications"]
+    assert app.delta_requests == []
+    assert app.refresh_requests == []

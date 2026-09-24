@@ -836,7 +836,9 @@ name the same way, so a settled family updates without waiting for the next full
 refresh. When the named row is acknowledged, the settlement row is dismissed with it:
 the match requires both `cl_name` and `raw_suffix` to equal the row's key, since
 `cl_name` alone is the project-wide patch name shared by every agent and would clear
-unrelated settlement rows.
+unrelated settlement rows. The finished node shows its terminal status and unread marker
+on the toast tick, from an exact read-only status probe. The targeted reload that
+follows is authoritative.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and sase's TUI
 image preview notes.

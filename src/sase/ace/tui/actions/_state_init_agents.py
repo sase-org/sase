@@ -404,6 +404,7 @@ def init_agent_state(self: Any) -> None:
 
     # Transient status overrides for optimistic response state.
     self._agent_status_overrides = {}
+    self._agents_arrival_status_overlays = {}
     self._dismiss_persistence_inflight = set()
     self._kill_persistence_inflight = set()
 

@@ -312,19 +312,36 @@ class EventAutoRefreshSurfacesMixin(
             self._accept_surface_token("notifications", current_tokens)
             reloaded.append("notifications")
 
+        # An arrival observed by this tick's own poll must still queue its
+        # exact delta even when the tick returns early below. The request
+        # only queues behind the in-flight load.
+        def _request_tick_arrival_delta() -> None:
+            if not new_agent_notification:
+                return
+            request_notification_agents_refresh(
+                self,
+                notifications=getattr(self, "_last_new_completion_notifications", None),
+                allow_broad_fallback=self.current_tab == "agents",
+            )
+
         # Skip patch/agent refresh if the user is in a transient input
         # mode (hint bar or similar is active).
         if getattr(self, "_hint_mode_active", False):
+            _request_tick_arrival_delta()
             return axe_file_opens
         if getattr(self, "_entry_jump_mode_active", False):
+            _request_tick_arrival_delta()
             return axe_file_opens
         if getattr(self, "_panel_fold_hint_mode_active", False):
+            _request_tick_arrival_delta()
             return axe_file_opens
         if getattr(self, "_accept_mode_active", False):
+            _request_tick_arrival_delta()
             return axe_file_opens
 
         # Skip if a background agent load is already in progress
         if self._agents_loading:
+            _request_tick_arrival_delta()
             return axe_file_opens
 
         # Notification-triggered targeting resolves against the newly

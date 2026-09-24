@@ -35,6 +35,9 @@ class AgentNotificationUnreadMixin:
     def _patch_unread_completed_agent_changes(
         self: Any,
         before: set[tuple[AgentType, str, str | None]],
+        *,
+        status_changed: set[tuple[AgentType, str, str | None]]
+        | tuple[tuple[AgentType, str, str | None], ...] = (),
     ) -> bool:
         """Repaint changed real rows and any visible clan ancestors.
 
@@ -45,22 +48,24 @@ class AgentNotificationUnreadMixin:
             self, "_unread_completed_agent_ids", set()
         )
         changed = before ^ after
-        if not changed:
+        status_changed_set = set(status_changed or ())
+        if not changed and not status_changed_set:
             return True
         if getattr(self, "current_tab", None) != "agents":
             return True
 
+        combined = set(changed) | status_changed_set
         roster = loaded_real_agent_roster(self)
         node_index = agent_node_projection_index(roster)
         roster_by_identity = {agent.identity: agent for agent in roster}
         changed_members = [
             roster_by_identity[identity]
-            for identity in changed
+            for identity in combined
             if identity in roster_by_identity
         ]
         changed_node_identities = {
             projection.identity
-            for identity in changed
+            for identity in combined
             if (projection := node_index.owner_for_identity(identity)) is not None
         }
         affected_clans = {
@@ -73,7 +78,7 @@ class AgentNotificationUnreadMixin:
         patch_keys: set[object] = set()
         for agent in getattr(self, "_agents", ()):
             should_patch = (
-                agent.identity in changed or agent.identity in changed_node_identities
+                agent.identity in combined or agent.identity in changed_node_identities
             )
             if agent.is_clan_container:
                 should_patch = (

@@ -94,6 +94,7 @@ def _prepare_notification_reconciliation(
     bool,
     tuple[Path, ...],
     dict[str, NotificationDelivery],
+    Any,
 ]:
     """Prepare response, disappearance, gate dirs, and deliveries on a worker thread.
 
@@ -101,6 +102,11 @@ def _prepare_notification_reconciliation(
     dismisses any; resolving the superset keeps the delivery lookup on this one
     hop even though the dismissals are only known afterwards.
     """
+    from ._notification_completion_arrival import (
+        CompletionArrivalPrep,
+        prepare_completion_arrival_overlays,
+    )
+
     prepared_plan_notifications = prepare_plan_notification_reconciliation(
         app,
         actionable_notifications,
@@ -114,12 +120,21 @@ def _prepare_notification_reconciliation(
         app,
         new_notifications,
     )
+    try:
+        arrival_prep: Any = prepare_completion_arrival_overlays(
+            app,
+            current_notifications,
+        )
+    except Exception:
+        log.exception("Completion arrival probe failed; continuing without overlay")
+        arrival_prep = CompletionArrivalPrep()
     return (
         prepared_plan_notifications,
         artifact_dirs,
         needs_broad_fallback,
         pending_gate_dirs,
         _resolve_arrival_deliveries(arrivals),
+        arrival_prep,
     )
 
 
@@ -220,6 +235,7 @@ class AgentNotificationPollingMixin:
             needs_broad_fallback,
             pending_gate_dirs,
             deliveries,
+            arrival_prep,
         ) = await asyncio.to_thread(
             _prepare_notification_reconciliation,
             self,
@@ -285,9 +301,22 @@ class AgentNotificationPollingMixin:
                 timeout=8,
             )
 
+        from ._notification_completion_arrival import (
+            install_completion_arrival_overlays,
+        )
+
         before_unread_agents = set(getattr(self, "_unread_completed_agent_ids", set()))
+        try:
+            arrival_status_changed = install_completion_arrival_overlays(
+                self, arrival_prep
+            )
+        except Exception:
+            log.exception("Completion arrival install failed; continuing")
+            arrival_status_changed = set()
         self._reconcile_unread_from_completion_notifications(notifications)
-        self._patch_unread_completed_agent_changes(before_unread_agents)
+        self._patch_unread_completed_agent_changes(
+            before_unread_agents, status_changed=arrival_status_changed
+        )
 
         # Announce the sound last so the bell or player subprocess never blocks
         # the event loop ahead of indicator/toast updates.

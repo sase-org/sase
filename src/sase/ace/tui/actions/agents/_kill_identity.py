@@ -171,6 +171,7 @@ class AgentKillIdentityMixin:
         self._dismissed_agents.update(identities)
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
+            getattr(self, "_agents_arrival_status_overlays", {}).pop(identity, None)
 
         # An explicit kill is proof the rows are gone, so a tribe panel that
         # just lost its last node stops being session-sticky.

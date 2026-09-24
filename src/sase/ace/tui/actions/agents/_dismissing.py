@@ -184,6 +184,7 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         new_identities = dismissed_identities - self._dismissed_agents
         for identity in dismissed_identities:
             self._agent_status_overrides.pop(identity, None)
+            getattr(self, "_agents_arrival_status_overlays", {}).pop(identity, None)
         self._dismissed_agents.update(dismissed_identities)
 
         count = len(agents)
@@ -329,6 +330,7 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         new_identities = identities - self._dismissed_agents
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
+            getattr(self, "_agents_arrival_status_overlays", {}).pop(identity, None)
         self._dismissed_agents.update(identities)
         self._append_dismissed_agent_objects([agent], identities)
 
