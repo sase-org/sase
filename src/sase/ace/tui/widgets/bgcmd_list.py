@@ -2,11 +2,11 @@
 
 Renders the AXE-tab left sidebar as an operational tree of lumberjacks
 and their chops, with user/background commands grouped visually below.
+Row taxonomy helpers live in ``_bgcmd_list_*``; this module keeps the
+widget plus backward-compatible re-exports.
 """
 
-from dataclasses import dataclass
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 from textual.message import Message
@@ -16,90 +16,132 @@ from textual.widgets.option_list import Option
 from sase.core.time import get_timezone, local_now
 
 from ..bgcmd import BackgroundCommandInfo
-from ._axe_dashboard_render import overrun_chip as _overrun_chip
+from ._bgcmd_list_chips import (
+    _SERVICE_CHIP_MAX_WIDTH,
+    lumberjack_status_chip,
+    service_enablement_chip,
+    service_proc_chip,
+    service_proc_label,
+    service_proc_marker,
+)
+from ._bgcmd_list_items import (
+    AxeItem,
+    BgCmdItem,
+    ChopItem,
+    ItemType,
+    LumberjackItem,
+    ServiceProcItem,
+)
+from ._bgcmd_list_oneshot import (
+    oneshot_age,
+    oneshot_chip,
+    oneshot_failed,
+    oneshot_glyph,
+)
+from ._bgcmd_list_rows import (
+    format_bgcmd_option,
+    format_chop_option,
+    format_lumberjack_option,
+    format_service_proc_option,
+    last_line_cell_len,
+)
+from ._bgcmd_list_styles import (
+    _CHOP_NAME_SELECTED_STYLE,
+    _CHOP_NAME_STYLE,
+    _CHOP_TREE_STYLE,
+    _DIVIDER_LABEL,
+    _DIVIDER_STYLE,
+    _LJ_ACCENT_STYLE,
+    _LJ_NAME_SELECTED_STYLE,
+    _LJ_NAME_STYLE,
+    _ONESHOT_BADGE_STYLE,
+    _ONESHOT_DONE_CHIP_STYLE,
+    _ONESHOT_FAIL_CHIP_STYLE,
+    _ONESHOT_FAIL_GLYPH,
+    _ONESHOT_NAME_DONE_SELECTED_STYLE,
+    _ONESHOT_NAME_DONE_STYLE,
+    _ONESHOT_NAME_RUN_SELECTED_STYLE,
+    _ONESHOT_NAME_RUN_STYLE,
+    _ONESHOT_OK_CHIP_STYLE,
+    _ONESHOT_OK_GLYPH,
+    _ONESHOT_RUN_CHIP_STYLE,
+    _ONESHOT_RUN_GLYPH,
+    _SERVICE_ACCENT_STYLE,
+    _SERVICE_DISABLED_STYLE,
+    _SERVICE_NAME_SELECTED_STYLE,
+    _SERVICE_NAME_STYLE,
+    _SERVICE_WARN_STYLE,
+)
 
 if TYPE_CHECKING:
     from ..actions.axe_display._data import ChopSnapshot
     from sase.axe.state import LumberjackStatus
-    from sase.service.status import ServiceEnablement, ServiceStatusProc
+    from sase.service.status import ServiceStatusProc
 
-# Item type: "axe" or slot number (1-9)
-ItemType = Literal["axe"] | int
+# Private aliases kept for backward compatibility with callers that
+# imported these helpers from this module before the split.
+_last_line_cell_len = last_line_cell_len
+_lumberjack_status_chip = lumberjack_status_chip
+_oneshot_age = oneshot_age
+_oneshot_chip = oneshot_chip
+_oneshot_failed = oneshot_failed
+_oneshot_glyph = oneshot_glyph
+_service_enablement_chip = service_enablement_chip
+_service_proc_chip = service_proc_chip
+_service_proc_label = service_proc_label
+_service_proc_marker = service_proc_marker
 
-
-# --- AXE side-panel item types ---
-
-
-@dataclass(frozen=True)
-class LumberjackItem:
-    """A top-level lumberjack entry."""
-
-    name: str
-
-
-@dataclass(frozen=True)
-class ChopItem:
-    """A chop child entry under a lumberjack."""
-
-    lumberjack_name: str
-    chop_name: str
-
-
-@dataclass(frozen=True)
-class BgCmdItem:
-    """A background command entry."""
-
-    slot: int
-
-
-@dataclass(frozen=True)
-class ServiceProcItem:
-    """A service-host managed proc entry."""
-
-    name: str
-
-
-AxeItem = ServiceProcItem | LumberjackItem | ChopItem | BgCmdItem
-
-
-# --- Row taxonomy palette ----------------------------------------------
-#
-# Each row family gets its own dominant hue so the three categories are
-# distinguishable at a glance even before reading the label text.
-#
-# - Lumberjacks: gold accent + bold name (top-level).
-# - Chops:      dimmer copper/amber, subordinate to the parent lumberjack.
-# - Oneshots:   muted slate/teal, visibly quieter than daemon service nodes.
-
-_LJ_ACCENT_STYLE = "bold #FFD700"
-_LJ_NAME_STYLE = "#FFD700"
-_LJ_NAME_SELECTED_STYLE = "bold #FFD700"
-
-_CHOP_TREE_STYLE = "dim #FFD700"
-_CHOP_NAME_STYLE = "#D7AF87"
-_CHOP_NAME_SELECTED_STYLE = "bold #FFD700"
-
-_ONESHOT_BADGE_STYLE = "#5F8787"
-_ONESHOT_NAME_RUN_STYLE = "#87AFAF"
-_ONESHOT_NAME_RUN_SELECTED_STYLE = "bold #87D7D7"
-_ONESHOT_NAME_DONE_STYLE = "dim #87AFAF"
-_ONESHOT_NAME_DONE_SELECTED_STYLE = "bold #87AFAF"
-_ONESHOT_RUN_GLYPH = ("▷", "#5FAFD7")
-_ONESHOT_OK_GLYPH = ("✓", "#87AF87")
-_ONESHOT_FAIL_GLYPH = ("✗", "#D78787")
-_ONESHOT_RUN_CHIP_STYLE = "#5FAFAF"
-_ONESHOT_OK_CHIP_STYLE = "dim #87AF87"
-_ONESHOT_FAIL_CHIP_STYLE = "#D78787"
-_ONESHOT_DONE_CHIP_STYLE = "dim"
-
-_SERVICE_ACCENT_STYLE = "bold #00D7AF"
-_SERVICE_NAME_STYLE = "#00D7AF"
-_SERVICE_NAME_SELECTED_STYLE = "bold #00D7AF"
-_SERVICE_DISABLED_STYLE = "dim #87AFAF"
-_SERVICE_WARN_STYLE = "bold #FFAF5F"
-
-_DIVIDER_STYLE = "dim #5FD7FF"
-_DIVIDER_LABEL = "── oneshots ──"
+__all__ = [
+    "AxeItem",
+    "BgCmdItem",
+    "BgCmdList",
+    "ChopItem",
+    "ItemType",
+    "LumberjackItem",
+    "ServiceProcItem",
+    "_CHOP_NAME_SELECTED_STYLE",
+    "_CHOP_NAME_STYLE",
+    "_CHOP_TREE_STYLE",
+    "_DIVIDER_LABEL",
+    "_DIVIDER_STYLE",
+    "_LJ_ACCENT_STYLE",
+    "_LJ_NAME_SELECTED_STYLE",
+    "_LJ_NAME_STYLE",
+    "_ONESHOT_BADGE_STYLE",
+    "_ONESHOT_DONE_CHIP_STYLE",
+    "_ONESHOT_FAIL_CHIP_STYLE",
+    "_ONESHOT_FAIL_GLYPH",
+    "_ONESHOT_NAME_DONE_SELECTED_STYLE",
+    "_ONESHOT_NAME_DONE_STYLE",
+    "_ONESHOT_NAME_RUN_SELECTED_STYLE",
+    "_ONESHOT_NAME_RUN_STYLE",
+    "_ONESHOT_OK_CHIP_STYLE",
+    "_ONESHOT_OK_GLYPH",
+    "_ONESHOT_RUN_CHIP_STYLE",
+    "_ONESHOT_RUN_GLYPH",
+    "_SERVICE_ACCENT_STYLE",
+    "_SERVICE_CHIP_MAX_WIDTH",
+    "_SERVICE_DISABLED_STYLE",
+    "_SERVICE_NAME_SELECTED_STYLE",
+    "_SERVICE_NAME_STYLE",
+    "_SERVICE_WARN_STYLE",
+    "_last_line_cell_len",
+    "_lumberjack_status_chip",
+    "_oneshot_age",
+    "_oneshot_chip",
+    "_oneshot_failed",
+    "_oneshot_glyph",
+    "_service_enablement_chip",
+    "_service_proc_chip",
+    "_service_proc_label",
+    "_service_proc_marker",
+    "format_bgcmd_option",
+    "format_chop_option",
+    "format_lumberjack_option",
+    "format_service_proc_option",
+    "get_timezone",
+    "local_now",
+]
 
 
 class BgCmdList(OptionList):
@@ -340,53 +382,13 @@ class BgCmdList(OptionList):
         overrun_count: int = 0,
     ) -> Option:
         """Format a top-level lumberjack option for display."""
-        text = Text(no_wrap=True, overflow="ellipsis")
-        if hint_char is not None:
-            text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        # Strong top-level marker: a solid left accent bar in the
-        # lumberjack hue, immediately followed by the status/cycle
-        # affordance. The bar character is the visual cue that this row
-        # is a top-level section (chops indent under it).
-        text.append("▌ ", style=_LJ_ACCENT_STYLE)
-
-        # Status indicator
-        if status and status.status == "running":
-            text.append("[", style="dim")
-            text.append("*", style="bold green")
-            text.append("] ", style="dim")
-        elif status and status.status == "error":
-            text.append("[", style="dim")
-            text.append("!", style="bold red")
-            text.append("] ", style="dim")
-        else:
-            text.append("[", style="dim")
-            text.append("·", style="dim")
-            text.append("] ", style="dim")
-
-        # Name
-        label_style = _LJ_NAME_SELECTED_STYLE if is_selected else _LJ_NAME_STYLE
-        text.append(name, style=label_style)
-
-        # Overrun roll-up chip: counts only chops at level "over" so a
-        # collapsed fold still tells the operator something under this
-        # lumberjack needs attention. Placed before the cycles/errors chip
-        # per the design's ordering.
-        if overrun_count > 0:
-            text.append("  ")
-            text.append(f"⚠{overrun_count}", style="bold #FFAF5F")
-
-        # Optional compact status chip: cycles run / errors when known.
-        # Keeps the row a single line — the chip is appended at the end
-        # so long names still get the ellipsis treatment before the chip
-        # would be reached.
-        chip = _lumberjack_status_chip(status)
-        if chip is not None:
-            text.append("  ")
-            chip_label, chip_style = chip
-            text.append(chip_label, style=chip_style)
-
-        return Option(text, id=f"lumberjack-{name}")
+        return format_lumberjack_option(
+            name=name,
+            status=status,
+            is_selected=is_selected,
+            hint_char=hint_char,
+            overrun_count=overrun_count,
+        )
 
     def _format_service_proc_option(
         self,
@@ -396,33 +398,12 @@ class BgCmdList(OptionList):
         hint_char: str | None = None,
     ) -> Option:
         """Format a service-host proc row for display."""
-        text = Text(no_wrap=True, overflow="ellipsis")
-        if hint_char is not None:
-            text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        text.append("▌ ", style=_SERVICE_ACCENT_STYLE)
-        text.append("[", style="dim")
-        marker, marker_style = _service_proc_marker(proc)
-        text.append(marker, style=marker_style)
-        text.append("] ", style="dim")
-
-        label = _service_proc_label(name)
-        if proc is not None and not proc.enablement.enabled:
-            label_style = _SERVICE_DISABLED_STYLE
-        else:
-            label_style = (
-                _SERVICE_NAME_SELECTED_STYLE if is_selected else _SERVICE_NAME_STYLE
-            )
-        text.append(label, style=label_style)
-
-        if proc is not None:
-            chip = _service_proc_chip(proc)
-            if chip is not None:
-                chip_label, chip_style = chip
-                text.append("  ")
-                text.append(chip_label, style=chip_style)
-
-        return Option(text, id=f"service-{name}")
+        return format_service_proc_option(
+            name=name,
+            proc=proc,
+            is_selected=is_selected,
+            hint_char=hint_char,
+        )
 
     def _format_chop_option(
         self,
@@ -433,52 +414,13 @@ class BgCmdList(OptionList):
         hint_char: str | None = None,
     ) -> Option:
         """Format a chop child option for display."""
-        text = Text(no_wrap=True, overflow="ellipsis")
-        if hint_char is not None:
-            text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        # Tree connector — visually subordinates the chop to its parent
-        # lumberjack. The connector and indentation use the dim-gold
-        # taxonomy hue so the relationship reads at a glance.
-        text.append("  └─ ", style=_CHOP_TREE_STYLE)
-
-        runs = snapshot.runs if snapshot is not None else []
-        if runs:
-            latest = runs[0].entry.status
-            if latest == "running":
-                marker = ("[", "●", "] ", "bold green")
-            elif latest == "success":
-                marker = ("[", "✓", "] ", "bold green")
-            elif latest in ("failure", "timeout"):
-                marker = ("[", "!", "] ", "bold red")
-            elif latest == "missing_script":
-                marker = ("[", "?", "] ", "bold yellow")
-            else:
-                marker = ("[", "*", "] ", "bold #00D7AF")
-        else:
-            marker = ("[", "·", "] ", "dim")
-        text.append(marker[0], style="dim")
-        text.append(marker[1], style=marker[3])
-        text.append(marker[2], style="dim")
-
-        label_style = _CHOP_NAME_SELECTED_STYLE if is_selected else _CHOP_NAME_STYLE
-        text.append(chop_name, style=label_style)
-        if snapshot is not None and not snapshot.enabled:
-            text.append("  disabled", style="dim #AFAF87")
-        elif snapshot is not None and snapshot.generated:
-            text.append("  instance", style="dim #B87333")
-
-        # Overrun chip — the chop's worst sampled ratio in the cached
-        # window, so a collapsed-then-expanded tree tells the same story
-        # every time. Disabled chops never run, so they never get one.
-        if snapshot is not None and snapshot.enabled:
-            chip = _overrun_chip(snapshot.overrun)
-            if chip is not None:
-                chip_label, chip_style = chip
-                text.append("  ")
-                text.append(chip_label, style=chip_style)
-
-        return Option(text, id=f"chop-{lumberjack_name}-{chop_name}")
+        return format_chop_option(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop_name,
+            snapshot=snapshot,
+            is_selected=is_selected,
+            hint_char=hint_char,
+        )
 
     def _format_bgcmd_option(
         self,
@@ -489,49 +431,15 @@ class BgCmdList(OptionList):
         hint_char: str | None = None,
         show_divider: bool = False,
     ) -> Option:
-        """Format a oneshot row: ``▷ #1 command  running · 1m``.
-
-        The glyph carries the state (``▷`` running, ``✓`` exit 0, ``✗``
-        failed or killed) and a trailing chip carries the recorded exit code
-        and age. When ``show_divider`` is True a one-line dim separator label
-        is prepended above the row so the oneshots section is visually
-        separated from the service/scheduler tree above. The divider line
-        participates in the option's height but does not contribute to the
-        requested sidebar width.
-        """
-        text = Text(no_wrap=True, overflow="ellipsis")
-        if show_divider:
-            text.append(_DIVIDER_LABEL, style=_DIVIDER_STYLE)
-            text.append("\n")
-        if hint_char is not None:
-            text.append(f"[{hint_char}] ", style="bold #FFFF00")
-
-        glyph, glyph_style = _oneshot_glyph(info, is_running)
-        text.append(f"{glyph} ", style=glyph_style)
-        text.append(f"#{slot} ", style=_ONESHOT_BADGE_STYLE)
-
-        cmd_display = info.command if info else f"slot {slot}"
-        if is_running:
-            label_style = (
-                _ONESHOT_NAME_RUN_SELECTED_STYLE
-                if is_selected
-                else _ONESHOT_NAME_RUN_STYLE
-            )
-        else:
-            label_style = (
-                _ONESHOT_NAME_DONE_SELECTED_STYLE
-                if is_selected
-                else _ONESHOT_NAME_DONE_STYLE
-            )
-        text.append(cmd_display, style=label_style)
-
-        chip = _oneshot_chip(info, is_running)
-        if chip is not None:
-            chip_label, chip_style = chip
-            text.append("  ")
-            text.append(chip_label, style=chip_style)
-
-        return Option(text, id=str(slot))
+        """Format a oneshot row: ``▷ #1 command  running · 1m``."""
+        return format_bgcmd_option(
+            slot=slot,
+            info=info,
+            is_selected=is_selected,
+            is_running=is_running,
+            hint_char=hint_char,
+            show_divider=show_divider,
+        )
 
     def update_highlight(self, current_idx: int) -> None:
         """Move the highlight without clearing/rebuilding options.
@@ -585,178 +493,6 @@ class BgCmdList(OptionList):
             self.post_message(self.SelectionChanged(event.option_index, self.panel_key))
 
 
-def _lumberjack_status_chip(status: Any) -> tuple[str, str] | None:
-    """Return a compact (label, style) chip for a lumberjack status, or None."""
-    if status is None:
-        return None
-    errors = getattr(status, "errors_encountered", 0) or 0
-    cycles = getattr(status, "cycles_run", 0) or 0
-    if errors > 0:
-        return (f"{errors}e", "bold red")
-    if cycles > 0:
-        return (f"{cycles}c", "dim")
-    return None
-
-
-def _service_proc_label(name: str) -> str:
-    """Return the compact user-facing name for a service proc row."""
-    if name == "scheduler":
-        return "Scheduler"
-    return name.replace("_", " ").title()
-
-
-def _service_proc_marker(proc: Any) -> tuple[str, str]:
-    """Return the one-character service-proc status marker and style."""
-    if proc is None:
-        return ("·", "dim")
-    from .._service_severity import proc_clean_exit, service_proc_marker
-
-    enablement = getattr(proc, "enablement", None)
-    return service_proc_marker(
-        getattr(proc, "state", ""),
-        getattr(proc, "desired", ""),
-        available=getattr(proc, "available", True),
-        enabled=True if enablement is None else getattr(enablement, "enabled", True),
-        clean_exit=proc_clean_exit(proc),
-    )
-
-
-_SERVICE_CHIP_MAX_WIDTH = 32
-
-
-def _service_enablement_chip(enablement: "ServiceEnablement") -> str | None:
-    """Return inline provenance text for a disabled proc, or ``None`` if enabled.
-
-    The Rust-derived ``summary`` already reads ``disabled here`` for a local
-    override and ``disabled by <layer>`` otherwise; it is only truncated here.
-    """
-    if enablement.enabled:
-        return None
-    text = getattr(enablement, "summary", "") or "disabled"
-    if len(text) > _SERVICE_CHIP_MAX_WIDTH:
-        text = text[: _SERVICE_CHIP_MAX_WIDTH - 1] + "…"
-    return text
-
-
-def _service_proc_chip(proc: Any) -> tuple[str, str] | None:
-    """Return a short service-proc state chip, or None when redundant."""
-    from .._service_severity import proc_clean_exit, service_proc_style
-
-    if not getattr(proc, "available", True):
-        reason = getattr(proc, "unavailable_reason", None)
-        text = f"unavailable: {reason}" if reason else "unavailable"
-        if len(text) > _SERVICE_CHIP_MAX_WIDTH:
-            text = text[: _SERVICE_CHIP_MAX_WIDTH - 1] + "…"
-        return (text, _SERVICE_WARN_STYLE)
-    enablement = getattr(proc, "enablement", None)
-    if enablement is not None and not getattr(enablement, "enabled", True):
-        disabled_text = _service_enablement_chip(enablement)
-        if disabled_text is not None:
-            return (disabled_text, _SERVICE_DISABLED_STYLE)
-    state = getattr(proc, "state", "")
-    desired = getattr(proc, "desired", "")
-    style = service_proc_style(
-        state,
-        desired,
-        available=True,
-        enabled=True,
-        clean_exit=proc_clean_exit(proc),
-    )
-    restarts = int(getattr(proc, "restarts", 0) or 0)
-    restarts_suffix = f" · {restarts}r" if restarts > 0 else ""
-    if state == "running":
-        if not restarts_suffix:
-            return None
-        return (f"{restarts}r", "dim")
-    summary = getattr(proc, "summary", "") or state
-    if not summary:
-        return (f"{restarts}r", "dim") if restarts_suffix else None
-    text = f"{summary}{restarts_suffix}"
-    if len(text) > _SERVICE_CHIP_MAX_WIDTH:
-        text = text[: _SERVICE_CHIP_MAX_WIDTH - 1] + "…"
-    return (text, style)
-
-
-def _oneshot_failed(info: BackgroundCommandInfo | None) -> bool:
-    if info is None:
-        return False
-    if info.status in {"error", "killed"}:
-        return True
-    return info.exit_code not in (None, 0)
-
-
-def _oneshot_glyph(
-    info: BackgroundCommandInfo | None, is_running: bool
-) -> tuple[str, str]:
-    """Return the state glyph and its style for a oneshot row."""
-    if is_running:
-        return _ONESHOT_RUN_GLYPH
-    if _oneshot_failed(info):
-        return _ONESHOT_FAIL_GLYPH
-    return _ONESHOT_OK_GLYPH
-
-
-def _oneshot_age(start: str | None, *, now: datetime | None = None) -> str | None:
-    """Return a compact ``1m``-style age for an ISO timestamp, or ``None``.
-
-    Compared in the configured timezone; *now* is a naive configured-timezone
-    reference (default :func:`~sase.core.time.local_now`).
-    """
-    if not start:
-        return None
-    try:
-        moment = datetime.fromisoformat(start)
-    except ValueError:
-        return None
-    if moment.tzinfo is not None:
-        moment = moment.astimezone(get_timezone()).replace(tzinfo=None)
-    seconds = int(((now or local_now()) - moment).total_seconds())
-    if seconds < 0:
-        seconds = 0
-    if seconds < 60:
-        return f"{seconds}s"
-    if seconds < 3600:
-        return f"{seconds // 60}m"
-    if seconds < 86400:
-        return f"{seconds // 3600}h"
-    return f"{seconds // 86400}d"
-
-
-def _oneshot_chip(
-    info: BackgroundCommandInfo | None, is_running: bool
-) -> tuple[str, str] | None:
-    """Return the trailing status chip: run time or recorded exit + age."""
-    if info is None:
-        return None
-    if is_running:
-        age = _oneshot_age(info.started_at)
-        label = "running" if age is None else f"running · {age}"
-        return (label, _ONESHOT_RUN_CHIP_STYLE)
-    if info.status == "killed":
-        label, style = "killed", _ONESHOT_FAIL_CHIP_STYLE
-    elif info.exit_code is not None:
-        label = f"exit {info.exit_code}"
-        style = (
-            _ONESHOT_OK_CHIP_STYLE if info.exit_code == 0 else _ONESHOT_FAIL_CHIP_STYLE
-        )
-    elif info.status == "error":
-        label, style = "error", _ONESHOT_FAIL_CHIP_STYLE
-    else:
-        label, style = "done", _ONESHOT_DONE_CHIP_STYLE
-    age = _oneshot_age(info.finished_at)
-    return (label if age is None else f"{label} · {age} ago", style)
-
-
-def _last_line_cell_len(text: Text) -> int:
-    """Return the cell length of the last line of ``text``.
-
-    Rich's ``Text.cell_len`` totals all lines, which makes it the wrong
-    metric for width sizing of options whose prompts contain a leading
-    decorative divider line. We size on the data line only so the
-    divider can never inflate the requested panel width.
-    """
-    plain = text.plain
-    if "\n" not in plain:
-        return text.cell_len
-    last = plain.rsplit("\n", 1)[1]
-    return Text(last).cell_len
+# Oneshot helpers live in ``_bgcmd_list_oneshot`` and are re-exported
+# above; the clock resolves through this namespace so the
+# ``get_timezone`` / ``local_now`` patch targets keep working.
