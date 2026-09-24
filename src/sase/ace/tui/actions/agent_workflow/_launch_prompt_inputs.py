@@ -146,12 +146,13 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
     ) -> None:
         """Launch *prompt* (inputs already resolved) via durable ``sase run``.
 
-        Runs the hard-disable provider guard first while the prompt bar is
-        still mounted. Only a launch that is actually submitted unmounts the
-        bar. The empty-disable path is synchronous and then submits argv-only
-        ``sase run`` to the durable supervisor so the Textual event loop stays
-        responsive to keystrokes (notably ``j``/``k``) during the out-of-process
-        launch.
+        Acceptance snapshots and unmounts the bar immediately after the
+        instant project-tag check. The hold and hard-disable-provider guards
+        then run from that pending-launch snapshot, so their workers cannot
+        keep the UI focused on a submitted draft. The empty-disable path is
+        synchronous and then submits argv-only ``sase run`` to the durable
+        supervisor so the Textual event loop stays responsive to keystrokes
+        (notably ``j``/``k``) during the out-of-process launch.
 
         ``keep_bar`` is set for a Phase 4 single-pane submit from a multi-pane
         stack: the bar stays mounted so the remaining panes can be submitted
@@ -174,11 +175,13 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
         if not self._preflight_project_tags(prompt):
             return
 
-        self._preflight_hold_confirm(
+        launch = self._accept_resolved_launch(
             prompt,
-            keep_bar,
+            keep_bar=keep_bar,
             owner_session_id=owner_session_id,
         )
+        if launch is not None:
+            self._preflight_hold_confirm(launch.launch_id)
 
     def _preflight_project_tags(self, prompt: str) -> bool:
         """Reject D3 project-tag errors before the bar unmounts, if possible.

@@ -1,4 +1,4 @@
-"""ACE preflight that resolves hard-disabled providers before a launch submits."""
+"""ACE hard-disabled-provider preflight for detached pending launches."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from sase.agent.launch_guard import (
     blocked_launch_units,
     plan_launch_units,
 )
+from sase.llm_provider import provider_disable_peek
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     TemporaryProviderDisable,
@@ -19,14 +20,16 @@ from sase.llm_provider.provider_disable import (
     disable_provider_until,
     enable_provider,
 )
-from sase.llm_provider import provider_disable_peek
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 
-from ._types import (
-    PromptContext,
-    PromptSessionId,
-    current_prompt_session,
-    prompt_session_is_live,
+from ._pending_launch import (
+    PendingLaunch,
+    PendingLaunchStage,
+    cancel_pending_launch,
+    pending_launch,
+    pending_launch_can_show_modal,
+    restore_pending_launch_prompt,
+    set_pending_launch_stage,
 )
 
 if TYPE_CHECKING:
@@ -37,8 +40,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _GUARD_GROUP = "launch-provider-guard"
-_ABORT_TOAST = "Launch aborted; your prompt is still here."
-_STALE_TOAST = "Launch cancelled; the prompt bar was closed while resolving providers."
 
 
 @dataclass
@@ -55,100 +56,51 @@ class _GuardUnitState:
 
 @dataclass
 class _ProviderGuardSession:
-    """In-flight ACE resolution of a blocked launch."""
+    """In-flight provider decisions for exactly one pending launch."""
 
-    original_prompt: str
-    keep_bar: bool
-    owner_id: PromptSessionId | None
     original_total: int
     units: list[_GuardUnitState] = field(default_factory=list)
     current_unit: LaunchUnit | None = None
 
 
 class LaunchProviderGuardMixin:
-    """Run the hard-disable launch guard before ACE unmounts the prompt bar."""
+    """Resolve hard-disabled providers after the prompt bar has unmounted."""
 
-    _prompt_context: PromptContext | None
-    _provider_guard_session: _ProviderGuardSession | None = None
-
-    def _submit_resolved_launch(
-        self,
-        prompt: str,
-        *,
-        keep_bar: bool = False,
-        extra_payload: dict[str, object] | None = None,
-        owner_session_id: PromptSessionId | None = None,
-    ) -> None:
-        """Implemented by :class:`AgentLaunchStartMixin`."""
-        del owner_session_id
+    def _continue_pending_launch(self, launch: PendingLaunch) -> None:
+        """Implemented by :class:`LaunchSubmissionMixin`."""
+        del launch
         raise NotImplementedError
 
-    def _preflight_provider_disables(
-        self,
-        prompt: str,
-        keep_bar: bool,
-        *,
-        owner_session_id: PromptSessionId | None = None,
-    ) -> None:
-        """Refuse or resolve hard-disabled providers before unmounting the bar.
-
-        The empty-disable path is synchronous and does not start a worker.
-        Enumeration and provider writes run in ``launch-provider-guard``.
-        """
-        session = current_prompt_session(self)
-        if session is None or (
-            owner_session_id is not None and session.session_id != owner_session_id
-        ):
-            self._notify_stale_provider_guard()
+    def _preflight_provider_disables(self, launch_id: str) -> None:
+        """Plan hard-disable decisions from a pending-launch snapshot."""
+        launch = pending_launch(self, launch_id)
+        if launch is None:
             return
-        owner_session_id = session.session_id
+        set_pending_launch_stage(self, launch_id, PendingLaunchStage.PROVIDER_CHECK)
         snapshot = provider_disable_peek.peek_active_provider_disables()
         if not any(record.is_hard for record in snapshot.values()):
-            self._submit_resolved_launch(
-                prompt,
-                keep_bar=keep_bar,
-                owner_session_id=owner_session_id,
-            )
+            self._continue_pending_launch(launch)
             return
         self._run_provider_guard_worker(
-            lambda: self._plan_provider_guard_units(prompt),
-            lambda planned: self._on_provider_guard_planned(
-                prompt,
-                keep_bar,
-                planned,
-                owner_session_id=owner_session_id,
-            ),
-            prompt=prompt,
-            keep_bar=keep_bar,
-            owner_session_id=owner_session_id,
+            lambda: self._plan_provider_guard_units(launch.prompt),
+            lambda planned: self._on_provider_guard_planned(launch_id, planned),
+            launch_id=launch_id,
         )
 
     def _plan_provider_guard_units(self, prompt: str) -> tuple[LaunchUnit, ...]:
         return plan_launch_units(prompt)
 
     def _on_provider_guard_planned(
-        self,
-        prompt: str,
-        keep_bar: bool,
-        planned: tuple[LaunchUnit, ...],
-        *,
-        owner_session_id: PromptSessionId | None,
+        self, launch_id: str, planned: tuple[LaunchUnit, ...]
     ) -> None:
-        if not self._provider_guard_context_is_live(owner_session_id):
-            self._notify_stale_provider_guard()
+        launch = pending_launch(self, launch_id)
+        if launch is None:
             return
         blocked = tuple(unit for unit in planned if unit.blocked)
         if not blocked:
-            self._submit_resolved_launch(
-                prompt,
-                keep_bar=keep_bar,
-                owner_session_id=owner_session_id,
-            )
+            self._continue_pending_launch(launch)
             return
-        self._provider_guard_session = _ProviderGuardSession(
-            original_prompt=prompt,
-            keep_bar=keep_bar,
-            owner_id=owner_session_id,
+        launch.provider_guard_session = _ProviderGuardSession(
             original_total=planned[0].total if planned else 1,
             units=[
                 _GuardUnitState(
@@ -160,19 +112,28 @@ class LaunchProviderGuardMixin:
                 for unit in planned
             ],
         )
-        self._show_disabled_provider_panel(blocked[0])
+        self._show_disabled_provider_panel(launch_id, blocked[0])
 
-    def _show_disabled_provider_panel(self, unit: LaunchUnit) -> None:
+    def _show_disabled_provider_panel(self, launch_id: str, unit: LaunchUnit) -> None:
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
+        if launch is None or session is None:
+            return
+        if not pending_launch_can_show_modal(self):
+            self._abort_provider_guard_launch(
+                launch,
+                "Launch needs a provider decision while another prompt or modal is active",
+            )
+            return
+
         from sase.ace.tui.modals.disabled_provider_launch_modal import (
             DisabledProviderLaunchModal,
         )
         from sase.ace.tui.modals.models_panel_duration import now as wall_now
 
-        session = self._provider_guard_session
-        if session is None:
-            return
         display = replace(unit, index=unit.index, total=session.original_total)
         session.current_unit = display
+        set_pending_launch_stage(self, launch_id, PendingLaunchStage.PROVIDER_DECISION)
         self.push_screen(  # type: ignore[attr-defined]
             DisabledProviderLaunchModal(
                 display,
@@ -180,64 +141,67 @@ class LaunchProviderGuardMixin:
                 snapshot=provider_disable_peek.peek_active_provider_disables(),
                 original_total=session.original_total,
             ),
-            self._on_disabled_provider_decision,
+            lambda decision: self._on_disabled_provider_decision(launch_id, decision),
         )
 
     def _on_disabled_provider_decision(
         self,
+        launch_id: str,
         decision: DisabledProviderLaunchDecision | None,
     ) -> None:
-        session = self._provider_guard_session
-        if session is None:
-            return
-        if not self._provider_guard_context_is_live(session.owner_id):
-            self._clear_provider_guard_session()
-            self._notify_stale_provider_guard()
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
+        if launch is None or session is None:
             return
         if decision is None or decision.action == "abort_unit":
-            self._abort_current_blocked_unit()
+            self._abort_current_blocked_unit(launch_id)
             return
         if decision.action == "abort_all":
-            self._abort_provider_guard_launch()
+            self._abort_provider_guard_launch(launch, "Launch aborted")
             return
         if decision.action == "pick_model":
-            self._pick_model_for_current_unit()
+            self._pick_model_for_current_unit(launch_id)
             return
-        self._apply_provider_guard_write(decision)
+        self._apply_provider_guard_write(launch_id, decision)
 
-    def _abort_current_blocked_unit(self) -> None:
-        session = self._provider_guard_session
-        if session is None:
+    def _abort_current_blocked_unit(self, launch_id: str) -> None:
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
+        if launch is None or session is None:
             return
         blocked = session.current_unit
         if blocked is not None:
-            state = self._state_for_blocked_unit(blocked)
+            state = self._state_for_blocked_unit(session, blocked)
             if state is not None:
                 state.aborted = True
         session.current_unit = None
         if not any(not unit.aborted for unit in session.units):
-            self._abort_provider_guard_launch()
+            self._abort_provider_guard_launch(launch, "Launch aborted")
             return
-        self._recheck_provider_guard()
+        self._recheck_provider_guard(launch_id)
 
-    def _abort_provider_guard_launch(self) -> None:
-        self._clear_provider_guard_session()
-        self.notify(_ABORT_TOAST)  # type: ignore[attr-defined]
+    def _abort_provider_guard_launch(self, launch: PendingLaunch, reason: str) -> None:
+        launch.provider_guard_session = None
+        cancel_pending_launch(self, launch)
+        restore_pending_launch_prompt(self, launch, reason=reason, explicit=False)
 
-    def _pick_model_for_current_unit(self) -> None:
+    def _pick_model_for_current_unit(self, launch_id: str) -> None:
         from sase.ace.tui.modals.custom_model_input_modal import CustomModelInputModal
         from sase.ace.tui.modals.model_picker_modal import (
             CUSTOM_SENTINEL,
             ModelPickerModal,
         )
 
-        session = self._provider_guard_session
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
         unit = session.current_unit if session is not None else None
-        if unit is None:
-            self._recheck_provider_guard()
+        if launch is None or session is None or unit is None:
+            self._recheck_provider_guard(launch_id)
             return
 
         def on_picked(result: str | None) -> None:
+            if pending_launch(self, launch_id) is None:
+                return
             if result == CUSTOM_SENTINEL:
                 self.push_screen(  # type: ignore[attr-defined]
                     CustomModelInputModal(title="Model for this agent"),
@@ -245,15 +209,17 @@ class LaunchProviderGuardMixin:
                 )
                 return
             if result is None:
-                self._reshow_current_blocked_unit()
+                self._reshow_current_blocked_unit(launch_id)
                 return
-            self._apply_model_to_current_unit(result)
+            self._apply_model_to_current_unit(launch_id, result)
 
         def on_custom(result: str | None) -> None:
-            if result is None:
-                self._reshow_current_blocked_unit()
+            if pending_launch(self, launch_id) is None:
                 return
-            self._apply_model_to_current_unit(result)
+            if result is None:
+                self._reshow_current_blocked_unit(launch_id)
+                return
+            self._apply_model_to_current_unit(launch_id, result)
 
         self.push_screen(  # type: ignore[attr-defined]
             ModelPickerModal(
@@ -266,27 +232,29 @@ class LaunchProviderGuardMixin:
             on_picked,
         )
 
-    def _apply_model_to_current_unit(self, model: str) -> None:
+    def _apply_model_to_current_unit(self, launch_id: str, model: str) -> None:
         from sase.xprompt.directive_edit import set_prompt_model
 
-        session = self._provider_guard_session
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
         unit = session.current_unit if session is not None else None
-        if unit is None or session is None:
+        if launch is None or session is None or unit is None:
             return
-        state = self._state_for_blocked_unit(unit)
+        state = self._state_for_blocked_unit(session, unit)
         if state is None:
             return
         state.prompt = set_prompt_model(state.prompt, model)
         state.remodeled = True
-        self._recheck_provider_guard()
+        self._recheck_provider_guard(launch_id)
 
     def _apply_provider_guard_write(
-        self, decision: DisabledProviderLaunchDecision
+        self, launch_id: str, decision: DisabledProviderLaunchDecision
     ) -> None:
-        session = self._provider_guard_session
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
         unit = session.current_unit if session is not None else None
-        if unit is None or session is None:
-            self._recheck_provider_guard()
+        if launch is None or session is None or unit is None:
+            self._recheck_provider_guard(launch_id)
             return
         providers = tuple(unit.blocking_providers)
         snapshot = provider_disable_peek.peek_active_provider_disables()
@@ -298,14 +266,12 @@ class LaunchProviderGuardMixin:
                 self._soft_enable_providers(providers, snapshot)
             elif decision.action == "enable_provider" and decision.provider:
                 self._enable_providers((decision.provider,))
-            return self._blocked_from_session()
+            return self._blocked_from_session(session)
 
         self._run_provider_guard_worker(
             work,
-            self._on_provider_guard_rechecked,
-            prompt=session.original_prompt,
-            keep_bar=session.keep_bar,
-            owner_session_id=session.owner_id,
+            lambda blocked: self._on_provider_guard_rechecked(launch_id, blocked),
+            launch_id=launch_id,
         )
 
     def _enable_providers(self, providers: tuple[str, ...]) -> None:
@@ -336,43 +302,36 @@ class LaunchProviderGuardMixin:
                     mode=PROVIDER_DISABLE_MODE_SOFT,
                 )
 
-    def _on_provider_guard_rechecked(self, blocked: tuple[LaunchUnit, ...]) -> None:
-        session = self._provider_guard_session
-        owner_id = session.owner_id if session is not None else None
-        if not self._provider_guard_context_is_live(owner_id):
-            self._clear_provider_guard_session()
-            self._notify_stale_provider_guard()
+    def _on_provider_guard_rechecked(
+        self, launch_id: str, blocked: tuple[LaunchUnit, ...]
+    ) -> None:
+        launch = pending_launch(self, launch_id)
+        if launch is None:
             return
         if not blocked:
-            self._finish_provider_guard_launch()
+            self._finish_provider_guard_launch(launch)
             return
-        self._show_disabled_provider_panel(blocked[0])
+        self._show_disabled_provider_panel(launch_id, blocked[0])
 
-    def _recheck_provider_guard(self) -> None:
-        session = self._provider_guard_session
-        if session is None:
+    def _recheck_provider_guard(self, launch_id: str) -> None:
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
+        if launch is None or session is None:
             return
-
-        def work() -> tuple[LaunchUnit, ...]:
-            return self._blocked_from_session()
-
         self._run_provider_guard_worker(
-            work,
-            self._on_provider_guard_rechecked,
-            prompt=session.original_prompt,
-            keep_bar=session.keep_bar,
-            owner_session_id=session.owner_id,
+            lambda: self._blocked_from_session(session),
+            lambda blocked: self._on_provider_guard_rechecked(launch_id, blocked),
+            launch_id=launch_id,
         )
 
-    def _blocked_from_session(self) -> tuple[LaunchUnit, ...]:
-        session = self._provider_guard_session
-        if session is None:
-            return ()
+    def _blocked_from_session(
+        self, session: _ProviderGuardSession
+    ) -> tuple[LaunchUnit, ...]:
         remaining = [unit for unit in session.units if not unit.aborted]
         if not remaining:
             return ()
         planned = blocked_launch_units(
-            session.original_prompt,
+            "",
             units=[
                 LaunchUnitInput(
                     prompt=unit.prompt,
@@ -400,53 +359,44 @@ class LaunchProviderGuardMixin:
             )
         return tuple(remapped)
 
-    def _state_for_blocked_unit(self, unit: LaunchUnit) -> _GuardUnitState | None:
-        session = self._provider_guard_session
-        if session is None:
-            return None
+    def _state_for_blocked_unit(
+        self, session: _ProviderGuardSession, unit: LaunchUnit
+    ) -> _GuardUnitState | None:
         for state in session.units:
             if state.index == unit.index:
                 return state
         return None
 
-    def _reshow_current_blocked_unit(self) -> None:
-        session = self._provider_guard_session
+    def _reshow_current_blocked_unit(self, launch_id: str) -> None:
+        launch = pending_launch(self, launch_id)
+        session = self._provider_guard_session(launch)
         unit = session.current_unit if session is not None else None
         if unit is None:
-            self._recheck_provider_guard()
+            self._recheck_provider_guard(launch_id)
             return
-        self._show_disabled_provider_panel(unit)
+        self._show_disabled_provider_panel(launch_id, unit)
 
-    def _finish_provider_guard_launch(self) -> None:
-        session = self._provider_guard_session
-        self._clear_provider_guard_session()
+    def _finish_provider_guard_launch(self, launch: PendingLaunch) -> None:
+        session = self._provider_guard_session(launch)
+        launch.provider_guard_session = None
         if session is None:
-            return
-        if not self._provider_guard_context_is_live(session.owner_id):
-            self._notify_stale_provider_guard()
             return
         surviving = [unit for unit in session.units if not unit.aborted]
         if not surviving:
-            self.notify(_ABORT_TOAST)  # type: ignore[attr-defined]
+            self._abort_provider_guard_launch(launch, "Launch aborted")
             return
         remodeled = any(unit.remodeled for unit in session.units)
         aborted = any(unit.aborted for unit in session.units)
         if not remodeled and not aborted:
-            self._submit_resolved_launch(
-                session.original_prompt,
-                keep_bar=session.keep_bar,
-                owner_session_id=session.owner_id,
-            )
+            self._continue_pending_launch(launch)
             return
         if session.original_total == 1 and remodeled and not aborted:
-            self._submit_resolved_launch(
-                surviving[0].prompt,
-                keep_bar=session.keep_bar,
-                owner_session_id=session.owner_id,
-            )
+            launch.prompt = surviving[0].prompt
+            self._continue_pending_launch(launch)
             return
-        joined = "\n---\n".join(unit.prompt for unit in surviving)
-        payload = [
+        launch.prompt = "\n---\n".join(unit.prompt for unit in surviving)
+        payload = dict(launch.extra_payload or {})
+        payload["launch_units"] = [
             {
                 "prompt": unit.prompt,
                 "template_group": unit.template_group,
@@ -454,21 +404,11 @@ class LaunchProviderGuardMixin:
             }
             for unit in surviving
         ]
-        self._submit_resolved_launch(
-            joined,
-            keep_bar=session.keep_bar,
-            extra_payload={"launch_units": payload},
-            owner_session_id=session.owner_id,
-        )
+        launch.extra_payload = payload
+        self._continue_pending_launch(launch)
 
     def _run_provider_guard_worker(
-        self,
-        work: Any,
-        on_success: Any,
-        *,
-        prompt: str,
-        keep_bar: bool,
-        owner_session_id: PromptSessionId | None,
+        self, work: Any, on_success: Any, *, launch_id: str
     ) -> None:
         run_worker = getattr(self, "run_worker", None)
 
@@ -480,12 +420,7 @@ class LaunchProviderGuardMixin:
                     "provider launch guard failed; launching without the panel",
                     exc_info=True,
                 )
-                self._call_from_ui(
-                    self._on_provider_guard_failed_open,
-                    prompt,
-                    keep_bar,
-                    owner_session_id,
-                )
+                self._call_from_ui(self._on_provider_guard_failed_open, launch_id)
                 return
             self._call_from_ui(on_success, result)
 
@@ -495,25 +430,24 @@ class LaunchProviderGuardMixin:
         run_worker(
             task,
             thread=True,
-            exclusive=True,
-            group=_GUARD_GROUP,
+            exclusive=False,
+            group=f"{_GUARD_GROUP}:{launch_id}",
         )
 
-    def _on_provider_guard_failed_open(
-        self,
-        prompt: str,
-        keep_bar: bool,
-        owner_session_id: PromptSessionId | None,
-    ) -> None:
-        self._clear_provider_guard_session()
-        if not self._provider_guard_context_is_live(owner_session_id):
-            self._notify_stale_provider_guard()
+    def _on_provider_guard_failed_open(self, launch_id: str) -> None:
+        launch = pending_launch(self, launch_id)
+        if launch is None:
             return
-        self._submit_resolved_launch(
-            prompt,
-            keep_bar=keep_bar,
-            owner_session_id=owner_session_id,
-        )
+        launch.provider_guard_session = None
+        self._continue_pending_launch(launch)
+
+    def _provider_guard_session(
+        self, launch: PendingLaunch | None
+    ) -> _ProviderGuardSession | None:
+        if launch is None:
+            return None
+        session = launch.provider_guard_session
+        return session if isinstance(session, _ProviderGuardSession) else None
 
     def _call_from_ui(self, callback: Any, *args: Any) -> None:
         caller = getattr(self, "call_from_thread", None)
@@ -522,19 +456,5 @@ class LaunchProviderGuardMixin:
             return
         callback(*args)
 
-    def _provider_guard_context_is_live(
-        self,
-        owner_session_id: PromptSessionId | None,
-    ) -> bool:
-        if not prompt_session_is_live(self, owner_session_id):
-            return False
-        mounted = getattr(self, "_mounted_prompt_bar", None)
-        if callable(mounted):
-            return mounted() is not None
-        return True
 
-    def _notify_stale_provider_guard(self) -> None:
-        self.notify(_STALE_TOAST, severity="warning")  # type: ignore[attr-defined]
-
-    def _clear_provider_guard_session(self) -> None:
-        self._provider_guard_session = None
+__all__ = ["LaunchProviderGuardMixin"]

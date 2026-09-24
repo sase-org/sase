@@ -50,25 +50,44 @@ class LaunchSubmissionMixin:
         extra_payload: dict[str, object] | None = None,
         owner_session_id: PromptSessionId | None = None,
     ) -> None:
-        """Accept *prompt*: release the prompt bar, then finish as a pending launch.
+        """Compatibility entry point for callers with no detached guard stage.
+
+        The prompt-input pipeline accepts first and invokes its guards before
+        continuing.  Existing bar-less and test callers that are already past
+        those guards retain the original accept-and-submit behavior here.
+        """
+        launch = self._accept_resolved_launch(
+            prompt,
+            keep_bar=keep_bar,
+            extra_payload=extra_payload,
+            owner_session_id=owner_session_id,
+        )
+        if launch is not None:
+            self._continue_pending_launch(launch)
+
+    def _accept_resolved_launch(
+        self,
+        prompt: str,
+        *,
+        keep_bar: bool = False,
+        extra_payload: dict[str, object] | None = None,
+        owner_session_id: PromptSessionId | None = None,
+    ) -> PendingLaunch | None:
+        """Accept *prompt* and release its bar before detached preflights run.
 
         Acceptance snapshots everything the launch needs, unmounts the bar
         (unless *keep_bar*), and registers a pending launch (proc row plus
         ``PREPARING`` record) before anything can wait. Nothing after this
-        point depends on the bar or its prompt session.
-
-        A launch that must still wait for a relaunch cleanup barrier (a
-        ``,x`` kill/dismiss persistence proc that has not yet settled) is
-        parked and replayed once every open barrier settles, so no durable
-        ``sase run`` can race a late bundle write that would resurrect the
-        name it is about to reuse. See ``_relaunch_barrier``.
+        point depends on the bar or its prompt session.  Hold and provider
+        checks continue from the returned record; only their successful final
+        path enters :meth:`_continue_pending_launch`.
         """
         session = current_prompt_session(self)
         if session is None or (
             owner_session_id is not None and session.session_id != owner_session_id
         ):
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
-            return
+            return None
 
         # A bulk fan-out always consumes the whole bar, whatever the pane mode.
         bulk_patches = tuple(getattr(self, "_bulk_patches", None) or ())
@@ -81,6 +100,7 @@ class LaunchSubmissionMixin:
             extra_payload=extra_payload,
             bulk_patches=bulk_patches,
             relaunch_operation=session.relaunch_operation,
+            stage=PendingLaunchStage.HOLD_CHECK,
         )
 
         # Unmount the prompt bar first (transfers focus to the active tab's
@@ -100,8 +120,10 @@ class LaunchSubmissionMixin:
         if bulk_patches:
             self._bulk_patches = None
             self._clear_bulk_patch_marks()  # type: ignore[attr-defined]
-
-        self._continue_pending_launch(launch)
+        self.notify(  # type: ignore[attr-defined]
+            f"Launching agent for {launch_toast_label(prompt, launch.context.display_name)}..."
+        )
+        return launch
 
     def _continue_pending_launch(self, launch: PendingLaunch) -> None:
         """Run the remaining stages of *launch*, parking it behind open barriers."""
@@ -141,10 +163,6 @@ class LaunchSubmissionMixin:
             last_action_display_name=ctx.display_name,
             last_action_ts=ctx.timestamp,
         )
-        self.notify(  # type: ignore[attr-defined]
-            f"Launching agent for {launch_toast_label(launch.prompt, ctx.display_name)}..."
-        )
-
         payload = dispatch_payload_from_prompt_context(ctx)
         if launch.extra_payload:
             payload.update(launch.extra_payload)

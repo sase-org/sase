@@ -11,7 +11,8 @@ from sase.ace.tui.modals.disabled_provider_launch_modal import (
     DisabledProviderLaunchModal,
 )
 from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
-from sase.ace.tui.actions.agent_workflow._types import invalidate_prompt_session
+from sase.ace.tui.actions.agent_workflow._pending_launch import cancel_pending_launch
+from sase.ace.tui.actions.agent_workflow._types import begin_prompt_session
 from sase.agent.launch_guard import LaunchUnit, LaunchUnitCandidate
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from tests.ace.tui._agent_launch_helpers import _FakeApp
@@ -243,7 +244,7 @@ def test_explicit_model_enable_submits_the_original_prompt(
     keys = [row.key for row in panel._rows]
     assert "1" not in keys
     assert "A" not in keys
-    assert app.unmount_calls == []
+    assert app.unmount_calls == ["submit"]
     _decide(app, DisabledProviderLaunchDecision(action="enable"))
 
     assert len(app.launch_tasks) == 1
@@ -252,7 +253,7 @@ def test_explicit_model_enable_submits_the_original_prompt(
     assert app.unmount_calls == ["submit"]
 
 
-def test_stale_provider_guard_decision_does_not_launch_later_prompt(
+def test_cancelled_provider_guard_decision_does_not_launch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_cli_available(monkeypatch)
@@ -261,12 +262,12 @@ def test_stale_provider_guard_decision_does_not_launch_later_prompt(
     app._finish_agent_launch("%model:claude/opus Fix the flaky selector")
     assert isinstance(_panel(app), DisabledProviderLaunchModal)
 
-    invalidate_prompt_session(app)
+    (launch,) = app._pending_launches.values()
+    cancel_pending_launch(app, launch)
     _decide(app, DisabledProviderLaunchDecision(action="enable"))
 
     assert app.launch_tasks == []
-    assert app._provider_guard_session is None
-    assert any("prompt bar was closed" in message for message, _ in app.notifications)
+    assert app._pending_launches == {}
 
 
 def test_soft_enable_preserves_expires_at_and_submits(
@@ -384,9 +385,9 @@ def test_abort_all_on_first_panel_submits_nothing(
     _decide(app, DisabledProviderLaunchDecision(action="abort_all"))
 
     assert app.launch_tasks == []
-    assert app.unmount_calls == []
-    assert app._prompt_context is not None
-    assert any("still here" in message for message, _severity in app.notifications)
+    assert app.unmount_calls == ["submit"]
+    assert app._pending_launches == {}
+    assert any("saved to stash" in message for message, _severity in app.notifications)
 
 
 def test_enabling_one_of_two_providers_rechecks(
@@ -434,7 +435,7 @@ def test_model_fanout_unit_has_no_model_row(
     assert any("fans out models" in row.title for row in panel._rows)
 
 
-def test_aborting_every_unit_leaves_the_prompt_bar_mounted(
+def test_aborting_every_unit_restores_or_stashes_the_accepted_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_cli_available(monkeypatch)
@@ -444,9 +445,9 @@ def test_aborting_every_unit_leaves_the_prompt_bar_mounted(
     _decide(app, DisabledProviderLaunchDecision(action="abort_unit"))
 
     assert app.launch_tasks == []
-    assert app.unmount_calls == []
-    assert app._prompt_context is not None
-    assert any("still here" in message for message, _severity in app.notifications)
+    assert app.unmount_calls == ["submit"]
+    assert app._pending_launches == {}
+    assert any("saved to stash" in message for message, _severity in app.notifications)
 
 
 def test_relaunch_entry_hits_the_same_panel(
@@ -465,4 +466,42 @@ def test_relaunch_entry_hits_the_same_panel(
     app._finish_agent_launch("%id:!retry\n%model:claude/opus Fix the flaky selector")
     panel = _panel(app)
     assert isinstance(panel, DisabledProviderLaunchModal)
-    assert app.unmount_calls == []
+    assert app.unmount_calls == ["submit"]
+
+
+def test_provider_guard_stashes_instead_of_stealing_a_new_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_cli_available(monkeypatch)
+    _bind_disables(monkeypatch, {"claude": disable("claude")})
+    app = _FakeApp()
+    app._mounted_prompt_bar = lambda: object()  # type: ignore[attr-defined]
+
+    app._finish_agent_launch("%model:claude/opus Fix the flaky selector")
+
+    assert app.pushed_screens == []
+    assert app.launch_tasks == []
+    assert app._pending_launches == {}
+    assert any("saved to stash" in message for message, _ in app.notifications)
+
+
+def test_provider_guard_workers_are_per_launch_and_nonexclusive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_cli_available(monkeypatch)
+    _bind_disables(monkeypatch, {"claude": disable("claude")})
+    app = _FakeApp()
+
+    def defer_worker(work: Any, **kwargs: Any) -> None:
+        app.workers.append({"work": work, **kwargs})
+
+    app.run_worker = defer_worker  # type: ignore[method-assign]
+    app._finish_agent_launch("%model:claude/opus first")
+    begin_prompt_session(
+        app, app._pending_launches[next(iter(app._pending_launches))].context
+    )
+    app._finish_agent_launch("%model:claude/opus second")
+
+    assert len(app.workers) == 2
+    assert {worker["exclusive"] for worker in app.workers} == {False}
+    assert len({worker["group"] for worker in app.workers}) == 2

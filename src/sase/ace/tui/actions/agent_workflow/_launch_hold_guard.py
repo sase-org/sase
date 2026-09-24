@@ -1,11 +1,4 @@
-"""ACE preflight that confirms broad ``%hold`` directives before a launch submits.
-
-Structured like :mod:`._launch_provider_guard`: a cheap synchronous check keeps
-the no-hold fast path free, and a broad hold plans/captures off the UI thread
-before a :class:`ConfirmActionModal` blocks the submit. Declining leaves the
-prompt bar mounted, exactly like the provider guard's own abort path -- there
-is nothing to "restore" because the bar was never unmounted.
-"""
+"""ACE preflight that confirms broad ``%hold`` directives after acceptance."""
 
 from __future__ import annotations
 
@@ -14,89 +7,75 @@ from typing import Any
 
 from sase.agent.launch_hold_preview import hold_confirmation_body, prompt_mentions_hold
 
-from ._types import PromptSessionId, current_prompt_session, prompt_session_is_live
+from ._pending_launch import (
+    PendingLaunch,
+    PendingLaunchStage,
+    cancel_pending_launch,
+    pending_launch,
+    pending_launch_can_show_modal,
+    restore_pending_launch_prompt,
+    set_pending_launch_stage,
+)
 
 log = logging.getLogger(__name__)
 
 _HOLD_GUARD_GROUP = "launch-hold-guard"
-_HOLD_ABORT_TOAST = "Launch aborted; your prompt is still here."
-_HOLD_STALE_TOAST = (
-    "Launch cancelled; the prompt bar was closed while resolving the hold."
-)
 
 
 class LaunchHoldGuardMixin:
-    """Confirm a broad ``%hold`` before chaining into the provider guard."""
+    """Confirm a broad ``%hold`` before chaining into the provider guard.
 
-    def _preflight_provider_disables(
-        self,
-        prompt: str,
-        keep_bar: bool,
-        *,
-        owner_session_id: PromptSessionId | None = None,
-    ) -> None:
+    A hold check begins only after ``_accept_resolved_launch`` has retired the
+    prompt bar. Every callback therefore uses the immutable pending-launch
+    snapshot rather than the app's current prompt state.
+    """
+
+    def _preflight_provider_disables(self, launch_id: str) -> None:
         """Implemented by :class:`LaunchProviderGuardMixin`."""
-        del prompt, keep_bar, owner_session_id
+        del launch_id
         raise NotImplementedError
 
-    def _preflight_hold_confirm(
-        self,
-        prompt: str,
-        keep_bar: bool,
-        *,
-        owner_session_id: PromptSessionId | None = None,
-    ) -> None:
-        session = current_prompt_session(self)
-        if session is None or (
-            owner_session_id is not None and session.session_id != owner_session_id
-        ):
-            self._notify_stale_hold_guard()
+    def _preflight_hold_confirm(self, launch_id: str) -> None:
+        launch = pending_launch(self, launch_id)
+        if launch is None:
             return
-        owner_session_id = session.session_id
-        if not prompt_mentions_hold(prompt):
-            self._preflight_provider_disables(
-                prompt, keep_bar, owner_session_id=owner_session_id
-            )
+        set_pending_launch_stage(self, launch_id, PendingLaunchStage.HOLD_CHECK)
+        if not prompt_mentions_hold(launch.prompt):
+            self._preflight_provider_disables(launch_id)
             return
-        project = self._hold_guard_project()
+        project = launch.context.project_name
         self._run_hold_guard_worker(
-            lambda: hold_confirmation_body(prompt, project=project),
-            lambda body: self._on_hold_confirm_planned(
-                prompt, keep_bar, body, owner_session_id=owner_session_id
-            ),
+            lambda: hold_confirmation_body(launch.prompt, project=project),
+            lambda body: self._on_hold_confirm_planned(launch_id, body),
+            launch_id=launch_id,
         )
 
-    def _hold_guard_project(self) -> str | None:
-        context = getattr(self, "_prompt_context", None)
-        project = getattr(context, "project_name", None)
-        return project if isinstance(project, str) else None
-
-    def _on_hold_confirm_planned(
-        self,
-        prompt: str,
-        keep_bar: bool,
-        body: str | None,
-        *,
-        owner_session_id: PromptSessionId | None,
-    ) -> None:
-        if not prompt_session_is_live(self, owner_session_id):
-            self._notify_stale_hold_guard()
+    def _on_hold_confirm_planned(self, launch_id: str, body: str | None) -> None:
+        launch = pending_launch(self, launch_id)
+        if launch is None:
             return
         if body is None:
-            self._preflight_provider_disables(
-                prompt, keep_bar, owner_session_id=owner_session_id
+            self._preflight_provider_disables(launch_id)
+            return
+        if not pending_launch_can_show_modal(self):
+            self._abort_pending_hold(
+                launch,
+                "Launch needs %hold confirmation while another prompt or modal is active",
             )
             return
 
         from ...modals import ConfirmActionModal, ConfirmKind
 
+        set_pending_launch_stage(self, launch_id, PendingLaunchStage.HOLD_CONFIRM)
+
         def _on_decision(confirmed: bool | None) -> None:
-            if not confirmed:
-                self.notify(_HOLD_ABORT_TOAST)  # type: ignore[attr-defined]
+            live = pending_launch(self, launch_id)
+            if live is None:
                 return
-            self._preflight_provider_disables(
-                prompt, keep_bar, owner_session_id=owner_session_id
-            )
+            if not confirmed:
+                self._abort_pending_hold(live, "Launch aborted")
+                return
+            self._preflight_provider_disables(launch_id)
 
         self.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
@@ -105,11 +84,18 @@ class LaunchHoldGuardMixin:
                 kind=ConfirmKind.DANGER,
                 confirm_label="Arm",
                 cancel_label="Cancel",
+                default="cancel",
             ),
             _on_decision,
         )
 
-    def _run_hold_guard_worker(self, work: Any, on_success: Any) -> None:
+    def _abort_pending_hold(self, launch: PendingLaunch, reason: str) -> None:
+        cancel_pending_launch(self, launch)
+        restore_pending_launch_prompt(self, launch, reason=reason, explicit=False)
+
+    def _run_hold_guard_worker(
+        self, work: Any, on_success: Any, *, launch_id: str
+    ) -> None:
         run_worker = getattr(self, "run_worker", None)
 
         def task() -> None:
@@ -129,8 +115,8 @@ class LaunchHoldGuardMixin:
         run_worker(
             task,
             thread=True,
-            exclusive=True,
-            group=_HOLD_GUARD_GROUP,
+            exclusive=False,
+            group=f"{_HOLD_GUARD_GROUP}:{launch_id}",
         )
 
     def _call_from_ui_hold_guard(self, callback: Any, *args: Any) -> None:
@@ -139,9 +125,6 @@ class LaunchHoldGuardMixin:
             caller(callback, *args)
             return
         callback(*args)
-
-    def _notify_stale_hold_guard(self) -> None:
-        self.notify(_HOLD_STALE_TOAST, severity="warning")  # type: ignore[attr-defined]
 
 
 __all__ = ["LaunchHoldGuardMixin"]

@@ -80,6 +80,10 @@ class PendingLaunch:
     stage: PendingLaunchStage
     placeholder_id: str | None = None
     record: LaunchRecord | None = None
+    # Guard state belongs to this accepted launch rather than the app so
+    # overlapping post-acceptance checks cannot cancel or answer each other.
+    # The provider-guard module owns the concrete private session type.
+    provider_guard_session: object | None = None
     cancelled: bool = False
     submitted: bool = False
     accepted_at: float = field(default_factory=time.monotonic)
@@ -167,6 +171,14 @@ def pending_launch_is_live(app: object, launch_id: str) -> bool:
     """Return whether *launch_id* is still waiting to submit (not cancelled)."""
     launch = _registry(app).get(launch_id)
     return launch is not None and not launch.cancelled
+
+
+def pending_launch(app: object, launch_id: str) -> PendingLaunch | None:
+    """Return the live pending launch identified by *launch_id*, if any."""
+    launch = _registry(app).get(launch_id)
+    if launch is None or launch.cancelled:
+        return None
+    return launch
 
 
 def pending_launch_for_record(
@@ -322,6 +334,20 @@ def _can_restore_into_bar(app: object) -> bool:
     return not isinstance(getattr(app, "screen", None), ModalScreen)
 
 
+def pending_launch_can_show_modal(app: object) -> bool:
+    """Return whether a detached guard may take focus for a decision.
+
+    Accepted launches never steal a user's newer prompt or an already-open
+    modal.  In either case their recovery path stashes the original prompt.
+    """
+    mounted = getattr(app, "_mounted_prompt_bar", None)
+    if callable(mounted) and mounted() is not None:
+        return False
+    from textual.screen import ModalScreen
+
+    return not isinstance(getattr(app, "screen", None), ModalScreen)
+
+
 def _remove_row(app: object, launch: PendingLaunch) -> None:
     placeholder_id, launch.placeholder_id = launch.placeholder_id, None
     if placeholder_id is None:
@@ -350,6 +376,8 @@ __all__ = [
     "finish_pending_launch",
     "flush_pending_launch_stashes",
     "pending_launch_for_record",
+    "pending_launch",
+    "pending_launch_can_show_modal",
     "pending_launch_is_live",
     "restore_pending_launch_prompt",
     "set_pending_launch_stage",

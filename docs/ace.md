@@ -4072,8 +4072,11 @@ provenance, and expiry; clicking either pill opens Launch Control.
 
 When sase's TUI is about to launch an agent that can only run on a **hard**-disabled
 provider, it opens a one-keypress panel instead of submitting a launch that would fail
-at invoke time. Soft disables never open this panel. The prompt bar stays mounted until
-something is actually submitted, so aborting leaves the draft exactly where it was.
+at invoke time. Soft disables never open this panel. After the instant input and
+project-tag checks pass, the prompt bar is released and the accepted launch appears as a
+preparing proc row while the provider check runs. Aborting restores the prompt when the
+bar and screen are free; if the user is already typing or another modal owns focus, it
+saves the prompt to the stash instead and never steals focus.
 
 The panel is one blocked agent at a time. A four-agent swarm with two blocked units
 shows the panel twice in sequence. Enabling a provider while resolving one agent can
@@ -5807,9 +5810,11 @@ are armed with [`sase agent hold`](cli.md#sase-agent-hold) or the
   WAITING and QUEUED agents than `agent_hold_confirm_capture_threshold` (default `10`) —
   opens an **Arm this hold?** confirmation before anything launches. It lists each broad
   hold's directive and live `pending` capture, plus a warning for a host-wide `future`
-  hold. Cancelling leaves the prompt in the bar; narrow holds launch without asking.
-  During the current beta, pressing **Arm** only confirms the launch preview; it does
-  not write a hold to the store.
+  hold. The accepted prompt is already represented by a preparing proc row. Cancelling
+  restores it when safe, or stashes it when another prompt or modal has focus; a
+  standalone hold confirmation defaults to **Cancel**. Narrow holds launch without
+  asking. During the current beta, pressing **Arm** only confirms the launch preview; it
+  does not write a hold to the store.
 - **Holds pane.** Open SASE Admin Center with `#`, then Config > **03 Holds** (`0` then
   `3`; **02** when `admin_center_flags` is off). Each row shows the armer and its kind,
   the scope (`host` or `project:<name>`), the selectors (`names=`, `hoods=`, `tribes=`,

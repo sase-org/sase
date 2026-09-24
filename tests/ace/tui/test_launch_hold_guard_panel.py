@@ -58,7 +58,7 @@ def test_hold_guard_confirms_a_broad_hold_and_launches(
     assert len(app.launch_tasks) == 1
 
 
-def test_hold_guard_cancel_leaves_the_prompt_bar_mounted(
+def test_hold_guard_cancel_restores_or_stashes_the_accepted_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     install_disables(monkeypatch, {})
@@ -71,6 +71,6 @@ def test_hold_guard_cancel_leaves_the_prompt_bar_mounted(
     callback(False)
 
     assert app.launch_tasks == []
-    assert app.unmount_calls == []
-    assert app._prompt_context is not None
-    assert any("still here" in message for message, _severity in app.notifications)
+    assert app.unmount_calls == ["submit"]
+    assert app._pending_launches == {}
+    assert any("saved to stash" in message for message, _severity in app.notifications)
