@@ -58,6 +58,7 @@ def test_plan_inventory_matches_root_timestamp(tmp_path: Path) -> None:
         payload = plan_inventory_to_json(build_plan_inventory())
 
     assert payload["summary"]["proposed"] == 1
+    assert payload["proposed"][0]["name"] == "root"
     assert payload["proposed"][0]["id_prefix"] == "12345678"
 
 

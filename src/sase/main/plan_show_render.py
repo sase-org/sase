@@ -329,11 +329,11 @@ def _body(record: PlanShowRecord) -> RenderableType:
 def _hint(record: PlanShowRecord) -> Text:
     style = "dim"
     if record.proposal is not None:
-        prefix = record.proposal.id_prefix
+        selector = record.proposal.name or record.proposal.id_prefix
         text = Text("  ", style=style)
-        text.append(f"sase plan approve {prefix}", style=style)
+        text.append(f"sase plan approve {selector}", style=style)
         text.append("   ", style=style)
-        text.append(f"sase plan reject {prefix}", style=style)
+        text.append(f"sase plan reject {selector}", style=style)
         return text
     text = Text("  ", style=style)
     text.append(f"sase plan validate {record.plan.path}", style=style)

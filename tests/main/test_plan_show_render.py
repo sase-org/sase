@@ -199,6 +199,7 @@ def test_full_render_shows_proposal_section_when_resolved_via_proposal() -> None
         proposal=PlanShowProposal(
             id="abcdef120001",
             id_prefix="abcdef12",
+            name="named_proposal",
             agent="planner",
             project="sase",
             provider_model="claude",
@@ -212,8 +213,8 @@ def test_full_render_shows_proposal_section_when_resolved_via_proposal() -> None
     assert rendered.index("PROPOSAL") < rendered.index("PROPERTIES")
     assert "abcdef12" in rendered
     assert "planner" in rendered
-    assert "sase plan approve abcdef12" in rendered
-    assert "sase plan reject abcdef12" in rendered
+    assert "sase plan approve named_proposal" in rendered
+    assert "sase plan reject named_proposal" in rendered
 
 
 def test_full_render_shows_drifted_and_missing_markers() -> None:

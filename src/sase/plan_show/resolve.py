@@ -351,6 +351,7 @@ def _proposal_context(notification: Notification) -> PlanShowProposal:
     return PlanShowProposal(
         id=proposed.notification_id,
         id_prefix=proposed.id_prefix,
+        name=proposed.name,
         agent=proposed.agent,
         project=proposed.project,
         provider_model=proposed.provider_model,

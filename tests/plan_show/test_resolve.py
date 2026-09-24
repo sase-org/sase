@@ -313,6 +313,7 @@ def test_rung_proposal_resolves_bare_name(tmp_path: Path) -> None:
     assert result.target.kind == "proposal"
     assert result.proposal is not None
     assert result.proposal.id_prefix == "abcdef12"
+    assert result.proposal.name == "named_proposal"
 
 
 def test_final_miss_suggests_pending_names(

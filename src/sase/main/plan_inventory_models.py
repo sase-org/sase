@@ -15,6 +15,7 @@ _REJECTED_NOTE = (
 @dataclass(frozen=True)
 class ProposedPlan:
     _plan_key: str
+    name: str
     id_prefix: str
     notification_id: str
     timestamp: str

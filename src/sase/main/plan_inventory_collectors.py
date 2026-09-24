@@ -23,6 +23,7 @@ from sase.main.plan_inventory_paths import (
     normalize_plan_inventory_path,
     plan_metadata_for_path,
 )
+from sase.plan_names import plan_name
 from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.pending_actions import PENDING_ACTION_PREFIX_LEN
 
@@ -62,6 +63,7 @@ def _proposed_plan_from_notification(
     plan_metadata = plan_metadata_for_path(plan_path)
     return ProposedPlan(
         _plan_key=path_key(plan_path) if plan_path else "",
+        name=plan_name(plan_path) if plan_path else "",
         id_prefix=notification.id[:PENDING_ACTION_PREFIX_LEN],
         notification_id=notification.id,
         timestamp=notification.timestamp,

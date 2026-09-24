@@ -60,6 +60,7 @@ def test_build_plan_inventory_classifies_proposed_approved_and_rejected(
         "rejected_shown": 1,
         "total_archived_proposals": 3,
     }
+    assert payload["proposed"][0]["name"] == "proposed"
     assert payload["proposed"][0]["id_prefix"] == "abcdef12"
     assert payload["proposed"][0]["agent"] == "planner"
     assert payload["proposed"][0]["project"] == "demo-project"

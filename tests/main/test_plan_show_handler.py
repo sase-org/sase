@@ -211,6 +211,7 @@ def test_json_envelope_includes_proposal_and_bead_when_set(
             proposal=PlanShowProposal(
                 id="abcdef120001",
                 id_prefix="abcdef12",
+                name="named_proposal",
                 agent="planner",
                 project="sase",
                 provider_model="claude",
@@ -226,6 +227,7 @@ def test_json_envelope_includes_proposal_and_bead_when_set(
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert payload["proposal"]["id_prefix"] == "abcdef12"
+    assert payload["proposal"]["name"] == "named_proposal"
     assert payload["bead"] == "sase-64"
 
 

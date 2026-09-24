@@ -75,6 +75,7 @@ def render_plan_inventory(
                 _proposed_table(inventory.proposed, agent_project=agent_project),
                 empty="No pending plan proposals.",
                 border_style="yellow",
+                note=_proposed_hint(inventory.proposed),
             )
         )
     if "approved" in selected:
@@ -171,13 +172,32 @@ def _filters_line(inventory: PlanInventory) -> Any | None:
     return line
 
 
+def _proposed_hint(rows: tuple[ProposedPlan, ...]) -> str | None:
+    if not rows:
+        return None
+    display = _proposed_display_names(rows)
+    name = display.get(rows[0].plan_path, rows[0].name)
+    return (
+        f"approve: sase plan approve {name}  ·  "
+        f"reject: sase plan reject {name}  ·  TAB completes names"
+    )
+
+
+def _proposed_display_names(rows: tuple[ProposedPlan, ...]) -> dict[str, str]:
+    from sase.plan_names import plan_display_names
+
+    paths = [row.plan_path for row in rows]
+    return plan_display_names(paths)
+
+
 def _proposed_table(
     rows: tuple[ProposedPlan, ...], *, agent_project: _AgentProject
 ) -> Any | None:
     if not rows:
         return None
+    display = _proposed_display_names(rows)
     table = _base_table()
-    table.add_column("ID", no_wrap=True, style="yellow")
+    table.add_column("Name", overflow="fold")
     table.add_column("Age", no_wrap=True)
     table.add_column("Agent/Project")
     table.add_column("Model")
@@ -185,7 +205,7 @@ def _proposed_table(
     table.add_column("Plan", ratio=2, overflow="fold")
     for row in rows:
         table.add_row(
-            row.id_prefix,
+            _name_cell(display.get(row.plan_path, row.name), row.id_prefix),
             row.age,
             agent_project(row.agent, row.project),
             row.provider_model,
@@ -193,6 +213,16 @@ def _proposed_table(
             _plan_cell(row.title, row.plan_path),
         )
     return table
+
+
+def _name_cell(name: str, id_prefix: str) -> Any:
+    from rich.text import Text
+
+    cell = Text()
+    cell.append(name or "-", style="bold cyan")
+    cell.append("\n")
+    cell.append(id_prefix, style="dim")
+    return cell
 
 
 def _approved_table(

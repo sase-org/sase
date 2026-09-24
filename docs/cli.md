@@ -477,26 +477,29 @@ blocked until the project is enabled.
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and
 Rejected sections; use repeatable `-s/--status` options to select sections, `-n/--limit`
 to set each history section's size (`0` is unlimited), and `-t/--tier` to filter by
-plan-file tier. Proposed rows are never limited and are the actionable rows; each
-includes an `id_prefix`, agent, project, provider/model, plan path, and response
-directory. Pass the plan name to `sase plan approve <name>` or `sase plan reject <name>`
-(a `<shard>/<name>` path, filesystem path, `plan:` ref, planner agent, or notification
-ID/prefix works too; names TAB-complete). If the selector is omitted, exactly one
-pending proposal must exist. When `--kind` is omitted, approval follows the plan's
-authored `tier`; an explicit kind overrides it. The Rejected section is inferred from
-archived proposal files that are not represented by the proposed or approved state; it
-is a history aid, not the selector source for new actions. The approval kind is the
-workflow choice: `approve` runs the coder without asking the runner to commit an SDD
-plan, `tale` commits the plan as an SDD tale and then runs the coder, `epic` commits the
-matching SDD tier and launches the bead follow-up, and `commit` records the approved
-plan in SDD without launching a coder. Use `-m/--model` to pick the follow-up agent's
-model. Use `-p/--prompt` to add extra coder instructions for the `approve` and `tale`
-paths. Tale and epic approvals validate against their target schema before writing a
-response; a failure prints the diagnostics and expected schema and leaves the proposal
-pending for retry. `sase plan reject` writes the rejection response first, then uses the
-same durable cleanup path as the TUI no-feedback rejection action when the matching
-planner row is still discoverable. If cleanup cannot find or kill the row, the CLI
-reports that separately after the plan has already been rejected.
+plan-file tier. Proposed rows are never limited and are the actionable rows; each leads
+with the plan `name` in bold cyan (shortest unique form, with the dim `id_prefix` below
+it), plus agent, project, provider/model, plan path, and response directory. A hint line
+under the section shows the ready-to-paste approve/reject commands for the first name.
+Pass the plan name to `sase plan approve <name>` or `sase plan reject <name>` (a
+`<shard>/<name>` path, filesystem path, `plan:` ref, planner agent, or notification
+ID/prefix works too; names TAB-complete). Proposed `--json` rows carry the same `name`
+field. If the selector is omitted, exactly one pending proposal must exist. When
+`--kind` is omitted, approval follows the plan's authored `tier`; an explicit kind
+overrides it. The Rejected section is inferred from archived proposal files that are not
+represented by the proposed or approved state; it is a history aid, not the selector
+source for new actions. The approval kind is the workflow choice: `approve` runs the
+coder without asking the runner to commit an SDD plan, `tale` commits the plan as an SDD
+tale and then runs the coder, `epic` commits the matching SDD tier and launches the bead
+follow-up, and `commit` records the approved plan in SDD without launching a coder. Use
+`-m/--model` to pick the follow-up agent's model. Use `-p/--prompt` to add extra coder
+instructions for the `approve` and `tale` paths. Tale and epic approvals validate
+against their target schema before writing a response; a failure prints the diagnostics
+and expected schema and leaves the proposal pending for retry. `sase plan reject` writes
+the rejection response first, then uses the same durable cleanup path as the TUI
+no-feedback rejection action when the matching planner row is still discoverable. If
+cleanup cannot find or kill the row, the CLI reports that separately after the plan has
+already been rejected.
 
 `sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source)
 and the machine-local `~/.sase/plans/` archive. Omit the query to browse with metadata
@@ -510,13 +513,14 @@ agent-friendly output.
 and renders it. In `-t auto` (the default), TARGET is tried against five rungs in order
 and the first definitive match wins: `path` (an existing file, absolute or
 cwd-relative), `ref` (a `plan:` reference, a legacy marker path, or a month-drifted
-reference, Rust resolved), `proposal` (a pending-approval notification id or unique
-prefix), `name` (a corpus slug or `<shard>/<slug>` lookup, with or without `.md`), and
-`bead` (a bead id whose `design` field points at a plan). Pass `-t/--target` to force
-one rung with no fallthrough. Omit TARGET to show the sole visible pending plan
-proposal, exactly as `sase plan approve`/`reject` treat an omitted selector. Every
-ambiguity prints its candidates as re-runnable `plan:` references and every miss prints
-close-match suggestions; neither guesses. `-f/--format` selects `full` (the default
+reference, Rust resolved), `proposal` (any pending-plan selector `approve`/`reject`
+accept: name, `<shard>/<name>`, planner agent, or notification id/prefix), `name` (a
+corpus slug or `<shard>/<slug>` lookup, with or without `.md`), and `bead` (a bead id
+whose `design` field points at a plan). Pass `-t/--target` to force one rung with no
+fallthrough. Omit TARGET to show the sole visible pending plan proposal, exactly as
+`sase plan approve`/`reject` treat an omitted selector. Every ambiguity prints its
+candidates as re-runnable `plan:` references and every miss prints close-match
+suggestions; neither guesses. `-f/--format` selects `full` (the default
 section-structured detail view, matching the PLAN lane in sase's TUI), `compact` (the
 same row `sase plan search` prints), `json` (a schema-versioned envelope), or `raw` (the
 plan file's exact text, for piping). A plan that fails validation still renders in full

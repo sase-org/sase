@@ -6911,10 +6911,12 @@ Repeat `-s/--status` with `approved`, `proposed`, or `rejected` to render or ser
 only those sections; unrequested JSON section keys are omitted, while summary counts
 continue to describe the full collected view. `-n/--limit` controls the maximum rows in
 each Approved and Rejected history section (default `10`, with `0` meaning unlimited).
-Proposed rows are always shown in full. `-t/--tier` composes with both filters. The JSON
-summary includes `status_filter`, `tier_filter`, and a non-default `limit` when
-applicable, plus `approved_scan_truncated` if a finite artifact scan may have omitted
-older approvals.
+Proposed rows are always shown in full, leading with the plan `name` (shortest unique
+form, dim `id_prefix` below) and a ready-to-paste approve/reject hint line. `-t/--tier`
+composes with both filters. Proposed `--json` rows carry the same `name` field alongside
+`id_prefix`. The JSON summary includes `status_filter`, `tier_filter`, and a non-default
+`limit` when applicable, plus `approved_scan_truncated` if a finite artifact scan may
+have omitted older approvals.
 
 Use the Proposed row's plan name as the selector for `sase plan approve` or
 `sase plan reject` (the row's `id_prefix` still works); omitting the selector is valid

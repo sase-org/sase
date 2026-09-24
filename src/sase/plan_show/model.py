@@ -81,6 +81,7 @@ class PlanShowProposal:
 
     id: str
     id_prefix: str
+    name: str
     agent: str
     project: str
     provider_model: str

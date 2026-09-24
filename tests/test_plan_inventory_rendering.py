@@ -62,15 +62,19 @@ def test_render_plan_inventory_non_empty_output_uses_stable_columns(
     render_plan_inventory(inventory, console=console)
 
     output = buffer.getvalue()
-    assert "ID" in output
+    assert "Name" in output
     assert "Age" in output
     assert "Agent/Project" in output
     assert "Model" in output
     assert "Plan" in output
     assert "Plan path" not in output
+    assert "proposed" in output
     assert "12345678" in output
     assert "planner / demo-project" in output
     assert output.index("Proposed") < output.index("proposed.md")
+    assert "sase plan approve proposed" in output
+    collapsed = " ".join(output.replace("│", " ").split())
+    assert "TAB completes names" in collapsed
 
 
 def test_render_plan_inventory_uses_project_display_names_only_in_dashboard(
@@ -249,6 +253,58 @@ def test_render_plan_inventory_titles_paths_and_rejected_note_at_multiple_widths
             assert output.index(title) < output.index(filename)
         assert output.count("inferred from archived proposal") == 1
         assert "Note" not in output
+
+
+def test_render_proposed_table_leads_with_folded_name_and_hint() -> None:
+    from sase.main.plan_inventory_models import PlanInventory, ProposedPlan
+
+    def _row(name: str, plan_path: str, id_prefix: str) -> ProposedPlan:
+        return ProposedPlan(
+            _plan_key=plan_path,
+            name=name,
+            id_prefix=id_prefix,
+            notification_id=f"{id_prefix}-notification",
+            timestamp="2026-06-13T12:00:00",
+            age="3m",
+            agent="planner",
+            project="demo",
+            provider_model="claude",
+            plan_path=plan_path,
+            title="Some Plan",
+            tier="tale",
+            response_dir="~/resp",
+        )
+
+    inventory = PlanInventory(
+        proposed=(
+            _row("dup", "~/.sase/plans/202609/dup.md", "11111111"),
+            _row("dup", "~/.sase/plans/202608/dup.md", "22222222"),
+        ),
+        approved=(),
+        rejected=(),
+        total_archived_proposals=2,
+    )
+    buffer = io.StringIO()
+    render_plan_inventory(
+        inventory,
+        console=Console(
+            file=buffer, force_terminal=False, color_system=None, width=100
+        ),
+    )
+
+    output = buffer.getvalue()
+    assert "Name" in output
+    assert "202609/dup" in output
+    assert "202608/dup" in output
+    assert "11111111" in output
+    assert "22222222" in output
+    assert "approve: sase plan approve 202609/dup" in output
+    assert "reject: sase plan reject 202609/dup" in output
+    collapsed = " ".join(output.replace("│", " ").split())
+    assert (
+        "approve: sase plan approve 202609/dup · reject: sase plan reject "
+        "202609/dup · TAB completes names" in collapsed
+    )
 
 
 def test_render_plan_inventory_uses_subdued_unavailable_title() -> None:
