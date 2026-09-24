@@ -14,6 +14,7 @@ from ...models._agent_clan_sections import ClanContextEntry
 from ...models.agent_associated_plan import AssociatedPlanSummary, BeadSummary
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
+from sase.ace.tui.bead_hint_targets import bead_hint_target
 
 
 def clan_context_entry_hint_target(
@@ -68,12 +69,7 @@ def _typed_context_value_path(
         if isinstance(value, ArtifactFilePath):
             return value.actual_path
         if isinstance(value, BeadTouchEntry):
-            from sase.bead_pages.paths import bead_page_path
-
-            try:
-                return bead_page_path(value.bead_id)
-            except ValueError:
-                return None
+            return bead_hint_target(value.bead_id)
         if isinstance(value, ArtifactReadDisplayEvent):
             return value.event.resolved_path
         if isinstance(value, DeltaEntry):

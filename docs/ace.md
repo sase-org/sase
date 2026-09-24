@@ -5389,25 +5389,26 @@ pinned attempt view resets the cursor.
   is none. `own` marks the agent's assigned phase, epic, or `sase bead work` bead even
   when it was never touched (such rows have no timestamp and sort last). At most the
   newest five rows render; when there are more, a dim `+ N more · HH:MM earliest` footer
-  reports the rest. A numbered hint opens the bead's page, family rows add the producer
-  label when every contributor to that bead shares one producer, and clan rows include
-  their members' beads (de-duplicated and labeled per member). Audited `bead:` reads
-  live here and are excluded from `Reads`. The data and glyphs match
-  [`sase bead touched`](beads.md#sase-bead-touched-agent). `Reads` is the input side of
-  the lane: each retained audited `sase artifact read` (including when artifact links
-  are disabled) appears newest-first with local time, the canonical reference, the
-  recorded reason on a wrapped continuation line, and — on a family row — the compact
-  producer label. The header counts every retained read event; the newest five rows
-  render and a dim `+ N more · HH:MM earliest` footer reports overflow. Repeated reads
-  of the same reference stay separate. Prompt citations and silent `show` / `path` /
-  `open` commands never appear. A read with a recorded resolved path participates in
-  hint mode; a pathless or legacy row still renders its reference and reason, consumes
-  no hint number, and never triggers live reference resolution. Commits persisted by the
-  selected agent's post-run steps are grouped by repository; primary workspace,
-  linked-repo, sidecar, and external-repo commits retain their repository identity.
-  Deltas preserve their green `+`, gold `~`, and red `-` change glyphs and group linked
-  or external files by repository. Artifact type remains visible through its icon shape,
-  while every artifact icon, read row, and path uses the shared blue
+  reports the rest. A numbered hint opens the bead's live detail (the `sase bead show`
+  view) in sase's pager, `%` copies the bead ID, and `@` is not supported for bead rows.
+  Family rows add the producer label when every contributor to that bead shares one
+  producer, and clan rows include their members' beads (de-duplicated and labeled per
+  member). Audited `bead:` reads live here and are excluded from `Reads`. The data and
+  glyphs match [`sase bead touched`](beads.md#sase-bead-touched-agent). `Reads` is the
+  input side of the lane: each retained audited `sase artifact read` (including when
+  artifact links are disabled) appears newest-first with local time, the canonical
+  reference, the recorded reason on a wrapped continuation line, and — on a family row —
+  the compact producer label. The header counts every retained read event; the newest
+  five rows render and a dim `+ N more · HH:MM earliest` footer reports overflow.
+  Repeated reads of the same reference stay separate. Prompt citations and silent `show`
+  / `path` / `open` commands never appear. A read with a recorded resolved path
+  participates in hint mode; a pathless or legacy row still renders its reference and
+  reason, consumes no hint number, and never triggers live reference resolution. Commits
+  persisted by the selected agent's post-run steps are grouped by repository; primary
+  workspace, linked-repo, sidecar, and external-repo commits retain their repository
+  identity. Deltas preserve their green `+`, gold `~`, and red `-` change glyphs and
+  group linked or external files by repository. Artifact type remains visible through
+  its icon shape, while every artifact icon, read row, and path uses the shared blue
   output-lane/file-path palette. This lane starts painting on the very first navigation
   frame: `Commits` is derived from the selected agent's in-memory step metadata and
   needs no disk reads, so it renders immediately, while `Reads`, `Deltas`, and `Files` —

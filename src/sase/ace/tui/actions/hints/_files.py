@@ -59,27 +59,44 @@ def build_pager_document(
     commit_specs: Sequence[CommitViewSpec] = (),
     *,
     link_context: LinkResolutionContext | None = None,
+    bead_sections: Sequence[PagerSection] = (),
 ) -> PagerDocument:
     """Read every selected file and assemble one `PagerDocument`.
 
     Does real file I/O (design doc phase `ace` step 1) and so must run off
     the event loop (`tui_perf` rule 1) — callers dispatch this through
-    ``asyncio.to_thread`` before touching UI state.
+    ``asyncio.to_thread`` before touching UI state. Bead sections come from
+    the caller and are already resolved off-thread.
     """
     resolved_context = default_link_context() if link_context is None else link_context
     known_kinds = known_kinds_from_link_context(resolved_context)
     document = document_from_paths(
         files, link_context=resolved_context, known_kinds=known_kinds
     )
-    if not commit_specs:
+    if not commit_specs and not bead_sections:
         return document
-    sections = (
-        _commit_manifest_section(commit_specs, known_kinds=known_kinds),
-        *document.sections,
+    commit_sections = (
+        (_commit_manifest_section(commit_specs, known_kinds=known_kinds),)
+        if commit_specs
+        else ()
     )
+    sections = (*commit_sections, *bead_sections, *document.sections)
+    title = document.title
+    if bead_sections and not files:
+        if len(bead_sections) == 1:
+            title = bead_sections[0].title
+        else:
+            title = f"{len(bead_sections)} beads"
+    elif bead_sections and files:
+        if len(bead_sections) == 1:
+            bead_label = "1 bead"
+        else:
+            bead_label = f"{len(bead_sections)} beads"
+        file_label = "1 file" if len(files) == 1 else f"{len(files)} files"
+        title = f"{bead_label} · {file_label}"
     return PagerDocument(
         sections=sections,
-        title=document.title,
+        title=title,
         origin=document.origin,
         link_context=document.link_context,
     )

@@ -244,8 +244,9 @@ async def test_immediate_agent_hint_submission_waits_for_rendered_mapping(
         _commit_specs: object,
         *,
         link_context: object = None,
+        bead_sections: object = (),
     ) -> object:
-        del link_context
+        del link_context, bead_sections
         return document
 
     monkeypatch.setattr(

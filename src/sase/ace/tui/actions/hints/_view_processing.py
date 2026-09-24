@@ -15,7 +15,10 @@ from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
     write_memory_read_report,
 )
+from sase.ace.tui.bead_hint_targets import bead_id_from_hint_target
+from sase.pager.document import PagerSection
 from sase.pager.link_context import LinkResolutionContext
+from sase.pager.resolve import resolve_link
 
 from ....hint_types import ViewFilesResult
 from ....hints import parse_numeric_hint_selection, parse_view_input
@@ -43,6 +46,7 @@ class _ViewRequest:
     patch_name: str
     commit_specs: tuple[CommitViewSpec, ...]
     captured_link_context: CapturedLinkContext
+    bead_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -51,6 +55,8 @@ class _MaterializedReports:
     failed_paths: tuple[str, ...]
     missing_paths: tuple[str, ...] = ()
     link_context: LinkResolutionContext = field(default_factory=LinkResolutionContext)
+    bead_sections: tuple[PagerSection, ...] = ()
+    bead_failures: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -65,8 +71,21 @@ def _materialize_selected_view_files(
     report_items: tuple[tuple[str, _HintReportSpec], ...],
     artifact_read_ref_items: tuple[tuple[str, ArtifactReadRefSpec], ...],
     captured_link_context: CapturedLinkContext,
+    bead_ids: tuple[str, ...] = (),
 ) -> _MaterializedReports:
     """Materialize reports, repair artifact-read paths, and drop stale files."""
+    link_context = link_context_from_capture(captured_link_context)
+    bead_sections: list[PagerSection] = []
+    bead_failures: list[str] = []
+    for bead_id in bead_ids:
+        resolution = resolve_link(f"bead:{bead_id}", context=link_context)
+        target = resolution.target
+        if target is not None and target.document is not None:
+            bead_sections.extend(target.document.sections)
+        else:
+            bead_failures.append(
+                resolution.unresolved_message or f"bead:{bead_id} could not be resolved"
+            )
     reports = dict(report_items)
     artifact_read_refs = dict(artifact_read_ref_items)
     materialized: list[str] = []
@@ -101,7 +120,9 @@ def _materialize_selected_view_files(
         tuple(materialized),
         tuple(failed),
         tuple(missing),
-        link_context_from_capture(captured_link_context),
+        link_context,
+        tuple(bead_sections),
+        tuple(bead_failures),
     )
 
 
@@ -197,13 +218,34 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
 
         commit_hint_nums = [hint for hint in selected_hints if hint in commit_views]
         commit_specs = tuple(commit_views[hint] for hint in commit_hint_nums)
-        files = self._files_for_view_hints(
+        raw_files = self._files_for_view_hints(
             hint for hint in selected_hints if hint in self._hint_mappings
         )
+        bead_ids_list: list[str] = []
+        seen_bead_ids: set[str] = set()
+        files: list[str] = []
+        for raw_file in raw_files:
+            bead_id = bead_id_from_hint_target(raw_file)
+            if bead_id is not None:
+                if bead_id not in seen_bead_ids:
+                    seen_bead_ids.add(bead_id)
+                    bead_ids_list.append(bead_id)
+            else:
+                files.append(raw_file)
+        bead_ids: tuple[str, ...] = tuple(bead_ids_list)
 
-        if not files and not commit_hint_nums:
+        if not files and not commit_hint_nums and not bead_ids:
             self.notify("No valid files selected", severity="warning")  # type: ignore[attr-defined]
             return None
+
+        if open_in_editor and bead_ids:
+            self.notify(  # type: ignore[attr-defined]
+                f"Beads cannot be opened in an editor: {', '.join(bead_ids)}",
+                severity="warning",
+            )
+            bead_ids = ()
+            if not files and not commit_hint_nums:
+                return None
 
         if open_in_editor and commit_hint_nums:
             files = self._prepend_commit_diff_paths(commit_hint_nums, files)
@@ -226,6 +268,7 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
             ),
             commit_specs=commit_specs,
             captured_link_context=self._capture_view_link_context(),
+            bead_ids=bead_ids,
         )
         tool_reports: dict[str, SlowToolCallReportSpec] = getattr(
             self, "_hint_tool_call_reports", {}
@@ -259,12 +302,18 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
     async def _finish_view_request(self, prepared: _PreparedViewRequest) -> None:
         """Materialize a captured request off-thread, then route its UI action."""
         request = prepared.request
+        bead_ids_for_resolution = (
+            ()
+            if (request.copy_to_clipboard or request.open_in_editor)
+            else request.bead_ids
+        )
         outcome = await asyncio.to_thread(
             _materialize_selected_view_files,
             request.files,
             prepared.report_items,
             prepared.artifact_read_ref_items,
             request.captured_link_context,
+            bead_ids_for_resolution,
         )
 
         # The request remains valid across navigation, but no UI effects should
@@ -282,21 +331,25 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                 f"File no longer exists: {missing_path}",
                 severity="warning",
             )
+        for bead_failure in outcome.bead_failures:
+            self.notify(bead_failure, severity="warning")  # type: ignore[attr-defined]
 
         files = list(outcome.files)
-        if not files:
-            if request.copy_to_clipboard and request.commit_specs:
-                self._copy_commit_specs_to_clipboard(request.commit_specs, files)
-            elif not request.commit_specs:
+        if request.copy_to_clipboard:
+            items = [*request.bead_ids, *files]
+            if request.commit_specs:
+                self._copy_commit_specs_to_clipboard(request.commit_specs, items)
+            elif items:
+                self._copy_files_to_clipboard(items)  # type: ignore[attr-defined]
+            else:
                 self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if request.copy_to_clipboard:
-            if request.commit_specs:
-                self._copy_commit_specs_to_clipboard(request.commit_specs, files)
-            else:
-                self._copy_files_to_clipboard(files)  # type: ignore[attr-defined]
-        elif request.open_in_editor:
+        if request.open_in_editor:
+            if not files:
+                if not request.commit_specs:
+                    self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
+                return
             result = ViewFilesResult(
                 files=files,
                 open_in_editor=True,
@@ -305,30 +358,41 @@ class ViewInputProcessingMixin(CommitHintProcessingMixin):
                 patch_name=request.patch_name,
             )
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
-        else:
-            from ...graphics import is_supported_image_path, is_supported_video_path
+            return
 
-            if any(
-                is_supported_image_path(f) or is_supported_video_path(f) for f in files
-            ):
-                self._view_files_with_artifact_file_viewer(files)  # type: ignore[attr-defined]
-            else:
-                try:
-                    document = await asyncio.to_thread(
-                        build_pager_document,
-                        files,
-                        request.commit_specs,
-                        link_context=outcome.link_context,
-                    )
-                except OSError as exc:
-                    self.notify(  # type: ignore[attr-defined]
-                        f"Could not open pager: {exc}",
-                        severity="error",
-                    )
-                    return
-                if not bool(getattr(self, "is_running", True)):
-                    return
-                self._view_files_with_pager_screen(document)  # type: ignore[attr-defined]
+        if not files and not outcome.bead_sections:
+            if not request.commit_specs:
+                self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...graphics import is_supported_image_path, is_supported_video_path
+
+        if any(is_supported_image_path(f) or is_supported_video_path(f) for f in files):
+            if outcome.bead_sections:
+                self.notify(  # type: ignore[attr-defined]
+                    "Selected beads are not shown alongside media",
+                    severity="warning",
+                )
+            self._view_files_with_artifact_file_viewer(files)  # type: ignore[attr-defined]
+            return
+
+        try:
+            document = await asyncio.to_thread(
+                build_pager_document,
+                files,
+                request.commit_specs,
+                link_context=outcome.link_context,
+                bead_sections=outcome.bead_sections,
+            )
+        except OSError as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Could not open pager: {exc}",
+                severity="error",
+            )
+            return
+        if not bool(getattr(self, "is_running", True)):
+            return
+        self._view_files_with_pager_screen(document)  # type: ignore[attr-defined]
 
     def _capture_view_link_context(self) -> CapturedLinkContext:
         """Snapshot stable agent/patch inputs; no directory or marker I/O."""

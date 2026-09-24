@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.cells import cell_len
 from rich.text import Text
 
+from sase.ace.tui.bead_hint_targets import bead_hint_target as _bead_hint_target
 from sase.ace.tui.bead_touches import BeadTouchEntry
 from sase.bead.touch_glyphs import touch_glyph
 
@@ -59,16 +60,6 @@ def _chip(verb: str, count: int) -> str:
     if count > 1:
         return f"{verb} ×{count}"
     return verb
-
-
-def _bead_hint_target(bead_id: str) -> str | None:
-    """Return the bead page path, or ``None`` when not addressable."""
-    from sase.bead_pages.paths import bead_page_path
-
-    try:
-        return bead_page_path(bead_id)
-    except ValueError:
-        return None
 
 
 def append_agent_bead_touch_rows(

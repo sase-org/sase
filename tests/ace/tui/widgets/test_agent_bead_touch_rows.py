@@ -47,7 +47,6 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
 )
 from sase.ace.tui.models._agent_clan_sections import ClanContextEntry
 from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
-from sase.bead_pages.paths import bead_page_path
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
 
@@ -342,7 +341,7 @@ def test_overflow_footer_and_cap() -> None:
     assert f"· {entries[-1].last_at[11:16]} earliest" in text.plain
 
 
-def test_hints_map_bead_pages_and_skip_invalid_ids() -> None:
+def test_hints_map_bead_refs_and_skip_invalid_ids() -> None:
     state = _hint_state(start=3)
     text = Text()
     append_agent_bead_touch_rows(
@@ -362,7 +361,7 @@ def test_hints_map_bead_pages_and_skip_invalid_ids() -> None:
     )
     assert "[3] sase-14j.5" in text.plain
     assert "[4]" not in text.plain
-    assert state.hint_mappings == {3: bead_page_path("sase-14j.5")}
+    assert state.hint_mappings == {3: "bead:sase-14j.5"}
     assert state.hint_counter == 4
 
 
@@ -537,19 +536,22 @@ def test_cheap_header_renders_beads_without_index_read(
 # --- clan --------------------------------------------------------------------
 
 
-def test_clan_hint_target_returns_bead_page() -> None:
+def test_clan_hint_target_returns_bead_ref() -> None:
     entry = ClanContextEntry(
         key="sase-14j.5",
         label="sase-14j.5",
         member_labels=("a",),
         values=(_entry("sase-14j.5", "2026-05-24T14:00:00+00:00", verbs={"noted": 1}),),
     )
-    assert clan_context_entry_hint_target(
-        "ARTIFACTS",
-        entry,
-        member_workspaces={},
-        fallback_workspace=None,
-    ) == bead_page_path("sase-14j.5")
+    assert (
+        clan_context_entry_hint_target(
+            "ARTIFACTS",
+            entry,
+            member_workspaces={},
+            fallback_workspace=None,
+        )
+        == "bead:sase-14j.5"
+    )
 
 
 def test_clan_hint_target_rejects_invalid_bead_id() -> None:
