@@ -80,8 +80,10 @@ def load_accepted_commit_declaration(
             submission["submission"]
         )
         validate_finalizer_submission(plan, context, envelope)
-        finalizer_declaration.validate_provider_payloads(plan, context, envelope)
         host_records = finalizer_declaration.load_accepted_host_repositories(root)
+        finalizer_declaration.validate_provider_payloads(
+            plan, context, envelope, host_records=host_records
+        )
         raw_deferrals = submission.get("accepted_deferrals")
         accepted_deferrals = (
             tuple(item for item in raw_deferrals if isinstance(item, Mapping))

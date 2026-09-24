@@ -167,6 +167,59 @@ def test_live_assigned_bead_keep_is_authored_and_threaded_to_stitch_runner(
     assert inputs["bead_action"] == "keep"
 
 
+def test_live_assigned_bead_close_is_accepted_and_threaded_to_stitch_runner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-zq.3")
+    (repo / "agent.py").write_text("print('agent')\n", encoding="utf-8")
+    seen_actions: list[str | None] = []
+
+    def stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        excludes: tuple[str, ...],
+        context: object,
+        *,
+        bead_action: str | None = None,
+    ) -> StitchCommandResult:
+        seen_actions.append(bead_action)
+        return real_git_stitch(
+            repo_arg,
+            message,
+            excludes,
+            context,
+            bead_action=bead_action,
+        )
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
+    monkeypatch.setattr(
+        "sase.finalizers.declaration_manifest._assigned_bead_status",
+        lambda _bead_id, _cwd: "in_progress",
+    )
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    submit_from_context(artifacts, bead_action="close")
+    result = run_controller(artifacts)
+
+    assert result.content == "done"
+    assert seen_actions == ["close"]
+    assert git_changed_files(str(repo)) == []
+    payload = load_result(artifacts)
+    assert payload["status"] == "success"
+    inputs = json.loads(
+        (artifacts / "finalizers" / "commit" / "attempt-1.main.inputs.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert inputs["bead_action"] == "close"
+
+
 def test_live_dirty_commit_excludes_protected_baseline_and_pushes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

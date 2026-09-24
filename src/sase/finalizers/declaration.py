@@ -171,6 +171,7 @@ def submit_final_manifest(
     content_digest = _safe_value_digest(manifest)
 
     with hold_finalizer_declaration_lock(root):
+        host_records = _read_host_repository_file(root / FINAL_CONTEXT_HOST_FILENAME)
         try:
             plan = load_finalizer_plan(root)
             context = load_latest_finalizer_context(root)
@@ -183,7 +184,9 @@ def submit_final_manifest(
                     code="stale_final_context",
                 )
             validation = validate_finalizer_submission(plan, context, envelope)
-            validate_provider_payloads(plan, context, envelope)
+            validate_provider_payloads(
+                plan, context, envelope, host_records=host_records
+            )
         except FinalizerDeclarationError as exc:
             _append_attempt_record_locked(
                 root,
@@ -313,13 +316,16 @@ def final_submission_is_current(*, artifacts_dir: str | None = None) -> bool:
             submission = load_latest_finalizer_submission(root)
             envelope = normalize_submission_envelope(submission["submission"])
             validate_finalizer_submission(plan, context, envelope)
-            validate_provider_payloads(plan, context, envelope)
+            host_records = load_accepted_host_repositories(root)
+            validate_provider_payloads(
+                plan, context, envelope, host_records=host_records
+            )
             adjudicate_commit_deferrals(
                 plan,
                 context,
                 envelope,
                 root=root,
-                host_records=load_accepted_host_repositories(root),
+                host_records=host_records,
             )
         except Exception:
             return False

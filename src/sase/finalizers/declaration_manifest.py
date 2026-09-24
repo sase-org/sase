@@ -28,6 +28,7 @@ from sase.core.finalizer_wire import (
 )
 from sase.finalizers.declaration_store import (
     FinalizerDeclarationError,
+    HostRepositoryRecord,
     write_text_atomic as _write_text_atomic,
 )
 from sase.telemetry.metrics import FINALIZER_SUBMISSIONS
@@ -233,6 +234,8 @@ def validate_provider_payloads(
     plan: FinalizerPlanWire,
     context: FinalizerContextWire,
     envelope: Mapping[str, Any],
+    *,
+    host_records: Sequence[HostRepositoryRecord],
 ) -> None:
     entries = {entry.instance_id: entry for entry in plan.entries}
     payloads = envelope.get("payloads", [])
@@ -258,7 +261,7 @@ def validate_provider_payloads(
                 code="unknown_instance",
             )
         if entry.provider_ref == "builtin@commit":
-            _validate_commit_payload(context, payload)
+            _validate_commit_payload(context, payload, host_records=host_records)
         elif entry.provider_ref != "builtin@command":
             from sase.finalizers.executor import (
                 FinalizerExecutionError,
@@ -283,6 +286,8 @@ def validate_provider_payloads(
 def _validate_commit_payload(
     context: FinalizerContextWire,
     payload: Any,
+    *,
+    host_records: Sequence[HostRepositoryRecord],
 ) -> None:
     if not isinstance(payload, Mapping):
         raise FinalizerDeclarationError(
@@ -322,7 +327,9 @@ def _validate_commit_payload(
         seen.add(repo_id)
         action = decision.get("action")
         if action == "commit":
-            _validate_commit_decision(context, repo_id, decision)
+            _validate_commit_decision(
+                context, repo_id, decision, host_records=host_records
+            )
         else:
             raise FinalizerDeclarationError(
                 f"commit repository decision for {repo_id} has invalid action; "
@@ -442,10 +449,36 @@ _BEAD_DECISION_KEYS = {
 }
 
 
+def _assigned_bead_status(bead_id: str, cwd: str) -> str:
+    from sase.workflows.commit.bead_hooks import bead_status_fact
+
+    return bead_status_fact(bead_id, cwd)
+
+
+def _host_close_bead_status(
+    bead_id: str,
+    primary_repo_obligation_id: str | None,
+    host_records: Sequence[HostRepositoryRecord],
+) -> str:
+    path: str | None = None
+    for record in host_records:
+        if record.obligation_id == primary_repo_obligation_id:
+            path = record.path
+            break
+    if not path:
+        return "unreadable"
+    try:
+        return _assigned_bead_status(bead_id, path)
+    except Exception:
+        return "unreadable"
+
+
 def _validate_commit_decision(
     context: FinalizerContextWire,
     repo_id: str,
     decision: Mapping[str, Any],
+    *,
+    host_records: Sequence[HostRepositoryRecord],
 ) -> None:
     _reject_extra_keys(decision, _COMMIT_DECISION_KEYS, "commit")
     message = decision.get("message")
@@ -481,6 +514,17 @@ def _validate_commit_decision(
     }
     bead_decision.setdefault("repo_id", repo_id)
     bead_decision.setdefault("commit_method", "create_commit")
+    bead_decision.pop("bead_status", None)
+    if (
+        assigned is not None
+        and decision.get("bead_action") == "close"
+        and repo_id == assigned.primary_repo_obligation_id
+    ):
+        bead_decision["bead_status"] = _host_close_bead_status(
+            assigned.bead_id,
+            assigned.primary_repo_obligation_id,
+            host_records,
+        )
     try:
         validate_finalizer_bead_decision(context, bead_decision)
     except ValueError as exc:

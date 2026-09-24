@@ -88,7 +88,11 @@ bead. In a `/sase_final` declaration, each repository decision carries
 `sase stitch create` run passes `-B` itself. Use `keep` for intermediate work,
 proposals, deferrals, and linked or sidecar repositories; use `close` only on the
 primary repository once the whole bead is complete and verified. Nothing closes a bead
-implicitly, so unrelated or intermediate dirty work can never close it. See
+implicitly, so unrelated or intermediate dirty work can never close it. On
+`sase final submit` the host reads the assigned bead's live status for a
+primary-repository `close`, accepting it when the bead is `in_progress` (close after
+commit) or already `closed` (idempotent) and otherwise refusing the declaration so the
+agent can choose `keep`. Agents never supply the status themselves. See
 [Explicit Bead Action](#explicit-bead-action).
 
 `finalizers.instances.commit.max_attempts` (default `2`) controls how many commit

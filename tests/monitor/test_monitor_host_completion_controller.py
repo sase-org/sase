@@ -609,9 +609,9 @@ def test_bead_action_is_required_when_context_has_assigned_bead() -> None:
         ],
     }
     with pytest.raises(FinalizerDeclarationError, match="bead_action"):
-        validate_provider_payloads(plan, context, envelope)
+        validate_provider_payloads(plan, context, envelope, host_records=())
     envelope["payloads"][0]["payload"]["repositories"][0]["bead_action"] = "keep"
-    validate_provider_payloads(plan, context, envelope)
+    validate_provider_payloads(plan, context, envelope, host_records=())
 
 
 def test_real_declaration_submit_is_not_stubbed_on_success_path(
