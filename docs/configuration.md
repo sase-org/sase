@@ -397,14 +397,17 @@ scope reads `Everything is installed.`
   Codex CLI, OpenCode, Qwen Code, Antigravity, Muse Code, and Grok Build. Rows show
   installed → latest versions, install method, `↑` availability, and update marks.
   Missing CLIs that SASE can install show `latest v…` with an `[npm]` or `[script]`
-  badge and install with `i` (or `Space` / `I` marks for a bulk set, mixed with plugin
-  marks in one combined flow). Details show the resolved executable, exact automatic or
-  manual update command, skip reason, canonical vendor docs URL, and the last result;
-  missing CLIs instead show the install route, exact command or script URL, target, and
-  the `↓ i install now · Space mark · * mark all missing` call to action. Every install
-  previews first — exact command, full SHA-256, target, and PATH status — runs the
-  previewed bytes without a shell, and stays visible afterwards (row, detail, toast, and
-  history), including "installed but not on PATH" with the exact `export` line.
+  badge (others show `[manual]`) and install with `i` (or `Space` / `I` marks for a bulk
+  set, mixed with plugin marks in one combined flow). Details show the resolved
+  executable, exact automatic or manual update command, skip reason, canonical vendor
+  docs URL, and the last result; missing CLIs instead show the install route, exact
+  command or script URL, target, and the
+  `↓ i install now · Space mark · * mark all missing` call to action. Every install
+  previews first — exact command, target, and PATH status, plus the full SHA-256 for a
+  script — runs without a shell (a script CLI runs the previewed bytes; an npm CLI runs
+  `npm install -g <package>`), and stays visible afterwards (row, detail, toast, and
+  history), including "installed but not on PATH" with the exact `export` line. `H`
+  toggles the agent-CLI run history between the highlighted CLI and every CLI.
 
 The always-visible header above the list shows either the all-current banner or a digest
 (update counts per source, cache age, install mode, and an offline badge) plus a line
@@ -472,25 +475,26 @@ partial failures. `A` previews every exact agent-CLI command and every skip with
 reason and docs URL; it uses the marked subset from anywhere in the pane, otherwise it
 targets every safely updatable installed CLI. Agent-CLI commands execute sequentially as
 one tracked proc and refresh the browser without restarting sase's TUI; new agent
-launches naturally use the updated binaries. Installable plugins and installable agent
-CLIs use `I` / `Space` marks, while updatable agent CLIs use `Space`, in one shared mark
-set whose aggregate line counts plugin installs, CLI installs, and CLI updates
-separately; `Esc` clears every mark, of any kind and regardless of the active filter,
-before closing. All slow work runs off the event loop. Core/plugin code changes retain
-the existing automatic sase's TUI and service host restart behavior after the other legs
-finish. The context-sensitive keymaps are:
+launches naturally use the updated binaries. `Space` (or its alias `I`) marks any
+markable row — installable plugins, installable agent CLIs, and updatable agent CLIs —
+in one shared mark set whose aggregate line counts plugin installs, CLI installs, and
+CLI updates separately; `Esc` clears every mark, of any kind and regardless of the
+active filter, before closing. All slow work runs off the event loop. Core/plugin code
+changes retain the existing automatic sase's TUI and service host restart behavior after
+the other legs finish. The context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                                                                                          |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `]` / `[`           | Cycle Outdated / Installed / Available / All scopes                                                                                                                             |
 | `j` / `k`           | Move the highlight down / up                                                                                                                                                    |
 | `'`                 | Jump to a row via adaptive hints, across every section                                                                                                                          |
-| `I` / `Space`       | Mark / unmark the highlighted row — `I` for an installable plugin or CLI, `Space` follows the highlighted row                                                                   |
+| `I` / `Space`       | Mark / unmark the highlighted row (`I` is an alias of `Space`)                                                                                                                  |
 | `*`                 | Mark / unmark every visible row in the highlighted row's section with the same action                                                                                           |
 | `i`                 | Open the install preview for the marked set (plugins and agent CLIs together), or for the highlighted row when unmarked                                                         |
 | `x`                 | Uninstall the highlighted plugin (only when installed)                                                                                                                          |
 | `u`                 | Run `sase update` for SASE core plus all installed plugins                                                                                                                      |
 | `A`                 | Update marked agent CLIs from anywhere, or every safely updatable installed agent CLI otherwise                                                                                 |
+| `H`                 | Toggle the agent-CLI run history between the highlighted CLI and every CLI                                                                                                      |
 | `a`                 | Publish and reconcile every enabled agents repository, draining queued publication retries                                                                                      |
 | `U`                 | Update the highlighted installed plugin when that row has an update available                                                                                                   |
 | `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                                                                                                |
@@ -1444,8 +1448,9 @@ rejects every other duplicate app binding:
 
 The first column is what the key looks like on your keyboard; the second is the name to
 write in `sase.yml`, matching how `src/sase/default_config.yml` spells it. Punctuation
-keys generally use their long name (`slash`, `full_stop`, `question_mark`), the same
-convention as the curly-bracket names described above.
+keys generally use their long name (`slash`, `full_stop`, `question_mark`, `backslash`,
+`vertical_line`), the same convention as the curly-bracket names described above; the
+raw `\` and `|` glyphs are also accepted for the last two.
 
 The allowlist is keyed by action pair, not by key, so moving one of these actions onto a
 different key keeps the exemption, and pointing a third action at a shared key does not
@@ -2113,14 +2118,14 @@ and refresh backoff follows the failure class. `sase usage list -v` shows the
 per-provider retry state; JSON output passes the `collector_health` snapshot through
 unchanged.
 
-| Class        | Failure reasons                                                                                               | Retry policy                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Success      | `ok`, `not_applicable`, `unsupported` outcomes                                                                | next probe at the provider cadence                                              |
-| Transient    | `timeout`, `deadline_exceeded`, `probe_failed`, `parse_error`, `malformed_payload`, `account_context_changed` | cadence-based backoff up to 30 minutes                                          |
-| Rate-limited | `rate_limited`                                                                                                | honored `Retry-After` when present, otherwise an escalating delay up to 2 hours |
-| Auth         | `unauthenticated`, `logged_out`, `api_mode` outcomes                                                          | generic backoff up to 30 minutes                                                |
-| Parked       | `not_installed`, `unsupported_cli_version`                                                                    | 6-hour backoff, released early when the CLI changes                             |
-| Vendor drift | `vendor_drift`                                                                                                | fixed 1-hour backoff                                                            |
+| Class        | Failure reasons                                                                                               | Retry policy                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Success      | `ok`, `not_applicable`, `unsupported` outcomes                                                                | next probe at the provider cadence                                                                                              |
+| Transient    | `timeout`, `deadline_exceeded`, `probe_failed`, `parse_error`, `malformed_payload`, `account_context_changed` | cadence-based backoff up to 30 minutes                                                                                          |
+| Rate-limited | `rate_limited`                                                                                                | honored `Retry-After` (clamped to 15 minutes–6 hours) when present, otherwise an escalating delay from 15 minutes up to 2 hours |
+| Auth         | `unauthenticated`, `logged_out`, `api_mode` outcomes                                                          | generic backoff up to 30 minutes                                                                                                |
+| Parked       | `not_installed`, `unsupported_cli_version`                                                                    | 6-hour backoff, released early when the CLI changes                                                                             |
+| Vendor drift | `vendor_drift`                                                                                                | fixed 1-hour backoff                                                                                                            |
 
 Providers in active use refresh on the hot cadence instead of the idle one. A provider
 counts as hot while a recent agent launch or limit-event hint (each good for 15 minutes)
@@ -4746,20 +4751,23 @@ unknown keys at runtime.
 and keep a fallback path reachable until the flag is removed. The schema marks sunset
 flags deprecated. The currently registered flags are:
 
-| Flag                           | Kind   | Default | Controls                                                                                                        |
-| ------------------------------ | ------ | ------- | --------------------------------------------------------------------------------------------------------------- |
-| `ace_refresh_tokens`           | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                |
-| `admin_center_flags`           | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                           |
-| `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                             |
-| `agents_unified_query`         | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                      |
-| `axe_routine_job_contract`     | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                           |
-| `monitor_continuation_records` | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.         |
-| `provider_drain`               | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`). |
-| `queue_capacity_budget`        | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).       |
-| `ref_sync_gesture`             | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.       |
-| `refresh_panel`                | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                      |
-| `slim_agents_manifest`         | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                             |
-| `typed_launch_units`           | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                          |
+| Flag                           | Kind   | Default | Controls                                                                                                                                         |
+| ------------------------------ | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ace_refresh_tokens`           | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                 |
+| `admin_center_flags`           | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                            |
+| `agent_decks`                  | beta   | `false` | The Agents tab shows a deck panel (Main, Files, Tools decks of cards) instead of the metadata panel; see [Agent Decks](ace.md#agent-decks-beta). |
+| `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                              |
+| `agents_unified_query`         | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                       |
+| `axe_routine_job_contract`     | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                            |
+| `bgcmd_legacy_slots`           | sunset | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                   |
+| `monitor_continuation_records` | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                          |
+| `muse_synchronous_shell`       | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).    |
+| `provider_drain`               | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                  |
+| `queue_capacity_budget`        | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                        |
+| `ref_sync_gesture`             | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                        |
+| `refresh_panel`                | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                       |
+| `slim_agents_manifest`         | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                              |
+| `typed_launch_units`           | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                           |
 
 Run `sase flag list` for the live registry with effective and saved state.
 

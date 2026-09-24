@@ -439,13 +439,17 @@ from default launch views, and `sase project enable <project>` to make it launch
 again. Disabling refuses projects with live `RUNNING` claims or active artifact markers
 unless `--force` is passed. Project arguments also accept the
 [project tag](xprompt.md#project-tags) spelling, so `sase project show +sase` works like
-`sase project show sase`. Legacy active/inactive values and the deprecated lifecycle
-command aliases remain read-compatible. sase's TUI **Projects** tab (in the SASE Admin
-Center, opened with `#`) provides the interactive counterpart, including marking
-multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting obsolete SASE
-project directories after confirmation. There is no CLI delete subcommand; full
-project-directory deletion is only available from sase's TUI Projects tab and removes
-state under `~/.sase/projects/`, not workspace checkouts.
+`sase project show sase`. `sase project list` has a `TAG` column and `sase project show`
+a `Tag:` line with each project's `+<name>` spelling (`-` or omitted when the name does
+not fit tag syntax), colored by project accent on a color terminal; their `--json`
+output adds `tag`, `workflow_type`, and `accent` (`null` for disabled projects). Legacy
+active/inactive values and the deprecated lifecycle command aliases remain
+read-compatible. sase's TUI **Projects** tab (in the SASE Admin Center, opened with `#`)
+provides the interactive counterpart, including marking multiple projects, editing a
+ProjectSpec in `$EDITOR`, and deleting obsolete SASE project directories after
+confirmation. There is no CLI delete subcommand; full project-directory deletion is only
+available from sase's TUI Projects tab and removes state under `~/.sase/projects/`, not
+workspace checkouts.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`,
 `remove PROJECT ALIAS`, and `clear PROJECT` manage ProjectSpec aliases. sase's TUI
@@ -678,7 +682,7 @@ surface can support plain git, GitHub pull requests, and other provider plugins.
 | `sase agent prompts`                    | Browse and validate the canonical agents-sidecar prompt archive. `show` prints the archived Markdown document, and `migrate --write` moves historical plans-sidecar prompts into `prompts/<YYYYMM>/`.                                                                                                                                                                                                | [Agent Hood Synchronization](agents_sidecar.md#prompt-and-artifact-archive)                                                      |
 | `sase agent-cli` / `agent-cli list`     | Inventory supported coding-agent CLIs with versions, install methods, and update markers.                                                                                                                                                                                                                                                                                                            | [Agent providers](agent_providers.md#inventory-and-updates)                                                                      |
 | `sase agent-cli update`                 | Update selected agent CLIs (or every safe candidate with `-a`); `-n` previews commands and skips.                                                                                                                                                                                                                                                                                                    | [Agent providers](agent_providers.md#inventory-and-updates)                                                                      |
-| `sase agent-cli install`                | Install agent CLIs from the install script or npm package their provider declares, after showing the URL, SHA-256 digest, command, and target; needs `-y` or an interactive confirmation, and `-n` previews without executing.                                                                                                                                                                       | [Agent providers](agent_providers.md#inventory-and-updates)                                                                      |
+| `sase agent-cli install`                | Install agent CLIs from the install script or npm package their provider declares, after showing the script URL, SHA-256 digest, command, and target (or the exact `npm install -g` command and global bin directory); needs `-y` or an interactive confirmation, and `-n` previews without executing.                                                                                               | [Agent providers](agent_providers.md#inventory-and-updates)                                                                      |
 | `sase var` / `sase var list`            | Discover unique output-variable keys and distinct typed values across indexed agent history.                                                                                                                                                                                                                                                                                                         | [XPrompt variables](xprompt.md#cross-agent-output-variables)                                                                     |
 | `sase var get`                          | Show the current or quoted `<agent_name>` snapshot, or retrieve precise values with exact, global, hood, key-wildcard, and JSON-path selectors.                                                                                                                                                                                                                                                      | [XPrompt variables](xprompt.md#cross-agent-output-variables)                                                                     |
 | `sase var set`                          | Attach named string or structured JSON output variables from assignments, literal text, files, or stdin.                                                                                                                                                                                                                                                                                             | [XPrompt variables](xprompt.md#cross-agent-output-variables)                                                                     |

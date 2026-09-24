@@ -199,42 +199,49 @@ projection details.
 #### Link Jumps
 
 Following a link whose target is outside the destination pane's current result set does
-not fail. Every jump — the `$` link rail, the `$0` links panel, relation jumps — runs
-one engine: it plans a single verified rewrite, then commits it once. The query bar
-always truthfully describes what is shown, and query history records exactly one `^`
-entry, which restores the original query and selection.
+not fail. Every jump — the `$` link rail, the `$0` links panel, and relation jumps
+outside Patches — runs one engine: it plans a single verified rewrite, then commits it
+once. The query bar always truthfully describes what is shown, and query history records
+exactly one `^` entry, which restores the original query and selection. While the
+destination pane is still loading, the jump waits for it rather than reporting a miss.
+Starting a new jump cancels one still in flight.
 
-| Step          | When                                          | What happens                                                                                           |
-| ------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Resolve       | Always                                        | Find the target through the destination pane's own row identity, re-resolved once the pane has loaded. |
-| Scope         | The current project scope excludes the target | Switch to the target's project, or to All projects if its project is unknown. Never narrows from All.  |
-| Select        | The target is visible                         | Select it. No toast.                                                                                   |
-| Fold          | A collapsed fold hides it                     | Expand the minimum fold, then select. No query change, no toast.                                       |
-| Acquire       | The row is not in the pane's loaded inventory | Fetch it directly from its source, off the message pump, then continue.                                |
-| Context       | The query or limit hides it                   | Rewrite to the context query below, verified against the target's row before committing.               |
-| Identity      | No context, or the context still misses       | Rewrite to the tightest query that names the row (`id:`, `sha:`, …), keeping the limit.                |
-| Neutral       | Still missing, where allowed (never Stitches) | Replace the query with a blunt `limit:all`.                                                            |
-| Honest report | Everything missed                             | Say so: a dangling ref, a load failure, or "not in `<Pane>`".                                          |
+| Step          | When                                          | What happens                                                                                                                                  |
+| ------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resolve       | Always                                        | Find the target through the destination pane's own row identity, re-resolved once the pane has loaded.                                        |
+| Scope         | The current project scope excludes the target | Switch to the target's project, or to All projects if its project is unknown and the current scope cannot resolve it. Never narrows from All. |
+| Select        | The target is visible                         | Select it. No toast.                                                                                                                          |
+| Fold          | A collapsed fold hides it                     | Expand the minimum fold, then select. No query change, no toast.                                                                              |
+| Acquire       | The row is not in the pane's loaded inventory | Fetch it directly from its source in the background, then continue.                                                                           |
+| Context       | The query or limit hides it                   | Rewrite to the context query below, verified against the target's row before committing.                                                      |
+| Identity      | No context, or the context still misses       | Rewrite to the tightest query that names the row (`id:`, `sha:`, …), keeping the limit.                                                       |
+| Neutral       | Still missing, where allowed (never Stitches) | Replace the query with a blunt `limit:all`.                                                                                                   |
+| Honest report | Everything missed                             | Say so: a dangling ref, a load failure, an unconfigured provider pane, or "not in `<Pane>`".                                                  |
 
 The rewrite lands the target inside its natural family — never an isolated row — and
 keeps the current `limit:`, raising it only when the family would not fit:
 
-| Target                              | The query becomes                              | Lens label           |
-| ----------------------------------- | ---------------------------------------------- | -------------------- |
-| Bead phase `sase-16n.7`             | `id:sase-16n.*`                                | `epic sase-16n`      |
-| Bead epic `sase-16n`                | `id:sase-16n id:sase-16n.*`, epic fold expands | `epic sase-16n`      |
-| Bead task or flag `sase-abc`        | `id:sase-abc`                                  | `bead sase-abc`      |
-| Agent hood member `sase-16n.7`      | `name:sase-16n.*`                              | `sase-16n hood`      |
-| Agent family shell `x--y`           | `family:x`                                     | `family x`           |
-| File                                | `agent:<creating agent>`, else `id:<file>`     | `files from <agent>` |
-| Plan or provider doc                | `path:<doc path>`                              | `plan <name>`        |
-| Stitch `repo@sha`                   | `repo:<repo> since:<day> until:<day>`          | `<repo> · <day>`     |
-| Patch in a stack                    | `ancestor:<stack root>`                        | `stack <root>`       |
-| Submitted, reverted, archived patch | `name:<patch>`                                 | `patch <name>`       |
+| Target                              | The query becomes                                                                                  | Lens label                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| Bead phase `sase-16n.7`             | `id:sase-16n.*`                                                                                    | `epic sase-16n`                        |
+| Bead epic `sase-16n`                | `id:sase-16n id:sase-16n.*`, epic fold expands                                                     | `epic sase-16n`                        |
+| Bead task or flag `sase-abc`        | `id:sase-abc`                                                                                      | `bead sase-abc`                        |
+| Agent hood member `sase-16n.7`      | `name:sase-16n.*` (OR `name:sase-16n` when the root exists)                                        | `sase-16n hood`                        |
+| Lone agent `x`                      | `name:x`                                                                                           | `agent x`                              |
+| Agent family shell `x--y`           | `family:x`                                                                                         | `family x`                             |
+| File                                | `agent:<creating agent>`, else `id:<file>`                                                         | `files from <agent>`, else `file <id>` |
+| Plan or provider doc                | `path:<doc path>`                                                                                  | `plan <name>` or `<provider> <name>`   |
+| Stitch `repo@sha`                   | `repo:<repo> since:<day> until:<day>`, plus `project:`, `sidecar:true`, or `merges:show` as needed | `<repo> · <day>`                       |
+| Patch in a stack                    | `ancestor:<stack root>`                                                                            | `stack <root>`                         |
+| Submitted, reverted, archived patch | `name:<patch>`                                                                                     | `patch <name>`                         |
 
 The `*` above is the [wildcard filter](query_language.md#wildcards): `id:sase-16n.*`
-matches every phase of epic `sase-16n` but not the epic itself. The Agents-tab main
-filter is never rewritten — a hidden agent lands in Artifacts ▸ Agent instead.
+matches every phase of epic `sase-16n` but not the epic itself.
+
+An `agent:` link lands on the Agents tab when the agent is loaded there, opening any
+collapsed fold, group banner, or tribe panel around it. The Agents-tab main filter is
+never rewritten: an agent it hides lands in Artifacts ▸ Agent instead. A `job:` link
+lands on the Services tab and expands the job's routine fold.
 
 Each rewrite explains itself in one toast naming the new query, what hid the target, any
 scope change, and the real keys that restore (`^`) and walk back (`Ctrl+O`):
@@ -246,8 +253,12 @@ was    -status:closed limit:100 · hidden by -status:closed
 epic sase-16n · ^ restore · Ctrl+O back
 ```
 
-The key names follow the live keymap, and the toast stays for about 8 seconds. Selecting
-or fold-expanding without a rewrite shows no toast.
+Extra lines appear only when they apply: `scope  <old> → <new>` (project display names,
+or `All projects`), `fetched  outside the loaded rows` after an Acquire, and
+`Agents tab filter hides it — showing Artifacts ▸ Agent`. The `was` line names the terms
+that hid the target, or `past limit:N` when only the limit did. The key names follow the
+live keymap, and the toast stays for about 8 seconds. Selecting, fold-expanding,
+switching scope, or fetching without a rewrite shows no toast.
 
 While a rewrite is live, the pane's info header shows a reversible **lens chip** —
 `↩ sase-16n.7 · epic sase-16n` in the pane's accent color, followed by a dim
@@ -346,9 +357,10 @@ ending in `→ <pane>` crosses to another Artifacts pane.
 On Patches, choosing a hidden same-pane target rewrites the query to reveal it rather
 than failing. Patches saves the query and selection you started from first and pushes
 the old query onto the same history stack `^` walks, so `^` returns to the exact view
-you came from. Other panes do not rewrite their query: choosing a target they are
-currently filtering out warns that it is not in the current results and leaves the
-selection alone.
+you came from. Other panes run relation jumps through the same engine as `$` link
+follows (see [Link Jumps](#link-jumps)): a filtered-out target is unfolded, fetched, or
+revealed by one reversible query rewrite, and each jump adds a link-trail hop that
+`Ctrl+O` walks back.
 
 Shared entry-jump surfaces allocate hints from the zero-based alphabet `0`–`9`, `a`–`z`,
 `A`–`Z`. A session with at most 62 targets uses one character (`0` through `Z`). A
@@ -1402,7 +1414,9 @@ What counts as a target depends on the selected row:
   `This gate already settled (<state>)`.
 - A **family container** collects every pending gate across its members, plus the
   family's Patch (or, when the container has none, the Patch of its most recently
-  started member).
+  started member). A gate reachable through both a gate shell row and its inbox
+  notification counts once, so a family waiting on a single tale plan runs `Enter`
+  directly (footer `review tale plan`).
 - A **family member** or standalone agent targets gates it created and gate
   notifications matched to it. An agent stopped on a question, or a workflow step
   waiting for input, falls back to the answer flow when no gate notification matches.
@@ -1492,10 +1506,10 @@ matching the name), then shows the family's normal agent metadata, with its
 member — titles the header panel `AGENT SHELL` (gold, matching the name). Both rosters
 use the numbered member jumps described above. Clan direct members in the Agents list
 sort by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done —
-with launch recency breaking ties. The clan metadata roster instead keeps chronological
-launch order so its numbers do not change as statuses change; a nested family remains
-one direct entry with its chain indented beneath it. Family rosters retain sequential
-chain order.
+with launch recency breaking ties. The clan's `CLAN MEMBERS` jump-panel roster instead
+keeps chronological launch order so its numbers do not change as statuses change; a
+nested family remains one direct entry with its chain indented beneath it. Family
+rosters retain sequential chain order.
 
 Selecting a family **shell** row (not the container) also shows its `FAMILY SHELLS`
 roster in the jump panel: the same enclosing family's members, in the same chain order,
@@ -1537,39 +1551,40 @@ reference resolves into the project's agents sidecar checkout rather than the ag
 workspace. Hints exist only where text is actually visible, so availability follows the
 active fold level — level 1 hints the clan summary only, level 2 adds the bounded triage
 lines, and level 3 adds full bodies and per-entry context, tool-call, and commit rows.
-Markers are numbered in document order and are distinct from the roster's fixed 0-9
-member jump gutter, which never carries a marker and never renumbers in hint mode. While
-clan enrichment is still in flight the hint bar stays open and the document is
-re-annotated when the deferred sections land.
+Markers are numbered in document order. The jump panel is hidden while hint mode is
+active and returns with the same fixed member numbers when it ends. While clan
+enrichment is still in flight the hint bar stays open and the document is re-annotated
+when the deferred sections land.
 
 The default fold chords are:
 
-| Key       | Action                                                                                                         |
-| --------- | -------------------------------------------------------------------------------------------------------------- |
-| `zz`      | Cycle the whole metadata panel forward through its active scale                                                |
-| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum                        |
-| `za`      | Cycle the foldable section, numbered member, or family `SASE CONTEXT` lane at the top of the metadata viewport |
-| `zA`      | Toggle that foldable section or member between collapsed and fully expanded                                    |
-| `z1`-`z2` | Set a family directly to level 1 or 2                                                                          |
-| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3                                                |
-| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                                         |
+| Key       | Action                                                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `zz`      | Cycle the whole metadata panel forward through its active scale                                                                       |
+| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum                                               |
+| `za`      | Cycle the foldable section, tribe `CLAN SUMMARIES`/`PROMPTS` entry, or family `SASE CONTEXT` lane at the top of the metadata viewport |
+| `zA`      | Toggle that foldable section or entry between collapsed and fully expanded                                                            |
+| `z1`-`z2` | Set a family directly to level 1 or 2                                                                                                 |
+| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3                                                                       |
+| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                                                                |
 
 The `Fold: N/M` header field reports the position within the active scale, while glyphs
 on foldable headings show their effective per-section levels. Only family panels print
-that header line; a single sase agent relies on the `NEIGHBORS` and `SLOW TOOL CALLS`
-heading glyphs instead. On a family conversation heading, `za` and `zA` refresh normally
-but do not create or change a section override. A valid panel-level cycle, extreme
-toggle, or direct selection clears real per-section overrides. Fold state is shared by
-the Agents metadata panel: an ordinary agent's own three-level scale shapes its
-`NEIGHBORS` and `SLOW TOOL CALLS` sections, so `z*` chords have a visible effect on a
-regular sase agent, and the same session scope carries over to the next selected clan or
-family container. Most other sections on a regular-agent panel stay fold-inert, except
-the `SASE CONTEXT / BEAD` lane's multi-line values: at scale position 1 (`z1`,
-Collapsed), a task or phase worker's `Notes`, and a task worker's `+1 Evidence`,
-collapse to a one-line digest, `N lines (zz to show)`; single-line values never fold,
-and at positions 2-3 the full value renders. A selected whole tribe panel adds level 4
-for exhaustive detail. These keys are configurable; see
-[Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
+that header line; a single sase agent relies on the `SLOW TOOL CALLS` heading glyph
+(and, with the jump panel expanded, the `NEIGHBORS` heading glyph) instead. On a family
+conversation heading, `za` and `zA` refresh normally but do not create or change a
+section override. A valid panel-level cycle, extreme toggle, or direct selection clears
+real per-section overrides. Fold state is shared by the Agents metadata panel: an
+ordinary agent's own three-level scale shapes its `NEIGHBORS` and `SLOW TOOL CALLS`
+sections, so `z*` chords have a visible effect on a regular sase agent, and the same
+session scope carries over to the next selected clan or family container. Most other
+sections on a regular-agent panel stay fold-inert, except the `SASE CONTEXT / BEAD`
+lane's multi-line values: at scale position 1 (`z1`, Collapsed), a task or phase
+worker's `Notes`, and a task worker's `+1 Evidence`, collapse to a one-line digest,
+`N lines (zz to show)`; single-line values never fold, and at positions 2-3 the full
+value renders. A selected whole tribe panel adds level 4 for exhaustive detail. These
+keys are configurable; see [Agent Clans, Families, and Tribes](agent_families.md) for
+the grouping model.
 
 When sase's TUI knows a planner/author or epic lander's associated plan, the metadata
 panel adds a `PLAN` lane in `SASE CONTEXT`. A task worker that authored a plan in the
@@ -1728,14 +1743,15 @@ jump panel the section sits after `FAMILY SHELLS` when both exist, so a sase age
 numbered neighbors stay reachable without scrolling the metadata body.
 
 Every neighbor always renders and gets a digit whatever the fold level. The fold level
-only changes the heading glyph and each row's annotation detail. Numbering is stable
-across fold levels and JUMP-panel toggles: the collapsed legend, the expanded roster,
-and the published jump map all share one continuous ladder. The heading count is always
-the sase agent's total neighbor count. The only hidden-row tail is the shared 100-slot
-numbering capacity, which reports `… +N more neighbors (not numbered)`. On a family,
-siblings that already appear under `FAMILY SHELLS` are not repeated; they are reported
-by a dim `… +N also listed under FAMILY SHELLS` tail instead. The heading count still
-includes the suppressed rows.
+only changes the heading glyph and each row's annotation detail, both visible once the
+jump panel is expanded with `.`. Numbering is stable across fold levels and JUMP-panel
+toggles: the collapsed legend, the expanded roster, and the published jump map all share
+one continuous ladder. The heading count is always the sase agent's total neighbor
+count. The only hidden-row tail is the shared 100-slot numbering capacity, which reports
+`… +N more neighbors (not numbered)`. On a family, siblings that already appear under
+`FAMILY SHELLS` are not repeated; they are reported by a dim
+`… +N also listed under FAMILY SHELLS` tail instead. The heading count still includes
+the suppressed rows.
 
 ### Opened Repository Context
 
@@ -1856,7 +1872,8 @@ Markdown PDFs, generated images, generated videos, prompt-referenced media from 
 prompt artifacts, and explicit files saved with
 `sase artifact create -p <path> [-l <label>] [-k <kind>]`. sase's TUI always opens the
 panel, even for a single artifact, so the label, kind, and path are visible before
-launching the terminal viewer.
+launching the terminal viewer. With agents marked, `a` opens one combined panel listing
+every marked agent's artifacts, each row labeled with its agent's name.
 
 The prompt/detail header includes those non-chat entries in the plan-adjacent
 `SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Beads`, `Reads`, `Commits`,
@@ -1880,6 +1897,7 @@ Artifact panel controls:
 | `Y`         | Copy the preferred anchored stored/source path                          |
 | `Enter`     | Open marked artifacts in list order, or the highlighted row if unmarked |
 | `A`         | Open all artifacts in list order, ignoring marks                        |
+| `z`         | Open marked artifacts (or the highlighted row) in a zoomed tmux pane    |
 | `q` / `Esc` | Close the panel                                                         |
 
 The modal-local file palette offers `@` prompt-form references, `l` Markdown links, `c`
@@ -2012,10 +2030,10 @@ it is selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` re
 the remembered row. A second `h` collapses the selected panel when another panel remains
 visible. On a collapsed panel, the first `l` expands it while keeping whole-panel focus
 and the second returns to the remembered row; `L` on a collapsed panel does not expand
-it — it repeats the usual already-collapsed warning instead (see uppercase `H`/`L`
-below). Lowercase `h` on a collapsed panel selects the visually bottom-most expanded
-panel without changing any panel folds, and `Ctrl+O` returns to the collapsed origin.
-When every live panel is collapsed, `h` remains a no-op and shows the existing
+it — it warns `Selected tribe panel is collapsed` instead (see uppercase `H`/`L` below).
+Lowercase `h` on a collapsed panel selects the visually bottom-most expanded panel
+without changing any panel folds, and `Ctrl+O` returns to the collapsed origin. When
+every live panel is collapsed, `h` remains a no-op and shows the existing
 `Panel is already collapsed` warning. Apostrophe jump hints include every split-panel
 title, even a lone expanded panel, as well as collapsed titles, and support the normal
 `Ctrl+O` jump back.
@@ -2136,16 +2154,21 @@ itself lives in the jump panel): it maps what each agent in the tribe was asked 
 Its number chips are the same digits as the roster jump targets. Identical prompt bodies
 are listed once with a `×N` badge and a shared-by list. `za`/`zA` on a prompt entry
 opens just that prompt. It is the level-1 exception: unlike most sections, it shows
-prompt headlines at Glance instead of only a heading.
+prompt headlines at Glance instead of only a heading. Entries also carry dim xprompt
+chips and, for multi-line prompts, a line count. When the tribe's prompts target more
+than one known project, each entry ends with that project's accent-colored `+<project>`
+chip (or its `#<workflow>:<name>` spelling when the name is not tag-shaped); unknown
+targets and Patch refs get no chip.
 
 `CLAN SUMMARIES` sits before `PROMPTS` in the metadata body (the `TRIBE MEMBERS` roster
 itself lives in the jump panel): it maps the curated summary of every clan in the tribe,
 because clan intent reads before raw prompts. Each entry line carries the clan's roster
-digit as a number chip, the clan label, a banner-kind kicker (`EPIC`, …), a uniform
-120-character headline, and a line count. `za`/`zA` on an entry opens just that clan's
-summary. Like `PROMPTS`, it is a level-1 exception: Glance shows the headline index,
-Triage adds styled ledes, Inspect shows 16-line previews, and Forensics shows full
-bodies behind a 500-line per-clan safety cap.
+digit as a number chip, the clan label, a banner-kind kicker (`EPIC`, …) when present, a
+headline truncated at 120 characters, and a line count for multi-line summaries.
+`za`/`zA` on an entry opens just that clan's summary. Like `PROMPTS`, it is a level-1
+exception: Glance shows the headline index, Triage adds a styled lede of up to four
+lines, Inspect shows 16-line previews, and Forensics shows full bodies behind a 500-line
+per-clan safety cap.
 
 Reply, slow-call, prompt, and clan-summary presence enrichment is requested off-thread
 at every tribe level so known-empty sections can remain absent. Full bodies still follow
@@ -2389,14 +2412,15 @@ unbracketed `group: <label> (o)` element so the current session mode is always v
 after the cycle toast fades. Top-level header elements are joined by a dim `·`
 separator: the leading counts group, an optional `filter:` element, an optional `view:`
 element, the always-visible `group:` element, and an optional `refresh: <N>s (r)`
-countdown. Only the agent status counts keep square brackets. After the first scan, the
-header starts with the visible sase-agent total `N`. One standalone agent or one
-sequential family is one sase agent, regardless of whether the family is folded. A
-rootless clan container contributes no sase agent itself; each direct clan member
-contributes one, and a direct member that is a sequential family still contributes only
-one. A hidden top-level `STARTING` agent contributes one sase agent even though it is
-not selectable yet. Grouping mode, tribe ownership, and fold state do not change this
-projection.
+countdown. Only the agent status counts and the filter's match count keep square
+brackets: an active filter reads `filter: <query> [matched/loaded] (/)`, where the dim
+trailing `(/)` names the configured `edit_query` key. After the first scan, the header
+starts with the visible sase-agent total `N`. One standalone agent or one sequential
+family is one sase agent, regardless of whether the family is folded. A rootless clan
+container contributes no sase agent itself; each direct clan member contributes one, and
+a direct member that is a sequential family still contributes only one. A hidden
+top-level `STARTING` agent contributes one sase agent even though it is not selectable
+yet. Grouping mode, tribe ownership, and fold state do not change this projection.
 
 Runner load lives at the right of the row as a labeled `load: <load>/<capacity>` gauge,
 just before the model/project cluster, followed by a `·` separator. `<load>` is occupied
@@ -2667,7 +2691,9 @@ and prior attempt replies** through the `text` corpus. When
 `ace.current_project.seed_agents_query` is on, sase's TUI seeds this query with the
 current project's exact `project:` term on first load and marks it `seeded` until you
 edit it. That setting defaults **off** because the same query also drives unread jumps
-and prospective clans.
+and prospective clans. While a filter is active, the Agents header shows it as
+`filter: <query>` with any `seeded` marker, a `[matched/loaded]` count, and the edit-key
+hint; clicking the query opens the filter bar.
 
 The bar previews each valid edit against the loaded snapshot, `Enter` commits and adds
 the previous query to history, `Escape` restores the pre-edit query and result, `Tab`
@@ -2939,9 +2965,10 @@ procs) in a separate `── oneshots ──` section below the daemon procs. Th
 panel border title carries at-a-glance metadata (counts, status chips, and badges such
 as hidden oneshots or a non-running scheduler). `J` jumps to the first row of the next
 panel and `K` to the last row of the previous panel, wrapping around and skipping empty
-panels. Service proc rows show their lifecycle, enablement provenance, restart state,
-and bounded output. The dashboard status line reports the service host state
-(`Host: <state>`). Project-local `sase.yml` service entries are intentionally ignored.
+panels; `Ctrl+O` returns to where you jumped from. Service proc rows show their
+lifecycle, enablement provenance, restart state, and bounded output. The dashboard
+status line reports the service host state (`Host: <state>`). Project-local `sase.yml`
+service entries are intentionally ignored.
 
 Once service status has loaded, the info panel leads with a host clause:
 `Services · host ● running 4d · sase.service` while the host runs (uptime in its largest
@@ -3114,16 +3141,17 @@ scrolled off screen on selection.
 
 ### Commands
 
-| Key | Action                                                                                              |
-| --- | --------------------------------------------------------------------------------------------------- |
-| `a` | Add a routine, or add a job under the selected routine                                              |
-| `d` | Expand / collapse the [description panel](#description-panel) for this session                      |
-| `e` | Edit the selected routine or job configuration                                                      |
-| `E` | Open the selected recorded job output in `$EDITOR`                                                  |
-| `+` | Run agent                                                                                           |
-| `r` | Run an enabled selected job manually, or re-run the focused completed background command (`!!`) row |
-| `x` | Start / stop service (or kill the focused background command)                                       |
-| `X` | Clear output                                                                                        |
+| Key | Action                                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `a` | Add a routine, or add a job under the selected routine                                                                                 |
+| `d` | Expand / collapse the [description panel](#description-panel) for this session                                                         |
+| `e` | Edit the selected routine or job configuration                                                                                         |
+| `E` | Open the selected recorded job output in `$EDITOR`                                                                                     |
+| `+` | Run agent                                                                                                                              |
+| `r` | Restart the selected service proc, run an enabled selected job manually, or re-run the focused completed background command (`!!`) row |
+| `x` | Start / stop the selected service proc; on a oneshot row, kill it (after confirmation) or clear it once finished                       |
+| `X` | Clear output                                                                                                                           |
+| `.` | Show / hide oneshot rows (the Service Procs title counts hidden ones as `+N hidden`)                                                   |
 
 The `a` flow discovers installed `sase_job_*` executables and also accepts a custom
 executable. Both add and edit open a single-page property sheet showing every schema
@@ -3198,10 +3226,11 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 
 ### Bang Mode (`!` prefix)
 
-| Key  | Action                                        |
-| ---- | --------------------------------------------- |
-| `!!` | Run background command                        |
-| `!x` | Start / stop service host (or select process) |
+| Key  | Action                                                     |
+| ---- | ---------------------------------------------------------- |
+| `!!` | Run background command                                     |
+| `!x` | Start / stop service host (or select process)              |
+| `!e` | Enable / disable the selected service proc on this machine |
 
 ### Copy Mode (`%` prefix)
 
@@ -3349,7 +3378,7 @@ These work on all tabs:
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Services tabs                                                                                                                    |
 | `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)               |
-| `.`                     | Artifacts: collapse/expand the relations panel; Services: show/hide axe commands; Agents: expand/collapse the jump panel                                               |
+| `.`                     | Artifacts: collapse/expand the relations panel; Services: show/hide oneshot rows; Agents: expand/collapse the jump panel                                               |
 | `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
 | `i`                     | Show notifications inbox                                                                                                                                               |
 | `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |
@@ -4429,12 +4458,10 @@ HITL panels. Gate Debug presents Overview, Request, Response, Errors, and raw Ro
 the backing file, and `d`, `q`, or `Esc` closes the overlay without losing state in the
 underlying panel.
 
-The `inbox:` top-bar notification group color reflects the highest-priority unread
-bucket: orange for unmuted priority or error notifications (plan approvals, launch
-approvals, user questions, mentor reviews, axe errors, CRS results, agent error
-reports), gold for regular unmuted notifications, and cyan when only muted or snoozed
-notifications remain. A trailing dot means muted unread rows also exist while the badge
-is showing the actionable count.
+The `inbox:` top-bar group renders one colored `<icon><count>` chip per
+notification-panel tab, in the panel's own order and colors, or a dim `inbox: 0` when
+nothing is pending. See [Top-Bar Indicator](notifications.md#top-bar-indicator) for the
+snoozed-only and overflow forms.
 
 ### Snooze Reminder Scheduling
 
@@ -4755,14 +4782,14 @@ inbox opens the notification modal.
 
 ### Proc Indicator
 
-A `procs: ⚙ N` group with a filled blue gear chip appears in the top bar when sase's TUI
-own procs are running (e.g., sync, mail, accept, and notification-gate operations),
-followed by an orange `⚙ N` chip for running monitor shells (`sase monitor start`
-supervised commands) — the same pair the Procs tab header shows. Monitors are counted
-separately (a detached supervisor that survives TUI exit and never blocks TUI procs) but
-live in the same group; the orange chip is the same chip the Procs tab header shows. The
-group excludes service-host rows — service procs and oneshots — which the Services tab
-reports instead. It hides only when both counts are zero. Clicking opens the Procs tab.
+The `procs:` group shows a filled blue `⚙ N` chip while sase's TUI own procs are running
+(e.g., sync, mail, accept, and notification-gate operations) and an orange `⚙ N` chip
+for running monitor shells (`sase monitor start` supervised commands) — the same pair
+the Procs tab header shows. Monitors are counted separately because a monitor is a
+detached supervisor that survives TUI exit and never blocks TUI procs. Either chip hides
+at zero, and the group hides only when both counts are zero. The group excludes
+service-host rows — service procs and oneshots — which the Services tab reports instead.
+Hover for the counts; click to open the Procs tab.
 
 ### Current Project Indicator
 
@@ -4781,7 +4808,8 @@ actions, agent launch and cleanup work, `monitor-stop`, and notification updates
 row shows the target, proc type and status, and elapsed or total duration; a failed row
 also shows its error message. This modal does not show proc output. Use the Admin
 Center's [Procs tab](#procs-tab) or `sase proc show ID` for durable records and captured
-output.
+output. Press `j` to paint hint keys over the rows and jump to the matching agent or
+Patch; `Ctrl+D` / `Ctrl+U` scroll, and `r`, `q`, or `Esc` closes the modal.
 
 ## File Panel Rendering
 
@@ -5063,8 +5091,8 @@ does not silently consume the unread marker.
 
 The `unread` count in the Agents header is drawn as black text on a gold pill so the
 "you still have unseen completed work" signal stands out from the rest of the colored
-metrics. It uses the same gold tone as the top-bar notification indicator, giving you a
-single color to scan for.
+metrics. It uses the same gold as the inbox's `✉` general-notification chip in the top
+bar, giving you a single color to scan for.
 
 Switching to the Agents tab does not bulk-dismiss completion notifications. sase's TUI
 projects active completion notifications onto unread rows, then acknowledges rows one at
@@ -5150,6 +5178,24 @@ content to resize, such as a file view with no selected file content, summaries,
 pinned historical attempts. Bare `[` and `]` remain inert on the Agents tab outside the
 picker; their existing uses in help, zoom, and other surface-local panels are unchanged.
 
+### Agent Decks (beta)
+
+The `agent_decks` beta flag (default off) previews a deck-based Agents detail column.
+Enable it with `sase flag enable agent_decks` or from the
+[Config Flags pane](#config-flags-pane), then restart sase's TUI, since the detail
+column picks its layout when it is built. With the flag on, the metadata panel and its
+single File or LLM Calls panel are replaced by one deck panel between the sticky header
+panel and the jump panel. The deck panel's border title names the deck (`◆ MAIN`) and
+lists its cards — `Context` (details and prompt), `Reply` (`Output` for a workflow step,
+led by any `TRACEBACK`), and `Summary` for clan and tribe documents — with the active
+card highlighted and an `N/M` position. The border subtitle is a `main · files · tools`
+switcher that shows each deck's card, file, or LLM-call count when known and dims decks
+with no content. In this early phase the panel always shows the Main deck's default card
+(`Context`, or `Summary` for a clan or tribe); keys for switching decks and cards are
+not wired yet. While the flag is on, the `p` view picker (it warns
+`Agent decks replace the view picker`), `Z` zoom, and `,/` metadata search are
+unavailable on the Agents tab, and the Agents header omits its `view:` element.
+
 ## Agents Tab Metadata Panel
 
 The Agents tab metadata panel (choose `[` from the Agent view picker) shows structured
@@ -5174,14 +5220,14 @@ share one cursor. Each selected title is aligned with the first visible metadata
 including a short final section, while the top waypoint reveals the top of the scrolling
 body before the first title (identity fields live in the sticky header panel above).
 Only rendered ALL-CAPS underlined section titles participate; matching text inside
-prompts or replies does not. Numbered roster rows (`FAMILY SHELLS`, clan/tribe
-`MEMBERS`, `NEIGHBORS`) now live in the jump panel and are no longer `Ctrl+J`/`Ctrl+K`
+prompts or replies does not. Numbered roster rows (`FAMILY SHELLS`, `CLAN MEMBERS`,
+`TRIBE MEMBERS`, `NEIGHBORS`) live in the jump panel and are not `Ctrl+J`/`Ctrl+K`
 stops; within a family container's `SASE CONTEXT` region, its lane sub-headings (`BEAD`,
 `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not
 titles — `za`/`zA` still reach them when they own the viewport's top row, but they are
-never `Ctrl+J`/`Ctrl+K` stops. Roster rows are also no longer `za`/`zA` targets and are
-not covered by `,/` metadata search. The shortcuts continue to target the metadata pane
-when a file or LLM Calls pane is also visible, and changing agents or entering/leaving a
+never `Ctrl+J`/`Ctrl+K` stops. Roster rows are also not `za`/`zA` targets and are not
+covered by `,/` metadata search. The shortcuts continue to target the metadata pane when
+a file or LLM Calls pane is also visible, and changing agents or entering/leaving a
 pinned attempt view resets the cursor.
 
 - **Agent details**: Name, status, model, provider, Patch association, and
@@ -5212,9 +5258,9 @@ pinned attempt view resets the cursor.
 - **FAMILY**: Shown when a real multi-member family root is selected. The cyan kind
   label renders as the header panel title and the cyan `Name:` value matches the family
   row's identity block. The title is header chrome, not a `Ctrl+J` title; the
-  `FAMILY SHELLS` roster lives in the jump panel and is no longer a navigable section.
-  On a family container, its `SASE CONTEXT` heading is the navigable title for that
-  region; its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`,
+  `FAMILY SHELLS` roster lives in the jump panel and is not a navigable section. On a
+  family container, its `SASE CONTEXT` heading is the navigable title for that region;
+  its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`,
   `SKILLS`, `WORKSPACES`) stay fold anchors only.
 - **AGENT SHELL**: Shown when a standalone sase agent or family member row is selected.
   The gold kind label renders as the header panel title and the gold `Name:` value
@@ -5239,28 +5285,32 @@ pinned attempt view resets the cursor.
   covers the scrolling body only, since header fields stay on screen.
 - **Jump panel**: Every live numbered roster target (family shells, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
-  detail column, below the file / LLM Calls panel, in every layout. The metadata body no
-  longer contains these sections. The panel is shown only while the current document has
-  numbered targets — never for "No agent selected", nodes without rosters, fully
-  unnumbered rosters, or file-hint documents — and it stays visible during metadata
-  search (`,/`), since the digits keep working there. It is collapsed by default to at
-  most two packed rows, where every visible number carries a label that unambiguously
-  identifies its target (labels shrink with a middle ellipsis, and the packer shows
-  fewer targets rather than ambiguous ones); `.` expands it to the full roster sections
-  exactly as they used to render in the metadata body. The border title is the color
+  detail column, below the file / LLM Calls panel, in every layout; the metadata body
+  does not contain these sections, although the zoom view (`Z`) shows them inline in its
+  metadata document. The panel is shown only while the current document has numbered
+  targets — never for "No agent selected", nodes without rosters, fully unnumbered
+  rosters, or file-hint documents — and it stays visible during metadata search (`,/`),
+  since the digits keep working there. It is collapsed by default to at most two packed
+  rows, where each visible number carries its roster label, shortened with a middle
+  ellipsis only as far as it stays distinct from every other label (the packer shows
+  fewer targets rather than ambiguous ones). When targets do not fit, the last cell is a
+  dim `+N` count; digits still reach every numbered target, including those counted in
+  `+N`. `.` expands the panel to the full roster sections, with their fold-driven
+  annotations; expanded, it grows to at most 40% of the detail column, scrolls, and
+  returns to its top when you select a different row. The border title is the color
   legend (`JUMP`, then one entry per section with its number range), and the border
   subtitle names the configured `toggle_agent_jump_panel` key (`▴ . more` / `▾ . less`).
   Each collapsed cell echoes its roster row: the number chip in the roster style, the
   label, and the status glyph; a dismissed neighbor renders dim with a `⊘` prefix (and a
   `revive` note when narrowed), since its digit revives the agent instead of jumping.
   After the first digit of a two-key jump, the panel narrows to the matching candidates
-  (`JUMP · 1▁`, `esc cancel`); completing or cancelling the jump restores the collapsed
-  or expanded view. Collapsed/expanded state is per session and holds across row moves,
-  tribe focus, and layout changes. Toggling never rebuilds the document, and a
-  bottom-pinned body stays pinned. Roster headings are no longer `Ctrl+J`/`Ctrl+K`
-  stops; `za`/`zA` can no longer target a roster section or roster row (rosters follow
-  the global panel fold keys `zz`, `zZ`, and the direct level keys); and `,/` metadata
-  search no longer covers roster rows.
+  (`JUMP · 1▁`, `esc cancel`), or shows `no targets start with <digit>`; completing or
+  cancelling the jump restores the collapsed or expanded view. Collapsed/expanded state
+  is per session and holds across row moves, tribe focus, and layout changes. Toggling
+  never rebuilds the document, and a bottom-pinned body stays pinned. Roster headings
+  are not `Ctrl+J`/`Ctrl+K` stops; `za`/`zA` cannot target a roster section or roster
+  row (rosters follow the global panel fold keys `zz`, `zZ`, and the direct level keys);
+  and `,/` metadata search does not cover roster rows.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title
@@ -5398,6 +5448,9 @@ pinned attempt view resets the cursor.
   use an indented YAML-shaped block with type-specific colors. The section is omitted
   when the family has not published variables. These values are stored in
   `agent_meta.json`, so they are visible metadata rather than secret storage.
+- **TRACEBACK**: When an agent or workflow step recorded an error traceback, it renders
+  under its own `TRACEBACK` heading after the prompt, directly above `AGENT REPLY` (or
+  `STEP OUTPUT`), and is a `Ctrl+J`/`Ctrl+K` stop.
 - **AGENT REPLY**: The agent's live or completed reply content, streamed from
   `live_reply.md` during execution and read from the artifacts directory after
   completion. When per-turn reply timestamps are available (recorded in
@@ -5978,6 +6031,9 @@ The keymap loader validates all configuration:
 - Stale `app.search_forward` and `leader_mode.keys.edit_query` overrides are ignored
   with a warning; they are not translated into a second live shortcut
 - **Prefix conflicts** between custom mode prefixes and existing app bindings are warned
+- Key names follow Textual's spelling (`slash`, `dollar_sign`, `backslash`,
+  `vertical_line`, …); the raw glyphs `+`, `-`, `$`, `_`, `\`, and `|` are also
+  accepted, and key hints display the glyph
 
 See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` configuration
 reference.
@@ -6253,11 +6309,11 @@ Admin Center Machines tab's `s` action when current reachability matters. Move w
 
 Choosing a remote inserts or replaces the pane's single `%dispatch:<alias>` selector.
 Choosing `here` removes it. The prompt context line appears only while the pane has a
-`%dispatch` selector (or an invalid one) and shows the cached Target and Source; for a
-remote it also states that source proof is checked on submit. It stays hidden for
-ordinary local launches. Submission runs that proof preflight off the UI thread before
-launch. A failure leaves the prompt intact, reports the exact reason, and returns focus
-to the originating pane.
+`%dispatch` selector: a valid one shows the cached Target and Source, and for a remote
+also states that source proof is checked on submit; an invalid one shows `Target error`
+with the reason. It stays hidden for ordinary local launches. Submission runs that proof
+preflight off the UI thread before launch. A failure leaves the prompt intact, reports
+the exact reason, and returns focus to the originating pane.
 
 After source preflight passes, sase's TUI inserts a provisional `QUEUED` remote row
 before the background launch settles. A structured accepted owner response keeps it
@@ -6388,19 +6444,22 @@ placeholders. Tags in inline code, fenced code, and disabled xprompt regions sta
 literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders)
 for the exact launch, conversion, and naming rules.
 
-`Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens
-the same picker from the main sase's TUI tabs even when the prompt bar is not active. In
-the picker, `space` toggles a row's persistent pin, `Tab` marks a row to restore and
-remove from the stash, `d` marks one row for deletion, `D` marks every row for deletion,
-`a` toggles all rows for restore-and-remove, and `Enter` confirms the marked set. Delete
-marks are staged until confirmation, replace restore marks for the same rows, and do not
-alter pin state; confirming delete marks with `Enter` deletes those rows and keeps the
-picker open on the remaining entries, and the picker closes only when nothing remains or
-when rows are also being restored. `Escape` or `q` cancels without deleting anything.
-With no explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed
-when restored, while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows
-1-10 directly with the same pin-aware behavior. A small `stash: ≡ N` pink-chip top-bar
-group shows how many restorable drafts are currently stashed.
+`Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar. From the main
+sase's TUI tabs, even when the prompt bar is not active, `@` restores a lone stashed
+draft directly and opens the picker when several are stashed; `,@` or clicking the
+`stash:` chip always opens the picker. In the picker, `space` toggles a row's persistent
+pin, `Tab` toggles a row's restore mark, `d` marks one row for deletion, `D` marks every
+row for deletion, `a` toggles restore marks on all rows, and `Enter` confirms the marked
+set; restores are pin-aware, so marked pinned rows stay stashed. Delete marks are staged
+until confirmation, replace restore marks for the same rows, and do not alter pin state;
+confirming delete marks with `Enter` deletes those rows and keeps the picker open on the
+remaining entries, and the picker closes only when nothing remains or when rows are also
+being restored. `Escape` or `q` closes the picker and discards unconfirmed marks;
+deletions already confirmed with `Enter` and pin toggles are saved immediately. With no
+explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed when
+restored, while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows 1-10
+directly with the same pin-aware behavior. A small `stash: ≡ N` pink-chip top-bar group
+shows how many restorable drafts are currently stashed.
 
 ### Editing an Existing XPrompt from the TUI
 
@@ -7431,12 +7490,14 @@ Press `Ctrl+K` from the prompt input to open the prompt history modal. That shor
 available when the current prompt is a single logical line; that line's first active
 workspace reference (e.g. `+sase`) becomes an initial `project:<name>` filter scope once
 the project-identity snapshot resolves, with the remaining text preserved as a literal
-search (see Filtering below). Press `,.` (leader + `.`) to open the same modal unscoped
-from the main sase's TUI UI. The modal loads prompts previously launched from sase's TUI
-or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal launch
-writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do not clutter the
-list, while failed-launch recovery can still preserve a short submitted prompt. The same
-history is available from the shell through [`sase prompt`](prompt.md).
+search (see Filtering below). A `+<project>` tag counts when it names a known project or
+leads the line, a `#` VCS reference always counts, whichever comes first wins, and
+references inside code spans are skipped. Press `,.` (leader + `.`) to open the same
+modal unscoped from the main sase's TUI UI. The modal loads prompts previously launched
+from sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100).
+Normal launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do
+not clutter the list, while failed-launch recovery can still preserve a short submitted
+prompt. The same history is available from the shell through [`sase prompt`](prompt.md).
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
@@ -7492,12 +7553,14 @@ results with an `x` marker. The `project:` scope only ever considers prompts alr
 loaded into the modal; it does not search the whole history archive.
 
 Prompt-history rows are compact single-line entries: cancelled marker, last-used
-timestamp (`MM-DD HH:MM` when parseable), and a first-line prompt preview. The preview
-panel still shows the full prompt and timestamp metadata. History writes use a sidecar
-lock plus atomic tempfile replacement of monthly shard files under
-`~/.sase/prompt_history/`, so concurrent agent launches do not truncate prompt history.
-A legacy `~/.sase/prompt_history.json` store is migrated into shards before normal reads
-and writes when the shard directory has not already been created.
+timestamp (`MM-DD HH:MM` when parseable), a project column in the project's accent
+color, xprompt/directive chips, and a first-line prompt preview. The preview panel shows
+the full prompt, with `+<project>` tags in their project accent colors, and timestamp
+metadata. History writes use a sidecar lock plus atomic tempfile replacement of monthly
+shard files under `~/.sase/prompt_history/`, so concurrent agent launches do not
+truncate prompt history. A legacy `~/.sase/prompt_history.json` store is migrated into
+shards before normal reads and writes when the shard directory has not already been
+created.
 
 ## Procs Tab
 
@@ -7538,9 +7601,10 @@ path. Retention is governed by `procs.history_limit` (see
 oldest-first, and running procs are never pruned. Because the store owns that retention,
 `d` / `D` do not dismiss rows; they only explain the retention policy.
 
-The top-bar proc indicator counts this session's active `command` procs plus **every
+The top-bar `procs:` group's blue chip counts this session's active procs plus **every
 active unattributed proc globally**, including an approved epic that had to use the
-unattributed command fallback.
+unattributed command fallback. Running monitor shells are counted in its orange chip
+instead, and service procs and oneshots are left to the Services tab.
 
 ### Layout
 
@@ -7761,22 +7825,27 @@ row via adaptive hints, across every section.
 Core rows show SASE package versions and incoming commits in their own per-package
 detail. Plugin rows bring the full
 [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience:
-filter the catalog, inspect a plugin, and install, update, uninstall, or switch install
-mode. Agent CLI rows are provider-colored, showing installed → latest versions, exact
-update or manual commands, vendor docs links, update marks, and durable update history.
-Missing agent CLIs that SASE can install show `latest v…` with an `[npm]` or `[script]`
-badge and carry the same install verb as plugins: `i` installs the highlighted CLI (or
-every install-marked row), `Space` / `I` marks it for a bulk install, and `*` marks or
-unmarks every visible row in the section with the same action. A filter that matches
-nothing in the current scope names the scopes holding matches, with `[` / `]` to switch.
-Every install opens a confirm preview first — exact command, script URL, full SHA-256,
-target directory, and PATH status — then runs the previewed plan sequentially in one
-tracked proc, CLIs before plugins when a marked set mixes both. CLIs SASE cannot install
-toast their manual instructions instead. Providers that opt out of independent CLI
-management, including the bundled internal Fakey provider, are omitted from the Agent
-CLIs section. The plain substring filter (`/`) searches every row's own fields — name,
-description, topics for plugins; binary, install method, route, and package for agent
-CLIs — across all sections at once.
+filter the catalog, inspect a plugin, and install (`i`), update (`U`), uninstall (`x`),
+or switch install mode (`m`). Agent CLI rows are provider-colored, showing installed →
+latest versions, exact update or manual commands, vendor docs links, update marks, and
+durable update history. Missing agent CLIs that SASE can install show `latest v…` with
+an `[npm]` or `[script]` badge and carry the same install verb as plugins: `i` installs
+the highlighted CLI (or every install-marked row), and `Space` / `I` marks it for a bulk
+install. On any markable row — an installable plugin or CLI, or an updatable CLI — `*`
+marks every visible row in that section with the same action, or unmarks them when all
+are already marked. Marked rows show `[✓]`, and `Esc` clears every mark (including
+filter-hidden ones) before it closes the Admin Center. A filter that matches nothing in
+the current scope names the scopes holding matches, with `[` / `]` to switch. Every
+install opens a confirm preview first — the exact command, plus for a script-installed
+agent CLI the script URL, size, and full SHA-256, target directory, and PATH status —
+then runs the previewed plan sequentially in one tracked proc, CLIs before plugins when
+a marked set mixes both. CLIs SASE cannot install toast their manual instructions
+instead. Providers that opt out of independent CLI management, including the bundled
+internal Fakey provider, are omitted from the Agent CLIs section. The plain substring
+filter (`/`) searches every row's own fields — name, owner/repo, description, and topics
+for plugins; name, display name, binary, install method, route, package, and
+`not installed` for agent CLIs; package name for SASE rows — across all sections at
+once.
 
 Every sase-managed agent-CLI update run from `,U`, `,E`, `A`, or `sase agent-cli update`
 — and every install run from the Updates tab — is appended to
@@ -7837,8 +7906,8 @@ Long-lived services that outlive sase's TUI by design — monitor shells and the
 persistent Telegram receiver — never delay the restart.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
-pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the
-pane, and with no marks it targets every safely updatable installed CLI. `i` installs
+pane-wide agent-CLI action: it updates marked agent CLIs from anywhere in the pane, and
+with no marks it targets every safely updatable installed CLI. `i` installs
 `Space`/`I`-marked plugins and agent CLIs together — agent CLIs first, then plugins, in
 one tracked proc — or the highlighted row when nothing is marked. See the
 [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior,

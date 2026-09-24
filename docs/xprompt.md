@@ -667,6 +667,15 @@ warning color. These surfaces read a cached project catalog that sase's TUI warm
 background. Until it is warm, they briefly fall back to the `#` spelling, and launch
 still validates tags.
 
+CLI views follow the same display rules: `sase agent show`, `sase prompt list`,
+`sase prompt search`, and `sase prompt show -f markdown` load the project catalog and
+show known-project refs as `+<project>` tags, accent-colored on a color terminal, while
+`sase prompt show` raw and JSON output keep the exact stored text. `sase xprompt show`
+accent-colors tags in its highlighted body, and `sase project list` and
+`sase project show` print each project's tag. The
+[SASE Pager](pager.md#syntax-highlighting) colors resolved tags in Markdown prose the
+same way.
+
 ### Artifact References
 
 Artifact references are prompt syntax, not xprompts. They use `@<kind>:<argument>` to

@@ -580,8 +580,9 @@ a snoozed task is still live work the user chose to defer, not a black hole.
 `sase bead list --status snoozed` / `sase bead search --status snoozed` filter to just
 those beads.
 
-Property values also accept `*` wildcards: `id:sase-16n.*` lists an epic's phases (see
-[Wildcards](query_language.md#wildcards)).
+Beads-pane query property values also accept `*` wildcards: `id:sase-16n.*` lists an
+epic's phases (see [Wildcards](query_language.md#wildcards)). `sase bead search` is not
+a property query: its argument stays a literal substring (or `--regex` pattern).
 
 ### Task Corroboration (+1)
 

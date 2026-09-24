@@ -2434,10 +2434,11 @@ sase usage refresh -p grok --json
 sase usage list -p grok --json
 ```
 
-Configuration controls refresh cadence (minimum 60 seconds) and warning/critical
-thresholds as percentages used; UI copy converts those to percentage left. See
-[`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and the
-[`sase usage` flags](configuration.md#sase-usage).
+Configuration controls the idle and hot refresh cadences (each at least 60 seconds;
+automatic refreshes never run faster than a provider's polling floor) and
+warning/critical thresholds as percentages used; UI copy converts those to percentage
+left. See [`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and
+the [`sase usage` flags](configuration.md#sase-usage).
 
 ## Usage-Limit Auto-Disable
 
@@ -2655,12 +2656,13 @@ provider separately as `exec_llm_provider`.
 
 ### Muse Code-Specific
 
-| Variable               | Description                                                         |
-| ---------------------- | ------------------------------------------------------------------- |
-| `SASE_MUSE_PATH`       | Path to the Muse Code CLI binary (default: `muse` on `PATH`)        |
-| `SASE_MUSE_LARGE_ARGS` | Muse-specific extra args for `large` tier                           |
-| `SASE_MUSE_SMALL_ARGS` | Muse-specific extra args for `small` tier                           |
-| `SASE_MUSE_SANDBOX`    | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled` |
+| Variable                           | Description                                                                       |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| `SASE_MUSE_PATH`                   | Path to the Muse Code CLI binary (default: `muse` on `PATH`)                      |
+| `SASE_MUSE_LARGE_ARGS`             | Muse-specific extra args for `large` tier                                         |
+| `SASE_MUSE_SMALL_ARGS`             | Muse-specific extra args for `small` tier                                         |
+| `SASE_MUSE_SANDBOX`                | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`               |
+| `SASE_MUSE_MAX_WAIT_CONTINUATIONS` | [Stranded-wait guard](#single-turn-normalization) continuation cap (default: `2`) |
 
 SASE always launches Muse with `MUSE_NO_AUTO_UPDATE=1` so the launcher cannot swap the
 binary mid-run; `sase agent-cli update muse` sets `MUSE_SYNC_UPDATE=1` instead. The two

@@ -126,7 +126,14 @@ A `*` inside a string-field property value is a wildcard matching any run of cha
 including an empty run. Matching stays case-insensitive, consecutive `*` collapse, and
 `?` is not special. Negation (`-id:sase-x7.*`), comma lists (`id:sase-16n,sase-16n.*`),
 and boolean dialects all compose with globs, and values without `*` behave exactly as
-before.
+before. Bare values in the Boolean dialects (and in the Patch query language) cannot
+start with `*` or contain `/`, so quote such values there, as in `path:"*tags*"` or
+`path:"202609/*tags"`. Those dialects also do not accept `-` negation or comma lists, so
+use `NOT` and `OR` instead.
+
+In the Patch query language documented on this page, only `name:` and `project:` treat
+`*` as an anchored glob; `status:`, `ancestor:`, `sibling:`, and `origin:` compare the
+value literally.
 
 | Field kind                                                         | `*` semantics                                    | Example                                                                                   |
 | ------------------------------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
@@ -142,6 +149,10 @@ before.
 | `^parent_cl` | `ancestor:parent_cl` | Filter by ancestor (name or parent chain) |
 | `~bar`       | `sibling:bar`        | Filter by sibling family                  |
 | `&foo`       | `name:foo`           | Filter by exact name                      |
+
+In sase's TUI filter rows, a `+myproject` shorthand that names a known enabled project
+is highlighted in that project's accent color, the same color as its `+<project>` prompt
+tag chip.
 
 ### Status Shorthands
 

@@ -111,10 +111,11 @@ snapshot-only update of SASE, providers, and agents without opening Admin Center
 `,U` in sase's TUI to open the [Update panel](https://sase.sh/ace/#updates-tab). Plugin
 install and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
 
-- The tab leads with a **SASE Core** panel showing the installed and latest versions of
-  the `sase` and `sase-core-rs` packages, with an `↑` marker when a newer version is
-  available. sase's TUI also surfaces startup and top-bar update signals when SASE or an
-  installed plugin is behind.
+- The tab lists every SASE core package, plugin, and supported agent CLI as a row. Its
+  **SASE** section shows the installed and latest versions of the `sase` and
+  `sase-core-rs` packages, with an `↑` marker when a newer version is available. sase's
+  TUI also surfaces startup and top-bar update signals when SASE or an installed plugin
+  is behind.
 - Press `u` to update SASE core **plus every installed plugin together** (the TUI analog
   of `sase update`, which delegates to `uv tool upgrade sase`).
 - Press `U` to update only the highlighted installed plugin when its row shows an update
@@ -123,6 +124,9 @@ install and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
   (cache-only) mode.
 - Press `m` to switch the install mode between managed PyPI wheels and dev (editable)
   checkouts — the TUI analog of `sase update --to dev|pypi`.
+- In the **Agent CLIs** section, press `A` to update marked (or every safely updatable)
+  provider CLIs, and `i` on a missing CLI (or on `Space`-marked ones) to install it —
+  the TUI analog of `sase agent-cli update` / `sase agent-cli install`.
 - Every mutation previews first: the confirm modal shows the exact `uv` command (or the
   git fast-forward plan for editable dev checkouts) before anything changes. The
   confirmation _is_ the dry run.
@@ -159,11 +163,13 @@ The lists below describe what each command is for.
 | A text editor        | Commit-message editing uses `$EDITOR`, falling back to `nvim`, then `vim`.                                                                                                                                                                                                                                                                                                            |
 
 For per-provider install and authentication commands, see
-[Installing & Authenticating Agent Providers](docs/agent_providers.md). Among SASE's
-built-in providers, Muse Code is the one SASE can currently install itself: preview the
-exact HTTPS-fetched script, digest, command, and target with
-`sase agent-cli install muse --dry-run`, then run `sase agent-cli install muse` and
-confirm. Other built-in providers retain their vendor installation flows.
+[Installing & Authenticating Agent Providers](docs/agent_providers.md). SASE can install
+most built-in providers itself with `sase agent-cli install <name>`: the npm-packaged
+CLIs (Claude Code, Codex, OpenCode, Qwen Code, Grok Build) through the exact
+`npm install -g <package>` command, and Muse Code from its HTTPS-fetched install script.
+Preview the plan (command, target, and for Muse the script URL and digest) with
+`sase agent-cli install <name> --dry-run`, then run it without `--dry-run` and confirm.
+The Antigravity CLI keeps its vendor installation flow.
 
 ### Recommended / optional
 
@@ -187,7 +193,7 @@ Missing tools degrade the specific feature listed; everything else keeps working
 | `prettier`                                    | Prompt and generated-Markdown formatting.                                                                                            |
 | A clipboard helper                            | Copy actions in sase's TUI: `pbcopy` (macOS, preinstalled), `wl-copy` (Wayland), or `xclip` / `xsel` (X11).                          |
 | `pass`                                        | Only for the `sase-telegram` plugin's bot-token retrieval.                                                                           |
-| `node` / `npm`                                | Only to install npm-distributed provider CLIs (Claude Code, Codex, Qwen Code).                                                       |
+| `node` / `npm`                                | Only to install npm-distributed provider CLIs (Claude Code, Codex, OpenCode, Qwen Code, Grok Build).                                 |
 
 ## Uninstalling
 

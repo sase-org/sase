@@ -6,11 +6,12 @@ installed **and authenticated** for production work. This page collects the inst
 command, the authentication command, and a link to each vendor's canonical documentation
 for every provider SASE currently supports. Claude Code, Codex CLI, Qwen Code, and Grok
 Build install via `npm` (so they need `node` and `npm` on your `PATH`); OpenCode, the
-Antigravity CLI, and Muse Code use their own install methods, shown in their sections
-below. SASE can install providers for you with
+Antigravity CLI, and Muse Code document their own install methods, shown in their
+sections below. SASE can install most providers for you with
 [`sase agent-cli install`](#inventory-and-updates): every npm-packaged CLI (Claude Code,
-Codex CLI, Qwen Code, Grok Build) installs via `npm install -g <package>`, and Muse Code
-installs from its provider-declared install script.
+Codex CLI, OpenCode, Qwen Code, Grok Build) installs via `npm install -g <package>`, and
+Muse Code installs from its provider-declared install script. The Antigravity CLI is the
+one built-in provider you install yourself.
 
 `sase doctor` — specifically `sase doctor -C llm.auth -v` — is the authoritative
 readiness check. It prints the same per-provider install and auth hints documented here,
@@ -79,6 +80,9 @@ The open-source OpenCode CLI (`opencode`).
 ```bash
 install from https://opencode.ai/docs
 ```
+
+SASE can also install it from its npm package with `sase agent-cli install opencode`
+(`npm install -g opencode-ai`).
 
 ### Authenticate
 
@@ -160,12 +164,14 @@ report an `echo` session with no model, so a future Muse that ignores the reques
 never cost a real model turn on a refresh tick.
 
 The probe runs on the normal background cadence
-(`llm_provider.usage_metrics.refresh_seconds`), costs about three seconds of wall clock
-per refresh, and follows the same eligibility rules as every other provider: Muse must
-be resolvable and either referenced by a model alias or explicitly enabled. The
-user-facing switch is `llm_provider.usage_metrics.providers.muse.enabled`. Inspect the
-result with `sase usage list -p muse`. A host that has not yet reported any usage — for
-example a logged-out one — is shown as no observation rather than as `0%` used.
+(`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while Muse is
+in active use, never faster than Muse's 180-second polling floor), costs about three
+seconds of wall clock per refresh, and follows the same eligibility rules as every other
+provider: Muse must be resolvable and either referenced by a model alias or explicitly
+enabled. The user-facing switch is `llm_provider.usage_metrics.providers.muse.enabled`.
+Inspect the result with `sase usage list -p muse`. A host that has not yet reported any
+usage — for example a logged-out one — is shown as no observation rather than as `0%`
+used.
 
 Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-code/>
 
@@ -283,12 +289,14 @@ promptly instead of waiting out the deadline. Its log file stays in the probe's 
 temp dir rather than `~/.gemini/…`, and auto-update is disabled for the probe spawn.
 
 The probe runs on the normal background cadence
-(`llm_provider.usage_metrics.refresh_seconds`), costs about three to five seconds of
-wall clock per refresh, and follows the same eligibility rules as every other provider:
-agy must be resolvable and either referenced by a model alias or explicitly enabled. The
-Gemini buckets are `model_family`-scoped to `gemini` and the Claude/GPT buckets to `3p`.
-The user-facing switch is `llm_provider.usage_metrics.providers.agy.enabled`. Inspect
-the result with `sase usage list -p agy`.
+(`llm_provider.usage_metrics.refresh_seconds`, or `active_refresh_seconds` while agy is
+in active use, never faster than its 120-second polling floor), costs about three to
+five seconds of wall clock per refresh, and follows the same eligibility rules as every
+other provider: agy must be resolvable and either referenced by a model alias or
+explicitly enabled. The Gemini buckets are `model_family`-scoped to `gemini` and the
+Claude/GPT buckets to `3p`. The user-facing switch is
+`llm_provider.usage_metrics.providers.agy.enabled`. Inspect the result with
+`sase usage list -p agy`.
 
 Canonical docs: <https://antigravity.google/docs/cli-install>
 
@@ -422,7 +430,8 @@ provider declares. For a script CLI, SASE fetches the script itself over HTTPS i
 off HTTPS, computes its SHA-256, and shows the URL, digest, byte count, env overlay,
 target directory, and the exact `bash <tmpfile>` command before running it — never
 `curl | bash`, and never through a shell. For an npm CLI, SASE checks that `npm` is on
-`PATH` and that the global root is writable, then shows the package, the exact
+`PATH` and that the global root is writable (otherwise the CLI is skipped with the exact
+command to run under an npm setup owned by your user), then shows the package, the exact
 `npm install -g <package>` command, and the targeted global bin directory with its
 on-PATH status before running it — never with `sudo`. Running an installer always needs
 confirmation: pass `-y/--yes` or answer the interactive prompt. `-n/--dry-run` prints

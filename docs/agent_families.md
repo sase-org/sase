@@ -54,7 +54,9 @@ See [XPrompt template directives](xprompt.md#directives) for `{@<id>}` and `{@<i
 
 The declaring member can attach a short description to its clan generation. sase's TUI
 displays this description near the top of the clan's `CLAN` panel; it is metadata and is
-not sent to the member as work instructions. Use a literal for stable context, the
+not sent to the member as work instructions. When the clan belongs to a tribe, the tribe
+panel's `CLAN SUMMARIES` section also indexes this description (see
+[Tribe Side Panels](ace.md#tribe-side-panels)). Use a literal for stable context, the
 double-colon shorthand for a larger text block, or an executable when the description
 depends on state available as the runner starts. A literal keeps the work prompt
 immediately below the declaration:
@@ -227,15 +229,15 @@ open enclosing workflow, family, or clan proceeds directly to the group-wide
 remaining-agent-node sweep. Selecting the clan row shows an aggregate `CLAN` header and
 a navigable summary of every section represented across its members. In the Agents list,
 direct members sort by status priority — Failed, Stopped, Running/Starting, Queued,
-Waiting, Done — and then by launch recency within a bucket. The metadata roster uses
-chronological launch order instead, keeping its number-to-member mapping stable while
-statuses change. The runtime is the union of member run intervals, with human-wait
-windows excluded — including a gate shell's pending and settling window — so concurrent
-members are not double-counted. When a sequential family has a concrete agent or monitor
-shell currently executing, the collapsed and expanded family container row shows
-`🏃‍♂️ <current-shell-runtime> / <family-total-runtime>` so the active shell duration is
-visible without opening the family. A clan container's live suffix collapses its
-parallel lanes with a minimum instead, since more than one lane can be live at once:
+Waiting, Done — and then by launch recency within a bucket. The `CLAN MEMBERS`
+jump-panel roster uses chronological launch order instead, keeping its number-to-member
+mapping stable while statuses change. The runtime is the union of member run intervals,
+with human-wait windows excluded — including a gate shell's pending and settling window
+— so concurrent members are not double-counted. When a sequential family has a concrete
+agent or monitor shell currently executing, the collapsed and expanded family container
+row shows `🏃‍♂️ <current-shell-runtime> / <family-total-runtime>` so the active shell
+duration is visible without opening the family. A clan container's live suffix collapses
+its parallel lanes with a minimum instead, since more than one lane can be live at once:
 `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a sequential-family lane
 contributes its own total runtime -- the same value its own row shows to the right of
 its suffix.
@@ -243,23 +245,23 @@ its suffix.
 ### Clan summary folding
 
 Clan summaries collect member errors, output and workflow variables, replies, SASE
-context, slow tool calls, and prompts beneath the `MEMBERS` table. Known-empty section
-kinds are omitted. If required disk-backed content is not known yet, the document ends
-with one dim `⋯ scanning member data…` tail instead of showing a placeholder for each
+context, slow tool calls, and prompts below the saved clan summary in the metadata body;
+the numbered `CLAN MEMBERS` roster lives in the jump panel. Known-empty section kinds
+are omitted. If required disk-backed content is not known yet, the document ends with
+one dim `⋯ scanning member data…` tail instead of showing a placeholder for each
 section. Up to 100 direct members receive fixed jump numbers: `0`–`9` for rosters with
 at most ten entries, or `00`–`99` for the first 100 entries in a larger roster.
 Additional members appear only in an unnumbered remainder count. Press a number while
 the clan is selected to expand only that member's ancestor chain and jump to its row;
 `Esc` cancels a pending first digit. Use `Ctrl+J` and `Ctrl+K` to move between the
-visible section headings; the numbered member rows themselves are not headings, so they
-never steal a `Ctrl+J`/`Ctrl+K` stop, though `za`/`zA` still reach a row that owns the
-viewport's top line.
+visible section headings; numbered roster rows live in the jump panel, so they are
+neither `Ctrl+J`/`Ctrl+K` stops nor `za`/`zA` targets.
 
 The summary has three session-only fold levels:
 
 | Level | Clan summary content                                                                                           |
 | ----- | -------------------------------------------------------------------------------------------------------------- |
-| 1     | Up to 100 numbered member rows plus a heading and count for each other represented section                     |
+| 1     | Up to 100 numbered member rows (in the jump panel) plus a heading and count for each represented section       |
 | 2     | Bounded triage digests, such as one-line error and reply previews, variable values, and context-lane summaries |
 | 3     | Full section bodies grouped by member for detailed investigation                                               |
 
@@ -293,7 +295,7 @@ this shape:
 
 ```text
 %id(!sase-6g.1, bead=sase-6g.1)
-%clan(sase-6g, tribe=epic)
+%clan(sase-6g, tribe=epic, summary_script=sase_clan_summary_epic)
 #bd/work_phase_bead:sase-6g.1
 ---
 %id(!land, clan=sase-6g, bead=sase-6g)
@@ -306,7 +308,9 @@ Phase dependency waits remain explicit and pair successful agent completion with
 phase-bead closure; the clan container itself is not a land agent or other executable
 process. The `bead=` association lets each runner claim its phase or epic only after
 those waits and workspace preparation. If the epic clan already exists during a re-work,
-every phase and land segment uses the `clan=` join form.
+every phase and land segment uses the `clan=` join form. The built-in
+`sase_clan_summary_epic` script renders the epic's
+[launch-time clan summary](#launch-time-clan-summaries).
 
 ## Sequential Agent Families
 
@@ -415,11 +419,12 @@ context, slow calls, and errors use the same chords plus `za`/`zA`.
 
 Family summaries have two effective levels. Level 1 shows bounded activity, wait/retry,
 context, and compact member metadata; level 2 adds full foldable metadata plus member
-workspace, timestamp, and attempt annotations. Press `zZ` at level 1 to open every fold
-to level 2, or at level 2 to close every fold to level 1. Press `z1` or `z2` to select
-either level directly. `z3` and `z4` are invalid in a family context and leave both the
-panel level and section overrides untouched. A member-specific override inherits from
-the `FAMILY SHELLS` section, which in turn inherits the panel level; any leftover roster
+workspace, timestamp, and attempt annotations (roster annotations show when the jump
+panel is expanded with `.`). Press `zZ` at level 1 to open every fold to level 2, or at
+level 2 to close every fold to level 1. Press `z1` or `z2` to select either level
+directly. `z3` and `z4` are invalid in a family context and leave both the panel level
+and section overrides untouched. A member-specific override inherits from the
+`FAMILY SHELLS` section, which in turn inherits the panel level; any leftover roster
 override still applies until a global fold key clears overrides. The numbered roster and
 its digit jumps remain present at both effective levels.
 
@@ -558,11 +563,13 @@ the whole generation; joiner prompts omit `tribe=`. Older clan generations witho
 carry.
 
 Press `N` in sase's TUI to set or clear the focused agent's tribe (or every marked
-agent). For the declaring clan member, sase's TUI rewrites the stored
-`%clan(<clan>, tribe=<tribe>)` and its `clan_tribe` metadata. For a joiner, sase's TUI
-updates only the metadata and never invents a second `%clan` declaration. The synthetic
-clan row itself is not an editable agent. The CLI manages the per-agent assignment store
-for any named agent:
+agent). On a clan row or any clan member, the modal targets `clan <name>` and sets the
+whole clan generation's recorded tribe (see
+[Launch-time clan summaries](#launch-time-clan-summaries)). For the declaring clan
+member, sase's TUI also rewrites the stored `%clan(<clan>, tribe=<tribe>)` and its
+`clan_tribe` metadata. For a joiner, sase's TUI updates only the metadata and never
+invents a second `%clan` declaration. The CLI manages the per-agent assignment store for
+any named agent:
 
 ```bash
 sase agent tribe set -n <agent> -t <tribe>
@@ -615,24 +622,25 @@ In the split layout, a tribe panel is also a selectable container. Repeated lowe
 expanded panel after the structural parent chain is exhausted; `h` on the selected panel
 collapses it when another panel remains visible. Press `l` to expand a collapsed panel
 while keeping container focus, then `l` again to return to the row sase's TUI remembered
-for that panel. Uppercase `L` instead expands the panel and enters its first selectable
-row. Lowercase `h` on a collapsed panel selects the visually bottom-most expanded panel
-without changing panel folds; `Ctrl+O` returns to the collapsed origin. If every live
-panel is collapsed, `h` retains the existing already-collapsed warning. While an
-expanded whole panel is selected, `j` / `k` cycle across every panel, including
-collapsed ones, without descending, and `l` or `Esc` returns to the remembered row. `J`
-/ `K` skip collapsed panels and move to the first / last selectable row of the next /
-previous expanded panel; they do nothing when no other panel is expanded. Whole-panel
-focus is unavailable in the merged layout. Apostrophe jump can select any split-panel
-title, including a lone expanded panel, but a lone panel cannot be collapsed. Press `Z`
-with a whole tribe panel selected to zoom that tribe's metadata document. Press `=` to
-isolate the focused panel by keeping it expanded and collapsing every sibling without
-changing its remembered row. `=` works from whole-panel focus and from a row selection
-inside a panel alike; from a row, it isolates the panel that holds the cursor without
-changing the selected row. When isolation changes the layout, sase's TUI remembers the
-prior collapsed-panel set for the session: `↺` title markers and the `= restore panels`
-footer hint show that the next `=` will restore it. A separate sibling-panel or layout
-mutation invalidates that one-step restore.
+for that panel. Uppercase `L` instead hints every visible agent-node, clan, and banner
+fold in the focused tribe so one key toggles one fold; on a collapsed panel it warns
+instead of expanding. Lowercase `h` on a collapsed panel selects the visually
+bottom-most expanded panel without changing panel folds; `Ctrl+O` returns to the
+collapsed origin. If every live panel is collapsed, `h` retains the existing
+already-collapsed warning. While an expanded whole panel is selected, `j` / `k` cycle
+across every panel, including collapsed ones, without descending, and `l` or `Esc`
+returns to the remembered row. `J` / `K` skip collapsed panels and move to the first /
+last selectable row of the next / previous expanded panel; they do nothing when no other
+panel is expanded. Whole-panel focus is unavailable in the merged layout. Apostrophe
+jump can select any split-panel title, including a lone expanded panel, but a lone panel
+cannot be collapsed. Press `Z` with a whole tribe panel selected to zoom that tribe's
+metadata document. Press `=` to isolate the focused panel by keeping it expanded and
+collapsing every sibling without changing its remembered row. `=` works from whole-panel
+focus and from a row selection inside a panel alike; from a row, it isolates the panel
+that holds the cursor without changing the selected row. When isolation changes the
+layout, sase's TUI remembers the prior collapsed-panel set for the session: `↺` title
+markers and the `= restore panels` footer hint show that the next `=` will restore it. A
+separate sibling-panel or layout mutation invalidates that one-step restore.
 
 Press `-` to sweep every open agent node and clan — never a grouping banner such as
 `Done` or `Running` — in the focused panel closed in one press. It resolves scope the
@@ -676,21 +684,22 @@ behavior and footer labels.
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four
 `zz` metadata detail levels are:
 
-| Level | Name      | Tribe summary content                                                                                         |
-| ----- | --------- | ------------------------------------------------------------------------------------------------------------- |
-| 1     | Glance    | Header, compact numbered top-level roster, attention previews, and headings/counts for non-empty sections     |
-| 2     | Triage    | Bounded previews for every represented section                                                                |
-| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds                            |
-| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, and all-time runtime statistics and percentiles |
+| Level | Name      | Tribe summary content                                                                                                                                              |
+| ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | Glance    | Header, compact numbered top-level roster, attention previews, clan-summary and prompt headline indexes (up to 8 each), and headings/counts for non-empty sections |
+| 2     | Triage    | Bounded previews for every represented section                                                                                                                     |
+| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds                                                                                 |
+| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, and all-time runtime statistics and percentiles                                                      |
 
 From levels 1-3, `zZ` opens every fold to level 4; at level 4, it closes every fold to
-level 1. `za` and `zA` adjust the section or member at the top of the metadata viewport.
-Reply and slow-call presence enrichment is requested off-thread at every tribe level so
-known-empty sections can remain absent; all-time runtime statistics remain level-4-only.
-Unknown required disk-backed content produces one dim `⋯ scanning member data…` document
-tail rather than per-section placeholders. The compact roster and its fixed numeric jump
-targets remain present at all four levels; the number keys jump to top-level clans,
-families, workflows, or agents and expand only the required ancestors.
+level 1. `za` and `zA` adjust the section, or the `CLAN SUMMARIES`/`PROMPTS` entry, at
+the top of the metadata viewport. Reply, slow-call, prompt, and clan-summary presence
+enrichment is requested off-thread at every tribe level so known-empty sections can
+remain absent; all-time runtime statistics remain level-4-only. Unknown required
+disk-backed content produces one dim `⋯ scanning member data…` document tail rather than
+per-section placeholders. The compact roster and its fixed numeric jump targets remain
+present at all four levels; the number keys jump to top-level clans, families,
+workflows, or agents and expand only the required ancestors.
 
 Use `z1`-`z3` to select the collapsed, expanded, or fully expanded view directly; `z4`
 selects the exhaustive view, including unbounded roster annotations and runtime

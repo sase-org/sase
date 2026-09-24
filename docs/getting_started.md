@@ -51,12 +51,13 @@ sase doctor
 ```
 
 If the provider check reports a missing executable or an authentication gap, install and
-authenticate one provider CLI, then run `sase doctor` again. Among SASE's built-in
-providers, SASE can install Muse Code itself from its install script, and every
-npm-packaged CLI via `npm install -g`: use `sase agent-cli install muse --dry-run` to
-inspect the downloaded script's URL, digest, command, and target, then
-`sase agent-cli install muse` to confirm and run it. Other built-in providers use
-`sase agent-cli install <name>` or the install commands in the provider guide.
+authenticate one provider CLI, then run `sase doctor` again. SASE can install most
+built-in providers itself: every npm-packaged CLI (Claude Code, Codex CLI, OpenCode,
+Qwen Code, Grok Build) via `npm install -g <package>`, and Muse Code from its install
+script. Use `sase agent-cli install <name> --dry-run` to inspect the plan — the exact
+command and target, plus the downloaded script's URL and digest for Muse — then
+`sase agent-cli install <name>` to confirm and run it. The Antigravity CLI uses the
+install command in the provider guide.
 [Installing & Authenticating Agent Providers](agent_providers.md) has the per-provider
 install and auth commands plus the complete provider/model selection options; the
 [LLM provider reference](llms.md) covers how SASE integrates each provider once it is
