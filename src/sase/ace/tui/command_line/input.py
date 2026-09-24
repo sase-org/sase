@@ -12,7 +12,7 @@ undercurl for advisory diagnostics, following the ``_highlights`` overlay
 approach from ``widgets/_jinja_highlight.py``. Popup keys (Tab, Shift-Tab,
 ``ctrl+n``/``ctrl+p``, ``↑``/``↓`` while the menu is active, and
 menu-active Enter/Escape) are routed to the screen's popup state machine
-before vim handling.
+before vim handling. ``ctrl+r`` toggles fuzzy history search the same way.
 """
 
 from __future__ import annotations
@@ -53,6 +53,7 @@ _POPUP_KEYS = frozenset(
         "shift+tab",
         "ctrl+n",
         "ctrl+p",
+        "ctrl+r",
         "up",
         "down",
         "enter",

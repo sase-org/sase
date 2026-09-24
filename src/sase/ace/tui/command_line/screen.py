@@ -45,6 +45,18 @@ from sase.ace.tui.command_line.builtins import (
     run_cd,
     run_clear,
 )
+from sase.ace.tui.command_line.extras import (
+    doc_peek_for_highlight,
+    doc_peek_visible,
+    empty_state_hint,
+    empty_state_rows,
+    marked_insert_text,
+    marked_values_for_kind,
+    provider_unavailable_note,
+    rank_history_entries,
+    selected_entity_kind,
+    slot_is_variadic,
+)
 from sase.ace.tui.command_line.context import (
     CommandLineContext,
     resolve_launch_cwd,
@@ -113,6 +125,8 @@ COMMAND_LINE_INPUT_HINTS = "⏎ run · ⇥ complete · ↑↓ history · ^R sear
 COMMAND_LINE_MENU_HINTS = "⏎ accept · ↑↓ move · esc normal"
 #: Signature-row text while the grammar loader worker is still in flight.
 COMMAND_LINE_INDEXING_HINT = "indexing commands…"
+#: Hint row while ``ctrl+r`` history search is active.
+COMMAND_LINE_SEARCH_HINT = "history search · ⏎ load · esc exit"
 #: Bottom-border key hints while a transcript block is selected (NORMAL mode).
 COMMAND_LINE_BLOCK_HINTS = (
     "j/k move · o expand · v pager · K kill · r rerun · e edit · "
@@ -179,11 +193,24 @@ class CommandLineScreen(ModalScreen[None]):
         width: 1fr;
         text-align: right;
     }
+    #command-line-popup-row {
+        height: auto;
+    }
     #command-line-popup {
+        width: 1fr;
         height: auto;
         max-height: 9;
         border: round $primary;
         margin: 0 2;
+    }
+    #command-line-doc-peek {
+        width: auto;
+        max-width: 60;
+        height: auto;
+        max-height: 12;
+        border: round $primary;
+        padding: 0 1;
+        margin: 0 2 0 0;
     }
     #command-line-popup-footer {
         height: 1;
@@ -229,6 +256,9 @@ class CommandLineScreen(ModalScreen[None]):
         self._provider_task: asyncio.Task[None] | None = None
         self._provider_note: str | None = None
         self._help_cache: dict[tuple[tuple[str, ...], str], dict[str, Any]] = {}
+        self._history_search_active = False
+        self._empty_state_active = False
+        self._last_completion_kind = ""
 
     @property
     def session(self) -> CommandLineSession:
@@ -245,9 +275,13 @@ class CommandLineScreen(ModalScreen[None]):
                 )
                 yield Static("", id="command-line-chip")
             yield CommandLineTranscript(id="command-line-transcript")
-            popup = CommandLinePopup()
-            popup.display = False
-            yield popup
+            with Horizontal(id="command-line-popup-row"):
+                popup = CommandLinePopup()
+                popup.display = False
+                yield popup
+                peek = Static("", id="command-line-doc-peek")
+                peek.display = False
+                yield peek
             footer = Static("", id="command-line-popup-footer")
             footer.display = False
             yield footer
@@ -1296,6 +1330,15 @@ class CommandLineScreen(ModalScreen[None]):
         except Exception:  # noqa: BLE001 - cursor read is best effort.
             cursor = len(line)
         started = time.perf_counter()
+        if self._history_search_active:
+            self._render_history_search(line)
+            self._record_keystroke_probe(time.perf_counter() - started, True)
+            return
+        if not line.strip():
+            self._render_empty_state(line)
+            self._record_keystroke_probe(time.perf_counter() - started, True)
+            return
+        self._empty_state_active = False
         context = resolve_command_line(self.app, line, cursor)
         self._resolve_context = context
         self._resolved_line = line
@@ -1305,6 +1348,8 @@ class CommandLineScreen(ModalScreen[None]):
             self._record_keystroke_probe(time.perf_counter() - started, False)
             return
         completion = self._complete_line(line, cursor, context)
+        completion = self._maybe_prepend_marked_row(context, completion)
+        self._last_completion_kind = str(completion.get("kind", "") or "")
         slot = context.get("slot") or {}
         self._popup_state.reset(
             completion.get("items", []),
@@ -1410,7 +1455,12 @@ class CommandLineScreen(ModalScreen[None]):
             raise
         except Exception:  # noqa: BLE001 - provider failure is advisory.
             self._provider_cache.note_unavailable(value_kind, project)
-            self._provider_note = f"⚠ {value_kind} unavailable"
+            self._provider_note = provider_unavailable_note(value_kind)
+            self._render_popup(self._last_completion())
+            return
+        if not fetched:
+            self._provider_cache.note_unavailable(value_kind, project)
+            self._provider_note = provider_unavailable_note(value_kind)
             self._render_popup(self._last_completion())
             return
         items = [
@@ -1445,6 +1495,205 @@ class CommandLineScreen(ModalScreen[None]):
             "replace_end": self._popup_state.replace_end,
         }
 
+    # -- completion extras (empty state, history search, doc peek) -------------
+
+    def _help_lookup(self, path: list[str]) -> dict[str, Any] | None:
+        """Return the grammar's help view for *path*, or ``None``."""
+        handle = command_line_grammar_for(self.app)
+        if handle is None:
+            return None
+        try:
+            return handle.command_help(list(path))
+        except Exception:  # noqa: BLE001 - help lookup is best effort.
+            return None
+
+    def _render_empty_state(self, line: str) -> None:
+        """Show RECENT + derived FOR rows while the input line is empty."""
+        self._empty_state_active = True
+        self._resolve_context = None
+        try:
+            widget = self.query_one(CommandLineInput)
+            widget.set_resolve_context(None)
+        except Exception:  # noqa: BLE001 - unmounted screen has no overlay.
+            pass
+        try:
+            selected = selected_entity_values(self.app)
+        except Exception:  # noqa: BLE001 - selection is best effort.
+            selected = []
+        try:
+            kind = selected_entity_kind(self.app)
+        except Exception:  # noqa: BLE001 - selection is best effort.
+            kind = None
+        try:
+            rows = empty_state_rows(
+                self._help_lookup,
+                self._history.entries,
+                selected_kind=kind,
+                selected_value=selected[0] if selected else None,
+            )
+        except Exception:  # noqa: BLE001 - empty state never breaks open.
+            rows = []
+        items = [row.to_item() for row in rows]
+        self._popup_state.reset(
+            items, typed_text=line, replace_start=0, replace_end=len(line)
+        )
+        self._render_popup(
+            {
+                "items": items,
+                "total": len(items),
+                "kind": "recent",
+                "replace_start": 0,
+                "replace_end": len(line),
+            }
+        )
+        try:
+            handle = command_line_grammar_for(self.app)
+            count: int | None = len(handle) if handle is not None else None
+        except Exception:  # noqa: BLE001 - count is best effort.
+            count = None
+        try:
+            hint_row = self.query_one("#command-line-hint-row", Static)
+            hint_row.update(empty_state_hint(count))
+        except Exception:  # noqa: BLE001 - unmounted screen cannot render.
+            pass
+        self._hide_doc_peek()
+
+    def toggle_history_search(self) -> None:
+        """Enter or leave ``ctrl+r`` fuzzy history search."""
+        self._history_search_active = not self._history_search_active
+        self._refresh_completion()
+
+    def _render_history_search(self, line: str) -> None:
+        """Rank history against the typed query with the Rust fuzzy matcher."""
+        self._empty_state_active = False
+        self._resolve_context = None
+        try:
+            widget = self.query_one(CommandLineInput)
+            widget.set_resolve_context(None)
+        except Exception:  # noqa: BLE001 - unmounted screen has no overlay.
+            pass
+        try:
+            ranked = rank_history_entries(line, self._history.entries)
+        except Exception:  # noqa: BLE001 - search never breaks typing.
+            ranked = []
+        items = [
+            {
+                "insert_text": item.line,
+                "display": item.line,
+                "description": "history",
+                "badge": "history",
+                "source": "history",
+                "match_runs": item.match_runs,
+                "selected": False,
+            }
+            for item in ranked
+        ]
+        self._popup_state.reset(
+            items, typed_text=line, replace_start=0, replace_end=len(line)
+        )
+        self._render_popup(
+            {
+                "items": items,
+                "total": len(items),
+                "kind": "history",
+                "replace_start": 0,
+                "replace_end": len(line),
+            }
+        )
+        try:
+            hint_row = self.query_one("#command-line-hint-row", Static)
+            hint_row.update(COMMAND_LINE_SEARCH_HINT)
+        except Exception:  # noqa: BLE001 - unmounted screen cannot render.
+            pass
+        self._hide_doc_peek()
+
+    def _accept_stored_row(self) -> bool:
+        """Insert the highlighted empty-state/search row; never runs it."""
+        state = self._popup_state
+        item = state.highlighted
+        if item is None and self._history_search_active and state.items:
+            item = state.items[0]
+        if item is None:
+            if self._history_search_active:
+                self._history_search_active = False
+                self._refresh_completion()
+                return True
+            return False
+        self._history_search_active = False
+        self._apply_popup_insert(str(item.get("insert_text", "")))
+        return True
+
+    def _maybe_prepend_marked_row(
+        self, context: Any, completion: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Prepend a ``‹N marked›`` row for variadic slots with TUI marks."""
+        slot = context.get("slot") or {}
+        value_kind = str(slot.get("value_kind") or "")
+        if not value_kind:
+            return completion
+        try:
+            path = [str(part) for part in context.get("path", [])]
+            if not slot_is_variadic(slot, self._help_lookup, path):
+                return completion
+            values = marked_values_for_kind(self.app, value_kind)
+        except Exception:  # noqa: BLE001 - marked rows are best effort.
+            return completion
+        insert = marked_insert_text(values)
+        if not insert:
+            return completion
+        row = {
+            "insert_text": insert,
+            "display": f"‹{len(values)} marked›",
+            "description": "insert all marked",
+            "badge": value_kind,
+            "source": "tui",
+            "match_runs": [],
+            "selected": False,
+        }
+        items = [row, *completion.get("items", [])]
+        total = int(completion.get("total", len(items) - 1) or 0) + 1
+        return {**completion, "items": items, "total": total}
+
+    def _hide_doc_peek(self) -> None:
+        """Hide the right-hand doc-peek card."""
+        try:
+            peek = self.query_one("#command-line-doc-peek", Static)
+            peek.display = False
+        except Exception:  # noqa: BLE001 - unmounted screen cannot render.
+            pass
+
+    def _render_doc_peek(self) -> None:
+        """Show the doc-peek card for a highlighted subcommand or option."""
+        try:
+            peek = self.query_one("#command-line-doc-peek", Static)
+            width = self.size.width
+        except Exception:  # noqa: BLE001 - unmounted screen cannot render.
+            return
+        if not doc_peek_visible(width):
+            peek.display = False
+            return
+        highlighted = self._popup_state.highlighted
+        if highlighted is None:
+            peek.display = False
+            return
+        path: list[str] = []
+        if self._resolve_context is not None:
+            path = [str(part) for part in self._resolve_context.get("path", [])]
+        try:
+            card = doc_peek_for_highlight(
+                completion_kind=self._last_completion_kind,
+                highlighted=highlighted,
+                path=path,
+                help_lookup=self._help_lookup,
+            )
+        except Exception:  # noqa: BLE001 - the peek never breaks typing.
+            card = ""
+        if not card:
+            peek.display = False
+            return
+        peek.update(card)
+        peek.display = True
+
     def _render_popup(self, completion: dict[str, Any]) -> None:
         """Show or hide the floating popup and its footer."""
         try:
@@ -1457,7 +1706,8 @@ class CommandLineScreen(ModalScreen[None]):
             line = self.query_one(CommandLineInput).text
         except Exception:  # noqa: BLE001 - fall back to showing rows.
             line = "x"
-        if not items or not line.strip():
+        stored_rows = self._empty_state_active or self._history_search_active
+        if not items or (not line.strip() and not stored_rows):
             popup.display = False
             footer.display = False
             self._update_keys_hint()
@@ -1493,6 +1743,7 @@ class CommandLineScreen(ModalScreen[None]):
                 highlighted_option=self._highlighted_help_option(),
             )
         )
+        self._render_doc_peek()
 
     def _show_indexing(self, has_text: bool) -> None:
         """Show the pre-grammar state: history still works, popup waits."""
@@ -1576,13 +1827,22 @@ class CommandLineScreen(ModalScreen[None]):
                 return False
             decision = state.on_ctrl_n() if key == "down" else state.on_ctrl_p()
         elif key == "enter":
+            if self._empty_state_active or self._history_search_active:
+                return self._accept_stored_row()
             if not state.menu_active:
                 return False
             decision = state.on_enter()
         elif key == "escape":
+            if self._history_search_active:
+                self._history_search_active = False
+                self._refresh_completion()
+                return True
             if not state.menu_active:
                 return False
             decision = state.on_escape()
+        elif key == "ctrl+r":
+            self.toggle_history_search()
+            return True
         else:
             return False
         return self._apply_popup_decision(decision)
@@ -1714,5 +1974,6 @@ __all__ = [
     "COMMAND_LINE_INPUT_HINTS",
     "COMMAND_LINE_MENU_HINTS",
     "COMMAND_LINE_PREFIX",
+    "COMMAND_LINE_SEARCH_HINT",
     "CommandLineScreen",
 ]
