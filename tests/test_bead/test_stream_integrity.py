@@ -554,3 +554,62 @@ def test_concurrent_independent_append_still_merges(
     merged = (left / f"events/streams/{issue_id}.jsonl").read_text(encoding="utf-8")
     assert "left append" in merged
     assert "right append" in merged
+
+
+def test_refuse_uses_bounded_git_reads_and_keeps_shrink_and_relocation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The publication guard must not walk the whole store per revision.
+
+    With several published streams, an append must pass without any
+    per-stream ``git show``; a silent shrink must still be refused; and a
+    shrink relocated into a new stream must still be allowed.
+    """
+    from sase.bead import _stream_integrity_git as git_probes
+
+    remote = _bare_remote(tmp_path / "remote.git")
+    seed = tmp_path / "seed"
+    issue_id, _stream = _init_beads_repo(seed)
+    for index in range(10):
+        _write_events(
+            seed / f"events/streams/sase-extra{index:02d}.jsonl",
+            [_event(f"extra-{index}")],
+        )
+    _commit(seed, "seed extra streams")
+    _git(seed, "remote", "add", "origin", str(remote))
+    _git(seed, "push", "-u", "origin", "main")
+    local = tmp_path / "local"
+    _clone(remote, local)
+    local_stream = local / f"events/streams/{issue_id}.jsonl"
+    base_events = parse_stream_text(local_stream.read_text(encoding="utf-8"))
+    assert len(base_events) >= 2
+    _write_events(local_stream, [*base_events, _event("appended")])
+    _commit(local, "append")
+
+    real_show = git_probes.show_text
+    show_calls: list[tuple[object, ...]] = []
+
+    def counting_show(*args: object, **kwargs: object) -> str | None:
+        show_calls.append(args)
+        return real_show(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(git_probes, "show_text", counting_show)
+    monkeypatch.setattr("sase.bead._stream_integrity.show_text", counting_show)
+
+    refuse_unpublished_event_stream_shrink(local, local)
+    assert show_calls == []
+
+    moved = base_events[-1]
+    _write_events(local_stream, [*base_events[:-1], _event("appended")])
+    _commit(local, "shrink")
+    with pytest.raises(BeadStreamIntegrityError, match="missing ancestor events"):
+        refuse_unpublished_event_stream_shrink(local, local)
+    assert show_calls == []
+
+    _git(local, "reset", "--hard", "HEAD~1")
+    _write_events(local_stream, [*base_events[:-1], _event("appended")])
+    _write_events(local / "events/streams/sase-reloc.jsonl", [moved])
+    _commit(local, "relocate")
+    refuse_unpublished_event_stream_shrink(local, local)
+    assert show_calls == []

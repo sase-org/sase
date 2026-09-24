@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +19,12 @@ from sase.bead._stream_integrity_files import (
     is_event_stream_relpath,
     parse_stream_text,
 )
-from sase.sdd._git import run_sdd_git
+from sase.sdd._git import (
+    DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS,
+    ENV_LOCAL_TIMEOUT,
+    run_sdd_git,
+    sdd_git_command,
+)
 
 _HISTORY_COMMIT_LIMIT = 300
 _UPSTREAM_REVS = ("@{upstream}", "origin/HEAD", "origin/main", "origin/master")
@@ -111,12 +118,16 @@ def diff_names(
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def streams_at_rev(
+def stream_paths_at_rev(
     repo_root: Path,
     rev: str,
     stream_dir: str,
-) -> dict[str, list[dict[str, Any]]]:
-    """Return every readable event stream under *stream_dir* at *rev*."""
+) -> dict[str, str]:
+    """Return ``{stream_id: relpath}`` for every stream under *stream_dir* at *rev*.
+
+    Only the ``git ls-tree`` name list is read (one subprocess); no blob
+    contents are fetched. Tolerates failure by returning an empty mapping.
+    """
     result = run_sdd_git(
         ["ls-tree", "-r", "--name-only", rev, "--", f"{stream_dir}/"],
         cwd=repo_root,
@@ -127,16 +138,111 @@ def streams_at_rev(
     )
     if result.returncode != 0:
         return {}
-    streams: dict[str, list[dict[str, Any]]] = {}
+    paths: dict[str, str] = {}
     for relpath in result.stdout.splitlines():
         path = relpath.strip()
         if not path or not is_event_stream_relpath(path):
             continue
-        text = show_text(repo_root, rev, path)
+        paths[Path(path).stem] = path
+    return paths
+
+
+def batch_show_texts(
+    repo_root: Path,
+    rev: str,
+    relpaths: list[str],
+) -> dict[str, str | None]:
+    """Return ``{relpath: text}`` for *relpaths* at *rev* in one subprocess.
+
+    Blob reads go through a single ``git cat-file --batch`` process instead
+    of one ``git show`` per path. Missing blobs map to ``None``. Any git or
+    parsing failure maps every requested path to ``None`` so callers degrade
+    to "nothing to check".
+    """
+    unique = list(dict.fromkeys(relpaths))
+    if not unique:
+        return {}
+    specs = [f"{rev}:{path}" for path in unique]
+    try:
+        cmd = sdd_git_command(["cat-file", "--batch"])
+        proc = subprocess.Popen(
+            cmd,
+            cwd=repo_root,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            stdout, _stderr = proc.communicate(
+                "".join(f"{spec}\n" for spec in specs).encode(),
+                timeout=_batch_timeout(),
+            )
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            raise
+        if proc.returncode != 0:
+            return dict.fromkeys(unique)
+        texts: dict[str, str | None] = {}
+        pos = 0
+        for path in unique:
+            newline = stdout.find(b"\n", pos)
+            if newline < 0:
+                return dict.fromkeys(unique)
+            header = stdout[pos:newline].decode("utf-8", errors="replace")
+            pos = newline + 1
+            if header.endswith(" missing"):
+                texts[path] = None
+                continue
+            parts = header.split()
+            if len(parts) != 3:
+                return dict.fromkeys(unique)
+            try:
+                size = int(parts[2])
+            except ValueError:
+                return dict.fromkeys(unique)
+            if size < 0 or pos + size > len(stdout):
+                return dict.fromkeys(unique)
+            try:
+                texts[path] = stdout[pos : pos + size].decode("utf-8")
+            except UnicodeDecodeError:
+                texts[path] = None
+            pos += size
+            if stdout[pos : pos + 1] == b"\n":
+                pos += 1
+        return texts
+    except Exception:
+        return dict.fromkeys(unique)
+
+
+def _batch_timeout() -> float:
+    raw = os.environ.get(ENV_LOCAL_TIMEOUT)
+    if raw is None:
+        return DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS
+    return value if value > 0 else DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS
+
+
+def streams_at_rev(
+    repo_root: Path,
+    rev: str,
+    stream_dir: str,
+) -> dict[str, list[dict[str, Any]]]:
+    """Return every readable event stream under *stream_dir* at *rev*."""
+    paths = stream_paths_at_rev(repo_root, rev, stream_dir)
+    if not paths:
+        return {}
+    texts = batch_show_texts(repo_root, rev, list(paths.values()))
+    streams: dict[str, list[dict[str, Any]]] = {}
+    for stream_id, path in paths.items():
+        text = texts.get(path)
         if text is None:
             continue
         try:
-            streams[Path(path).stem] = parse_stream_text(text)
+            streams[stream_id] = parse_stream_text(text)
         except json.JSONDecodeError:
             continue
     return streams

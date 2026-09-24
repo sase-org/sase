@@ -19,6 +19,7 @@ from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from sase.bead._stream_integrity_analysis import analyze_stream_against_ancestor
 from sase.bead._stream_integrity_files import (
@@ -30,13 +31,14 @@ from sase.bead._stream_integrity_files import (
     write_stream_text,
 )
 from sase.bead._stream_integrity_git import (
+    batch_show_texts,
     diff_names,
     is_ancestor,
     merge_base,
     resolve_upstream_rev,
     show_text,
     stream_history_records,
-    streams_at_rev,
+    stream_paths_at_rev,
 )
 from sase.bead._stream_integrity_messages import (
     missing_history_message,
@@ -179,20 +181,23 @@ def refuse_unpublished_event_stream_shrink(
     if not stream_paths:
         return
 
-    head_streams = streams_at_rev(repo_root, "HEAD", stream_dir)
-    ancestor_streams = streams_at_rev(repo_root, ancestor, stream_dir)
-    new_stream_ids = set(head_streams) - set(ancestor_streams)
+    head_paths = stream_paths_at_rev(repo_root, "HEAD", stream_dir)
+    ancestor_paths = stream_paths_at_rev(repo_root, ancestor, stream_dir)
+    new_stream_ids = set(head_paths) - set(ancestor_paths)
+    ancestor_texts = batch_show_texts(repo_root, ancestor, stream_paths)
+    head_texts = batch_show_texts(repo_root, "HEAD", stream_paths)
+    new_streams: dict[str, list[dict[str, Any]]] | None = None
     errors: list[str] = []
     for path in stream_paths:
         stream_id = Path(path).stem
-        ancestor_text = show_text(repo_root, ancestor, path)
+        ancestor_text = ancestor_texts.get(path)
         if ancestor_text is None:
             continue
         try:
             ancestor_events = parse_stream_text(ancestor_text)
         except json.JSONDecodeError:
             continue
-        head_text = show_text(repo_root, "HEAD", path)
+        head_text = head_texts.get(path)
         if head_text is None:
             continue
         try:
@@ -206,10 +211,23 @@ def refuse_unpublished_event_stream_shrink(
             ancestor_events,
             head_events,
             ancestor_text=ancestor_text,
-            other_streams=head_streams,
+            other_streams={},
             new_stream_ids=new_stream_ids,
             stream_id=stream_id,
         )
+        if analysis.kind in ("restore_exact", "restore_superset") and new_stream_ids:
+            if new_streams is None:
+                new_streams = _read_new_streams(
+                    repo_root, "HEAD", head_paths, new_stream_ids
+                )
+            analysis = analyze_stream_against_ancestor(
+                ancestor_events,
+                head_events,
+                ancestor_text=ancestor_text,
+                other_streams=new_streams,
+                new_stream_ids=new_stream_ids,
+                stream_id=stream_id,
+            )
         if analysis.kind == "ok":
             continue
         if analysis.kind == "rewrite":
@@ -230,6 +248,42 @@ def refuse_unpublished_event_stream_shrink(
         )
     if errors:
         raise BeadStreamIntegrityError("; ".join(errors))
+
+
+def _read_new_streams(
+    repo_root: Path,
+    rev: str,
+    id_to_path: dict[str, str],
+    new_stream_ids: set[str],
+) -> dict[str, list[dict[str, Any]]]:
+    """Read only the new streams at *rev* for a relocation check.
+
+    ``analyze_stream_against_ancestor`` consults ``other_streams`` solely
+    for IDs in ``new_stream_ids`` (and never the stream under comparison),
+    so loading just those blobs preserves the verdict while avoiding a
+    whole-store walk.
+    """
+    relpaths = [
+        id_to_path[stream_id]
+        for stream_id in sorted(new_stream_ids)
+        if stream_id in id_to_path
+    ]
+    if not relpaths:
+        return {}
+    texts = batch_show_texts(repo_root, rev, relpaths)
+    streams: dict[str, list[dict[str, Any]]] = {}
+    for stream_id in sorted(new_stream_ids):
+        path = id_to_path.get(stream_id)
+        if path is None:
+            continue
+        text = texts.get(path)
+        if text is None:
+            continue
+        try:
+            streams[stream_id] = parse_stream_text(text)
+        except json.JSONDecodeError:
+            continue
+    return streams
 
 
 def diagnose_event_stream_history(
@@ -267,18 +321,34 @@ def diagnose_event_stream_history(
             )
         except json.JSONDecodeError:
             continue
-        commit_streams = streams_at_rev(repo_root, record.sha, stream_dir)
-        parent_streams = streams_at_rev(repo_root, record.parent, stream_dir)
         analysis = analyze_stream_against_ancestor(
             parent_events,
             commit_events,
             ancestor_text=parent_text,
-            other_streams=commit_streams,
-            new_stream_ids=set(commit_streams) - set(parent_streams),
+            other_streams={},
+            new_stream_ids=set(),
             stream_id=stream_id,
         )
         if analysis.kind == "ok":
             continue
+        if analysis.kind in ("restore_exact", "restore_superset"):
+            commit_paths = stream_paths_at_rev(repo_root, record.sha, stream_dir)
+            parent_paths = stream_paths_at_rev(repo_root, record.parent, stream_dir)
+            new_stream_ids = set(commit_paths) - set(parent_paths)
+            if new_stream_ids:
+                relocated = analyze_stream_against_ancestor(
+                    parent_events,
+                    commit_events,
+                    ancestor_text=parent_text,
+                    other_streams=_read_new_streams(
+                        repo_root, record.sha, commit_paths, new_stream_ids
+                    ),
+                    new_stream_ids=new_stream_ids,
+                    stream_id=stream_id,
+                )
+                if relocated.kind == "ok":
+                    continue
+                analysis = relocated
         seen_streams.add(stream_id)
         if analysis.kind == "rewrite":
             messages.append(
