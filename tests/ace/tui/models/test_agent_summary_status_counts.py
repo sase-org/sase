@@ -44,13 +44,13 @@ def _agent(
         raw_suffix=f"suffix-{name}",
         parent_timestamp=parent_timestamp,
         agent_name=name,
-        agent_family="alpha",
-        agent_family_role="root" if role == "plan" else role,
+        agent_session="alpha",
+        agent_session_role="root" if role == "plan" else role,
         role_suffix=f"--{role}",
         plan_chain_root=role == "plan",
         agent_clan=clan,
         agent_clan_generation="gen-1" if clan else None,
-        agent_family_parallel=parallel,
+        agent_session_parallel=parallel,
     )
 
 
@@ -266,7 +266,7 @@ def test_clan_counts_settle_handed_off_family_planner_as_done() -> None:
         parent_timestamp=family.raw_suffix,
         clan="research",
     )
-    planner.agent_family_role = "plan"
+    planner.agent_session_role = "plan"
     planner.parent_workflow = "ace-run"
     planner.step_type = "agent"
     coder = _agent(
@@ -314,7 +314,7 @@ def test_clan_counts_settle_answered_family_planner_as_done() -> None:
         clan="research",
         stop_offset=1,
     )
-    planner.agent_family_role = "plan"
+    planner.agent_session_role = "plan"
     planner.parent_workflow = "ace-run"
     planner.step_type = "agent"
     coder = _agent(
@@ -396,7 +396,7 @@ def test_queue_counts_are_orthogonal_and_dedupe_container_flat_rows() -> None:
         clan="research",
     )
     for agent in (implicit, explicit, dependency):
-        agent.agent_family = None
+        agent.agent_session = None
         agent.pid = 100
     implicit.wait_runners = 9
     implicit.slot_requested_at = "2026-07-19T09:00:00Z"
@@ -433,7 +433,7 @@ def test_queued_waiters_partition_waiting_counts() -> None:
         for index in range(6)
     ]
     for member in members:
-        member.agent_family = None
+        member.agent_session = None
     for index, member in enumerate(members[:2]):
         member.pid = 100 + index
         member.wait_runners = 9

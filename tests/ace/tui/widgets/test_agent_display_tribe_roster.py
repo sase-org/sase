@@ -208,7 +208,7 @@ def test_tribe_family_children_use_effective_status_glyphs() -> None:
         role="plan",
         parent="root",
     )
-    planner.agent_family_role = "plan"
+    planner.agent_session_role = "plan"
     planner.parent_workflow = "ace-run"
     planner.step_type = "agent"
     coder = make_tribe_agent(

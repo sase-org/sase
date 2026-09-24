@@ -261,13 +261,13 @@ def canonical_plan_chain_suffix(suffix: object) -> str | None:
 def _parse_plan_chain_suffix(
     suffix: object,
     *,
-    agent_family_role: object = None,
+    agent_session_role: object = None,
 ) -> _PlanChainSuffixInfo | None:
     """Return structured suffix metadata for new and legacy plan-chain rows."""
     if not isinstance(suffix, str):
         return None
 
-    stored_role = _stored_session_role(agent_family_role)
+    stored_role = _stored_session_role(agent_session_role)
     legacy_suffix = suffix in _LEGACY_SUFFIX_MAP
     if legacy_suffix:
         suffix = _LEGACY_SUFFIX_MAP[suffix]
@@ -346,10 +346,10 @@ def _parse_plan_chain_suffix(
 def plan_chain_feedback_round(
     suffix: object,
     *,
-    agent_family_role: object = None,
+    agent_session_role: object = None,
 ) -> int | None:
     """Return the visible feedback round number for a known feedback suffix."""
-    info = _parse_plan_chain_suffix(suffix, agent_family_role=agent_family_role)
+    info = _parse_plan_chain_suffix(suffix, agent_session_role=agent_session_role)
     if info is None or not info.is_feedback:
         return None
     if info.kind == "legacy_feedback":
@@ -451,20 +451,20 @@ def is_agent_session_member(name: object, *, include_legacy_dash: bool = False) 
 def agent_session_role_for_suffix(
     suffix: object,
     *,
-    agent_family_role: object = None,
+    agent_session_role: object = None,
 ) -> str | None:
     """Return the metadata role for a known plan-chain suffix."""
-    info = _parse_plan_chain_suffix(suffix, agent_family_role=agent_family_role)
+    info = _parse_plan_chain_suffix(suffix, agent_session_role=agent_session_role)
     return info.role if info is not None else None
 
 
 def is_plan_feedback_suffix(
     suffix: object,
     *,
-    agent_family_role: object = None,
+    agent_session_role: object = None,
 ) -> bool:
     """Return whether *suffix* identifies a plan-feedback row."""
-    info = _parse_plan_chain_suffix(suffix, agent_family_role=agent_family_role)
+    info = _parse_plan_chain_suffix(suffix, agent_session_role=agent_session_role)
     return bool(info and info.is_feedback)
 
 
@@ -601,10 +601,10 @@ def is_agent_family_member(name: object, *, include_legacy_dash: bool = False) -
 def agent_family_role_for_suffix(
     suffix: object,
     *,
-    agent_family_role: object = None,
+    agent_session_role: object = None,
 ) -> str | None:
     """Return the metadata role for a suffix (deprecated alias)."""
-    return agent_session_role_for_suffix(suffix, agent_family_role=agent_family_role)
+    return agent_session_role_for_suffix(suffix, agent_session_role=agent_session_role)
 
 
 def _reserved_agent_family_names(

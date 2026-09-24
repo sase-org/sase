@@ -278,17 +278,17 @@ def test_h_workflow_step_jump_history_restores_exact_script_row() -> None:
 def test_h_nested_monitor_navigates_to_starter() -> None:
     family = make_agent(raw_suffix="family", tribe="research")
     family.plan_chain_root = True
-    family.agent_family = "family"
+    family.agent_session = "family"
     family.agent_clan = "research"
     family.agent_clan_generation = "generation"
     member = make_agent(raw_suffix="member")
     member.parent_timestamp = family.raw_suffix
-    member.agent_family = "family"
-    member.agent_family_role = "code"
+    member.agent_session = "family"
+    member.agent_session_role = "code"
     monitor = make_agent(raw_suffix="monitor")
     monitor.parent_timestamp = member.raw_suffix
-    monitor.agent_family = "family"
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = "family"
+    monitor.agent_session_role = "monitor"
     family.followup_agents.append(member)
     family.runtime_children.append(member)
     member.runtime_children.append(monitor)
@@ -307,17 +307,17 @@ def _make_nested_monitor_family() -> tuple[list[Agent], Agent, Agent, Agent, Age
     """Clan -> family root -> mid-family starter -> disk-shaped monitor."""
     family = make_agent(raw_suffix="family", tribe="research")
     family.plan_chain_root = True
-    family.agent_family = "family"
+    family.agent_session = "family"
     family.agent_clan = "research"
     family.agent_clan_generation = "generation"
     member = make_agent(raw_suffix="member")
     member.parent_timestamp = family.raw_suffix
-    member.agent_family = "family"
-    member.agent_family_role = "code"
+    member.agent_session = "family"
+    member.agent_session_role = "code"
     monitor = make_agent(raw_suffix="monitor")
     monitor.parent_timestamp = member.raw_suffix
-    monitor.agent_family = "family"
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = "family"
+    monitor.agent_session_role = "monitor"
     family.followup_agents.append(member)
     family.runtime_children.append(member)
     member.runtime_children.append(monitor)

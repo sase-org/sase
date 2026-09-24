@@ -64,7 +64,7 @@ def test_member_creator_back_reference_matches() -> None:
     gate = _gate_row("010101", gate_id="gate-creator-1")
     member = replace(member, followup_agents=[gate])
     root = _family(members=[member])
-    gate.family_container = root
+    gate.agent_session_container = root
     resolution = _resolve(member)
     assert [t.key for t in resolution.targets] == [
         "gate:gate-creator-1",
@@ -83,7 +83,7 @@ def test_member_gate_creator_agent_matches() -> None:
     )
     member = replace(member, followup_agents=[gate])
     root = _family(members=[member])
-    gate.family_container = root
+    gate.agent_session_container = root
     resolution = _resolve(member)
     assert resolution.targets[0].key == "gate:gate-other-1"
 
@@ -175,8 +175,8 @@ def test_project_level_plan_family_container_resolves_gate_only() -> None:
         make_agent(name="demo", raw_suffix=suffix),
         agent_type=AgentType.WORKFLOW,
         workflow=workflow,
-        agent_family_role="root",
-        agent_family="fam",
+        agent_session_role="root",
+        agent_session="fam",
         agent_name="starter",
         plan_chain_root=True,
     )
@@ -191,8 +191,8 @@ def test_project_level_plan_family_container_resolves_gate_only() -> None:
     )
     gate = _gate_row("010101", kind="plan", start_status="TALE")
     container = replace(container, runtime_children=[planner], followup_agents=[gate])
-    planner.family_container = container
-    gate.family_container = container
+    planner.agent_session_container = container
+    gate.agent_session_container = container
 
     class _PatchApp(AgentPatchNavigationMixin):
         _agents_with_children: list[Agent] = []

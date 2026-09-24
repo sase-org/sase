@@ -121,8 +121,8 @@ def test_update_header_only_includes_kind_heading_on_first_paint() -> None:
 def test_unattached_family_root_opens_with_agent_shell() -> None:
     root = make_agent(
         agent_name="alpha--plan",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         plan_chain_root=True,
     )
 
@@ -146,8 +146,8 @@ def test_monitor_member_has_no_kind_heading() -> None:
         raw_suffix="20260812090000",
         parent_timestamp="20260812085900",
         agent_name="alpha--mon",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="m123abc456def",
         monitor_state="running",

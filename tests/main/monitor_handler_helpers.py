@@ -68,8 +68,8 @@ def make_monitor(
 ) -> str:
     """Create a real monitor member's artifacts dir with test-friendly defaults."""
     meta: dict[str, object] = {
-        "agent_family": lane,
-        "agent_family_role": "monitor",
+        "agent_session": lane,
+        "agent_session_role": "monitor",
         "monitor_id": monitor_id,
         "monitor_state": monitor_state,
         "monitor_settled": monitor_state != "running",

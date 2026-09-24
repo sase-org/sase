@@ -159,7 +159,7 @@ def test_family_member_waiting_on_own_family_blocks_on_a_live_sibling(
         "20260813090200",
         "monitor-lane--review",
         workflow_name="monitor-lane",
-        agent_family="monitor-lane",
+        agent_session="monitor-lane",
         role_suffix="--review",
         parent_timestamp=root_dir.name,
     )

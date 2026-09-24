@@ -77,7 +77,7 @@ def _create_and_answer_round(
     suffix = "--gate" if round_index == 1 else f"--gate-{round_index - 2}"
     artifacts_dir = create_gate_shell_member(
         "proj",
-        {"name": "lane--0", "agent_family": "lane"},
+        {"name": "lane--0", "agent_session": "lane"},
         lane="lane",
         suffix=suffix,
         prev_artifacts_timestamp="20260812120000",

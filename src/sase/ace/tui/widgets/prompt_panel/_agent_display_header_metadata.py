@@ -129,7 +129,9 @@ def _append_identity_fields(
             text.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
         _append_capacity_fields(text, agent)
         # Structured bead identity belongs exclusively to the deferred BEAD lane.
-        is_known_phase = bool(agent.phase_bead_id or agent.agent_family_role == "phase")
+        is_known_phase = bool(
+            agent.phase_bead_id or agent.agent_session_role == "phase"
+        )
         if summary is not None and summary.bead_summary is not None:
             bead_display = None
         elif is_known_phase:
@@ -174,7 +176,7 @@ def _suppress_capacity_fields(agent: Agent) -> bool:
         or agent.is_proc_shell
         or agent.is_gate
         or agent.is_monitor
-        or (agent.is_child_row and not agent.agent_family_parallel)
+        or (agent.is_child_row and not agent.agent_session_parallel)
     )
 
 
@@ -597,7 +599,7 @@ def append_agent_metadata_fields(
 
 def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
     """Preserve archived parallel-family member summaries."""
-    if not agent.agent_family_parallel:
+    if not agent.agent_session_parallel:
         return
 
     from ...models._agent_clan import clan_members
@@ -619,7 +621,7 @@ def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
     append_section_heading(text, heading, section_id="members")
 
     for member in members:
-        role = member.agent_family_role or "member"
+        role = member.agent_session_role or "member"
         name = member.presented_agent_name or _UNASSIGNED_AGENT_NAME_DISPLAY
         bucket = agent_status_bucket(member)
         glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]

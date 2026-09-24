@@ -58,8 +58,8 @@ def test_plan_workflow_family_member_panels_list_each_other() -> None:
         raw_suffix="20260719090000",
         workflow="ace-run",
         agent_name="ep--plan",
-        agent_family="ep",
-        agent_family_role="root",
+        agent_session="ep",
+        agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
         plan_action="tale",
@@ -80,8 +80,8 @@ def test_plan_workflow_family_member_panels_list_each_other() -> None:
         parent_workflow="ace-run",
         step_type="agent",
         agent_name="ep--plan-step",
-        agent_family="ep",
-        agent_family_role="plan",
+        agent_session="ep",
+        agent_session_role="plan",
         role_suffix="--plan",
         model="claude/opus",
         llm_provider="claude",
@@ -96,8 +96,8 @@ def test_plan_workflow_family_member_panels_list_each_other() -> None:
         raw_suffix="20260719090300",
         parent_timestamp=root.raw_suffix,
         agent_name="ep--code",
-        agent_family="ep",
-        agent_family_role="code",
+        agent_session="ep",
+        agent_session_role="code",
         role_suffix="--code",
         model="codex/gpt-5",
         llm_provider="codex",
@@ -145,8 +145,8 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
         stop_time=started + timedelta(minutes=1),
         raw_suffix="20260801090000",
         agent_name="tu.f0--0",
-        agent_family="tu.f0",
-        agent_family_role="plan",
+        agent_session="tu.f0",
+        agent_session_role="plan",
         role_suffix="--0",
         plan_chain_root=True,
         model="claude/opus",
@@ -161,8 +161,8 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
         raw_suffix="20260801090100",
         parent_timestamp=root.raw_suffix,
         agent_name="tu.f0--1",
-        agent_family="tu.f0",
-        agent_family_role="code",
+        agent_session="tu.f0",
+        agent_session_role="code",
         role_suffix="--1",
         model="claude/sonnet",
     )
@@ -175,15 +175,15 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
         raw_suffix="20260801090200",
         parent_timestamp=root.raw_suffix,
         agent_name="tu.f0--code",
-        agent_family="tu.f0",
-        agent_family_role="code",
+        agent_session="tu.f0",
+        agent_session_role="code",
         role_suffix="--code",
         model="claude/sonnet",
     )
     root.followup_agents = [member1, member2]
     # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
-    member1.family_container = root
-    member2.family_container = root
+    member1.agent_session_container = root
+    member2.agent_session_container = root
     assert root.is_family_container_row is True
 
     entries = family_roster_entries(root, exclude=member1)
@@ -218,8 +218,8 @@ def test_family_roster_labels_monitor_members() -> None:
         stop_time=started + timedelta(minutes=1),
         raw_suffix="20260812090000",
         agent_name="alpha--0",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         role_suffix="--0",
     )
     monitor = Agent(
@@ -233,8 +233,8 @@ def test_family_roster_labels_monitor_members() -> None:
         raw_suffix="20260812090100",
         parent_timestamp=root.raw_suffix,
         agent_name="alpha--mon",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon",
         model="shell",
         monitor_id="m123",
@@ -271,8 +271,8 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
         stop_time=started + timedelta(minutes=1),
         raw_suffix="20260812090000",
         agent_name="alpha--0",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         role_suffix="--0",
         model="claude/opus",
     )
@@ -286,8 +286,8 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
         raw_suffix="20260812090100",
         parent_timestamp=root.raw_suffix,
         agent_name="alpha--code",
-        agent_family="alpha",
-        agent_family_role="code",
+        agent_session="alpha",
+        agent_session_role="code",
         role_suffix="--code",
         model="codex/gpt-5",
     )
@@ -301,8 +301,8 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
         raw_suffix="20260812090200",
         parent_timestamp=coder.raw_suffix,
         agent_name="alpha--mon",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="m123",
         monitor_state="completed",
@@ -317,8 +317,8 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
         raw_suffix="20260812090300",
         parent_timestamp=root.raw_suffix,
         agent_name="alpha--review",
-        agent_family="alpha",
-        agent_family_role="review",
+        agent_session="alpha",
+        agent_session_role="review",
         role_suffix="--review",
         model="claude/sonnet",
     )
@@ -326,9 +326,9 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
     root.runtime_children = [coder, review]
     coder.followup_agents = [monitor]
     coder.runtime_children = [monitor]
-    coder.family_container = root
-    monitor.family_container = root
-    review.family_container = root
+    coder.agent_session_container = root
+    monitor.agent_session_container = root
+    review.agent_session_container = root
 
     entries = family_roster_entries(root)
     assert [entry.label for entry in entries] == [
@@ -369,8 +369,8 @@ def test_family_roster_monitor_descriptor_falls_back_to_command() -> None:
         start_time=started,
         raw_suffix="20260812090000",
         agent_name="alpha--0",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         role_suffix="--0",
     )
     unlabeled = Agent(
@@ -382,8 +382,8 @@ def test_family_roster_monitor_descriptor_falls_back_to_command() -> None:
         raw_suffix="20260812090100",
         parent_timestamp=root.raw_suffix,
         agent_name="alpha--mon",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="m-unlabeled",
         monitor_state="running",
@@ -437,7 +437,7 @@ def test_row_without_family_container_renders_no_roster() -> None:
         start_time=datetime(2026, 8, 1, 9, 0, 0),
         raw_suffix="20260801090000",
     )
-    assert lone.family_container is None
+    assert lone.agent_session_container is None
 
     header, _ = build_header_text(lone, cheap=True)
 

@@ -46,8 +46,8 @@ def _promoted_family(
         raw_suffix=_ROOT_SUFFIX,
         role_suffix="--0",
         agent_name="pv",
-        agent_family="pv",
-        agent_family_role="root",
+        agent_session="pv",
+        agent_session_role="root",
         plan_chain_root=False,
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
@@ -65,7 +65,7 @@ def _promoted_family(
         step_type="agent",
         role_suffix="--0",
         agent_name="pv--0",
-        agent_family="pv",
+        agent_session="pv",
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
     )
@@ -80,8 +80,8 @@ def _promoted_family(
         parent_timestamp=_ROOT_SUFFIX,
         role_suffix="--plan",
         agent_name="pv--1",
-        agent_family="pv",
-        agent_family_role="agent",
+        agent_session="pv",
+        agent_session_role="agent",
         questions_times=[_QUESTION_TIME],
         plan_times=[_PLAN_TIME],
         plan_action=plan_action,
@@ -100,8 +100,8 @@ def _promoted_family(
             parent_timestamp=_ROOT_SUFFIX,
             role_suffix="--code",
             agent_name="pv--code",
-            agent_family="pv",
-            agent_family_role="code",
+            agent_session="pv",
+            agent_session_role="code",
         )
     return root, main_step, member, coder
 
@@ -190,8 +190,8 @@ def test_promoted_family_plain_question_continuation_is_unaffected() -> None:
         raw_suffix=_ROOT_SUFFIX,
         role_suffix="--0",
         agent_name="pv",
-        agent_family="pv",
-        agent_family_role="root",
+        agent_session="pv",
+        agent_session_role="root",
         plan_chain_root=False,
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
@@ -209,7 +209,7 @@ def test_promoted_family_plain_question_continuation_is_unaffected() -> None:
         step_type="agent",
         role_suffix="--0",
         agent_name="pv--0",
-        agent_family="pv",
+        agent_session="pv",
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
     )
@@ -224,8 +224,8 @@ def test_promoted_family_plain_question_continuation_is_unaffected() -> None:
         parent_timestamp=_ROOT_SUFFIX,
         role_suffix="--1",
         agent_name="pv--1",
-        agent_family="pv",
-        agent_family_role="agent",
+        agent_session="pv",
+        agent_session_role="agent",
         questions_times=[_QUESTION_TIME],
         question_response_path="/tmp/question_response.json",
     )
@@ -242,9 +242,9 @@ def test_promoted_family_derived_marker_survives_partial_reload() -> None:
     root, main_step, member, _ = _promoted_family()
 
     _apply_status_overrides([root, member], [main_step])
-    assert root.derived_plan_family_root is True
+    assert root.derived_plan_agent_session_root is True
 
     _apply_status_overrides([root])
 
-    assert root.derived_plan_family_root is True
+    assert root.derived_plan_agent_session_root is True
     assert is_root_plan_workflow(root)

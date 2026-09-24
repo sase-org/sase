@@ -144,7 +144,7 @@ def resolve_authored_plan(
         or (
             sdd_path is not None
             and agent.plan_committed is not None
-            and agent.agent_family_role in {"code", "plan", "feedback"}
+            and agent.agent_session_role in {"code", "plan", "feedback"}
         )
     )
     if not has_handoff_evidence:

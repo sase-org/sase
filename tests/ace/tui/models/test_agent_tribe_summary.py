@@ -46,8 +46,8 @@ def _agent(
         agent_name=name,
         agent_clan=clan,
         agent_clan_generation=generation,
-        agent_family=family,
-        agent_family_role="root" if role == "plan" else role,
+        agent_session=family,
+        agent_session_role="root" if role == "plan" else role,
         role_suffix=f"--{role}" if role else None,
         plan_chain_root=role == "plan",
         parent_timestamp=parent,
@@ -175,7 +175,7 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
         role="plan",
         parent=root.raw_suffix,
     )
-    planner.agent_family_role = "plan"
+    planner.agent_session_role = "plan"
     planner.parent_workflow = "ace-run"
     planner.step_type = "agent"
     planner.model = "claude/opus"
@@ -488,7 +488,7 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
             role="plan",
             parent=root.raw_suffix,
         )
-        planner.agent_family_role = "plan"
+        planner.agent_session_role = "plan"
         planner.parent_workflow = "ace-run"
         planner.step_type = "agent"
         coder = _agent(

@@ -74,11 +74,11 @@ class TestAgentXPromptHintMode:
         root = make_artifact_agent(root_base, status="DONE")
         followup = make_artifact_agent(followup_base, status="DONE")
         root.role_suffix = "--0"
-        root.agent_family_role = "root"
+        root.agent_session_role = "root"
         root.plan_chain_root = False
         root.raw_suffix = "20240101142345-root"
         followup.role_suffix = "--bar"
-        followup.agent_family_role = "bar"
+        followup.agent_session_role = "bar"
         followup.raw_suffix = "20240101142345-bar"
         followup.parent_timestamp = root.raw_suffix
         root.followup_agents = [followup]

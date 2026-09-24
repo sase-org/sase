@@ -99,7 +99,7 @@ def _running_record() -> dict[str, Any]:
             "name": "athena.agent-1",
             "model": "gpt-5",
             "llm_provider": "codex",
-            "agent_family": "family-1",
+            "agent_session": "family-1",
         },
         "running": {
             "pid": 1234,

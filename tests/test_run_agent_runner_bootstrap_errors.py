@@ -185,9 +185,9 @@ def test_refreshed_bootstrap_preserves_phase_launch_metadata(
         "phase_bead_id": "sase-6k.3",
         "bead_id": "sase-6k.3",
         "plan_committed": True,
-        "agent_family": "sase-6k",
-        "agent_family_role": "phase",
-        "agent_family_parallel": True,
+        "agent_session": "sase-6k",
+        "agent_session_role": "phase",
+        "agent_session_parallel": True,
         "parent_timestamp": "20260701000000",
     }
 

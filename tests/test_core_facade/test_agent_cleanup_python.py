@@ -451,21 +451,21 @@ def test_python_cleanup_planner_cascades_parallel_root_kill_only_to_members() ->
         cl_name="sase-6g",
         raw_suffix="root-ts",
         pid=100,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     member_one = _agent(
         cl_name="sase-6g.1",
         raw_suffix="member-one-ts",
         parent_timestamp="root-ts",
         pid=101,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     member_two = _agent(
         cl_name="sase-6g.2",
         raw_suffix="member-two-ts",
         parent_timestamp="root-ts",
         pid=102,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     serial_child = _agent(
         cl_name="sase-6g--code",
@@ -501,21 +501,21 @@ def test_python_cleanup_planner_parallel_member_kill_does_not_cascade() -> None:
         cl_name="sase-6g",
         raw_suffix="root-ts",
         pid=100,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     selected = _agent(
         cl_name="sase-6g.1",
         raw_suffix="member-one-ts",
         parent_timestamp="root-ts",
         pid=101,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     sibling = _agent(
         cl_name="sase-6g.2",
         raw_suffix="member-two-ts",
         parent_timestamp="root-ts",
         pid=102,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     request = _request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
@@ -537,7 +537,7 @@ def test_python_cleanup_planner_gates_parallel_root_dismissal_until_done() -> No
         raw_suffix="root-ts",
         status="DONE",
         pid=None,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     member = _agent(
         cl_name="member",
@@ -545,7 +545,7 @@ def test_python_cleanup_planner_gates_parallel_root_dismissal_until_done() -> No
         parent_timestamp="root-ts",
         status="RUNNING",
         pid=101,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     request = _request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,

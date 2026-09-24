@@ -434,8 +434,8 @@ class AgentState:
     role_suffix: str | None = None
 
     # Agent-family metadata for plan/question/feedback/coder handoff flows.
-    agent_family: str | None = None
-    agent_family_role: str | None = None
+    agent_session: str | None = None
+    agent_session_role: str | None = None
     imported_source_owner: AgentOwnerIdentity | None = None
     # Rootless parallel clan membership. Clan names are containers and never
     # identify a real agent row.
@@ -454,15 +454,15 @@ class AgentState:
     # ``tree_parent_key`` and ``tree_depth`` place their loaded members below
     # them without overloading artifact ``parent_timestamp`` relationships.
     is_clan_container: bool = field(default=False, compare=False)
-    is_imported_family_container: bool = field(default=False, compare=False)
-    is_remote_family_container: bool = field(default=False, compare=False)
+    is_imported_agent_session_container: bool = field(default=False, compare=False)
+    is_remote_agent_session_container: bool = field(default=False, compare=False)
     tree_parent_key: str | None = field(default=None, compare=False)
     tree_depth: int = field(default=0, compare=False)
     clan_tribes: tuple[str, ...] = field(default_factory=tuple, compare=False)
     # Explicitly marks execution-neutral parallel family membership. Unlike
     # serial plan-chain linkage, these children own independent processes and
     # must be included when their family root is killed or dismissed.
-    agent_family_parallel: bool = False
+    agent_session_parallel: bool = False
     plan_chain_root: bool = False
 
     # User-managed tribe (no '@' prefix; at most one per agent).
@@ -491,15 +491,19 @@ class AgentState:
     # presentation plumbing; not serialized. ``compare``/``repr`` must stay off:
     # this pointer closes a cycle with ``followup_agents``/``runtime_children``
     # and dataclass eq/repr (and the repr-based hint digest) would recurse.
-    family_container: Agent | None = field(default=None, compare=False, repr=False)
-    imported_family_parent_synthetic: bool = field(
+    agent_session_container: Agent | None = field(
+        default=None, compare=False, repr=False
+    )
+    imported_agent_session_parent_synthetic: bool = field(
         default=False, compare=False, repr=False
     )
 
     # Set when a family root's members reveal a plan chain that started after
     # the root was promoted. Derived during status normalization; not
     # serialized. Sticky: normalization only ever sets this, never clears it.
-    derived_plan_family_root: bool = field(default=False, compare=False, repr=False)
+    derived_plan_agent_session_root: bool = field(
+        default=False, compare=False, repr=False
+    )
 
     # Retry-chain lineage (spawn-on-retry).
     # retry_of_timestamp: backward pointer to the immediate parent in the

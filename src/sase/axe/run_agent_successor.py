@@ -87,7 +87,7 @@ class SuccessorRequest:
     suffix: str | None = None
     suffix_template: str | None = None
     extra_reserved_suffixes: tuple[str, ...] = ()
-    agent_family_role: str | None = None
+    agent_session_role: str | None = None
     relationships: dict[str, Any] = field(default_factory=dict)
     prompt_artifact_label: str = "Full follow-up prompt"
     model: FollowupModel | None = None
@@ -238,8 +238,8 @@ def continue_as_successor(
         "workflow_name": ctx.agent_name,
         "relationships": request.relationships,
     }
-    if request.agent_family_role is not None:
-        create_kwargs["agent_family_role"] = request.agent_family_role
+    if request.agent_session_role is not None:
+        create_kwargs["agent_session_role"] = request.agent_session_role
     state.current_artifacts_dir = create(
         ctx.project_name,
         request.base_meta,

@@ -56,7 +56,7 @@ def test_monitor_state_bucket_maps_every_terminal_state(
 
 
 @pytest.mark.parametrize(
-    ("agent_family_role", "role_suffix", "expected"),
+    ("agent_session_role", "role_suffix", "expected"),
     [
         ("monitor", None, True),
         ("root", "--0", False),
@@ -66,11 +66,11 @@ def test_monitor_state_bucket_maps_every_terminal_state(
     ],
 )
 def test_is_monitor_member_role_uses_role_then_suffix_fallback(
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     role_suffix: str | None,
     expected: bool,
 ) -> None:
-    assert is_monitor_member_role(agent_family_role, role_suffix) is expected
+    assert is_monitor_member_role(agent_session_role, role_suffix) is expected
 
 
 def test_from_record_rejects_non_monitor_rows() -> None:

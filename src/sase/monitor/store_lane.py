@@ -151,7 +151,7 @@ def resolve_exact_agent(project_name: str, agent_name: str) -> LaneContext:
 def durable_lane_for_record(record: AgentArtifactRecordWire, *, fallback: str) -> str:
     """Return the durable monitor lane for *record*.
 
-    Prefers persisted ``agent_family`` metadata. A still-bare agent falls
+    Prefers persisted ``agent_session`` metadata. A still-bare agent falls
     back to *fallback* (the exact caller name or an explicit lane) rather
     than guessing from the spelling of ``name``.
     """

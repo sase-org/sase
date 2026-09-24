@@ -14,7 +14,7 @@ def _member(
     name: str,
     *,
     role_suffix: str,
-    agent_family_role: str,
+    agent_session_role: str,
     plan_chain_root: bool = False,
 ) -> Agent:
     artifacts_dir = tmp_path / name
@@ -25,7 +25,7 @@ def _member(
         artifacts_dir=str(artifacts_dir),
         agent_name=f"alpha{name}",
         role_suffix=role_suffix,
-        agent_family_role=agent_family_role,
+        agent_session_role=agent_session_role,
         plan_chain_root=plan_chain_root,
     )
 
@@ -35,14 +35,14 @@ def test_promoted_root_context_label_uses_suffix_token(tmp_path: Path) -> None:
         tmp_path,
         "root",
         role_suffix="--0",
-        agent_family_role="root",
+        agent_session_role="root",
         plan_chain_root=False,
     )
     followup = _member(
         tmp_path,
         "bar",
         role_suffix="--bar",
-        agent_family_role="bar",
+        agent_session_role="bar",
     )
     root.followup_agents = [followup]
 
@@ -56,7 +56,7 @@ def test_historical_q_suffix_context_label_uses_suffix_token(tmp_path: Path) -> 
         tmp_path,
         "historical",
         role_suffix="--q",
-        agent_family_role="review",
+        agent_session_role="review",
     )
 
     members = build_context_members(historical)

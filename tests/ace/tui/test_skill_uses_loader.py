@@ -514,7 +514,7 @@ def test_context_labels_phase_feedback_member_by_suffix(
         raw_suffix="20260614-100000-plan-0",
         role_suffix=f"{PLAN_CHAIN_PLAN_SUFFIX}-0",
     )
-    feedback.agent_family_role = "feedback"
+    feedback.agent_session_role = "feedback"
     root.followup_agents = [feedback]
 
     result = load_skill_uses_for_agent_context(root)

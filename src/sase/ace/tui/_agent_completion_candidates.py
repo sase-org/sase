@@ -468,7 +468,7 @@ def _candidate_from_agent(
     plan_preview: AgentFamilyPlanPreview | None = None,
     extra_search_aliases: tuple[str, ...] = (),
 ) -> AgentCompletionCandidate:
-    role = agent.agent_family_role or agent.role_suffix
+    role = agent.agent_session_role or agent.role_suffix
     raw_prompt = _raw_prompt_for_agent(agent, all_agents)
     canonical_snippet = prompt_snippet(raw_prompt, humanize=False)
     return AgentCompletionCandidate(
@@ -492,7 +492,7 @@ def _candidate_from_agent(
             alias
             for alias in (
                 agent.agent_name if agent.agent_name != name else None,
-                agent.agent_family if agent.agent_family != name else None,
+                agent.agent_session if agent.agent_session != name else None,
                 canonical_snippet,
                 raw_vcs_tag_for_prompt(raw_prompt),
                 *extra_search_aliases,
@@ -506,7 +506,7 @@ def _completion_label(agent: Agent, fallback: str) -> str:
     """Return the concrete row label while keeping the local hood hidden."""
     presented = agent.presented_agent_name
     raw_name = agent.agent_name
-    raw_family = agent.agent_family
+    raw_family = agent.agent_session
     if (
         agent.is_family_root_entry
         and presented

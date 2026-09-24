@@ -30,8 +30,8 @@ def test_serial_successor_of_live_parallel_member_reuses_lineage_and_persists_ow
         tmp_path,
         "20260910140000",
         100,
-        agent_family="fam",
-        agent_family_parallel=True,
+        agent_session="fam",
+        agent_session_parallel=True,
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -40,7 +40,7 @@ def test_serial_successor_of_live_parallel_member_reuses_lineage_and_persists_ow
         "20260910140001",
         101,
         parent_timestamp=parallel_member.name,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=False,
     )
@@ -82,19 +82,19 @@ def test_serial_successor_of_live_parallel_member_reuses_lineage_and_persists_ow
 def test_unrelated_serial_branch_does_not_join_persisted_parallel_lineage(
     tmp_path: Path,
 ) -> None:
-    """A live unrelated branch sharing ``agent_family`` must not merge claims.
+    """A live unrelated branch sharing ``agent_session`` must not merge claims.
 
     The successor already carries its actual (released) parallel
     predecessor's owner key durably on disk -- exactly what
     ``_add_family_metadata``/``create_followup_artifacts`` now persist -- so
     it must resolve its own lineage from that key rather than from the
-    coincidentally-shared ``agent_family`` string.
+    coincidentally-shared ``agent_session`` string.
     """
     serial_branch = artifact(
         tmp_path,
         "20260910141000",
         100,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -103,7 +103,7 @@ def test_unrelated_serial_branch_does_not_join_persisted_parallel_lineage(
         "20260910141001",
         101,
         parent_timestamp="20260910139999",
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=False,
         runner_claim_owner_key="fam:parallel:20260910139999",
@@ -156,7 +156,7 @@ def test_released_lineage_reacquires_at_new_explicit_weight(
         "20260910142001",
         101,
         parent_timestamp="20260910139998",
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=0.5,
         queue_weight_explicit=True,
     )
@@ -200,7 +200,7 @@ def test_invalid_ancestor_weight_fails_closed_for_inherited_successor(
         tmp_path,
         "20260910143000",
         100,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight="not-a-number",
         queue_weight_invalid=True,
     )
@@ -209,7 +209,7 @@ def test_invalid_ancestor_weight_fails_closed_for_inherited_successor(
         "20260910143001",
         101,
         parent_timestamp=poisoned_ancestor.name,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=1.0,
         queue_weight_explicit=False,
     )
@@ -368,8 +368,8 @@ def test_capacity_only_dropped_predecessor_does_not_break_persisted_lineage(
         tmp_path,
         "20260910150000",
         100,
-        agent_family="fam",
-        agent_family_parallel=True,
+        agent_session="fam",
+        agent_session_parallel=True,
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -379,7 +379,7 @@ def test_capacity_only_dropped_predecessor_does_not_break_persisted_lineage(
         "20260910150001",
         101,
         parent_timestamp=elder.name,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=False,
         runner_claim_owner_key="fam:parallel:20260910150000",
@@ -389,7 +389,7 @@ def test_capacity_only_dropped_predecessor_does_not_break_persisted_lineage(
         "20260910150002",
         102,
         parent_timestamp=holder.name,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=False,
         runner_claim_owner_key="fam:parallel:20260910150000",

@@ -219,7 +219,7 @@ def _attach_same_logical_history(summary_pairs: list[_SummaryPair]) -> None:
         if (
             not logical
             or agent.parent_timestamp
-            or (agent.agent_family_role or "") in _NESTED_ROLES
+            or (agent.agent_session_role or "") in _NESTED_ROLES
         ):
             continue
         canonical.setdefault(logical, agent)
@@ -238,7 +238,7 @@ def _family_identity_keys(summary: Mapping[str, Any], agent: Agent) -> tuple[str
     labels = mapping(summary.get("labels"))
     logical_locator = mapping(summary.get("logical_locator"))
     keys = (
-        agent.agent_family,
+        agent.agent_session,
         agent.agent_name,
         labels.get("session_label"),
         labels.get("family_label"),
@@ -264,7 +264,7 @@ def _is_owner_presented_root(summary: Mapping[str, Any], agent: Agent) -> bool:
         summary.get("agent_session_role"),
         summary.get("family_role"),
         summary.get("agent_family_role"),
-        agent.agent_family_role,
+        agent.agent_session_role,
     )
     if kind == "container_header" or role == "root":
         return True
@@ -326,7 +326,7 @@ def _materialize_missing_family_containers(
         if not parent or parent in suffixes:
             continue
         origin = agent.fleet_origin_alias or "remote"
-        family_key = agent.agent_family or parent
+        family_key = agent.agent_session or parent
         root = existing_roots.get((origin, family_key))
         if root is not None and root.raw_suffix:
             agent.parent_timestamp = root.raw_suffix
@@ -393,8 +393,8 @@ def _remote_family_container(
         stop_time=max(stops) if stops and len(stops) == len(members) else None,
         raw_suffix=f"fleet:{origin}:family:{family_key}",
         agent_name=family_key,
-        agent_family=family_key,
-        agent_family_role="root",
+        agent_session=family_key,
+        agent_session_role="root",
         project_display_name=anchor.project_display_name,
         fleet_origin_alias=origin,
         fleet_origin_installation_id=anchor.fleet_origin_installation_id,
@@ -405,7 +405,7 @@ def _remote_family_container(
         fleet_host_done_count=anchor.fleet_host_done_count,
         fleet_host_unknown_count=anchor.fleet_host_unknown_count,
         fleet_row_kind="container_header",
-        is_remote_family_container=True,
+        is_remote_agent_session_container=True,
         agent_clan=anchor.agent_clan,
         agent_clan_generation=anchor.agent_clan_generation,
         clan_tribe=next(iter(clan_tribes)) if len(clan_tribes) == 1 else None,

@@ -29,7 +29,7 @@ def make_restartable_agent(
     outcome: str | None = None,
     pid: int | None = 481920,
     raw_prompt: str | None = DEFAULT_PROMPT,
-    agent_family: str | None = None,
+    agent_session: str | None = None,
     role_suffix: str | None = None,
     extra_meta: dict[str, object] | None = None,
 ) -> Path:
@@ -42,7 +42,7 @@ def make_restartable_agent(
         done=done,
         outcome=outcome,
         pid=pid,
-        agent_family=agent_family,
+        agent_session=agent_session,
         role_suffix=role_suffix,
         raw_prompt=raw_prompt,
         extra_meta=extra_meta,

@@ -134,8 +134,8 @@ def test_filesystem_gate_meta_projects_detail_fields(tmp_path: Path) -> None:
                 "gate_bundle_path": str(tmp_path / "bundle"),
                 "gate_notification_id": "n123",
                 "gate_decision_path": str(tmp_path / "gate_decision.md"),
-                "agent_family": "alpha",
-                "agent_family_role": "gate",
+                "agent_session": "alpha",
+                "agent_session_role": "gate",
                 "role_suffix": "--gate",
             }
         ),
@@ -174,8 +174,8 @@ def test_filesystem_sudo_gate_meta_projects_live_execution(
                 "gate_start_status": "SUDO",
                 "gate_stop_status": "SUDOED",
                 "gate_bundle_path": str(bundle),
-                "agent_family": "alpha",
-                "agent_family_role": "gate",
+                "agent_session": "alpha",
+                "agent_session_role": "gate",
                 "role_suffix": "--gate",
             }
         ),
@@ -290,8 +290,8 @@ def test_filesystem_done_gate_row_projects_custom_stop_status(tmp_path: Path) ->
                 "gate_state": "settling",
                 "gate_start_status": "APPROVE",
                 "gate_stop_status": "APPROVED",
-                "agent_family": "alpha",
-                "agent_family_role": "gate",
+                "agent_session": "alpha",
+                "agent_session_role": "gate",
                 "role_suffix": "--gate",
             }
         ),
@@ -484,8 +484,8 @@ def test_filesystem_done_gate_row_tale_approved_buckets_running(
                 "gate_state": "settling",
                 "gate_start_status": "TALE",
                 "gate_stop_status": "TALE APPROVED",
-                "agent_family": "alpha",
-                "agent_family_role": "gate",
+                "agent_session": "alpha",
+                "agent_session_role": "gate",
                 "role_suffix": "--gate",
             }
         ),

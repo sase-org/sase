@@ -53,7 +53,7 @@ def make_submitted_planner(base: Path, timestamp: str, name: str) -> Path:
         timestamp,
         name,
         workflow_name=name,
-        agent_family=name,
+        agent_session=name,
         role_suffix="--plan",
     )
     meta_path = artifact_dir / "agent_meta.json"

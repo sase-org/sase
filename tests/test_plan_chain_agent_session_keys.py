@@ -119,11 +119,13 @@ def test_accessors_return_none_when_absent() -> None:
 
 def test_accessors_read_object_attributes_either_spelling() -> None:
     assert agent_session_value(SimpleNamespace(agent_session="new")) == "new"
-    assert agent_session_value(SimpleNamespace(agent_family="old")) == "old"
+    assert agent_session_value(SimpleNamespace(agent_session="old")) == "old"
     assert (
         agent_session_role_value(SimpleNamespace(agent_session_role="code")) == "code"
     )
-    assert agent_session_role_value(SimpleNamespace(agent_family_role="plan")) == "plan"
+    assert (
+        agent_session_role_value(SimpleNamespace(agent_session_role="plan")) == "plan"
+    )
     assert agent_session_value(SimpleNamespace()) is None
 
 

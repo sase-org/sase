@@ -64,9 +64,9 @@ def _identity_section(agent: Agent) -> PagerSection | None:
     if owner_badge:
         _label(text, "Owner")
         text.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
-    if agent.agent_family:
+    if agent.agent_session:
         _label(text, "Family")
-        text.append(f"{agent.agent_family}\n", style=_FAMILY_NAME_STYLE)
+        text.append(f"{agent.agent_session}\n", style=_FAMILY_NAME_STYLE)
     if agent.agent_clan:
         _label(text, "Clan")
         text.append(f"{agent.agent_clan}\n")

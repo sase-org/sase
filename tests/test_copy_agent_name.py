@@ -65,8 +65,8 @@ def test_copy_agent_name_uses_agent_name_when_set() -> None:
 def test_copy_agent_name_family_root_uses_root_name() -> None:
     agent = _make_agent(
         agent_name="explicit_name-plan",
-        agent_family="explicit_name",
-        agent_family_role="root",
+        agent_session="explicit_name",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     app = FakeApp(agent)
@@ -183,8 +183,8 @@ def test_copy_agent_reference_warns_for_family_container() -> None:
     agent = _make_agent(
         agent_type=AgentType.RUNNING,
         agent_name="review--plan",
-        agent_family="review",
-        agent_family_role="root",
+        agent_session="review",
+        agent_session_role="root",
         followup_agents=[member],
     )
     app = FakeApp(agent)

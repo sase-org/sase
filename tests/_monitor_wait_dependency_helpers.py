@@ -33,7 +33,7 @@ def _monitor_member(
         "20260813090000",
         "monitor-lane--mon",
         workflow_name="monitor-lane",
-        agent_family="monitor-lane",
+        agent_session="monitor-lane",
         role_suffix="--mon",
     )
     meta_path = artifact_dir / "agent_meta.json"
@@ -129,7 +129,7 @@ def _monitor_handoff_family(
         "20260813085800",
         "monitor-lane--plan",
         workflow_name="monitor-lane",
-        agent_family="monitor-lane",
+        agent_session="monitor-lane",
         role_suffix="--plan",
         done=True,
         outcome="completed",
@@ -140,7 +140,7 @@ def _monitor_handoff_family(
         "20260813090000",
         "monitor-lane--mon",
         workflow_name="monitor-lane",
-        agent_family="monitor-lane",
+        agent_session="monitor-lane",
         role_suffix="--mon",
         parent_timestamp=root_dir.name,
     )
@@ -165,7 +165,7 @@ def _monitor_handoff_family(
             "20260813090100",
             followup_agent or "monitor-lane--1",
             workflow_name="monitor-lane",
-            agent_family="monitor-lane",
+            agent_session="monitor-lane",
             role_suffix="--1",
             parent_timestamp=root_dir.name,
             done=isinstance(successor_outcome, str),

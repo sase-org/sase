@@ -20,7 +20,7 @@ from sase.ace.tui.widgets._agent_list_rendering import (
 )
 from sase.ace.tui.widgets._agent_list_styling import _FOLD_RESTORE_GLYPH_STYLE
 
-from .agent_list_runtime_helpers import family_container, gate_shell
+from .agent_list_runtime_helpers import agent_session_container, gate_shell
 from ._agent_render_cache_helpers import agent as _agent
 from ._agent_render_cache_helpers import bead_key as _bead_key
 from ._agent_render_cache_helpers import style_at as _style_at
@@ -28,8 +28,8 @@ from ._agent_render_cache_helpers import style_at as _style_at
 
 def _running_family_for_cache() -> tuple[Agent, Agent]:
     root = _agent(cl_name="family", status="DONE", agent_name="family--0")
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.role_suffix = "--0"
     root.stop_time = datetime(2026, 4, 25, 14, 29, 0)
     child = _agent(
@@ -39,8 +39,8 @@ def _running_family_for_cache() -> tuple[Agent, Agent]:
         agent_name="family--code",
     )
     child.parent_timestamp = root.raw_suffix
-    child.agent_family = "family"
-    child.agent_family_role = "code"
+    child.agent_session = "family"
+    child.agent_session_role = "code"
     child.role_suffix = "--code"
     child.run_start_time = datetime(2026, 4, 25, 14, 30, 0)
     root.runtime_children = [child]
@@ -257,8 +257,8 @@ def test_cached_format_agent_option_invalidates_on_unresolvable_wait_flag() -> N
 def test_cached_family_root_invalidates_when_first_real_member_is_added() -> None:
     cache = AgentRenderCache()
     root = _agent(agent_name="demo")
-    root.agent_family = "demo"
-    root.agent_family_role = "root"
+    root.agent_session = "demo"
+    root.agent_session_role = "root"
 
     before = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
     member = _agent(
@@ -278,16 +278,16 @@ def test_cached_family_root_invalidates_when_first_real_member_is_added() -> Non
 def test_cached_family_root_ignores_member_unread_count_changes() -> None:
     cache = AgentRenderCache()
     root = _agent(cl_name="build", agent_name="build", raw_suffix="family")
-    root.agent_family = "build"
-    root.agent_family_role = "root"
+    root.agent_session = "build"
+    root.agent_session_role = "root"
     member = _agent(
         cl_name="build--code",
         agent_name="build--code",
         raw_suffix="code",
     )
     member.parent_timestamp = root.raw_suffix
-    member.agent_family = "build"
-    member.agent_family_role = "code"
+    member.agent_session = "build"
+    member.agent_session_role = "code"
     root.followup_agents = [member]
     root.runtime_children = [member]
 
@@ -327,8 +327,8 @@ def test_cached_family_runtime_invalidates_when_active_shell_changes() -> None:
         agent_name="family--review",
     )
     next_child.parent_timestamp = root.raw_suffix
-    next_child.agent_family = "family"
-    next_child.agent_family_role = "review"
+    next_child.agent_session = "family"
+    next_child.agent_session_role = "review"
     next_child.role_suffix = "--review"
     next_child.start_time = datetime(2026, 4, 25, 14, 34, 0)
     next_child.run_start_time = datetime(2026, 4, 25, 14, 34, 0)
@@ -360,8 +360,8 @@ def test_cached_family_runtime_invalidates_when_active_shell_timing_changes() ->
 def test_cached_family_row_invalidates_when_gate_settles() -> None:
     cache = AgentRenderCache()
     planner = _agent(cl_name="family--plan", status="DONE", agent_name="family--plan")
-    planner.agent_family = "family"
-    planner.agent_family_role = "plan"
+    planner.agent_session = "family"
+    planner.agent_session_role = "plan"
     planner.role_suffix = "--plan"
     planner.start_time = datetime(2026, 4, 25, 14, 0, 0)
     planner.run_start_time = datetime(2026, 4, 25, 14, 0, 0)
@@ -374,8 +374,8 @@ def test_cached_family_row_invalidates_when_gate_settles() -> None:
         raw_suffix="gate",
         cl_name="family--gate",
     )
-    gate.agent_family = "family"
-    root = family_container(planner)
+    gate.agent_session = "family"
+    root = agent_session_container(planner)
     root.runtime_children.append(gate)
     root.followup_agents.append(gate)
     now = datetime(2026, 4, 25, 16, 0, 0)

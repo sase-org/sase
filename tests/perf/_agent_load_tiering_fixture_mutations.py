@@ -30,8 +30,8 @@ def write_completed_artifact(
     done_source_machine: str | None = None,
     meta_owner_machine: str | None = None,
     done_owner_machine: str | None = None,
-    agent_family: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session: str | None = None,
+    agent_session_role: str | None = None,
     agent_clan: str | None = None,
     agent_clan_generation: str | None = None,
     parent_timestamp: str | None = None,
@@ -92,10 +92,10 @@ def write_completed_artifact(
             "username": "bryan",
             "machine_name": done_owner_machine,
         }
-    if agent_family is not None:
-        meta["agent_family"] = agent_family
-        if agent_family_role is not None:
-            meta["agent_family_role"] = agent_family_role
+    if agent_session is not None:
+        meta["agent_session"] = agent_session
+        if agent_session_role is not None:
+            meta["agent_session_role"] = agent_session_role
     if agent_clan is not None:
         meta["agent_clan"] = agent_clan
         if agent_clan_generation is not None:

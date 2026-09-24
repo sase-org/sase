@@ -35,7 +35,7 @@ class FamilyAttachLaunchPlan:
     parent_artifacts_dir: str
     role_suffix: str
     agent_name: str
-    agent_family_role: str
+    agent_session_role: str
     parent_family_member_name: str
     parent_family_role_suffix: str
     parent_needs_rename: bool

@@ -48,7 +48,7 @@ def test_kill_and_edit_family_phase_forces_exact_member_attachment() -> None:
         _Agent(
             "%id:sase-8a.3\n%auto\nDo work",
             agent_name="athena.sase-8a.3--plan",
-            agent_family="athena.sase-8a.3",
+            agent_session="athena.sase-8a.3",
             role_suffix="--plan",
             phase_bead_id="sase-8a.3",
         )
@@ -132,7 +132,7 @@ def test_kill_and_edit_family_root_keeps_clan_identity() -> None:
         _Agent(
             _EPIC_ROOT_PROMPT,
             agent_name="sase-pw.1--plan",
-            agent_family="sase-pw.1",
+            agent_session="sase-pw.1",
             role_suffix="--plan",
             phase_bead_id="sase-pw.1",
             is_family_root_entry=True,

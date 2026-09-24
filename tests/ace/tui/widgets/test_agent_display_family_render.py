@@ -239,8 +239,8 @@ def test_root_monitor_phase_follows_planner_step_divider(tmp_path: Path) -> None
         step_index=0,
         parent_step_index=None,
         agent_name="alpha--plan",
-        agent_family=root.agent_family,
-        agent_family_role="plan",
+        agent_session=root.agent_session,
+        agent_session_role="plan",
         role_suffix="--plan",
         model=root.model,
     )
@@ -257,8 +257,8 @@ def test_root_monitor_phase_follows_planner_step_divider(tmp_path: Path) -> None
         raw_suffix="20260718120100",
         parent_timestamp=root.raw_suffix,
         agent_name="alpha--mon",
-        agent_family=root.agent_family,
-        agent_family_role="monitor",
+        agent_session=root.agent_session,
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="m-root",
         monitor_state="completed",
@@ -266,8 +266,8 @@ def test_root_monitor_phase_follows_planner_step_divider(tmp_path: Path) -> None
     )
     root.runtime_children = [planner]
     root.followup_agents = [child, monitor]
-    child.family_container = root
-    monitor.family_container = root
+    child.agent_session_container = root
+    monitor.agent_session_container = root
 
     panel = FakePromptPanel()
     header, error = build_header_text(

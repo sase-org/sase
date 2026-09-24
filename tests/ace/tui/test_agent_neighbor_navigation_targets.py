@@ -43,15 +43,15 @@ def _fold_clans(
 def _family_lane(family: str, *roles: str) -> list[Agent]:
     """Return a family root entry plus its member rows, root first."""
     root = make_agent(f"{family}--plan", status="DONE")
-    root.agent_family = family
-    root.agent_family_role = "root"
+    root.agent_session = family
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     root.refresh_raw_presented_agent_name()
     members = []
     for role in roles:
         member = make_agent(f"{family}--{role}", status="DONE")
-        member.agent_family = family
-        member.agent_family_role = role
+        member.agent_session = family
+        member.agent_session_role = role
         member.parent_timestamp = root.raw_suffix
         members.append(member)
     root.followup_agents = list(members)
@@ -144,9 +144,9 @@ def test_folded_clan_neighbor_excludes_inner_family_member() -> None:
         clan="workers",
         generation="one",
     )
-    family.agent_family = "foo.family"
+    family.agent_session = "foo.family"
     child = make_agent("foo.family--code", status="DONE")
-    child.agent_family = "foo.family"
+    child.agent_session = "foo.family"
     child.parent_timestamp = family.raw_suffix
     family.runtime_children = [child]
     complete = project_clan_tree([origin, family, child])
@@ -168,9 +168,9 @@ def test_folded_clan_neighbor_includes_expanded_inner_family_member() -> None:
         clan="workers",
         generation="one",
     )
-    family.agent_family = "foo.family"
+    family.agent_session = "foo.family"
     child = make_agent("foo.family--code", status="DONE")
-    child.agent_family = "foo.family"
+    child.agent_session = "foo.family"
     child.parent_timestamp = family.raw_suffix
     family.runtime_children = [child]
     complete = project_clan_tree([origin, family, child])

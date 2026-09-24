@@ -193,7 +193,7 @@ def test_start_epic_launch_monitor_uses_explicit_family_lane(
 ) -> None:
     request = start_epic_launch_monitor_request(
         tmp_path,
-        agent_meta={"name": "auth--plan", "agent_family": "auth"},
+        agent_meta={"name": "auth--plan", "agent_session": "auth"},
     )
 
     assert request.lane == "auth"

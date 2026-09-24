@@ -132,8 +132,8 @@ class AgentListEntry:
     changespec_name: str | None = None
     cl_name: str | None = None
     workflow_name: str | None = None
-    agent_family: str | None = None
-    agent_family_role: str | None = None
+    agent_session: str | None = None
+    agent_session_role: str | None = None
     role_suffix: str | None = None
     parent_agent_name: str | None = None
     plan: bool = False
@@ -163,7 +163,7 @@ class AgentListEntry:
 
     @property
     def is_monitor(self) -> bool:
-        return is_monitor_member_role(self.agent_family_role, self.role_suffix)
+        return is_monitor_member_role(self.agent_session_role, self.role_suffix)
 
     @property
     def is_terminal(self) -> bool:

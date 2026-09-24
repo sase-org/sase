@@ -66,7 +66,7 @@ def _gate_row(
             status="GATE",
             raw_suffix=f"20260918{suffix}",
         ),
-        agent_family_role="gate",
+        agent_session_role="gate",
         gate_id=gate_id,
         gate_kind="sudo",
         gate_state="pending",

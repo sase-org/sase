@@ -271,17 +271,17 @@ def test_keybinding_footer_family_member_advertises_shell_digits() -> None:
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--plan"
-    root.agent_family = "alpha"
+    root.agent_session = "alpha"
     root.plan_chain_root = True
     root.role_suffix = "--plan"
     child = _make_agent()
     child.agent_name = "alpha--code"
-    child.agent_family = "alpha"
+    child.agent_session = "alpha"
     child.role_suffix = "--code"
     child.parent_timestamp = "20260101000000"
     root.followup_agents = [child]
     # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
-    child.family_container = root
+    child.agent_session_container = root
     assert root.is_family_container_row is True
     assert child.is_family_container_row is False
 
@@ -467,7 +467,7 @@ def test_keybinding_footer_tmux_choices_label_with_cached_choices() -> None:
 def _monitor_agent(*, monitor_state: str = "running") -> Agent:
     status = "MONITORING" if monitor_state == "running" else "MONITORED"
     agent = _make_agent(status=status)
-    agent.agent_family_role = "monitor"
+    agent.agent_session_role = "monitor"
     agent.role_suffix = "--mon"
     agent.monitor_id = "m123"
     agent.monitor_state = monitor_state
@@ -479,7 +479,7 @@ def _monitor_agent(*, monitor_state: str = "running") -> Agent:
 
 def _monitor_starter_agent() -> Agent:
     agent = _make_agent(status="DONE")
-    agent.agent_family_role = "root"
+    agent.agent_session_role = "root"
     agent.role_suffix = "--0"
     agent.monitor_id = "m123"
     agent.monitor_state = None
@@ -490,7 +490,7 @@ def _monitor_starter_agent() -> Agent:
 def _gate_agent(*, gate_state: str = "pending") -> Agent:
     status = "GATED" if gate_state == "pending" else "GATE DONE"
     agent = _make_agent(status=status)
-    agent.agent_family_role = "gate"
+    agent.agent_session_role = "gate"
     agent.role_suffix = "--gate"
     agent.gate_id = "g123"
     agent.gate_kind = "approval"
@@ -515,11 +515,11 @@ def test_keybinding_footer_running_family_monitor_advertises_shell_digits() -> N
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--0"
-    root.agent_family = "alpha"
+    root.agent_session = "alpha"
     root.plan_chain_root = True
     root.role_suffix = "--0"
     monitor = _monitor_agent(monitor_state="running")
-    monitor.family_container = root
+    monitor.agent_session_container = root
 
     bindings = footer._compute_agent_bindings(monitor)
 
@@ -570,11 +570,11 @@ def test_keybinding_footer_family_gate_advertises_shell_digits() -> None:
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--0"
-    root.agent_family = "alpha"
+    root.agent_session = "alpha"
     root.plan_chain_root = True
     root.role_suffix = "--0"
     gate = _gate_agent(gate_state="pending")
-    gate.family_container = root
+    gate.agent_session_container = root
 
     bindings = footer._compute_agent_bindings(gate)
 

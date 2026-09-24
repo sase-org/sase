@@ -128,8 +128,8 @@ def test_settling_gate_row_is_not_a_target() -> None:
 def test_container_mirroring_gate_state_has_no_phantom_gate() -> None:
     container = replace(
         make_agent(name="fam-root", raw_suffix="20260918010101"),
-        agent_family_role="root",
-        agent_family="fam",
+        agent_session_role="root",
+        agent_session="fam",
         agent_name="starter",
         gate_state="pending",
         gate_start_status="SUDO",
@@ -176,7 +176,7 @@ def test_notification_only_tale_plan_approval_label() -> None:
 def test_monitor_and_proc_rows_are_silent() -> None:
     monitor = replace(
         make_agent(name="mon", raw_suffix="20260918010101"),
-        agent_family_role="monitor",
+        agent_session_role="monitor",
     )
     assert monitor.is_monitor is True
     assert _resolve(monitor).targets == ()

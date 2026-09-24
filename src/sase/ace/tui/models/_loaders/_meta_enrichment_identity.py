@@ -188,8 +188,8 @@ def apply_workflow_child_identity_from_meta(
     child_suffix = _root_child_suffix_from_meta(data)
     child_name = agent_family_phase_name(family, child_suffix)
     agent.agent_name = child_name
-    agent.agent_family = family
-    agent.agent_family_role = agent_family_role_for_suffix(child_suffix)
+    agent.agent_session = family
+    agent.agent_session_role = agent_family_role_for_suffix(child_suffix)
     agent.role_suffix = child_suffix
 
 
@@ -226,6 +226,6 @@ def apply_workflow_child_identity_from_meta_wire(
     child_suffix = _root_child_suffix_from_meta_wire(meta)
     child_name = agent_family_phase_name(family, child_suffix)
     agent.agent_name = child_name
-    agent.agent_family = family
-    agent.agent_family_role = agent_family_role_for_suffix(child_suffix)
+    agent.agent_session = family
+    agent.agent_session_role = agent_family_role_for_suffix(child_suffix)
     agent.role_suffix = child_suffix

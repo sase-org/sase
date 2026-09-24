@@ -133,8 +133,8 @@ def _kind_values(agent: Agent) -> tuple[str, ...]:
 
 def _family_values(agent: Agent) -> tuple[str, ...]:
     inferred = _family_from_name(agent.agent_name)
-    values = [agent.agent_family, inferred]
-    if agent.agent_family or agent.is_family_root_entry:
+    values = [agent.agent_session, inferred]
+    if agent.agent_session or agent.is_family_root_entry:
         values.append(agent.presented_family_reference_name())
     return _distinct(*values)
 
@@ -185,7 +185,7 @@ def _project_locator_values(locator: Mapping[str, Any] | None) -> tuple[str, ...
 
 def _role_values(agent: Agent) -> tuple[str, ...]:
     return _distinct(
-        _normalized_role(agent.agent_family_role),
+        _normalized_role(agent.agent_session_role),
         _normalized_role(agent.role_suffix),
         _role_from_name(agent.agent_name),
     )

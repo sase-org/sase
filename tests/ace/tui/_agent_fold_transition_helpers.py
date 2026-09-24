@@ -174,8 +174,8 @@ def make_loader_shaped_aliased_plan_family() -> tuple[
         status="PLAN APPROVED",
     )
     root.plan_chain_root = True
-    root.agent_family = "he"
-    root.agent_family_role = "root"
+    root.agent_session = "he"
+    root.agent_session_role = "root"
 
     steps = _make_loader_shaped_workflow_steps(root, workflow="ace-run")
     main = steps["agent"]
@@ -187,8 +187,8 @@ def make_loader_shaped_aliased_plan_family() -> tuple[
         status="RUNNING",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "he"
-    coder.agent_family_role = "code"
+    coder.agent_session = "he"
+    coder.agent_session_role = "code"
 
     root.followup_agents.append(coder)
     root.runtime_children.extend([coder, *steps.values()])
@@ -283,11 +283,11 @@ def make_sequential_family(
 ) -> tuple[list[Agent], Agent, Agent]:
     family = make_agent(raw_suffix="family", status=status, tribe=tribe)
     family.plan_chain_root = True
-    family.agent_family = "family"
+    family.agent_session = "family"
     member = make_agent(raw_suffix="member", status=status)
     member.parent_timestamp = family.raw_suffix
-    member.agent_family = "family"
-    member.agent_family_role = "code"
+    member.agent_session = "family"
+    member.agent_session_role = "code"
     family.followup_agents.append(member)
     family.runtime_children.append(member)
     if clan is not None:

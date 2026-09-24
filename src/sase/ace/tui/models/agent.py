@@ -72,7 +72,7 @@ class Agent(AgentState):
     def is_family_root_entry(self) -> bool:
         """Whether this top-level row anchors a persisted agent family."""
         return not self.is_workflow_child and (
-            self.plan_chain_root or self.agent_family_role == "root"
+            self.plan_chain_root or self.agent_session_role == "root"
         )
 
     @property
@@ -86,7 +86,7 @@ class Agent(AgentState):
 
         True from root metadata recorded at promotion time (``plan_chain_root``
         or a ``--plan``-flavored ``role_suffix``), or from a plan chain the
-        family entered later (``derived_plan_family_root``, set during status
+        family entered later (``derived_plan_agent_session_root``, set during status
         normalization when a promoted root's members reveal a plan chain that
         started after the root was promoted).
         """
@@ -94,10 +94,10 @@ class Agent(AgentState):
             return False
         if self.plan_chain_root:
             return True
-        if self.derived_plan_family_root:
+        if self.derived_plan_agent_session_root:
             return True
         suffix = canonical_plan_chain_suffix(self.role_suffix)
-        return self.agent_family_role == "root" and bool(
+        return self.agent_session_role == "root" and bool(
             suffix == PLAN_CHAIN_PLAN_SUFFIX
             or (suffix and suffix.startswith(f"{PLAN_CHAIN_PLAN_SUFFIX}-"))
         )
@@ -106,8 +106,8 @@ class Agent(AgentState):
         """Return the family-container name used by prompt references."""
         if not self.is_family_root_entry:
             return self.agent_name
-        if self.agent_family:
-            return self.agent_family
+        if self.agent_session:
+            return self.agent_session
         if self.agent_name:
             return (
                 agent_family_base(self.agent_name, include_legacy_dash=True)
@@ -133,7 +133,7 @@ class Agent(AgentState):
 
     def presented_family_reference_name(self) -> str | None:
         """Return the local-display family identity without external reads."""
-        raw_family = self.agent_family
+        raw_family = self.agent_session
         if not raw_family:
             return self.presented_agent_name or self.family_reference_name()
         raw_name = self.agent_name or ""
@@ -282,12 +282,12 @@ class Agent(AgentState):
     @property
     def is_monitor(self) -> bool:
         """Whether this row is the monitor member, not the starter back-reference."""
-        return is_monitor_member_role(self.agent_family_role, self.role_suffix)
+        return is_monitor_member_role(self.agent_session_role, self.role_suffix)
 
     @property
     def is_gate(self) -> bool:
         """Whether this row is the durable gate-shell member."""
-        return is_real_gate_member(self.agent_family_role, self.gate_id)
+        return is_real_gate_member(self.agent_session_role, self.gate_id)
 
     @property
     def is_proc_shell(self) -> bool:
@@ -415,17 +415,17 @@ class Agent(AgentState):
                 f"clan:{self.agent_clan}",
                 self.agent_clan_generation,
             )
-        if self.is_imported_family_container and self.agent_family:
+        if self.is_imported_agent_session_container and self.agent_session:
             return (
                 AgentType.RUNNING,
-                f"imported-family:{self.agent_family}",
+                f"imported-family:{self.agent_session}",
                 self.raw_suffix,
             )
-        if self.is_remote_family_container and self.agent_family:
+        if self.is_remote_agent_session_container and self.agent_session:
             origin = self.fleet_origin_alias or ""
             return (
                 AgentType.RUNNING,
-                f"remote-family:{origin}:{self.agent_family}",
+                f"remote-family:{origin}:{self.agent_session}",
                 self.raw_suffix,
             )
         return (self.agent_type, self.cl_name, self.raw_suffix)

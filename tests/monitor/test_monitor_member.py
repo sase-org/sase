@@ -24,7 +24,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
         "cl_name": "acme",
         "bead_id": "sase-kp",
         "tribe": "sase",
-        "agent_family": "acme",
+        "agent_session": "acme",
         "agent_clan": "acme-clan",
         "agent_clan_generation": "20260812115000",
         "vcs_ref": ["gh", "sase"],
@@ -109,7 +109,7 @@ def test_create_monitor_member_inherits_parent_queue_weight_by_default() -> None
     """No override: a general monitor inherits weight/claim like today."""
     base_meta = {
         "name": "acme--0",
-        "agent_family": "acme",
+        "agent_session": "acme",
         "queue_weight": 2.0,
         "queue_weight_explicit": True,
         "runner_claim_owner_key": "owner-key-123",
@@ -148,7 +148,7 @@ def test_create_monitor_member_queue_weight_override_replaces_inherited_weight()
     """An explicit override (epic-launch supervision) wins over inheritance."""
     base_meta = {
         "name": "acme--0",
-        "agent_family": "acme",
+        "agent_session": "acme",
         "queue_weight": 3.0,
         "queue_weight_explicit": True,
         "runner_claim_owner_key": "owner-key-123",
@@ -187,7 +187,7 @@ def test_create_monitor_member_queue_weight_override_replaces_inherited_weight()
 def test_create_monitor_member_persists_execution_argv() -> None:
     artifacts_dir = create_monitor_member(
         "proj",
-        {"name": "acme--0", "agent_family": "acme"},
+        {"name": "acme--0", "agent_session": "acme"},
         lane="acme",
         suffix="--mon",
         prev_artifacts_timestamp="20260812120000",
@@ -227,7 +227,7 @@ def test_create_monitor_member_persists_execution_argv() -> None:
 
 
 def test_create_monitor_member_omits_next_action_when_none() -> None:
-    base_meta = {"name": "acme--0", "agent_family": "acme"}
+    base_meta = {"name": "acme--0", "agent_session": "acme"}
 
     artifacts_dir = create_monitor_member(
         "proj",

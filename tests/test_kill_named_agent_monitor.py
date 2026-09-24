@@ -173,7 +173,7 @@ def test_mobile_exact_name_kill_inherits_monitor_stop(
     )
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     meta_path.write_text(
-        '{"name": "sase-ru.6--mon-1", "agent_family_role": "monitor", '
+        '{"name": "sase-ru.6--mon-1", "agent_session_role": "monitor", '
         '"monitor_id": "0fmbm91hgytw"}',
         encoding="utf-8",
     )

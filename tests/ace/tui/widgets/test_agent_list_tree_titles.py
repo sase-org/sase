@@ -37,8 +37,8 @@ def test_family_coder_project_child_omits_project_display_name() -> None:
         status="RUNNING",
         parent_timestamp="20260819080000",
         agent_name="08b--code",
-        agent_family="08b",
-        agent_family_role="code",
+        agent_session="08b",
+        agent_session_role="code",
         llm_provider="codex",
     )
 
@@ -60,8 +60,8 @@ def test_monitor_row_uses_glyph_without_label_or_command() -> None:
         raw_suffix="20260812090000",
         parent_timestamp="20260812085900",
         agent_name="08b--mon",
-        agent_family="08b",
-        agent_family_role="monitor",
+        agent_session="08b",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="m123",
         monitor_state="running",
@@ -112,8 +112,8 @@ def test_family_container_and_standalone_root_keep_titles() -> None:
     root = make_agent(
         cl_name="08b",
         agent_name="08b--0",
-        agent_family="08b",
-        agent_family_role="root",
+        agent_session="08b",
+        agent_session_role="root",
         plan_chain_root=True,
         llm_provider=None,
     )
@@ -122,7 +122,7 @@ def test_family_container_and_standalone_root_keep_titles() -> None:
         project_file="/workspace/sase/sase.sase",
         parent_timestamp="ts",
         agent_name="08b--code",
-        agent_family="08b",
+        agent_session="08b",
         llm_provider=None,
     )
     root.followup_agents = [member]

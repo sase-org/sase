@@ -281,17 +281,17 @@ def test_family_member_completion_notifications_project_to_one_node(
     notification_dismiss.return_value = 2
     family = make_agent(name="build", status="DONE", raw_suffix="family")
     family.agent_name = "build"
-    family.agent_family = "build"
-    family.agent_family_role = "root"
+    family.agent_session = "build"
+    family.agent_session_role = "root"
     plan = make_agent(name="build--plan", status="DONE", raw_suffix="plan")
     plan.agent_name = "build--plan"
-    plan.agent_family = "build"
-    plan.agent_family_role = "plan"
+    plan.agent_session = "build"
+    plan.agent_session_role = "plan"
     plan.parent_timestamp = family.raw_suffix
     code = make_agent(name="build--code", status="DONE", raw_suffix="code")
     code.agent_name = "build--code"
-    code.agent_family = "build"
-    code.agent_family_role = "code"
+    code.agent_session = "build"
+    code.agent_session_role = "code"
     code.parent_timestamp = family.raw_suffix
     family.runtime_children = [plan, code]
     family.followup_agents = [plan, code]
@@ -332,8 +332,8 @@ def test_plan_family_root_dismissal_includes_its_own_notification_key() -> None:
     """
     raw_suffix = "root"
     root = make_agent(name="gh_sase-org__sase", status="DONE", raw_suffix=raw_suffix)
-    root.agent_family = "gh_sase-org__sase"
-    root.agent_family_role = "root"
+    root.agent_session = "gh_sase-org__sase"
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     root.role_suffix = "--plan"
     main_step = make_agent(name="main", status="DONE", raw_suffix=raw_suffix)
@@ -352,12 +352,12 @@ def test_plan_family_root_dismissal_includes_its_own_notification_key() -> None:
 def test_manual_toggle_rejects_family_member_shell() -> None:
     family = make_agent(name="build", status="DONE", raw_suffix="family")
     family.agent_name = "build"
-    family.agent_family = "build"
-    family.agent_family_role = "root"
+    family.agent_session = "build"
+    family.agent_session_role = "root"
     child = make_agent(name="build--code", status="DONE", raw_suffix="code")
     child.agent_name = "build--code"
-    child.agent_family = "build"
-    child.agent_family_role = "code"
+    child.agent_session = "build"
+    child.agent_session_role = "code"
     child.parent_timestamp = family.raw_suffix
     family.followup_agents = [child]
     app = UnreadJumpApp([family, child], current_idx=1)

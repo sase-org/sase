@@ -33,8 +33,8 @@ def _family_root(**overrides: object) -> Agent:
         "raw_suffix": "20260708090000",
         "agent_name": "output-var-family",
         "role_suffix": "--plan",
-        "agent_family": "output-var-family",
-        "agent_family_role": "root",
+        "agent_session": "output-var-family",
+        "agent_session_role": "root",
         "plan_chain_root": True,
     }
     defaults.update(overrides)
@@ -46,7 +46,7 @@ def _family_child(
     name: str,
     *,
     role_suffix: str,
-    agent_family_role: str,
+    agent_session_role: str,
     output_variables: dict[str, VarValue],
 ) -> Agent:
     artifacts_dir = tmp_path / name
@@ -57,8 +57,8 @@ def _family_child(
         parent_timestamp="20260708090000",
         artifacts_dir=str(artifacts_dir),
         agent_name=f"output-var-family--{name}",
-        agent_family="output-var-family",
-        agent_family_role=agent_family_role,
+        agent_session="output-var-family",
+        agent_session_role=agent_session_role,
         role_suffix=role_suffix,
         output_variables=output_variables,
     )
@@ -212,14 +212,14 @@ def test_output_variables_aggregate_two_children_distinct_keys(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={"build_report": "/tmp/build.md"},
     )
     continuation = _family_child(
         tmp_path,
         "continuation",
         role_suffix="--1",
-        agent_family_role="review",
+        agent_session_role="review",
         output_variables={"answer_path": "/tmp/answer.md"},
     )
     root.followup_agents = [coder, continuation]
@@ -240,14 +240,14 @@ def test_output_variables_keep_same_key_from_multiple_children(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={"result_path": "/tmp/build-result.md"},
     )
     continuation = _family_child(
         tmp_path,
         "continuation",
         role_suffix="--1",
-        agent_family_role="review",
+        agent_session_role="review",
         output_variables={"result_path": "/tmp/question-result.md"},
     )
     root.followup_agents = [coder, continuation]
@@ -267,14 +267,14 @@ def test_output_variables_root_without_vars_aggregates_children(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={"coder_result": "ready"},
     )
     commit = _family_child(
         tmp_path,
         "commit",
         role_suffix="--commit",
-        agent_family_role="commit",
+        agent_session_role="commit",
         output_variables={"commit_sha": "abc1234"},
     )
     root.followup_agents = [coder, commit]
@@ -295,7 +295,7 @@ def test_output_variables_root_and_child_are_attributed(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={"code_path": "/tmp/code.md"},
     )
     root.followup_agents = [coder]
@@ -317,7 +317,7 @@ def test_output_variables_single_contributor_stays_flat(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={"only": "child"},
     )
     child_only_root.followup_agents = [coder]
@@ -341,14 +341,14 @@ def test_output_variables_multiline_value_aligns_under_role_gutter(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={"notes": "line one\nline two"},
     )
     continuation = _family_child(
         tmp_path,
         "continuation",
         role_suffix="--1",
-        agent_family_role="review",
+        agent_session_role="review",
         output_variables={"answer": "ready"},
     )
     root.followup_agents = [coder, continuation]
@@ -366,7 +366,7 @@ def test_attributed_structured_variables_keep_role_gutter_at_every_depth(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={
             "cfg": {
                 "flags": [True, False],
@@ -378,7 +378,7 @@ def test_attributed_structured_variables_keep_role_gutter_at_every_depth(
         tmp_path,
         "continuation-structured",
         role_suffix="--1",
-        agent_family_role="review",
+        agent_session_role="review",
         output_variables={"answer": "ready"},
     )
     root.followup_agents = [coder, continuation]
@@ -404,7 +404,7 @@ def test_output_variables_order_root_then_followups_and_sorted_keys(
         tmp_path,
         "coder",
         role_suffix="--code",
-        agent_family_role="code",
+        agent_session_role="code",
         output_variables={"z_child": "last", "a_child": "first"},
     )
     root.followup_agents = [coder]

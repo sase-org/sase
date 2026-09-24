@@ -428,7 +428,7 @@ def _add_family_metadata(
     set_agent_session_fields(
         agent_meta,
         session=family_attach_plan.parent_base,
-        role=family_attach_plan.agent_family_role,
+        role=family_attach_plan.agent_session_role,
     )
     claimed_workspace_num = agent_meta.get("workspace_num")
     run_has_claimed_workspace = (

@@ -21,11 +21,14 @@ _ROOT_SUFFIX = "20260805130000"
 
 
 def _family_root(
-    *, role_suffix: str = "--plan", agent_family_role: str = "plan", **overrides: object
+    *,
+    role_suffix: str = "--plan",
+    agent_session_role: str = "plan",
+    **overrides: object,
 ) -> Agent:
     return make_agent(
-        agent_family=_FAMILY_NAME,
-        agent_family_role=agent_family_role,
+        agent_session=_FAMILY_NAME,
+        agent_session_role=agent_session_role,
         plan_chain_root=True,
         raw_suffix=_ROOT_SUFFIX,
         role_suffix=role_suffix,
@@ -34,11 +37,11 @@ def _family_root(
 
 
 def _family_member(
-    role_suffix: str, agent_family_role: str, **overrides: object
+    role_suffix: str, agent_session_role: str, **overrides: object
 ) -> Agent:
     values: dict[str, object] = {
-        "agent_family": _FAMILY_NAME,
-        "agent_family_role": agent_family_role,
+        "agent_session": _FAMILY_NAME,
+        "agent_session_role": agent_session_role,
         "agent_name": f"{_FAMILY_NAME}{role_suffix}",
         "parent_timestamp": _ROOT_SUFFIX,
         "raw_suffix": f"{_ROOT_SUFFIX}{role_suffix}",

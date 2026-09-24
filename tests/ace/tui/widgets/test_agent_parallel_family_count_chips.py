@@ -24,11 +24,11 @@ def _agent(*, suffix: str, status: str = "RUNNING") -> Agent:
 
 def _family_root() -> Agent:
     root = _agent(suffix="root", status="WAITING")
-    root.agent_family_parallel = True
+    root.agent_session_parallel = True
     statuses = ("QUESTION", "RUNNING", "STARTING", "QUEUED", "FAILED", "DONE")
     for index, status in enumerate(statuses):
         member = _agent(suffix=f"member-{index}", status=status)
-        member.agent_family_parallel = True
+        member.agent_session_parallel = True
         member.parent_timestamp = root.raw_suffix
         if status == "QUEUED":
             member.pid = 100
@@ -163,15 +163,15 @@ def test_family_inside_clan_omits_chip_and_member_unread_suffix() -> None:
     family = _agent(suffix="family", status="DONE")
     family.cl_name = "research.writer"
     family.agent_name = "research.writer"
-    family.agent_family = "research.writer"
-    family.agent_family_role = "root"
+    family.agent_session = "research.writer"
+    family.agent_session_role = "root"
     family.agent_clan = "research"
     family.agent_clan_generation = "gen"
     member = _agent(suffix="member", status="DONE")
     member.cl_name = "research.writer--code"
     member.agent_name = "research.writer--code"
-    member.agent_family = "research.writer"
-    member.agent_family_role = "code"
+    member.agent_session = "research.writer"
+    member.agent_session_role = "code"
     member.parent_timestamp = family.raw_suffix
     member.agent_clan = "research"
     member.agent_clan_generation = "gen"

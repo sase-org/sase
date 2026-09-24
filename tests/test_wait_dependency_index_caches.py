@@ -25,7 +25,7 @@ def _meta(
     data: dict[str, object] = {"name": name}
     if family is not None:
         data["workflow_name"] = family
-        data["agent_family"] = family
+        data["agent_session"] = family
     if tribe is not None:
         data["tribe"] = tribe
     return data

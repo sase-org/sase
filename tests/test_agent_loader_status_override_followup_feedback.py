@@ -24,8 +24,8 @@ def test_apply_status_overrides_feedback_child_unreviewed_plan_stays_done() -> N
         raw_suffix="20260517085500",
         role_suffix="-plan",
         agent_name="root",
-        agent_family="root",
-        agent_family_role="root",
+        agent_session="root",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     feedback_child = Agent(
@@ -61,8 +61,8 @@ def test_apply_status_overrides_new_plan_feedback_child_without_gate_stays_done(
         raw_suffix="20260517085500",
         role_suffix="-plan",
         agent_name="root",
-        agent_family="root",
-        agent_family_role="root",
+        agent_session="root",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     feedback_child = Agent(
@@ -73,7 +73,7 @@ def test_apply_status_overrides_new_plan_feedback_child_without_gate_stays_done(
         start_time=datetime(2026, 5, 17, 9, 5, 0),
         parent_timestamp="20260517085500",
         role_suffix="--plan-0",
-        agent_family_role="feedback",
+        agent_session_role="feedback",
         feedback_times=[feedback_time],
         plan_times=[plan_time],
     )
@@ -99,8 +99,8 @@ def test_apply_status_overrides_feedback_child_approved_by_metadata_shows_approv
         raw_suffix="20260517085500",
         role_suffix="-plan",
         agent_name="root",
-        agent_family="root",
-        agent_family_role="root",
+        agent_session="root",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     feedback_child = Agent(
@@ -137,8 +137,8 @@ def test_apply_status_overrides_feedback_child_after_code_handoff_shows_approved
         raw_suffix="20260517085500",
         role_suffix="-plan",
         agent_name="root",
-        agent_family="root",
-        agent_family_role="root",
+        agent_session="root",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     feedback_child = Agent(
@@ -162,8 +162,8 @@ def test_apply_status_overrides_feedback_child_after_code_handoff_shows_approved
         parent_timestamp="20260517085500",
         role_suffix="-code",
         agent_name="root-code",
-        agent_family="root",
-        agent_family_role="code",
+        agent_session="root",
+        agent_session_role="code",
         plan_action="tale",
     )
 

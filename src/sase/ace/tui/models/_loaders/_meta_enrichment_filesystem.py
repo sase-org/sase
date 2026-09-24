@@ -206,20 +206,20 @@ def enrich_agent_from_meta(
         agent.role_suffix = data["role_suffix"]
     session_name = agent_session_value(data)
     if not workflow_child and session_name:
-        agent.agent_family = session_name
+        agent.agent_session = session_name
     session_role = agent_session_role_value(data)
     if not workflow_child and session_role:
-        agent.agent_family_role = session_role
+        agent.agent_session_role = session_role
     if not workflow_child:
         apply_imported_source_owner(agent, data.get("imported_source_owner"))
         apply_archive_source_machine(agent, data.get("source_machine"))
     if not workflow_child:
-        agent.agent_family_parallel = bool(agent_session_parallel_value(data))
+        agent.agent_session_parallel = bool(agent_session_parallel_value(data))
         raw_clan = data.get("agent_clan")
         if not isinstance(raw_clan, str) or not raw_clan:
-            legacy_family = agent_session_value(data)
-            if agent.agent_family_parallel and isinstance(legacy_family, str):
-                raw_clan = legacy_family
+            session_fallback = agent_session_value(data)
+            if agent.agent_session_parallel and isinstance(session_fallback, str):
+                raw_clan = session_fallback
         if isinstance(raw_clan, str) and raw_clan:
             agent.agent_clan = raw_clan
         raw_generation = data.get("agent_clan_generation")
@@ -544,7 +544,7 @@ def enrich_agent_from_meta(
         monitor_host_completion_message=data.get("monitor_host_completion_message"),
         monitor_host_completion_reason=data.get("monitor_host_completion_reason"),
         monitor_member=is_monitor_member_role(
-            agent.agent_family_role,
+            agent.agent_session_role,
             agent.role_suffix,
         ),
     )
@@ -578,7 +578,7 @@ def enrich_agent_from_meta(
         gate_notification_id=data.get("gate_notification_id"),
         gate_decision_path=data.get("gate_decision_path"),
         gate_member=is_real_gate_member(
-            agent.agent_family_role,
+            agent.agent_session_role,
             data.get("gate_id") if isinstance(data.get("gate_id"), str) else None,
         ),
     )

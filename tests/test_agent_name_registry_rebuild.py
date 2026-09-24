@@ -75,8 +75,8 @@ def test_registry_rebuild_collects_family_container(tmp_path: Path) -> None:
             {
                 "name": "foo--0",
                 "workflow_name": "foo",
-                "agent_family": "foo",
-                "agent_family_role": "root",
+                "agent_session": "foo",
+                "agent_session_role": "root",
                 "role_suffix": "--0",
             }
         ),
@@ -101,7 +101,7 @@ def test_registry_rebuild_family_container_outranks_auto_prefix(
         "run2",
         "sq--plan",
         workflow_name="sq",
-        agent_family="sq",
+        agent_session="sq",
         role_suffix="--plan",
     )
 
@@ -569,8 +569,8 @@ def _make_family_agent(tmp_path: Path, suffix: str, family: str) -> Path:
             {
                 "name": f"{family}--0",
                 "workflow_name": family,
-                "agent_family": family,
-                "agent_family_role": "root",
+                "agent_session": family,
+                "agent_session_role": "root",
                 "role_suffix": "--0",
             }
         ),

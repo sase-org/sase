@@ -183,7 +183,7 @@ def test_create_followup_persists_custom_role_override(tmp_path) -> None:
             "20260326120000",
             agent_name_override="a--2",
             workflow_name="a",
-            agent_family_role="reviewer",
+            agent_session_role="reviewer",
         )
 
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())

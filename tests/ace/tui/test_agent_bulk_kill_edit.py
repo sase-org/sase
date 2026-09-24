@@ -41,8 +41,8 @@ class _FakeAgent:
     project_file: str = "/tmp/projects/proj/proj.sase"
     is_project_agent: bool = False
     agent_type: AgentType = AgentType.RUNNING
-    agent_family: str | None = None
-    agent_family_parallel: bool = False
+    agent_session: str | None = None
+    agent_session_parallel: bool = False
     role_suffix: str | None = None
     phase_bead_id: str | None = None
 
@@ -307,7 +307,7 @@ def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
         raw_suffix="20260723120000",
         raw_prompt="Implement the plan",
         agent_name="sase-8u.4.2--code",
-        agent_family="sase-8u.4.2",
+        agent_session="sase-8u.4.2",
         role_suffix="--code",
         phase_bead_id="sase-8u.4.2",
         status="DONE",
@@ -330,7 +330,7 @@ def test_bulk_kill_and_edit_running_family_member_names_lane_and_member() -> Non
         raw_suffix="20260723120000",
         raw_prompt="Implement the plan",
         agent_name="sase-8u.4.2--code",
-        agent_family="sase-8u.4.2",
+        agent_session="sase-8u.4.2",
         role_suffix="--code",
         phase_bead_id="sase-8u.4.2",
         status="RUNNING",
@@ -485,7 +485,7 @@ def test_bulk_kill_and_edit_unverified_identity_aborts_before_kill() -> None:
         raw_suffix="20240101130000",
         raw_prompt="Do work",
         agent_name="sase-pw.1",
-        agent_family="sase-pw.1",
+        agent_session="sase-pw.1",
         role_suffix="--code",
         status="RUNNING",
         pid=222,

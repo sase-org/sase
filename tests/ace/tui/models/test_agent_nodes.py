@@ -50,8 +50,8 @@ def _agent(name: str, **overrides: object) -> Agent:
             "family container",
             _agent(
                 "build--plan",
-                agent_family="build",
-                agent_family_role="root",
+                agent_session="build",
+                agent_session_role="root",
                 plan_chain_root=True,
             ),
             True,
@@ -71,8 +71,8 @@ def _agent(name: str, **overrides: object) -> Agent:
             _agent(
                 "build--code",
                 parent_timestamp="suffix-build--plan",
-                agent_family="build",
-                agent_family_role="code",
+                agent_session="build",
+                agent_session_role="code",
             ),
             False,
         ),
@@ -91,8 +91,8 @@ def _agent(name: str, **overrides: object) -> Agent:
             _agent(
                 "build--monitor",
                 parent_timestamp="suffix-build--plan",
-                agent_family="build",
-                agent_family_role="monitor",
+                agent_session="build",
+                agent_session_role="monitor",
                 monitor_id="monitor-1",
             ),
             False,
@@ -108,12 +108,12 @@ def test_agents_tab_agent_node_truth_table(
 
 
 def test_family_container_detection_counts_as_agent_node_after_member_load() -> None:
-    root = _agent("build", agent_family="build", agent_family_role="root")
+    root = _agent("build", agent_session="build", agent_session_role="root")
     child = _agent(
         "build--code",
         parent_timestamp=root.raw_suffix,
-        agent_family="build",
-        agent_family_role="code",
+        agent_session="build",
+        agent_session_role="code",
     )
     root.followup_agents = [child]
 
@@ -128,8 +128,8 @@ def _plan_family_root_with_main_step_and_continuation() -> tuple[Agent, Agent, A
     """
     root = _agent(
         "gh_sase-org__sase",
-        agent_family="gh_sase-org__sase",
-        agent_family_role="root",
+        agent_session="gh_sase-org__sase",
+        agent_session_role="root",
         plan_chain_root=True,
         role_suffix="--plan",
     )
@@ -143,8 +143,8 @@ def _plan_family_root_with_main_step_and_continuation() -> tuple[Agent, Agent, A
     continuation = _agent(
         "gh_sase-org__sase--code",
         parent_timestamp=root.raw_suffix,
-        agent_family="gh_sase-org__sase",
-        agent_family_role="code",
+        agent_session="gh_sase-org__sase",
+        agent_session_role="code",
     )
     root.runtime_children = [main_step, continuation]
     root.followup_agents = [main_step, continuation]
@@ -182,14 +182,14 @@ def test_standalone_node_yields_exactly_one_completion_key() -> None:
 def test_sequential_family_container_owns_member_keys_and_its_own_key() -> None:
     root = _agent(
         "alpha--0",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
     )
     coder = _agent(
         "alpha--code",
         parent_timestamp=root.raw_suffix,
-        agent_family="alpha",
-        agent_family_role="code",
+        agent_session="alpha",
+        agent_session_role="code",
     )
     root.runtime_children = [coder]
     root.followup_agents = [coder]
@@ -205,24 +205,24 @@ def _gate_launch_family() -> tuple[Agent, Agent, Agent]:
     node = _agent(
         "build--plan",
         raw_suffix="node-suffix",
-        agent_family="build",
-        agent_family_role="root",
+        agent_session="build",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     gate = _agent(
         "build--gate",
         raw_suffix="gate-suffix",
         parent_timestamp=node.raw_suffix,
-        agent_family="build",
-        agent_family_role="gate",
+        agent_session="build",
+        agent_session_role="gate",
         gate_id="gate-1",
     )
     monitor = _agent(
         "build--mon",
         raw_suffix="mon-suffix",
         parent_timestamp=gate.raw_suffix,
-        agent_family="build",
-        agent_family_role="monitor",
+        agent_session="build",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="mon-1",
     )
@@ -245,23 +245,23 @@ def test_family_member_monitor_is_owned_by_family_node() -> None:
     node = _agent(
         "build--plan",
         raw_suffix="node-suffix",
-        agent_family="build",
-        agent_family_role="root",
+        agent_session="build",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     coder = _agent(
         "build--code",
         raw_suffix="code-suffix",
         parent_timestamp=node.raw_suffix,
-        agent_family="build",
-        agent_family_role="code",
+        agent_session="build",
+        agent_session_role="code",
     )
     monitor = _agent(
         "build--mon",
         raw_suffix="mon-suffix",
         parent_timestamp=coder.raw_suffix,
-        agent_family="build",
-        agent_family_role="monitor",
+        agent_session="build",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="mon-1",
     )
@@ -277,30 +277,30 @@ def test_ownership_chain_cycle_guard_stays_unowned() -> None:
     node = _agent(
         "build--plan",
         raw_suffix="node-suffix",
-        agent_family="build",
-        agent_family_role="root",
+        agent_session="build",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     first = _agent(
         "build--a",
         raw_suffix="cycle-a",
         parent_timestamp="cycle-b",
-        agent_family="build",
-        agent_family_role="code",
+        agent_session="build",
+        agent_session_role="code",
     )
     second = _agent(
         "build--b",
         raw_suffix="cycle-b",
         parent_timestamp="cycle-a",
-        agent_family="build",
-        agent_family_role="code",
+        agent_session="build",
+        agent_session_role="code",
     )
     loop = _agent(
         "build--loop",
         raw_suffix="loop-suffix",
         parent_timestamp="loop-suffix",
-        agent_family="build",
-        agent_family_role="code",
+        agent_session="build",
+        agent_session_role="code",
     )
 
     index = agent_node_projection_index([node, first, second, loop])
@@ -314,24 +314,24 @@ def test_ownership_dangling_chain_stays_unowned() -> None:
     node = _agent(
         "build--plan",
         raw_suffix="node-suffix",
-        agent_family="build",
-        agent_family_role="root",
+        agent_session="build",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     gate = _agent(
         "build--gate",
         raw_suffix="gate-suffix",
         parent_timestamp="missing-suffix",
-        agent_family="build",
-        agent_family_role="gate",
+        agent_session="build",
+        agent_session_role="gate",
         gate_id="gate-1",
     )
     monitor = _agent(
         "build--mon",
         raw_suffix="mon-suffix",
         parent_timestamp=gate.raw_suffix,
-        agent_family="build",
-        agent_family_role="monitor",
+        agent_session="build",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="mon-1",
     )
@@ -357,24 +357,24 @@ def test_nested_monitors_do_not_cross_families() -> None:
     second_node = _agent(
         "other--plan",
         raw_suffix="other-node-suffix",
-        agent_family="other",
-        agent_family_role="root",
+        agent_session="other",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     second_gate = _agent(
         "other--gate",
         raw_suffix="other-gate-suffix",
         parent_timestamp=second_node.raw_suffix,
-        agent_family="other",
-        agent_family_role="gate",
+        agent_session="other",
+        agent_session_role="gate",
         gate_id="gate-2",
     )
     second_monitor = _agent(
         first_monitor.cl_name,
         raw_suffix="other-mon-suffix",
         parent_timestamp=second_gate.raw_suffix,
-        agent_family="other",
-        agent_family_role="monitor",
+        agent_session="other",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="mon-2",
     )

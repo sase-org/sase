@@ -176,8 +176,8 @@ def _family_lane_neighbor_agents() -> list[Agent]:
         index=0,
         status="DONE",
         role_suffix="--plan",
-        agent_family="visual.worker",
-        agent_family_role="plan",
+        agent_session="visual.worker",
+        agent_session_role="plan",
         plan_chain_root=True,
         workspace_num=4,
     )
@@ -190,8 +190,8 @@ def _family_lane_neighbor_agents() -> list[Agent]:
                 status="DONE",
                 parent_timestamp=root.raw_suffix,
                 role_suffix=f"--{role}",
-                agent_family="visual.worker",
-                agent_family_role=role,
+                agent_session="visual.worker",
+                agent_session_role=role,
                 workspace_num=4 + index,
             )
         )

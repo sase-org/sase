@@ -149,8 +149,8 @@ def test_family_resolution_survives_cross_project_collision() -> None:
         start_time=datetime(2026, 6, 8, 7, 0, 0),
         role_suffix="--plan",
         plan_action="tale",
-        agent_family="bob_feature",
-        agent_family_role="root",
+        agent_session="bob_feature",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     coder = _workflow_agent(
@@ -161,8 +161,8 @@ def test_family_resolution_survives_cross_project_collision() -> None:
         start_time=datetime(2026, 6, 8, 7, 8, 34),
         parent_timestamp=root_suffix,
         role_suffix="--code",
-        agent_family="bob_feature",
-        agent_family_role="code",
+        agent_session="bob_feature",
+        agent_session_role="code",
     )
     # Unrelated, already-completed workflow in another project, same launch sec.
     unrelated = _workflow_agent(
@@ -283,7 +283,7 @@ def test_incomplete_merge_artifact_row_recovery_key_is_project_scoped() -> None:
         raw_suffix=suffix,
         pid=333,
         parent_timestamp=parent_suffix,
-        agent_family="project_b.parent",
+        agent_session="project_b.parent",
         agent_clan="project-b-clan",
     )
     prep = PreparedApplyData(

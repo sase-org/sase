@@ -204,8 +204,8 @@ def build_agent_list_entry(
                 record.workflow_state if record is not None else None, "workflow_name"
             ),
         ),
-        agent_family=_text(meta, "agent_session"),
-        agent_family_role=_text(meta, "agent_session_role"),
+        agent_session=_text(meta, "agent_session"),
+        agent_session_role=_text(meta, "agent_session_role"),
         role_suffix=_text(meta, "role_suffix"),
         parent_agent_name=_text(meta, "parent_agent_name"),
         plan=bool(_bool(meta, "plan")),

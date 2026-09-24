@@ -46,8 +46,8 @@ def _root(*, plan_action: str | None = None) -> Agent:
         raw_suffix=_ROOT_SUFFIX,
         role_suffix="-plan",
         agent_name=_FAMILY,
-        agent_family=_FAMILY,
-        agent_family_role="root",
+        agent_session=_FAMILY,
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action=plan_action,
     )
@@ -74,8 +74,8 @@ def _planner_step(
         step_type="agent",
         role_suffix="-plan",
         agent_name=f"{_FAMILY}--0",
-        agent_family=_FAMILY,
-        agent_family_role="plan",
+        agent_session=_FAMILY,
+        agent_session_role="plan",
         plan_action=plan_action,
         plan_times=plan_times,
         gate_id=gate_id,
@@ -134,8 +134,8 @@ def _coder(*, status: str) -> Agent:
         parent_timestamp=_ROOT_SUFFIX,
         role_suffix="--code",
         agent_name=f"{_FAMILY}--code",
-        agent_family=_FAMILY,
-        agent_family_role="code",
+        agent_session=_FAMILY,
+        agent_session_role="code",
     )
 
 

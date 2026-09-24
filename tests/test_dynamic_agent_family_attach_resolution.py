@@ -520,7 +520,7 @@ def test_family_attach_role_mapping_through_attach_path(
     )
 
     assert plan.role_suffix == f"--{suffix}"
-    assert plan.agent_family_role == expected_role
+    assert plan.agent_session_role == expected_role
 
 
 @pytest.mark.parametrize(
@@ -579,13 +579,13 @@ def test_family_attach_coder_resolves_when_snapshot_has_empty_agent_names(
         [
             _artifact_record(
                 name="other",
-                agent_family=None,
+                agent_session=None,
                 timestamp="20260701010000",
                 artifact_dir="/tmp/sase/artifacts/ace-run/20260701010000",
             ),
             _artifact_record(
                 name="",
-                agent_family=None,
+                agent_session=None,
                 timestamp="20260701010001",
                 artifact_dir="/tmp/sase/artifacts/ace-run/20260701010001",
             ),
@@ -602,7 +602,7 @@ def test_family_attach_coder_resolves_when_snapshot_has_empty_agent_names(
         project_name="sase",
     )
 
-    assert plan.agent_family_role == "code"
+    assert plan.agent_session_role == "code"
     assert plan.agent_name == "foo--code"
     assert plan.sase_plan == parent_plan
 
@@ -618,14 +618,14 @@ def test_family_sase_plan_skips_empty_identity_fields(
     records = [
         _artifact_record(
             name="",
-            agent_family=None,
+            agent_session=None,
             timestamp="20260701020202",
             sdd_plan_path="sdd/plans/202609/unrelated.md",
         ),
         _artifact_record(
             name="foo",
             workflow_name="foo",
-            agent_family="foo",
+            agent_session="foo",
             timestamp="20260701010101",
             sdd_plan_path=matching_plan,
         ),

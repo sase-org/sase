@@ -174,7 +174,7 @@ def test_all_excludes_caller_and_its_family(
     caller_dir = tmp_path / "caller"
     caller_dir.mkdir()
     (caller_dir / "agent_meta.json").write_text(
-        json.dumps({"name": "0bd", "agent_family": "0bd"}), encoding="utf-8"
+        json.dumps({"name": "0bd", "agent_session": "0bd"}), encoding="utf-8"
     )
     caller_record = _record("20260823120000", name="0bd", pid=os.getpid(), family="0bd")
     monitor_member = _record(

@@ -70,7 +70,7 @@ def _gate_row(
             raw_suffix=f"20260918{suffix}",
             start_time=start_time,
         ),
-        agent_family_role="gate",
+        agent_session_role="gate",
         gate_id=gate_id,
         gate_kind=kind,
         gate_state=state,
@@ -122,13 +122,13 @@ def _family(
 ) -> Agent:
     root = replace(
         make_agent(name=root_cl, raw_suffix=root_suffix),
-        agent_family_role="root",
-        agent_family="fam",
+        agent_session_role="root",
+        agent_session="fam",
         agent_name="starter",
         followup_agents=list(members),
     )
     for member in members:
-        member.family_container = root
+        member.agent_session_container = root
     return root
 
 

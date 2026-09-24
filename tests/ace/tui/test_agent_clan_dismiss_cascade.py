@@ -22,7 +22,7 @@ def _done_row(
     suffix: str,
     *,
     parent_timestamp: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
     role_suffix: str | None = None,
 ) -> Agent:
     return Agent(
@@ -36,11 +36,11 @@ def _done_row(
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
         parent_workflow=None,
-        agent_family_parallel=False,
+        agent_session_parallel=False,
         agent_clan=_CLAN,
         agent_clan_generation=_GENERATION,
         agent_name=name,
-        agent_family_role=agent_family_role,
+        agent_session_role=agent_session_role,
         role_suffix=role_suffix,
     )
 
@@ -99,14 +99,14 @@ def test_action_kill_agent_on_clan_container_dismisses_family_and_monitor() -> N
         "sase-ps.plan--1",
         "20260818114621",
         parent_timestamp="20260818102050",
-        agent_family_role="root",
+        agent_session_role="root",
         role_suffix="--1",
     )
     monitor = _done_row(
         "sase-ps.plan--mon",
         "20260818114457",
         parent_timestamp="20260818114621",
-        agent_family_role="monitor",
+        agent_session_role="monitor",
         role_suffix="--mon",
     )
     projected = project_clan_tree([plan_root, family_root, monitor])

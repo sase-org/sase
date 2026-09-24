@@ -75,7 +75,7 @@ def test_running_monitor_without_done_marker_still_blocks(
 
 
 @pytest.mark.parametrize(
-    ("agent_family_role", "role_suffix"),
+    ("agent_session_role", "role_suffix"),
     [
         ("monitor", None),
         (None, "--mon"),
@@ -84,7 +84,7 @@ def test_running_monitor_without_done_marker_still_blocks(
 )
 def test_settled_monitor_without_terminal_outcome_waits_for_handoff_successor(
     tmp_path: Path,
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     role_suffix: str | None,
 ) -> None:
     root_dir = make_agent(
@@ -93,7 +93,7 @@ def test_settled_monitor_without_terminal_outcome_waits_for_handoff_successor(
         "20260813085800",
         "monitor-lane--plan",
         workflow_name="monitor-lane",
-        agent_family="monitor-lane",
+        agent_session="monitor-lane",
         role_suffix="--plan",
         done=True,
         outcome="completed",
@@ -105,13 +105,13 @@ def test_settled_monitor_without_terminal_outcome_waits_for_handoff_successor(
         "20260813090000",
         f"monitor-lane{monitor_suffix}",
         workflow_name="monitor-lane",
-        agent_family="monitor-lane",
+        agent_session="monitor-lane",
         role_suffix=role_suffix,
         parent_timestamp=root_dir.name,
         extra_meta={
             key: value
             for key, value in {
-                "agent_family_role": agent_family_role,
+                "agent_session_role": agent_session_role,
                 "agent_clan": "monitor-clan",
                 "agent_clan_generation": root_dir.name,
                 "monitor_state": "completed",

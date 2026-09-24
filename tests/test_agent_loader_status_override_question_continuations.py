@@ -19,8 +19,8 @@ def _question_continuation_family_root() -> tuple[Agent, Agent]:
         raw_suffix="20260630000000",
         role_suffix="--0",
         agent_name="0am",
-        agent_family="0am",
-        agent_family_role="root",
+        agent_session="0am",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[first_question_time],
     )
@@ -37,7 +37,7 @@ def _question_continuation_family_root() -> tuple[Agent, Agent]:
         step_type="agent",
         role_suffix="--0",
         agent_name="0am--0",
-        agent_family="0am",
+        agent_session="0am",
     )
     return parent, root_asker
 
@@ -64,8 +64,8 @@ def _question_continuation(
         parent_timestamp=parent.raw_suffix,
         role_suffix=role_suffix,
         agent_name=f"0am{role_suffix}",
-        agent_family="0am",
-        agent_family_role="agent",
+        agent_session="0am",
+        agent_session_role="agent",
         questions_times=questions_times,
         question_response_path=response_path,
     )
@@ -213,8 +213,8 @@ def _question_continuation_planner_family(
         raw_suffix="20260623065702",
         role_suffix="--0",
         agent_name="sase-03w",
-        agent_family="sase-03w",
-        agent_family_role="root",
+        agent_session="sase-03w",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[question_time],
     )
@@ -229,8 +229,8 @@ def _question_continuation_planner_family(
         parent_timestamp="20260623065702",
         role_suffix="--plan",
         agent_name="sase-03w--1",
-        agent_family="sase-03w",
-        agent_family_role="agent",
+        agent_session="sase-03w",
+        agent_session_role="agent",
         questions_times=[question_time],
         plan_times=[plan_time],
         plan_action=plan_action,
@@ -246,8 +246,8 @@ def _question_continuation_planner_family(
         parent_timestamp="20260623065702",
         role_suffix="--code",
         agent_name="sase-03w--code",
-        agent_family="sase-03w",
-        agent_family_role="code",
+        agent_session="sase-03w",
+        agent_session_role="code",
     )
     return parent, continuation_planner, coder
 

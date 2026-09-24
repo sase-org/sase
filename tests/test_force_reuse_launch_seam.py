@@ -358,7 +358,7 @@ def test_launch_query_wipes_real_family_registry_before_spawn(
     family_name = "sase-op.2"
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
-    family_meta = {"agent_family": family_name, "agent_family_parallel": False}
+    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
 
     def _seed_artifact(
         suffix: str,
@@ -448,7 +448,7 @@ def test_launch_query_real_family_cleanup_failure_prevents_spawn(
 
     family_name = "sase-op.2"
     plan_name = f"{family_name}--plan"
-    family_meta = {"agent_family": family_name, "agent_family_parallel": False}
+    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
 
     def _seed_artifact(
         suffix: str,

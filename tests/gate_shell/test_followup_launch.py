@@ -94,8 +94,8 @@ def _make_member(
         project,
         creator_timestamp,
         "acme",
-        agent_family="acme",
-        agent_family_role="root",
+        agent_session="acme",
+        agent_session_role="root",
     )
     if settle_starter:
         (Path(creator_dir) / "done.json").write_text("{}", encoding="utf-8")
@@ -106,8 +106,8 @@ def _make_member(
     Path(member_dir).mkdir(parents=True)
     meta: dict[str, Any] = {
         "name": "acme--gate",
-        "agent_family": "acme",
-        "agent_family_role": "gate",
+        "agent_session": "acme",
+        "agent_session_role": "gate",
         "parent_timestamp": creator_timestamp,
         "model": "gpt-5",
         "workspace_num": 3,
@@ -433,7 +433,7 @@ def test_spawn_failure_records_the_error_and_stashes_the_prompt(
 
 def test_no_lane_returns_not_launched(tmp_path: Path) -> None:
     member_dir, meta = _make_member(tmp_path)
-    meta.pop("agent_family")
+    meta.pop("agent_session")
 
     result = launch_gate_followup_agent(
         member_dir,

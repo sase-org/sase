@@ -58,16 +58,16 @@ def test_dotted_agent_family_groups_under_root_family() -> None:
         agent_name="a9f",
         raw_suffix="ts-root",
         role_suffix="-plan",
-        agent_family="a9f",
-        agent_family_role="root",
+        agent_session="a9f",
+        agent_session_role="root",
     )
     wait_parent = _agent(
         cl_name="demo",
         agent_name="a9f.w1",
         raw_suffix="ts-w1",
         role_suffix="-plan",
-        agent_family="a9f.w1",
-        agent_family_role="root",
+        agent_session="a9f.w1",
+        agent_session_role="root",
     )
     wait_plan = _agent(
         cl_name="demo",

@@ -73,8 +73,8 @@ def _write_family_root_workflow(
         "name": "sase",
         "plan": True,
         "plan_chain_root": True,
-        "agent_family": "sase",
-        "agent_family_role": "root",
+        "agent_session": "sase",
+        "agent_session_role": "root",
         "role_suffix": "-plan",
     }
     if plan_approved:

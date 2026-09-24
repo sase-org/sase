@@ -57,7 +57,7 @@ def test_handle_pipe_marker_default_suffix_and_fork(tmp_path: Path) -> None:
     assert state.current_role_suffix == "--1"
     assert state.current_prompt == "#fork:test_agent\ncontinue from here"
     assert create.call_args.kwargs["agent_name_override"] == "test_agent--1"
-    assert create.call_args.kwargs["agent_family_role"] == "feedback"
+    assert create.call_args.kwargs["agent_session_role"] == "feedback"
     assert create.call_args.kwargs["relationships"]["pipe_depth"] == 1
     assert create.call_args.kwargs["relationships"]["piped_from"] == "test_agent"
     assert create.call_args.kwargs["relationships"]["pipe_reason"] == "hand off"
@@ -237,7 +237,7 @@ def test_handle_pipe_marker_explicit_name_fresh_and_model(tmp_path: Path) -> Non
     assert state.current_prompt == "%model:opus\ncontinue from here"
     assert "#fork:" not in state.current_prompt
     assert create.call_args.kwargs["agent_name_override"] == "test_agent--review"
-    assert create.call_args.kwargs["agent_family_role"] == "review"
+    assert create.call_args.kwargs["agent_session_role"] == "review"
     assert create.call_args.kwargs["relationships"]["pipe_depth"] == 3
     write_model.assert_called_once()
     assert write_model.call_args.args[1] is followup

@@ -242,12 +242,12 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
     # Legacy archives project parallel-family metadata into a clan at the wire
     # boundary, but directly constructed compatibility fixtures may still carry
     # only the old marker.
-    if not agent.agent_family_parallel:
+    if not agent.agent_session_parallel:
         return ()
     return tuple(
         child
         for child in agent.runtime_children
-        if child is not agent and child.agent_family_parallel
+        if child is not agent and child.agent_session_parallel
     )
 
 
@@ -428,7 +428,7 @@ def _summary_projections(
 ) -> tuple[_ProjectedSummaryAgent, ...]:
     members = (
         clan_members(agent)
-        if agent.is_clan_container or agent.agent_family_parallel
+        if agent.is_clan_container or agent.agent_session_parallel
         else ()
     )
     if members:

@@ -94,8 +94,8 @@ def test_live_retrying_root_outranks_failed_coder_attempt() -> None:
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_family="retry-family",
-        agent_family_role="root",
+        agent_session="retry-family",
+        agent_session_role="root",
         plan_chain_root=True,
         runner_is_live=True,
         retry_status="retrying",
@@ -110,8 +110,8 @@ def test_live_retrying_root_outranks_failed_coder_attempt() -> None:
         start_time=datetime(2026, 7, 6, 11, 59, 0),
         parent_timestamp=root_timestamp,
         role_suffix="--code",
-        agent_family="retry-family",
-        agent_family_role="code",
+        agent_session="retry-family",
+        agent_session_role="code",
     )
 
     agents = [parent, coder]
@@ -135,8 +135,8 @@ def test_running_retry_with_active_coder_returns_to_working_tale() -> None:
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_family="retry-family",
-        agent_family_role="root",
+        agent_session="retry-family",
+        agent_session_role="root",
         plan_chain_root=True,
         runner_is_live=True,
         retry_status="running_retry",
@@ -151,8 +151,8 @@ def test_running_retry_with_active_coder_returns_to_working_tale() -> None:
         start_time=datetime(2026, 7, 6, 12, 4, 0),
         parent_timestamp=root_timestamp,
         role_suffix="--code",
-        agent_family="retry-family",
-        agent_family_role="code",
+        agent_session="retry-family",
+        agent_session_role="code",
     )
 
     _apply_status_overrides([parent, coder])
@@ -233,8 +233,8 @@ def test_apply_status_overrides_active_code_keeps_planner_child_tale_approved() 
         role_suffix="-plan",
         workflow="ace-run",
         agent_name="a5n",
-        agent_family="a5n",
-        agent_family_role="root",
+        agent_session="a5n",
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
     )
@@ -249,8 +249,8 @@ def test_apply_status_overrides_active_code_keeps_planner_child_tale_approved() 
         step_type="agent",
         role_suffix="-plan",
         agent_name="a5n-plan",
-        agent_family="a5n",
-        agent_family_role="plan",
+        agent_session="a5n",
+        agent_session_role="plan",
     )
     code_child = Agent(
         agent_type=AgentType.RUNNING,
@@ -261,8 +261,8 @@ def test_apply_status_overrides_active_code_keeps_planner_child_tale_approved() 
         parent_timestamp="20260523114303",
         role_suffix="-code",
         agent_name="a5n-code",
-        agent_family="a5n",
-        agent_family_role="code",
+        agent_session="a5n",
+        agent_session_role="code",
     )
 
     _apply_status_overrides([parent, planner_child, code_child])
@@ -286,8 +286,8 @@ def test_apply_status_overrides_completed_code_keeps_planner_child_tale_approved
         role_suffix="-plan",
         workflow="ace-run",
         agent_name="a5n",
-        agent_family="a5n",
-        agent_family_role="root",
+        agent_session="a5n",
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
     )
@@ -302,8 +302,8 @@ def test_apply_status_overrides_completed_code_keeps_planner_child_tale_approved
         step_type="agent",
         role_suffix="-plan",
         agent_name="a5n-plan",
-        agent_family="a5n",
-        agent_family_role="plan",
+        agent_session="a5n",
+        agent_session_role="plan",
     )
     code_child = Agent(
         agent_type=AgentType.RUNNING,
@@ -314,8 +314,8 @@ def test_apply_status_overrides_completed_code_keeps_planner_child_tale_approved
         parent_timestamp="20260523114303",
         role_suffix="-code",
         agent_name="a5n-code",
-        agent_family="a5n",
-        agent_family_role="code",
+        agent_session="a5n",
+        agent_session_role="code",
     )
 
     _apply_status_overrides([parent, planner_child, code_child])
@@ -428,8 +428,8 @@ def test_apply_status_overrides_active_tale_code_child_backfills_root_badge_meta
         role_suffix="-plan",
         appears_as_agent=True,
         agent_name="a5n",
-        agent_family="a5n",
-        agent_family_role="root",
+        agent_session="a5n",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     code_child = Agent(
@@ -442,8 +442,8 @@ def test_apply_status_overrides_active_tale_code_child_backfills_root_badge_meta
         parent_timestamp="20260523114303",
         role_suffix="-code",
         agent_name="a5n-code",
-        agent_family="a5n",
-        agent_family_role="code",
+        agent_session="a5n",
+        agent_session_role="code",
         plan_action="tale",
         model="gpt-5.5",
         llm_provider="codex",
@@ -482,8 +482,8 @@ def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_working_tale_
         role_suffix="-plan",
         diff_path=str(diff_path),
         agent_name="a5n",
-        agent_family="a5n",
-        agent_family_role="root",
+        agent_session="a5n",
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
     )
@@ -531,8 +531,8 @@ def test_apply_status_overrides_shows_badge_after_coder_real_diff_propagates(
         role_suffix="-plan",
         diff_path=str(plan_diff),
         agent_name="a5n",
-        agent_family="a5n",
-        agent_family_role="root",
+        agent_session="a5n",
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
     )
@@ -578,8 +578,8 @@ def test_apply_status_overrides_child_metadata_does_not_overwrite_root_metadata(
         raw_suffix="20260523114303",
         role_suffix="-plan",
         agent_name="mixed",
-        agent_family="mixed",
-        agent_family_role="root",
+        agent_session="mixed",
+        agent_session_role="root",
         plan_chain_root=True,
         model="root-model",
         llm_provider="claude",

@@ -76,7 +76,7 @@ def test_current_armer_wire_uses_agent_metadata_when_artifacts_dir_set(
             {
                 "pid": 4242,
                 "name": "worker.a--code",
-                "agent_family": "worker.a",
+                "agent_session": "worker.a",
                 "agent_clan": "builders",
             }
         )

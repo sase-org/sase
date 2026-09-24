@@ -45,8 +45,8 @@ def make_agent(
         agent_name=name,
         tribe=tribe,
         agent_clan=clan,
-        agent_family=family,
-        agent_family_role=role,
+        agent_session=family,
+        agent_session_role=role,
         role_suffix=f"--{role}" if role else None,
         plan_chain_root=role == "plan",
     )
@@ -332,7 +332,7 @@ def make_large_family(count: int) -> tuple[list[Agent], Agent, list[Agent]]:
         child.parent_timestamp = root.raw_suffix
     root.followup_agents = list(children)
     for child in children:
-        child.family_container = root
+        child.agent_session_container = root
     assert root.is_family_container_row
     return [root, *children], root, children
 
@@ -354,7 +354,7 @@ def make_family(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
     child.parent_timestamp = root.raw_suffix
     root.followup_agents = [child]
     # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
-    child.family_container = root
+    child.agent_session_container = root
     assert root.is_family_container_row
     projected = project_clan_tree([root, child])
     projected_root = next(

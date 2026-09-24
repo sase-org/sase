@@ -351,23 +351,23 @@ def test_agent_row_selection_dismisses_nested_gate_monitor_settlement(
     node = make_agent(
         name="build--plan", status="EPIC CREATED", raw_suffix="node-suffix"
     )
-    node.agent_family = "build"
-    node.agent_family_role = "root"
+    node.agent_session = "build"
+    node.agent_session_role = "root"
     node.plan_chain_root = True
     node.role_suffix = "--plan"
     gate = make_agent(
         name="build--gate", status="EPIC CREATED", raw_suffix="gate-suffix"
     )
     gate.parent_timestamp = node.raw_suffix
-    gate.agent_family = "build"
-    gate.agent_family_role = "gate"
+    gate.agent_session = "build"
+    gate.agent_session_role = "gate"
     gate.gate_id = "gate-1"
     monitor = make_agent(
         name="build--mon", status="EPIC CREATED", raw_suffix="mon-suffix"
     )
     monitor.parent_timestamp = gate.raw_suffix
-    monitor.agent_family = "build"
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = "build"
+    monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_id = "mon-1"
     app = _SelectionApp([node, gate, monitor])

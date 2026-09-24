@@ -39,7 +39,7 @@ def clan_members_for_container(
         ]
     if (
         container.is_workflow_child
-        or not container.agent_family_parallel
+        or not container.agent_session_parallel
         or container.raw_suffix is None
     ):
         return []
@@ -47,7 +47,7 @@ def clan_members_for_container(
         candidate
         for candidate in agents_with_children
         if candidate.identity != container.identity
-        and candidate.agent_family_parallel
+        and candidate.agent_session_parallel
         and candidate.parent_workflow is None
         and candidate.parent_timestamp == container.raw_suffix
     ]

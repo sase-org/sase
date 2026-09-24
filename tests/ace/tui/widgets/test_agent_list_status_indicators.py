@@ -214,7 +214,7 @@ class TestAgentListFleetMarker:
         )
         root = make_agent(
             plan_chain_root=True,
-            agent_family_role="root",
+            agent_session_role="root",
             fleet_origin_alias="apollo",
             llm_provider=None,
             raw_suffix="20260509-100000",

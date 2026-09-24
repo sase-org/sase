@@ -33,7 +33,7 @@ def resolve_family_member_shell(
     """Classify and resolve one sequential family member's concrete shell.
 
     A monitor member is a proc shell, never a chat transcript: its
-    ``agent_family_role``/``monitor_id`` markers route it to the durable
+    ``agent_session_role``/``monitor_id`` markers route it to the durable
     monitor+proc join instead of the agent chat-path lookup below. A gate
     shell has no process while pending -- it settles into a chat file
     written at settle time, so it is resolved like an agent shell but

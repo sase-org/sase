@@ -201,8 +201,8 @@ def test_filesystem_monitor_starter_keeps_reference_without_monitor_row_semantic
                 "name": "alpha--0",
                 "monitor_id": "m123",
                 "monitor_member_agent_name": "alpha--mon",
-                "agent_family": "alpha",
-                "agent_family_role": "root",
+                "agent_session": "alpha",
+                "agent_session_role": "root",
                 "role_suffix": "--0",
                 "stopped_at": "2026-08-12T13:03:00Z",
             }
@@ -473,8 +473,8 @@ def test_filesystem_monitor_meta_projects_custom_stop_status(tmp_path: Path) -> 
                 "monitor_start_status": "TESTING",
                 "monitor_stop_status": "TESTED",
                 "run_started_at": "2026-08-12T13:00:00Z",
-                "agent_family": "alpha",
-                "agent_family_role": "monitor",
+                "agent_session": "alpha",
+                "agent_session_role": "monitor",
                 "role_suffix": "--mon",
             }
         ),

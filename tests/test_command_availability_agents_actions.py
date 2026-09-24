@@ -145,11 +145,11 @@ def test_edit_hooks_fork_allows_monitor_with_monitor_id() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.edit_hooks"]
     with_id = _make_agent(status="MONITORING")
-    with_id.agent_family_role = "monitor"
+    with_id.agent_session_role = "monitor"
     with_id.role_suffix = "--mon"
     with_id.monitor_id = "m-123"
     without_id = _make_agent(status="MONITORING")
-    without_id.agent_family_role = "monitor"
+    without_id.agent_session_role = "monitor"
     without_id.role_suffix = "--mon"
     without_id.monitor_id = None
 
@@ -166,8 +166,8 @@ def test_wait_command_allows_agent_family_clan_tribe_and_marks() -> None:
     agent.agent_name = "worker"
     family = _make_agent(status="DONE")
     family.agent_name = "builders-plan"
-    family.agent_family = "builders"
-    family.agent_family_role = "root"
+    family.agent_session = "builders"
+    family.agent_session_role = "root"
     family.plan_chain_root = True
     clan = _make_agent(status="RUNNING")
     clan.is_clan_container = True

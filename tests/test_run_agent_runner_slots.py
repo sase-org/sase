@@ -77,7 +77,7 @@ def test_monitor_followup_agent_uses_locked_admission(
             {
                 "pid": 101,
                 "parent_timestamp": "20260812115959",
-                "agent_family": "watcher",
+                "agent_session": "watcher",
             },
             wait_runners=0,
             claim=lambda: "started",
@@ -110,7 +110,7 @@ def test_parallel_family_member_participates_in_runner_admission(
             {
                 "pid": 101,
                 "parent_timestamp": "20260712115959",
-                "agent_family_parallel": True,
+                "agent_session_parallel": True,
             },
             wait_runners=None,
             claim=lambda: "started",

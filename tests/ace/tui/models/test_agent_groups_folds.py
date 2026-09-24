@@ -313,8 +313,8 @@ def test_compute_banner_summary_counts_sequential_families_once() -> None:
             raw_suffix=f"{family}-plan",
             status="TALE APPROVED",
             role_suffix="--plan",
-            agent_family=family,
-            agent_family_role="root",
+            agent_session=family,
+            agent_session_role="root",
         )
         coder = _agent(
             cl_name=f"{family}-code",
@@ -323,8 +323,8 @@ def test_compute_banner_summary_counts_sequential_families_once() -> None:
             parent_timestamp=planner.raw_suffix,
             status="WORKING TALE",
             role_suffix="--code",
-            agent_family=family,
-            agent_family_role="code",
+            agent_session=family,
+            agent_session_role="code",
         )
         planner.followup_agents = [coder]
         agents.extend((planner, coder))

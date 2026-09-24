@@ -64,8 +64,8 @@ def _tribe_agents() -> list[Agent]:
         run_start_time=started,
         raw_suffix="visual-tribe-plan",
         agent_name="visual-tribe-build--plan",
-        agent_family="visual-tribe-build",
-        agent_family_role="root",
+        agent_session="visual-tribe-build",
+        agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
         model="gpt-5",
@@ -81,8 +81,8 @@ def _tribe_agents() -> list[Agent]:
         raw_suffix="visual-tribe-code",
         parent_timestamp=family_root.raw_suffix,
         agent_name="visual-tribe-build--code",
-        agent_family="visual-tribe-build",
-        agent_family_role="code",
+        agent_session="visual-tribe-build",
+        agent_session_role="code",
         role_suffix="--code",
         model="gpt-5",
         workspace_num=15,
@@ -142,8 +142,8 @@ def _fold_restore_preview_agents() -> list[Agent]:
         run_start_time=started,
         raw_suffix="visual-fold-plan",
         agent_name="visual-fold-build--plan",
-        agent_family="visual-fold-build",
-        agent_family_role="root",
+        agent_session="visual-fold-build",
+        agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
         tribe="epic",
@@ -158,8 +158,8 @@ def _fold_restore_preview_agents() -> list[Agent]:
         raw_suffix="visual-fold-code",
         parent_timestamp=family_root.raw_suffix,
         agent_name="visual-fold-build--code",
-        agent_family="visual-fold-build",
-        agent_family_role="code",
+        agent_session="visual-fold-build",
+        agent_session_role="code",
         role_suffix="--code",
         tribe="epic",
     )
@@ -325,8 +325,8 @@ async def test_tribe_panel_fold_sweep_armed_png_snapshot(
         family = next(
             agent
             for agent in page.app._agents_with_children
-            if agent.agent_family == "visual-fold-build"
-            and agent.agent_family_role == "root"
+            if agent.agent_session == "visual-fold-build"
+            and agent.agent_session_role == "root"
         )
         clan = next(
             agent

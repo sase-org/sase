@@ -358,7 +358,7 @@ def launch_followup_agent(
         resolved_plan,
         agent_name=frozen_name,
         parent_is_running=False,
-        agent_family_role=starter_role or resolved_plan.agent_family_role,
+        agent_session_role=starter_role or resolved_plan.agent_session_role,
     )
 
     def _spawn(
@@ -377,7 +377,7 @@ def launch_followup_agent(
             workspace_num=workspace_num,
             transfer_from_pid=transfer_pid,
             cl_name=_clean_str(meta.get("cl_name")),
-            agent_family_role=starter_role,
+            agent_session_role=starter_role,
             vcs_ref=vcs_ref,
             extra_env=delivery_env,
             spawn_fn=spawn_agent_subprocess,

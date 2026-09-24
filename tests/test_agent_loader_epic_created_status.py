@@ -27,8 +27,8 @@ def _root(*, status: str = "EPIC APPROVED") -> Agent:
         raw_suffix=ROOT_TIMESTAMP,
         role_suffix="--plan",
         agent_name="a1",
-        agent_family="a1",
-        agent_family_role="root",
+        agent_session="a1",
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action="epic",
         plan_times=[datetime(2026, 7, 15, 12, 5, 0)],
@@ -48,8 +48,8 @@ def _concrete_planner(root: Agent) -> Agent:
         step_type="agent",
         role_suffix="--plan",
         agent_name="a1--plan",
-        agent_family="a1",
-        agent_family_role="plan",
+        agent_session="a1",
+        agent_session_role="plan",
     )
 
 
@@ -133,8 +133,8 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
         json.dumps(
             {
                 "name": "a1",
-                "agent_family": "a1",
-                "agent_family_role": "root",
+                "agent_session": "a1",
+                "agent_session_role": "root",
                 "plan_chain_root": True,
                 "role_suffix": "--plan",
                 "plan": True,

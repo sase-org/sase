@@ -54,8 +54,8 @@ class _Agent:
     status: str = "DONE"
     pid: int | None = None
     workspace_num: int | None = None
-    agent_family: str | None = None
-    agent_family_parallel: bool = False
+    agent_session: str | None = None
+    agent_session_parallel: bool = False
     role_suffix: str | None = None
     phase_bead_id: str | None = None
     is_family_root_entry: bool = False

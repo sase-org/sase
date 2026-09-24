@@ -16,7 +16,7 @@ from ._agent_status_family_core import (
     is_root_plan_workflow,
     root_child_suffix,
 )
-from ._agent_status_roles import agent_family_role
+from ._agent_status_roles import agent_session_role
 from .agent import Agent
 
 
@@ -46,12 +46,12 @@ def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | No
     """Return the visible status for an active approved-plan handoff."""
     if (
         not child.is_family_member_child
-        or child.agent_family_parallel
+        or child.agent_session_parallel
         or child.status != "RUNNING"
     ):
         return None
 
-    role = agent_family_role(child)
+    role = agent_session_role(child)
     if role == "epic":
         return EPIC_APPROVED_STATUS
     if role == "commit":
@@ -70,9 +70,9 @@ def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | No
 
 def is_completed_plan_handoff_child(agent: Agent) -> bool:
     """Return True for completed approved-plan continuation rows."""
-    if agent.agent_family_parallel or agent.status != "DONE":
+    if agent.agent_session_parallel or agent.status != "DONE":
         return False
-    role = agent_family_role(agent)
+    role = agent_session_role(agent)
     if role == "code":
         return True
     if role == "feedback" and _question_answered(agent):
@@ -83,9 +83,9 @@ def is_completed_plan_handoff_child(agent: Agent) -> bool:
 def is_completed_epic_followup_child(agent: Agent) -> bool:
     """Return True for legacy completed epic creation follow-up rows."""
     return (
-        not agent.agent_family_parallel
+        not agent.agent_session_parallel
         and agent.status == "DONE"
-        and agent_family_role(agent) == "epic"
+        and agent_session_role(agent) == "epic"
     )
 
 
@@ -108,8 +108,8 @@ def approved_followup_planner_status(agent: Agent) -> str | None:
     if (
         _decision_published_by_gate_shell(agent)
         or agent.parent_timestamp is None
-        or agent.agent_family_parallel
-        or agent_family_role(agent) not in PLANNER_FAMILY_ROLES
+        or agent.agent_session_parallel
+        or agent_session_role(agent) not in PLANNER_FAMILY_ROLES
     ):
         return None
     if not agent.plan_times:

@@ -36,8 +36,8 @@ def _agent(
         raw_suffix=f"suffix-{name}",
         parent_timestamp=parent_timestamp,
         agent_name=name,
-        agent_family="alpha",
-        agent_family_role=role,
+        agent_session="alpha",
+        agent_session_role=role,
         role_suffix=f"--{role}",
     )
     if workflow_child:

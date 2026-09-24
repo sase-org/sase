@@ -111,8 +111,8 @@ async def test_patch_family_root_recolors_name_with_first_real_member() -> None:
     async with app.run_test() as pilot:
         widget = app.query_one(AgentList)
         root = _agent(agent_name="demo")
-        root.agent_family = "demo"
-        root.agent_family_role = "root"
+        root.agent_session = "demo"
+        root.agent_session_role = "root"
         root.appears_as_agent = True
 
         widget.update_list([root], current_idx=0)

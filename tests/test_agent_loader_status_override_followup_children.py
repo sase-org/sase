@@ -220,7 +220,7 @@ def test_apply_status_overrides_active_code_child_continuation_sets_working_plan
         start_time=datetime(2026, 4, 20, 10, 10, 0),
         parent_timestamp="20260420100000",
         role_suffix="--1",
-        agent_family_role="code",
+        agent_session_role="code",
     )
     agents = [parent, code_child]
     _apply_status_overrides(agents)

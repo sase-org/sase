@@ -131,7 +131,7 @@ def create_followup_artifacts(
     workspace_num: int | None = None,
     agent_name_override: str | None = None,
     workflow_name: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
     relationships: dict[str, Any] | None = None,
     stamp_creating_process: bool = True,
 ) -> str:
@@ -206,7 +206,7 @@ def create_followup_artifacts(
         or (str(base_session) if base_session else None)
         or agent_family_base(agent_name_override)
     )
-    family_role = agent_family_role or agent_family_role_for_suffix(canonical_suffix)
+    family_role = agent_session_role or agent_family_role_for_suffix(canonical_suffix)
     set_agent_session_fields(
         followup_meta,
         session=family_name if family_name else None,

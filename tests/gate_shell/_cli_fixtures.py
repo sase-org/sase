@@ -56,8 +56,8 @@ def make_gate_shell(
     from sase.core.paths import sase_projects_dir
 
     meta: dict[str, object] = {
-        "agent_family": lane,
-        "agent_family_role": "gate",
+        "agent_session": lane,
+        "agent_session_role": "gate",
         "gate_id": gate_id,
         "gate_kind": kind,
         "gate_state": gate_state,

@@ -189,8 +189,8 @@ def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> N
         agent_name="a9f",
         raw_suffix="ts-root",
         role_suffix="-plan",
-        agent_family="a9f",
-        agent_family_role="root",
+        agent_session="a9f",
+        agent_session_role="root",
         start_time=datetime(2026, 4, 26, 9, 0, 0),
     )
     newer_followup = _agent(
@@ -198,8 +198,8 @@ def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> N
         agent_name="a9f.w1",
         raw_suffix="ts-followup",
         role_suffix="-plan",
-        agent_family="a9f.w1",
-        agent_family_role="root",
+        agent_session="a9f.w1",
+        agent_session_role="root",
         start_time=datetime(2026, 4, 26, 12, 0, 0),
     )
     workflow_child = _agent(

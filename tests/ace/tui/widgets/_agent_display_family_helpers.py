@@ -32,8 +32,8 @@ def make_family(
         artifacts_dir=str(root_dir),
         response_path=str(root_dir / "response.md"),
         agent_name="alpha--plan",
-        agent_family="alpha",
-        agent_family_role="plan",
+        agent_session="alpha",
+        agent_session_role="plan",
         role_suffix="--plan",
         plan_chain_root=True,
         model="claude/opus",
@@ -51,8 +51,8 @@ def make_family(
         artifacts_dir=str(child_dir),
         response_path=str(child_dir / "response.md"),
         agent_name="alpha--code",
-        agent_family="alpha",
-        agent_family_role="code",
+        agent_session="alpha",
+        agent_session_role="code",
         role_suffix="--code",
         model="claude/sonnet",
         agent_clan="map" if in_clan else None,
@@ -60,7 +60,7 @@ def make_family(
     )
     root.followup_agents = [child]
     # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
-    child.family_container = root
+    child.agent_session_container = root
     assert root.is_family_container_row is True
     return root, child
 

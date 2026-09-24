@@ -66,7 +66,7 @@ def test_normally_completing_followup_breaks_exec_loop(
     (followup_artifacts / "agent_meta.json").write_text(
         json.dumps(
             {
-                "agent_family_role": role,
+                "agent_session_role": role,
                 "role_suffix": role_suffix,
             }
         ),
@@ -122,7 +122,7 @@ def test_killed_followup_runs_kill_handoff_again(tmp_path: Path) -> None:
     (followup_artifacts / "agent_meta.json").write_text(
         json.dumps(
             {
-                "agent_family_role": "code",
+                "agent_session_role": "code",
                 "role_suffix": "--code",
             }
         ),

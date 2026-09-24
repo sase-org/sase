@@ -43,7 +43,7 @@ def is_coder_followup_suffix(suffix: str | None) -> bool:
 
 def is_agent_family_root(agent: Agent) -> bool:
     return not agent.is_workflow_child and (
-        agent.plan_chain_root or agent.agent_family_role == "root"
+        agent.plan_chain_root or agent.agent_session_role == "root"
     )
 
 

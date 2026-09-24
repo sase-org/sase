@@ -25,8 +25,8 @@ class _FakeAgent:
     restartable: bool = True
     is_clan_container: bool = False
     is_gate: bool = False
-    agent_family: str | None = None
-    agent_family_parallel: bool = False
+    agent_session: str | None = None
+    agent_session_parallel: bool = False
     role_suffix: str | None = None
     phase_bead_id: str | None = None
     is_family_root_entry: bool = False

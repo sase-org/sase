@@ -36,8 +36,8 @@ def _proc_shell_agent(**overrides: object) -> Agent:
 def _monitor_agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_name": "alpha--mon",
-        "agent_family": "alpha",
-        "agent_family_role": "monitor",
+        "agent_session": "alpha",
+        "agent_session_role": "monitor",
         "role_suffix": "--mon",
         "status": "MONITORING",
         "monitor_id": "m-123",
@@ -51,8 +51,8 @@ def test_fork_agent_tale_done_family_root_uses_family_name() -> None:
     agent = make_waiting_agent(
         status="TALE DONE",
         agent_name="aww-plan",
-        agent_family="aww",
-        agent_family_role="root",
+        agent_session="aww",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     app = FakeResumeActionApp([agent])
@@ -73,8 +73,8 @@ def test_fork_agent_plan_done_family_root_uses_family_name() -> None:
     agent = make_waiting_agent(
         status="PLAN DONE",
         agent_name="planner-plan",
-        agent_family="planner",
-        agent_family_role="root",
+        agent_session="planner",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     app = FakeResumeActionApp([agent])

@@ -27,8 +27,8 @@ def _agent(
     waiting_for: list[str] | None = None,
     retried_as_timestamp: str | None = None,
     role_suffix: str | None = None,
-    agent_family: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session: str | None = None,
+    agent_session_role: str | None = None,
 ) -> Agent:
     agent = Agent(
         agent_type=AgentType.RUNNING,
@@ -47,8 +47,8 @@ def _agent(
         retried_as_timestamp=retried_as_timestamp,
     )
     agent.role_suffix = role_suffix
-    agent.agent_family = agent_family
-    agent.agent_family_role = agent_family_role
+    agent.agent_session = agent_session
+    agent.agent_session_role = agent_session_role
     return agent
 
 

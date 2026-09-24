@@ -252,14 +252,14 @@ def _source_end_reference(agent: Agent) -> datetime | None:
 def _source_label(agent: Agent, *, root: Agent) -> str:
     feedback_round = plan_chain_feedback_round(
         agent.role_suffix,
-        agent_family_role=agent.agent_family_role,
+        agent_session_role=agent.agent_session_role,
     )
     if feedback_round is not None:
         return f"fb{feedback_round}"
 
     role = agent_family_role_for_suffix(
         agent.role_suffix,
-        agent_family_role=agent.agent_family_role,
+        agent_session_role=agent.agent_session_role,
     )
     if role and role != "root":
         return role

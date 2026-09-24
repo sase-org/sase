@@ -89,7 +89,7 @@ def _make_gate_shell_member(request_id: str, bundle_path: Path) -> str:
     )
     artifacts_dir = create_gate_shell_member(
         "proj",
-        {"name": "lane--0", "agent_family": "lane", "model": "gpt-5"},
+        {"name": "lane--0", "agent_session": "lane", "model": "gpt-5"},
         lane="lane",
         suffix="--gate",
         prev_artifacts_timestamp="20260812120000",

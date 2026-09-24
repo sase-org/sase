@@ -269,7 +269,7 @@ def test_render_key_changes_when_parallel_member_counts_change() -> None:
         status="RUNNING",
         raw_suffix="20260425143100",
     )
-    member.agent_family_parallel = True
+    member.agent_session_parallel = True
     root.runtime_children.append(member)
 
     running_key = agent_render_key(

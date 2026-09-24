@@ -241,7 +241,7 @@ def clan_section_member_rows(agent: Agent) -> tuple[Agent, ...]:
         children = tuple(
             child
             for child in row.runtime_children
-            if child.is_family_member_child and not child.agent_family_parallel
+            if child.is_family_member_child and not child.agent_session_parallel
         )
         for child in sorted(children, key=_member_sort_key):
             append_row(child)
@@ -317,7 +317,7 @@ def _in_memory_plan_paths(agent: Agent) -> tuple[str, ...]:
     paths can be classified, so the worker contributes those PLAN entries.
     This keeps a parent epic roadmap from appearing as a phase-authored PLAN.
     """
-    if agent.phase_bead_id or agent.agent_family_role == "phase":
+    if agent.phase_bead_id or agent.agent_session_role == "phase":
         return ()
     return tuple(
         path
@@ -430,7 +430,7 @@ def build_agent_member_digest(
         status=row.display_status,
         model=row.model,
         family_depth=family_depth,
-        family_name=row.agent_family,
+        family_name=row.agent_session,
         activity=row.activity,
         waiting=_waiting_digest(row),
         retry=_retry_digest(row),
@@ -482,7 +482,7 @@ def _retry_digest(row: Agent) -> tuple[str, ...]:
 
 
 def _family_depth(row: Agent) -> int:
-    return 1 if row.is_family_member_child and not row.agent_family_parallel else 0
+    return 1 if row.is_family_member_child and not row.agent_session_parallel else 0
 
 
 def _member_sort_key(row: Agent) -> tuple[bool, str, str]:

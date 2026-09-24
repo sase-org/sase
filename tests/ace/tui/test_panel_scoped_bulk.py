@@ -31,7 +31,7 @@ def _agent(
     workflow: str | None = None,
     agent_clan: str | None = None,
     agent_clan_generation: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
     role_suffix: str | None = None,
 ) -> Agent:
     return Agent(
@@ -53,7 +53,7 @@ def _agent(
         workflow=workflow,
         agent_clan=agent_clan,
         agent_clan_generation=agent_clan_generation,
-        agent_family_role=agent_family_role,
+        agent_session_role=agent_session_role,
         role_suffix=role_suffix,
     )
 
@@ -369,7 +369,7 @@ def _clan_member_panel_app() -> tuple[_FakeApp, Agent, Agent, Agent, Agent, Agen
         agent_clan="alpha",
         agent_clan_generation="g1",
         parent_timestamp="alpha-direct",
-        agent_family_role="root",
+        agent_session_role="root",
         role_suffix="--1",
     )
     running = _agent(

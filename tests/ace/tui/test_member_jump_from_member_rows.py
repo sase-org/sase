@@ -90,8 +90,8 @@ def _family_with_nested_monitor() -> tuple[list[Agent], Agent, Agent, Agent]:
     projected_monitor = next(
         agent for agent in projected if agent.identity == monitor.identity
     )
-    projected_child.family_container = projected_root
-    projected_monitor.family_container = projected_root
+    projected_child.agent_session_container = projected_root
+    projected_monitor.agent_session_container = projected_root
     return projected, projected_root, projected_child, projected_monitor
 
 

@@ -71,7 +71,7 @@ def _family_attach_plan(*, parent_artifacts_dir: str) -> FamilyAttachLaunchPlan:
         parent_artifacts_dir=parent_artifacts_dir,
         role_suffix="--reviewer",
         agent_name="research.worker--reviewer",
-        agent_family_role="reviewer",
+        agent_session_role="reviewer",
         parent_family_member_name="research.worker--0",
         parent_family_role_suffix="--0",
         parent_needs_rename=False,
@@ -437,7 +437,7 @@ def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
                 {
                     "name": "bootstrap.agent",
                     "pid": os.getpid(),
-                    "agent_family": "bootstrap",
+                    "agent_session": "bootstrap",
                     "output_path": state.output_path,
                 }
             ),

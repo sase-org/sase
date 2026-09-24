@@ -172,8 +172,8 @@ def test_apply_status_overrides_sticky_approved_planner_is_not_active() -> None:
         start_time=datetime(2026, 5, 17, 8, 55, 0),
         raw_suffix="20260517085500",
         role_suffix="-plan",
-        agent_family="ap5",
-        agent_family_role="root",
+        agent_session="ap5",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     planner = Agent(
@@ -185,8 +185,8 @@ def test_apply_status_overrides_sticky_approved_planner_is_not_active() -> None:
         raw_suffix="20260517090000",
         parent_timestamp=parent.raw_suffix,
         role_suffix="-plan",
-        agent_family="ap5",
-        agent_family_role="plan",
+        agent_session="ap5",
+        agent_session_role="plan",
     )
     coder = Agent(
         agent_type=AgentType.RUNNING,
@@ -197,8 +197,8 @@ def test_apply_status_overrides_sticky_approved_planner_is_not_active() -> None:
         raw_suffix="20260517091000",
         parent_timestamp=parent.raw_suffix,
         role_suffix="-code",
-        agent_family="ap5",
-        agent_family_role="code",
+        agent_session="ap5",
+        agent_session_role="code",
     )
 
     _apply_status_overrides([parent, planner, coder])
@@ -218,8 +218,8 @@ def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> No
         raw_suffix="20260517085500",
         role_suffix="-plan",
         agent_name="ap5",
-        agent_family="ap5",
-        agent_family_role="root",
+        agent_session="ap5",
+        agent_session_role="root",
         plan_chain_root=True,
         plan_times=[plan_time],
     )
@@ -237,8 +237,8 @@ def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> No
         total_steps=3,
         role_suffix="-plan",
         agent_name="ap5-plan",
-        agent_family="ap5",
-        agent_family_role="plan",
+        agent_session="ap5",
+        agent_session_role="plan",
     )
     bash_step = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -264,8 +264,8 @@ def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> No
         parent_timestamp="20260517085500",
         role_suffix="-code",
         agent_name="ap5-code",
-        agent_family="ap5",
-        agent_family_role="code",
+        agent_session="ap5",
+        agent_session_role="code",
     )
     agents = [parent, code_child]
     workflow_steps = [planner_step, bash_step]

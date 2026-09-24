@@ -23,9 +23,9 @@ def _record(
     wait_priority: int | None = None,
     meta_wait_priority: int | None = None,
     parent_timestamp: str | None = None,
-    agent_family: str | None = None,
-    agent_family_role: str | None = None,
-    agent_family_parallel: bool = False,
+    agent_session: str | None = None,
+    agent_session_role: str | None = None,
+    agent_session_parallel: bool = False,
     monitor_id: str | None = None,
     appears_as_agent: bool = True,
     done: bool = False,
@@ -42,9 +42,9 @@ def _record(
         agent_meta=AgentMetaWire(
             pid=pid,
             parent_timestamp=parent_timestamp,
-            agent_session=agent_family,
-            agent_session_role=agent_family_role,
-            agent_session_parallel=agent_family_parallel,
+            agent_session=agent_session,
+            agent_session_role=agent_session_role,
+            agent_session_parallel=agent_session_parallel,
             agent_session_shell=(
                 AgentSessionShellWire(kind="monitor", id=monitor_id)
                 if monitor_id is not None

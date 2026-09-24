@@ -158,16 +158,16 @@ def make_family_agent() -> Agent:
     root = make_agent(
         raw_suffix="family-root",
         agent_name="family--plan",
-        agent_family="family",
-        agent_family_role="plan",
+        agent_session="family",
+        agent_session_role="plan",
         role_suffix="--plan",
         plan_chain_root=True,
     )
     child = make_agent(
         raw_suffix="family-child",
         agent_name="family--code",
-        agent_family="family",
-        agent_family_role="code",
+        agent_session="family",
+        agent_session_role="code",
         role_suffix="--code",
     )
     root.followup_agents = [child]

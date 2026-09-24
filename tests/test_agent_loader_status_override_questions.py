@@ -84,8 +84,8 @@ def test_apply_status_overrides_planner_child_with_answered_family_followup_is_d
         raw_suffix="20260529090000",
         role_suffix="-plan",
         agent_name="ap1",
-        agent_family="ap1",
-        agent_family_role="root",
+        agent_session="ap1",
+        agent_session_role="root",
         plan_chain_root=True,
         plan_times=[datetime(2026, 5, 29, 9, 10, 0)],
         questions_times=[datetime(2026, 5, 29, 9, 15, 0)],
@@ -104,8 +104,8 @@ def test_apply_status_overrides_planner_child_with_answered_family_followup_is_d
         total_steps=2,
         role_suffix="-plan",
         agent_name="ap1-plan",
-        agent_family="ap1",
-        agent_family_role="plan",
+        agent_session="ap1",
+        agent_session_role="plan",
     )
     followup_child = Agent(
         agent_type=AgentType.RUNNING,
@@ -117,8 +117,8 @@ def test_apply_status_overrides_planner_child_with_answered_family_followup_is_d
         parent_timestamp="20260529090000",
         role_suffix="-2",
         agent_name="ap1-2",
-        agent_family="ap1",
-        agent_family_role="feedback",
+        agent_session="ap1",
+        agent_session_role="feedback",
     )
     agents = [parent, followup_child]
     _apply_status_overrides(agents, [planner_child])
@@ -139,8 +139,8 @@ def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
         raw_suffix="20260619100217",
         role_suffix="--0",
         agent_name="sase-4z.5",
-        agent_family="sase-4z.5",
-        agent_family_role="root",
+        agent_session="sase-4z.5",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[question_time],
     )
@@ -154,8 +154,8 @@ def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
         parent_timestamp="20260619100217",
         role_suffix="--1",
         agent_name="sase-4z.5--1",
-        agent_family="sase-4z.5",
-        agent_family_role="agent",
+        agent_session="sase-4z.5",
+        agent_session_role="agent",
         questions_times=[question_time],
     )
     agents = [parent, continuation]
@@ -182,8 +182,8 @@ def _rename_on_attach_root_step(
         raw_suffix="20260729062253",
         role_suffix="--0",
         agent_name="nr--0",
-        agent_family="nr",
-        agent_family_role="root",
+        agent_session="nr",
+        agent_session_role="root",
         plan_chain_root=False,
         questions_times=[question_time],
         question_response_path=question_response_path,
@@ -203,7 +203,7 @@ def _rename_on_attach_root_step(
         parent_step_index=None,
         role_suffix="--0",
         agent_name="nr--0",
-        agent_family="nr",
+        agent_session="nr",
         questions_times=[question_time],
         question_response_path=question_response_path,
     )
@@ -226,8 +226,8 @@ def test_apply_status_overrides_rename_on_attach_root_step_is_answered() -> None
         parent_timestamp=root.raw_suffix,
         role_suffix="--1",
         agent_name="nr--1",
-        agent_family="nr",
-        agent_family_role="agent",
+        agent_session="nr",
+        agent_session_role="agent",
     )
 
     _apply_status_overrides([root, continuation], [root_step])
@@ -282,8 +282,8 @@ def test_apply_status_overrides_plan_chain_root_step_projection_unchanged() -> N
         raw_suffix="20260729062253",
         role_suffix="--plan",
         agent_name="nr--plan",
-        agent_family="nr",
-        agent_family_role="root",
+        agent_session="nr",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[question_time],
         question_response_path="/tmp/question-response.json",
@@ -305,8 +305,8 @@ def test_apply_status_overrides_plan_chain_root_step_projection_unchanged() -> N
         parent_step_index=None,
         role_suffix="--plan",
         agent_name="nr--plan",
-        agent_family="nr",
-        agent_family_role="plan",
+        agent_session="nr",
+        agent_session_role="plan",
         questions_times=[question_time],
         question_response_path="/tmp/question-response.json",
     )
@@ -321,8 +321,8 @@ def test_apply_status_overrides_plan_chain_root_step_projection_unchanged() -> N
         parent_timestamp=root.raw_suffix,
         role_suffix="--code",
         agent_name="nr--code",
-        agent_family="nr",
-        agent_family_role="code",
+        agent_session="nr",
+        agent_session_role="code",
         plan_times=[plan_time],
         plan_action="tale",
     )

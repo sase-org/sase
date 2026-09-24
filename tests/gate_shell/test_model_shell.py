@@ -196,8 +196,8 @@ def test_shell_block_custom_gate_registers_and_lists_row_end_to_end(
         project,
         "20260812120000",
         "lane",
-        agent_family="lane",
-        agent_family_role="root",
+        agent_session="lane",
+        agent_session_role="root",
     )
     monkeypatch.setenv("SASE_AGENT_NAME", "lane")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)

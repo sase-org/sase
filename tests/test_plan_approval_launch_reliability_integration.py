@@ -198,8 +198,8 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
             state.current_artifacts_dir,
             {
                 "name": "planner",
-                "agent_family": "planner",
-                "agent_family_role": "root",
+                "agent_session": "planner",
+                "agent_session_role": "root",
                 "suffix": ".plan",
                 "status": "running",
             },
@@ -371,8 +371,8 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta.update(
         {
-            "agent_family": "planner",
-            "agent_family_role": "code",
+            "agent_session": "planner",
+            "agent_session_role": "code",
             "status": "completed",
             "plan_committed": True,
             "plan_approved": True,

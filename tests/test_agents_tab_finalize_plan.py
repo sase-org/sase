@@ -284,8 +284,8 @@ def test_stale_plan_is_discarded_when_status_override_value_changes() -> None:
         status="RUNNING",
         raw_suffix="20260529090000",
         role_suffix=".plan",
-        agent_family="boi",
-        agent_family_role="root",
+        agent_session="boi",
+        agent_session_role="root",
     )
     app = FakeAgentApp()
     app._agent_status_overrides = {root.identity: "QUESTION"}
@@ -366,8 +366,8 @@ def test_status_override_plan_clears_stale_question_for_running_root() -> None:
         status="RUNNING",
         raw_suffix="20260529090000",
         role_suffix=".plan",
-        agent_family="boi",
-        agent_family_role="root",
+        agent_session="boi",
+        agent_session_role="root",
     )
     followup = _make_agent(
         cl_name="boi",
@@ -376,8 +376,8 @@ def test_status_override_plan_clears_stale_question_for_running_root() -> None:
         raw_suffix="20260529093000",
         parent_timestamp="20260529090000",
         role_suffix="-2",
-        agent_family="boi",
-        agent_family_role="feedback",
+        agent_session="boi",
+        agent_session_role="feedback",
     )
     app = FakeAgentApp()
     app._agent_status_overrides = {root.identity: "QUESTION"}
@@ -476,8 +476,8 @@ def test_sync_finalize_clears_stale_question_for_running_root() -> None:
         status="RUNNING",
         raw_suffix="20260529090000",
         role_suffix=".plan",
-        agent_family="boi",
-        agent_family_role="root",
+        agent_session="boi",
+        agent_session_role="root",
     )
     followup = _make_agent(
         cl_name="boi",
@@ -486,8 +486,8 @@ def test_sync_finalize_clears_stale_question_for_running_root() -> None:
         raw_suffix="20260529093000",
         parent_timestamp="20260529090000",
         role_suffix="-2",
-        agent_family="boi",
-        agent_family_role="feedback",
+        agent_session="boi",
+        agent_session_role="feedback",
     )
     app = FakeAgentApp()
     app._agent_status_overrides = {root.identity: "QUESTION"}
@@ -520,8 +520,8 @@ def _make_answered_question_family() -> tuple[Agent, Agent]:
         raw_suffix="20260617074954",
         parent_timestamp="20260617070857",
         role_suffix="--code",
-        agent_family="92.f1",
-        agent_family_role="code",
+        agent_session="92.f1",
+        agent_session_role="code",
         run_start_time=datetime(2026, 6, 17, 7, 49, 54),
         questions_times=[datetime(2026, 6, 17, 8, 0, 5)],
     )
@@ -532,8 +532,8 @@ def _make_answered_question_family() -> tuple[Agent, Agent]:
         raw_suffix="20260617080041",
         parent_timestamp="20260617070857",
         role_suffix="--1",
-        agent_family="92.f1",
-        agent_family_role="code",
+        agent_session="92.f1",
+        agent_session_role="code",
         run_start_time=datetime(2026, 6, 17, 8, 0, 41),
         questions_times=[datetime(2026, 6, 17, 8, 0, 5)],
         question_response_path="/home/u/.sase/user_question/abc/question_response.json",

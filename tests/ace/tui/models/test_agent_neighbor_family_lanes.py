@@ -43,7 +43,7 @@ def test_lane_name_key_still_rejects_malformed_and_empty_names() -> None:
     assert agent_name_key(_agent("Foo.Bar")) == "foo.bar"
 
     empty_family = _family_root("fam")
-    empty_family.agent_family = None
+    empty_family.agent_session = None
     empty_family.agent_name = None
     empty_family.refresh_raw_presented_agent_name()
     assert sase_agent_name(empty_family) is None

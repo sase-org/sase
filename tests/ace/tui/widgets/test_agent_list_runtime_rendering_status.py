@@ -137,7 +137,7 @@ def test_format_agent_option_answered_active_suffix_has_running_marker() -> None
 def test_format_agent_option_answered_status_uses_gate_pair_style() -> None:
     """ANSWERED styling comes from the recorded question-gate status pair."""
     row_agent = agent(status="ANSWERED", start=datetime(2026, 5, 6, 14, 0, 0))
-    row_agent.agent_family_role = "gate"
+    row_agent.agent_session_role = "gate"
     row_agent.gate_id = "question-demo"
     row_agent.gate_state = "answered"
     row_agent.gate_start_status = "QUESTION"
@@ -233,7 +233,7 @@ def test_format_agent_option_gate_status_uses_recorded_pair_style(
     accent: str,
 ) -> None:
     row_agent = agent(status=status, start=datetime(2026, 5, 6, 14, 0, 0))
-    row_agent.agent_family_role = "gate"
+    row_agent.agent_session_role = "gate"
     row_agent.gate_id = "plan-demo"
     row_agent.gate_state = gate_state
     row_agent.gate_start_status = start_status

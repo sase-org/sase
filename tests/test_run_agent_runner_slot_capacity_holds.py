@@ -73,7 +73,7 @@ def test_active_holds_are_threaded_into_locked_admission(
                 "workflow_name": "build",
                 "agent_clan": "blocked-clan",
                 "tribe": "ops",
-                "agent_family": "target.agent",
+                "agent_session": "target.agent",
             },
             claim=lambda: "unexpected",
         )

@@ -56,8 +56,8 @@ def build_retrying_plan_family(
         root_dir / "agent_meta.json",
         {
             "name": "retry-family",
-            "agent_family": "retry-family",
-            "agent_family_role": "root",
+            "agent_session": "retry-family",
+            "agent_session_role": "root",
             "plan_chain_root": True,
             "role_suffix": "--plan",
             "plan": True,
@@ -95,8 +95,8 @@ def build_retrying_plan_family(
         code_dir / "agent_meta.json",
         {
             "name": "retry-family--code",
-            "agent_family": "retry-family",
-            "agent_family_role": "code",
+            "agent_session": "retry-family",
+            "agent_session_role": "code",
             "role_suffix": "--code",
             "parent_timestamp": ROOT_TIMESTAMP,
             "plan_action": "tale",

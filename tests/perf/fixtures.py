@@ -153,7 +153,7 @@ def make_hint_agent(
     reply_kb: int = HINT_REPLY_SIZE_KB,
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
 ) -> Agent:
     """Return one agent row backed by real artifact files on disk."""
     suffix = f"2026072712{idx:04d}"
@@ -171,7 +171,7 @@ def make_hint_agent(
         raw_suffix=suffix,
         artifacts_dir=str(artifacts_dir),
         parent_timestamp=parent_timestamp,
-        agent_family_role=agent_family_role,
+        agent_session_role=agent_session_role,
     )
 
 
@@ -192,7 +192,7 @@ def make_hint_family_container(
         artifacts_root=artifacts_root,
         project_file=project_file,
         reply_kb=reply_kb,
-        agent_family_role="root",
+        agent_session_role="root",
     )
     root.followup_agents = [
         make_hint_agent(
@@ -201,7 +201,7 @@ def make_hint_family_container(
             project_file=project_file,
             reply_kb=reply_kb,
             parent_timestamp=root.raw_suffix,
-            agent_family_role="phase",
+            agent_session_role="phase",
         )
         for i in range(members)
     ]

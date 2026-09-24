@@ -46,9 +46,11 @@ def test_caller_artifacts_dir_returns_the_env_value_when_present() -> None:
 def test_resolve_lane_picks_the_newest_family_member(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    older = make_starter_agent("proj", "20260812120000", "acme--0", agent_family="acme")
+    older = make_starter_agent(
+        "proj", "20260812120000", "acme--0", agent_session="acme"
+    )
     newer = make_starter_agent(
-        "proj", "20260812130000", "acme--mon", agent_family="acme"
+        "proj", "20260812130000", "acme--mon", agent_session="acme"
     )
     patch_project_records(monkeypatch, [older, newer])
 
@@ -85,7 +87,7 @@ def test_resolve_exact_agent_ignores_newer_sibling_and_family_artifacts(
         "proj",
         "20260812120500",
         "02i--code",
-        agent_family="02i",
+        agent_session="02i",
         workspace_num=12,
         workspace_dir="/work/12",
     )
@@ -93,8 +95,8 @@ def test_resolve_exact_agent_ignores_newer_sibling_and_family_artifacts(
         "proj",
         "20260812140000",
         "02i--mon-6",
-        agent_family="02i",
-        agent_family_role="monitor",
+        agent_session="02i",
+        agent_session_role="monitor",
         monitor_id="oldmon",
         monitor_state="completed",
         monitor_settled=True,
@@ -120,10 +122,10 @@ def test_resolve_caller_agent_pins_the_callers_artifacts_dir_over_a_newer_member
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     older = make_starter_agent(
-        "proj", "20260812120000", "046--plan", agent_family="046"
+        "proj", "20260812120000", "046--plan", agent_session="046"
     )
     newer = make_starter_agent(
-        "proj", "20260812130000", "046--code", agent_family="046"
+        "proj", "20260812130000", "046--code", agent_session="046"
     )
     patch_project_records(monkeypatch, [older, newer])
 
@@ -135,20 +137,24 @@ def test_resolve_caller_agent_pins_the_callers_artifacts_dir_over_a_newer_member
 def test_resolve_caller_agent_family_container_resolves_to_newest_non_monitor_member(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    plan = make_starter_agent("proj", "20260812110000", "046--plan", agent_family="046")
-    code = make_starter_agent("proj", "20260812120000", "046--code", agent_family="046")
+    plan = make_starter_agent(
+        "proj", "20260812110000", "046--plan", agent_session="046"
+    )
+    code = make_starter_agent(
+        "proj", "20260812120000", "046--code", agent_session="046"
+    )
     settled_monitor = make_starter_agent(
         "proj",
         "20260812140000",
         "046--mon-6",
-        agent_family="046",
-        agent_family_role="monitor",
+        agent_session="046",
+        agent_session_role="monitor",
         monitor_id="oldmon",
         monitor_state="completed",
         monitor_settled=True,
     )
     other_family = make_starter_agent(
-        "proj", "20260812150000", "other--code", agent_family="other"
+        "proj", "20260812150000", "other--code", agent_session="other"
     )
     patch_project_records(monkeypatch, [plan, code, settled_monitor, other_family])
 
@@ -164,7 +170,7 @@ def test_resolve_caller_agent_exact_name_wins_over_family_and_sibling_records(
     sibling = make_starter_agent("proj", "20260812125000", "sase-m6.6.1")
     land = make_starter_agent("proj", "20260812130000", "sase-m6.10")
     family_member = make_starter_agent(
-        "proj", "20260812120500", "02i--code", agent_family="02i"
+        "proj", "20260812120500", "02i--code", agent_session="02i"
     )
     patch_project_records(monkeypatch, [phase_caller, sibling, land, family_member])
 
@@ -179,10 +185,10 @@ def test_resolve_caller_agent_ignores_a_foreign_artifacts_dir(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     caller_record = make_starter_agent(
-        "proj", "20260812120000", "acme--code", agent_family="acme"
+        "proj", "20260812120000", "acme--code", agent_session="acme"
     )
     foreign = make_starter_agent(
-        "proj", "20260812130000", "other--code", agent_family="other"
+        "proj", "20260812130000", "other--code", agent_session="other"
     )
     patch_project_records(monkeypatch, [caller_record, foreign])
 
@@ -205,7 +211,7 @@ def test_durable_lane_for_record_prefers_agent_family_metadata(
 ) -> None:
     bare = make_starter_agent("proj", "20260812120000", "sase-m6.6.1.5")
     member = make_starter_agent(
-        "proj", "20260812121000", "02i--code", agent_family="02i"
+        "proj", "20260812121000", "02i--code", agent_session="02i"
     )
     patch_project_records(monkeypatch, [bare, member])
 
@@ -234,8 +240,8 @@ def test_active_monitor_for_lane_ignores_other_lanes_and_terminal_monitors(
         "proj",
         "20260812120000",
         "other--mon",
-        agent_family="other",
-        agent_family_role="monitor",
+        agent_session="other",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="running",
     )
@@ -243,8 +249,8 @@ def test_active_monitor_for_lane_ignores_other_lanes_and_terminal_monitors(
         "proj",
         "20260812121000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="bbb",
         monitor_state="completed",
         monitor_settled=True,
@@ -253,8 +259,8 @@ def test_active_monitor_for_lane_ignores_other_lanes_and_terminal_monitors(
         "proj",
         "20260812122000",
         "acme--mon-0",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="ccc",
         monitor_state="running",
         monitor_command="sleep 60",
@@ -277,8 +283,8 @@ def test_active_monitor_for_lane_keeps_unsettled_terminal_meta_active(
         "proj",
         "20260812120000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="completed",
         monitor_settled=False,
@@ -301,8 +307,8 @@ def test_has_any_monitor_is_true_once_any_monitor_member_exists(
         "proj",
         "20260812120000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="completed",
     )
@@ -330,8 +336,8 @@ def test_read_monitor_marker_does_not_query_the_artifact_index(
         "proj",
         "20260812120000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="running",
         monitor_command="sleep 60",
@@ -356,8 +362,8 @@ def test_read_monitor_marker_reflects_a_settled_done_marker() -> None:
         "proj",
         "20260812120000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="completed",
         monitor_settled=True,
@@ -383,8 +389,8 @@ def test_list_monitors_defaults_to_every_project_newest_first(
         "proj",
         "20260812120000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="running",
     )
@@ -392,8 +398,8 @@ def test_list_monitors_defaults_to_every_project_newest_first(
         "other",
         "20260812130000",
         "beta--mon",
-        agent_family="beta",
-        agent_family_role="monitor",
+        agent_session="beta",
+        agent_session_role="monitor",
         monitor_id="bbb",
         monitor_state="completed",
     )
@@ -409,8 +415,8 @@ def test_list_monitors_scopes_to_one_project(monkeypatch: pytest.MonkeyPatch) ->
         "proj",
         "20260812120000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="running",
     )
@@ -418,8 +424,8 @@ def test_list_monitors_scopes_to_one_project(monkeypatch: pytest.MonkeyPatch) ->
         "other",
         "20260812130000",
         "beta--mon",
-        agent_family="beta",
-        agent_family_role="monitor",
+        agent_session="beta",
+        agent_session_role="monitor",
         monitor_id="bbb",
         monitor_state="running",
     )
@@ -434,14 +440,14 @@ def _legacy_false_positive_monitor(
     project: str = "proj",
     timestamp: str = "20260812110000",
     *,
-    agent_family: str = "acme",
+    agent_session: str = "acme",
 ) -> str:
     return make_starter_agent(
         project,
         timestamp,
         "02i--7",
-        agent_family=agent_family,
-        agent_family_role="monitor",
+        agent_session=agent_session,
+        agent_session_role="monitor",
     )
 
 
@@ -453,8 +459,8 @@ def test_list_monitors_skips_legacy_false_positive_monitor_rows(
         "proj",
         "20260812120000",
         "acme--mon",
-        agent_family="acme",
-        agent_family_role="monitor",
+        agent_session="acme",
+        agent_session_role="monitor",
         monitor_id="aaa",
         monitor_state="running",
         pid=os.getpid(),
@@ -463,8 +469,8 @@ def test_list_monitors_skips_legacy_false_positive_monitor_rows(
         "other",
         "20260812130000",
         "beta--mon",
-        agent_family="beta",
-        agent_family_role="monitor",
+        agent_session="beta",
+        agent_session_role="monitor",
         monitor_id="bbb",
         monitor_state="completed",
         monitor_settled=True,
@@ -490,7 +496,7 @@ def test_list_monitors_skips_legacy_false_positive_monitor_rows(
 def test_has_any_monitor_ignores_false_positive_role_only_rows(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    false_positive = _legacy_false_positive_monitor(agent_family="acme")
+    false_positive = _legacy_false_positive_monitor(agent_session="acme")
     patch_project_records(monkeypatch, [false_positive])
 
     assert has_any_monitor("proj", "acme") is False

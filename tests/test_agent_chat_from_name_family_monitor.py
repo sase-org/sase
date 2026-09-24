@@ -14,8 +14,8 @@ from sase.scripts.agent_chat_from_name import (
 from tests._agent_chat_from_name_helpers import write_agent
 
 _BASE_MONITOR_META: dict[str, object] = {
-    "agent_family": "cx",
-    "agent_family_role": "monitor",
+    "agent_session": "cx",
+    "agent_session_role": "monitor",
     "monitor_id": "mon0123456789ab",
     "monitor_command": "pytest -k thing",
     "monitor_cwd": "/tmp/work",
@@ -52,7 +52,7 @@ def test_family_source_includes_terminal_completed_monitor_as_proc_kind(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     output_path = tmp_path / "monitor_output.log"
     output_path.write_text("watching...\nall green\n", encoding="utf-8")
@@ -95,7 +95,7 @@ def test_family_source_includes_terminal_failed_monitor_with_failed_flag(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(tmp_path / "planner.md"), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     (tmp_path / "planner.md").write_text("hi", encoding="utf-8")
     _write_monitor_member(
@@ -130,7 +130,7 @@ def test_family_source_excludes_still_running_monitor(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(tmp_path / "planner.md"), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     (tmp_path / "planner.md").write_text("hi", encoding="utf-8")
     _write_monitor_member(
@@ -158,7 +158,7 @@ def test_explicit_monitor_member_fork_resolves_as_proc_source(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(tmp_path / "planner.md"), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     (tmp_path / "planner.md").write_text("hi", encoding="utf-8")
     _write_monitor_member(

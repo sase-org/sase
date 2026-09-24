@@ -211,7 +211,7 @@ def _clear_runtime_children(
             continue
         seen.add(agent_id)
         agent.runtime_children.clear()
-        agent.family_container = None
+        agent.agent_session_container = None
 
 
 def _attach_runtime_children(
@@ -250,4 +250,4 @@ def _attach_family_containers(rows: list[Agent]) -> None:
             continue
         for member in concrete_family_shell_rows(row):
             if member is not row:
-                member.family_container = row
+                member.agent_session_container = row

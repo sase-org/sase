@@ -36,8 +36,8 @@ def test_agent_family_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
     assert agent_family_role_for_suffix("-q") is None
     assert agent_family_role_for_suffix("--q") is None
     assert agent_family_role_for_suffix("--2") == "feedback"
-    assert agent_family_role_for_suffix("--2", agent_family_role="review") == "review"
-    assert agent_family_role_for_suffix("--2", agent_family_role="phase") == "phase"
+    assert agent_family_role_for_suffix("--2", agent_session_role="review") == "review"
+    assert agent_family_role_for_suffix("--2", agent_session_role="phase") == "phase"
     assert agent_family_role_for_suffix("-2") == "feedback"
     assert agent_family_role_for_suffix(".code") == "code"
     assert agent_family_role_for_suffix(".unknown") is None
@@ -67,8 +67,8 @@ def test_numeric_suffixes_are_feedback_or_custom_members() -> None:
     assert agent_family_role_for_suffix("--0") is None
     assert agent_family_role_for_suffix("--1") is None
     assert agent_family_role_for_suffix("--2") == "feedback"
-    assert agent_family_role_for_suffix("--2", agent_family_role="review") == "review"
-    assert not is_plan_feedback_suffix("--2", agent_family_role="review")
+    assert agent_family_role_for_suffix("--2", agent_session_role="review") == "review"
+    assert not is_plan_feedback_suffix("--2", agent_session_role="review")
 
 
 def test_retired_nested_question_suffixes_are_not_plan_chain_suffixes() -> None:

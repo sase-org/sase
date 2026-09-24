@@ -41,13 +41,13 @@ def prepare_kill_edit_agent_prompt(
 
     is_family_root = bool(getattr(agent, "is_family_root_entry", False))
     family_name: str | None = None
-    agent_family = agent_session_value(agent)
+    agent_session = agent_session_value(agent)
     role_suffix = getattr(agent, "role_suffix", None)
     serial_family_member = bool(
-        agent_family and not agent_session_parallel_value(agent) and role_suffix
+        agent_session and not agent_session_parallel_value(agent) and role_suffix
     )
     if serial_family_member or is_family_root:
-        family_name = _kill_edit_family_reference_name(agent, agent_family)
+        family_name = _kill_edit_family_reference_name(agent, agent_session)
     return prepare_kill_and_edit_prompt(
         raw_prompt,
         agent.agent_name,
@@ -60,15 +60,15 @@ def prepare_kill_edit_agent_prompt(
 
 def _kill_edit_family_reference_name(
     agent: object,
-    agent_family: str | None,
+    agent_session: str | None,
 ) -> str | None:
     presenter = getattr(agent, "presented_family_reference_name", None)
     if callable(presenter):
         presented = presenter()
         if presented:
             return presented
-    if agent_family:
-        return prompt_facing_agent_name(agent_family)
+    if agent_session:
+        return prompt_facing_agent_name(agent_session)
     return None
 
 

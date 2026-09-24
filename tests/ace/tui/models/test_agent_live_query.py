@@ -77,8 +77,8 @@ def test_agent_live_query_entry_projects_every_live_derived_field() -> None:
         run_start_time=run_start,
         stop_time=stop,
         questions_times=[stop],
-        agent_family="sase-zf.1",
-        agent_family_role="code",
+        agent_session="sase-zf.1",
+        agent_session_role="code",
         role_suffix="--code",
         agent_clan="athena.sase-zf",
         tribe="pinned",
@@ -238,8 +238,8 @@ def test_machine_negation_excludes_imported_clan_container_subtree() -> None:
         raw_suffix="remote-code",
         start_time=None,
         run_start_time=None,
-        agent_family="remote-family",
-        agent_family_role="code",
+        agent_session="remote-family",
+        agent_session_role="code",
         agent_clan="remote-clan",
         agent_clan_generation="1",
         source_machine="apollo",
@@ -260,8 +260,8 @@ def test_agent_live_query_entry_classifies_container_and_workflow_kinds() -> Non
     family_child = _agent(agent_name="family-root--code", raw_suffix="child")
     family = _agent(
         agent_name="family-root",
-        agent_family="family-root",
-        agent_family_role="root",
+        agent_session="family-root",
+        agent_session_role="root",
         plan_chain_root=True,
         followup_agents=[family_child],
     )

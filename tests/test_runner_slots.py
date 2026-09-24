@@ -35,15 +35,15 @@ def test_running_agent_slot_count_uses_live_started_family_occupancy() -> None:
             pid=3,
             run_started=True,
             parent_timestamp="parent",
-            agent_family="family-b",
+            agent_session="family-b",
         ),
         _record(
             "/parallel-child",
             pid=7,
             run_started=True,
             parent_timestamp="parent",
-            agent_family="family-b",
-            agent_family_parallel=True,
+            agent_session="family-b",
+            agent_session_parallel=True,
         ),
         _record("/step", pid=4, run_started=True, appears_as_agent=False),
         _record("/done", pid=5, run_started=True, done=True),
@@ -65,7 +65,7 @@ def test_runner_slot_user_agent_record_predicate_covers_admission_cases() -> Non
     parallel_child = _record(
         "/parallel",
         parent_timestamp="parent",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     serial_child = _record("/serial", parent_timestamp="parent")
     done = _record("/done", done=True)
@@ -84,10 +84,10 @@ def test_standalone_agent_occupies_one_slot() -> None:
 
 def test_root_plus_live_serial_child_occupies_exactly_one_slot() -> None:
     records = [
-        _record("/root", agent_family="fam", run_started=True),
+        _record("/root", agent_session="fam", run_started=True),
         _record(
             "/serial",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="root_ts",
             run_started=True,
         ),
@@ -98,11 +98,11 @@ def test_root_plus_live_serial_child_occupies_exactly_one_slot() -> None:
 
 def test_dead_root_with_live_monitor_member_still_occupies_one_slot() -> None:
     records = [
-        _record("/root", agent_family="fam", run_started=True),
+        _record("/root", agent_session="fam", run_started=True),
         _record(
             "/monitor",
-            agent_family="fam",
-            agent_family_role="monitor",
+            agent_session="fam",
+            agent_session_role="monitor",
             monitor_id="mon-1",
         ),
     ]
@@ -115,17 +115,17 @@ def test_dead_root_with_live_monitor_member_still_occupies_one_slot() -> None:
 
 def test_settled_monitor_with_live_followup_still_occupies_one_slot() -> None:
     records = [
-        _record("/root", agent_family="fam", run_started=True, done=True),
+        _record("/root", agent_session="fam", run_started=True, done=True),
         _record(
             "/monitor",
-            agent_family="fam",
-            agent_family_role="monitor",
+            agent_session="fam",
+            agent_session_role="monitor",
             monitor_id="mon-1",
             done=True,
         ),
         _record(
             "/followup",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="/root",
             run_started=True,
         ),
@@ -138,13 +138,13 @@ def test_monitor_followup_handoff_counts_live_monitor_before_successor_starts() 
     records = [
         _record(
             "/monitor",
-            agent_family="fam",
-            agent_family_role="monitor",
+            agent_session="fam",
+            agent_session_role="monitor",
             monitor_id="mon-1",
         ),
         _record(
             "/followup",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="monitor_ts",
         ),
     ]
@@ -156,13 +156,13 @@ def test_monitor_followup_handoff_overlap_counts_one_slot() -> None:
     records = [
         _record(
             "/monitor",
-            agent_family="fam",
-            agent_family_role="monitor",
+            agent_session="fam",
+            agent_session_role="monitor",
             monitor_id="mon-1",
         ),
         _record(
             "/followup",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="monitor_ts",
             run_started=True,
         ),
@@ -175,14 +175,14 @@ def test_stopped_monitor_with_started_followup_counts_one_slot() -> None:
     records = [
         _record(
             "/monitor",
-            agent_family="fam",
-            agent_family_role="monitor",
+            agent_session="fam",
+            agent_session_role="monitor",
             monitor_id="mon-1",
             stopped_at="2026-09-06T12:00:00+00:00",
         ),
         _record(
             "/followup",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="monitor_ts",
             run_started=True,
         ),
@@ -195,14 +195,14 @@ def test_stopped_monitor_before_followup_start_documents_old_gap() -> None:
     records = [
         _record(
             "/monitor",
-            agent_family="fam",
-            agent_family_role="monitor",
+            agent_session="fam",
+            agent_session_role="monitor",
             monitor_id="mon-1",
             stopped_at="2026-09-06T12:00:00+00:00",
         ),
         _record(
             "/followup",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="monitor_ts",
         ),
     ]
@@ -212,8 +212,8 @@ def test_stopped_monitor_before_followup_start_documents_old_gap() -> None:
 
 def test_two_independent_families_occupy_two_slots() -> None:
     records = [
-        _record("/a", agent_family="fam-a", run_started=True),
-        _record("/b", agent_family="fam-b", run_started=True),
+        _record("/a", agent_session="fam-a", run_started=True),
+        _record("/b", agent_session="fam-b", run_started=True),
     ]
 
     assert running_agent_slot_count(records, _always_live) == 2
@@ -230,19 +230,19 @@ def test_clan_members_launched_independently_count_individually() -> None:
 
 def test_live_parallel_family_members_count_individually() -> None:
     records = [
-        _record("/root", agent_family="fam", run_started=True, done=True),
+        _record("/root", agent_session="fam", run_started=True, done=True),
         _record(
             "/parallel-1",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="/root",
-            agent_family_parallel=True,
+            agent_session_parallel=True,
             run_started=True,
         ),
         _record(
             "/parallel-2",
-            agent_family="fam",
+            agent_session="fam",
             parent_timestamp="/root",
-            agent_family_parallel=True,
+            agent_session_parallel=True,
             run_started=True,
         ),
     ]
@@ -254,7 +254,7 @@ def test_pending_question_on_familys_only_live_shell_frees_its_slot() -> None:
     records = [
         _record(
             "/root",
-            agent_family="fam",
+            agent_session="fam",
             run_started=True,
             pending_question=True,
         ),
@@ -265,8 +265,8 @@ def test_pending_question_on_familys_only_live_shell_frees_its_slot() -> None:
 
 def test_done_marker_and_dead_pid_members_do_not_occupy() -> None:
     records = [
-        _record("/done", agent_family="fam", run_started=True, done=True),
-        _record("/dead", agent_family="fam", run_started=True),
+        _record("/done", agent_session="fam", run_started=True, done=True),
+        _record("/dead", agent_session="fam", run_started=True),
     ]
 
     def is_live(record: AgentArtifactRecordWire) -> bool:
@@ -276,15 +276,15 @@ def test_done_marker_and_dead_pid_members_do_not_occupy() -> None:
 
 
 def test_monitor_member_with_pid_but_no_run_started_at_occupies_one_slot() -> None:
-    records = [_record("/monitor", agent_family_role="monitor", monitor_id="mon-1")]
+    records = [_record("/monitor", agent_session_role="monitor", monitor_id="mon-1")]
 
     assert running_agent_slot_count(records, _always_live) == 1
 
 
 def test_inherited_monitor_id_without_monitor_role_uses_run_started_at() -> None:
     records = [
-        _record("/starter", agent_family_role="root", monitor_id="mon-1"),
-        _record("/followup", agent_family_role="code", monitor_id="mon-1"),
+        _record("/starter", agent_session_role="root", monitor_id="mon-1"),
+        _record("/followup", agent_session_role="code", monitor_id="mon-1"),
     ]
 
     assert running_agent_slot_count(records, _always_live) == 0
@@ -298,8 +298,8 @@ def test_non_agent_workflow_step_record_does_not_occupy() -> None:
 
 def test_records_from_two_projects_sharing_a_family_name_count_separately() -> None:
     records = [
-        _record("/a", project_name="proj-a", agent_family="fam", run_started=True),
-        _record("/b", project_name="proj-b", agent_family="fam", run_started=True),
+        _record("/a", project_name="proj-a", agent_session="fam", run_started=True),
+        _record("/b", project_name="proj-b", agent_session="fam", run_started=True),
     ]
 
     assert running_agent_slot_count(records, _always_live) == 2

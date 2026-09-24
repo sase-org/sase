@@ -375,23 +375,23 @@ def test_nested_monitor_inherits_clan_anchor_panel() -> None:
     family = _agent(suffix="family", tribe="epic", name="research.family")
     family.agent_clan = "research"
     family.agent_clan_generation = "20260817080000"
-    family.agent_family = "research.family"
-    family.agent_family_role = "root"
+    family.agent_session = "research.family"
+    family.agent_session_role = "root"
     starter = _agent(
         suffix="starter",
         name="research.family--2",
         parent_timestamp="family",
     )
-    starter.agent_family = family.agent_family
-    starter.agent_family_role = "code"
+    starter.agent_session = family.agent_session
+    starter.agent_session_role = "code"
     monitor = _agent(
         suffix="monitor",
         tribe="review",
         name="research.family--mon-1",
         parent_timestamp="starter",
     )
-    monitor.agent_family = family.agent_family
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = family.agent_session
+    monitor.agent_session_role = "monitor"
     standalone = _agent(suffix="standalone", tribe="fix", name="standalone")
 
     clan = project_clan_tree([family, starter, monitor])

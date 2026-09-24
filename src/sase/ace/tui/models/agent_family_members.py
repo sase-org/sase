@@ -185,19 +185,19 @@ def is_sequential_family_container(agent: Agent) -> bool:
     """Return whether ``agent`` represents a loaded sequential family.
 
     The second branch preserves compatibility with clan projections whose
-    direct family root may predate the explicit ``agent_family_role`` marker
+    direct family root may predate the explicit ``agent_session_role`` marker
     but still owns loaded, serial family-member children. A monitor child
     alone does not promote its starter to a container.
     """
-    if agent.agent_family_parallel:
+    if agent.agent_session_parallel:
         return False
     if agent.is_family_container_row:
         return True
     return bool(
-        agent.agent_family
+        agent.agent_session
         and any(
             child.is_family_member_child
-            and not child.agent_family_parallel
+            and not child.agent_session_parallel
             and not child.is_monitor
             for child in (*agent.runtime_children, *agent.followup_agents)
         )
@@ -221,7 +221,7 @@ def _shell_links(row: Agent) -> tuple[Agent, ...]:
 
 def _is_excluded_family_shell(row: Agent) -> bool:
     """Return whether *row* is scaffolding rather than a concrete family shell."""
-    return row.agent_family_parallel
+    return row.agent_session_parallel
 
 
 def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
@@ -234,7 +234,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
     if agent.is_workflow_step_child:
         if (
             agent.step_type == "agent"
-            and not agent.agent_family_parallel
+            and not agent.agent_session_parallel
             and not row_is_family_shell(agent)
         ):
             return (agent,)
@@ -251,7 +251,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
                 for child in (*agent.runtime_children, *agent.followup_agents)
                 if child.is_workflow_step_child
                 and child.step_type == "agent"
-                and not child.agent_family_parallel
+                and not child.agent_session_parallel
                 and not row_is_family_shell(child)
             )
         )
@@ -419,7 +419,7 @@ def family_roster_container(agent: Agent) -> Agent | None:
     """
     if agent.is_family_container_row:
         return None
-    container = agent.family_container
+    container = agent.agent_session_container
     if container is None or container is agent:
         return None
     return container
@@ -482,18 +482,18 @@ def _concrete_planner_child(agent: Agent) -> Agent | None:
             if child.is_workflow_step_child
             and child.step_type == "agent"
             and child.parent_step_index is None
-            and not child.agent_family_parallel
+            and not child.agent_session_parallel
         ),
         None,
     )
 
 
 def _root_represents_member(agent: Agent) -> bool:
-    if agent.is_imported_family_container:
+    if agent.is_imported_agent_session_container:
         return False
     if agent.is_plan_family_root_entry:
         return True
-    family_name = agent.agent_family or agent.family_reference_name()
+    family_name = agent.agent_session or agent.family_reference_name()
     return not bool(
         agent.agent_name and family_name and agent.agent_name == family_name
     )

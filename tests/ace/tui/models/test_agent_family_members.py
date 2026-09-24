@@ -48,7 +48,7 @@ def test_concrete_planner_replaces_aggregate_root_and_mixed_links_dedupe() -> No
         role="review",
         parent_timestamp=root.raw_suffix,
     )
-    parallel.agent_family_parallel = True
+    parallel.agent_session_parallel = True
 
     root.runtime_children = [planner, feedback, coder, parallel]
     root.followup_agents = [feedback, coder, parallel]
@@ -75,13 +75,13 @@ def test_promoted_plan_family_root_no_longer_double_counted_as_member() -> None:
 
     Mirrors the 'pv' bug family: a root promoted to '--0' (plan_chain_root
     stays False) whose plan chain only started later in a member. Once
-    ``derived_plan_family_root`` is set, the root must stop standing in as
+    ``derived_plan_agent_session_root`` is set, the root must stop standing in as
     member #0 or the lane header's "N agents · M awaiting" count double-counts
     it alongside the mirrored status.
     """
     root = _agent("pv", role="root")
     root.role_suffix = "--0"
-    root.derived_plan_family_root = True
+    root.derived_plan_agent_session_root = True
     main_step = _agent(
         "pv--0",
         role="q",
@@ -466,8 +466,8 @@ def test_attach_family_containers_reaches_nested_monitor_without_rerooting() -> 
     ordered = sort_and_reorder([root, coder, monitor], [])
 
     assert root in ordered
-    assert coder.family_container is root
-    assert monitor.family_container is root
+    assert coder.agent_session_container is root
+    assert monitor.agent_session_container is root
     assert monitor in coder.runtime_children
     assert monitor not in root.runtime_children
 
@@ -602,14 +602,14 @@ def test_current_family_shell_ignores_waiting_and_parallel_families() -> None:
     root.followup_agents = [waiting]
 
     parallel = _agent("parallel", role="root", status="RUNNING")
-    parallel.agent_family_parallel = True
+    parallel.agent_session_parallel = True
     parallel_child = _agent(
         "parallel--1",
         role="phase",
         parent_timestamp=parallel.raw_suffix,
         status="RUNNING",
     )
-    parallel_child.agent_family_parallel = True
+    parallel_child.agent_session_parallel = True
     parallel.runtime_children = [parallel_child]
     parallel.followup_agents = [parallel_child]
 

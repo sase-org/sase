@@ -121,7 +121,7 @@ def test_fold_annotation_empty_when_no_attempts_and_no_workflow() -> None:
 
 def test_fold_annotation_keeps_parallel_family_counts_out_of_structure() -> None:
     root = _make_agent()
-    root.agent_family_parallel = True
+    root.agent_session_parallel = True
     root.runtime_children.extend(
         [
             _make_agent(raw_suffix="20260423140100"),
@@ -134,7 +134,7 @@ def test_fold_annotation_keeps_parallel_family_counts_out_of_structure() -> None
         ("RUNNING", "RUNNING", "DONE"),
         strict=True,
     ):
-        child.agent_family_parallel = True
+        child.agent_session_parallel = True
         child.status = status
 
     collapsed = _compute_fold_annotation(

@@ -126,8 +126,11 @@ def _adds_structural_placement(cached: Agent, incoming: Agent) -> bool:
     """Return whether stable replacement repairs completed metadata."""
     return (
         (cached.parent_timestamp is None and incoming.parent_timestamp is not None)
-        or (cached.agent_family is None and incoming.agent_family is not None)
-        or (cached.agent_family_role is None and incoming.agent_family_role is not None)
+        or (cached.agent_session is None and incoming.agent_session is not None)
+        or (
+            cached.agent_session_role is None
+            and incoming.agent_session_role is not None
+        )
         or (cached.role_suffix is None and incoming.role_suffix is not None)
         or (not cached.plan_chain_root and incoming.plan_chain_root)
         or (cached.agent_clan is None and incoming.agent_clan is not None)

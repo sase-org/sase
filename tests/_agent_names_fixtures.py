@@ -22,7 +22,7 @@ def make_agent(
     appears_as_agent: bool | None = None,
     parent_timestamp: str | None = None,
     workflow_name: str | None = None,
-    agent_family: str | None = None,
+    agent_session: str | None = None,
     role_suffix: str | None = None,
     response_path: str | None = None,
     raw_prompt: str | None = None,
@@ -40,8 +40,8 @@ def make_agent(
         meta["parent_timestamp"] = parent_timestamp
     if workflow_name is not None:
         meta["workflow_name"] = workflow_name
-    if agent_family is not None:
-        meta["agent_family"] = agent_family
+    if agent_session is not None:
+        meta["agent_session"] = agent_session
     if role_suffix is not None:
         meta["role_suffix"] = role_suffix
     if extra_meta:

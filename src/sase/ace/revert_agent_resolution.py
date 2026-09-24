@@ -369,7 +369,7 @@ def _union_external_artifact_dirs_for_revert(
 def resolve_revert_family_base(agent: Agent, agent_name: str | None) -> str | None:
     """Resolve the agent-family base for family-scoped reverts, if any.
 
-    Plan-chain rows carry an explicit ``agent_family``; otherwise the base is
+    Plan-chain rows carry an explicit ``agent_session``; otherwise the base is
     inferred from a family-suffixed name. ``None`` means exact selected-agent
     scope.
     """

@@ -64,7 +64,7 @@ def _tree_shape(agents: list[Agent]) -> list[tuple[object, ...]]:
             agent.parent_timestamp,
             agent.is_family_container_row,
             agent.is_clan_container,
-            agent.is_remote_family_container,
+            agent.is_remote_agent_session_container,
             tuple(child.identity for child in agent.followup_agents),
             agent.fleet_origin_alias,
         )
@@ -231,9 +231,9 @@ def test_project_fleet_agents_nests_under_real_root_instead_of_synthesizing() ->
     rows = list(projection.fleet_rows)
     by_name = {row.agent_name: row for row in rows}
     assert "crew" in by_name
-    assert by_name["crew"].is_remote_family_container is False
+    assert by_name["crew"].is_remote_agent_session_container is False
     assert by_name["crew--plan"].parent_timestamp == by_name["crew"].raw_suffix
-    assert not any(row.is_remote_family_container for row in rows)
+    assert not any(row.is_remote_agent_session_container for row in rows)
 
 
 def test_project_fleet_agents_synthesizes_a_stable_root_when_page_omits_it() -> None:
@@ -262,9 +262,9 @@ def test_project_fleet_agents_synthesizes_a_stable_root_when_page_omits_it() -> 
     roots = [row for row in first.fleet_rows if not row.is_family_member_child]
     assert len(roots) == 1
     container = roots[0]
-    assert container.is_remote_family_container is True
+    assert container.is_remote_agent_session_container is True
     assert container.is_family_container_row is True
-    assert container.agent_family == "crew"
+    assert container.agent_session == "crew"
     assert container.raw_suffix == "fleet:apollo:family:crew"
     assert container.identity == second.fleet_rows[0].identity or any(
         row.identity == container.identity for row in second.fleet_rows

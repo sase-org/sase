@@ -29,7 +29,7 @@ def _fake_plan(**overrides: Any) -> FamilyAttachLaunchPlan:
         "parent_artifacts_dir": "/tmp/acme",
         "role_suffix": "--1",
         "agent_name": "acme--1",
-        "agent_family_role": "root",
+        "agent_session_role": "root",
         "parent_family_member_name": "acme--0",
         "parent_family_role_suffix": "--0",
         "parent_needs_rename": False,
@@ -162,7 +162,7 @@ class TestSpawnFamilySuccessor:
             workspace_dir="/tmp/ws",
             workspace_num=3,
             transfer_from_pid=None,
-            agent_family_role="feedback",
+            agent_session_role="feedback",
             resolve_plan=fake_resolve,
             spawn_fn=fake_spawn,
         )
@@ -176,7 +176,7 @@ class TestSpawnFamilySuccessor:
         launched_plan = load_family_attach_plan_from_env(env)
         assert launched_plan is not None
         assert launched_plan.parent_is_running is False
-        assert launched_plan.agent_family_role == "feedback"
+        assert launched_plan.agent_session_role == "feedback"
         assert launched_plan.parent_workspace_dir == "/tmp/ws"
         assert launched_plan.parent_workspace_num == 3
         # The subprocess result never reports its own name; the plan fills it in.

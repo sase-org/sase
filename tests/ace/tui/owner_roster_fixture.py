@@ -191,9 +191,9 @@ def _write_alive(
     if "--" in name:
         meta["role_suffix"] = _role_suffix(name)
     if family:
-        meta["agent_family"] = family
+        meta["agent_session"] = family
     if role:
-        meta["agent_family_role"] = role
+        meta["agent_session_role"] = role
     _write_json(artifact / "agent_meta.json", meta)
     _write_json(artifact / "running.json", {"pid": pid})
     _write_workflow_state(artifact, name, pid=pid, status="running")
@@ -211,8 +211,8 @@ def _write_plan_shell(artifact: Path, name: str, *, family: str) -> None:
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_family": family,
-            "agent_family_role": "gate",
+            "agent_session": family,
+            "agent_session_role": "gate",
             "role_suffix": _role_suffix(name),
             **_gate_meta("plan-gate", "pending", "PLAN REVIEW"),
         },
@@ -229,8 +229,8 @@ def _write_monitor(
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_family": family,
-            "agent_family_role": "monitor",
+            "agent_session": family,
+            "agent_session_role": "monitor",
             "role_suffix": _role_suffix(name),
             "monitor_id": "mon-1",
             "monitor_state": "completed",
@@ -257,8 +257,8 @@ def _write_gate(
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_family": family,
-            "agent_family_role": "gate",
+            "agent_session": family,
+            "agent_session_role": "gate",
             "role_suffix": _role_suffix(name),
             **_gate_meta(name, "pending" if pending else "completed", "REVIEW"),
         },
@@ -284,8 +284,8 @@ def _write_proc(artifact: Path, name: str, *, family: str) -> None:
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_family": family,
-            "agent_family_role": "proc",
+            "agent_session": family,
+            "agent_session_role": "proc",
             "role_suffix": _role_suffix(name),
             "proc_id": "proc-1",
         },
@@ -311,7 +311,7 @@ def _write_done(
     parent: str | None = None,
 ) -> None:
     artifact.mkdir(parents=True, exist_ok=True)
-    meta: dict[str, object] = {"name": name, "agent_family": family}
+    meta: dict[str, object] = {"name": name, "agent_session": family}
     if parent:
         meta["parent_timestamp"] = parent
     _write_json(artifact / "agent_meta.json", meta)
@@ -411,8 +411,8 @@ def _write_fact_families(
         artifact.mkdir(parents=True, exist_ok=True)
         meta: dict[str, object] = {
             "name": name,
-            "agent_family": family,
-            "agent_family_role": role,
+            "agent_session": family,
+            "agent_session_role": role,
             "role_suffix": "--" + name.rsplit("--", 1)[1],
             "run_started_at": _stamp_iso(ts_value),
         }
@@ -448,8 +448,8 @@ def _write_fact_families(
             artifact / "agent_meta.json",
             {
                 "name": name,
-                "agent_family": name,
-                "agent_family_role": "root",
+                "agent_session": name,
+                "agent_session_role": "root",
                 "plan": True,
                 "plan_chain_root": True,
                 "plan_approved": True,

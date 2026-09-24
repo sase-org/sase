@@ -128,7 +128,7 @@ def test_create_plan_shell_records_context_before_auto_settlement(
             {
                 "gate_kind": "plan",
                 "gate_id": "plan-1",
-                "agent_family": "test_agent",
+                "agent_session": "test_agent",
                 "name": "test_agent--gate",
             }
         ),

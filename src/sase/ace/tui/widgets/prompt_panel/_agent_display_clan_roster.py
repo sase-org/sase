@@ -41,7 +41,7 @@ def family_children(member: Agent) -> tuple[Agent, ...]:
     return tuple(
         child
         for child in member.runtime_children
-        if child.is_family_member_child and not child.agent_family_parallel
+        if child.is_family_member_child and not child.agent_session_parallel
     )
 
 
@@ -53,7 +53,7 @@ def family_rows(member: Agent, children: tuple[Agent, ...]) -> tuple[Agent, ...]
     legacy/root-shaped row whose name is exactly the family container is not
     repeated as a child line.
     """
-    family_name = member.agent_family
+    family_name = member.agent_session
     include_member = bool(
         member.agent_name and (not family_name or member.agent_name != family_name)
     )
@@ -217,7 +217,7 @@ def clan_roster_entries(
                 identity=member.identity,
                 presented_name=(
                     member.presented_agent_name
-                    or member.agent_family
+                    or member.agent_session
                     or _row_name(member)
                 ),
                 label=_family_suffix(member, clan_name),

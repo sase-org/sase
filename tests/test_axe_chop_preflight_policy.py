@@ -60,8 +60,8 @@ def _agent_record(
     *,
     run_started: bool = False,
     parent_timestamp: str | None = None,
-    agent_family: str | None = None,
-    agent_family_parallel: bool = False,
+    agent_session: str | None = None,
+    agent_session_parallel: bool = False,
     pending_question: bool = False,
     done: bool = False,
 ) -> AgentArtifactRecordWire:
@@ -76,8 +76,8 @@ def _agent_record(
             name=name,
             pid=100,
             parent_timestamp=parent_timestamp,
-            agent_session=agent_family,
-            agent_session_parallel=agent_family_parallel,
+            agent_session=agent_session,
+            agent_session_parallel=agent_session_parallel,
             run_started_at=("2026-08-12T12:00:00-04:00" if run_started else None),
         ),
         pending_question=(
@@ -290,7 +290,7 @@ def test_agent_runner_snapshot_count_matches_admission_count(
     root_timestamp = "20260812120000"
     records = [
         _agent_record(
-            tmp_path, root_timestamp, "root", run_started=True, agent_family="root"
+            tmp_path, root_timestamp, "root", run_started=True, agent_session="root"
         ),
         _agent_record(
             tmp_path,
@@ -298,8 +298,8 @@ def test_agent_runner_snapshot_count_matches_admission_count(
             "parallel",
             run_started=True,
             parent_timestamp=root_timestamp,
-            agent_family="root",
-            agent_family_parallel=True,
+            agent_session="root",
+            agent_session_parallel=True,
         ),
         _agent_record(
             tmp_path,
@@ -307,7 +307,7 @@ def test_agent_runner_snapshot_count_matches_admission_count(
             "serial",
             run_started=True,
             parent_timestamp=root_timestamp,
-            agent_family="root",
+            agent_session="root",
         ),
         _agent_record(
             tmp_path,

@@ -33,7 +33,7 @@ def test_handle_monitor_marker_saves_starter_chat_and_relationships(
             {
                 "name": "agent--0",
                 "workflow_name": "agent",
-                "agent_family": "agent",
+                "agent_session": "agent",
                 "role_suffix": "--0",
                 "model": "sonnet",
                 "llm_provider": "claude",

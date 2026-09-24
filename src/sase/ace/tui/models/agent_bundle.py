@@ -21,6 +21,21 @@ _PROJECTED_RECORD_BUNDLE_FIELDS = frozenset(
     }
 )
 
+# legacy agent-family spelling: pre-rename dismissed bundles carry the
+# family-concept Agent field names on the left; new writers emit only the
+# agent_session* names on the right. A present new spelling stays
+# authoritative. This table is the only place that names the legacy fields.
+LEGACY_AGENT_FIELD_NAMES = {
+    "agent_family": "agent_session",
+    "agent_family_role": "agent_session_role",
+    "agent_family_parallel": "agent_session_parallel",
+    "is_imported_family_container": "is_imported_agent_session_container",
+    "is_remote_family_container": "is_remote_agent_session_container",
+    "family_container": "agent_session_container",
+    "imported_family_parent_synthetic": "imported_agent_session_parent_synthetic",
+    "derived_plan_family_root": "derived_plan_agent_session_root",
+}
+
 # Presentation, graph, and index-projection fields that the bundle writer
 # must not persist. The cleanup archive DTO uses the same skip set so a new
 # Agent field cannot silently vanish on TUI dismissal.
@@ -30,8 +45,8 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "followup_agents",
             "runtime_children",
             "wait_display_source",
-            "family_container",
-            "derived_plan_family_root",
+            "agent_session_container",
+            "derived_plan_agent_session_root",
             "retry_chain_siblings",
             "attempt_history",
             "diff_has_real_edits",
@@ -39,9 +54,9 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "linked_file_change_hint",
             "runner_is_live",
             "is_clan_container",
-            "is_imported_family_container",
-            "is_remote_family_container",
-            "imported_family_parent_synthetic",
+            "is_imported_agent_session_container",
+            "is_remote_agent_session_container",
+            "imported_agent_session_parent_synthetic",
             "tree_parent_key",
             "tree_depth",
             "clan_tribes",
@@ -67,7 +82,10 @@ def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
         if not item.init or item.name in _RUNTIME_ONLY_BUNDLE_FIELDS:
             continue
         value = getattr(agent, item.name)
-        if item.name == "parent_timestamp" and agent.imported_family_parent_synthetic:
+        if (
+            item.name == "parent_timestamp"
+            and agent.imported_agent_session_parent_synthetic
+        ):
             continue
         if isinstance(value, AgentType):
             value = value.value
@@ -124,6 +142,14 @@ def from_bundle_dict(
     Uses .get() with defaults for forward-compatibility with new fields.
     """
     data = canonicalize_agent_tribe_metadata(dict(data))
+
+    # Map pre-rename family-concept field names through the named legacy
+    # table; a present new spelling stays authoritative.
+    for old_name, new_name in LEGACY_AGENT_FIELD_NAMES.items():
+        if new_name not in data and old_name in data:
+            data[new_name] = data.pop(old_name)
+        else:
+            data.pop(old_name, None)
 
     # Map removed AgentType values to RUNNING for backward compatibility
     _LEGACY_AGENT_TYPES = {"fix-hook", "summarize", "mentor", "crs"}

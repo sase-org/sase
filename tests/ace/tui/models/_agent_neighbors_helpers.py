@@ -31,8 +31,8 @@ def _agent(
 def _family_root(family: str, *, role: str = "plan") -> Agent:
     """Return a family root entry that renders under its bare family base."""
     root = _agent(f"{family}--{role}")
-    root.agent_family = family
-    root.agent_family_role = "root"
+    root.agent_session = family
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     root.refresh_raw_presented_agent_name()
     return root
@@ -41,8 +41,8 @@ def _family_root(family: str, *, role: str = "plan") -> Agent:
 def _family_member(family: str, *, role: str, parent: Agent) -> Agent:
     """Return a concrete family-member child row of ``parent``."""
     member = _agent(f"{family}--{role}")
-    member.agent_family = family
-    member.agent_family_role = role
+    member.agent_session = family
+    member.agent_session_role = role
     member.parent_timestamp = parent.raw_suffix
     parent.followup_agents = [*parent.followup_agents, member]
     return member

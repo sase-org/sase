@@ -81,7 +81,7 @@ def test_allocated_suffix_forwards_template_and_reservations(tmp_path: Path) -> 
                 suffix=None,
                 suffix_template="--plan-@",
                 extra_reserved_suffixes=reserved,
-                agent_family_role="feedback",
+                agent_session_role="feedback",
                 prompt_artifact_label="Full question prompt",
             ),
             create_artifacts=create,
@@ -97,7 +97,7 @@ def test_allocated_suffix_forwards_template_and_reservations(tmp_path: Path) -> 
     assert name == "test_agent--plan-0"
     assert state.current_role_suffix == "--plan-0"
     assert create.call_args.args[2] == "--plan-0"
-    assert create.call_args.kwargs["agent_family_role"] == "feedback"
+    assert create.call_args.kwargs["agent_session_role"] == "feedback"
 
 
 def test_unnamed_agent_renders_fallback_suffix(tmp_path: Path) -> None:

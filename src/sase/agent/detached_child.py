@@ -118,7 +118,7 @@ def spawn_family_successor(
     workspace_num: int,
     transfer_from_pid: int | None,
     cl_name: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
     vcs_ref: tuple[str, str] | None = None,
     extra_env: dict[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
@@ -141,7 +141,7 @@ def spawn_family_successor(
     launch_plan = replace(
         plan,
         parent_is_running=False,
-        agent_family_role=agent_family_role or plan.agent_family_role,
+        agent_session_role=agent_session_role or plan.agent_session_role,
         parent_workspace_dir=workspace_dir or plan.parent_workspace_dir,
         parent_workspace_num=workspace_num,
     )

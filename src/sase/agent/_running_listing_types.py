@@ -42,8 +42,8 @@ class RunningAgentInfo:
     # Effective presentation-neutral tribe. Clan declarations/context take
     # precedence; standalone assignments remain unchanged for non-clan rows.
     tribe: str | None = None
-    agent_family: str | None = None
-    agent_family_role: str | None = None
+    agent_session: str | None = None
+    agent_session_role: str | None = None
     role_suffix: str | None = None
     monitor_id: str | None = None
     monitor_state: str | None = None
@@ -60,7 +60,7 @@ class RunningAgentInfo:
     @property
     def is_monitor(self) -> bool:
         """Whether this row is a monitor member rather than its starter."""
-        return is_monitor_member_role(self.agent_family_role, self.role_suffix)
+        return is_monitor_member_role(self.agent_session_role, self.role_suffix)
 
 
 class RunningAgentListing(list[RunningAgentInfo]):

@@ -56,13 +56,13 @@ class TestGetPhaseLabel:
         assert get_phase_label(agent) == "MONITOR"
 
     def test_monitor_stored_role_unrecognized_suffix(self) -> None:
-        agent = make_agent(role_suffix="--weird", agent_family_role="monitor")
+        agent = make_agent(role_suffix="--weird", agent_session_role="monitor")
         assert get_phase_label(agent) == "MONITOR"
 
     def test_gate(self) -> None:
         agent = make_agent(
             role_suffix="--gate",
-            agent_family_role="gate",
+            agent_session_role="gate",
             gate_id="g123",
         )
         assert get_phase_label(agent) == "GATE"
@@ -70,7 +70,7 @@ class TestGetPhaseLabel:
     def test_sudo_gate_pending_uses_typed_status_label(self) -> None:
         agent = make_agent(
             role_suffix="--gate",
-            agent_family_role="gate",
+            agent_session_role="gate",
             gate_id="sudo-123",
             gate_kind="sudo",
             gate_state="pending",
@@ -83,7 +83,7 @@ class TestGetPhaseLabel:
     def test_sudo_gate_answered_uses_typed_settled_status_label(self) -> None:
         agent = make_agent(
             role_suffix="--gate",
-            agent_family_role="gate",
+            agent_session_role="gate",
             gate_id="sudo-123",
             gate_kind="sudo",
             gate_state="answered",
@@ -98,7 +98,7 @@ class TestGetPhaseLabel:
         assert get_phase_label(agent) == "AGENT (plan round 2)"
 
     def test_new_feedback_round_2(self) -> None:
-        agent = make_agent(role_suffix="--plan-0", agent_family_role="feedback")
+        agent = make_agent(role_suffix="--plan-0", agent_session_role="feedback")
         assert get_phase_label(agent) == "AGENT (plan round 2)"
 
     def test_feedback_round_2_hyphen_suffix(self) -> None:
@@ -114,7 +114,7 @@ class TestGetPhaseLabel:
         assert get_phase_label(agent) == "AGENT (plan round 10)"
 
     def test_numeric_custom_member_label_uses_suffix_token(self) -> None:
-        agent = make_agent(role_suffix="--2", agent_family_role="reviewer")
+        agent = make_agent(role_suffix="--2", agent_session_role="reviewer")
         assert get_phase_label(agent) == "AGENT (2)"
 
     def test_historical_q_suffix_fallback_label(self) -> None:
@@ -124,17 +124,17 @@ class TestGetPhaseLabel:
         assert get_phase_label(agent) == "AGENT (q)"
 
     def test_custom_member_label_includes_suffix_token(self) -> None:
-        agent = make_agent(role_suffix="--bar", agent_family_role="bar")
+        agent = make_agent(role_suffix="--bar", agent_session_role="bar")
         assert get_phase_label(agent) == "AGENT (bar)"
 
     def test_custom_named_member_label_includes_suffix_token(self) -> None:
-        agent = make_agent(role_suffix="--reviewer", agent_family_role="reviewer")
+        agent = make_agent(role_suffix="--reviewer", agent_session_role="reviewer")
         assert get_phase_label(agent) == "AGENT (reviewer)"
 
     def test_promoted_bare_root_uses_suffix_token(self) -> None:
         agent = make_agent(
             role_suffix="--0",
-            agent_family_role="root",
+            agent_session_role="root",
             plan_chain_root=False,
         )
         assert get_phase_label(agent) == "AGENT (0)"
@@ -142,7 +142,7 @@ class TestGetPhaseLabel:
     def test_promoted_bare_root_one_uses_suffix_token(self) -> None:
         agent = make_agent(
             role_suffix="--1",
-            agent_family_role="root",
+            agent_session_role="root",
             plan_chain_root=False,
         )
         assert get_phase_label(agent) == "AGENT (1)"
@@ -150,13 +150,13 @@ class TestGetPhaseLabel:
     def test_plan_chain_root_still_uses_phase_label(self) -> None:
         agent = make_agent(
             role_suffix="--plan",
-            agent_family_role="root",
+            agent_session_role="root",
             plan_chain_root=True,
         )
         assert get_phase_label(agent) == "AGENT (plan)"
 
     def test_code_question_continuation_label_uses_inherited_role(self) -> None:
-        agent = make_agent(role_suffix="--1", agent_family_role="code")
+        agent = make_agent(role_suffix="--1", agent_session_role="code")
         assert get_phase_label(agent) == "AGENT (code)"
 
     def test_no_suffix(self) -> None:

@@ -33,8 +33,8 @@ def test_family_name_and_explicit_children_use_member_owned_transcripts(
         done={"response_path": str(coder_chat), "outcome": "completed"},
         meta={
             "workflow_name": "cx",
-            "agent_family": "cx",
-            "agent_family_role": "root",
+            "agent_session": "cx",
+            "agent_session_role": "root",
             "role_suffix": "--plan",
             "chat_path": str(planner_chat),
         },
@@ -46,8 +46,8 @@ def test_family_name_and_explicit_children_use_member_owned_transcripts(
         done={"response_path": str(coder_chat), "outcome": "completed"},
         meta={
             "workflow_name": "cx",
-            "agent_family": "cx",
-            "agent_family_role": "code",
+            "agent_session": "cx",
+            "agent_session_role": "code",
             "role_suffix": "--code",
             "parent_timestamp": "20260718010101",
         },
@@ -70,7 +70,7 @@ def test_family_source_reads_dismissed_member_transcript_from_bundle(
         "20260720190100",
         "cx--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     coder_dir = write_agent(
         tmp_path,
@@ -78,7 +78,7 @@ def test_family_source_reads_dismissed_member_transcript_from_bundle(
         "cx--code",
         done={"response_path": str(coder_chat), "outcome": "completed"},
         meta={
-            "agent_family": "cx",
+            "agent_session": "cx",
             "parent_timestamp": "20260720190100",
             "changespec_name": "change",
         },
@@ -113,14 +113,14 @@ def test_family_source_includes_completed_members_in_chain_order(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(coder_chat), "outcome": "completed"},
-        meta={"agent_family": "cx", "chat_path": str(planner_chat)},
+        meta={"agent_session": "cx", "chat_path": str(planner_chat)},
     )
     coder_dir = write_agent(
         tmp_path,
         "20260718010202",
         "cx--code",
         done={"response_path": str(coder_chat), "outcome": "completed"},
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010101"},
     )
 
     source = _resolve_agent_chat_sources(["cx"])[0]
@@ -166,14 +166,14 @@ def test_dotted_numeric_family_root_resolves_as_family_not_legacy_child(
         "20260718010101",
         f"{base_name}--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"workflow_name": base_name, "agent_family": base_name},
+        meta={"workflow_name": base_name, "agent_session": base_name},
     )
     write_agent(
         tmp_path,
         "20260718010202",
         f"{base_name}--code",
         done={"response_path": str(coder_chat), "outcome": "completed"},
-        meta={"agent_family": base_name, "parent_timestamp": "20260718010101"},
+        meta={"agent_session": base_name, "parent_timestamp": "20260718010101"},
     )
 
     source = _resolve_agent_chat_sources([base_name])[0]
@@ -197,14 +197,14 @@ def test_family_source_includes_intermediate_handoff_without_done_marker(
         tmp_path,
         "20260718010101",
         "cx--plan",
-        meta={"agent_family": "cx", "chat_path": str(planner_chat)},
+        meta={"agent_session": "cx", "chat_path": str(planner_chat)},
     )
     write_agent(
         tmp_path,
         "20260718010202",
         "cx--code",
         done={"response_path": str(coder_chat), "outcome": "completed"},
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010101"},
     )
 
     source = _resolve_agent_chat_sources(["cx"])[0]
@@ -232,13 +232,13 @@ def test_family_source_reports_running_tip_as_excluded(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     write_agent(
         tmp_path,
         "20260718010202",
         "cx--code",
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010101"},
     )
 
     source = _resolve_agent_chat_sources(["cx"])[0]
@@ -263,13 +263,13 @@ def test_family_source_omits_current_member_from_own_family_history(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     current_dir = write_agent(
         tmp_path,
         "20260718010202",
         "cx--code",
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010101"},
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
 
@@ -310,28 +310,28 @@ def test_family_source_includes_failed_member_excludes_unavailable_transcripts(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     write_agent(
         tmp_path,
         "20260718010202",
         "cx--code",
         done={"outcome": "completed"},
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010101"},
     )
     write_agent(
         tmp_path,
         "20260718010303",
         "cx--test",
         done={"outcome": "failed", "error": "assertion failed"},
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010202"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010202"},
     )
     write_agent(
         tmp_path,
         "20260718010404",
         "cx--fix",
         done={"response_path": str(unreadable_chat), "outcome": "completed"},
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010303"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010303"},
     )
     unreadable_chat.unlink()
 
@@ -358,7 +358,7 @@ def test_family_source_requires_at_least_one_completed_transcript(
         tmp_path,
         "20260718010101",
         "cx--plan",
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
 
     with pytest.raises(RuntimeError, match="No agent with chat history found for: cx"):
@@ -376,14 +376,14 @@ def test_family_and_explicit_member_duplicate_transcript_are_coalesced(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     write_agent(
         tmp_path,
         "20260718010202",
         "cx--code",
         done={"response_path": str(coder_chat), "outcome": "completed"},
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010101"},
     )
 
     sources = _resolve_agent_chat_sources(["cx", "cx--code"])
@@ -406,14 +406,14 @@ def test_agent_then_overlapping_family_keeps_unique_later_member(
         "20260718010101",
         "cx--plan",
         done={"response_path": str(planner_chat), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     write_agent(
         tmp_path,
         "20260718010202",
         "cx--code",
         done={"response_path": str(coder_chat), "outcome": "completed"},
-        meta={"agent_family": "cx", "parent_timestamp": "20260718010101"},
+        meta={"agent_session": "cx", "parent_timestamp": "20260718010101"},
     )
 
     sources = _resolve_agent_chat_sources(["cx--code", "cx"])

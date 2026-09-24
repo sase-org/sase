@@ -114,7 +114,7 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
         MONITOR_PROJECT,
         {
             "name": "auto--gate",
-            "agent_family": "auto",
+            "agent_session": "auto",
             "model": "test",
             "queue_weight": 1.0,
             "queue_weight_explicit": True,
@@ -461,7 +461,7 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
         MONITOR_PROJECT,
         {
             "name": "failstart--gate",
-            "agent_family": "failstart",
+            "agent_session": "failstart",
             "model": "test",
             "queue_weight": 1.0,
             "queue_weight_explicit": True,

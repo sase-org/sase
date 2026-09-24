@@ -304,7 +304,7 @@ def test_orphaned_family_bundle_is_released_and_launch_proceeds(
                 "raw_suffix": "20260723120000",
                 "agent_name": f"{family_name}--code",
                 "workflow_name": family_name,
-                "agent_family": family_name,
+                "agent_session": family_name,
                 "status": "DONE",
             }
         ),

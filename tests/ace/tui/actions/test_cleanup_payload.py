@@ -22,7 +22,7 @@ from sase.ops.commands.agent import _apply_cleanup_payload_for_result
 
 
 _REVIVAL_FIELDS = (
-    "agent_family",
+    "agent_session",
     "artifacts_dir",
     "llm_provider",
     "model",
@@ -41,8 +41,8 @@ def _local_agent(*, artifacts_dir: str | None, **overrides: object) -> Agent:
         "raw_suffix": "20260101120000",
         "workflow": "ace-run",
         "agent_name": "crew--code",
-        "agent_family": "crew",
-        "agent_family_role": "code",
+        "agent_session": "crew",
+        "agent_session_role": "code",
         "model": "grok-4",
         "llm_provider": "xai",
         "reasoning_effort": "high",
@@ -57,7 +57,7 @@ def _imported_projected_agent(artifact_dir: str) -> Agent:
     return _local_agent(
         artifacts_dir=None,
         agent_name="athena.7n--code",
-        agent_family="athena.7n",
+        agent_session="athena.7n",
         record_shape="list",
         index_record_dir=artifact_dir,
         response_path=f"{artifact_dir}/response.md",
@@ -123,7 +123,7 @@ def test_cleanup_archive_resolves_artifacts_dir_from_index_record(
 
     payload = serialize_agent(agent)
     assert payload["artifacts_dir"] == artifact_dir
-    assert payload["agent_family"] == "athena.7n"
+    assert payload["agent_session"] == "athena.7n"
     assert payload["model"] == "grok-4"
     assert payload["llm_provider"] == "xai"
     assert payload["reasoning_effort"] == "high"
@@ -132,7 +132,7 @@ def test_cleanup_archive_resolves_artifacts_dir_from_index_record(
     restored = agent_from_json(payload)
     assert restored.artifacts_dir == artifact_dir
     assert restored.record_shape == "full"
-    assert restored.agent_family == "athena.7n"
+    assert restored.agent_session == "athena.7n"
     assert restored.model == "grok-4"
 
 
@@ -149,7 +149,7 @@ def test_legacy_unversioned_payload_still_rehydrates() -> None:
     )
     assert restored.cl_name == "legacy"
     assert restored._from_patch is True
-    assert restored.agent_family == "crew"
+    assert restored.agent_session == "crew"
 
 
 def test_unsupported_cleanup_archive_version_fails_loudly() -> None:
@@ -238,7 +238,7 @@ def test_cleanup_subprocess_dismiss_preserves_imported_projected_record(
     monkeypatch.setattr(Agent, "get_artifacts_dir", lambda self: None)
     loaded = _dismiss_through_cleanup_subprocess(agent, tmp_path)
     assert loaded.artifacts_dir == artifact_dir
-    assert loaded.agent_family == "athena.7n"
+    assert loaded.agent_session == "athena.7n"
     assert loaded.model == "grok-4"
     assert loaded.llm_provider == "xai"
     assert loaded.reasoning_effort == "high"

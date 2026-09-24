@@ -204,7 +204,7 @@ class TestPlanFollowupQuestions:
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
         assert (
             questions_mod.create_followup_artifacts.call_args.kwargs[
-                "agent_family_role"
+                "agent_session_role"
             ]
             == "plan"
         )
@@ -223,7 +223,7 @@ class TestPlanFollowupQuestions:
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
         assert (
             questions_mod.create_followup_artifacts.call_args.kwargs[
-                "agent_family_role"
+                "agent_session_role"
             ]
             == "agent"
         )
@@ -244,7 +244,7 @@ class TestPlanFollowupQuestions:
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
         assert (
             questions_mod.create_followup_artifacts.call_args.kwargs[
-                "agent_family_role"
+                "agent_session_role"
             ]
             == "plan"
         )
@@ -277,7 +277,7 @@ class TestPlanFollowupQuestions:
         state.saved_chat_paths.append(("--1", "/fake/round1.md"))
         meta_path = tmp_path / "artifacts" / "agent_meta.json"
         meta_path.write_text(
-            json.dumps({"role_suffix": "--2", "agent_family_role": "review"}),
+            json.dumps({"role_suffix": "--2", "agent_session_role": "review"}),
             encoding="utf-8",
         )
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
@@ -290,7 +290,7 @@ class TestPlanFollowupQuestions:
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--3"
         assert (
             questions_mod.create_followup_artifacts.call_args.kwargs[
-                "agent_family_role"
+                "agent_session_role"
             ]
             == "review"
         )
@@ -409,7 +409,7 @@ class TestPlanFollowupQuestions:
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
         assert (
             questions_mod.create_followup_artifacts.call_args.kwargs[
-                "agent_family_role"
+                "agent_session_role"
             ]
             == "code"
         )

@@ -54,7 +54,7 @@ def test_wipe_force_reuse_owner_replaces_newest_family_generation(
     family_name = "epic.phase"
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
-    family_meta = {"agent_family": family_name, "agent_family_parallel": False}
+    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
     plan = _artifact(tmp_path, "20260801120000", plan_name, done=True, meta=family_meta)
     code = _artifact(
         tmp_path,
@@ -87,8 +87,8 @@ def test_wipe_force_reuse_owner_family_preserves_enclosing_clan(
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
     family_meta = {
-        "agent_family": family_name,
-        "agent_family_parallel": False,
+        "agent_session": family_name,
+        "agent_session_parallel": False,
         "agent_clan": clan_name,
         "agent_clan_generation": "gen-1",
     }
@@ -149,7 +149,7 @@ def test_wipe_force_reuse_owner_family_tolerates_member_removed_concurrently(
     family_name = "epic.race"
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
-    family_meta = {"agent_family": family_name, "agent_family_parallel": False}
+    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
     plan = _artifact(tmp_path, "20260801140000", plan_name, done=True, meta=family_meta)
     code = _artifact(
         tmp_path,

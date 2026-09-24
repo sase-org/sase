@@ -377,7 +377,7 @@ def test_success_completion_notification_names_owning_family(base_kwargs):
     base_kwargs["agent_name"] = "0bw--1"
     _write_agent_meta(
         base_kwargs,
-        {"name": "0bw--1", "agent_family": "0bw", "agent_family_role": "1"},
+        {"name": "0bw--1", "agent_session": "0bw", "agent_session_role": "1"},
     )
 
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
@@ -397,7 +397,7 @@ def test_failure_error_report_notification_names_owning_family(base_kwargs, tmp_
     base_kwargs["agent_name"] = "0bw--1"
     _write_agent_meta(
         base_kwargs,
-        {"name": "0bw--1", "agent_family": "0bw", "agent_family_role": "1"},
+        {"name": "0bw--1", "agent_session": "0bw", "agent_session_role": "1"},
     )
 
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
@@ -414,7 +414,7 @@ def test_deferred_epic_completion_names_owning_family(base_kwargs):
     base_kwargs["agent_name"] = "0bw--1"
     _write_agent_meta(
         base_kwargs,
-        {"name": "0bw--1", "agent_family": "0bw", "agent_family_role": "1"},
+        {"name": "0bw--1", "agent_session": "0bw", "agent_session_role": "1"},
     )
 
     with (
@@ -441,7 +441,7 @@ def test_completion_notification_bead_display_uses_family_name(
         "sase.agent.bead_display.lookup_bead_issue", lambda _, **__: None
     )
     base_kwargs["agent_name"] = "sase-x.3--1"
-    _write_agent_meta(base_kwargs, {"name": "sase-x.3--1", "agent_family": "sase-x.3"})
+    _write_agent_meta(base_kwargs, {"name": "sase-x.3--1", "agent_session": "sase-x.3"})
 
     with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
         send_completion_notification(**base_kwargs)
@@ -458,10 +458,10 @@ def test_completion_notification_bead_display_uses_family_name(
         None,
         "not-json",
         "[]",
-        {"agent_family": ""},
-        {"agent_family": "   "},
-        {"agent_family": None},
-        {"agent_family": 0},
+        {"agent_session": ""},
+        {"agent_session": "   "},
+        {"agent_session": None},
+        {"agent_session": 0},
     ],
 )
 def test_completion_notification_keeps_shell_name_without_family_metadata(

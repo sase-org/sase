@@ -28,7 +28,7 @@ def _row(
     name: str | None = "02p",
     status: str = "RUNNING",
     provider: str | None = "claude",
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
     role_suffix: str | None = None,
 ) -> RunningAgentInfo:
     return RunningAgentInfo(
@@ -42,7 +42,7 @@ def _row(
         approve=False,
         status=status,
         artifacts_dir=str(artifacts_dir),
-        agent_family_role=agent_family_role,
+        agent_session_role=agent_session_role,
         role_suffix=role_suffix,
     )
 
@@ -189,7 +189,7 @@ def test_failed_row_whose_error_does_not_match_usage_limit_is_not_selected(
 
 def test_monitor_member_is_dropped_and_reported(tmp_path: Path) -> None:
     artifacts_dir = make_agent(tmp_path, "gh_sase-org__sase", "20260818120000", "02p")
-    row = _row(artifacts_dir, status="RUNNING", agent_family_role="monitor")
+    row = _row(artifacts_dir, status="RUNNING", agent_session_role="monitor")
     with patch("sase.agent.identity.discover_agent_identity", return_value=None):
         candidates, skips = select_drain_candidates([row], "claude", _DISABLE)
     assert candidates == []

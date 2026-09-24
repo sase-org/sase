@@ -75,7 +75,7 @@ def associated_plan_cache_key(agent: Agent) -> tuple[object, ...]:
         agent.plan_action,
         agent.epic_bead_id,
         agent.phase_bead_id,
-        agent.agent_family_role,
+        agent.agent_session_role,
         agent.agent_name,
         agent.project_file,
         agent.workspace_dir,
@@ -278,7 +278,7 @@ def _flag_bead_enrichment(
 
 
 def _initial_agent_plan_role(agent: Agent) -> _InitialAgentPlanRole:
-    if agent.phase_bead_id or agent.agent_family_role == "phase":
+    if agent.phase_bead_id or agent.agent_session_role == "phase":
         return "phase"
 
     presented_name = agent.presented_agent_name or agent.agent_name

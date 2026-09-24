@@ -124,7 +124,7 @@ def _agent(
     suffix: str,
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
-    agent_family_parallel: bool = False,
+    agent_session_parallel: bool = False,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -136,7 +136,7 @@ def _agent(
         tribe=tribe,
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
-        agent_family_parallel=agent_family_parallel,
+        agent_session_parallel=agent_session_parallel,
     )
 
 

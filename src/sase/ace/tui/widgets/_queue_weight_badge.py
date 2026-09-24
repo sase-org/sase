@@ -43,7 +43,7 @@ def _append_agent_queue_weight_badge(text: Text, agent: Agent) -> bool:
         or agent.is_proc_shell
         or agent.is_gate
         or agent.is_monitor
-        or (agent.is_child_row and not agent.agent_family_parallel)
+        or (agent.is_child_row and not agent.agent_session_parallel)
     ):
         return False
     return append_queue_weight_badge(text, wait_display_agent(agent).queue_weight)
@@ -81,7 +81,7 @@ def append_agent_queue_badges(text: Text, agent: Agent) -> bool:
         or agent.is_proc_shell
         or agent.is_gate
         or agent.is_monitor
-        or (agent.is_child_row and not agent.agent_family_parallel)
+        or (agent.is_child_row and not agent.agent_session_parallel)
     ):
         return appended
     wait_agent = wait_display_agent(agent)

@@ -114,12 +114,12 @@ def is_always_visible(agent: Agent) -> bool:
 def _question_answer_family_key(agent: Agent) -> str | None:
     """Return a stable family key for QUESTION-override answer reconciliation.
 
-    Rows in one agent family share ``agent_family``; sibling continuations
+    Rows in one agent family share ``agent_session``; sibling continuations
     additionally share ``parent_timestamp``. Either is enough to recognize the
     continuation that answered an asking row's question.
     """
-    if agent.agent_family:
-        return agent.agent_family
+    if agent.agent_session:
+        return agent.agent_session
     return agent.parent_timestamp or None
 
 

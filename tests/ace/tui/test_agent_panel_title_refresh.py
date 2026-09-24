@@ -174,7 +174,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
         tribe="apple",
         suffix="apple-root",
         status="WAITING",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     apple_members = [
         _agent(
@@ -182,7 +182,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
             suffix=f"apple-member-{index}",
             status=status,
             parent_timestamp=apple_root.raw_suffix,
-            agent_family_parallel=True,
+            agent_session_parallel=True,
         )
         for index, status in enumerate(
             ("RUNNING", "STARTING", "WAITING", "DONE", "DONE")
@@ -201,7 +201,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
         tribe="banana",
         suffix="banana-root",
         status="RUNNING",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     banana_members = [
         _agent(
@@ -209,7 +209,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
             suffix=f"banana-member-{index}",
             status=status,
             parent_timestamp=banana_root.raw_suffix,
-            agent_family_parallel=True,
+            agent_session_parallel=True,
         )
         for index, status in enumerate(("QUESTION", "FAILED", "DONE"))
     ]
@@ -252,8 +252,8 @@ def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
         suffix="build-plan",
         status="TALE APPROVED",
     )
-    planner.agent_family = "build"
-    planner.agent_family_role = "root"
+    planner.agent_session = "build"
+    planner.agent_session_role = "root"
     planner.role_suffix = "--plan"
     coder = _agent(
         name="build--code",
@@ -261,8 +261,8 @@ def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
         status="WORKING TALE",
         parent_timestamp=planner.raw_suffix,
     )
-    coder.agent_family = "build"
-    coder.agent_family_role = "code"
+    coder.agent_session = "build"
+    coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     planner.followup_agents = [coder]
     standalone = _agent(
@@ -295,16 +295,16 @@ def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
 
 def test_settled_monitor_badge_is_panel_scoped() -> None:
     apple_root = _agent(name="apple-family", tribe="apple", suffix="apple-root")
-    apple_root.agent_family = "apple-family"
-    apple_root.agent_family_role = "root"
+    apple_root.agent_session = "apple-family"
+    apple_root.agent_session_role = "root"
     apple_monitor = _agent(
         name="apple-family--mon",
         tribe="apple",
         suffix="apple-mon",
         parent_timestamp=apple_root.raw_suffix,
     )
-    apple_monitor.agent_family = "apple-family"
-    apple_monitor.agent_family_role = "monitor"
+    apple_monitor.agent_session = "apple-family"
+    apple_monitor.agent_session_role = "monitor"
     apple_monitor.role_suffix = "--mon"
     apple_monitor.monitor_id = "m1"
     apple_monitor.monitor_state = "completed"
@@ -326,16 +326,16 @@ def test_settled_monitor_badge_is_panel_scoped() -> None:
 
 def test_running_monitor_badge_is_panel_scoped() -> None:
     apple_root = _agent(name="apple-family", tribe="apple", suffix="apple-root")
-    apple_root.agent_family = "apple-family"
-    apple_root.agent_family_role = "root"
+    apple_root.agent_session = "apple-family"
+    apple_root.agent_session_role = "root"
     apple_running_monitor = _agent(
         name="apple-family--mon-run",
         tribe="apple",
         suffix="apple-mon-run",
         parent_timestamp=apple_root.raw_suffix,
     )
-    apple_running_monitor.agent_family = "apple-family"
-    apple_running_monitor.agent_family_role = "monitor"
+    apple_running_monitor.agent_session = "apple-family"
+    apple_running_monitor.agent_session_role = "monitor"
     apple_running_monitor.role_suffix = "--mon"
     apple_running_monitor.monitor_id = "m1"
     apple_running_monitor.monitor_state = "running"
@@ -345,8 +345,8 @@ def test_running_monitor_badge_is_panel_scoped() -> None:
         suffix="apple-mon-done",
         parent_timestamp=apple_root.raw_suffix,
     )
-    apple_done_monitor.agent_family = "apple-family"
-    apple_done_monitor.agent_family_role = "monitor"
+    apple_done_monitor.agent_session = "apple-family"
+    apple_done_monitor.agent_session_role = "monitor"
     apple_done_monitor.role_suffix = "--mon"
     apple_done_monitor.monitor_id = "m2"
     apple_done_monitor.monitor_state = "completed"

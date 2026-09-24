@@ -215,7 +215,7 @@ def test_default_pipe_creates_family_member_with_fork_and_shared_workspace(
     names = {row.agent_name or row.cl_name for row in rows}
     assert "fakey-e2e--plan" in names
     assert "fakey-e2e--1" in names
-    family_rows = [row for row in rows if row.agent_family == "fakey-e2e"]
+    family_rows = [row for row in rows if row.agent_session == "fakey-e2e"]
     assert len(family_rows) >= 2
     workspaces = {row.workspace_dir for row in family_rows if row.workspace_dir}
     assert workspaces == {str(harness.workspace)}

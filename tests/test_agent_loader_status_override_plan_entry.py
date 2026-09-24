@@ -18,8 +18,8 @@ def _agent(
     feedback_times: list[datetime] | None = None,
     plan_action: str | None = None,
     agent_name: str | None = None,
-    agent_family: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session: str | None = None,
+    agent_session_role: str | None = None,
     plan_chain_root: bool = False,
     plan_path: str | None = None,
 ) -> Agent:
@@ -36,8 +36,8 @@ def _agent(
         feedback_times=feedback_times or [],
         plan_action=plan_action,
         agent_name=agent_name,
-        agent_family=agent_family,
-        agent_family_role=agent_family_role,
+        agent_session=agent_session,
+        agent_session_role=agent_session_role,
         plan_chain_root=plan_chain_root,
         plan_path=plan_path,
     )
@@ -67,8 +67,8 @@ def test_apply_status_overrides_family_root_without_gate_mirrors_done_planner() 
         raw_suffix=root_timestamp,
         role_suffix="--0",
         agent_name="bph.cld",
-        agent_family="bph.cld",
-        agent_family_role="root",
+        agent_session="bph.cld",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     planner = _agent(
@@ -78,8 +78,8 @@ def test_apply_status_overrides_family_root_without_gate_mirrors_done_planner() 
         role_suffix="-plan",
         plan_times=[datetime(2026, 5, 29, 9, 35, 0)],
         agent_name="bph.cld-2",
-        agent_family="bph.cld",
-        agent_family_role="plan",
+        agent_session="bph.cld",
+        agent_session_role="plan",
     )
 
     _apply_status_overrides([root, planner])
@@ -99,8 +99,8 @@ def test_apply_status_overrides_approved_tale_is_not_reopened_as_plan() -> None:
         plan_times=[datetime(2026, 5, 29, 10, 5, 0)],
         plan_action="tale",
         agent_name="bph.cld",
-        agent_family="bph.cld",
-        agent_family_role="root",
+        agent_session="bph.cld",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     code_child = _agent(
@@ -109,8 +109,8 @@ def test_apply_status_overrides_approved_tale_is_not_reopened_as_plan() -> None:
         parent_timestamp=root_timestamp,
         role_suffix="-code",
         agent_name="bph.cld-code",
-        agent_family="bph.cld",
-        agent_family_role="code",
+        agent_session="bph.cld",
+        agent_session_role="code",
     )
 
     _apply_status_overrides([parent, code_child])

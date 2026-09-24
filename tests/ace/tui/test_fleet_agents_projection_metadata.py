@@ -70,10 +70,10 @@ def test_project_fleet_agents_carries_remote_family_lineage_into_agent_rows() ->
     by_name = {row.agent_name: row for row in projection.fleet_rows}
     root_row = by_name["remote-family"]
     child_row = by_name["remote-family--code"]
-    assert root_row.agent_family is None
-    assert root_row.agent_family_role == "root"
-    assert child_row.agent_family == "remote-family"
-    assert child_row.agent_family_role == "member"
+    assert root_row.agent_session is None
+    assert root_row.agent_session_role == "root"
+    assert child_row.agent_session == "remote-family"
+    assert child_row.agent_session_role == "member"
     assert child_row.role_suffix == "--code"
     assert child_row.parent_timestamp == root_row.raw_suffix
     assert child_row.is_family_member_child is True
@@ -177,7 +177,7 @@ def test_project_fleet_agents_keeps_legacy_summaries_without_schema_v4_fields() 
     assert row.run_start_time == row.start_time
     assert row.tribe is None
     assert row.parent_timestamp is None
-    assert not row.is_remote_family_container
+    assert not row.is_remote_agent_session_container
 
 
 def test_project_fleet_agents_prefers_owner_human_project_label() -> None:

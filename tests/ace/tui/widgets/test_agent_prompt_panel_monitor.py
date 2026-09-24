@@ -42,8 +42,8 @@ def _monitor_agent(
         "raw_suffix": "20260812090000",
         "parent_timestamp": "20260812085900",
         "agent_name": "alpha--mon",
-        "agent_family": "alpha",
-        "agent_family_role": "monitor",
+        "agent_session": "alpha",
+        "agent_session_role": "monitor",
         "role_suffix": "--mon",
         "artifacts_dir": artifacts_dir,
         "monitor_id": "m123abc456def",
@@ -118,13 +118,13 @@ def _family_with_monitor(
         run_start_time=started,
         raw_suffix="20260812085900",
         agent_name="alpha--code",
-        agent_family="alpha",
-        agent_family_role="code",
+        agent_session="alpha",
+        agent_session_role="code",
         role_suffix="--code",
         plan_chain_root=True,
         followup_agents=[monitor],
     )
-    monitor.family_container = root
+    monitor.agent_session_container = root
     return root
 
 
@@ -164,8 +164,8 @@ def _starter_with_monitor(
         raw_suffix="20260812085900",
         artifacts_dir=str(starter_dir),
         agent_name="alpha--code",
-        agent_family="alpha",
-        agent_family_role="code",
+        agent_session="alpha",
+        agent_session_role="code",
         role_suffix="--code",
         followup_agents=[monitor],
     )

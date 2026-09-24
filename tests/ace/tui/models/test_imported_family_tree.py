@@ -37,8 +37,8 @@ def _imported_member(
         stop_time=datetime(2026, 7, 24, 12, 1, second),
         raw_suffix=suffix,
         agent_name=name,
-        agent_family="bob.zeus.crew",
-        agent_family_role=role,
+        agent_session="bob.zeus.crew",
+        agent_session_role=role,
         imported_source_owner=SOURCE,
     )
 
@@ -71,11 +71,11 @@ def test_imported_family_renders_grouped_without_code_orphan_roots() -> None:
     roots = [row for row in rows if not agent_is_tree_child(row)]
     assert len(roots) == 1
     container = roots[0]
-    assert container.is_imported_family_container
+    assert container.is_imported_agent_session_container
     assert container.is_family_root_entry
-    assert container.agent_family == "bob.zeus.crew"
+    assert container.agent_session == "bob.zeus.crew"
     members = [row for row in rows if row is not container]
-    assert {row.agent_family_role for row in members} == {"plan", "code", "monitor"}
+    assert {row.agent_session_role for row in members} == {"plan", "code", "monitor"}
     assert all(row.is_family_member_child for row in members)
     assert all(agent_tree_depth(row) > 0 for row in members)
     assert all(row.parent_timestamp == container.raw_suffix for row in members)
@@ -102,13 +102,13 @@ def test_reviving_imported_family_restores_root_and_members() -> None:
         second=3,
     )
     rows = materialize_imported_family_containers([plan, code, monitor])
-    container = next(row for row in rows if row.is_imported_family_container)
+    container = next(row for row in rows if row.is_imported_agent_session_container)
     members = [row for row in rows if row is not container]
     visible = [row for row in rows if not row.is_workflow_child]
 
     assert visible == [container]
     assert all(is_child_of(member, container) for member in members)
-    assert {member.agent_family_role for member in members} == {
+    assert {member.agent_session_role for member in members} == {
         "plan",
         "code",
         "monitor",
@@ -120,8 +120,8 @@ def test_imported_source_owner_loads_from_meta_and_bundle(tmp_path: Path) -> Non
         json.dumps(
             {
                 "name": "bob.zeus.crew--code",
-                "agent_family": "bob.zeus.crew",
-                "agent_family_role": "code",
+                "agent_session": "bob.zeus.crew",
+                "agent_session_role": "code",
                 "imported_source_owner": {
                     "username": "bob",
                     "machine_name": "zeus",
@@ -140,7 +140,7 @@ def test_imported_source_owner_loads_from_meta_and_bundle(tmp_path: Path) -> Non
     )
     enrich_agent_from_meta(agent, str(tmp_path))
     assert agent.imported_source_owner == SOURCE
-    assert agent.agent_family == "bob.zeus.crew"
+    assert agent.agent_session == "bob.zeus.crew"
 
     bundle = to_bundle_dict(agent)
     assert bundle["imported_source_owner"] == {
@@ -160,8 +160,8 @@ def test_synthetic_imported_family_parent_is_not_persisted() -> None:
         second=2,
     )
     rows = materialize_imported_family_containers([code])
-    member = next(row for row in rows if not row.is_imported_family_container)
+    member = next(row for row in rows if not row.is_imported_agent_session_container)
     assert member.parent_timestamp is not None
     bundle = to_bundle_dict(member)
     assert bundle.get("parent_timestamp") is None
-    assert "is_imported_family_container" not in bundle
+    assert "is_imported_agent_session_container" not in bundle

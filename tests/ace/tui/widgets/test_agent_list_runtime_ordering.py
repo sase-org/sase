@@ -123,8 +123,8 @@ def test_sort_and_reorder_keeps_agent_family_children_nested_under_root() -> Non
     )
     parent.workflow = "agent-family"
     parent.agent_name = "ap5"
-    parent.agent_family = "ap5"
-    parent.agent_family_role = "root"
+    parent.agent_session = "ap5"
+    parent.agent_session_role = "root"
     parent.plan_chain_root = True
 
     planner = workflow_child(
@@ -216,8 +216,8 @@ def test_sort_and_reorder_attaches_family_container_for_workflow_shaped_family()
     )
     parent.workflow = "agent-family"
     parent.agent_name = "ap5"
-    parent.agent_family = "ap5"
-    parent.agent_family_role = "root"
+    parent.agent_session = "ap5"
+    parent.agent_session_role = "root"
     parent.plan_chain_root = True
 
     planner = workflow_child(
@@ -251,10 +251,10 @@ def test_sort_and_reorder_attaches_family_container_for_workflow_shaped_family()
 
     assert ordered[:3] == [parent, planner, coder]
     assert parent.is_family_container_row is True
-    assert parent.family_container is None
-    assert planner.family_container is parent
-    assert coder.family_container is parent
-    # A reference cycle between family_container and followup_agents must not
+    assert parent.agent_session_container is None
+    assert planner.agent_session_container is parent
+    assert coder.agent_session_container is parent
+    # A reference cycle between agent_session_container and followup_agents must not
     # break dataclass eq/repr (compare=False, repr=False keeps it out).
     assert repr(coder)
     assert coder == coder
@@ -271,7 +271,7 @@ def test_sort_and_reorder_attaches_family_container_for_rename_on_attach_family(
         role_suffix="--plan",
     )
     parent.agent_name = "fam--plan"
-    parent.agent_family = "fam"
+    parent.agent_session = "fam"
     parent.plan_chain_root = True
     child = agent(
         status="DONE",
@@ -287,8 +287,8 @@ def test_sort_and_reorder_attaches_family_container_for_rename_on_attach_family(
     sort_and_reorder([child, parent], [])
 
     assert parent.is_family_container_row is True
-    assert child.family_container is parent
-    assert parent.family_container is None
+    assert child.agent_session_container is parent
+    assert parent.agent_session_container is None
 
 
 def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
@@ -300,7 +300,7 @@ def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
         role_suffix="--plan",
     )
     parent.agent_name = "fam--plan"
-    parent.agent_family = "fam"
+    parent.agent_session = "fam"
     parent.plan_chain_root = True
     child = agent(
         status="DONE",
@@ -314,7 +314,7 @@ def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
     parent.followup_agents = [child]
 
     sort_and_reorder([child, parent], [])
-    assert child.family_container is parent
+    assert child.agent_session_container is parent
 
     # The family dissolves (e.g. the follow-up is dismissed); a re-run must
     # not leave a stale pointer even though ``child`` is still passed in.
@@ -322,7 +322,7 @@ def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
     sort_and_reorder([child, parent], [])
 
     assert parent.is_family_container_row is False
-    assert child.family_container is None
+    assert child.agent_session_container is None
 
 
 def test_sort_and_reorder_skips_parallel_family_rows() -> None:
@@ -334,7 +334,7 @@ def test_sort_and_reorder_skips_parallel_family_rows() -> None:
         role_suffix="--plan",
     )
     parent.agent_name = "fam2--plan"
-    parent.agent_family = "fam2"
+    parent.agent_session = "fam2"
     parent.plan_chain_root = True
 
     parallel = agent(
@@ -344,7 +344,7 @@ def test_sort_and_reorder_skips_parallel_family_rows() -> None:
         cl_name="fam2--parallel",
     )
     parallel.parent_timestamp = parent.raw_suffix
-    parallel.agent_family_parallel = True
+    parallel.agent_session_parallel = True
 
     real_child = agent(
         status="DONE",
@@ -361,8 +361,8 @@ def test_sort_and_reorder_skips_parallel_family_rows() -> None:
     sort_and_reorder([parallel, real_child, parent], [])
 
     assert parent.is_family_container_row is True
-    assert parallel.family_container is None
-    assert real_child.family_container is parent
+    assert parallel.agent_session_container is None
+    assert real_child.agent_session_container is parent
 
 
 def test_sort_and_reorder_emits_followup_of_followup_once_after_parent() -> None:
@@ -388,7 +388,7 @@ def test_sort_and_reorder_emits_followup_of_followup_once_after_parent() -> None
         role_suffix="--mon-1",
     )
     grandchild.parent_timestamp = child.raw_suffix
-    grandchild.agent_family_role = "monitor"
+    grandchild.agent_session_role = "monitor"
 
     ordered = sort_and_reorder([grandchild, child, parent], [])
 

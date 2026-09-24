@@ -24,7 +24,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
         raw_suffix="20260430090102",
         tribe="triage",
         agent_name="friendly",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
         agent_clan="research",
         agent_clan_generation="20260430090000",
         stop_time=_STOP,
@@ -56,7 +56,7 @@ def test_agent_to_cleanup_target_marks_live_monitors() -> None:
     agent = _agent(
         cl_name="owner--mon",
         status="MONITORING",
-        agent_family_role="monitor",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="monid123456",
         monitor_state="running",

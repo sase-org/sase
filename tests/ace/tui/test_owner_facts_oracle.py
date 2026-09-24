@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from sase.ace.tui.models._agent_status_apply import apply_status_overrides
-from sase.ace.tui.models._agent_status_roles import agent_family_role
+from sase.ace.tui.models._agent_status_roles import agent_session_role
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_tiered_agents
 from sase.ace.tui.models.agent_panels import (
@@ -66,7 +66,7 @@ _FACT_IDENTITIES = (
 _DIMENSIONS: dict[str, Callable[[Agent], object]] = {
     "status": lambda a: a.status,
     "status_bucket": agent_status_bucket,
-    "agent_family_role": agent_family_role,
+    "agent_session_role": agent_session_role,
     "role_suffix": lambda a: a.role_suffix,
     "clan_tribe": lambda a: a.clan_tribe,
     # proc ids are registry-backed on the owner side; only monitor/gate chips

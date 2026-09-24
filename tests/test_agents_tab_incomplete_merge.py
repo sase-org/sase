@@ -105,8 +105,8 @@ def _pre_metadata_latch_rows() -> tuple[Agent, Agent, Agent]:
         start_time=datetime(2026, 8, 29, 6, 15, 45),
         raw_suffix=parent_ts,
         agent_name="toobig-4j.test_workflow_executor.0",
-        agent_family="toobig-4j.test_workflow_executor.0",
-        agent_family_role="root",
+        agent_session="toobig-4j.test_workflow_executor.0",
+        agent_session_role="root",
         agent_clan="toobig-4j",
         agent_clan_generation=generation,
         clan_tribe="chop",
@@ -123,8 +123,8 @@ def _pre_metadata_latch_rows() -> tuple[Agent, Agent, Agent]:
         runner_is_live=True,
         agent_name="toobig-4j.test_workflow_executor.0--1",
         parent_timestamp=parent_ts,
-        agent_family="toobig-4j.test_workflow_executor.0",
-        agent_family_role="root",
+        agent_session="toobig-4j.test_workflow_executor.0",
+        agent_session_role="root",
         role_suffix="--1",
         agent_clan="toobig-4j",
         agent_clan_generation=generation,
@@ -215,8 +215,8 @@ def test_incomplete_merge_replaces_plan_chain_child_with_transient_cl_name() -> 
         pid=5150,
         role_suffix="-plan",
         agent_name="a90",
-        agent_family="a90",
-        agent_family_role="root",
+        agent_session="a90",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     cached_child = Agent(
@@ -232,8 +232,8 @@ def test_incomplete_merge_replaces_plan_chain_child_with_transient_cl_name() -> 
         parent_timestamp=parent_ts,
         role_suffix="-code",
         agent_name="a90-code",
-        agent_family="a90",
-        agent_family_role="code",
+        agent_session="a90",
+        agent_session_role="code",
         model="cached-model",
     )
     refreshed_child = Agent(
@@ -249,8 +249,8 @@ def test_incomplete_merge_replaces_plan_chain_child_with_transient_cl_name() -> 
         parent_timestamp=parent_ts,
         role_suffix="-code",
         agent_name="a90-code",
-        agent_family="a90",
-        agent_family_role="code",
+        agent_session="a90",
+        agent_session_role="code",
         model="fresh-model",
         llm_provider="codex",
     )
@@ -292,7 +292,7 @@ def test_incomplete_merge_replaces_pre_metadata_row_with_fresh_placement() -> No
     assert fresh.agent_clan == "toobig-4j"
     assert fresh.agent_clan_generation == "20260829061525"
     assert fresh.parent_timestamp == parent.raw_suffix
-    assert fresh.agent_family == "toobig-4j.test_workflow_executor.0"
+    assert fresh.agent_session == "toobig-4j.test_workflow_executor.0"
     assert fresh.role_suffix == "--1"
     assert fresh.is_child_row is True
 
@@ -473,8 +473,8 @@ def test_bounded_prefix_type_changed_monitor_settlement_replaces_running_row() -
         start_time=started,
         raw_suffix="20260915100000",
         agent_name="monitor-family",
-        agent_family="monitor-family",
-        agent_family_role="root",
+        agent_session="monitor-family",
+        agent_session_role="root",
     )
     cached_monitor = Agent(
         agent_type=AgentType.RUNNING,
@@ -487,8 +487,8 @@ def test_bounded_prefix_type_changed_monitor_settlement_replaces_running_row() -
         parent_timestamp=root.raw_suffix,
         role_suffix="--mon",
         agent_name="monitor-family--mon",
-        agent_family="monitor-family",
-        agent_family_role="monitor",
+        agent_session="monitor-family",
+        agent_session_role="monitor",
         monitor_id="mon-1",
         monitor_state="running",
         monitor_start_status="TESTING",
@@ -504,8 +504,8 @@ def test_bounded_prefix_type_changed_monitor_settlement_replaces_running_row() -
         parent_timestamp=root.raw_suffix,
         role_suffix="--mon",
         agent_name="monitor-family--mon",
-        agent_family="monitor-family",
-        agent_family_role="monitor",
+        agent_session="monitor-family",
+        agent_session_role="monitor",
         monitor_id="mon-1",
         monitor_state="completed",
         monitor_start_status="TESTING",

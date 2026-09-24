@@ -3,7 +3,7 @@
 ``Agent`` rows are mutable presentation objects. A frozen snapshot dataclass
 that stores lists of those rows does not isolate them: worker-side
 relationship rebuilds (``followup_agents``, ``runtime_children``,
-``family_container``, ``wait_display_source``, retry links) mutate the same
+``agent_session_container``, ``wait_display_source``, retry links) mutate the same
 objects the UI is rendering unless this copy runs first.
 
 Each reachable ``Agent`` is copied once through a shared memo so overlapping

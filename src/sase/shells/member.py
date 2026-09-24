@@ -41,7 +41,7 @@ def create_family_shell_member(
         workspace_num=workspace_num,
         agent_name_override=member_name,
         workflow_name=family,
-        agent_family_role=family_role,
+        agent_session_role=family_role,
         stamp_creating_process=False,
     )
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")

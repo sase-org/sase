@@ -114,8 +114,8 @@ def _settled_gate_merge_rows(
         raw_suffix=_ROOT_TS,
         role_suffix="--plan",
         agent_name=_SHELL_FAMILY,
-        agent_family=_SHELL_FAMILY,
-        agent_family_role="root",
+        agent_session=_SHELL_FAMILY,
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
     )
@@ -143,8 +143,8 @@ def _settled_gate_merge_rows(
         parent_timestamp=_ROOT_TS,
         role_suffix="--code",
         agent_name=f"{_SHELL_FAMILY}--code",
-        agent_family=_SHELL_FAMILY,
-        agent_family_role="code",
+        agent_session=_SHELL_FAMILY,
+        agent_session_role="code",
     )
     return root, cached_gate, settled_gate, completed_coder
 
@@ -168,8 +168,8 @@ def _gate_row(
         parent_timestamp=_ROOT_TS,
         role_suffix="--gate",
         agent_name=f"{_SHELL_FAMILY}--gate",
-        agent_family=_SHELL_FAMILY,
-        agent_family_role="gate",
+        agent_session=_SHELL_FAMILY,
+        agent_session_role="gate",
         gate_id="gate-1",
         gate_kind="approval",
         gate_state=gate_state,
@@ -190,8 +190,8 @@ def _gate_shadow_row(*, agent_type: AgentType = AgentType.WORKFLOW) -> Agent:
         parent_timestamp=_ROOT_TS,
         role_suffix="--gate",
         agent_name=f"{_SHELL_FAMILY}--gate",
-        agent_family=_SHELL_FAMILY,
-        agent_family_role="gate",
+        agent_session=_SHELL_FAMILY,
+        agent_session_role="gate",
     )
 
 

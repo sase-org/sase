@@ -39,7 +39,7 @@ def _attached_member(
     role: str,
     parent_timestamp: str = "20260701010101",
     raw_suffix: str = "20260701010202",
-    agent_family: str = "foo",
+    agent_session: str = "foo",
 ) -> Agent:
     """A ``%i(suffix, family=parent)`` family-member child row."""
     return Agent(
@@ -52,8 +52,8 @@ def _attached_member(
         parent_timestamp=parent_timestamp,
         role_suffix=role_suffix,
         agent_name=name,
-        agent_family=agent_family,
-        agent_family_role=role,
+        agent_session=agent_session,
+        agent_session_role=role,
     )
 
 
@@ -66,8 +66,8 @@ def test_legacy_bare_root_is_not_renamed_in_memory() -> None:
 
     assert root.agent_name == "foo"
     assert root.role_suffix is None
-    assert root.agent_family is None
-    assert root.agent_family_role is None
+    assert root.agent_session is None
+    assert root.agent_session_role is None
     assert member.agent_name == "foo--bar"
 
 
@@ -105,8 +105,8 @@ def test_legacy_bare_root_and_member_still_group_under_foo_banner() -> None:
 def test_persisted_generic_root_does_not_create_synthetic_planner() -> None:
     root = _bare_root(name="foo--0")
     root.role_suffix = "--0"
-    root.agent_family = "foo"
-    root.agent_family_role = "root"
+    root.agent_session = "foo"
+    root.agent_session_role = "root"
     member = _attached_member(name="foo--bar", role_suffix="--bar", role="bar")
     agents = [root, member]
 
@@ -125,8 +125,8 @@ def test_single_bare_member_stays_bare() -> None:
 
     assert root.agent_name == "foo"
     assert root.role_suffix is None
-    assert root.agent_family is None
-    assert root.agent_family_role is None
+    assert root.agent_session is None
+    assert root.agent_session_role is None
 
 
 def test_explicit_zero_member_is_not_duplicated() -> None:
@@ -153,8 +153,8 @@ def test_plan_chain_family_is_unaffected() -> None:
         raw_suffix="20260701010101",
         role_suffix="--plan",
         agent_name="foo--plan",
-        agent_family="foo",
-        agent_family_role="root",
+        agent_session="foo",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     code_child = _attached_member(name="foo--code", role_suffix="--code", role="code")
@@ -177,8 +177,8 @@ def test_plan_chain_family_is_unaffected() -> None:
 def test_legacy_plan_zero_root_presents_family_name() -> None:
     root = _bare_root(name="foo--plan-0", status="DONE")
     root.role_suffix = "--plan-0"
-    root.agent_family = "foo"
-    root.agent_family_role = "root"
+    root.agent_session = "foo"
+    root.agent_session_role = "root"
 
     _apply_status_overrides([root])
 
@@ -189,8 +189,8 @@ def test_legacy_plan_zero_root_presents_family_name() -> None:
 def test_generic_root_presents_family_container_name() -> None:
     root = _bare_root(name="foo--0")
     root.role_suffix = "--0"
-    root.agent_family = "foo"
-    root.agent_family_role = "root"
+    root.agent_session = "foo"
+    root.agent_session_role = "root"
 
     _apply_status_overrides([root])
 
@@ -212,8 +212,8 @@ def test_expanded_generic_family_keeps_concrete_member_names() -> None:
     root.workflow = "ace(run)"
     root.appears_as_agent = True
     root.role_suffix = "--0"
-    root.agent_family = "foo"
-    root.agent_family_role = "root"
+    root.agent_session = "foo"
+    root.agent_session_role = "root"
 
     main = _attached_member(name="foo--0", role_suffix="--0", role="main")
     main.parent_workflow = root.workflow

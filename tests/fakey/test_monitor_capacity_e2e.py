@@ -137,13 +137,13 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
     starter = harness.create_agent(
         0,
         name="land--0",
-        agent_family="land",
+        agent_session="land",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
     # `%i(@, family=...)` resolution (exercised below by the real ``--next``
     # handoff) matches on `workflow_name`, the durable family key -- not on
-    # `agent_family` alone -- so a real starter must carry both. A real
+    # `agent_session` alone -- so a real starter must carry both. A real
     # starter also always carries its own continuation-graph node id from
     # its own captured turn; without one, monitor-result capture treats the
     # starter link as broken and blocks automatic dispatch outright.
@@ -238,7 +238,7 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
                 # starter (already done and gone), matching the working
                 # `parallel_successor -> parallel_member` shape below.
                 parent_timestamp=Path(record.artifacts_dir).name,
-                agent_family="land",
+                agent_session="land",
                 queue_weight=directives.queue_weight or 1.0,
                 queue_weight_explicit=directives.queue_weight_explicit,
                 wait_priority=directives.wait_priority,
@@ -327,7 +327,7 @@ def test_epic_launch_shaped_zero_weight_monitor_frees_full_capacity_for_its_work
     write_project_file(_MONITOR_PROJECT, workspace_dir=str(harness.workspace))
 
     starter = harness.create_agent(
-        0, name="epic--0", agent_family="epic", queue_weight=1.0
+        0, name="epic--0", agent_session="epic", queue_weight=1.0
     )
     starter.meta["workflow_name"] = "epic"
     write_agent_meta(str(starter.artifacts_dir), starter.meta)
@@ -433,7 +433,7 @@ def _assert_weighted_monitor_failure_reclaims_without_disturbing_unrelated_owner
     starter = harness.create_agent(
         1,
         name="land--0",
-        agent_family="land",
+        agent_session="land",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -553,7 +553,7 @@ def test_independently_weighted_parallel_member_and_its_serial_successor_keep_ow
     land_root = harness.create_agent(
         0,
         name="land2--0",
-        agent_family="land2",
+        agent_session="land2",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -565,8 +565,8 @@ def test_independently_weighted_parallel_member_and_its_serial_successor_keep_ow
     parallel_member = harness.create_agent(
         1,
         name="land2--p0",
-        agent_family="land2",
-        agent_family_parallel=True,
+        agent_session="land2",
+        agent_session_parallel=True,
         queue_weight=1.0,
         queue_weight_explicit=True,
     )
@@ -581,14 +581,14 @@ def test_independently_weighted_parallel_member_and_its_serial_successor_keep_ow
     # Admitted while its predecessor is still live -- the serial-overlap
     # dedup rule that keeps this one lineage at one claim, not two, matches
     # the shape production retry/pipe handoffs use. The successor carries no
-    # `agent_family_parallel` marker of its own; it continues the parallel
+    # `agent_session_parallel` marker of its own; it continues the parallel
     # member's specific lineage (via `parent_timestamp`), not the land
     # family's active one.
     parallel_successor = harness.create_agent(
         3,
         name="land2--p1",
         parent_timestamp=parallel_member.artifacts_dir.name,
-        agent_family="land2",
+        agent_session="land2",
         queue_weight=1.0,
         queue_weight_explicit=False,
     )

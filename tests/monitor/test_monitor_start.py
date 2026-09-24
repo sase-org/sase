@@ -509,7 +509,7 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
         class FollowupPlan:
             agent_name: str = "acme--1"
             parent_is_running: bool = False
-            agent_family_role: str = "root"
+            agent_session_role: str = "root"
             parent_workspace_dir: str = workspace_dir
             parent_workspace_num: int = 10
 
@@ -592,7 +592,7 @@ def test_start_monitor_refuses_a_numbered_cwd_claimed_by_another_live_agent(
         "proj",
         "20260812120000",
         "acme--0",
-        agent_family="acme",
+        agent_session="acme",
         model="claude-sonnet-5",
         workspace_dir=str(primary),
         workspace_num=0,
@@ -634,7 +634,7 @@ def test_start_monitor_epic_launch_from_non_numbered_cwd_uses_workspace_zero(
         "proj",
         "20260812120000",
         "acme--0",
-        agent_family="acme",
+        agent_session="acme",
         model="claude-sonnet-5",
         workspace_dir=str(primary),
         workspace_num=0,

@@ -528,7 +528,7 @@ def test_embedded_family_fork_injects_each_completed_member_reply_once(
         "cx--plan",
         response_path=coder_chat,
         meta={
-            "agent_family": "cx",
+            "agent_session": "cx",
             "chat_path": str(planner_chat),
             "model": "gpt-5",
             "llm_provider": "openai",
@@ -540,7 +540,7 @@ def test_embedded_family_fork_injects_each_completed_member_reply_once(
         "cx--code",
         response_path=coder_chat,
         meta={
-            "agent_family": "cx",
+            "agent_session": "cx",
             "parent_timestamp": "20260718010101",
             "model": "gpt-5",
             "llm_provider": "openai",

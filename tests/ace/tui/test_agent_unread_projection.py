@@ -442,8 +442,8 @@ def test_reconcile_marks_plan_family_root_unread_for_its_own_completion() -> Non
     """
     raw_suffix = "root-suffix"
     root = make_agent(name="gh_sase-org__sase", status="DONE", raw_suffix=raw_suffix)
-    root.agent_family = "gh_sase-org__sase"
-    root.agent_family_role = "root"
+    root.agent_session = "gh_sase-org__sase"
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     root.role_suffix = "--plan"
     main_step = make_agent(name="main", status="DONE", raw_suffix=raw_suffix)
@@ -465,19 +465,19 @@ def _make_gate_launch_family(
     *, status: str = "EPIC CREATED"
 ) -> tuple[Agent, Agent, Agent]:
     node = make_agent(name="build--plan", status=status, raw_suffix="node-suffix")
-    node.agent_family = "build"
-    node.agent_family_role = "root"
+    node.agent_session = "build"
+    node.agent_session_role = "root"
     node.plan_chain_root = True
     node.role_suffix = "--plan"
     gate = make_agent(name="build--gate", status=status, raw_suffix="gate-suffix")
     gate.parent_timestamp = node.raw_suffix
-    gate.agent_family = "build"
-    gate.agent_family_role = "gate"
+    gate.agent_session = "build"
+    gate.agent_session_role = "gate"
     gate.gate_id = "gate-1"
     monitor = make_agent(name="build--mon", status=status, raw_suffix="mon-suffix")
     monitor.parent_timestamp = gate.raw_suffix
-    monitor.agent_family = "build"
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = "build"
+    monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_id = "mon-1"
     return node, gate, monitor

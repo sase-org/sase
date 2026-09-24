@@ -177,7 +177,7 @@ def test_phase_pending_authored_plan_keeps_parent_bead_and_uses_archive(
     )
     agent = make_agent(
         agent_name="sase-83.1--plan",
-        agent_family_role="root",
+        agent_session_role="root",
         epic_bead_id="sase-83",
         phase_bead_id="sase-83.1",
         epic_plan_ref="plans/parent.md",
@@ -239,7 +239,7 @@ def test_sase_83_phase_handoff_renders_parent_bead_and_committed_tale_plan(
             agent_name=(
                 "sase-83.1--code" if family_role == "code" else "sase-83.1--plan"
             ),
-            agent_family_role=family_role,
+            agent_session_role=family_role,
             epic_bead_id="sase-83",
             phase_bead_id="sase-83.1",
             epic_plan_ref="plans/agent_cli_update_awareness.md",
@@ -301,7 +301,7 @@ def test_historical_phase_recovers_parent_and_keeps_authored_plan(
     enrichment = resolve_agent_plan_enrichment(
         make_agent(
             agent_name="sase-83.1--code",
-            agent_family_role="code",
+            agent_session_role="code",
             epic_bead_id="sase-83",
             phase_bead_id="sase-83.1",
             archived_plan_path=str(archived),
@@ -330,7 +330,7 @@ def test_missing_parent_store_does_not_suppress_authored_plan(
     enrichment = resolve_agent_plan_enrichment(
         make_agent(
             agent_name="sase-83.1--plan",
-            agent_family_role="root",
+            agent_session_role="root",
             epic_bead_id="sase-83",
             phase_bead_id="sase-83.1",
             archived_plan_path=str(authored),

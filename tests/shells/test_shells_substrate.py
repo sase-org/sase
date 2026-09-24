@@ -53,7 +53,7 @@ def test_create_family_shell_member_layers_kind_role_and_metadata() -> None:
         "proj",
         {
             "name": "acme--0",
-            "agent_family": "acme",
+            "agent_session": "acme",
             "model": "claude-sonnet-5",
             "workspace_dir": "/work/acme",
             "agent_clan": "clan-a",

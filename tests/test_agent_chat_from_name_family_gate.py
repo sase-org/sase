@@ -13,8 +13,8 @@ from sase.scripts.agent_chat_from_name import (
 from tests._agent_chat_from_name_helpers import write_agent
 
 _BASE_GATE_META: dict[str, object] = {
-    "agent_family": "cx",
-    "agent_family_role": "gate",
+    "agent_session": "cx",
+    "agent_session_role": "gate",
     "gate_id": "custom-gate0123456789",
     "gate_kind": "custom",
 }
@@ -45,7 +45,7 @@ def _write_planner(tmp_path: Path) -> None:
         "20260718010101",
         "cx--plan",
         done={"response_path": str(tmp_path / "planner.md"), "outcome": "completed"},
-        meta={"agent_family": "cx"},
+        meta={"agent_session": "cx"},
     )
     (tmp_path / "planner.md").write_text("hi", encoding="utf-8")
 

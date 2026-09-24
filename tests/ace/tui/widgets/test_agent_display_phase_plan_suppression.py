@@ -33,7 +33,7 @@ def test_phase_role_change_invalidates_cached_plan_summary() -> None:
     cache_detail_header_summary(widget, agent, summary)
     assert get_cached_detail_header_summary(widget, agent) is summary
 
-    agent.agent_family_role = "phase"
+    agent.agent_session_role = "phase"
 
     assert get_cached_detail_header_summary(widget, agent) is None
     assert should_refresh_detail_header_summary(widget, agent)
@@ -86,7 +86,7 @@ def test_damaged_explicit_phase_role_suppresses_epic_plan_and_artifact(
     )
     agent = make_agent(
         agent_name="sase-9.2",
-        agent_family_role="phase",
+        agent_session_role="phase",
         epic_bead_id="sase-9",
         sdd_plan_path="plans/epic.md",
         plan_committed=True,

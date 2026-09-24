@@ -230,7 +230,7 @@ def test_shell_backed_question_settles_its_gate_shell_and_streams_output(
     shell = GateShellSpec.from_mapping(request["shell"], branches=(("submit",),))
     artifacts_dir = create_gate_shell_member(
         "proj",
-        {"name": "lane--0", "agent_family": "lane"},
+        {"name": "lane--0", "agent_session": "lane"},
         lane="lane",
         suffix="--gate",
         prev_artifacts_timestamp="20260812120000",

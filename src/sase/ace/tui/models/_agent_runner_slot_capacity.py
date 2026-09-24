@@ -67,9 +67,13 @@ def capacity_record_from_agent(
         "pid": agent.pid,
         "run_started_at": _capacity_run_started_at(agent),
         "parent_timestamp": agent.parent_timestamp,
-        "agent_family": _capacity_agent_family(agent),
-        "agent_family_role": agent.agent_family_role,
-        "agent_family_parallel": agent.agent_family_parallel,
+        "agent_session": _capacity_agent_session(agent),
+        "agent_session_role": agent.agent_session_role,
+        # legacy agent-family spelling: the pinned core capacity struct has
+        # no ``agent_session_parallel`` alias yet; Python keeps sending the
+        # legacy spelling of that one field here until core-contract renames
+        # the struct (same boundary as capacity_session_keys_for_core).
+        "agent_family_parallel": agent.agent_session_parallel,
         "family_shell_kind": _family_shell_kind(agent),
         "family_shell_id": _family_shell_id(agent),
         "family_shell_state": _family_shell_state(agent),
@@ -187,12 +191,12 @@ def _capacity_run_started_at(agent: Agent) -> str | None:
     return None
 
 
-def _capacity_agent_family(agent: Agent) -> str | None:
-    if agent.agent_family:
-        return agent.agent_family
+def _capacity_agent_session(agent: Agent) -> str | None:
+    if agent.agent_session:
+        return agent.agent_session
     return (
         agent.parent_timestamp
-        if agent.parent_timestamp and not agent.agent_family_parallel
+        if agent.parent_timestamp and not agent.agent_session_parallel
         else None
     )
 

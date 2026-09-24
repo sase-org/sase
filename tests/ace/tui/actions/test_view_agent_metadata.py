@@ -121,8 +121,8 @@ async def test_v_is_a_no_op_with_no_selection() -> None:
 async def test_v_on_a_family_container_row_does_not_crash(_mock: object) -> None:
     child = make_agent(cl_name="child", raw_suffix="20250101120500")
     root = make_agent(cl_name="root", raw_suffix="20250101120000")
-    root.agent_family = "root"
-    root.agent_family_role = "root"
+    root.agent_session = "root"
+    root.agent_session_role = "root"
     root.followup_agents = [child]
     app = _FakeApp(root)
 

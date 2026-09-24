@@ -74,7 +74,7 @@ def make_submitted_planner(
         timestamp,
         agent_name or name,
         workflow_name=name if promoted else None,
-        agent_family=name if promoted else None,
+        agent_session=name if promoted else None,
         role_suffix=role_suffix,
     )
     meta_path = artifact_dir / "agent_meta.json"

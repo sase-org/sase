@@ -305,8 +305,8 @@ def _write_monitor_done(projects_root: Path, index: int) -> None:
             model="gpt-5.6-sol",
         )
         | {
-            "agent_family": "feature-monitor-family",
-            "agent_family_role": "monitor",
+            "agent_session": "feature-monitor-family",
+            "agent_session_role": "monitor",
             "family_shell": family_shell,
         },
     )

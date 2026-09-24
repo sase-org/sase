@@ -70,7 +70,7 @@ def _create_round(
     suffix = "--gate" if round_index == 1 else "--gate-0"
     artifacts_dir = create_gate_shell_member(
         "proj",
-        {"name": "lane--0", "agent_family": "lane"},
+        {"name": "lane--0", "agent_session": "lane"},
         lane="lane",
         suffix=suffix,
         prev_artifacts_timestamp=parent_timestamp,
@@ -124,8 +124,8 @@ def test_answered_followup_prompt_has_live_fork_and_no_leaked_markers(
         "proj",
         creator_timestamp,
         "lane",
-        agent_family="lane",
-        agent_family_role="root",
+        agent_session="lane",
+        agent_session_role="root",
     )
     (Path(creator_dir) / "done.json").write_text("{}", encoding="utf-8")
     update_agent_artifact_index_for_marker_mutation(creator_dir)
@@ -199,8 +199,8 @@ def test_unreadable_chain_falls_back_to_declared_prompt(
         "proj",
         creator_timestamp,
         "lane",
-        agent_family="lane",
-        agent_family_role="root",
+        agent_session="lane",
+        agent_session_role="root",
     )
     (Path(creator_dir) / "done.json").write_text("{}", encoding="utf-8")
     update_agent_artifact_index_for_marker_mutation(creator_dir)

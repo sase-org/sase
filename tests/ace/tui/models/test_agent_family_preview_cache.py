@@ -36,8 +36,8 @@ def _clear_caches() -> Iterator[None]:
 def _family_root(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_name": "fam",
-        "agent_family": "fam",
-        "agent_family_role": "root",
+        "agent_session": "fam",
+        "agent_session_role": "root",
     }
     defaults.update(overrides)
     return make_agent(**defaults)
@@ -201,7 +201,7 @@ class TestWarmFamilyPlanPreviews:
 
         agent = _family_root(
             agent_name="fam",
-            agent_family="fam",
+            agent_session="fam",
             phase_bead_id="sase-1.1",
             epic_bead_id="sase-1",
             epic_plan_ref="plans/epic.md",
@@ -310,7 +310,7 @@ class TestWarmFamilyPlanPreviews:
         plan = write_plan(tmp_path / "tale.md", "Ship the thing", tier="tale")
         good = _family_root(
             agent_name="good",
-            agent_family="good",
+            agent_session="good",
             archived_plan_path=str(plan),
             plan_path=str(plan),
             plan_committed=True,
@@ -318,7 +318,7 @@ class TestWarmFamilyPlanPreviews:
         )
         bad = _family_root(
             agent_name="bad",
-            agent_family="bad",
+            agent_session="bad",
             workspace_dir=str(tmp_path),
         )
 

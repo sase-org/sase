@@ -37,8 +37,8 @@ def _agent(
 def _family_root(family: str, *, role: str = "plan") -> Agent:
     """Return a family root entry that renders under its bare family base."""
     root = _agent(f"{family}--{role}")
-    root.agent_family = family
-    root.agent_family_role = "root"
+    root.agent_session = family
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     root.refresh_raw_presented_agent_name()
     return root
@@ -276,8 +276,8 @@ def test_agent_owns_sase_agent_truth_table() -> None:
     workflow_child = _agent("workflow.step", parent_workflow="workflow")
     family_member = _agent("family--code", parent_timestamp="family--plan")
     family = _agent("family--plan")
-    family.agent_family = "family"
-    family.agent_family_role = "root"
+    family.agent_session = "family"
+    family.agent_session_role = "root"
     family.followup_agents = [family_member]
 
     assert family.is_family_container_row is True

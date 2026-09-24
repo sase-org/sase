@@ -162,8 +162,8 @@ def test_row_patch_refreshes_family_lane_panel_title_without_rebuild(
         suffix="build-plan",
         status="TALE APPROVED",
     )
-    planner.agent_family = "build"
-    planner.agent_family_role = "root"
+    planner.agent_session = "build"
+    planner.agent_session_role = "root"
     planner.role_suffix = "--plan"
     planner.plan_chain_root = True
     coder = _agent(
@@ -173,8 +173,8 @@ def test_row_patch_refreshes_family_lane_panel_title_without_rebuild(
         status="WORKING TALE",
     )
     coder.parent_timestamp = planner.raw_suffix
-    coder.agent_family = "build"
-    coder.agent_family_role = "code"
+    coder.agent_session = "build"
+    coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     planner.followup_agents = [coder]
     standalone = _agent(

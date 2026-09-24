@@ -107,7 +107,7 @@ def test_initial_identity_wait_excludes_waiter_from_family_generation(
         "20260706131004",
         "b--launch",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         parent_timestamp=parent_dir.name,
     )
     agent_meta = {"pid": 123}

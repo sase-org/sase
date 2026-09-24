@@ -109,7 +109,7 @@ def make_blocking_gate(
         MONITOR_PROJECT,
         {
             "name": member_name,
-            "agent_family": lane,
+            "agent_session": lane,
             "model": "test",
             "queue_weight": queue_weight,
             "queue_weight_explicit": queue_weight_explicit,
@@ -151,7 +151,7 @@ def make_plan_gate(
         MONITOR_PROJECT,
         {
             "name": member_name,
-            "agent_family": lane,
+            "agent_session": lane,
             "model": "test",
             "queue_weight": 1.0,
             "queue_weight_explicit": True,

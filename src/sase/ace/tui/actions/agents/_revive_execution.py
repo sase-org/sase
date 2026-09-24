@@ -107,7 +107,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         child_raw_suffixes: set[str] = set()
         revived_suffixes: set[str] = set()
         if agent.raw_suffix:
-            if not agent.is_imported_family_container:
+            if not agent.is_imported_agent_session_container:
                 revived_suffixes.add(agent.raw_suffix)
             if not agent.is_workflow_child:
                 child_agents = [
@@ -127,7 +127,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
             # the agent. Synthetic imported family containers have no artifacts.
             revived_artifact_dirs: list[str | None] = []
             revived_records = []
-            if not agent.is_imported_family_container:
+            if not agent.is_imported_agent_session_container:
                 self._restore_agent_artifacts(agent)
                 agent_artifact_dir = revived_artifact_dir(agent)
                 revived_artifact_dirs.append(agent_artifact_dir)

@@ -127,7 +127,7 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
         "proj",
         "20260812120000",
         "02i--code",
-        agent_family="02i",
+        agent_session="02i",
         model="caller-model",
         workspace_dir=str(caller_ws),
         workspace_num=12,
@@ -138,8 +138,8 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
         "proj",
         "20260812140000",
         "02i--mon-6",
-        agent_family="02i",
-        agent_family_role="monitor",
+        agent_session="02i",
+        agent_session_role="monitor",
         monitor_id="oldmon123456",
         monitor_state="completed",
         monitor_settled=True,
@@ -176,7 +176,7 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
     caller_meta = json.loads((Path(caller_dir) / "agent_meta.json").read_text())
     settled_meta = json.loads((Path(settled_dir) / "agent_meta.json").read_text())
     assert caller_meta["name"] == "02i--code"
-    assert caller_meta["agent_family"] == "02i"  # legacy fixture input
+    assert caller_meta["agent_session"] == "02i"
     assert settled_meta["name"] == "02i--mon-6"
     assert settled_meta["workspace_num"] == 0
 
@@ -199,7 +199,7 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
         "proj",
         "20260812110000",
         "046--plan",
-        agent_family="046",
+        agent_session="046",
         model="plan-model",
         workspace_dir=str(primary),
         workspace_num=0,
@@ -213,7 +213,7 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
         "proj",
         "20260812120000",
         "046--code",
-        agent_family="046",
+        agent_session="046",
         model="caller-model",
         workspace_dir=str(caller_ws),
         workspace_num=12,
@@ -224,8 +224,8 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
         "proj",
         "20260812140000",
         "046--mon-6",
-        agent_family="046",
-        agent_family_role="monitor",
+        agent_session="046",
+        agent_session_role="monitor",
         monitor_id="oldmon123456",
         monitor_state="completed",
         monitor_settled=True,
@@ -262,7 +262,7 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
     code_meta = json.loads((Path(code_dir) / "agent_meta.json").read_text())
     settled_meta = json.loads((Path(settled_dir) / "agent_meta.json").read_text())
     assert code_meta["name"] == "046--code"
-    assert code_meta["agent_family"] == "046"  # legacy fixture input
+    assert code_meta["agent_session"] == "046"
     assert settled_meta["name"] == "046--mon-6"
     assert settled_meta["workspace_num"] == 0
 
@@ -278,7 +278,7 @@ def test_implicit_start_pins_the_callers_artifacts_dir_over_a_newer_member(
         "proj",
         "20260812110000",
         "046--plan",
-        agent_family="046",
+        agent_session="046",
         model="plan-model",
         workspace_dir=str(tmp_path),
         workspace_num=0,
@@ -289,7 +289,7 @@ def test_implicit_start_pins_the_callers_artifacts_dir_over_a_newer_member(
         "proj",
         "20260812120000",
         "046--code",
-        agent_family="046",
+        agent_session="046",
         model="caller-model",
         workspace_dir=str(tmp_path),
         workspace_num=0,
@@ -333,7 +333,7 @@ def test_explicit_family_target_still_selects_newest_lane_member(
         "proj",
         "20260812120000",
         "02i--code",
-        agent_family="02i",
+        agent_session="02i",
         model="older-model",
         workspace_dir=str(older_ws),
         workspace_num=12,
@@ -344,7 +344,7 @@ def test_explicit_family_target_still_selects_newest_lane_member(
         "proj",
         "20260812140000",
         "02i--review",
-        agent_family="02i",
+        agent_session="02i",
         model="newer-model",
         workspace_dir=str(newer_ws),
         workspace_num=0,

@@ -147,12 +147,12 @@ def test_custom_family_role_classifies_plan_chain_metadata() -> None:
         "name": "foo--reviewer",
         "workflow_name": "foo",
         "role_suffix": "--reviewer",
-        "agent_family_role": "reviewer",
+        "agent_session_role": "reviewer",
     }
 
-    assert agent_family_role_for_suffix("--reviewer", agent_family_role="reviewer") == (
-        "reviewer"
-    )
+    assert agent_family_role_for_suffix(
+        "--reviewer", agent_session_role="reviewer"
+    ) == ("reviewer")
     assert is_plan_chain_artifact_meta(meta)
 
 

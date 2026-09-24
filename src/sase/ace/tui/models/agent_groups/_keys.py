@@ -39,8 +39,8 @@ def _grouping_name(agent: Agent) -> str:
     """Return the effective name used for root/prefix grouping."""
     if agent.is_clan_container:
         return ""
-    if agent.agent_family:
-        return agent.presented_family_reference_name() or agent.agent_family
+    if agent.agent_session:
+        return agent.presented_family_reference_name() or agent.agent_session
 
     if agent.presented_agent_name:
         family_base = _agent_family_base_from_row(agent, agent.presented_agent_name)

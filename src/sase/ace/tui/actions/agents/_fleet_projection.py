@@ -17,7 +17,7 @@ _AGENT_SIGNATURE_SKIP_FIELDS = frozenset(
     {
         "attempt_history",
         "clan_context",
-        "family_container",
+        "agent_session_container",
         "feedback_plan_paths",
         "followup_agents",
         "imported_source_owner",

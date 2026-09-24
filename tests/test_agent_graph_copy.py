@@ -18,8 +18,8 @@ def _family_cycle() -> tuple[Agent, Agent]:
         raw_suffix="20260918080000",
         status="RUNNING",
         llm_provider="claude",
-        agent_family="fam",
-        agent_family_role="root",
+        agent_session="fam",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     child = _make_agent(
@@ -28,12 +28,12 @@ def _family_cycle() -> tuple[Agent, Agent]:
         status="RUNNING",
         llm_provider="codex",
         parent_timestamp="20260918080000",
-        agent_family="fam",
-        agent_family_role="code",
+        agent_session="fam",
+        agent_session_role="code",
     )
     root.followup_agents = [child]
     root.runtime_children = [child]
-    child.family_container = root
+    child.agent_session_container = root
     child.wait_display_source = root
     child.retry_chain_siblings = [root]
     return root, child
@@ -49,11 +49,11 @@ def test_copy_preserves_family_aliases_without_live_aliases() -> None:
     assert copied_child is not child
     assert copied_root.followup_agents[0] is copied_child
     assert copied_root.runtime_children[0] is copied_child
-    assert copied_child.family_container is copied_root
+    assert copied_child.agent_session_container is copied_root
     assert copied_child.wait_display_source is copied_root
     assert copied_child.retry_chain_siblings[0] is copied_root
-    assert copied_child.family_container is not root
-    assert child.family_container is root
+    assert copied_child.agent_session_container is not root
+    assert child.agent_session_container is root
 
 
 def test_copy_shares_row_across_visible_and_capacity_rosters() -> None:
@@ -90,7 +90,7 @@ def test_copy_cost_is_bounded_by_unique_rows() -> None:
     )
     container.runtime_children = list(members)
     for member in members:
-        member.family_container = container
+        member.agent_session_container = container
     graph = [container, *members]
     memo: dict[int, Agent] = {}
     copied = copy_agent_graph(graph, memo)
@@ -100,7 +100,7 @@ def test_copy_cost_is_bounded_by_unique_rows() -> None:
     assert [agent.identity for agent in copied] == [agent.identity for agent in graph]
     assert again[0] is copied[0]
     assert copied[0].runtime_children[0] is copied[1]
-    assert copied[1].family_container is copied[0]
+    assert copied[1].agent_session_container is copied[0]
     assert container.runtime_children[0] is members[0]
 
 
@@ -112,7 +112,7 @@ def test_copy_and_small_delta_cost_scale_with_unique_rows() -> None:
             raw_suffix=f"2026091810{index:02d}00",
             start_time=datetime(2026, 9, 18, 10, index % 60, 0),
             agent_clan="bench-clan",
-            agent_family="fam" if index % 4 == 0 else None,
+            agent_session="fam" if index % 4 == 0 else None,
             llm_provider="claude" if index % 2 == 0 else "codex",
         )
         for index in range(80)
@@ -120,7 +120,7 @@ def test_copy_and_small_delta_cost_scale_with_unique_rows() -> None:
     for index, member in enumerate(members):
         if index % 4 == 0 and index + 1 < len(members):
             member.followup_agents = [members[index + 1]]
-            members[index + 1].family_container = member
+            members[index + 1].agent_session_container = member
             members[index + 1].parent_timestamp = member.raw_suffix
     started = time.perf_counter()
     memo: dict[int, Agent] = {}

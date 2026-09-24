@@ -22,8 +22,8 @@ def _style_at(text: Text, position: int) -> str | None:
 
 def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -> None:
     family = _agent("research.family", "family", tribe="epic")
-    family.agent_family = "research.family"
-    family.agent_family_role = "root"
+    family.agent_session = "research.family"
+    family.agent_session_role = "root"
     family_member = _agent(
         "research.family--code",
         "family-code",
@@ -76,8 +76,8 @@ def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -
 
 def test_family_identity_color_requires_a_real_member() -> None:
     family = _agent("cx", "family", clan=None, generation=None)
-    family.agent_family = "cx"
-    family.agent_family_role = "root"
+    family.agent_session = "cx"
+    family.agent_session_role = "root"
     family.appears_as_agent = True
     member = _agent(
         "cx--code",
@@ -89,8 +89,8 @@ def test_family_identity_color_requires_a_real_member() -> None:
     family.followup_agents = [member]
 
     lone_planner = _agent("solo", "planner", clan=None, generation=None)
-    lone_planner.agent_family = "solo"
-    lone_planner.agent_family_role = "root"
+    lone_planner.agent_session = "solo"
+    lone_planner.agent_session_role = "root"
     lone_planner.appears_as_agent = True
 
     plain = _agent("plain", "plain", clan=None, generation=None)

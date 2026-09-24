@@ -57,7 +57,7 @@ def _snapshot_record_is_agent_session_shell_member(
     shell = meta.agent_session_shell
     gate_id = shell.id if shell is not None and shell.kind == "gate" else None
     return family_shell_member_from_meta(
-        agent_family_role=meta.agent_session_role,
+        agent_session_role=meta.agent_session_role,
         role_suffix=meta.role_suffix,
         gate_id=gate_id,
     )

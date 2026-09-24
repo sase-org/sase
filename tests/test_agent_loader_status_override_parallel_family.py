@@ -41,9 +41,9 @@ def _parallel_family() -> tuple[Agent, list[Agent]]:
         start_time=started,
         raw_suffix="20260716100000",
         agent_name="parallel-root",
-        agent_family="parallel-root",
-        agent_family_role="root",
-        agent_family_parallel=True,
+        agent_session="parallel-root",
+        agent_session_role="root",
+        agent_session_parallel=True,
     )
     members = [
         Agent(
@@ -55,9 +55,9 @@ def _parallel_family() -> tuple[Agent, list[Agent]]:
             raw_suffix=f"20260716100{index}00",
             parent_timestamp=root.raw_suffix,
             agent_name=f"parallel-member-{index}",
-            agent_family="parallel-root",
-            agent_family_role="phase",
-            agent_family_parallel=True,
+            agent_session="parallel-root",
+            agent_session_role="phase",
+            agent_session_parallel=True,
         )
         for index, status in enumerate(("RUNNING", "DONE"), start=1)
     ]
@@ -88,7 +88,7 @@ def test_parallel_family_roles_do_not_trigger_serial_handoff_statuses() -> None:
     root, members = _parallel_family()
     root.status = "DONE"
     members[0].status = "DONE"
-    members[0].agent_family_role = "code"
+    members[0].agent_session_role = "code"
 
     _apply_status_overrides([root, *members])
 

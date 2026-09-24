@@ -76,7 +76,7 @@ def test_identity_kinds_cover_every_node_kind(tmp_path: Path) -> None:
         (
             make_agent(
                 agent_name="alpha--gate",
-                agent_family_role="gate",
+                agent_session_role="gate",
                 role_suffix="--gate",
                 gate_id="g123abc456def",
             ),
@@ -86,7 +86,7 @@ def test_identity_kinds_cover_every_node_kind(tmp_path: Path) -> None:
         (
             make_agent(
                 agent_name="alpha--mon",
-                agent_family_role="monitor",
+                agent_session_role="monitor",
                 role_suffix="--mon",
             ),
             "MONITOR",

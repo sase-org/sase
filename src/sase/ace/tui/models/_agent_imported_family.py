@@ -32,19 +32,19 @@ def materialize_imported_family_containers(agents: list[Agent]) -> list[Agent]:
     """
     real: list[Agent] = []
     for agent in agents:
-        if agent.is_imported_family_container:
+        if agent.is_imported_agent_session_container:
             continue
-        if agent.imported_family_parent_synthetic:
+        if agent.imported_agent_session_parent_synthetic:
             agent.parent_timestamp = None
-            agent.imported_family_parent_synthetic = False
-            agent.family_container = None
+            agent.imported_agent_session_parent_synthetic = False
+            agent.agent_session_container = None
         real.append(agent)
 
     groups: dict[tuple[str, str, str, str], list[Agent]] = defaultdict(list)
     roots: set[tuple[str, str, str, str]] = set()
     for agent in real:
         owner = agent.imported_source_owner
-        family = agent.agent_family
+        family = agent.agent_session
         if owner is None or not family:
             continue
         key = (family, owner.username, owner.machine_name, agent.cl_name)
@@ -73,13 +73,13 @@ def materialize_imported_family_containers(agents: list[Agent]) -> list[Agent]:
             continue
         for member in members:
             member.parent_timestamp = container.raw_suffix
-            member.imported_family_parent_synthetic = True
+            member.imported_agent_session_parent_synthetic = True
 
     projected: list[Agent] = []
     emitted: set[tuple[str, str, str, str]] = set()
     for agent in real:
         owner = agent.imported_source_owner
-        family = agent.agent_family
+        family = agent.agent_session
         if owner is None or not family:
             projected.append(agent)
             continue
@@ -120,11 +120,11 @@ def _imported_family_container(
         raw_suffix=suffix,
         workflow=anchor.workflow,
         agent_name=family_name,
-        agent_family=family_name,
-        agent_family_role="root",
+        agent_session=family_name,
+        agent_session_role="root",
         source_machine=owner.machine_name,
         imported_source_owner=owner,
-        is_imported_family_container=True,
+        is_imported_agent_session_container=True,
         project_display_name=anchor.project_display_name,
         agent_clan=anchor.agent_clan,
         agent_clan_generation=anchor.agent_clan_generation,

@@ -329,7 +329,7 @@ def _is_plain_leaf_row(agent: Agent) -> bool:
         agent.is_clan_container
         or agent.agent_clan
         or agent.is_family_container_row
-        or agent.is_imported_family_container
+        or agent.is_imported_agent_session_container
         or agent.agent_type is AgentType.WORKFLOW
         or agent.is_child_row
         or agent.tree_parent_key

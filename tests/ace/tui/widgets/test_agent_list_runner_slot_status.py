@@ -324,15 +324,15 @@ class TestRunnerSlotWaitRendering:
             agent_name="epic.worker",
             cl_name="epic.worker",
             parent_timestamp="20260712120000",
-            agent_family_parallel=True,
+            agent_session_parallel=True,
             wait_runners=3,
             wait_runners_explicit=True,
         )
         family_root = make_agent(
             agent_name="epic",
             cl_name="epic",
-            agent_family="epic",
-            agent_family_role="root",
+            agent_session="epic",
+            agent_session_role="root",
             plan_chain_root=True,
             wait_runners=3,
             wait_runners_explicit=True,

@@ -23,7 +23,7 @@ def _is_concrete_family_shell(agent: Agent) -> bool:
         return True
     role = agent_family_role_for_suffix(
         agent.role_suffix,
-        agent_family_role=agent.agent_family_role,
+        agent_session_role=agent.agent_session_role,
     )
     if role in _SHELL_ROLES:
         return True
@@ -36,7 +36,7 @@ def attach_unparented_family_shells(agents: list[Agent]) -> None:
     """Fill missing ``parent_timestamp`` from the family's real root."""
     roots_by_family: dict[str, Agent] = {}
     for agent in agents:
-        family = agent.agent_family
+        family = agent.agent_session
         if not family or agent.parent_timestamp:
             continue
         if _is_concrete_family_shell(agent):
@@ -47,7 +47,7 @@ def attach_unparented_family_shells(agents: list[Agent]) -> None:
     for agent in agents:
         if agent.parent_timestamp or not _is_concrete_family_shell(agent):
             continue
-        family = agent.agent_family
+        family = agent.agent_session
         if not family:
             continue
         root = roots_by_family.get(family)

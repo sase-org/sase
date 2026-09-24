@@ -309,7 +309,7 @@ def test_normal_dismiss_reconciles_unloaded_family_members_after_root_delete(
     root_dir = _artifact(projects_root, root_ts)
     _write_json(
         root_dir / "agent_meta.json",
-        {"name": "fam", "cl_name": "fam", "agent_family": "fam"},
+        {"name": "fam", "cl_name": "fam", "agent_session": "fam"},
     )
     _write_json(root_dir / "done.json", {"outcome": "completed", "cl_name": "fam"})
 
@@ -319,7 +319,7 @@ def test_normal_dismiss_reconciles_unloaded_family_members_after_root_delete(
         {
             "name": "fam--code",
             "cl_name": "fam--code",
-            "agent_family": "fam",
+            "agent_session": "fam",
             "parent_timestamp": root_ts,
         },
     )
@@ -334,7 +334,7 @@ def test_normal_dismiss_reconciles_unloaded_family_members_after_root_delete(
         {
             "name": "fam--dead-active",
             "cl_name": "fam--dead-active",
-            "agent_family": "fam",
+            "agent_session": "fam",
             "parent_timestamp": root_ts,
             "pid": 99999999,
             "run_started_at": "2026-05-17T12:10:00Z",
@@ -347,7 +347,7 @@ def test_normal_dismiss_reconciles_unloaded_family_members_after_root_delete(
         {
             "name": "fam--unknown",
             "cl_name": "fam--unknown",
-            "agent_family": "fam",
+            "agent_session": "fam",
             "parent_timestamp": root_ts,
         },
     )

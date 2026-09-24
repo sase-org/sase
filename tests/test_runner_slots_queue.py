@@ -144,7 +144,7 @@ def test_released_serial_successor_and_parallel_member_join_fifo_queue() -> None
             "/parallel",
             requested_at="2026-07-12T12:00:01+00:00",
             parent_timestamp="parent",
-            agent_family_parallel=True,
+            agent_session_parallel=True,
         ),
         _record("/root", requested_at="2026-07-12T12:00:02+00:00"),
     ]
@@ -163,20 +163,20 @@ def test_serial_child_reuses_active_family_claim_without_queue_entry() -> None:
         _record(
             "/parent",
             run_started=True,
-            agent_family="fam",
+            agent_session="fam",
         ),
         _record(
             "/serial",
             requested_at="2026-07-12T12:00:00+00:00",
             parent_timestamp="parent",
-            agent_family="fam",
+            agent_session="fam",
         ),
         _record(
             "/parallel",
             requested_at="2026-07-12T12:00:01+00:00",
             parent_timestamp="parent",
-            agent_family="fam",
-            agent_family_parallel=True,
+            agent_session="fam",
+            agent_session_parallel=True,
         ),
     ]
 

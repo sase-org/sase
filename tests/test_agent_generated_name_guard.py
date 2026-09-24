@@ -97,7 +97,7 @@ class TestFamilyAttachGeneratedNames:
             [
                 _artifact_record(
                     name="foo--code",
-                    agent_family="foo",
+                    agent_session="foo",
                     role_suffix="--code",
                 )
             ],
@@ -139,7 +139,7 @@ class TestFamilyAttachGeneratedNames:
     ) -> None:
         _patch_attach_snapshot(
             monkeypatch,
-            [_artifact_record(name="fi--code.f0", agent_family="fi--code.f0")],
+            [_artifact_record(name="fi--code.f0", agent_session="fi--code.f0")],
         )
 
         with pytest.raises(FamilyAttachError) as exc_info:

@@ -59,8 +59,12 @@ def _write_shell(projects: Path, shell: _Shell) -> None:
     meta: dict[str, object] = {
         "name": shell.name,
         "pid": shell.pid,
-        "agent_family": shell.family,
-        "agent_family_role": shell.role,
+        "agent_session": shell.family,
+        "agent_session_role": shell.role,
+        # legacy agent-family spelling: the core artifact-index scanner has
+        # no ``agent_session_parallel`` alias yet; the stats occupancy path
+        # reads the index, so this fixture keeps the legacy spelling of that
+        # one key until core-contract renames the index column.
         "agent_family_parallel": shell.parallel,
         "parent_timestamp": shell.parent,
         "monitor_id": shell.monitor_id,

@@ -122,7 +122,7 @@ def is_code_phase_row(agent: "Agent") -> bool:
     return (
         agent_family_role_for_suffix(
             agent.role_suffix,
-            agent_family_role=agent.agent_family_role,
+            agent_session_role=agent.agent_session_role,
         )
         == "code"
     )

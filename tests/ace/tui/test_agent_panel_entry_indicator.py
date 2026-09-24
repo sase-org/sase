@@ -117,14 +117,14 @@ def test_grouping_change_moves_cursor_with_the_render_order() -> None:
 
 def test_nested_destination_marks_owning_family_and_names_exact_member() -> None:
     root = make_agent(name="ns--plan", project="one", tribe="alpha")
-    root.agent_family = "ns"
-    root.agent_family_role = "root"
+    root.agent_session = "ns"
+    root.agent_session_role = "root"
     root.role_suffix = "--plan"
     root.plan_chain_root = True
     root.refresh_raw_presented_agent_name()
     child = make_agent(name="ns--2", project="one", tribe="alpha")
-    child.agent_family = "ns"
-    child.agent_family_role = "code"
+    child.agent_session = "ns"
+    child.agent_session_role = "code"
     child.role_suffix = "--2"
     child.parent_timestamp = root.raw_suffix
     child.refresh_raw_presented_agent_name()

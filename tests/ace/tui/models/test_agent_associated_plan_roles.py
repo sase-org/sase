@@ -91,7 +91,7 @@ def test_explicit_phase_role_recovers_missing_phase_id_without_bead_lookup(
     plan = write_epic(tmp_path / "plans" / "epic.md")
     agent = make_agent(
         agent_name="sase-1.2",
-        agent_family_role="phase",
+        agent_session_role="phase",
         epic_bead_id="sase-1",
         epic_plan_ref="plans/epic.md",
         sdd_plan_path="plans/epic.md",
@@ -127,7 +127,7 @@ def test_explicit_phase_role_without_bead_identity_stays_phase_local(
     enrichment = resolve_agent_plan_enrichment(
         make_agent(
             agent_name="phase-worker",
-            agent_family_role="phase",
+            agent_session_role="phase",
             epic_bead_id="sase-1",
             epic_plan_ref="plans/epic.md",
             sdd_plan_path="plans/epic.md",
@@ -249,7 +249,7 @@ def test_task_worker_with_authored_plan_shows_bead_and_plan(
     enrichment = resolve_agent_plan_enrichment(
         make_agent(
             agent_name=f"{task_id}--plan",
-            agent_family_role="root",
+            agent_session_role="root",
             role_suffix="--plan",
             archived_plan_path=str(archived),
             sdd_plan_path="plans/task_handoff.md",

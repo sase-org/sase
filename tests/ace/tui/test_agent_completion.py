@@ -86,8 +86,8 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     family = _agent(
         tmp_path,
         agent_name="completion.plan",
-        agent_family="completion",
-        agent_family_role="root",
+        agent_session="completion",
+        agent_session_role="root",
         plan_chain_root=True,
         model="gpt-5",
         llm_provider="codex",
@@ -129,8 +129,8 @@ def test_family_completion_candidate_attaches_cached_plan_preview(
     family = _agent(
         tmp_path,
         agent_name="completion.plan",
-        agent_family="completion",
-        agent_family_role="root",
+        agent_session="completion",
+        agent_session_role="root",
         plan_chain_root=True,
         raw_prompt="Fallback launch prompt",
     )
@@ -156,16 +156,16 @@ def test_family_completion_candidate_uses_first_member_prompt_when_root_is_empty
         tmp_path,
         agent_name="ship--plan",
         raw_suffix="20260718110000",
-        agent_family="ship",
-        agent_family_role="root",
+        agent_session="ship",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     code = _agent(
         tmp_path,
         agent_name="ship--code",
         raw_suffix="20260718110001",
-        agent_family="ship",
-        agent_family_role="code",
+        agent_session="ship",
+        agent_session_role="code",
         parent_timestamp=family.raw_suffix,
         raw_prompt="Implement initial agent prompt fallback",
     )
@@ -184,8 +184,8 @@ def test_family_completion_candidate_build_does_not_resolve_plan_or_bead_io(
     family = _agent(
         tmp_path,
         agent_name="ship--plan",
-        agent_family="ship",
-        agent_family_role="root",
+        agent_session="ship",
+        agent_session_role="root",
         plan_chain_root=True,
         raw_prompt="Build candidates without resolver I/O",
     )
@@ -366,8 +366,8 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         tmp_path,
         agent_name="ship--plan",
         raw_suffix="20260718110000",
-        agent_family="ship",
-        agent_family_role="root",
+        agent_session="ship",
+        agent_session_role="root",
         plan_chain_root=True,
         tribe="makers",
     )
@@ -375,8 +375,8 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         tmp_path,
         agent_name="ship--code",
         raw_suffix="20260718110001",
-        agent_family="ship",
-        agent_family_role="code",
+        agent_session="ship",
+        agent_session_role="code",
         parent_timestamp=family.raw_suffix,
     )
     family.followup_agents.append(code)
@@ -455,16 +455,16 @@ def test_family_completion_candidate_counts_monitor_shell_member(
         tmp_path,
         agent_name="alpha--plan",
         raw_suffix="20260718110000",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     monitor = _agent(
         tmp_path,
         agent_name="alpha--mon",
         raw_suffix="20260718110001",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon",
         parent_timestamp=family.raw_suffix,
         status="MONITORED",

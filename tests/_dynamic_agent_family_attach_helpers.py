@@ -15,7 +15,7 @@ def _artifact_record(
     timestamp: str = "20260701010101",
     project_name: str = "sase",
     workflow_name: str | None = None,
-    agent_family: str | None = None,
+    agent_session: str | None = None,
     agent_clan: str | None = None,
     agent_clan_generation: str | None = None,
     role_suffix: str | None = None,
@@ -34,7 +34,7 @@ def _artifact_record(
     meta = SimpleNamespace(
         name=name,
         workflow_name=workflow_name or name,
-        agent_family=agent_family,
+        agent_session=agent_session,
         agent_clan=agent_clan,
         agent_clan_generation=agent_clan_generation,
         role_suffix=role_suffix,

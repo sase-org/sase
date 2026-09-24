@@ -28,8 +28,10 @@ def row_observation(agent: Agent) -> dict[str, object]:
         "providers": ordered_row_providers(agent),
         "followup": tuple(child.identity for child in agent.followup_agents),
         "runtime_children": tuple(child.identity for child in agent.runtime_children),
-        "family_container": (
-            None if agent.family_container is None else agent.family_container.identity
+        "agent_session_container": (
+            None
+            if agent.agent_session_container is None
+            else agent.agent_session_container.identity
         ),
         "wait_display_source": (
             None
@@ -80,8 +82,8 @@ def family_graph() -> list[Agent]:
         status="RUNNING",
         llm_provider="claude",
         agent_name="fam",
-        agent_family="fam",
-        agent_family_role="root",
+        agent_session="fam",
+        agent_session_role="root",
         plan_chain_root=True,
         role_suffix="--plan",
         workflow="ace(run)",
@@ -96,8 +98,8 @@ def family_graph() -> list[Agent]:
         llm_provider="codex",
         parent_timestamp="20260918080000",
         agent_name="fam-code",
-        agent_family="fam",
-        agent_family_role="code",
+        agent_session="fam",
+        agent_session_role="code",
         role_suffix="--code",
         start_time=datetime(2026, 9, 18, 8, 1, 0),
         run_start_time=datetime(2026, 9, 18, 8, 1, 0),

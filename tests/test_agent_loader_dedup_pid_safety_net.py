@@ -39,8 +39,8 @@ def _pre_metadata_duplicate_pair() -> tuple[Agent, Agent]:
         runner_is_live=True,
         agent_name="toobig-4j.test_workflow_executor.0--1",
         parent_timestamp="20260829061545",
-        agent_family="toobig-4j.test_workflow_executor.0",
-        agent_family_role="root",
+        agent_session="toobig-4j.test_workflow_executor.0",
+        agent_session_role="root",
         role_suffix="--1",
         agent_clan="toobig-4j",
         agent_clan_generation=generation,
@@ -101,7 +101,7 @@ def test_pid_dedup_preserves_structural_placement_fields(
     assert survivor.agent_clan == "toobig-4j"
     assert survivor.agent_clan_generation == "20260829061525"
     assert survivor.parent_timestamp == "20260829061545"
-    assert survivor.agent_family == "toobig-4j.test_workflow_executor.0"
+    assert survivor.agent_session == "toobig-4j.test_workflow_executor.0"
     assert survivor.role_suffix == "--1"
     assert survivor.tribe == "chop"
     assert survivor.is_child_row is True

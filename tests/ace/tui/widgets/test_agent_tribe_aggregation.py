@@ -111,8 +111,8 @@ def test_mixed_unit_replies_are_attributed_and_member_cache_is_reused(
         "build--plan",
         "family",
         "Family root reply",
-        agent_family="build",
-        agent_family_role="root",
+        agent_session="build",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     child = _reply_agent(
@@ -120,8 +120,8 @@ def test_mixed_unit_replies_are_attributed_and_member_cache_is_reused(
         "build--code",
         "child",
         "Child reply",
-        agent_family="build",
-        agent_family_role="code",
+        agent_session="build",
+        agent_session_role="code",
         parent_timestamp=family.raw_suffix,
     )
     family.followup_agents = [child]
@@ -237,8 +237,8 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         "build--plan",
         "family",
         xprompt="%id(1)\n#bd/work_phase_bead:sase-16t.1\n",
-        agent_family="build",
-        agent_family_role="root",
+        agent_session="build",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     child = _prompt_agent(
@@ -246,8 +246,8 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         "build--code",
         "child",
         xprompt="%id(2)\n#bd/work_phase_bead:sase-16t.2\n",
-        agent_family="build",
-        agent_family_role="code",
+        agent_session="build",
+        agent_session_role="code",
         parent_timestamp=family.raw_suffix,
     )
     family.followup_agents = [child]
@@ -268,8 +268,8 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         "build--mon",
         "monitor",
         xprompt="%xprompts_enabled:false\n# Monitored command finished\n",
-        agent_family="build",
-        agent_family_role="monitor",
+        agent_session="build",
+        agent_session_role="monitor",
         role_suffix="--mon",
         parent_timestamp=child.raw_suffix,
     )

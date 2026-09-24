@@ -165,8 +165,8 @@ def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> No
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_family="retry-family",
-        agent_family_role="root",
+        agent_session="retry-family",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     cached_coder = Agent(
@@ -178,8 +178,8 @@ def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> No
         raw_suffix="20260706115900",
         parent_timestamp=root_timestamp,
         role_suffix="--code",
-        agent_family="retry-family",
-        agent_family_role="code",
+        agent_session="retry-family",
+        agent_session_role="code",
     )
     refreshed_parent = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -190,8 +190,8 @@ def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> No
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_family="retry-family",
-        agent_family_role="root",
+        agent_session="retry-family",
+        agent_session_role="root",
         plan_chain_root=True,
         runner_is_live=True,
         retry_status="retrying",
@@ -220,7 +220,7 @@ def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> No
         if agent.raw_suffix == root_timestamp and not agent.is_child_row
     )
     coder = next(
-        agent for agent in prep.filtered_agents if agent.agent_family_role == "code"
+        agent for agent in prep.filtered_agents if agent.agent_session_role == "code"
     )
     assert root is refreshed_parent
     assert root.status == "RETRYING"
@@ -309,8 +309,8 @@ def test_exact_child_delta_remirrors_tale_family_root_to_done(
         root_dir / "agent_meta.json",
         {
             "name": "0fn",
-            "agent_family": "0fn",
-            "agent_family_role": "root",
+            "agent_session": "0fn",
+            "agent_session_role": "root",
             "plan_chain_root": True,
             "role_suffix": "--plan",
             "plan": True,
@@ -329,8 +329,8 @@ def test_exact_child_delta_remirrors_tale_family_root_to_done(
         code_dir / "agent_meta.json",
         {
             "name": "0fn--code",
-            "agent_family": "0fn",
-            "agent_family_role": "code",
+            "agent_session": "0fn",
+            "agent_session_role": "code",
             "role_suffix": "--code",
             "parent_timestamp": root_ts,
             "plan_action": "tale",

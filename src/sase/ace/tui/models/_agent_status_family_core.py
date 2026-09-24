@@ -11,7 +11,7 @@ from sase.plan_chain import (
     canonical_plan_chain_suffix,
 )
 
-from ._agent_status_roles import agent_family_role
+from ._agent_status_roles import agent_session_role
 from .agent import Agent, AgentType
 
 
@@ -50,12 +50,12 @@ def is_plan_chain_family_member(agent: Agent) -> bool:
     """Return True when a family member row belongs to a plan chain.
 
     The suffix clause catches a rename-on-attach continuation whose stored
-    ``agent_family_role`` predates a later plan submission; its canonical
+    ``agent_session_role`` predates a later plan submission; its canonical
     suffix already reads ``--plan`` even if the stored role did not change.
     """
-    if agent.agent_family_parallel or not agent.is_family_member_child:
+    if agent.agent_session_parallel or not agent.is_family_member_child:
         return False
-    if agent_family_role(agent) in PLAN_CHAIN_MEMBER_ROLES:
+    if agent_session_role(agent) in PLAN_CHAIN_MEMBER_ROLES:
         return True
     canonical = canonical_plan_chain_suffix(agent.role_suffix)
     if canonical is not None and (
@@ -71,15 +71,15 @@ def is_root_plan_workflow(agent: Agent) -> bool:
 
     True from durable root metadata recorded at promotion time
     (``plan_chain_root``, or a native ``--plan`` role suffix), or from a plan
-    chain the family entered later (``derived_plan_family_root``, set by
+    chain the family entered later (``derived_plan_agent_session_root``, set by
     :func:`mark_derived_plan_family_roots` when a promoted root's members
     reveal a plan chain that started after the root was promoted).
     """
-    if agent.is_child_row or agent.agent_family_parallel:
+    if agent.is_child_row or agent.agent_session_parallel:
         return False
     if agent.plan_chain_root:
         return True
-    if agent.derived_plan_family_root:
+    if agent.derived_plan_agent_session_root:
         return True
     return agent.agent_type == AgentType.WORKFLOW and (
         canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
@@ -88,7 +88,7 @@ def is_root_plan_workflow(agent: Agent) -> bool:
 
 def is_natively_recognized_plan_root(agent: Agent) -> bool:
     """Whether a root would be recognized without its derived marker."""
-    if agent.is_child_row or agent.agent_family_parallel:
+    if agent.is_child_row or agent.agent_session_parallel:
         return False
     if agent.plan_chain_root:
         return True
@@ -113,13 +113,13 @@ def mark_derived_plan_family_roots(
         if parent is None or not parent.is_family_root_entry:
             continue
         if any(is_plan_chain_family_member(child) for child in children):
-            parent.derived_plan_family_root = True
+            parent.derived_plan_agent_session_root = True
 
 
 def agent_family_name(agent: Agent) -> str | None:
     """Return the stable family name for a root or child row."""
-    if agent.agent_family:
-        return agent.agent_family
+    if agent.agent_session:
+        return agent.agent_session
     if agent.agent_name:
         base = agent_family_base(
             agent.agent_name,

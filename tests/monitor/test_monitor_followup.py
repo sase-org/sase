@@ -51,7 +51,7 @@ def _init_git_workspace(workspace: Path, *, dirty: bool) -> None:
 def test_launch_followup_agent_returns_false_without_a_next_action(
     tmp_path: Path,
 ) -> None:
-    meta: dict[str, Any] = {"agent_family": "acme"}
+    meta: dict[str, Any] = {"agent_session": "acme"}
     capture = _capture_with_output(str(tmp_path), "hi\n")
 
     result = followup_module.launch_followup_agent(
@@ -117,7 +117,7 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     assert plan["parent_base"] == "acme"
     # The starter's own role ("root") is inherited rather than the generic
     # numeric-suffix default ("feedback").
-    assert plan["agent_family_role"] == "root"
+    assert plan["agent_session_role"] == "root"
     assert plan["parent_is_running"] is False
 
     # Persisted to disk too, not just the in-memory dict.
@@ -276,7 +276,7 @@ def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
     monitor_dir = str(tmp_path / "monitor-member")
     Path(monitor_dir).mkdir()
     meta: dict[str, Any] = {
-        "agent_family": "acme",
+        "agent_session": "acme",
         "monitor_next_action": "Report that it finished.",
         "monitor_command": "true",
         "monitor_cwd": str(workspace),
@@ -331,7 +331,7 @@ def test_launch_followup_agent_skips_recovery_snapshot_for_clean_tree(
     monitor_dir = str(tmp_path / "monitor-member")
     Path(monitor_dir).mkdir()
     meta: dict[str, Any] = {
-        "agent_family": "acme",
+        "agent_session": "acme",
         "monitor_next_action": "Report that it finished.",
         "monitor_command": "true",
         "monitor_cwd": str(workspace),

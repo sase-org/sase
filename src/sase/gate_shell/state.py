@@ -62,21 +62,21 @@ def gate_state_is_terminal(gate_state: str | None) -> bool:
 
 
 def _is_gate_member_role(
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     role_suffix: str | None = None,
 ) -> bool:
     """Return whether metadata identifies a gate shell member."""
     return is_shell_member_role(
-        agent_family_role,
+        agent_session_role,
         role_suffix,
         config=_GATE_STATE_CONFIG,
     )
 
 
-def is_real_gate_member(agent_family_role: str | None, gate_id: str | None) -> bool:
+def is_real_gate_member(agent_session_role: str | None, gate_id: str | None) -> bool:
     """Return whether metadata identifies a durable gate-shell member."""
-    return _is_gate_member_role(agent_family_role) and is_real_shell_member(
-        agent_family_role, gate_id, config=_GATE_STATE_CONFIG
+    return _is_gate_member_role(agent_session_role) and is_real_shell_member(
+        agent_session_role, gate_id, config=_GATE_STATE_CONFIG
     )
 
 

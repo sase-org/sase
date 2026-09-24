@@ -97,7 +97,7 @@ def test_stop_omitted_id_targets_the_calling_agents_active_monitor(
 
     try:
         caller_dir = make_starter_agent(
-            "proj", "20260812110000", "acme--0", agent_family="acme"
+            "proj", "20260812110000", "acme--0", agent_session="acme"
         )
         artifacts_dir = make_monitor(
             "proj",

@@ -130,7 +130,7 @@ def handle_pipe_marker(
                 for saved_suffix, _path in state.saved_chat_paths
                 if saved_suffix
             ),
-            agent_family_role=family_role,
+            agent_session_role=family_role,
             relationships={
                 "piped_from": parent_name,
                 "pipe_reason": reason,

@@ -36,12 +36,12 @@ def _agent(
     workflow: str | None = None,
     parent_workflow: str | None = None,
     parent_timestamp: str | None = None,
-    agent_family_parallel: bool = False,
+    agent_session_parallel: bool = False,
     agent_clan: str | None = None,
     agent_clan_generation: str | None = None,
     tribe: str | None = None,
     agent_name: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
     role_suffix: str | None = None,
     monitor_id: str | None = None,
     monitor_state: str | None = None,
@@ -63,12 +63,12 @@ def _agent(
         raw_suffix=raw_suffix,
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
-        agent_family_parallel=agent_family_parallel,
+        agent_session_parallel=agent_session_parallel,
         agent_clan=agent_clan,
         agent_clan_generation=agent_clan_generation,
         tribe=tribe,
         agent_name=agent_name,
-        agent_family_role=agent_family_role,
+        agent_session_role=agent_session_role,
         role_suffix=role_suffix,
         monitor_id=monitor_id,
         monitor_state=monitor_state,
@@ -274,7 +274,7 @@ def _scenario_clan_scope_active_parallel_family() -> tuple[
         status="DONE",
         pid=None,
         stop_time=_STOP,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
         agent_clan="research",
         agent_clan_generation="generation",
     )
@@ -283,7 +283,7 @@ def _scenario_clan_scope_active_parallel_family() -> tuple[
         raw_suffix="member-ts",
         pid=101,
         parent_timestamp="root-ts",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
         agent_clan="research",
         agent_clan_generation="generation",
     )
@@ -448,14 +448,14 @@ def _scenario_parallel_family_root() -> tuple[list[Agent], AgentCleanupRequestWi
         cl_name="sase-6g",
         raw_suffix="root-ts",
         pid=1001,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     member = _agent(
         cl_name="sase-6g.1",
         raw_suffix="member-ts",
         pid=1002,
         parent_timestamp="root-ts",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     serial_child = _agent(
         cl_name="sase-6g--code",
@@ -478,7 +478,7 @@ def _clan_sequential_family_agents() -> list[Agent]:
         pid=None,
         agent_clan="sase-ps",
         agent_clan_generation="20260818102050",
-        agent_family_parallel=False,
+        agent_session_parallel=False,
         stop_time=_STOP,
     )
     family_root = _agent(
@@ -489,7 +489,7 @@ def _clan_sequential_family_agents() -> list[Agent]:
         parent_timestamp="20260818102050",
         agent_clan="sase-ps",
         agent_clan_generation="20260818102050",
-        agent_family_parallel=False,
+        agent_session_parallel=False,
         stop_time=_STOP,
     )
     monitor = _agent(
@@ -500,7 +500,7 @@ def _clan_sequential_family_agents() -> list[Agent]:
         parent_timestamp="20260818114621",
         agent_clan="sase-ps",
         agent_clan_generation="20260818102050",
-        agent_family_parallel=False,
+        agent_session_parallel=False,
         stop_time=_STOP,
     )
     return [plan_root, family_root, monitor]
@@ -548,7 +548,7 @@ def _live_monitor(
         status="MONITORING",
         pid=pid,
         workspace_num=15,
-        agent_family_role="monitor",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id=monitor_id,
         monitor_state="running",

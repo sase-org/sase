@@ -85,7 +85,7 @@ def test_monitor_and_fallback_proc_share_guarded_execution_argv(
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
     (artifacts / "agent_meta.json").write_text(
-        json.dumps({"name": "planner", "agent_family": "planner"}) + "\n",
+        json.dumps({"name": "planner", "agent_session": "planner"}) + "\n",
         encoding="utf-8",
     )
     logical = build_epic_launch_argv(
@@ -96,7 +96,7 @@ def test_monitor_and_fallback_proc_share_guarded_execution_argv(
     execution = guarded_exec_argv(logical)
     monitor_request = start_epic_launch_monitor_request(
         tmp_path,
-        agent_meta={"name": "planner", "agent_family": "planner"},
+        agent_meta={"name": "planner", "agent_session": "planner"},
         plan=plan,
         artifacts=artifacts,
         cl_name="demo",

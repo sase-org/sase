@@ -55,7 +55,7 @@ def monitor_state_is_terminal(monitor_state: str | None) -> bool:
 
 
 def is_monitor_member_role(
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     role_suffix: str | None = None,
 ) -> bool:
     """Return whether a row is a monitor member, not the monitor starter.
@@ -65,14 +65,14 @@ def is_monitor_member_role(
     the suffix is a fallback for older metadata that omitted the role.
     """
     return is_shell_member_role(
-        agent_family_role,
+        agent_session_role,
         role_suffix,
         config=_MONITOR_STATE_CONFIG,
     )
 
 
 def is_real_monitor_member(
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     monitor_id: str | None,
 ) -> bool:
     """Return whether a row is the durable monitor member for its family.
@@ -82,7 +82,7 @@ def is_real_monitor_member(
     role and a non-empty monitor id.
     """
     return is_real_shell_member(
-        agent_family_role,
+        agent_session_role,
         monitor_id,
         config=_MONITOR_STATE_CONFIG,
     )

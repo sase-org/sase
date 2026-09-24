@@ -119,7 +119,7 @@ def launch_gate_followup_agent(
             transfer_from_pid=transfer_pid,
             cl_name=_clean_str(meta.get("cl_name")),
             suffix=policy.suffix,
-            agent_family_role=policy.role or starter_role,
+            agent_session_role=policy.role or starter_role,
             vcs_ref=vcs_ref,
             spawn_fn=spawn_agent_subprocess,
         )

@@ -149,8 +149,8 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
         {
             "name": "0l4",
             "cl_name": "0l4",
-            "agent_family": "0l4",
-            "agent_family_role": "root",
+            "agent_session": "0l4",
+            "agent_session_role": "root",
             "plan_chain_root": True,
             "role_suffix": "--plan",
             "plan": True,
@@ -175,8 +175,8 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
         {
             "name": "0l4--gate",
             "cl_name": "0l4--gate",
-            "agent_family": "0l4",
-            "agent_family_role": "gate",
+            "agent_session": "0l4",
+            "agent_session_role": "gate",
             "role_suffix": "--gate",
             "parent_timestamp": _ROOT_TS,
             "run_started_at": "2026-09-15T13:03:00Z",
@@ -202,8 +202,8 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
         {
             "name": "0l4--mon",
             "cl_name": "0l4",
-            "agent_family": "0l4",
-            "agent_family_role": "monitor",
+            "agent_session": "0l4",
+            "agent_session_role": "monitor",
             "role_suffix": "--mon",
             "parent_timestamp": _GATE_TS,
             "run_started_at": "2026-09-15T13:05:30Z",

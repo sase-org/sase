@@ -53,7 +53,7 @@ def resolve_phase_plan_enrichment(
     notes: str | None = None
     created_at = ""
 
-    if not parent_reference and agent.agent_family_role == "phase":
+    if not parent_reference and agent.agent_session_role == "phase":
         # Damaged pre-field phase rows carried the parent epic in the generic
         # plan slots. Preserve their no-bead-lookup privacy behavior while
         # modern rows use the explicit parent reference above.

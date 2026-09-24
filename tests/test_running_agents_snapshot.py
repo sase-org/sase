@@ -143,7 +143,7 @@ def test_list_running_agents_surfaces_slot_relevant_parallel_children(
             "running-phase",
             run_started=True,
             parent_timestamp=root_timestamp,
-            agent_family_parallel=True,
+            agent_session_parallel=True,
         ),
         synthetic_record(
             tmp_path,
@@ -157,7 +157,7 @@ def test_list_running_agents_surfaces_slot_relevant_parallel_children(
             "20260717120003",
             "dependency-phase",
             parent_timestamp=root_timestamp,
-            agent_family_parallel=True,
+            agent_session_parallel=True,
             waiting_for=["dependency"],
         ),
         synthetic_record(
@@ -165,7 +165,7 @@ def test_list_running_agents_surfaces_slot_relevant_parallel_children(
             "20260717120004",
             "queued-phase",
             parent_timestamp=root_timestamp,
-            agent_family_parallel=True,
+            agent_session_parallel=True,
             slot_requested_at="2026-07-17T12:00:04-04:00",
         ),
     ]
@@ -207,7 +207,7 @@ def test_running_listing_slot_occupancy_matches_admission_count(tmp_path: Path) 
             root_timestamp,
             "root",
             run_started=True,
-            agent_family="root",
+            agent_session="root",
         ),
         synthetic_record(
             tmp_path,
@@ -215,8 +215,8 @@ def test_running_listing_slot_occupancy_matches_admission_count(tmp_path: Path) 
             "parallel",
             run_started=True,
             parent_timestamp=root_timestamp,
-            agent_family="root",
-            agent_family_parallel=True,
+            agent_session="root",
+            agent_session_parallel=True,
         ),
         synthetic_record(
             tmp_path,
@@ -224,7 +224,7 @@ def test_running_listing_slot_occupancy_matches_admission_count(tmp_path: Path) 
             "serial",
             run_started=True,
             parent_timestamp=root_timestamp,
-            agent_family="root",
+            agent_session="root",
         ),
         synthetic_record(
             tmp_path,

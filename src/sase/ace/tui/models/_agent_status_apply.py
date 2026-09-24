@@ -32,7 +32,7 @@ from ._agent_status_family import (
     pull_plan_metadata_from_family_members,
     root_child_suffix,
 )
-from ._agent_status_roles import agent_family_role, is_coder_agent, is_feedback_agent
+from ._agent_status_roles import agent_session_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
 from .agent_family_members import agent_row_is_in_flight, row_is_family_shell
 
@@ -214,7 +214,7 @@ def apply_status_overrides(
         if agent.is_family_member_child and agent.parent_timestamp is not None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
-                role = agent_family_role(agent)
+                role = agent_session_role(agent)
                 # Propagate meta_* fields from follow-up child to parent
                 # so the metadata panel shows dynamic variables (e.g. Commit
                 # Message) on the main workflow entry too.
@@ -307,7 +307,7 @@ def apply_status_overrides(
         if not children:
             continue
 
-        parallel_members = [child for child in children if child.agent_family_parallel]
+        parallel_members = [child for child in children if child.agent_session_parallel]
         if parallel_members:
             aggregate_entries = tuple(
                 (member.status, agent_status_bucket(member))

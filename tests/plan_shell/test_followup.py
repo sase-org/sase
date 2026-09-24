@@ -58,7 +58,7 @@ def _write_feedback_shell(
     meta: dict[str, Any] = {
         "gate_bundle_path": str(bundle),
         "gate_kind": "plan",
-        "agent_family": "agent",
+        "agent_session": "agent",
     }
     if prev is not None:
         meta["plan_shell_prev_artifacts_dir"] = str(prev)

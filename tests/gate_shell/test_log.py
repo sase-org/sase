@@ -73,8 +73,8 @@ def _pending_gate_dir(tmp_path: Path, *, name: str = "member") -> Path:
         json.dumps(
             {
                 "name": "lane--gate",
-                "agent_family": "lane",
-                "agent_family_role": "gate",
+                "agent_session": "lane",
+                "agent_session_role": "gate",
                 "parent_timestamp": "20260910120000",
                 "gate_id": "gate-1",
                 "gate_kind": "custom",

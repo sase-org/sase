@@ -107,7 +107,7 @@ def _row_key(row: Agent) -> tuple[object, ...]:
     return (
         "row",
         row.agent_name,
-        row.agent_family_role,
+        row.agent_session_role,
         row.agent_clan,
         row.agent_clan_generation,
     )

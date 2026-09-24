@@ -114,7 +114,7 @@ def _starter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
         "proj",
         "20260812120000",
         "acme--0",
-        agent_family="acme",
+        agent_session="acme",
         model="claude-sonnet-5",
         workspace_dir=str(tmp_path),
         workspace_num=3,

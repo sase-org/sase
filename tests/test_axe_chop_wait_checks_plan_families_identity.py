@@ -49,7 +49,7 @@ def test_identity_wait_successful_plan_family_generation_resolves(
         "20260506010101",
         "planfam",
         workflow_name="planfam",
-        agent_family="planfam",
+        agent_session="planfam",
         role_suffix="--plan",
     )
     write_workflow_state(root_dir)
@@ -59,7 +59,7 @@ def test_identity_wait_successful_plan_family_generation_resolves(
         "20260506010202",
         "planfam--code",
         workflow_name="planfam",
-        agent_family="planfam",
+        agent_session="planfam",
         role_suffix="--code",
         parent_timestamp="20260506010101",
         done=True,
@@ -86,7 +86,7 @@ def test_identity_wait_failed_plan_family_generation_keeps_waiting(
         "20260506010101",
         "planfam",
         workflow_name="planfam",
-        agent_family="planfam",
+        agent_session="planfam",
         role_suffix="--plan",
     )
     write_workflow_state(root_dir)
@@ -96,7 +96,7 @@ def test_identity_wait_failed_plan_family_generation_keeps_waiting(
         "20260506010202",
         "planfam--code",
         workflow_name="planfam",
-        agent_family="planfam",
+        agent_session="planfam",
         role_suffix="--code",
         parent_timestamp="20260506010101",
         done=True,
@@ -125,7 +125,7 @@ def test_queued_family_child_does_not_block_its_parent_dependency(
         "20260706130831",
         "b",
         workflow_name="b" if parent_has_family_meta else None,
-        agent_family="b" if parent_has_family_meta else None,
+        agent_session="b" if parent_has_family_meta else None,
         done=True,
         outcome="completed",
     )
@@ -135,7 +135,7 @@ def test_queued_family_child_does_not_block_its_parent_dependency(
         "20260706131004",
         "b--launch",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         parent_timestamp=parent_dir.name,
     )
     _write_waiting_marker(
@@ -160,7 +160,7 @@ def test_queued_family_child_blocks_external_wait_on_whole_family(
         "20260706130831",
         "b--plan",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         role_suffix="--plan",
         done=True,
         outcome="completed",
@@ -171,7 +171,7 @@ def test_queued_family_child_blocks_external_wait_on_whole_family(
         "20260706131004",
         "b--launch",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         role_suffix="--launch",
         parent_timestamp=parent_dir.name,
     )
@@ -205,7 +205,7 @@ def test_queued_family_siblings_do_not_mutually_block_parent_dependency(
         "20260706131004",
         "b--launch",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         parent_timestamp=parent_dir.name,
     )
     second_child_dir = make_agent(
@@ -214,7 +214,7 @@ def test_queued_family_siblings_do_not_mutually_block_parent_dependency(
         "20260706131105",
         "b--review",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         parent_timestamp=parent_dir.name,
     )
     for child_dir in (first_child_dir, second_child_dir):
@@ -244,7 +244,7 @@ def test_stale_waiting_marker_on_failed_family_member_keeps_waiting(
         "20260706130831",
         "b",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         done=True,
         outcome="completed",
     )
@@ -254,7 +254,7 @@ def test_stale_waiting_marker_on_failed_family_member_keeps_waiting(
         "20260706131004",
         "b--launch",
         workflow_name="b",
-        agent_family="b",
+        agent_session="b",
         parent_timestamp=parent_dir.name,
         done=True,
         outcome="killed",

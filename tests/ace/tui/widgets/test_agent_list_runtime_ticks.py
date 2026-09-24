@@ -17,7 +17,7 @@ from sase.ace.tui.models.agent_time import (
 
 from .agent_list_runtime_helpers import (
     agent,
-    family_container,
+    agent_session_container,
     gate_shell,
     linked_followup_workflow,
     monitor_shell,
@@ -76,7 +76,7 @@ def test_runtime_suffix_ticks_linked_followup_workflow_ticks() -> None:
 
 def test_runtime_suffix_ticks_live_monitor_custom_status() -> None:
     result = agent(status="MONITORING")
-    result.agent_family_role = "monitor"
+    result.agent_session_role = "monitor"
     result.role_suffix = "--mon"
     result.monitor_id = "m123"
     result.monitor_state = "running"
@@ -132,7 +132,7 @@ def test_family_container_ticks_through_settled_starter_to_monitor(
         raw_suffix="20260425143100",
     )
     starter.runtime_children.append(monitor_shell())
-    container = family_container(starter)
+    container = agent_session_container(starter)
 
     assert container.is_family_container_row is True
     assert ticks(container) is True
@@ -195,7 +195,7 @@ def test_family_container_does_not_tick_for_gate(
         stop=None,
         gate_state=gate_state,
     )
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.append(gate)
     container.followup_agents.append(gate)
 

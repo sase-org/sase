@@ -103,7 +103,7 @@ def make_gate_shell_member(
     )
     base_meta: dict[str, Any] = {
         "name": "lane--0",
-        "agent_family": "lane",
+        "agent_session": "lane",
         "model": "gpt-5",
     }
     if workspace_num is not None:

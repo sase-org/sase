@@ -48,14 +48,14 @@ def test_top_level_row_resolves_to_its_own_roster_unit() -> None:
 
 def test_family_member_resolves_to_family_roster_unit() -> None:
     root = _agent("build--plan", suffix="root")
-    root.agent_family = "build"
-    root.agent_family_role = "root"
+    root.agent_session = "build"
+    root.agent_session_role = "root"
     root.role_suffix = "--plan"
     root.plan_chain_root = True
     root.refresh_raw_presented_agent_name()
     child = _agent("build--code", suffix="child")
-    child.agent_family = "build"
-    child.agent_family_role = "code"
+    child.agent_session = "build"
+    child.agent_session_role = "code"
     child.role_suffix = "--code"
     child.parent_timestamp = root.raw_suffix
     child.refresh_raw_presented_agent_name()

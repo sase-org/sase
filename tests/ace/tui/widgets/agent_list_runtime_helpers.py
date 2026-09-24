@@ -118,7 +118,7 @@ def monitor_shell(
         raw_suffix=raw_suffix,
         cl_name=cl_name,
     )
-    result.agent_family_role = "monitor"
+    result.agent_session_role = "monitor"
     result.monitor_id = "m-demo"
     result.monitor_state = monitor_state
     return result
@@ -143,13 +143,13 @@ def gate_shell(
         raw_suffix=raw_suffix,
         cl_name=cl_name,
     )
-    result.agent_family_role = "gate"
+    result.agent_session_role = "gate"
     result.gate_id = "g-demo"
     result.gate_state = gate_state
     return result
 
 
-def family_container(
+def agent_session_container(
     member: Agent,
     *,
     status: str = "DONE",
@@ -167,7 +167,7 @@ def family_container(
         raw_suffix=raw_suffix,
         cl_name=cl_name,
     )
-    result.agent_family_role = "root"
+    result.agent_session_role = "root"
     result.followup_agents.append(member)
     result.runtime_children.append(member)
     return result

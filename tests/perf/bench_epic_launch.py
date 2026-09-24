@@ -274,9 +274,9 @@ def _write_agent_meta(
         else:
             meta["epic_bead_id"] = bead_id
     if family is not None:
-        meta["agent_family"] = family
+        meta["agent_session"] = family
     if family_role is not None:
-        meta["agent_family_role"] = family_role
+        meta["agent_session_role"] = family_role
     (path / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
     if done:
         (path / "done.json").write_text(

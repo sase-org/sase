@@ -21,8 +21,8 @@ def test_wait_for_agent_family_root_uses_root_name() -> None:
     a1 = _make_agent(
         raw_suffix="20240101120000",
         agent_name="alice-plan",
-        agent_family="alice",
-        agent_family_role="root",
+        agent_session="alice",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     app = _FakeWaitApp([a1])
@@ -38,8 +38,8 @@ def test_fork_agent_family_root_uses_root_name() -> None:
         raw_suffix="20240101120000",
         status="DONE",
         agent_name="alice-plan",
-        agent_family="alice",
-        agent_family_role="root",
+        agent_session="alice",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     app = _FakeWaitApp([a1])

@@ -92,8 +92,8 @@ def _summarize_hint_counters(records: Iterable[dict[str, Any]]) -> dict[str, Any
         "header_summary": sorted(
             {str(r.get("header_summary", "")) for r in hint_records}
         ),
-        "family_container": sorted(
-            {bool(r.get("family_container")) for r in hint_records}
+        "agent_session_container": sorted(
+            {bool(r.get("agent_session_container")) for r in hint_records}
         ),
         "clan_container": sorted({bool(r.get("clan_container")) for r in hint_records}),
     }

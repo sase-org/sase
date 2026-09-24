@@ -139,14 +139,14 @@ def bead_field_labels(header: AgentHeader) -> list[str]:
 def family_container_agent() -> Agent:
     child = make_agent(
         agent_name="worker--code",
-        agent_family="worker",
-        agent_family_role="member",
+        agent_session="worker",
+        agent_session_role="member",
     )
     root = make_agent(
         agent_name="worker--plan",
-        agent_family="worker",
-        agent_family_role="root",
+        agent_session="worker",
+        agent_session_role="root",
         followup_agents=[child],
     )
-    child.family_container = root
+    child.agent_session_container = root
     return root

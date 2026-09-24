@@ -24,7 +24,7 @@ def test_submitted_plan_wait_exposes_plan_file_under_row_key(tmp_path: Path) -> 
         "20260625184716",
         "planner",
         workflow_name="planner",
-        agent_family="planner",
+        agent_session="planner",
         role_suffix="--plan",
     )
     augment_submitted_plan_meta(agent_dir)
@@ -116,7 +116,7 @@ def test_submitted_planner_populates_both_base_and_row_keys(tmp_path: Path) -> N
         "20260625184716",
         "planner",
         workflow_name="planner",
-        agent_family="planner",
+        agent_session="planner",
         role_suffix="--plan",
     )
     augment_submitted_plan_meta(agent_dir)
@@ -150,7 +150,7 @@ def test_submitted_plan_wait_without_plan_path_exposes_nothing(
         "20260625184716",
         "planner",
         workflow_name="planner",
-        agent_family="planner",
+        agent_session="planner",
         role_suffix="--plan",
     )
     augment_submitted_plan_meta(agent_dir, plan_path=None)

@@ -54,7 +54,7 @@ def make_clan_agent(
         raw_suffix=start.strftime("%Y%m%d%H%M%S") + name,
         agent_name=name,
         parent_timestamp=parent_timestamp,
-        agent_family=family,
+        agent_session=family,
         agent_clan="research",
         agent_clan_generation=_GENERATION,
         model=model,

@@ -232,7 +232,7 @@ def test_family_header_recolors_only_real_container_name() -> None:
         family="research.writer",
     )
     family.agent_clan = None
-    family.agent_family_role = "root"
+    family.agent_session_role = "root"
     family.refresh_presented_agent_name()
 
     lone_header, _ = build_header_text(family, cheap=True)
@@ -309,7 +309,7 @@ def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
         start=datetime(2026, 7, 17, 12, 0, 0),
         family=family_name,
     )
-    planner.agent_family_role = "root"
+    planner.agent_session_role = "root"
     planner.role_suffix = "--plan"
     planner.plan_chain_root = True
     coder = make_clan_agent(
@@ -319,7 +319,7 @@ def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
         parent_timestamp=planner.raw_suffix,
         family=family_name,
     )
-    coder.agent_family_role = "code"
+    coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     planner.runtime_children = [coder]
     planner.followup_agents = [coder]
@@ -453,7 +453,7 @@ def test_legacy_parallel_root_keeps_compatibility_members_section() -> None:
         stop=datetime(2026, 7, 17, 12, 2, 0),
     )
     root.agent_clan = None
-    root.agent_family_parallel = True
+    root.agent_session_parallel = True
     child = make_clan_agent(
         "legacy-child",
         status="DONE",
@@ -461,8 +461,8 @@ def test_legacy_parallel_root_keeps_compatibility_members_section() -> None:
         stop=datetime(2026, 7, 17, 12, 2, 0),
     )
     child.agent_clan = None
-    child.agent_family_parallel = True
-    child.agent_family_role = "phase"
+    child.agent_session_parallel = True
+    child.agent_session_role = "phase"
     root.runtime_children = [child]
 
     header, _ = build_header_text(root, cheap=True)

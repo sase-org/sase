@@ -45,7 +45,7 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
         "proj",
         {
             "name": "lane--0",
-            "agent_family": "lane",
+            "agent_session": "lane",
             "model": "gpt-5",
             "workspace_dir": "/work/lane",
             "agent_clan": "clan-a",

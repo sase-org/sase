@@ -32,8 +32,8 @@ def _active_plan_family() -> tuple[Agent, Agent, Agent]:
         cl_name="family-workflow",
     )
     root.agent_name = "family--plan"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     planner = workflow_child(
         step_type="agent",
@@ -52,8 +52,8 @@ def _active_plan_family() -> tuple[Agent, Agent, Agent]:
         cl_name="family--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "family"
-    coder.agent_family_role = "code"
+    coder.agent_session = "family"
+    coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     root.runtime_children = [planner, coder]
     root.followup_agents = [coder]

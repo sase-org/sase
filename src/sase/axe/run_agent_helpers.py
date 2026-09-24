@@ -143,7 +143,7 @@ def create_followup_artifacts(
     workspace_num: int | None = None,
     agent_name_override: str | None = None,
     workflow_name: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_role: str | None = None,
     relationships: dict[str, Any] | None = None,
     stamp_creating_process: bool = True,
 ) -> str:
@@ -156,7 +156,7 @@ def create_followup_artifacts(
         workspace_num=workspace_num,
         agent_name_override=agent_name_override,
         workflow_name=workflow_name,
-        agent_family_role=agent_family_role,
+        agent_session_role=agent_session_role,
         relationships=relationships,
         stamp_creating_process=stamp_creating_process,
     )

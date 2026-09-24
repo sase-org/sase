@@ -15,7 +15,7 @@ from .agent_list_runtime_helpers import (
     AgentListHarness,
     agent,
     agent_row_index,
-    family_container,
+    agent_session_container,
     gate_shell,
     workflow_child,
 )
@@ -104,8 +104,8 @@ def test_format_agent_option_clan_single_family_lane_matches_family_total() -> N
         cl_name="family",
     )
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.role_suffix = "--0"
     waiting_child = agent(
         status="WAITING",
@@ -115,8 +115,8 @@ def test_format_agent_option_clan_single_family_lane_matches_family_total() -> N
         cl_name="family--review",
     )
     waiting_child.parent_timestamp = root.raw_suffix
-    waiting_child.agent_family = "family"
-    waiting_child.agent_family_role = "review"
+    waiting_child.agent_session = "family"
+    waiting_child.agent_session_role = "review"
     waiting_child.role_suffix = "--review"
     root.followup_agents = [waiting_child]
 
@@ -146,8 +146,8 @@ def test_format_agent_option_clan_family_lane_contributes_family_total() -> None
         cl_name="family-workflow",
     )
     root.agent_name = "family--plan"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     planner = workflow_child(
         step_type="agent",
@@ -166,8 +166,8 @@ def test_format_agent_option_clan_family_lane_contributes_family_total() -> None
         cl_name="family--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "family"
-    coder.agent_family_role = "code"
+    coder.agent_session = "family"
+    coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     root.runtime_children = [planner, coder]
     root.followup_agents = [coder]
@@ -212,8 +212,8 @@ def test_format_agent_option_clan_family_lane_falls_back_when_total_is_not_live(
         cl_name="family",
     )
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     queued_child = agent(
         status="WAITING",
         start=datetime(2026, 7, 19, 9, 1, 0),
@@ -222,8 +222,8 @@ def test_format_agent_option_clan_family_lane_falls_back_when_total_is_not_live(
         cl_name="family--review",
     )
     queued_child.parent_timestamp = root.raw_suffix
-    queued_child.agent_family = "family"
-    queued_child.agent_family_role = "review"
+    queued_child.agent_session = "family"
+    queued_child.agent_session_role = "review"
     queued_child.role_suffix = "--review"
     root.runtime_children = [queued_child]
     root.followup_agents = [queued_child]
@@ -369,7 +369,7 @@ def test_clan_excludes_pending_gate_and_does_not_pin_lowest_lane() -> None:
         gate_state="pending",
         raw_suffix="20260425143000",
     )
-    family = family_container(planner)
+    family = agent_session_container(planner)
     family.runtime_children.append(gate)
     family.followup_agents.append(gate)
     family.agent_clan = "research"

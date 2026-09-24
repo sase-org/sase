@@ -134,8 +134,8 @@ def write_bead_agent_meta(
     done: bool = False,
     waiting: bool = False,
     outcome: str = "failed",
-    agent_family: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session: str | None = None,
+    agent_session_role: str | None = None,
     agent_clan: str | None = None,
     agent_clan_generation: str | None = None,
 ) -> Path:
@@ -162,10 +162,10 @@ def write_bead_agent_meta(
             meta["epic_bead_id"] = bead_id.rsplit(".", 1)[0]
         else:
             meta["epic_bead_id"] = bead_id
-    if agent_family:
-        meta["agent_family"] = agent_family
-    if agent_family_role:
-        meta["agent_family_role"] = agent_family_role
+    if agent_session:
+        meta["agent_session"] = agent_session
+    if agent_session_role:
+        meta["agent_session_role"] = agent_session_role
     if agent_clan:
         meta["agent_clan"] = agent_clan
         meta["agent_clan_generation"] = agent_clan_generation or artifact_dir.name

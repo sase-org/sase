@@ -154,8 +154,8 @@ def test_visible_agent_completion_agents_adds_collapsed_clan_lanes(
         cl_name="",
         agent_clan="crew",
         agent_clan_generation="generation",
-        agent_family="crew.family",
-        agent_family_role="root",
+        agent_session="crew.family",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     family_member = _agent(
@@ -163,8 +163,8 @@ def test_visible_agent_completion_agents_adds_collapsed_clan_lanes(
         agent_name="crew.family--code",
         raw_suffix="260624_120052",
         cl_name="",
-        agent_family="crew.family",
-        agent_family_role="code",
+        agent_session="crew.family",
+        agent_session_role="code",
         parent_timestamp=family.raw_suffix,
     )
     family.followup_agents.append(family_member)

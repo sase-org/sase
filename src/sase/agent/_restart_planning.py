@@ -213,15 +213,15 @@ def _rewrite_prompt_identity(
 def _family_rewrite_args(
     meta: dict[str, Any],
 ) -> tuple[str | None, str | None, bool]:
-    agent_family = optional_str(agent_session_value(meta))
+    agent_session = optional_str(agent_session_value(meta))
     role_suffix = optional_str(meta.get("role_suffix"))
     is_family_root = (
         meta.get("plan_chain_root") is True or agent_session_role_value(meta) == "root"
     )
-    if agent_family and agent_session_parallel_value(meta) is not True and role_suffix:
-        return agent_family, role_suffix, is_family_root
+    if agent_session and agent_session_parallel_value(meta) is not True and role_suffix:
+        return agent_session, role_suffix, is_family_root
     if is_family_root:
-        return agent_family, role_suffix, True
+        return agent_session, role_suffix, True
     return None, None, False
 
 

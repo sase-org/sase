@@ -49,8 +49,8 @@ def _plan_root(
         role_suffix="--plan",
         workflow="ace-run",
         agent_name=family,
-        agent_family=family,
-        agent_family_role="root",
+        agent_session=family,
+        agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
     )
@@ -71,8 +71,8 @@ def _plain_family_root(
         start_time=_STARTED,
         raw_suffix=raw_suffix,
         agent_name=family,
-        agent_family=family,
-        agent_family_role="root",
+        agent_session=family,
+        agent_session_role="root",
     )
 
 
@@ -84,7 +84,7 @@ def _completed_plain_child(
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{root.agent_family}-0",
+        cl_name=f"{root.agent_session}-0",
         project_file=root.project_file,
         status="DONE",
         status_bucket="Done",
@@ -93,9 +93,9 @@ def _completed_plain_child(
         raw_suffix=raw_suffix,
         parent_timestamp=root.raw_suffix,
         role_suffix="--0",
-        agent_name=f"{root.agent_family}--0",
-        agent_family=root.agent_family,
-        agent_family_role="member",
+        agent_name=f"{root.agent_session}--0",
+        agent_session=root.agent_session,
+        agent_session_role="member",
     )
 
 
@@ -107,7 +107,7 @@ def _completed_code_child(
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{root.agent_family}-code",
+        cl_name=f"{root.agent_session}-code",
         project_file=root.project_file,
         status="TALE DONE",
         start_time=_STARTED + timedelta(minutes=offset_minutes),
@@ -115,9 +115,9 @@ def _completed_code_child(
         raw_suffix=raw_suffix,
         parent_timestamp=root.raw_suffix,
         role_suffix="--code",
-        agent_name=f"{root.agent_family}--code",
-        agent_family=root.agent_family,
-        agent_family_role="code",
+        agent_name=f"{root.agent_session}--code",
+        agent_session=root.agent_session,
+        agent_session_role="code",
     )
 
 
@@ -137,7 +137,7 @@ def _nested_monitor(
     """A monitor whose durable starter link points at the coder, not the root."""
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{root.agent_family}-mon",
+        cl_name=f"{root.agent_session}-mon",
         project_file=root.project_file,
         status=status,
         status_bucket=status_bucket,
@@ -147,9 +147,9 @@ def _nested_monitor(
         raw_suffix=raw_suffix,
         parent_timestamp=code_child.raw_suffix,
         role_suffix="--mon",
-        agent_name=f"{root.agent_family}--mon",
-        agent_family=root.agent_family,
-        agent_family_role="monitor",
+        agent_name=f"{root.agent_session}--mon",
+        agent_session=root.agent_session,
+        agent_session_role="monitor",
         monitor_id="m123",
         monitor_state=monitor_state,
         monitor_start_status=monitor_start_status,
@@ -266,16 +266,16 @@ def test_root_advances_past_terminal_monitor_to_later_active_followup() -> None:
     )
     resumed = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{root.agent_family}-code2",
+        cl_name=f"{root.agent_session}-code2",
         project_file=root.project_file,
         status="RUNNING",
         start_time=_STARTED + timedelta(minutes=30),
         raw_suffix="20260810093000",
         parent_timestamp=root.raw_suffix,
         role_suffix="--code2",
-        agent_name=f"{root.agent_family}--code2",
-        agent_family=root.agent_family,
-        agent_family_role="code",
+        agent_name=f"{root.agent_session}--code2",
+        agent_session=root.agent_session,
+        agent_session_role="code",
     )
 
     _apply_status_overrides([root, coder, monitor, resumed])
@@ -383,16 +383,16 @@ def test_later_active_followup_clears_previously_mirrored_pair() -> None:
 
     resumed = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{root.agent_family}-1",
+        cl_name=f"{root.agent_session}-1",
         project_file=root.project_file,
         status="RUNNING",
         start_time=_STARTED + timedelta(minutes=30),
         raw_suffix="20260810093000",
         parent_timestamp=root.raw_suffix,
         role_suffix="--1",
-        agent_name=f"{root.agent_family}--1",
-        agent_family=root.agent_family,
-        agent_family_role="member",
+        agent_name=f"{root.agent_session}--1",
+        agent_session=root.agent_session,
+        agent_session_role="member",
     )
     _apply_status_overrides([root, starter, monitor, resumed])
 

@@ -460,7 +460,7 @@ class TestExtractDirectivesImplicitForkWait:
             tmp_path,
             "20260801010101",
             "cx--plan",
-            meta={"agent_family": "cx", "workflow_name": "cx"},
+            meta={"agent_session": "cx", "workflow_name": "cx"},
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
@@ -491,7 +491,7 @@ class TestExtractDirectivesImplicitForkWait:
             tmp_path,
             "20260801010101",
             f"{base_name}--plan",
-            meta={"agent_family": base_name, "workflow_name": base_name},
+            meta={"agent_session": base_name, "workflow_name": base_name},
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
@@ -523,8 +523,8 @@ class TestExtractDirectivesImplicitForkWait:
             "cx--mon",
             done={"outcome": "monitored"},
             meta={
-                "agent_family": "cx",
-                "agent_family_role": "monitor",
+                "agent_session": "cx",
+                "agent_session_role": "monitor",
                 "monitor_id": "mon0123456789ab",
             },
         )

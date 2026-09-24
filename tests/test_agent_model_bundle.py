@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent import (
     AttemptRecord,
     LinkedRepoMetadata,
 )
+from sase.ace.tui.models.agent_bundle import LEGACY_AGENT_FIELD_NAMES
 
 
 def test_bundle_round_trip_basic() -> None:
@@ -671,3 +672,50 @@ def test_old_bundle_synthesis_skips_workflow_children() -> None:
     }
     restored = Agent.from_bundle_dict(bundle)
     assert restored.agent_name is None
+
+
+def test_bundle_loads_pre_rename_family_fields() -> None:
+    """Pre-rename dismissed bundles load through the legacy field table."""
+    bundle = {
+        "agent_type": AgentType.RUNNING.value,
+        "cl_name": "my_feature",
+        "project_file": "/tmp/test.sase",
+        "status": "DONE",
+        "start_time": datetime(2026, 1, 1, 12, 0, 0).isoformat(),
+        "agent_name": "crew--code",
+        "agent_family": "crew",
+        "agent_family_role": "code",
+        "agent_family_parallel": False,
+        "raw_suffix": "20260101120000",
+    }
+    restored = Agent.from_bundle_dict(bundle)
+    assert restored.agent_session == "crew"
+    assert restored.agent_session_role == "code"
+    assert restored.agent_session_parallel is False
+    # A present new spelling stays authoritative over the legacy one.
+    mixed = dict(bundle, agent_session="other", agent_session_role="plan")
+    restored_mixed = Agent.from_bundle_dict(mixed)
+    assert restored_mixed.agent_session == "other"
+    assert restored_mixed.agent_session_role == "plan"
+
+
+def test_bundle_write_emits_no_legacy_family_fields() -> None:
+    """New dismissed bundles carry only agent_session* field names."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 1, 1, 12, 0, 0),
+        raw_suffix="20260101120000",
+        agent_name="crew--code",
+        agent_session="crew",
+        agent_session_role="code",
+        agent_session_parallel=False,
+    )
+    bundle = agent.to_bundle_dict()
+    assert not (set(bundle) & set(LEGACY_AGENT_FIELD_NAMES))
+    assert bundle["agent_session"] == "crew"
+    assert bundle["agent_session_role"] == "code"
+    assert bundle["agent_session_parallel"] is False
+    json.dumps(bundle)

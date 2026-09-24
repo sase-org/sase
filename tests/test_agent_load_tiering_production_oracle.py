@@ -158,16 +158,16 @@ def test_production_machine_query_oracle_keeps_mixed_provenance_tree(
         fixture.projects_root,
         fixture.artifact_count + 1,
         source_machine="athena",
-        agent_family="mixed-crew",
-        agent_family_role="plan",
+        agent_session="mixed-crew",
+        agent_session_role="plan",
     )
     child_dir = write_completed_artifact(
         fixture.projects_root,
         fixture.artifact_count + 2,
         source_machine="athena",
         owner_machine="apollo",
-        agent_family="mixed-crew",
-        agent_family_role="code",
+        agent_session="mixed-crew",
+        agent_session_role="code",
         parent_timestamp=parent_dir.name,
     )
     rebuild_index(fixture)

@@ -157,7 +157,7 @@ def load_family_attach_plan_from_env(
         parent_artifacts_dir=str(data["parent_artifacts_dir"]),
         role_suffix=str(data["role_suffix"]),
         agent_name=str(data["agent_name"]),
-        agent_family_role=str(data["agent_family_role"]),
+        agent_session_role=str(data["agent_session_role"]),
         parent_family_member_name=str(
             data.get("parent_family_member_name") or data["parent_name"]
         ),

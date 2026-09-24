@@ -25,8 +25,8 @@ def _agent(
     workflow: str | None = None,
     parent_timestamp: str | None = None,
     parent_workflow: str | None = None,
-    agent_family: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session: str | None = None,
+    agent_session_role: str | None = None,
     role_suffix: str | None = None,
     plan_chain_root: bool = False,
     agent_clan: str | None = None,
@@ -46,8 +46,8 @@ def _agent(
         parent_timestamp=parent_timestamp,
         parent_workflow=parent_workflow,
         step_type="agent" if parent_workflow else None,
-        agent_family=agent_family,
-        agent_family_role=agent_family_role,
+        agent_session=agent_session,
+        agent_session_role=agent_session_role,
         role_suffix=role_suffix,
         plan_chain_root=plan_chain_root,
         agent_clan=agent_clan,
@@ -97,15 +97,15 @@ def test_sequential_family_uses_presented_sase_agent_and_exact_running_member() 
     root = _agent(
         "athena.feature--plan",
         "root",
-        agent_family="athena.feature",
-        agent_family_role="root",
+        agent_session="athena.feature",
+        agent_session_role="root",
         role_suffix="--plan",
     )
     member = _agent(
         "athena.feature--code",
         "member",
         parent_timestamp=root.raw_suffix,
-        agent_family="athena.feature",
+        agent_session="athena.feature",
         role_suffix="--code",
         status="RUNNING",
         pid=42,
@@ -136,15 +136,15 @@ def test_completed_family_members_never_leak_into_dismiss_entries() -> None:
     root = _agent(
         "family--plan",
         "root",
-        agent_family="family",
-        agent_family_role="root",
+        agent_session="family",
+        agent_session_role="root",
         role_suffix="--plan",
     )
     member = _agent(
         "family--code",
         "member",
         parent_timestamp=root.raw_suffix,
-        agent_family="family",
+        agent_session="family",
         role_suffix="--code",
     )
 
@@ -159,8 +159,8 @@ def test_rename_on_attach_family_root_uses_bare_family_sase_agent() -> None:
     renamed_root = _agent(
         "review-lane--original",
         "root",
-        agent_family="review-lane",
-        agent_family_role="root",
+        agent_session="review-lane",
+        agent_session_role="root",
         role_suffix="--original",
     )
 
@@ -175,8 +175,8 @@ def test_plan_workflow_steps_resolve_to_family_sase_agent() -> None:
         "root",
         agent_type=AgentType.WORKFLOW,
         workflow="plan-workflow",
-        agent_family="plan-family",
-        agent_family_role="root",
+        agent_session="plan-family",
+        agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
     )
@@ -196,8 +196,8 @@ def test_clan_descendants_resolve_to_direct_member_sase_agents_not_clan() -> Non
     family_root = _agent(
         "research.family--plan",
         "family-root",
-        agent_family="research.family",
-        agent_family_role="root",
+        agent_session="research.family",
+        agent_session_role="root",
         role_suffix="--plan",
         agent_clan="research",
         agent_clan_generation="generation",
@@ -206,7 +206,7 @@ def test_clan_descendants_resolve_to_direct_member_sase_agents_not_clan() -> Non
         "research.family--code",
         "family-member",
         parent_timestamp=family_root.raw_suffix,
-        agent_family="research.family",
+        agent_session="research.family",
         role_suffix="--code",
         agent_clan="research",
         agent_clan_generation="generation",
@@ -248,8 +248,8 @@ def test_summary_counts_family_sase_agent_and_unique_concrete_agents() -> None:
     root = _agent(
         "release--plan",
         "root",
-        agent_family="release",
-        agent_family_role="root",
+        agent_session="release",
+        agent_session_role="root",
         role_suffix="--plan",
     )
     members = [
@@ -257,7 +257,7 @@ def test_summary_counts_family_sase_agent_and_unique_concrete_agents() -> None:
             f"release--phase-{index}",
             f"member-{index}",
             parent_timestamp=root.raw_suffix,
-            agent_family="release",
+            agent_session="release",
             role_suffix=f"--phase-{index}",
         )
         for index in range(1, 4)
@@ -359,15 +359,15 @@ def test_summary_headline_sase_agent_count_equals_roster_length() -> None:
     root = _agent(
         "family--plan",
         "root",
-        agent_family="family",
-        agent_family_role="root",
+        agent_session="family",
+        agent_session_role="root",
         role_suffix="--plan",
     )
     member = _agent(
         "family--code",
         "member",
         parent_timestamp=root.raw_suffix,
-        agent_family="family",
+        agent_session="family",
         role_suffix="--code",
     )
     standalone = _agent("standalone", "standalone")
@@ -406,15 +406,15 @@ def test_bulk_subject_can_show_same_family_sase_agent_in_kill_and_dismiss_sectio
     completed_root = _agent(
         "release--plan",
         "root",
-        agent_family="release",
-        agent_family_role="root",
+        agent_session="release",
+        agent_session_role="root",
         role_suffix="--plan",
     )
     running_member = _agent(
         "release--code",
         "member",
         parent_timestamp=completed_root.raw_suffix,
-        agent_family="release",
+        agent_session="release",
         role_suffix="--code",
         status="RUNNING",
         pid=91,

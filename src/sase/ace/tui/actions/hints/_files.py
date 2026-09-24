@@ -278,7 +278,7 @@ class FileViewingMixin(HintMixinBase):
             extra["outcome"] = "no_agent"
             return
 
-        extra["family_container"] = agent.is_family_container_row
+        extra["agent_session_container"] = agent.is_family_container_row
         try:
             from ...widgets import AgentDetail as _HintAgentDetail
 

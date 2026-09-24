@@ -65,14 +65,14 @@ def test_dotted_agent_family_renders_under_root_family_heading() -> None:
     root = make_agent(cl_name="demo", agent_name="a9f")
     root.raw_suffix = "ts-root"
     root.role_suffix = "-plan"
-    root.agent_family = "a9f"
-    root.agent_family_role = "root"
+    root.agent_session = "a9f"
+    root.agent_session_role = "root"
 
     wait_parent = make_agent(cl_name="demo", agent_name="a9f.w1")
     wait_parent.raw_suffix = "ts-w1"
     wait_parent.role_suffix = "-plan"
-    wait_parent.agent_family = "a9f.w1"
-    wait_parent.agent_family_role = "root"
+    wait_parent.agent_session = "a9f.w1"
+    wait_parent.agent_session_role = "root"
 
     wait_plan = make_agent(cl_name="demo", agent_name="a9f.w1-plan")
     wait_plan.parent_workflow = "a9f.w1"

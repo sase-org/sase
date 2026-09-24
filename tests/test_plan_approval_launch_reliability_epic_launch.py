@@ -65,7 +65,7 @@ def test_epic_approval_during_code_swap_creates_one_dag(
     artifacts.mkdir()
     write_agent_meta_atomic(
         artifacts,
-        {"name": "planner", "agent_family": "planner", "status": "running"},
+        {"name": "planner", "agent_session": "planner", "status": "running"},
         index_updater=lambda _path: None,
     )
     marker = install_fake_sase(tmp_path, monkeypatch)

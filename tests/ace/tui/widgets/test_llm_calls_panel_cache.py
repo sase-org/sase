@@ -330,7 +330,7 @@ def test_llm_calls_panel_background_fetch_aggregates_root_child_sources(
         raw_suffix="plan",
         parent_workflow="wf",
         step_type="agent",
-        agent_family_role="plan",
+        agent_session_role="plan",
         role_suffix="--plan",
     )
     code = Agent(
@@ -342,7 +342,7 @@ def test_llm_calls_panel_background_fetch_aggregates_root_child_sources(
         artifacts_dir=str(code_dir),
         raw_suffix="code",
         parent_timestamp="root",
-        agent_family_role="code",
+        agent_session_role="code",
         role_suffix="--code",
     )
     root.runtime_children.extend([plan, code])

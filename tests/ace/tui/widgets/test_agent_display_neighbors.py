@@ -231,15 +231,15 @@ def test_header_places_neighbors_below_workflow_variables_and_above_sase_context
 def test_family_header_publishes_one_contiguous_shared_width_jump_map() -> None:
     root = _agent(
         "lane--plan",
-        agent_family="lane",
-        agent_family_role="root",
+        agent_session="lane",
+        agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
     )
     child = _agent(
         "lane--code",
-        agent_family="lane",
-        agent_family_role="code",
+        agent_session="lane",
+        agent_session_role="code",
         role_suffix="--code",
     )
     root.followup_agents = [child]
@@ -271,16 +271,16 @@ def test_family_header_publishes_one_contiguous_shared_width_jump_map() -> None:
 def test_neighbors_section_renders_for_a_top_level_family_lane() -> None:
     root = _agent(
         "fam--plan",
-        agent_family="fam",
-        agent_family_role="root",
+        agent_session="fam",
+        agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
     )
     member = _agent(
         "fam--code",
         parent_timestamp=root.raw_suffix,
-        agent_family="fam",
-        agent_family_role="code",
+        agent_session="fam",
+        agent_session_role="code",
         role_suffix="--code",
     )
     root.followup_agents = [member]
@@ -330,7 +330,7 @@ def test_neighbors_are_absent_for_empty_projection_and_non_lane_rows() -> None:
     family_child = _agent(
         "lane--code",
         parent_timestamp="lane--plan",
-        agent_family="lane",
+        agent_session="lane",
     )
     invalid_projection = _projection(
         family_child,

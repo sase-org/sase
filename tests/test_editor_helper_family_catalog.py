@@ -132,7 +132,7 @@ def _family_record(
     return _scan_record(
         timestamp,
         f"{family}{suffix}",
-        agent_family=family,
+        agent_session=family,
         parent_timestamp=parent_timestamp,
         **kwargs,
     )

@@ -105,8 +105,8 @@ class _RunnerSlotFakeyHarness:
         queue_weight: float = 1.0,
         queue_weight_explicit: bool = False,
         parent_timestamp: str | None = None,
-        agent_family: str | None = None,
-        agent_family_parallel: bool = False,
+        agent_session: str | None = None,
+        agent_session_parallel: bool = False,
         monitor_id: str | None = None,
         crash: bool = False,
     ) -> _Agent:
@@ -128,9 +128,9 @@ class _RunnerSlotFakeyHarness:
             meta["wait_priority"] = wait_priority
         if parent_timestamp is not None:
             meta["parent_timestamp"] = parent_timestamp
-        if agent_family is not None:
-            meta["agent_family"] = agent_family
-        if agent_family_parallel:
+        if agent_session is not None:
+            meta["agent_session"] = agent_session
+        if agent_session_parallel:
             meta[AGENT_FAMILY_PARALLEL_FIELD] = True
         if monitor_id is not None:
             meta["monitor_id"] = monitor_id

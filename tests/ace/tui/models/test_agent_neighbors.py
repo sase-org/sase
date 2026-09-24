@@ -96,8 +96,8 @@ def test_agent_row_construction_does_not_read_machine_config(
 
 def test_family_display_and_kinship_identity_are_normalized_independently() -> None:
     family = _agent("athena.foo--plan")
-    family.agent_family = "athena.foo"
-    family.agent_family_role = "root"
+    family.agent_session = "athena.foo"
+    family.agent_session_role = "root"
     family.plan_chain_root = True
     family.refresh_presented_agent_name(
         AgentIdentitySnapshot(

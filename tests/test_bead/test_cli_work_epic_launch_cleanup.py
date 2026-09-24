@@ -116,8 +116,8 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
         bead_id=phase_ids[0],
         done=True,
         outcome="completed",
-        agent_family=family_name,
-        agent_family_role="plan",
+        agent_session=family_name,
+        agent_session_role="plan",
     )
     write_bead_agent_meta(
         fake_home,
@@ -125,8 +125,8 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
         bead_id=phase_ids[0],
         done=True,
         outcome="failed",
-        agent_family=family_name,
-        agent_family_role="code",
+        agent_session=family_name,
+        agent_session_role="code",
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
@@ -264,8 +264,8 @@ def _write_family_member(
         bead_id=bead_id,
         done=True,
         outcome=outcome,
-        agent_family=family_name,
-        agent_family_role=role,
+        agent_session=family_name,
+        agent_session_role=role,
     )
 
 

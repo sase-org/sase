@@ -424,8 +424,8 @@ def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
     family_meta = {
-        "agent_family": family_name,
-        "agent_family_parallel": False,
+        "agent_session": family_name,
+        "agent_session_parallel": False,
     }
     plan = _artifact(
         tmp_path,
@@ -484,8 +484,8 @@ def test_wipe_code_member_preserves_plan_member_and_family_container(
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
     family_meta = {
-        "agent_family": family_name,
-        "agent_family_parallel": False,
+        "agent_session": family_name,
+        "agent_session_parallel": False,
     }
     plan = _artifact(
         tmp_path,
@@ -587,7 +587,7 @@ def test_batch_wipe_shares_catalog_and_registry_rebuild(tmp_path: Path) -> None:
             "family",
             "review",
             ("review--0", "review--code"),
-            {"agent_family": "review", "agent_family_parallel": False},
+            {"agent_session": "review", "agent_session_parallel": False},
             id="family",
         ),
     ],

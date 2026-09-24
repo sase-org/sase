@@ -232,7 +232,7 @@ def test_unread_jump_lands_on_direct_family_row_but_not_inner_child() -> None:
         stop_time=datetime(2026, 7, 18, 12, 0, 0),
     )
     family.agent_name = "research.family--plan-0"
-    family.agent_family = "research.family"
+    family.agent_session = "research.family"
     family.agent_clan = "research"
     family.agent_clan_generation = "generation"
     child = make_agent(
@@ -242,7 +242,7 @@ def test_unread_jump_lands_on_direct_family_row_but_not_inner_child() -> None:
         stop_time=datetime(2026, 7, 18, 13, 0, 0),
     )
     child.agent_name = "research.family--code"
-    child.agent_family = "research.family"
+    child.agent_session = "research.family"
     child.parent_timestamp = family.raw_suffix
     family.runtime_children = [child]
     complete = project_clan_tree([family, child])
@@ -262,7 +262,7 @@ def test_unread_jump_does_not_reveal_member_hidden_by_inner_family_fold() -> Non
         raw_suffix="family",
     )
     family.agent_name = "research.family--plan-0"
-    family.agent_family = "research.family"
+    family.agent_session = "research.family"
     family.agent_clan = "research"
     family.agent_clan_generation = "generation"
     child = make_agent(
@@ -272,7 +272,7 @@ def test_unread_jump_does_not_reveal_member_hidden_by_inner_family_fold() -> Non
         stop_time=datetime(2026, 7, 18, 13, 0, 0),
     )
     child.agent_name = "research.family--code"
-    child.agent_family = "research.family"
+    child.agent_session = "research.family"
     child.parent_timestamp = family.raw_suffix
     family.runtime_children = [child]
     app = _CollapsedClanUnreadJumpApp(project_clan_tree([family, child]))

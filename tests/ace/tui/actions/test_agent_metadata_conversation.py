@@ -147,8 +147,8 @@ def test_family_replies_are_attributed_and_keep_identity_when_members_are_added(
 ) -> None:
     root = _agent(tmp_path)
     root.agent_name = "review--plan"
-    root.agent_family = "review"
-    root.agent_family_role = "root"
+    root.agent_session = "review"
+    root.agent_session_role = "root"
     root.refresh_raw_presented_agent_name()
     child = make_agent(cl_name="child", raw_suffix="20250101120500")
     child.agent_name = "review--impl"

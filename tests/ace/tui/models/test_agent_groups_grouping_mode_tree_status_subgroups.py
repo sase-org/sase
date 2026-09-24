@@ -33,8 +33,8 @@ def test_build_agent_tree_by_status_groups_dotted_agent_family_under_root() -> N
         raw_suffix="ts-root",
         status="RUNNING",
         role_suffix="-plan",
-        agent_family="a9f",
-        agent_family_role="root",
+        agent_session="a9f",
+        agent_session_role="root",
     )
     wait_parent = _agent(
         cl_name="x",
@@ -42,8 +42,8 @@ def test_build_agent_tree_by_status_groups_dotted_agent_family_under_root() -> N
         raw_suffix="ts-w1",
         status="RUNNING",
         role_suffix="-plan",
-        agent_family="a9f.w1",
-        agent_family_role="root",
+        agent_session="a9f.w1",
+        agent_session_role="root",
     )
     wait_plan = _agent(
         cl_name="x",

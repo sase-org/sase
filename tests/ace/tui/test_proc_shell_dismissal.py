@@ -142,7 +142,7 @@ def _gate_agent(
         raw_suffix=raw_suffix,
         agent_name=cl_name,
     )
-    agent.agent_family_role = "gate"
+    agent.agent_session_role = "gate"
     agent.role_suffix = "--gate"
     agent.gate_id = f"{cl_name}-gate"
     agent.gate_kind = "approval"

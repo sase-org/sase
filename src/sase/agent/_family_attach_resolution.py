@@ -186,7 +186,7 @@ def resolve_family_attach_plan(
         parent_artifacts_dir=parent["artifact_dir"],
         role_suffix=role_suffix,
         agent_name=agent_name,
-        agent_family_role=role,
+        agent_session_role=role,
         parent_family_member_name=parent_family_member_name,
         parent_family_role_suffix=parent_family_role_suffix,
         parent_needs_rename=parent_needs_rename,

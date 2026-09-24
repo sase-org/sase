@@ -38,11 +38,11 @@ def _named_family_lane(name: str) -> tuple[list[Agent], Agent]:
     fold_key = f"{name}-fold"
     root.cl_name = name
     root.agent_name = name
-    root.agent_family = name
+    root.agent_session = name
     root.raw_suffix = fold_key
     member.cl_name = f"{name}-member"
     member.agent_name = f"{name}--code"
-    member.agent_family = name
+    member.agent_session = name
     member.parent_timestamp = fold_key
     return rows, root
 

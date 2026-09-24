@@ -37,8 +37,8 @@ def _cleanup_confirmation_agents() -> list[Agent]:
         parent_timestamp: str | None = None,
         parent_workflow: str | None = None,
         step_name: str | None = None,
-        agent_family: str | None = None,
-        agent_family_role: str | None = None,
+        agent_session: str | None = None,
+        agent_session_role: str | None = None,
         role_suffix: str | None = None,
     ) -> Agent:
         return Agent(
@@ -57,8 +57,8 @@ def _cleanup_confirmation_agents() -> list[Agent]:
             step_name=step_name,
             step_type="agent" if parent_workflow else None,
             is_hidden_step=bool(parent_workflow),
-            agent_family=agent_family,
-            agent_family_role=agent_family_role,
+            agent_session=agent_session,
+            agent_session_role=agent_session_role,
             role_suffix=role_suffix,
         )
 
@@ -96,8 +96,8 @@ def _cleanup_confirmation_agents() -> list[Agent]:
         "20260724-100200-family",
         agent_name="lane.cleanup.family--plan",
         tribe="cleanup",
-        agent_family="lane.cleanup.family",
-        agent_family_role="root",
+        agent_session="lane.cleanup.family",
+        agent_session_role="root",
         role_suffix="--plan",
     )
     family_members = [
@@ -106,7 +106,7 @@ def _cleanup_confirmation_agents() -> list[Agent]:
             f"20260724-10020{index}-family",
             agent_name=f"lane.cleanup.family--phase-{index}",
             parent_timestamp=family.raw_suffix,
-            agent_family="lane.cleanup.family",
+            agent_session="lane.cleanup.family",
             role_suffix=f"--phase-{index}",
         )
         for index in range(1, 4)

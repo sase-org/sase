@@ -465,12 +465,12 @@ def test_child_is_exempt_while_repeat_roots_stay_capped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
-    parent = harness.create_agent(0, name="parent", agent_family="parent")
+    parent = harness.create_agent(0, name="parent", agent_session="parent")
     child = harness.create_agent(
         1,
         name="parent.child",
         parent_timestamp=parent.artifacts_dir.name,
-        agent_family="parent",
+        agent_session="parent",
     )
     repeats = [harness.create_agent(index, name=f"repeat-{index}") for index in (2, 3)]
 

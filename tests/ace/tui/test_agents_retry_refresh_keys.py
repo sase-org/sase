@@ -29,12 +29,12 @@ def test_agents_retry_excludes_proc_monitor_and_gate_rows() -> None:
         proc_label="Build docs",
     )
     monitor = make_agent(status="MONITORING")
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_id = "m1"
     monitor.monitor_state = "running"
     gate = make_agent(status="GATED")
-    gate.agent_family_role = "gate"
+    gate.agent_session_role = "gate"
     gate.role_suffix = "--gate"
     gate.gate_id = "g1"
     gate.gate_state = "pending"

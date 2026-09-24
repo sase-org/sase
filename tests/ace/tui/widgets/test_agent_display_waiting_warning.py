@@ -263,8 +263,8 @@ def test_unknown_clan_wait_keeps_unknown_badge() -> None:
 def test_collect_agent_status_buckets_includes_family_and_raw_names() -> None:
     root = make_agent(
         agent_name="research.plan",
-        agent_family="research",
-        agent_family_role="root",
+        agent_session="research",
+        agent_session_role="root",
         plan_chain_root=True,
         status="WAITING",
     )
@@ -284,8 +284,8 @@ def test_collect_agent_status_buckets_applies_family_precedence() -> None:
     def family_agent(agent_name: str, status: str):
         return make_agent(
             agent_name=agent_name,
-            agent_family="foo",
-            agent_family_role="root",
+            agent_session="foo",
+            agent_session_role="root",
             plan_chain_root=True,
             status=status,
         )
@@ -388,8 +388,8 @@ def test_real_agent_and_family_names_win_clan_name_collisions() -> None:
     )
     family_collision = make_agent(
         agent_name="legacy-family.plan",
-        agent_family="legacy-family",
-        agent_family_role="root",
+        agent_session="legacy-family",
+        agent_session_role="root",
         plan_chain_root=True,
         status="FAILED",
     )

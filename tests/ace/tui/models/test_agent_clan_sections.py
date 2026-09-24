@@ -35,7 +35,7 @@ def _agent(
         "agent_clan": "research",
         "agent_clan_generation": _GENERATION,
         "parent_timestamp": parent_timestamp,
-        "agent_family": family,
+        "agent_session": family,
     }
     values.update(overrides)
     return Agent(**values)  # type: ignore[arg-type]

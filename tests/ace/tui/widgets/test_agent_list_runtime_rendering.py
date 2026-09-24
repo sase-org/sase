@@ -131,8 +131,8 @@ def test_format_agent_option_active_family_shows_current_root_and_total() -> Non
         cl_name="family",
     )
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.role_suffix = "--0"
     waiting_child = agent(
         status="WAITING",
@@ -142,8 +142,8 @@ def test_format_agent_option_active_family_shows_current_root_and_total() -> Non
         cl_name="family--review",
     )
     waiting_child.parent_timestamp = root.raw_suffix
-    waiting_child.agent_family = "family"
-    waiting_child.agent_family_role = "review"
+    waiting_child.agent_session = "family"
+    waiting_child.agent_session_role = "review"
     waiting_child.role_suffix = "--review"
     root.followup_agents = [waiting_child]
 
@@ -167,8 +167,8 @@ def test_format_agent_option_active_family_shows_current_continuation_first() ->
         cl_name="family-workflow",
     )
     root.agent_name = "family--plan"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.plan_chain_root = True
     planner = workflow_child(
         step_type="agent",
@@ -187,8 +187,8 @@ def test_format_agent_option_active_family_shows_current_continuation_first() ->
         cl_name="family--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "family"
-    coder.agent_family_role = "code"
+    coder.agent_session = "family"
+    coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     root.runtime_children = [planner, coder]
     root.followup_agents = [coder]
@@ -213,8 +213,8 @@ def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None
         cl_name="family",
     )
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     coder = agent(
         status="DONE",
         start=datetime(2026, 7, 19, 9, 1, 0),
@@ -224,8 +224,8 @@ def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None
         cl_name="family--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "family"
-    coder.agent_family_role = "code"
+    coder.agent_session = "family"
+    coder.agent_session_role = "code"
     monitor = agent(
         status="MONITORING",
         start=datetime(2026, 7, 19, 9, 3, 0),
@@ -234,8 +234,8 @@ def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None
         cl_name="family--mon",
     )
     monitor.parent_timestamp = coder.raw_suffix
-    monitor.agent_family = "family"
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = "family"
+    monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_id = "m-family"
     monitor.monitor_state = "running"
@@ -264,8 +264,8 @@ def test_format_agent_option_completed_family_keeps_single_total_suffix() -> Non
         cl_name="family",
     )
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     child = agent(
         status="DONE",
         start=datetime(2026, 7, 19, 9, 1, 0),
@@ -275,8 +275,8 @@ def test_format_agent_option_completed_family_keeps_single_total_suffix() -> Non
         cl_name="family--code",
     )
     child.parent_timestamp = root.raw_suffix
-    child.agent_family = "family"
-    child.agent_family_role = "code"
+    child.agent_session = "family"
+    child.agent_session_role = "code"
     root.runtime_children = [child]
     root.followup_agents = [child]
 

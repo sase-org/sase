@@ -80,13 +80,13 @@ def test_non_container_row_never_renders_monitor_badge() -> None:
         start_time=started,
         raw_suffix="20260812090000",
         agent_name="alpha--0",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         role_suffix="--0",
         # A parallel-family root is never a sequential-family container, even
         # with running-monitor children, so this isolates the container
         # check itself from ``_monitor_lane_counts`` returning a nonzero lane.
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
@@ -97,8 +97,8 @@ def test_non_container_row_never_renders_monitor_badge() -> None:
         raw_suffix="20260812090001",
         parent_timestamp="20260812090000",
         agent_name="alpha--mon",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="m1",
         monitor_state="running",
@@ -142,8 +142,8 @@ def test_starter_with_only_monitor_child_renders_no_count_badge() -> None:
         raw_suffix="20260812090000",
         parent_timestamp="20260812085900",
         agent_name="alpha--2",
-        agent_family="alpha",
-        agent_family_role="code",
+        agent_session="alpha",
+        agent_session_role="code",
         role_suffix="--2",
     )
     monitor = Agent(
@@ -155,8 +155,8 @@ def test_starter_with_only_monitor_child_renders_no_count_badge() -> None:
         raw_suffix="20260812090001",
         parent_timestamp=starter.raw_suffix,
         agent_name="alpha--mon-1",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon-1",
         monitor_id="m1",
         monitor_state="running",
@@ -193,8 +193,8 @@ def test_clan_container_with_nested_running_monitor_renders_badge() -> None:
         start_time=started,
         raw_suffix="20260812085900",
         agent_name="alpha",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         role_suffix="--0",
     )
     starter = Agent(
@@ -206,8 +206,8 @@ def test_clan_container_with_nested_running_monitor_renders_badge() -> None:
         raw_suffix="20260812090000",
         parent_timestamp=family.raw_suffix,
         agent_name="alpha--2",
-        agent_family="alpha",
-        agent_family_role="code",
+        agent_session="alpha",
+        agent_session_role="code",
         role_suffix="--2",
     )
     monitor = Agent(
@@ -219,8 +219,8 @@ def test_clan_container_with_nested_running_monitor_renders_badge() -> None:
         raw_suffix="20260812090001",
         parent_timestamp=starter.raw_suffix,
         agent_name="alpha--mon-1",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon-1",
         monitor_id="m1",
         monitor_state="running",
@@ -258,8 +258,8 @@ def test_clan_container_aggregates_settled_lane_across_member_families() -> None
             start_time=started,
             raw_suffix=f"{name}-root",
             agent_name=name,
-            agent_family=name,
-            agent_family_role="root",
+            agent_session=name,
+            agent_session_role="root",
             role_suffix="--0",
         )
         monitor = Agent(
@@ -272,8 +272,8 @@ def test_clan_container_aggregates_settled_lane_across_member_families() -> None
             raw_suffix=f"{name}-mon",
             parent_timestamp=family.raw_suffix,
             agent_name=f"{name}--mon",
-            agent_family=name,
-            agent_family_role="monitor",
+            agent_session=name,
+            agent_session_role="monitor",
             role_suffix="--mon",
             monitor_id=f"{name}-m1",
             monitor_state="completed",
@@ -301,13 +301,13 @@ def test_non_container_row_with_settled_monitors_renders_no_badge() -> None:
         start_time=started,
         raw_suffix="20260812090000",
         agent_name="alpha--0",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         role_suffix="--0",
         # A parallel-family root is never a sequential-family container, even
         # with settled-monitor children, so this isolates the container
         # check itself from ``_monitor_lane_counts`` returning a nonzero lane.
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
@@ -319,8 +319,8 @@ def test_non_container_row_with_settled_monitors_renders_no_badge() -> None:
         raw_suffix="20260812090001",
         parent_timestamp="20260812090000",
         agent_name="alpha--mon",
-        agent_family="alpha",
-        agent_family_role="monitor",
+        agent_session="alpha",
+        agent_session_role="monitor",
         role_suffix="--mon",
         monitor_id="m1",
         monitor_state="completed",
@@ -346,8 +346,8 @@ def test_family_container_with_gate_lanes_renders_state_badges() -> None:
         start_time=started,
         raw_suffix="20260812085900",
         agent_name="alpha",
-        agent_family="alpha",
-        agent_family_role="root",
+        agent_session="alpha",
+        agent_session_role="root",
         role_suffix="--0",
     )
 
@@ -362,8 +362,8 @@ def test_family_container_with_gate_lanes_renders_state_badges() -> None:
             raw_suffix=f"2026081209{name}",
             parent_timestamp=family.raw_suffix,
             agent_name=name,
-            agent_family="alpha",
-            agent_family_role="gate",
+            agent_session="alpha",
+            agent_session_role="gate",
             role_suffix="--gate",
             gate_id=f"{name}-gate",
             gate_kind="test",

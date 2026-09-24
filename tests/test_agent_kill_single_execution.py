@@ -130,7 +130,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
         workflow=None,
         pid=111,
         raw_suffix="parent-12345",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     child = Agent(
         agent_type=AgentType.RUNNING,
@@ -142,7 +142,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
         pid=222,
         raw_suffix="child-12345",
         parent_timestamp="parent-12345",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     sibling = Agent(
         agent_type=AgentType.RUNNING,
@@ -154,7 +154,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
         pid=333,
         raw_suffix="sibling-12345",
         parent_timestamp="parent-12345",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     app = MockApp()
     app._agents = [parent, child, sibling]
@@ -226,7 +226,7 @@ def test_do_kill_parallel_family_root_signals_and_removes_every_member() -> None
         start_time=None,
         pid=111,
         raw_suffix="root-ts",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     member_one = Agent(
         agent_type=AgentType.RUNNING,
@@ -237,7 +237,7 @@ def test_do_kill_parallel_family_root_signals_and_removes_every_member() -> None
         pid=222,
         raw_suffix="member-one-ts",
         parent_timestamp="root-ts",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     member_two = Agent(
         agent_type=AgentType.RUNNING,
@@ -248,7 +248,7 @@ def test_do_kill_parallel_family_root_signals_and_removes_every_member() -> None
         pid=333,
         raw_suffix="member-two-ts",
         parent_timestamp="root-ts",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     agents = [root, member_one, member_two]
     plan = _plan_agent_cleanup_python(

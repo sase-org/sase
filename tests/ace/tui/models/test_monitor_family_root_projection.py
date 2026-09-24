@@ -39,8 +39,8 @@ def _root(
         raw_suffix=raw_suffix,
         role_suffix="--plan",
         agent_name=family,
-        agent_family=family,
-        agent_family_role="root",
+        agent_session=family,
+        agent_session_role="root",
         plan_chain_root=True,
     )
 
@@ -48,15 +48,15 @@ def _root(
 def _code_child(root: Agent, *, raw_suffix: str) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{root.agent_family}-code",
+        cl_name=f"{root.agent_session}-code",
         project_file=root.project_file,
         status="DONE",
         start_time=_STARTED + timedelta(minutes=10),
         raw_suffix=raw_suffix,
         parent_timestamp=root.raw_suffix,
         role_suffix="--code",
-        agent_family=root.agent_family,
-        agent_family_role="code",
+        agent_session=root.agent_session,
+        agent_session_role="code",
     )
 
 
@@ -68,7 +68,7 @@ def _monitor(
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{root.agent_family}-mon",
+        cl_name=f"{root.agent_session}-mon",
         project_file=root.project_file,
         status="MONITORING",
         status_bucket="Running",
@@ -76,8 +76,8 @@ def _monitor(
         raw_suffix=raw_suffix,
         parent_timestamp=starter.raw_suffix,
         role_suffix="--mon",
-        agent_family=root.agent_family,
-        agent_family_role="monitor",
+        agent_session=root.agent_session,
+        agent_session_role="monitor",
         monitor_id="m123",
         monitor_state="running",
     )
@@ -167,8 +167,8 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
         role_suffix="--plan",
         workflow="ace-run",
         agent_name="sase-ns.6.6.6.1",
-        agent_family="sase-ns.6.6.6.1",
-        agent_family_role="root",
+        agent_session="sase-ns.6.6.6.1",
+        agent_session_role="root",
         plan_chain_root=True,
         agent_clan="sase-ns.6.6.6",
         agent_clan_generation="20260817055518",
@@ -188,7 +188,7 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
         total_steps=1,
         role_suffix="--plan",
         agent_name="sase-ns.6.6.6.1--plan",
-        agent_family=family.agent_family,
+        agent_session=family.agent_session,
     )
     code = Agent(
         agent_type=AgentType.RUNNING,
@@ -201,8 +201,8 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
         parent_timestamp=family.raw_suffix,
         role_suffix="--code",
         agent_name="sase-ns.6.6.6.1--code",
-        agent_family=family.agent_family,
-        agent_family_role="code",
+        agent_session=family.agent_session,
+        agent_session_role="code",
     )
     one = Agent(
         agent_type=AgentType.RUNNING,
@@ -215,8 +215,8 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
         parent_timestamp=family.raw_suffix,
         role_suffix="--1",
         agent_name="sase-ns.6.6.6.1--1",
-        agent_family=family.agent_family,
-        agent_family_role="code",
+        agent_session=family.agent_session,
+        agent_session_role="code",
     )
     two = Agent(
         agent_type=AgentType.RUNNING,
@@ -229,8 +229,8 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
         parent_timestamp=family.raw_suffix,
         role_suffix="--2",
         agent_name="sase-ns.6.6.6.1--2",
-        agent_family=family.agent_family,
-        agent_family_role="code",
+        agent_session=family.agent_session,
+        agent_session_role="code",
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
@@ -243,8 +243,8 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
         parent_timestamp=two.raw_suffix,
         role_suffix="--mon-1",
         agent_name="sase-ns.6.6.6.1--mon-1",
-        agent_family=family.agent_family,
-        agent_family_role="monitor",
+        agent_session=family.agent_session,
+        agent_session_role="monitor",
         monitor_id="m1",
         monitor_state="running",
     )
@@ -285,8 +285,8 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
         role_suffix="--plan",
         workflow="ace-run",
         agent_name="sase-ns.6.6.6.1",
-        agent_family="sase-ns.6.6.6.1",
-        agent_family_role="root",
+        agent_session="sase-ns.6.6.6.1",
+        agent_session_role="root",
         plan_chain_root=True,
         agent_clan="sase-ns.6.6.6",
         agent_clan_generation="20260817055518",
@@ -306,7 +306,7 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
         total_steps=1,
         role_suffix="--plan",
         agent_name="sase-ns.6.6.6.1--plan",
-        agent_family=family.agent_family,
+        agent_session=family.agent_session,
     )
     code = Agent(
         agent_type=AgentType.RUNNING,
@@ -319,8 +319,8 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
         parent_timestamp=family.raw_suffix,
         role_suffix="--code",
         agent_name="sase-ns.6.6.6.1--code",
-        agent_family=family.agent_family,
-        agent_family_role="code",
+        agent_session=family.agent_session,
+        agent_session_role="code",
     )
     one = Agent(
         agent_type=AgentType.RUNNING,
@@ -333,8 +333,8 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
         parent_timestamp=family.raw_suffix,
         role_suffix="--1",
         agent_name="sase-ns.6.6.6.1--1",
-        agent_family=family.agent_family,
-        agent_family_role="code",
+        agent_session=family.agent_session,
+        agent_session_role="code",
     )
     two = Agent(
         agent_type=AgentType.RUNNING,
@@ -347,8 +347,8 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
         parent_timestamp=family.raw_suffix,
         role_suffix="--2",
         agent_name="sase-ns.6.6.6.1--2",
-        agent_family=family.agent_family,
-        agent_family_role="code",
+        agent_session=family.agent_session,
+        agent_session_role="code",
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
@@ -361,8 +361,8 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
         parent_timestamp=two.raw_suffix,
         role_suffix="--mon-1",
         agent_name="sase-ns.6.6.6.1--mon-1",
-        agent_family=family.agent_family,
-        agent_family_role="monitor",
+        agent_session=family.agent_session,
+        agent_session_role="monitor",
         monitor_id="m1",
         monitor_state="running",
     )
@@ -378,7 +378,7 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
     assert not any(row.is_monitor for row in default_visible)
 
     container = next(row for row in ordered if row.is_clan_container)
-    family_row = next(row for row in ordered if row.agent_family_role == "root")
+    family_row = next(row for row in ordered if row.agent_session_role == "root")
     clan_key = agent_fold_key(container)
     family_key = agent_fold_key(family_row)
     assert clan_key is not None

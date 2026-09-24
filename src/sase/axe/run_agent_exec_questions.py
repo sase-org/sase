@@ -293,7 +293,7 @@ def _continue_after_auto_answered_question(
             prompt=followup_prompt,
             suffix_template=suffix_template,
             extra_reserved_suffixes=reserved_suffixes,
-            agent_family_role=followup_role,
+            agent_session_role=followup_role,
             relationships={
                 **question_relationships,
                 "source_plan_agent_name": _q_agent,

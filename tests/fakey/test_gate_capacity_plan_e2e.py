@@ -128,7 +128,7 @@ def test_successor_after_unclaimed_gate_execution_parks_instead_of_reusing_linea
         2,
         name="successor",
         parent_timestamp=Path(gate_dir).name,
-        agent_family="plan-successor",
+        agent_session="plan-successor",
         queue_weight=1.0,
         queue_weight_explicit=True,
     )

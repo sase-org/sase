@@ -487,7 +487,7 @@ def test_agent_list_entries_names_parallel_child_blocking_waiter(
         json.dumps(
             {
                 "parent_agent_name": "epic",
-                "agent_family": "epic",
+                "agent_session": "epic",
             }
         )
     )

@@ -57,8 +57,8 @@ def _family_agents(
         response_path=str(root_dir / "response.md") if with_content else None,
         role_suffix="--plan",
         agent_name=f"{_FAMILY_NAME}--plan",
-        agent_family=_FAMILY_NAME,
-        agent_family_role="plan",
+        agent_session=_FAMILY_NAME,
+        agent_session_role="plan",
         plan_chain_root=True,
         output_variables={"plan_path": "/workspace/sase/plans/family.md"},
         workspace_num=4,
@@ -89,8 +89,8 @@ def _family_agents(
                 ),
                 role_suffix=suffix,
                 agent_name=f"{_FAMILY_NAME}{suffix}",
-                agent_family=_FAMILY_NAME,
-                agent_family_role=role,
+                agent_session=_FAMILY_NAME,
+                agent_session_role=role,
                 activity=(
                     "implementing numbered navigation"
                     if index == 1
@@ -127,8 +127,8 @@ def _family_agents(
                 artifacts_dir=str(mon_dir),
                 role_suffix="--mon",
                 agent_name=f"{_FAMILY_NAME}--mon",
-                agent_family=_FAMILY_NAME,
-                agent_family_role="monitor",
+                agent_session=_FAMILY_NAME,
+                agent_session_role="monitor",
                 monitor_id="gh6fddk5v3g9",
                 monitor_state="completed",
                 monitor_start_status="MONITORING",
@@ -149,7 +149,7 @@ def _family_agents(
 
 def _gate_family_agents(tmp_path: Path) -> list[Agent]:
     rows = _family_agents(tmp_path, member_count=2, with_content=False)
-    starter = next(row for row in rows if row.agent_family_role == "code")
+    starter = next(row for row in rows if row.agent_session_role == "code")
     gate_root = tmp_path / "family-gates"
     gate_root.mkdir()
     output_path = gate_root / "run-output.log"
@@ -197,8 +197,8 @@ def _gate_family_agents(tmp_path: Path) -> list[Agent]:
             parent_timestamp=starter.raw_suffix,
             role_suffix=f"--gate-{slug}",
             agent_name=f"{_FAMILY_NAME}--gate-{slug}",
-            agent_family=_FAMILY_NAME,
-            agent_family_role="gate",
+            agent_session=_FAMILY_NAME,
+            agent_session_role="gate",
             gate_id=f"gate-{slug}-visual-1234567890",
             gate_kind="approval",
             gate_state=state,
@@ -269,6 +269,6 @@ def _selected_gate_agent(tmp_path: Path) -> Agent:
     gate.cl_name = "visual-standalone-gate-run"
     gate.raw_suffix = "20260718130700-standalone-gate-run"
     gate.parent_timestamp = None
-    gate.agent_family = "visual-standalone-gate"
+    gate.agent_session = "visual-standalone-gate"
     gate.agent_name = "visual-standalone-gate--gate-run"
     return gate

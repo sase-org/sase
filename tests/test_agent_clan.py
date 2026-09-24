@@ -114,9 +114,9 @@ def test_clan_queue_count_uses_parallel_family_root() -> None:
     container = _agent("research", "WAITING", suffix=None)
     container.is_clan_container = True
     family = _agent("research.family", "WAITING", suffix="family")
-    family.agent_family_parallel = True
+    family.agent_session_parallel = True
     queued = _agent("research.family.phase", "QUEUED", suffix="phase")
-    queued.agent_family_parallel = True
+    queued.agent_session_parallel = True
     queued.parent_timestamp = family.raw_suffix
     queued.pid = 100
     queued.wait_runners = 9
@@ -154,14 +154,14 @@ def test_clan_running_lane_rows_family_lane_represents_the_family() -> None:
     container.is_clan_container = True
     root = _agent("research.family", "DONE", suffix="root")
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.stop_time = datetime(2026, 7, 19, 9, 1, 0)
     coder = _agent("research.family.code", "RUNNING", suffix="coder")
     coder.agent_name = "family--code"
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "family"
-    coder.agent_family_role = "code"
+    coder.agent_session = "family"
+    coder.agent_session_role = "code"
     root.runtime_children = [coder]
     root.followup_agents = [coder]
     container.runtime_children = [root]
@@ -174,20 +174,20 @@ def test_clan_running_lane_rows_family_lane_counts_a_running_monitor_shell() -> 
     container.is_clan_container = True
     root = _agent("research.family", "DONE", suffix="root")
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.stop_time = datetime(2026, 7, 19, 9, 1, 0)
     coder = _agent("research.family.code", "DONE", suffix="coder")
     coder.agent_name = "family--code"
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "family"
-    coder.agent_family_role = "code"
+    coder.agent_session = "family"
+    coder.agent_session_role = "code"
     coder.stop_time = datetime(2026, 7, 19, 9, 2, 0)
     monitor = _agent("research.family.mon", "MONITORING", suffix="monitor")
     monitor.agent_name = "family--mon"
     monitor.parent_timestamp = coder.raw_suffix
-    monitor.agent_family = "family"
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = "family"
+    monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_id = "m-family"
     monitor.monitor_state = "running"
@@ -207,14 +207,14 @@ def test_clan_running_lane_rows_skips_a_family_lane_whose_shells_have_all_settle
     container.is_clan_container = True
     root = _agent("research.family", "DONE", suffix="root")
     root.agent_name = "family--0"
-    root.agent_family = "family"
-    root.agent_family_role = "root"
+    root.agent_session = "family"
+    root.agent_session_role = "root"
     root.stop_time = datetime(2026, 7, 19, 9, 1, 0)
     coder = _agent("research.family.code", "DONE", suffix="coder")
     coder.agent_name = "family--code"
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_family = "family"
-    coder.agent_family_role = "code"
+    coder.agent_session = "family"
+    coder.agent_session_role = "code"
     coder.stop_time = datetime(2026, 7, 19, 9, 2, 0)
     root.runtime_children = [coder]
     root.followup_agents = [coder]

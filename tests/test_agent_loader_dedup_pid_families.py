@@ -41,8 +41,8 @@ def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
         runner_is_live=True,
         artifacts_dir=f"/tmp/project/artifacts/ace-run/{root_timestamp}",
         agent_name="hc.f0.f0--0",
-        agent_family="hc.f0.f0",
-        agent_family_role="root",
+        agent_session="hc.f0.f0",
+        agent_session_role="root",
     )
     child = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -58,8 +58,8 @@ def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
         artifacts_dir=f"/tmp/project/artifacts/ace-run/{child_timestamp}",
         parent_timestamp=root_timestamp,
         agent_name="hc.f0.f0--1",
-        agent_family="hc.f0.f0",
-        agent_family_role="code",
+        agent_session="hc.f0.f0",
+        agent_session_role="code",
         role_suffix=".code",
     )
     waiter = Agent(

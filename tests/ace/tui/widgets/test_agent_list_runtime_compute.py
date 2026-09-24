@@ -15,7 +15,7 @@ from sase.ace.tui.models.agent_time import (
 
 from .agent_list_runtime_helpers import (
     agent,
-    family_container,
+    agent_session_container,
     gate_shell,
     linked_followup_workflow,
     monitor_shell,
@@ -221,7 +221,7 @@ def test_compute_row_runtime_standalone_coder_continuation_active() -> None:
         status="TALE APPROVED",
         role_suffix="--1",
     )
-    coder.agent_family_role = "code"
+    coder.agent_session_role = "code"
 
     ts, elapsed = compute_row_runtime(coder, now=now)
     assert ts is None
@@ -311,7 +311,7 @@ def test_compute_row_runtime_family_container_spans_running_monitor() -> None:
     starter.runtime_children.append(
         monitor_shell(start=datetime(2026, 4, 25, 14, 34, 0))
     )
-    container = family_container(starter)
+    container = agent_session_container(starter)
 
     ts, elapsed = compute_row_runtime(container, now=now)
     assert ts is None
@@ -340,7 +340,7 @@ def _planner_and_pending_gate() -> tuple[Agent, Agent]:
 
 def test_family_container_excludes_pending_gate_review_window() -> None:
     planner, gate = _planner_and_pending_gate()
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.append(gate)
     container.followup_agents.append(gate)
     now = datetime(2026, 4, 25, 16, 0, 0)
@@ -367,7 +367,7 @@ def test_family_container_excludes_settled_gate_after_coder_starts() -> None:
         role_suffix="--code",
         raw_suffix="20260425160000",
     )
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.extend([gate, coder])
     container.followup_agents.extend([gate, coder])
     now = datetime(2026, 4, 25, 16, 10, 0)
@@ -387,7 +387,7 @@ def test_family_container_finish_timestamp_ignores_settled_gate() -> None:
         gate_state="answered",
         raw_suffix="20260425143000",
     )
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.append(gate)
     container.followup_agents.append(gate)
     now = datetime(2026, 4, 25, 16, 5, 0)
@@ -422,7 +422,7 @@ def test_family_container_includes_agent_attached_beneath_gate() -> None:
         raw_suffix="20260425160000",
     )
     gate.runtime_children.append(coder)
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.append(gate)
     container.followup_agents.append(gate)
     now = datetime(2026, 4, 25, 16, 10, 0)
@@ -451,7 +451,7 @@ def test_family_container_includes_monitor_but_not_gate() -> None:
         gate_state="pending",
         raw_suffix="20260425143000",
     )
-    container = family_container(starter)
+    container = agent_session_container(starter)
     container.runtime_children.append(gate)
     container.followup_agents.append(gate)
     now = datetime(2026, 4, 25, 14, 40, 0)
@@ -492,7 +492,7 @@ def test_family_container_counts_monitor_starter_and_monitor() -> None:
             raw_suffix="20260425145000",
         )
     )
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.extend([gate, coder])
     container.followup_agents.extend([gate, coder])
     now = datetime(2026, 4, 25, 15, 20, 0)
@@ -512,7 +512,7 @@ def test_monitor_only_family_container_counts_own_interval() -> None:
         role_suffix="--root",
         raw_suffix="20260425140000",
     )
-    root.agent_family_role = "root"
+    root.agent_session_role = "root"
     settled_monitor = monitor_shell(
         status="DONE",
         start=datetime(2026, 4, 25, 14, 20, 0),
@@ -554,7 +554,7 @@ def test_workflow_aggregate_runtime_uses_steps_not_parent_interval() -> None:
         cl_name="workflow-agent-step",
     )
     workflow.runtime_children.append(step)
-    container = family_container(workflow)
+    container = agent_session_container(workflow)
     now = datetime(2026, 4, 25, 14, 30, 0)
 
     ts, elapsed = compute_row_runtime(container, now=now)
@@ -573,7 +573,7 @@ def test_family_container_chained_gates_do_not_resurrect_intervals() -> None:
         cl_name="demo--gate-0",
     )
     outer.runtime_children.append(inner)
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.append(outer)
     container.followup_agents.extend([outer, inner])
     now = datetime(2026, 4, 25, 16, 0, 0)
@@ -585,7 +585,7 @@ def test_family_container_chained_gates_do_not_resurrect_intervals() -> None:
 
 def test_lowest_row_runtime_drops_family_parked_on_pending_gate() -> None:
     planner, gate = _planner_and_pending_gate()
-    container = family_container(planner)
+    container = agent_session_container(planner)
     container.runtime_children.append(gate)
     container.followup_agents.append(gate)
     now = datetime(2026, 4, 25, 16, 0, 0)

@@ -37,7 +37,7 @@ _SUFFIX_LABELS = {
     PLAN_CHAIN_COMMIT_SUFFIX: "commit",
 }
 
-# Fallback labels for ``agent_family_role`` values when no suffix is present.
+# Fallback labels for ``agent_session_role`` values when no suffix is present.
 _FAMILY_ROLE_LABELS = {
     "plan": "plan",
     "code": "coder",
@@ -87,9 +87,9 @@ def compact_role_label(agent: Agent) -> str:
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     role = agent_family_role_for_suffix(
         agent.role_suffix,
-        agent_family_role=agent.agent_family_role,
+        agent_session_role=agent.agent_session_role,
     )
-    if agent.agent_family_role == "root" and not agent.plan_chain_root:
+    if agent.agent_session_role == "root" and not agent.plan_chain_root:
         token = agent_family_suffix_token(agent.role_suffix)
         if token is not None:
             return token
@@ -102,7 +102,7 @@ def compact_role_label(agent: Agent) -> str:
             return _compact_suffix_label(suffix)
         feedback_round = plan_chain_feedback_round(
             suffix,
-            agent_family_role=agent.agent_family_role,
+            agent_session_role=agent.agent_session_role,
         )
         if feedback_round is not None:
             return f"fb{feedback_round}"
@@ -112,7 +112,7 @@ def compact_role_label(agent: Agent) -> str:
         return _compact_suffix_label(suffix)
     if agent.plan_chain_root:
         return "plan"
-    family_role = agent.agent_family_role
+    family_role = agent.agent_session_role
     if family_role:
         return _FAMILY_ROLE_LABELS.get(family_role, family_role)
     if agent.presented_agent_name:

@@ -43,7 +43,7 @@ SETTLED_FAMILY_SHELL_DONE_OUTCOMES = frozenset({"monitored", "gated"})
 
 def family_shell_member_from_meta(
     *,
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     role_suffix: str | None,
     gate_id: str | None,
 ) -> bool:
@@ -51,8 +51,8 @@ def family_shell_member_from_meta(
     from sase.gate_shell.state import is_real_gate_member
     from sase.monitor_state import is_monitor_member_role
 
-    return is_real_gate_member(agent_family_role, gate_id) or is_monitor_member_role(
-        agent_family_role, role_suffix
+    return is_real_gate_member(agent_session_role, gate_id) or is_monitor_member_role(
+        agent_session_role, role_suffix
     )
 
 
@@ -63,7 +63,7 @@ def _mapping_is_family_shell_member(data: object) -> bool:
     suffix = data.get("role_suffix")
     gate_id = data.get("gate_id")
     return family_shell_member_from_meta(
-        agent_family_role=role if isinstance(role, str) else None,
+        agent_session_role=role if isinstance(role, str) else None,
         role_suffix=suffix if isinstance(suffix, str) else None,
         gate_id=gate_id if isinstance(gate_id, str) else None,
     )

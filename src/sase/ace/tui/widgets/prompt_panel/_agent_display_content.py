@@ -67,7 +67,7 @@ def get_phase_label(agent: Agent) -> str:
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     role = agent_family_role_for_suffix(
         agent.role_suffix,
-        agent_family_role=agent.agent_family_role,
+        agent_session_role=agent.agent_session_role,
     )
     if role == "code":
         return _agent_role_label("code")
@@ -85,7 +85,7 @@ def get_phase_label(agent: Agent) -> str:
         return _agent_role_label(_PHASE_SUFFIX_TOKENS[suffix])
     feedback_round = plan_chain_feedback_round(
         suffix,
-        agent_family_role=agent.agent_family_role,
+        agent_session_role=agent.agent_session_role,
     )
     if feedback_round is not None:
         return _agent_role_label(f"plan round {feedback_round}")

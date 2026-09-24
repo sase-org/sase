@@ -96,7 +96,7 @@ def test_root_sources_claim_shared_plan_dir_before_root(tmp_path: Path) -> None:
         parent_workflow="wf",
         step_type="agent",
         role_suffix=PLAN_CHAIN_PLAN_SUFFIX,
-        agent_family_role="plan",
+        agent_session_role="plan",
     )
     code = _agent(
         code_dir,
@@ -104,7 +104,7 @@ def test_root_sources_claim_shared_plan_dir_before_root(tmp_path: Path) -> None:
         raw_suffix="code",
         parent_timestamp="root",
         role_suffix=PLAN_CHAIN_CODER_SUFFIX,
-        agent_family_role="code",
+        agent_session_role="code",
     )
     root.runtime_children.extend([plan, code])
 
@@ -142,7 +142,7 @@ def test_source_labels_follow_role_step_name_agent_name_and_root_precedence(
         raw_suffix="code",
         parent_timestamp="root",
         role_suffix=PLAN_CHAIN_CODER_SUFFIX,
-        agent_family_role="code",
+        agent_session_role="code",
     )
     feedback = _agent(
         feedback_dir,
@@ -150,7 +150,7 @@ def test_source_labels_follow_role_step_name_agent_name_and_root_precedence(
         raw_suffix="feedback",
         parent_timestamp="root",
         role_suffix="--plan-0",
-        agent_family_role="feedback",
+        agent_session_role="feedback",
     )
     step = _agent(
         step_dir,
@@ -203,7 +203,7 @@ def test_source_activity_and_end_reference_are_per_row(tmp_path: Path) -> None:
         status="DONE",
         stop_time=stopped_at,
         parent_timestamp="root",
-        agent_family_role="code",
+        agent_session_role="code",
         role_suffix=PLAN_CHAIN_CODER_SUFFIX,
     )
     root.runtime_children.append(child)

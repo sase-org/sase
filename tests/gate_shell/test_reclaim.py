@@ -352,7 +352,7 @@ def _coder_successor(timestamp: str, *, lane: str) -> str:
         / timestamp
     )
     artifacts_dir.mkdir(parents=True)
-    meta = {"agent_family": lane, "name": f"{lane}{PLAN_CHAIN_CODER_SUFFIX}"}
+    meta = {"agent_session": lane, "name": f"{lane}{PLAN_CHAIN_CODER_SUFFIX}"}
     (artifacts_dir / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
     return str(artifacts_dir)
 

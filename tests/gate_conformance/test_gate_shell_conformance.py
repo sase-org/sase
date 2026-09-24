@@ -90,8 +90,8 @@ def _build_gate_shell(project: str, request_id: str) -> GateShellRecord:
         project,
         creator_timestamp,
         "lane",
-        agent_family="lane",
-        agent_family_role="root",
+        agent_session="lane",
+        agent_session_role="root",
     )
     (Path(creator_dir) / "done.json").write_text("{}", encoding="utf-8")
 
@@ -104,7 +104,7 @@ def _build_gate_shell(project: str, request_id: str) -> GateShellRecord:
     shell = GateShellSpec.from_mapping(_SHELL_BLOCK, branches=(("cleanup",),))
     artifacts_dir = create_gate_shell_member(
         project,
-        {"name": "lane", "agent_family": "lane", "model": "gpt-5"},
+        {"name": "lane", "agent_session": "lane", "model": "gpt-5"},
         lane="lane",
         suffix="--gate",
         prev_artifacts_timestamp=creator_timestamp,

@@ -25,9 +25,9 @@ def _agent(
     tribe: str | None = None,
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
-    agent_family_parallel: bool = False,
-    agent_family: str | None = None,
-    agent_family_role: str | None = None,
+    agent_session_parallel: bool = False,
+    agent_session: str | None = None,
+    agent_session_role: str | None = None,
     plan_chain_root: bool = False,
     clan: str | None = None,
     start_time: datetime | None | object = _DEFAULT_START_TIME,
@@ -45,9 +45,9 @@ def _agent(
         tribe=tribe,
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
-        agent_family_parallel=agent_family_parallel,
-        agent_family=agent_family,
-        agent_family_role=agent_family_role,
+        agent_session_parallel=agent_session_parallel,
+        agent_session=agent_session,
+        agent_session_role=agent_session_role,
         plan_chain_root=plan_chain_root,
         agent_clan=clan,
         agent_clan_generation="gen-1" if clan else None,
@@ -63,14 +63,14 @@ def _parallel_family(
     root = _agent(
         suffix=suffix,
         status=root_status,
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     members = [
         _agent(
             suffix=f"{suffix}-member-{index}",
             status=status,
             parent_timestamp=suffix,
-            agent_family_parallel=True,
+            agent_session_parallel=True,
         )
         for index, status in enumerate(member_statuses)
     ]
@@ -82,16 +82,16 @@ def _sequential_family(*, suffix: str, clan: str | None = None) -> tuple[Agent, 
     root = _agent(
         suffix=suffix,
         status="PLAN APPROVED",
-        agent_family=suffix,
-        agent_family_role="root",
+        agent_session=suffix,
+        agent_session_role="root",
         plan_chain_root=True,
         clan=clan,
     )
     member = _agent(
         suffix=f"{suffix}-code",
         parent_timestamp=suffix,
-        agent_family=suffix,
-        agent_family_role="code",
+        agent_session=suffix,
+        agent_session_role="code",
         clan=clan,
     )
     root.followup_agents.append(member)
@@ -572,7 +572,7 @@ def test_info_panel_parallel_root_without_loaded_members_falls_back_to_root() ->
     unloaded_family_root = _agent(
         suffix="unloaded-family",
         status="WAITING",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     bare = _Bare(
         [

@@ -87,7 +87,7 @@ def test_refresh_runner_slot_context_counts_monitor_holding_family_slot() -> Non
         status="MONITORING",
         status_bucket="Running",
         parent_timestamp="root",
-        agent_family_role="monitor",
+        agent_session_role="monitor",
     )
 
     capacity = refresh_runner_slot_context([root, monitor], effective_limit=10)
@@ -103,7 +103,7 @@ def test_refresh_runner_slot_context_counts_post_handoff_followup_family_slot() 
         status="RUNNING",
         run_start_time=datetime(2026, 7, 12, 11, 59),
         parent_timestamp="root",
-        agent_family_role="code",
+        agent_session_role="code",
     )
 
     capacity = refresh_runner_slot_context([root, followup], effective_limit=10)

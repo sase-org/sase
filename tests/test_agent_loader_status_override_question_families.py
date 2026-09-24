@@ -18,8 +18,8 @@ def test_apply_status_overrides_plan_suffix_inherited_question_stays_done() -> N
         raw_suffix="20260623065702",
         role_suffix="--0",
         agent_name="sase-03w",
-        agent_family="sase-03w",
-        agent_family_role="root",
+        agent_session="sase-03w",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[question_time],
     )
@@ -33,8 +33,8 @@ def test_apply_status_overrides_plan_suffix_inherited_question_stays_done() -> N
         parent_timestamp="20260623065702",
         role_suffix="--plan",
         agent_name="sase-03w--1",
-        agent_family="sase-03w",
-        agent_family_role="agent",
+        agent_session="sase-03w",
+        agent_session_role="agent",
         questions_times=[question_time],
     )
     agents = [parent, continuation]
@@ -60,8 +60,8 @@ def test_apply_status_overrides_plan_suffix_new_question_without_gate_stays_done
         raw_suffix="20260623065702",
         role_suffix="--0",
         agent_name="sase-03w",
-        agent_family="sase-03w",
-        agent_family_role="root",
+        agent_session="sase-03w",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[first_question_time],
     )
@@ -75,8 +75,8 @@ def test_apply_status_overrides_plan_suffix_new_question_without_gate_stays_done
         parent_timestamp="20260623065702",
         role_suffix="--plan",
         agent_name="sase-03w--1",
-        agent_family="sase-03w",
-        agent_family_role="agent",
+        agent_session="sase-03w",
+        agent_session_role="agent",
         questions_times=[first_question_time, second_question_time],
     )
     agents = [parent, continuation]
@@ -102,8 +102,8 @@ def test_apply_status_overrides_inherited_question_new_round_without_gate_stays_
         raw_suffix="20260619100217",
         role_suffix="--0",
         agent_name="sase-4z.5",
-        agent_family="sase-4z.5",
-        agent_family_role="root",
+        agent_session="sase-4z.5",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[first_question_time],
     )
@@ -117,8 +117,8 @@ def test_apply_status_overrides_inherited_question_new_round_without_gate_stays_
         parent_timestamp="20260619100217",
         role_suffix="--1",
         agent_name="sase-4z.5--1",
-        agent_family="sase-4z.5",
-        agent_family_role="agent",
+        agent_session="sase-4z.5",
+        agent_session_role="agent",
         questions_times=[first_question_time, second_question_time],
     )
     agents = [parent, continuation]
@@ -140,8 +140,8 @@ def test_apply_status_overrides_question_only_family_without_gate_stays_done() -
         raw_suffix="20260619100217",
         role_suffix="--0",
         agent_name="sase-4z.5",
-        agent_family="sase-4z.5",
-        agent_family_role="root",
+        agent_session="sase-4z.5",
+        agent_session_role="root",
         plan_chain_root=True,
         questions_times=[datetime(2026, 6, 19, 15, 46, 14)],
     )
@@ -311,8 +311,8 @@ def test_apply_status_overrides_numeric_answered_continuation_is_plan_done() -> 
         raw_suffix="20260511090000",
         role_suffix="-plan",
         agent_name="aj5",
-        agent_family="aj5",
-        agent_family_role="root",
+        agent_session="aj5",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     latest_child = Agent(
@@ -325,8 +325,8 @@ def test_apply_status_overrides_numeric_answered_continuation_is_plan_done() -> 
         parent_timestamp="20260511090000",
         role_suffix="-5",
         agent_name="aj5-5",
-        agent_family="aj5",
-        agent_family_role="feedback",
+        agent_session="aj5",
+        agent_session_role="feedback",
         questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
         question_response_path="/tmp/question_response.json",
     )
@@ -348,8 +348,8 @@ def test_apply_status_overrides_ordinary_answered_continuation_is_done() -> None
         raw_suffix="20260511090000",
         role_suffix="--0",
         agent_name="aj5",
-        agent_family="aj5",
-        agent_family_role="root",
+        agent_session="aj5",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     latest_child = Agent(
@@ -362,8 +362,8 @@ def test_apply_status_overrides_ordinary_answered_continuation_is_done() -> None
         parent_timestamp="20260511090000",
         role_suffix="--1",
         agent_name="aj5--1",
-        agent_family="aj5",
-        agent_family_role="agent",
+        agent_session="aj5",
+        agent_session_role="agent",
         questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
         question_response_path="/tmp/question_response.json",
     )
@@ -387,8 +387,8 @@ def test_apply_status_overrides_numeric_unanswered_continuation_without_gate_sta
         raw_suffix="20260511090000",
         role_suffix="-plan",
         agent_name="aj5",
-        agent_family="aj5",
-        agent_family_role="root",
+        agent_session="aj5",
+        agent_session_role="root",
         plan_chain_root=True,
     )
     latest_child = Agent(
@@ -401,8 +401,8 @@ def test_apply_status_overrides_numeric_unanswered_continuation_without_gate_sta
         parent_timestamp="20260511090000",
         role_suffix="--1",
         agent_name="aj5--1",
-        agent_family="aj5",
-        agent_family_role="agent",
+        agent_session="aj5",
+        agent_session_role="agent",
         questions_times=[datetime(2026, 5, 11, 9, 30, 0)],
     )
     agents = [parent, latest_child]

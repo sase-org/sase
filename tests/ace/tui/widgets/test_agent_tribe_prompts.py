@@ -325,15 +325,15 @@ def test_monitors_gates_and_proc_shells_are_skipped() -> None:
     monitor = _agent(
         "fam--mon",
         "mon",
-        agent_family="fam",
-        agent_family_role="monitor",
+        agent_session="fam",
+        agent_session_role="monitor",
         role_suffix="--mon",
     )
     gate = _agent(
         "fam--gate",
         "gate",
-        agent_family="fam",
-        agent_family_role="gate",
+        agent_session="fam",
+        agent_session_role="gate",
         gate_id="gate-visual-123",
     )
     proc = _agent("shell", "shell", agent_type=AgentType.PROC_SHELL)

@@ -209,7 +209,7 @@ def test_apply_keeps_watch_for_pending_gate_row(
     app = _ApplyHarness(watcher)
     pending = replace(
         _agent("0pt--gate", pending_dir.name, pending_dir, status="GATE"),
-        agent_family_role="gate",
+        agent_session_role="gate",
         gate_id="gate-pending-1",
         gate_state="pending",
         stop_time=None,
@@ -227,7 +227,7 @@ def test_apply_keeps_watch_for_pending_gate_row(
     settled_app = _ApplyHarness(settled_watcher)
     settled = replace(
         _agent("0pt--gate", settled_dir.name, settled_dir, status="GATE"),
-        agent_family_role="gate",
+        agent_session_role="gate",
         gate_id="gate-settled-1",
         gate_state="answered",
         stop_time=datetime(2026, 9, 18, 13, 0, 0),

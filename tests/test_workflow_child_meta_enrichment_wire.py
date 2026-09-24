@@ -62,14 +62,14 @@ def test_workflow_child_enrichment_derives_planner_identity_only_for_main_agent(
     enrich_agent_from_meta_wire(bash, meta, None, workflow_child=True)
 
     assert planner.agent_name == "ap5--plan"
-    assert planner.agent_family == "ap5"
-    assert planner.agent_family_role == "plan"
+    assert planner.agent_session == "ap5"
+    assert planner.agent_session_role == "plan"
     assert planner.role_suffix == "--plan"
     assert planner.plan_chain_root is False
 
     assert bash.agent_name is None
-    assert bash.agent_family is None
-    assert bash.agent_family_role is None
+    assert bash.agent_session is None
+    assert bash.agent_session_role is None
     assert bash.role_suffix is None
     assert bash.plan_chain_root is False
 
@@ -92,8 +92,8 @@ def test_workflow_child_enrichment_uses_generic_root_suffix() -> None:
     enrich_agent_from_meta_wire(question_child, meta, None, workflow_child=True)
 
     assert question_child.agent_name == "ap5--0"
-    assert question_child.agent_family == "ap5"
-    assert question_child.agent_family_role is None
+    assert question_child.agent_session == "ap5"
+    assert question_child.agent_session_role is None
     assert question_child.role_suffix == "--0"
 
 

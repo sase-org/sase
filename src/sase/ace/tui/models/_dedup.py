@@ -71,10 +71,10 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.agent_name = source.agent_name
     if target.parent_timestamp is None and source.parent_timestamp is not None:
         target.parent_timestamp = source.parent_timestamp
-    if target.agent_family is None and source.agent_family is not None:
-        target.agent_family = source.agent_family
-    if target.agent_family_role is None and source.agent_family_role is not None:
-        target.agent_family_role = source.agent_family_role
+    if target.agent_session is None and source.agent_session is not None:
+        target.agent_session = source.agent_session
+    if target.agent_session_role is None and source.agent_session_role is not None:
+        target.agent_session_role = source.agent_session_role
     if target.role_suffix is None and source.role_suffix is not None:
         target.role_suffix = source.role_suffix
     if not target.plan_chain_root and source.plan_chain_root:

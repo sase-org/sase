@@ -90,13 +90,13 @@ def test_apply_dismissal_includes_parallel_family_members_not_serial_children() 
     root = make_agent(
         cl_name="sase-6g",
         raw_suffix="root-ts",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     member = make_agent(
         cl_name="sase-6g.1",
         raw_suffix="member-ts",
         parent_timestamp="root-ts",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
     )
     serial_child = make_agent(
         cl_name="sase-6g--code",

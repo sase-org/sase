@@ -350,12 +350,12 @@ def _agent_from_summary(
             summary.get("container_projected_concrete_agent")
         ),
         role_suffix=role_suffix,
-        agent_family=session_name,
-        agent_family_role=optional_str(
+        agent_session=session_name,
+        agent_session_role=optional_str(
             fact("agent_session_role"), fact("agent_family_role")
         )
         or session_role,
-        agent_family_parallel=bool(
+        agent_session_parallel=bool(
             fact("agent_session_parallel") or fact("agent_family_parallel")
         ),
         parent_timestamp=parent_timestamp,
@@ -435,7 +435,7 @@ def _agent_from_summary(
 def _apply_gate_member_status(agent: Agent, *, shipped_gate_id: str | None) -> None:
     """Mirror ``apply_gate_meta``: a real gate member shows its gate status."""
     if shipped_gate_id is None or not is_real_gate_member(
-        agent.agent_family_role, shipped_gate_id
+        agent.agent_session_role, shipped_gate_id
     ):
         return
     state = agent.gate_state or "pending"

@@ -76,7 +76,7 @@ def test_agent_meta_tribe_takes_precedence_over_legacy_tag(tmp_path: Path) -> No
 def test_parallel_family_marker_from_filesystem_and_wire(tmp_path: Path) -> None:
     """Both TUI enrichment paths retain execution-neutral family membership."""
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"pid": 1234, "agent_family_parallel": True})
+        json.dumps({"pid": 1234, "agent_session_parallel": True})
     )
     filesystem_agent = make_agent()
     wire_agent = make_agent()
@@ -88,8 +88,8 @@ def test_parallel_family_marker_from_filesystem_and_wire(tmp_path: Path) -> None
         None,
     )
 
-    assert filesystem_agent.agent_family_parallel is True
-    assert wire_agent.agent_family_parallel is True
+    assert filesystem_agent.agent_session_parallel is True
+    assert wire_agent.agent_session_parallel is True
 
 
 def test_clan_membership_from_filesystem_and_wire(tmp_path: Path) -> None:
@@ -142,13 +142,13 @@ def test_tribe_from_agent_meta_wire() -> None:
 def test_parallel_family_marker_from_agent_meta(tmp_path: Path) -> None:
     """Filesystem metadata exposes the explicit cleanup-cascade marker."""
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"pid": 1234, "agent_family_parallel": True})
+        json.dumps({"pid": 1234, "agent_session_parallel": True})
     )
     agent = make_agent()
 
     enrich_agent_from_meta(agent, str(tmp_path))
 
-    assert agent.agent_family_parallel is True
+    assert agent.agent_session_parallel is True
 
 
 def test_parallel_family_marker_from_agent_meta_wire() -> None:
@@ -161,7 +161,7 @@ def test_parallel_family_marker_from_agent_meta_wire() -> None:
         None,
     )
 
-    assert agent.agent_family_parallel is True
+    assert agent.agent_session_parallel is True
 
 
 def test_auto_epic_plan_before_submission_stays_running(tmp_path: Path) -> None:

@@ -53,7 +53,7 @@ def _plan(
     done: bool = False,
     raw_prompt: str = "%id:02p\n#gh:sase\nDo the work",
     extra_meta: dict[str, object] | None = None,
-    agent_family: str | None = None,
+    agent_session: str | None = None,
     role_suffix: str | None = None,
     force_plan: ForceReuseLaunchPlan | None | object = ...,
     force_error: Exception | None = None,
@@ -67,7 +67,7 @@ def _plan(
         done=done,
         raw_prompt=raw_prompt,
         extra_meta=extra_meta,
-        agent_family=agent_family,
+        agent_session=agent_session,
         role_suffix=role_suffix,
     )
     agent = named_agent_for(artifacts, name=name, done=done)
@@ -166,12 +166,12 @@ def test_plan_family_root_keeps_clan_not_family(tmp_path: Path) -> None:
         tmp_path,
         name="sase-pw.1--plan",
         raw_prompt=_EPIC_ROOT_PROMPT,
-        agent_family="sase-pw.1",
+        agent_session="sase-pw.1",
         role_suffix="--plan",
         extra_meta={
             "phase_bead_id": "sase-pw.1",
             "plan_chain_root": True,
-            "agent_family_role": "root",
+            "agent_session_role": "root",
         },
     )
     assert plan.rewritten_prompt.startswith(
@@ -189,7 +189,7 @@ def test_plan_refuses_self_attaching_family_identity(tmp_path: Path) -> None:
         tmp_path,
         name="sase-pw.1",
         raw_prompt="Do work",
-        agent_family="sase-pw.1",
+        agent_session="sase-pw.1",
         role_suffix="--code",
     )
     agent = named_agent_for(artifacts, name="sase-pw.1")
@@ -215,7 +215,7 @@ def test_plan_family_member_keeps_role_and_bead(tmp_path: Path) -> None:
         tmp_path,
         name="sase-oc.4--plan",
         raw_prompt="Do work",
-        agent_family="sase-oc.4",
+        agent_session="sase-oc.4",
         role_suffix="--plan",
         extra_meta={"phase_bead_id": "sase-oc.4"},
     )
@@ -233,9 +233,9 @@ def test_plan_parallel_family_member_skips_family_branch(tmp_path: Path) -> None
         tmp_path,
         name="sase-oc.4--plan",
         raw_prompt="%id:sase-oc.4--plan\nDo work",
-        agent_family="sase-oc.4",
+        agent_session="sase-oc.4",
         role_suffix="--plan",
-        extra_meta={"agent_family_parallel": True, "phase_bead_id": "sase-oc.4"},
+        extra_meta={"agent_session_parallel": True, "phase_bead_id": "sase-oc.4"},
     )
     assert "family=" not in plan.rewritten_prompt
     assert "!" in plan.rewritten_prompt
@@ -377,7 +377,7 @@ def test_plan_family_member_is_not_double_rewritten(tmp_path: Path) -> None:
         tmp_path,
         name="sase-oc.4--plan",
         raw_prompt="Do work",
-        agent_family="sase-oc.4",
+        agent_session="sase-oc.4",
         role_suffix="--plan",
         extra_meta={"phase_bead_id": "sase-oc.4"},
     )

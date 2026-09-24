@@ -31,27 +31,27 @@ def shell_state_is_terminal(
 
 
 def is_shell_member_role(
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     role_suffix: str | None = None,
     *,
     config: ShellStateConfig,
 ) -> bool:
     """Return whether a row is a member for *config*'s shell role."""
-    if isinstance(agent_family_role, str) and agent_family_role.strip():
-        return agent_family_role.strip() == config.family_role
+    if isinstance(agent_session_role, str) and agent_session_role.strip():
+        return agent_session_role.strip() == config.family_role
     return agent_family_role_for_suffix(role_suffix) == config.family_role
 
 
 def is_real_shell_member(
-    agent_family_role: str | None,
+    agent_session_role: str | None,
     shell_id: str | None,
     *,
     config: ShellStateConfig,
 ) -> bool:
     """Return whether a row is the durable member for this shell kind."""
     return (
-        isinstance(agent_family_role, str)
-        and agent_family_role.strip() == config.family_role
+        isinstance(agent_session_role, str)
+        and agent_session_role.strip() == config.family_role
         and isinstance(shell_id, str)
         and bool(shell_id.strip())
     )

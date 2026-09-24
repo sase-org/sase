@@ -120,8 +120,8 @@ class TestPendingGateArrivalRefresh:
             start_time=datetime(2026, 9, 19, 7, 29, 2),
             raw_suffix=planner_ts,
             artifacts_dir=str(planner_dir),
-            agent_family="0nn",
-            agent_family_role="root",
+            agent_session="0nn",
+            agent_session_role="root",
             plan_chain_root=True,
         )
         app._agents_with_children = [planner]  # type: ignore[attr-defined]

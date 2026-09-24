@@ -107,8 +107,8 @@ def test_clan_tree_does_not_invent_a_patch_banner_from_one_member() -> None:
 
 def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
     family = _agent("sase-ns.6.6.6.1", "20260817055518")
-    family.agent_family = "sase-ns.6.6.6.1"
-    family.agent_family_role = "root"
+    family.agent_session = "sase-ns.6.6.6.1"
+    family.agent_session_role = "root"
     starter = _agent(
         "sase-ns.6.6.6.1--2",
         "20260817070811",
@@ -116,8 +116,8 @@ def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
         clan=None,
         generation=None,
     )
-    starter.agent_family = family.agent_family
-    starter.agent_family_role = "code"
+    starter.agent_session = family.agent_session
+    starter.agent_session_role = "code"
     monitor = _agent(
         "sase-ns.6.6.6.1--mon-1",
         "20260817071511",
@@ -125,8 +125,8 @@ def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
         clan=None,
         generation=None,
     )
-    monitor.agent_family = family.agent_family
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session = family.agent_session
+    monitor.agent_session_role = "monitor"
     peer = _agent("sase-ns.6.6.6.2", "20260817060000", status="DONE")
 
     projected = project_clan_tree([family, starter, monitor, peer])
@@ -146,8 +146,8 @@ def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
 
 def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> None:
     family = _agent("research.family", "family")
-    family.agent_family = "research.family"
-    family.agent_family_role = "root"
+    family.agent_session = "research.family"
+    family.agent_session_role = "root"
     starter = _agent(
         "research.family--2",
         "starter",
@@ -155,7 +155,7 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
         clan=None,
         generation=None,
     )
-    starter.agent_family = family.agent_family
+    starter.agent_session = family.agent_session
     disk_monitor = _agent(
         "research.family--mon-1",
         "disk-mon",
@@ -163,8 +163,8 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
         clan=None,
         generation=None,
     )
-    disk_monitor.agent_family = family.agent_family
-    disk_monitor.agent_family_role = "monitor"
+    disk_monitor.agent_session = family.agent_session
+    disk_monitor.agent_session_role = "monitor"
     tagged_monitor = _agent(
         "research.family--mon-1",
         "tagged-mon",
@@ -172,8 +172,8 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
         clan=family.agent_clan,
         generation=family.agent_clan_generation,
     )
-    tagged_monitor.agent_family = family.agent_family
-    tagged_monitor.agent_family_role = "monitor"
+    tagged_monitor.agent_session = family.agent_session
+    tagged_monitor.agent_session_role = "monitor"
 
     disk_tree = project_clan_tree([family, starter, disk_monitor])
     tagged_tree = project_clan_tree([family, starter, tagged_monitor])
@@ -236,12 +236,12 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
         clan=None,
         generation=None,
     )
-    monitor.agent_family_role = "monitor"
+    monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_label = "just check"
     family = _agent("08b", "family", clan=None, generation=None)
-    family.agent_family = "08b"
-    family.agent_family_role = "root"
+    family.agent_session = "08b"
+    family.agent_session_role = "root"
     family.followup_agents = [coder]
     parallel = _agent(
         "fanout",

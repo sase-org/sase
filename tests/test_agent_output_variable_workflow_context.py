@@ -187,7 +187,7 @@ def test_submitted_plan_file_renders_in_later_workflow_prompt(
         "20260625184716",
         "planner",
         workflow_name="planner",
-        agent_family="planner",
+        agent_session="planner",
         role_suffix="--plan",
     )
     augment_submitted_plan_meta(agent_dir)

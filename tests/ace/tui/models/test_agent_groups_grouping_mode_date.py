@@ -103,7 +103,7 @@ def test_date_bucket_settled_monitor_with_custom_stop_label_uses_stop_time() -> 
         status="TESTED",
         start_time=start,
         stop_time=stop,
-        agent_family_role="monitor",
+        agent_session_role="monitor",
         role_suffix="--mon",
     )
     a.monitor_state = "completed"
@@ -118,7 +118,7 @@ def test_date_bucket_running_monitor_uses_start_time() -> None:
         status="TESTING",
         start_time=start,
         stop_time=datetime(2026, 4, 26, 11, 0, 0),
-        agent_family_role="monitor",
+        agent_session_role="monitor",
         role_suffix="--mon",
     )
     a.monitor_state = "running"

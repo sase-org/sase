@@ -20,7 +20,7 @@ def test_serial_child_reuses_active_family_weighted_claim(
         tmp_path,
         "20260910130000",
         100,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -29,7 +29,7 @@ def test_serial_child_reuses_active_family_weighted_claim(
         "20260910130001",
         101,
         parent_timestamp=parent.name,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -70,7 +70,7 @@ def test_serial_child_publishes_inherited_active_family_weight(
         tmp_path,
         "20260910130500",
         100,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -79,14 +79,14 @@ def test_serial_child_publishes_inherited_active_family_weight(
         "20260910130501",
         101,
         parent_timestamp=parent.name,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=1.0,
         queue_weight_explicit=False,
     )
     child_meta: dict[str, object] = {
         "pid": 101,
         "parent_timestamp": parent.name,
-        "agent_family": "fam",
+        "agent_session": "fam",
         "queue_weight": 1.0,
         "queue_weight_explicit": False,
     }
@@ -134,7 +134,7 @@ def test_conflicting_active_family_weight_fails_clearly(tmp_path: Path) -> None:
         tmp_path,
         "20260910131000",
         100,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -143,7 +143,7 @@ def test_conflicting_active_family_weight_fails_clearly(tmp_path: Path) -> None:
         "20260910131001",
         101,
         parent_timestamp=parent.name,
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=1.0,
         queue_weight_explicit=True,
     )
@@ -188,7 +188,7 @@ def test_released_serial_successor_reacquires_capacity(
         "20260910132001",
         101,
         parent_timestamp="20260910129999",
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=False,
     )
@@ -233,7 +233,7 @@ def test_prestamped_released_serial_successor_does_not_reuse_itself(
         "20260910133001",
         101,
         parent_timestamp="20260910129999",
-        agent_family="fam",
+        agent_session="fam",
         queue_weight=2.0,
         queue_weight_explicit=False,
     )

@@ -56,8 +56,8 @@ def _write_root() -> Path:
         artifact_dir / "agent_meta.json",
         {
             "name": _FAMILY,
-            "agent_family": _FAMILY,
-            "agent_family_role": "root",
+            "agent_session": _FAMILY,
+            "agent_session_role": "root",
             "role_suffix": "--plan",
             "plan_chain_root": True,
             "plan": True,
@@ -107,8 +107,8 @@ def _write_gate_member(*, state: str) -> Path:
         artifact_dir / "agent_meta.json",
         {
             "name": f"{_FAMILY}--gate",
-            "agent_family": _FAMILY,
-            "agent_family_role": "gate",
+            "agent_session": _FAMILY,
+            "agent_session_role": "gate",
             "role_suffix": "--gate",
             "shell_kind": "gate",
             "parent_timestamp": _ROOT_TS,
@@ -154,8 +154,8 @@ def _write_coder_member() -> Path:
         artifact_dir / "agent_meta.json",
         {
             "name": f"{_FAMILY}--code",
-            "agent_family": _FAMILY,
-            "agent_family_role": "code",
+            "agent_session": _FAMILY,
+            "agent_session_role": "code",
             "role_suffix": "--code",
             "parent_timestamp": _ROOT_TS,
         },
@@ -184,7 +184,7 @@ def _only_planner_step(rows: list[Agent]) -> Agent:
     planners = [
         row
         for row in rows
-        if row.is_workflow_step_child and row.agent_family_role == "plan"
+        if row.is_workflow_step_child and row.agent_session_role == "plan"
     ]
     assert len(planners) == 1, [(row.cl_name, row.status) for row in rows]
     return planners[0]
@@ -203,7 +203,7 @@ def _only_root(rows: list[Agent]) -> Agent:
 
 
 def _only_coder(rows: list[Agent]) -> Agent:
-    coders = [row for row in rows if row.agent_family_role == "code"]
+    coders = [row for row in rows if row.agent_session_role == "code"]
     assert len(coders) == 1, [(row.cl_name, row.status) for row in rows]
     return coders[0]
 
