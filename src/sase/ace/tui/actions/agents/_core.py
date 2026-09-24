@@ -10,6 +10,7 @@ from ._patch_navigation import AgentPatchNavigationMixin
 from ._display import AgentDisplayMixin
 from ._filter_actions import AgentFilterActionsMixin
 from ._filter_bar_session import AgentsFilterBarSessionMixin
+from ._deck_persistence import AgentDeckPersistenceMixin
 from ._fold_persistence import AgentFoldPersistenceMixin
 from ._folding import AgentFoldingMixin
 from ._fleet import AgentFleetMixin
@@ -64,6 +65,7 @@ class AgentsMixinCore(
     AgentMetadataPagerMixin,
     AgentMetadataSearchMixin,
     AgentApproveMixin,
+    AgentDeckPersistenceMixin,
     AgentFoldPersistenceMixin,
     AgentPanelHintFoldingMixin,
     AgentFoldingMixin,

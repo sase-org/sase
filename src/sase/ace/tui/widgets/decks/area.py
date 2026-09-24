@@ -171,5 +171,8 @@ class DeckArea(Vertical):
             refresh = getattr(app, "_refresh_agent_footer_bindings_only", None)
             if callable(refresh):
                 refresh()
+            notify = getattr(app, "_agents_deck_state_changed", None)
+            if callable(notify):
+                notify()
         except Exception:
             pass

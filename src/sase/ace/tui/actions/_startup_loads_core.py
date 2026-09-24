@@ -175,6 +175,10 @@ class StartupLoadsCoreMixin:
             self._schedule_agents_fold_state_load()
         except Exception:
             log.exception("Failed to start Agents fold state load")
+        try:
+            self._schedule_agents_deck_state_load()
+        except Exception:
+            log.exception("Failed to start Agents deck state load")
         dismissed_index_callback = self._schedule_dismissed_index_startup_sync
         try:
             self._agents_refresh_pending_callbacks.append(dismissed_index_callback)

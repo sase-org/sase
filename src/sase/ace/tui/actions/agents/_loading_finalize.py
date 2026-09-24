@@ -377,6 +377,15 @@ def finalize_agent_list(
     )
     if callable(install_fold_state):
         install_fold_state()
+    # The deck layout baseline installs at the same boundary: the loader's
+    # file/JSON work ran in its independent worker and never gates this.
+    install_deck_state = getattr(
+        app,
+        "_maybe_install_agents_deck_state",
+        None,
+    )
+    if callable(install_deck_state):
+        install_deck_state()
 
     if save_unfiltered:
         # Save unfiltered list (with children) for bundle/dismiss operations

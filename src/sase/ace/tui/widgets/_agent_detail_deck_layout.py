@@ -23,6 +23,15 @@ class AgentDetailDeckLayoutMixin:
     _current_agent: Any | None
     _current_attempt_number: int | None
 
+    def _notify_deck_state_changed(self) -> None:
+        """Schedule a coalesced deck-layout save when the app owns one."""
+        try:
+            notify = getattr(self.app, "_agents_deck_state_changed", None)  # type: ignore[attr-defined]
+            if callable(notify):
+                notify()
+        except Exception:
+            pass
+
     @property
     def deck_layout(self) -> DeckLayout:
         """Return the current deck split layout."""
@@ -113,11 +122,13 @@ class AgentDetailDeckLayoutMixin:
                 self._deck_refresh_availability()  # type: ignore[attr-defined]
             except Exception:
                 pass
+            self._notify_deck_state_changed()
             return
         try:
             area.apply_state(toggle_split(state, target, state.panels[-1]))
         except Exception:
             return
+        self._notify_deck_state_changed()
 
     def toggle_deck_focus(self) -> None:
         """Move logical focus to the other panel in a split."""
@@ -126,6 +137,7 @@ class AgentDetailDeckLayoutMixin:
             area.apply_state(toggle_focus(area.state))
         except Exception:
             return
+        self._notify_deck_state_changed()
 
     def step_deck_ratio(self, grow: bool) -> None:
         """Grow or shrink the focused panel one ratio step."""
@@ -134,6 +146,7 @@ class AgentDetailDeckLayoutMixin:
             area.apply_state(step_ratio(area.state, grow))
         except Exception:
             return
+        self._notify_deck_state_changed()
 
     @property
     def is_nodes_collapsed(self) -> bool:
@@ -159,6 +172,7 @@ class AgentDetailDeckLayoutMixin:
         except Exception:
             return
         self._sync_nodes_collapsed_chrome()
+        self._notify_deck_state_changed()
 
     def toggle_deck_zoom(self) -> None:
         """Zoom the focused deck panel in place, or restore the snapshot."""
@@ -172,6 +186,7 @@ class AgentDetailDeckLayoutMixin:
             area.focused_panel().refresh_chrome()
         except Exception:
             pass
+        self._notify_deck_state_changed()
 
     def _sync_nodes_collapsed_chrome(self) -> None:
         """Sync the agents-content collapse class, spine and focus safety."""

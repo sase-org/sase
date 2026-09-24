@@ -410,11 +410,19 @@ class AgentDetailDeckMixin:
             panel.refresh_chrome()
         except Exception:
             pass
+        try:
+            self._notify_deck_state_changed()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def set_deck_preferred_card(self, panel_index: int, card_id: str | None) -> None:
         """Delegate preferred-card updates to the deck area."""
         try:
             self.deck_area.set_preferred_card(panel_index, card_id)
+        except Exception:
+            pass
+        try:
+            self._notify_deck_state_changed()  # type: ignore[attr-defined]
         except Exception:
             pass
 
