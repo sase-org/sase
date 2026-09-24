@@ -203,6 +203,10 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             source_agents = (
                 local_from_mixed(mixed) if callable(local_from_mixed) else mixed
             )
+        filter_removed = getattr(self, "filter_explicitly_removed", None)
+        if callable(filter_removed):
+            source_agents = filter_removed(source_agents)
+            self._agents_local_with_children = list(source_agents)  # type: ignore[attr-defined]
         project_current_mode = getattr(self, "_agents_source_for_current_mode", None)
         if callable(project_current_mode):
             self._agents_with_children = project_current_mode(source_agents)

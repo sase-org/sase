@@ -377,6 +377,12 @@ def init_agent_state(self: Any) -> None:
     self._pending_bulk_read_agent_ids = None
     self._agent_display_status_by_identity = {}
     self._dismissed_agents = load_dismissed_agents()
+    # Session-local removals always outrank a subsequently observed live
+    # runner.  These indexes make every publication path O(rows).
+    self._explicit_removals = set()
+    self._explicit_removal_suffixes = set()
+    self._explicit_removal_cl_suffixes = set()
+    self._agents_removal_generation = 0
     self._dismissed_agents_disk_signature = dismissed_agents_file_signature()
     self._dismissed_agents_disk_identities = set(self._dismissed_agents)
     self._dismissed_agents_disk_signature_initialized = True

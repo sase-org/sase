@@ -167,6 +167,11 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
 
                 # Remove all dismissed aliases that share revived suffixes.
                 self._remove_dismissed_aliases_for_suffixes(revived_suffixes)
+                clear_removals = getattr(self, "clear_explicit_removals", None)
+                if callable(clear_removals):
+                    clear_removals(
+                        {agent.identity, *(child.identity for child in child_agents)}
+                    )
 
                 if save_dismissed_agents(self._dismissed_agents):
                     # Mark bundle projections visible before syncing the
@@ -469,6 +474,13 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     self._dismissed_agents.discard(identity)
             # Remove all dismissed aliases that share successfully revived suffixes.
             self._remove_dismissed_aliases_for_suffixes(succeeded_suffixes)
+            clear_removals = getattr(self, "clear_explicit_removals", None)
+            if callable(clear_removals):
+                clear_removals(
+                    identity
+                    for agent in succeeded
+                    for identity in identities_map.get(agent.identity, {agent.identity})
+                )
 
             # Phase 3: Single disk write for dismissed set
             if save_dismissed_agents(self._dismissed_agents):

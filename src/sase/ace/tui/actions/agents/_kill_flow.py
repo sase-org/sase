@@ -96,27 +96,52 @@ class AgentKillFlowMixin:
             agent_identity_from_wire(item.identity): item.kind
             for item in (cleanup_plan.kill_items if cleanup_plan is not None else ())
         }
-        signaled: set[AgentIdentity] = set()
-        signal_failed = False
+        attempted: set[AgentIdentity] = set()
+        successful_targets: list[Agent] = []
+        failed_targets: list[Agent] = []
         for target in kill_targets:
-            if target.identity in signaled:
+            if target.identity in attempted:
                 continue
-            signaled.add(target.identity)
+            attempted.add(target.identity)
             target_kind = kill_kinds.get(target.identity, kind)
             if target_kind == "monitor":
+                successful_targets.append(target)
                 continue
-            if target.pid is not None and not self._kill_agent_process_group(target):  # type: ignore[attr-defined]
-                signal_failed = True
-        if signal_failed:
+            if target.pid is None or self._kill_agent_process_group(target):  # type: ignore[attr-defined]
+                successful_targets.append(target)
+            else:
+                failed_targets.append(target)
+        if failed_targets:
+            names = ", ".join(target.display_name for target in failed_targets)
+            self.notify(  # type: ignore[attr-defined]
+                f"Could not signal {names}; those rows remain visible",
+                severity="error",
+            )
+        if not successful_targets:
             if on_settled is not None:
                 on_settled()
             return False
         self._notify_killed_agent(agent, kind)  # type: ignore[attr-defined]
 
-        immediate_identities = self._collect_planned_kill_identities(  # type: ignore[attr-defined]
-            agent,
-            cleanup_plan,
-        )
+        if failed_targets:
+            # Do not let a failed clan member inherit the parent plan's
+            # optimistic removal.  Keep only confirmed targets plus their
+            # workflow children, which share the successful parent removal.
+            immediate_identities = {target.identity for target in successful_targets}
+            for target in successful_targets:
+                if not target.is_workflow_child and target.raw_suffix is not None:
+                    immediate_identities.update(
+                        candidate.identity
+                        for candidate in agents_with_children_snapshot
+                        if candidate.is_workflow_child
+                        and candidate.parent_timestamp == target.raw_suffix
+                        and candidate.parent_workflow == target.workflow
+                    )
+        else:
+            immediate_identities = self._collect_planned_kill_identities(  # type: ignore[attr-defined]
+                agent,
+                cleanup_plan,
+            )
         from ....dismissed_agents import snapshot_dismissed_agents
 
         # Snapshot the dismissed set BEFORE the optimistic mutation so re-entrant
@@ -125,14 +150,32 @@ class AgentKillFlowMixin:
         dismissed_snapshot.update(immediate_identities)
         self._apply_killed_agents_in_memory(immediate_identities)  # type: ignore[attr-defined]
 
-        self._submit_kill_persistence_proc(  # type: ignore[attr-defined]
-            agent,
-            kind,
-            agents_with_children_snapshot,
-            dismissed_snapshot,
-            cleanup_plan,
-            on_settled=on_settled,
-        )
+        if failed_targets:
+            items = [
+                BulkKillItem(
+                    agent=target,
+                    kind=cast(KillKind, kill_kinds.get(target.identity, kind)),
+                    identities={target.identity},
+                )
+                for target in successful_targets
+            ]
+            self._submit_bulk_kill_persistence_proc(  # type: ignore[attr-defined]
+                items,
+                [],
+                dismissed_snapshot,
+                agents_with_children_snapshot,
+                cleanup_plan=None,
+                on_settled=on_settled,
+            )
+        else:
+            self._submit_kill_persistence_proc(  # type: ignore[attr-defined]
+                agent,
+                kind,
+                agents_with_children_snapshot,
+                dismissed_snapshot,
+                cleanup_plan,
+                on_settled=on_settled,
+            )
         log.debug(
             "agent kill immediate stage: kind=%s identity=%s elapsed=%.3fs",
             kind,
@@ -192,6 +235,17 @@ class AgentKillFlowMixin:
             seen_ids.update(identities)
             kill_items.append(
                 BulkKillItem(agent=agent, kind=kind, identities=identities)
+            )
+
+        if failed_ids:
+            names = ", ".join(
+                candidate.display_name
+                for candidate in agents_with_children_snapshot
+                if candidate.identity in failed_ids
+            )
+            self.notify(  # type: ignore[attr-defined]
+                f"Could not signal {names}; those rows remain visible",
+                severity="error",
             )
 
         dismiss_candidates = [

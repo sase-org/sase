@@ -508,6 +508,11 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
                 set(self._dismissed_agents),
                 bool(self.hide_non_run_agents),
                 dismissed_bundle_snapshot=dismissed_bundle_snapshot,
+                explicit_removals=(
+                    self._explicit_removal_snapshot()  # type: ignore[attr-defined]
+                    if hasattr(self, "_explicit_removal_snapshot")
+                    else None
+                ),
             )
         self._prepare_agent_content_search_index_sync(prep.filtered_agents)
         self._apply_loaded_agents_prepared(

@@ -81,6 +81,15 @@ class AgentLoadingApplySnapshotMixin(AgentLoadingStateMixin):
             captured = getattr(self, "_proc_projection", None)
             proc_projection = captured if isinstance(captured, ProcProjection) else None
 
+        from ._removal_tombstones import ExplicitRemovalSnapshot
+
+        removal_snapshot = getattr(self, "_explicit_removal_snapshot", None)
+        explicit_removals = (
+            removal_snapshot()
+            if callable(removal_snapshot)
+            else ExplicitRemovalSnapshot.from_identities(())
+        )
+
         return PreparedApplySnapshot(
             cached_agents_with_children=list(
                 getattr(self, "_agents_with_children", [])
@@ -121,6 +130,8 @@ class AgentLoadingApplySnapshotMixin(AgentLoadingStateMixin):
             ),
             cache_query_matches=cache_query_matches_load(self, load_state),
             fleet_rows=self._fleet_rows_for_prepared_snapshot(),
+            explicit_removals=explicit_removals,
+            removal_generation=int(getattr(self, "_agents_removal_generation", 0)),
         )
 
     def _fleet_rows_for_prepared_snapshot(self) -> tuple[Agent, ...]:

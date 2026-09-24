@@ -94,9 +94,20 @@ class AgentReviveArchiveMixin:
         )
         self.app.push_screen(modal, _on_agents_selected)  # type: ignore[attr-defined]
 
+        dismissed_snapshot = set(self._dismissed_agents)
+        dismissed_objects_snapshot = list(self._dismissed_agent_objects)
+        removal_snapshot = getattr(self, "_explicit_removal_snapshot", None)
+        explicit_removals = removal_snapshot() if callable(removal_snapshot) else None
         try:
             self.run_worker(  # type: ignore[attr-defined]
-                cast(Any, self._repair_dismissed_projection),
+                cast(
+                    Any,
+                    lambda: self._repair_dismissed_projection(
+                        dismissed_snapshot=dismissed_snapshot,
+                        dismissed_objects_snapshot=dismissed_objects_snapshot,
+                        explicit_removals=explicit_removals,
+                    ),
+                ),
                 thread=True,
                 exclusive=False,
                 group="dismissed-projection-repair",
@@ -118,7 +129,13 @@ class AgentReviveArchiveMixin:
         visible.sort(key=_dismissed_agent_recency_key)
         return visible, all_dismissed
 
-    def _repair_dismissed_projection(self) -> None:
+    def _repair_dismissed_projection(
+        self,
+        *,
+        dismissed_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+        dismissed_objects_snapshot: list[Agent] | None = None,
+        explicit_removals: object | None = None,
+    ) -> None:
         """Repair the compact dismissed identity projection from bundle identities."""
         from ....dismissed_agents import (
             load_dismissed_bundle_identities,
@@ -132,34 +149,80 @@ class AgentReviveArchiveMixin:
             except ValueError:
                 continue
             found_identities.add((normalized_type, cl_name, raw_suffix))
+        initial_dismissed = (
+            set(self._dismissed_agents)
+            if dismissed_snapshot is None
+            else set(dismissed_snapshot)
+        )
+        initial_objects = (
+            list(self._dismissed_agent_objects)
+            if dismissed_objects_snapshot is None
+            else list(dismissed_objects_snapshot)
+        )
+
+        def _apply() -> tuple[set[tuple[AgentType, str, str | None]], bool]:
+            return self._apply_repaired_dismissed_projection(
+                found_identities,
+                initial_dismissed,
+                initial_objects,
+                explicit_removals,
+            )
+
+        # The bundle scan and save run on the worker.  Only the live-set
+        # mutation returns to Textual's UI thread, so an open revive modal
+        # cannot race an off-thread assignment.
+        call_from_thread = getattr(self, "call_from_thread", None)
+        if dismissed_snapshot is not None and callable(call_from_thread):
+            next_dismissed, changed = call_from_thread(_apply)
+        else:
+            next_dismissed, changed = _apply()
+        if changed and save_dismissed_agents(next_dismissed):
+            try:
+                sync_dismissed_agent_artifact_index(next_dismissed, force=True)
+            except Exception:
+                pass
+
+    def _apply_repaired_dismissed_projection(
+        self,
+        found_identities: set[tuple[AgentType, str, str | None]],
+        initial_dismissed: set[tuple[AgentType, str, str | None]],
+        dismissed_objects: list[Agent],
+        explicit_removals: object | None,
+    ) -> tuple[set[tuple[AgentType, str, str | None]], bool]:
+        """Apply one worker's repair result on the UI thread."""
+        from ._removal_tombstones import EMPTY_EXPLICIT_REMOVALS
+
+        del initial_dismissed
         found_suffixes = {
             raw_suffix
             for _, _, raw_suffix in found_identities
             if raw_suffix is not None
         }
-        in_memory_suffixes = {
+        kill_record_suffixes = {
             agent.raw_suffix
-            for agent in self._dismissed_agent_objects
+            for agent in [*dismissed_objects, *self._dismissed_agent_objects]
             if agent.raw_suffix is not None
         }
-        next_dismissed = set(self._dismissed_agents)
-        next_dismissed.update(found_identities)
+        current = set(self._dismissed_agents)
+        current_snapshot = getattr(self, "_explicit_removal_snapshot", None)
+        tombstones = (
+            current_snapshot()
+            if callable(current_snapshot)
+            else explicit_removals or EMPTY_EXPLICIT_REMOVALS
+        )
+        tombstone_identities = set(getattr(tombstones, "identities", ()))
         next_dismissed = {
             identity
-            for identity in next_dismissed
-            if identity[2] is None
+            for identity in current | found_identities
+            if identity in tombstone_identities
+            or identity[2] is None
             or identity[2] in found_suffixes
-            or identity[2] in in_memory_suffixes
+            or identity[2] in kill_record_suffixes
         }
-        if next_dismissed != self._dismissed_agents:
+        changed = next_dismissed != current
+        if changed:
             self._dismissed_agents = next_dismissed
-            if save_dismissed_agents(self._dismissed_agents):
-                try:
-                    sync_dismissed_agent_artifact_index(
-                        self._dismissed_agents, force=True
-                    )
-                except Exception:
-                    pass
+        return next_dismissed, changed
 
     def _load_dismissed_archive(self) -> list[Agent]:
         """Compatibility hook for tests and older callers: repair only."""

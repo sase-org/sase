@@ -168,6 +168,9 @@ class AgentKillIdentityMixin:
         # focus lands on the agent visually below the killed one.
         prior_pos = self._capture_focused_visible_pos()  # type: ignore[attr-defined]
 
+        record_removals = getattr(self, "record_explicit_removals", None)
+        if callable(record_removals):
+            record_removals(identities)
         self._dismissed_agents.update(identities)
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
@@ -213,6 +216,9 @@ class AgentKillIdentityMixin:
             self._agents_with_children = project_clan_tree(
                 [a for a in self._agents_with_children if a.identity not in identities]
             )
+            sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
+            if callable(sync_local):
+                sync_local()
             if hasattr(self, "_invalidate_agent_panel_cache"):
                 self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
             self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
@@ -227,6 +233,9 @@ class AgentKillIdentityMixin:
 
             self._agents_with_children = project_clan_tree(self._agents_with_children)
             self._agents = project_clan_tree(self._agents)
+        sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
+        if callable(sync_local):
+            sync_local()
         if hasattr(self, "_invalidate_agent_panel_cache"):
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
 

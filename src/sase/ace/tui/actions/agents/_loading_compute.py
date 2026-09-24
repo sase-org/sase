@@ -270,6 +270,8 @@ def rebase_prepared_apply_boundary_on_proc_projection(
         proc_generation=snapshot.proc_generation,
         finalize=None,
         fleet_source_rows=snapshot.fleet_rows,
+        dismissed_agents_snapshot=frozenset(snapshot.dismissed_agents),
+        removal_generation=snapshot.removal_generation,
     )
 
 
@@ -364,6 +366,8 @@ def prepare_loaded_agents_apply_boundary(
         capacity_generation=snapshot.capacity_generation,
         proc_generation=snapshot.proc_generation,
         fleet_source_rows=fleet_source_rows,
+        dismissed_agents_snapshot=frozenset(snapshot.dismissed_agents),
+        removal_generation=snapshot.removal_generation,
     )
 
 
@@ -374,6 +378,7 @@ def compute_apply_loaded_agents(
     hide_non_run_agents: bool,
     *,
     dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+    explicit_removals: Any | None = None,
 ) -> PreparedApplyData:
     """Pure-data filter pipeline for ``_apply_loaded_agents``.
 
@@ -384,6 +389,21 @@ def compute_apply_loaded_agents(
     ``self``. Safe to call from a worker thread — does not access widgets,
     does not write to disk, does not mutate ``self`` state.
     """
+    from ._removal_tombstones import (
+        EMPTY_EXPLICIT_REMOVALS,
+        is_explicitly_removed,
+    )
+
+    removal_snapshot = explicit_removals or EMPTY_EXPLICIT_REMOVALS
+    explicitly_removed = [
+        agent for agent in all_agents if is_explicitly_removed(agent, removal_snapshot)
+    ]
+    all_agents = [
+        agent
+        for agent in all_agents
+        if not is_explicitly_removed(agent, removal_snapshot)
+    ]
+
     recovered = {
         a.identity
         for a in dismissed_from_loader
@@ -476,14 +496,20 @@ def compute_apply_loaded_agents(
     from ...models._agent_tree import project_clan_tree
 
     result_agents = project_clan_tree(result_agents)
-    attach_project_display_names([*result_agents, *dismissed_from_loader])
+    dismissed_agent_objects = list(dismissed_from_loader)
+    seen_dismissed = {agent.identity for agent in dismissed_agent_objects}
+    for agent in explicitly_removed:
+        if agent.identity not in seen_dismissed:
+            dismissed_agent_objects.append(agent)
+            seen_dismissed.add(agent.identity)
+    attach_project_display_names([*result_agents, *dismissed_agent_objects])
 
     return PreparedApplyData(
         filtered_agents=result_agents,
         has_always_visible=has_always_visible,
         hidden_count=hidden_count,
         hideable_agents=hideable,
-        dismissed_agent_objects=dismissed_from_loader,
+        dismissed_agent_objects=dismissed_agent_objects,
         capacity_agents=capacity_agents,
         recovered_bundle_identities=recovered,
         auto_dismissed_identities=auto_dismissed_ids,
@@ -509,6 +535,7 @@ def _prepare_loaded_agents_worker_prep(
         dismissed_snapshot,
         hide_non_run_agents,
         dismissed_bundle_snapshot=dismissed_bundle_snapshot,
+        explicit_removals=snapshot.explicit_removals,
     )
     snapshot_for_merge = replace(
         snapshot,

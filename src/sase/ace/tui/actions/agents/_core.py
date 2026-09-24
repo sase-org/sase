@@ -19,6 +19,7 @@ from ._kill_action import AgentKillMixin
 from ._remote_attention import RemoteAttentionMixin
 from ._remote_content import AgentRemoteContentMixin
 from ._remote_lifecycle import AgentRemoteLifecycleMixin
+from ._removal_tombstones import AgentRemovalTombstonesMixin
 from ._killing import AgentKillingMixin
 from ._loading import AgentLoadingMixin
 from ._marking import AgentMarkingMixin
@@ -70,6 +71,7 @@ class AgentsMixinCore(
     AgentPanelHintFoldingMixin,
     AgentFoldingMixin,
     AgentGroupingMixin,
+    AgentRemovalTombstonesMixin,
     AgentFleetMixin,
     AgentRemoteLifecycleMixin,
     RemoteAttentionMixin,

@@ -237,6 +237,72 @@ class AgentLoadingApplyMixin(
                 boundary,
                 live_snapshot,
             )
+
+        # A user can press x while the loader is awaiting its worker stages.
+        # Never publish the now-stale prepared local roster over that removal.
+        # A current dismissed-set addition is checked as well: it covers the
+        # same race for callers that reached the shared dismissal helper.
+        live_removal_snapshot = None
+        get_removal_snapshot = getattr(self, "_explicit_removal_snapshot", None)
+        if callable(get_removal_snapshot):
+            live_removal_snapshot = get_removal_snapshot()
+        removal_generation_moved = int(
+            getattr(self, "_agents_removal_generation", 0)
+        ) != int(getattr(boundary, "removal_generation", 0))
+        current_dismissed = set(getattr(self, "_dismissed_agents", ()))
+        dismissed_added = current_dismissed - set(
+            getattr(boundary, "dismissed_agents_snapshot", ())
+        )
+        if removal_generation_moved or dismissed_added:
+            local_before = list(boundary.fold.local_unfiltered_agents)
+            if live_removal_snapshot is not None:
+                filter_removed = getattr(self, "filter_explicitly_removed", None)
+                if callable(filter_removed):
+                    local_after = filter_removed(local_before, live_removal_snapshot)
+                else:
+                    from ._removal_tombstones import filter_explicitly_removed
+
+                    local_after = filter_explicitly_removed(
+                        local_before, live_removal_snapshot
+                    )
+            else:
+                local_after = local_before
+            if dismissed_added:
+                from ...models._agent_tree import project_clan_tree
+
+                local_after = project_clan_tree(
+                    [
+                        agent
+                        for agent in local_after
+                        if agent.identity not in dismissed_added
+                    ]
+                )
+            if len(local_after) != len(local_before):
+                snapshot_fold = getattr(
+                    getattr(self, "_fold_manager", None), "snapshot", None
+                )
+                unfiltered, visible, fold_counts = project_and_fold_rosters(
+                    local_after,
+                    boundary.fleet_source_rows,
+                    snapshot_fold() if callable(snapshot_fold) else None,
+                )
+                local_visible = [
+                    agent
+                    for agent in visible
+                    if not getattr(agent, "fleet_origin_alias", None)
+                ]
+                boundary = replace(
+                    boundary,
+                    prep=replace(boundary.prep, capacity_agents=list(local_after)),
+                    fold=replace(
+                        boundary.fold,
+                        unfiltered_agents=unfiltered,
+                        visible_agents=visible,
+                        fold_counts=fold_counts,
+                        local_unfiltered_agents=local_after,
+                        local_visible_agents=local_visible,
+                    ),
+                )
         prep = boundary.prep
 
         history_query_key = history_query_key_for_load(self, load_state)

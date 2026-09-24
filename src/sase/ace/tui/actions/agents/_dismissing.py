@@ -186,6 +186,9 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             self._agent_status_overrides.pop(identity, None)
             getattr(self, "_agents_arrival_status_overlays", {}).pop(identity, None)
         self._dismissed_agents.update(dismissed_identities)
+        record_removals = getattr(self, "record_explicit_removals", None)
+        if callable(record_removals):
+            record_removals(dismissed_identities)
 
         count = len(agents)
         s = "s" if count != 1 else ""
@@ -332,6 +335,9 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             self._agent_status_overrides.pop(identity, None)
             getattr(self, "_agents_arrival_status_overlays", {}).pop(identity, None)
         self._dismissed_agents.update(identities)
+        record_removals = getattr(self, "record_explicit_removals", None)
+        if callable(record_removals):
+            record_removals(identities)
         self._append_dismissed_agent_objects([agent], identities)
 
         if agent.agent_type == AgentType.WORKFLOW:

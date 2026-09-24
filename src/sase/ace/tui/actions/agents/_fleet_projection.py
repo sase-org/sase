@@ -174,6 +174,12 @@ class AgentFleetProjectionMixin:
             selected_identity = self._agents[self.current_idx].identity
         previous_agents = list(getattr(self, "_agents", []))
         local_base = self._local_base_for_current_projection()
+        filter_removed = getattr(self, "filter_explicitly_removed", None)
+        if callable(filter_removed):
+            local_base = filter_removed(local_base)
+            # Keep the local cache authoritative for a later fleet refresh;
+            # otherwise that reprojection can rebuild a removed row.
+            self._agents_local_with_children = list(local_base)
         projected_agents = self._agents_source_for_current_mode(local_base)
         projection_signature = _agents_projection_signature(projected_agents)
         if (

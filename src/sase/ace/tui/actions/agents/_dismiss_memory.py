@@ -122,6 +122,9 @@ class AgentDismissMemoryMixin:
                         removed_identities.add(step.identity)
 
         self._clear_revived_agent_suffixes(removed)
+        record_removals = getattr(self, "record_explicit_removals", None)
+        if callable(record_removals):
+            record_removals(removed_identities)
 
         # An explicit dismissal is proof the rows are gone, so a tribe panel
         # that just lost its last node stops being session-sticky.
@@ -153,6 +156,10 @@ class AgentDismissMemoryMixin:
             from ...models._agent_tree import project_clan_tree
 
             self._agents_with_children = project_clan_tree(self._agents_with_children)
+
+        sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
+        if callable(sync_local):
+            sync_local()
 
         # Append to dismissed objects list for same-session revive.
         existing_identities = {a.identity for a in self._dismissed_agent_objects}
@@ -195,6 +202,9 @@ class AgentDismissMemoryMixin:
         unmounts on the keypress; otherwise the cheap highlight refresh is enough.
         """
         self._agents = [a for a in self._agents if a.identity not in removed_identities]
+        sync_local = getattr(self, "_sync_agents_local_source_from_current", None)
+        if callable(sync_local):
+            sync_local()
         if hasattr(self, "_invalidate_agent_panel_cache"):
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         if hasattr(self, "_restore_focus_after_removal"):

@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         PreparedSelectionPlan,
         PreparedStatusOverridePlan,
     )
+    from ._removal_tombstones import ExplicitRemovalSnapshot
 
 
 @dataclass
@@ -115,6 +116,10 @@ class PreparedApplySnapshot:
     # because reconciling provisionals mutates app state; the boundary projects
     # them so the finalize plan is computed over the roster that gets published.
     fleet_rows: tuple[Agent, ...] = ()
+    # Session-local x removals captured with the worker input.  The UI-thread
+    # apply path compares ``removal_generation`` before publishing this work.
+    explicit_removals: ExplicitRemovalSnapshot | None = None
+    removal_generation: int = 0
 
 
 @dataclass(frozen=True)
@@ -151,3 +156,7 @@ class PreparedApplyBoundary:
     # from. The UI thread publishes the boundary's rows only while these are
     # still the app's fleet rows; a fleet refresh in between replaces them.
     fleet_source_rows: tuple[Agent, ...] = ()
+    dismissed_agents_snapshot: frozenset[tuple[AgentType, str, str | None]] = (
+        frozenset()
+    )
+    removal_generation: int = 0

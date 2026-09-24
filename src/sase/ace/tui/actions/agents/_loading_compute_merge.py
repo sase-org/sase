@@ -367,6 +367,7 @@ def merge_incomplete_load_after_complete_history(
 
     from ...models._dedup import dedup_by_pid, dedup_running_vs_workflow
     from ...models.agent import AgentType
+    from ._removal_tombstones import EMPTY_EXPLICIT_REMOVALS, is_explicitly_removed
 
     incoming_by_key = {_tier1_merge_key(agent): agent for agent in prep.filtered_agents}
     incoming_by_stable_key = _unique_stable_merge_index(prep.filtered_agents)
@@ -391,6 +392,10 @@ def merge_incomplete_load_after_complete_history(
     }
 
     def is_dismissed(agent: Agent) -> bool:
+        if is_explicitly_removed(
+            agent, snapshot.explicit_removals or EMPTY_EXPLICIT_REMOVALS
+        ):
+            return True
         if agent.runner_is_live:
             return False
         if agent.identity in dismissed:
