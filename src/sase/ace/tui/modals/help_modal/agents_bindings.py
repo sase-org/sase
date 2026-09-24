@@ -86,6 +86,26 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle metadata through top",
                 ),
                 (
+                    f"{d(a.next_deck_card)} / {d(a.prev_deck_card)}",
+                    "Cycle deck card (decks)",
+                ),
+                (
+                    f"{d(a.next_deck)} / {d(a.prev_deck)}",
+                    "Cycle deck (decks)",
+                ),
+                (
+                    f"{d(a.toggle_deck_split_below)} / {d(a.toggle_deck_split_right)}",
+                    "Split deck panels (decks)",
+                ),
+                (
+                    f"{d(a.toggle_deck_focus)}",
+                    "Focus other deck panel (decks)",
+                ),
+                (
+                    f"{d(a.shrink_deck_panel)} / {d(a.grow_deck_panel)}",
+                    "Shrink/grow deck panel (decks)",
+                ),
+                (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
                     "Scroll detail top / bottom; metadata follows",
                 ),

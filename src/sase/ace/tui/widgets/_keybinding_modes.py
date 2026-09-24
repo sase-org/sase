@@ -71,6 +71,8 @@ class KeybindingModesMixin:
             tmux_choice_count: int = 0,
             llm_calls_visible: bool = False,
             llm_calls_detail_level: int = 0,
+            deck_split: bool = False,
+            deck_card_count: int = 0,
         ) -> list[tuple[str, str]]: ...
 
         def _compute_axe_bindings(
@@ -158,6 +160,8 @@ class KeybindingModesMixin:
         tmux_choice_count: int = 0,
         llm_calls_visible: bool = False,
         llm_calls_detail_level: int = 0,
+        deck_split: bool = False,
+        deck_card_count: int = 0,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -192,6 +196,8 @@ class KeybindingModesMixin:
             tmux_choice_count=tmux_choice_count,
             llm_calls_visible=llm_calls_visible,
             llm_calls_detail_level=llm_calls_detail_level,
+            deck_split=deck_split,
+            deck_card_count=deck_card_count,
         )
         self._update_display(bindings)
 

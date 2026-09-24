@@ -168,6 +168,38 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     if spec.id == "app.choose_agent_view":
         return False if ctx.agent_decks_active else True
+    if spec.id in {
+        "app.next_deck_card",
+        "app.prev_deck_card",
+        "app.next_deck",
+        "app.prev_deck",
+    }:
+        return bool(ctx.agent_decks_active)
+    if spec.id in {
+        "app.toggle_deck_split_below",
+        "app.toggle_deck_split_right",
+    }:
+        return bool(ctx.agent_decks_active)
+    if spec.id in {
+        "app.toggle_deck_focus",
+        "app.grow_deck_panel",
+        "app.shrink_deck_panel",
+    }:
+        return bool(ctx.agent_decks_active and ctx.agent_deck_split)
+    if spec.id in {
+        "app.scroll_prompt_down",
+        "app.scroll_prompt_up",
+    }:
+        if ctx.agent_decks_active:
+            return False
+    if spec.id in {
+        "app.next_agent_metadata_section",
+        "app.prev_agent_metadata_section",
+        "app.next_agent_file",
+        "app.prev_agent_file",
+    }:
+        if ctx.agent_decks_active:
+            return False
     if spec.id == "app.zoom_panel":
         if ctx.agent_decks_active:
             return False

@@ -8,6 +8,7 @@ from types import FrameType
 from typing import TYPE_CHECKING, Any
 
 from ._agent_view_picker import AgentViewPickerMixin
+from ._deck_layout_actions import AgentDeckLayoutActionsMixin
 from ._panel_artifact_files import AgentPanelArtifactFileMixin
 from ._panel_detail import AgentPanelDetailMixin
 from ._panel_navigation import AgentPanelNavigationMixin
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 class AgentPanelsMixin(
     AgentPanelArtifactFileMixin,
     AgentViewPickerMixin,
+    AgentDeckLayoutActionsMixin,
     AgentPanelNavigationMixin,
     AgentPanelDetailMixin,
     AgentPanelTmuxMixin,

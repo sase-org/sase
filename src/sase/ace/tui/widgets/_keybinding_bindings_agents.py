@@ -62,6 +62,8 @@ class AgentBindingsMixin:
         tmux_choice_count: int = 0,
         llm_calls_visible: bool = False,
         llm_calls_detail_level: int = 0,
+        deck_split: bool = False,
+        deck_card_count: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -437,6 +439,22 @@ class AgentBindingsMixin:
                 (
                     self._kd("open_agent_cleanup_panel"),
                     f"cleanup ({completed_count} done)",
+                )
+            )
+
+        if deck_card_count > 1:
+            bindings.append(
+                (
+                    f"{self._kd('next_deck_card')}/{self._kd('prev_deck_card')}",
+                    "cards",
+                )
+            )
+        if deck_split:
+            bindings.append((self._kd("toggle_deck_focus"), "other panel"))
+            bindings.append(
+                (
+                    f"{self._kd('shrink_deck_panel')}/{self._kd('grow_deck_panel')}",
+                    "resize",
                 )
             )
 

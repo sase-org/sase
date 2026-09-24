@@ -69,6 +69,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+d", "scroll_detail_down", "Scroll Down", show=False),
     Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
     Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),
+    Binding("ctrl+f", "toggle_deck_focus", "Focus Other Deck Panel", show=False),
     Binding("ctrl+b", "scroll_prompt_up", "Scroll Prompt Up", show=False),
     Binding(
         "ctrl+j",
@@ -111,6 +112,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
         "Narrower Artifact List",
         show=False,
     ),
+    Binding("right_curly_bracket", "grow_deck_panel", "Grow Deck Panel", show=False),
+    Binding("left_curly_bracket", "shrink_deck_panel", "Shrink Deck Panel", show=False),
     Binding(
         "D",
         "cycle_artifacts_description",
@@ -271,6 +274,13 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # File cycling (agents tab)
     Binding("ctrl+n", "next_agent_file", "Next File", show=False),
     Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
+    # Deck navigation (agents tab, agent_decks flag on)
+    Binding("ctrl+j", "next_deck_card", "Next Deck Card", show=False),
+    Binding("ctrl+k", "prev_deck_card", "Previous Deck Card", show=False),
+    Binding("ctrl+n", "next_deck", "Next Deck", show=False),
+    Binding("ctrl+p", "prev_deck", "Previous Deck", show=False),
+    Binding("backslash", "toggle_deck_split_below", "Split Deck Below", show=False),
+    Binding("vertical_line", "toggle_deck_split_right", "Split Deck Right", show=False),
     Binding("E", "edit_panel", "Edit Panel / Job Output", show=False),
     # Context-aware Enter: review gate, jump to Patch, or choose (agents tab)
     Binding("enter", "act_on_agent", "Act on agent", show=False),

@@ -9,6 +9,8 @@ from sase.ace.tui.widgets.decks.model import (
     DeckAreaState,
     DeckId,
     DeckPanelState,
+    cycle_card_id,
+    cycle_deck_id,
     default_card_id,
     resolve_active_card,
     with_panel_deck,
@@ -18,6 +20,38 @@ from sase.ace.tui.widgets.decks.model import (
 
 def test_deck_cycle_order() -> None:
     assert DECK_CYCLE == (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
+
+
+def test_cycle_deck_id_wraps_both_directions() -> None:
+    assert cycle_deck_id(DeckId.MAIN, 1) is DeckId.FILES
+    assert cycle_deck_id(DeckId.FILES, 1) is DeckId.TOOLS
+    assert cycle_deck_id(DeckId.TOOLS, 1) is DeckId.MAIN
+    assert cycle_deck_id(DeckId.MAIN, -1) is DeckId.TOOLS
+    assert cycle_deck_id(DeckId.TOOLS, -1) is DeckId.FILES
+
+
+def test_cycle_card_id_wraps_both_directions() -> None:
+    ids = ["context", "reply"]
+    assert cycle_card_id(ids, "context", 1) == "reply"
+    assert cycle_card_id(ids, "reply", 1) == "context"
+    assert cycle_card_id(ids, "context", -1) == "reply"
+    assert cycle_card_id(ids, "reply", -1) == "context"
+
+
+def test_cycle_card_id_single_card_is_identity() -> None:
+    assert cycle_card_id(["llm-calls"], "llm-calls", 1) == "llm-calls"
+    assert cycle_card_id(["llm-calls"], "llm-calls", -1) == "llm-calls"
+
+
+def test_cycle_card_id_empty_is_none() -> None:
+    assert cycle_card_id([], None, 1) is None
+    assert cycle_card_id([], "reply", -1) is None
+
+
+def test_cycle_card_id_unknown_anchor_steps_from_default() -> None:
+    ids = ["context", "reply"]
+    assert cycle_card_id(ids, "gone", 1) == "reply"
+    assert cycle_card_id(ids, "gone", -1) == "context"
 
 
 def test_default_single_is_main() -> None:

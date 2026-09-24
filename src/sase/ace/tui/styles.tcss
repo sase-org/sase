@@ -3998,6 +3998,66 @@ HintInputBar #hint-escape-hint {
     height: 1fr;
 }
 
+#agent-deck-area.-left-right {
+    layout: horizontal;
+}
+
+#agent-deck-area.-top-bottom.-ratio-30 #agent-deck-panel-0 {
+    height: 3fr;
+}
+
+#agent-deck-area.-top-bottom.-ratio-30 #agent-deck-panel-1 {
+    height: 7fr;
+}
+
+#agent-deck-area.-top-bottom.-ratio-50 #agent-deck-panel-0 {
+    height: 5fr;
+}
+
+#agent-deck-area.-top-bottom.-ratio-50 #agent-deck-panel-1 {
+    height: 5fr;
+}
+
+#agent-deck-area.-top-bottom.-ratio-70 #agent-deck-panel-0 {
+    height: 7fr;
+}
+
+#agent-deck-area.-top-bottom.-ratio-70 #agent-deck-panel-1 {
+    height: 3fr;
+}
+
+#agent-deck-area.-left-right #agent-deck-panel-0 {
+    height: 1fr;
+}
+
+#agent-deck-area.-left-right #agent-deck-panel-1 {
+    height: 1fr;
+}
+
+#agent-deck-area.-left-right.-ratio-30 #agent-deck-panel-0 {
+    width: 3fr;
+}
+
+#agent-deck-area.-left-right.-ratio-30 #agent-deck-panel-1 {
+    width: 7fr;
+}
+
+#agent-deck-area.-left-right.-ratio-50 #agent-deck-panel-0 {
+    width: 5fr;
+}
+
+#agent-deck-area.-left-right.-ratio-50 #agent-deck-panel-1 {
+    width: 5fr;
+}
+
+#agent-deck-area.-left-right.-ratio-70 #agent-deck-panel-0 {
+    width: 7fr;
+}
+
+#agent-deck-area.-left-right.-ratio-70 #agent-deck-panel-1 {
+    width: 3fr;
+}
+
 #agent-deck-area .deck-panel {
     height: 1fr;
     border: solid $secondary;
@@ -4020,6 +4080,18 @@ HintInputBar #hint-escape-hint {
 
 .deck-panel.-deck-tools {
     border: solid #87D7FF;
+}
+
+.deck-panel.-deck-main.-unfocused {
+    border: solid $secondary 35%;
+}
+
+.deck-panel.-deck-files.-unfocused {
+    border: solid green 35%;
+}
+
+.deck-panel.-deck-tools.-unfocused {
+    border: solid #87D7FF 35%;
 }
 
 .deck-scroll {

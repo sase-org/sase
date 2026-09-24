@@ -18,7 +18,10 @@ from sase.ace.tui.widgets._agent_detail_files import (
 )
 from sase.ace.tui.widgets._llm_calls_panel_fetching import cached_tool_call_count
 from sase.feature_flags import override_flags
-from tests.ace.tui.widgets._agent_display_helpers import make_agent
+from tests.ace.tui.widgets._agent_display_helpers import (
+    make_agent,
+    make_artifact_agent,
+)
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
 
 _ROOT = Path(__file__).resolve().parents[5]
@@ -256,6 +259,111 @@ def test_dispatch_and_helpers_flag_off() -> None:
     fake = _FakePanel()
     assert dispatch_file_view(fake, agent) is True  # type: ignore[arg-type]
     assert load_deck_file_view(fake, agent, attempt_number=1) is False  # type: ignore[arg-type]
+
+
+async def test_cycle_focused_deck_card_sticks_preferred(tmp_path: Path) -> None:
+    with override_flags(agent_decks=True):
+        app = _DetailApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            detail = app.query_one("#agent-detail-panel", AgentDetail)
+            agent = make_artifact_agent(tmp_path, status="DONE")
+            detail.update_display(agent)
+            await pilot.pause()
+            panel = detail.deck_area.panel(0)
+            assert panel.deck is DeckId.MAIN
+            assert panel.main_view.active_card_id == "context"
+            shown = detail.cycle_focused_deck_card(1)
+            await pilot.pause()
+            assert shown == "reply"
+            assert panel.main_view.active_card_id == "reply"
+            assert detail.deck_area.state.panels[0].preferred_card == "reply"
+            # A re-paint for the same subject keeps the sticky Reply.
+            detail.update_display(agent)
+            await pilot.pause()
+            assert panel.main_view.active_card_id == "reply"
+            shown = detail.cycle_focused_deck_card(1)
+            assert shown == "context"
+            assert detail.deck_area.state.panels[0].preferred_card == "context"
+
+
+async def test_cycle_focused_deck_wraps_and_reloads(tmp_path: Path) -> None:
+    with override_flags(agent_decks=True):
+        app = _DetailApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            detail = app.query_one("#agent-detail-panel", AgentDetail)
+            agent = make_artifact_agent(tmp_path, status="DONE")
+            detail.update_display(agent)
+            await pilot.pause()
+            panel = detail.deck_area.panel(0)
+            assert panel.deck is DeckId.MAIN
+            detail.cycle_focused_deck(1)
+            await pilot.pause()
+            assert panel.deck is DeckId.FILES
+            detail.cycle_focused_deck(1)
+            await pilot.pause()
+            assert panel.deck is DeckId.TOOLS
+            detail.cycle_focused_deck(1)
+            await pilot.pause()
+            assert panel.deck is DeckId.MAIN
+            assert panel.main_view.active_card_id == "context"
+            detail.cycle_focused_deck(-1)
+            await pilot.pause()
+            assert panel.deck is DeckId.TOOLS
+
+
+async def test_deck_palette_availability_gates() -> None:
+    from sase.ace.tui.commands._availability_agents import agents_available
+    from sase.ace.tui.commands.types import CommandContext
+
+    class _Spec:
+        def __init__(self, spec_id: str) -> None:
+            self.id = spec_id
+
+    on = CommandContext(tab="agents", agent_decks_active=True)
+    off = CommandContext(tab="agents", agent_decks_active=False)
+    split = CommandContext(tab="agents", agent_decks_active=True, agent_deck_split=True)
+    for spec_id in (
+        "app.next_deck_card",
+        "app.prev_deck_card",
+        "app.next_deck",
+        "app.prev_deck",
+    ):
+        assert agents_available(_Spec(spec_id), on) is True  # type: ignore[arg-type]
+        assert agents_available(_Spec(spec_id), off) is False  # type: ignore[arg-type]
+    for spec_id in (
+        "app.toggle_deck_split_below",
+        "app.toggle_deck_split_right",
+    ):
+        assert agents_available(_Spec(spec_id), on) is True  # type: ignore[arg-type]
+        assert agents_available(_Spec(spec_id), off) is False  # type: ignore[arg-type]
+    for spec_id in (
+        "app.toggle_deck_focus",
+        "app.grow_deck_panel",
+        "app.shrink_deck_panel",
+    ):
+        assert agents_available(_Spec(spec_id), split) is True  # type: ignore[arg-type]
+        assert agents_available(_Spec(spec_id), on) is False  # type: ignore[arg-type]
+        assert agents_available(_Spec(spec_id), off) is False  # type: ignore[arg-type]
+    for spec_id in (
+        "app.scroll_prompt_down",
+        "app.scroll_prompt_up",
+    ):
+        assert agents_available(_Spec(spec_id), on) is False  # type: ignore[arg-type]
+    for spec_id in (
+        "app.next_agent_metadata_section",
+        "app.prev_agent_metadata_section",
+        "app.next_agent_file",
+        "app.prev_agent_file",
+    ):
+        assert agents_available(_Spec(spec_id), on) is False  # type: ignore[arg-type]
+    assert (
+        agents_available(_Spec("app.next_agent_file"), off) is True  # type: ignore[arg-type]
+    )
+    assert (
+        agents_available(_Spec("app.next_agent_metadata_section"), off) is True  # type: ignore[arg-type]
+    )
 
 
 def test_scroll_resolution_parent_vs_fallback() -> None:

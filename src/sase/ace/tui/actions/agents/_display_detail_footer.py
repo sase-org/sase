@@ -303,6 +303,38 @@ class AgentFooterDisplayMixin:
                 if current_agent is not None and current_agent.is_clan_container
                 else self._selected_agent_neighbor_count(current_agent)
             )
+            deck_split = False
+            deck_card_count = 0
+            try:
+                if bool(getattr(agent_detail, "decks_enabled", False)):
+                    from ...widgets.decks.model import DeckId as _DeckId
+                    from ...widgets.decks.model import DeckLayout as _DeckLayout
+
+                    layout = agent_detail.deck_area.state.layout  # type: ignore[attr-defined]
+                    deck_split = layout is not _DeckLayout.SINGLE
+                    try:
+                        focused = agent_detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+                        if focused.deck is _DeckId.MAIN:
+                            try:
+                                deck_card_count = len(
+                                    agent_detail._main_deck_document.cards  # type: ignore[attr-defined]
+                                )
+                            except Exception:
+                                deck_card_count = 0
+                        elif focused.deck is _DeckId.FILES:
+                            try:
+                                deck_card_count = len(
+                                    getattr(focused.file_view, "_file_list", [])
+                                )
+                            except Exception:
+                                deck_card_count = 0
+                        else:
+                            deck_card_count = 1
+                    except Exception:
+                        deck_card_count = 0
+            except Exception:
+                deck_split = False
+                deck_card_count = 0
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -345,6 +377,8 @@ class AgentFooterDisplayMixin:
                 ),
                 llm_calls_visible=llm_calls_visible,
                 llm_calls_detail_level=int(agent_detail.llm_calls_detail_level),
+                deck_split=deck_split,
+                deck_card_count=deck_card_count,
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:

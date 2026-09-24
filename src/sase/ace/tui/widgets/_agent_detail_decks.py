@@ -125,8 +125,18 @@ class AgentDetailDeckMixin:
             panels = area.visible_panels()
         except Exception:
             return
+        seen: set[DeckId] = set()
         for panel in panels:
             if panel.deck is DeckId.FILES:
+                if DeckId.FILES in seen:
+                    try:
+                        loader = getattr(self, "_load_files_panel_from_cache", None)
+                        if callable(loader):
+                            loader(panel, agent)
+                    except Exception:
+                        pass
+                    continue
+                seen.add(DeckId.FILES)
                 try:
                     loaded = load_deck_file_view(
                         panel.file_view,
@@ -144,6 +154,15 @@ class AgentDetailDeckMixin:
                 except Exception:
                     pass
             elif panel.deck is DeckId.TOOLS:
+                if DeckId.TOOLS in seen:
+                    try:
+                        loader = getattr(self, "_load_tools_panel_from_cache", None)
+                        if callable(loader):
+                            loader(panel, agent)
+                    except Exception:
+                        pass
+                    continue
+                seen.add(DeckId.TOOLS)
                 try:
                     if (
                         attempt_number is None
@@ -305,6 +324,15 @@ class AgentDetailDeckMixin:
     def show_deck(self, panel_index: int, deck: DeckId) -> None:
         """Show ``deck`` on ``panel_index`` and load it for the current subject."""
         area = self.deck_area
+        try:
+            siblings = [
+                p
+                for p in area.visible_panels()
+                if p.deck is deck and p.panel_index != panel_index
+            ]
+        except Exception:
+            siblings = []
+        is_duplicate = bool(siblings)
         area.set_panel_deck(panel_index, deck)
         panel = area.panel(panel_index)
         agent = self._current_agent
@@ -327,6 +355,18 @@ class AgentDetailDeckMixin:
             except Exception:
                 pass
         elif deck is DeckId.FILES:
+            if is_duplicate:
+                try:
+                    loader = getattr(self, "_load_files_panel_from_cache", None)
+                    if callable(loader) and loader(panel, agent):
+                        self._deck_refresh_availability()
+                        try:
+                            panel.refresh_chrome()
+                        except Exception:
+                            pass
+                        return
+                except Exception:
+                    pass
             from ._agent_detail_files import load_deck_file_view
 
             try:
@@ -339,6 +379,18 @@ class AgentDetailDeckMixin:
             except Exception:
                 pass
         else:
+            if is_duplicate:
+                try:
+                    loader = getattr(self, "_load_tools_panel_from_cache", None)
+                    if callable(loader) and loader(panel, agent):
+                        self._deck_refresh_availability()
+                        try:
+                            panel.refresh_chrome()
+                        except Exception:
+                            pass
+                        return
+                except Exception:
+                    pass
             from ..llm_calls import supports_slow_tool_sources
 
             try:
@@ -363,5 +415,39 @@ class AgentDetailDeckMixin:
         """Delegate preferred-card updates to the deck area."""
         try:
             self.deck_area.set_preferred_card(panel_index, card_id)
+        except Exception:
+            pass
+
+    def cycle_focused_deck_card(self, direction: int) -> str | None:
+        """Cycle cards in the focused panel; Main choices stick."""
+        try:
+            area = self.deck_area
+            panel = area.focused_panel()
+        except Exception:
+            return None
+        try:
+            shown = panel.cycle_card(direction)
+        except Exception:
+            return None
+        if shown is not None:
+            try:
+                index = panel.panel_index
+            except Exception:
+                return shown
+            self.set_deck_preferred_card(index, shown)
+        return shown
+
+    def cycle_focused_deck(self, direction: int) -> None:
+        """Cycle the focused panel to the next/previous deck (wraps)."""
+        from .decks.model import cycle_deck_id
+
+        try:
+            area = self.deck_area
+            panel = area.focused_panel()
+            index = panel.panel_index
+        except Exception:
+            return
+        try:
+            self.show_deck(index, cycle_deck_id(panel.deck, direction))
         except Exception:
             pass

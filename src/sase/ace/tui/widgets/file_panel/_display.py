@@ -402,6 +402,15 @@ class FilePanelDisplayMixin:
             reserved_rows=2,
         )
 
+    def rerender_for_viewport(self) -> None:
+        """Re-display the current image page for the new viewport size."""
+        if getattr(self, "_content_mode", None) != "image":
+            return
+        path = getattr(self, "_static_header_path", None)
+        if not path:
+            return
+        self._display_static_image(path)
+
     def _consume_image_cleanup_segments(self) -> list[RenderableType]:
         """Compatibility no-op for surfaces that used image cleanup state."""
         return []

@@ -31,6 +31,28 @@ class MainDeckView(SectionViewMixin, Static):
         """Return the active card id."""
         return self._active_card
 
+    def show_card(self, card_id: str) -> str | None:
+        """Activate ``card_id`` from the stored document; return it or None."""
+        document = self._document
+        if document is None:
+            return None
+        card = document.card(card_id)
+        if card is None:
+            return None
+        self.prepare_section_document((document.subject, card_id))
+        try:
+            parent = self.parent
+            if isinstance(parent, VerticalScroll):
+                parent.scroll_to(y=0, animate=False)
+        except Exception:
+            pass
+        renderable: Any = Group(*card.renderables)
+        digest = None if document.digest is None else f"{document.digest}:{card_id}"
+        self._apply_section_content(renderable, digest, layout=True)
+        self._active_card = card_id
+        self._last_render_key = (document.digest, card_id, document.partial)
+        return card_id
+
     def show_document(
         self, document: MainDeckDocument, *, preferred_card: str | None
     ) -> str | None:

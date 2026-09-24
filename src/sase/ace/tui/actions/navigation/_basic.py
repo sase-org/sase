@@ -72,6 +72,8 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def _release_agent_metadata_bottom_pin(self) -> None:
         """Release metadata bottom-follow state if the prompt panel is mounted."""
+        if self._release_focused_deck_bottom_pin():
+            return
         from ...widgets.prompt_panel import AgentPromptPanel
 
         try:
@@ -80,6 +82,48 @@ class BasicNavigationMixin(NavigationMixinBase):
         except Exception:
             return
         panel.release_bottom_pin()
+
+    def _decks_navigation_active(self) -> bool:
+        """Return whether deck panels own Agents detail navigation."""
+        if self.current_tab != "agents":
+            return False
+        try:
+            from ...widgets.decks.flag import agent_decks_active
+
+            return bool(agent_decks_active(self))
+        except Exception:
+            return False
+
+    def _release_focused_deck_bottom_pin(self) -> bool:
+        """Release the focused deck panel's Main bottom pin in deck mode."""
+        if not self._decks_navigation_active():
+            return False
+        try:
+            from ...widgets import AgentDetail
+
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            agent_detail.deck_area.focused_panel().main_view.release_bottom_pin()
+        except Exception:
+            pass
+        return True
+
+    def _pin_focused_deck_to_bottom(self) -> bool:
+        """Pin the focused deck panel to the bottom in deck mode."""
+        if not self._decks_navigation_active():
+            return False
+        try:
+            from ...widgets import AgentDetail
+            from ...widgets.decks.model import DeckId
+
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            panel = agent_detail.deck_area.focused_panel()
+            if panel.deck is DeckId.MAIN:
+                panel.main_view.pin_to_bottom()
+            else:
+                panel.active_scroll().scroll_end(animate=False)
+        except Exception:
+            pass
+        return True
 
     def _navigate_agents_panel(self, direction: int) -> None:
         """Navigate within the agents panel.
@@ -253,6 +297,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
             if scroll_id in {"#agent-prompt-scroll", "#agent-search-scroll"}:
                 self._release_agent_metadata_bottom_pin()
+            else:
+                self._release_focused_deck_bottom_pin()
 
         else:  # axe
             self._axe_pinned_to_bottom = False
@@ -272,6 +318,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
             if scroll_id in {"#agent-prompt-scroll", "#agent-search-scroll"}:
                 self._release_agent_metadata_bottom_pin()
+            else:
+                self._release_focused_deck_bottom_pin()
         else:  # axe
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -326,6 +374,8 @@ class BasicNavigationMixin(NavigationMixinBase):
     ) -> None:
         """Resolve a cached section anchor and align it with the viewport top."""
         if self.current_tab != "agents":
+            return
+        if self._decks_navigation_active():
             return
 
         from ...widgets import AgentDetail
@@ -425,6 +475,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
             if scroll_id == "#agent-prompt-scroll":
                 self._release_agent_metadata_bottom_pin()
+            else:
+                self._release_focused_deck_bottom_pin()
             scroll_container.scroll_home(animate=False)
         elif self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -455,6 +507,8 @@ class BasicNavigationMixin(NavigationMixinBase):
                     "#agent-prompt-panel", AgentPromptPanel
                 )
                 panel.pin_to_bottom()
+            elif self._pin_focused_deck_to_bottom():
+                return
             else:
                 scroll_container.scroll_end(animate=False)
         elif self.current_tab == "artifacts":

@@ -138,9 +138,20 @@ class AgentPanelDetailMixin:
         ):
             subprocess.run([editor, *chat_paths], check=False)
 
+    def _decks_active(self) -> bool:
+        """Return whether deck panels own Agents detail navigation."""
+        try:
+            from ...widgets.decks.flag import agent_decks_active
+
+            return bool(agent_decks_active(self))
+        except Exception:
+            return False
+
     def action_next_agent_file(self) -> None:
         """Cycle to the next file / next (older) chop run."""
         if self.current_tab == "agents":
+            if self._decks_active():
+                return
             from ...widgets import AgentDetail
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
@@ -151,12 +162,50 @@ class AgentPanelDetailMixin:
     def action_prev_agent_file(self) -> None:
         """Cycle to the previous file / previous (newer) chop run."""
         if self.current_tab == "agents":
+            if self._decks_active():
+                return
             from ...widgets import AgentDetail
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_detail.cycle_prev_file()
         elif self.current_tab == "services":
             self._axe_step_chop_run(direction=-1)  # type: ignore[attr-defined]
+
+    def action_next_deck_card(self) -> None:
+        """Cycle to the next card in the focused deck panel (wraps)."""
+        if self.current_tab != "agents" or not self._decks_active():
+            return
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_focused_deck_card(1)
+
+    def action_prev_deck_card(self) -> None:
+        """Cycle to the previous card in the focused deck panel (wraps)."""
+        if self.current_tab != "agents" or not self._decks_active():
+            return
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_focused_deck_card(-1)
+
+    def action_next_deck(self) -> None:
+        """Cycle the focused deck panel to the next deck (wraps)."""
+        if self.current_tab != "agents" or not self._decks_active():
+            return
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_focused_deck(1)
+
+    def action_prev_deck(self) -> None:
+        """Cycle the focused deck panel to the previous deck (wraps)."""
+        if self.current_tab != "agents" or not self._decks_active():
+            return
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_focused_deck(-1)
 
     def action_toggle_layout(self) -> None:
         """Retired app action; open the Agent view picker instead."""

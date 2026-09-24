@@ -129,6 +129,22 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # Tab-disjoint: Agents vs Services panel jumps share J/K.
         frozenset({"focus_next_agent_panel", "focus_next_service_panel"}),
         frozenset({"focus_prev_agent_panel", "focus_prev_service_panel"}),
+        # Tab-disjoint: Agents deck keys vs Artifacts paging share Ctrl+J/K.
+        frozenset({"next_deck_card", "artifacts_load_more"}),
+        frozenset({"prev_deck_card", "artifacts_unload"}),
+        # Flag-disjoint while the agent_decks beta flag exists: deck keys
+        # own Ctrl+J/K/Ctrl+N/P when decks are on, legacy Agents keys own
+        # them when decks are off.
+        frozenset({"next_deck_card", "next_agent_metadata_section"}),
+        frozenset({"prev_deck_card", "prev_agent_metadata_section"}),
+        frozenset({"next_deck", "next_agent_file"}),
+        frozenset({"prev_deck", "prev_agent_file"}),
+        # Flag-disjoint: Ctrl+F moves deck focus when decks are on and
+        # half-pages the prompt when decks are off.
+        frozenset({"toggle_deck_focus", "scroll_prompt_down"}),
+        # Tab-disjoint: Agents deck ratio vs Artifacts split cycling.
+        frozenset({"grow_deck_panel", "cycle_artifacts_split"}),
+        frozenset({"shrink_deck_panel", "cycle_artifacts_split_reverse"}),
     }
 )
 

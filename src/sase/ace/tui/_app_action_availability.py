@@ -71,6 +71,50 @@ _LOCAL_AGENT_ROW_ACTIONS = frozenset(
         "view_agent_metadata",
     }
 )
+_DECK_NAV_ACTIONS = frozenset(
+    {
+        "next_deck_card",
+        "prev_deck_card",
+        "next_deck",
+        "prev_deck",
+    }
+)
+_DECK_LAYOUT_ACTIONS = frozenset(
+    {
+        "toggle_deck_split_below",
+        "toggle_deck_split_right",
+        "toggle_deck_focus",
+        "grow_deck_panel",
+        "shrink_deck_panel",
+    }
+)
+_DECK_SPLIT_ONLY_ACTIONS = frozenset(
+    {
+        "toggle_deck_focus",
+        "grow_deck_panel",
+        "shrink_deck_panel",
+    }
+)
+_LEGACY_DECK_KEY_ACTIONS = frozenset(
+    {
+        "next_agent_metadata_section",
+        "prev_agent_metadata_section",
+        "next_agent_file",
+        "prev_agent_file",
+    }
+)
+
+
+def _deck_split_active(app: Any) -> bool:
+    """Return whether a deck split layout is active."""
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+        from sase.ace.tui.widgets.decks.model import DeckLayout
+
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        return detail.deck_layout is not DeckLayout.SINGLE  # type: ignore[attr-defined]
+    except Exception:
+        return False
 
 
 def check_app_action(
@@ -93,9 +137,50 @@ def check_app_action(
     if _prompt_input_owns_keys(app) and (
         action in _AGENT_FLEET_ACTIONS
         or action in _LOCAL_AGENT_ROW_ACTIONS
+        or action in _DECK_NAV_ACTIONS
+        or action in _DECK_LAYOUT_ACTIONS
         or action == "act_on_agent"
     ):
         return False
+    if action in _DECK_NAV_ACTIONS:
+        if app.current_tab != "agents":
+            return False
+        try:
+            from sase.ace.tui.widgets.decks.flag import agent_decks_active
+
+            if not bool(agent_decks_active(app)):
+                return False
+        except Exception:
+            return False
+    if action in _DECK_LAYOUT_ACTIONS:
+        if app.current_tab != "agents":
+            return False
+        try:
+            from sase.ace.tui.widgets.decks.flag import agent_decks_active
+
+            if not bool(agent_decks_active(app)):
+                return False
+        except Exception:
+            return False
+        if action in _DECK_SPLIT_ONLY_ACTIONS and not _deck_split_active(app):
+            return False
+    if action in {"scroll_prompt_down", "scroll_prompt_up"}:
+        if app.current_tab == "agents":
+            try:
+                from sase.ace.tui.widgets.decks.flag import agent_decks_active
+
+                if bool(agent_decks_active(app)):
+                    return False
+            except Exception:
+                pass
+    if action in _LEGACY_DECK_KEY_ACTIONS and app.current_tab == "agents":
+        try:
+            from sase.ace.tui.widgets.decks.flag import agent_decks_active
+
+            if bool(agent_decks_active(app)):
+                return False
+        except Exception:
+            pass
     if action in _AGENT_FLEET_ACTIONS:
         if app.current_tab != "agents":
             return False

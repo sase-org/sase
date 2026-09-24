@@ -8,6 +8,7 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
+from textual.message import Message
 from textual.widgets import Static
 
 from ..file_panel import (
@@ -21,7 +22,7 @@ from .availability import DeckAvailability
 from .empty_state import deck_empty_state
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
 from .main_view import MainDeckView
-from .model import DeckId
+from .model import DeckId, cycle_card_id
 from .titles import (
     CardTab,
     deck_subtitle,
@@ -42,6 +43,15 @@ _FALLBACK_ACCENTS = {
 }
 
 
+class DeckPanelFocusRequested(Message):
+    """Request logical focus for a deck panel."""
+
+    def __init__(self, panel_index: int) -> None:
+        """Initialize the focus request."""
+        super().__init__()
+        self.panel_index = panel_index
+
+
 class DeckPanel(Vertical):
     """One pre-composed deck panel showing a single active deck."""
 
@@ -51,6 +61,7 @@ class DeckPanel(Vertical):
         self._panel_index = panel_index
         self._deck = DeckId.MAIN
         self._id = f"agent-deck-panel-{panel_index}"
+        self._focused = panel_index == 0
         self._availability: dict[DeckId, DeckAvailability] = {}
         self._main_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
         self._main_active_card: str | None = None
@@ -96,6 +107,17 @@ class DeckPanel(Vertical):
         except Exception:
             pass
         self.set_deck(self._deck)
+        try:
+            self.set_focused(self._focused)
+        except Exception:
+            pass
+
+    def on_click(self, event: object) -> None:
+        """Request logical focus without stealing widget focus."""
+        try:
+            self.post_message(DeckPanelFocusRequested(self._panel_index))
+        except Exception:
+            pass
 
     def _resolve_accent(self, deck: DeckId) -> str:
         if deck is DeckId.MAIN:
@@ -119,6 +141,17 @@ class DeckPanel(Vertical):
             width = 0
         return width if width > 0 else 80
 
+    def set_focused(self, focused: bool) -> None:
+        """Sync focus chrome classes without moving widget focus."""
+        self._focused = bool(focused)
+        if self._focused:
+            self.add_class("-focused")
+            self.remove_class("-unfocused")
+        else:
+            self.add_class("-unfocused")
+            self.remove_class("-focused")
+        self.refresh_chrome()
+
     def set_deck(self, deck: DeckId) -> None:
         """Show ``deck``, toggling scroll visibility and chrome."""
         self._deck = deck
@@ -126,7 +159,6 @@ class DeckPanel(Vertical):
             if existing in ("-deck-main", "-deck-files", "-deck-tools"):
                 self.remove_class(existing)
         self.add_class(_DECK_ACCENT_CLASS[deck])
-        self.add_class("-focused")
         for deck_id in DeckId:
             try:
                 scroll = self.query_one(
@@ -158,6 +190,29 @@ class DeckPanel(Vertical):
         except Exception:
             return True
 
+    def _deck_switch_hint(self) -> str | None:
+        """Return the live deck-switch hint for the empty-state card."""
+        try:
+            from ...keymaps import key_display_name
+        except Exception:
+            return None
+        try:
+            registry = getattr(getattr(self, "app", None), "_keymap_registry", None)
+            if registry is not None:
+                next_key = key_display_name(
+                    str(getattr(getattr(registry, "app", None), "next_deck", ""))
+                )
+                prev_key = key_display_name(
+                    str(getattr(getattr(registry, "app", None), "prev_deck", ""))
+                )
+            else:
+                next_key = prev_key = ""
+        except Exception:
+            return None
+        if not next_key or not prev_key:
+            return None
+        return f"{next_key} next deck · {prev_key} previous deck"
+
     def _update_empty_state(self) -> None:
         try:
             empty = self.query_one(".deck-empty-state", Static)
@@ -167,12 +222,52 @@ class DeckPanel(Vertical):
             empty.add_class("-shown")
             try:
                 empty.update(
-                    deck_empty_state(self._deck, subject_kind="agent", hint=None)
+                    deck_empty_state(
+                        self._deck,
+                        subject_kind="agent",
+                        hint=self._deck_switch_hint(),
+                    )
                 )
             except Exception:
                 pass
         else:
             empty.remove_class("-shown")
+
+    def cycle_card(self, direction: int) -> str | None:
+        """Cycle cards in the active deck; return the new Main card id."""
+        if self._deck is DeckId.MAIN:
+            ids = [card.card_id for card in self._main_document.cards]
+            try:
+                active = self.main_view.active_card_id
+            except Exception:
+                active = self._main_active_card
+            next_id = cycle_card_id(ids, active, direction)
+            if next_id is None:
+                return None
+            try:
+                shown = self.main_view.show_card(next_id)
+            except Exception:
+                return None
+            if shown is None:
+                return None
+            self._main_active_card = shown
+            self.refresh_chrome()
+            return shown
+        if self._deck is DeckId.FILES:
+            try:
+                view = self.file_view
+                if direction >= 0:
+                    view.next_file()
+                else:
+                    view.prev_file()
+            except Exception:
+                pass
+            try:
+                self.refresh_chrome()
+            except Exception:
+                pass
+            return None
+        return None
 
     def show_main_document(
         self, document: MainDeckDocument, preferred_card: str | None
@@ -288,7 +383,7 @@ class DeckPanel(Vertical):
                 active_index,
                 width=width,
                 accent=accent,
-                focused=True,
+                focused=self._focused,
             )
         except Exception:
             pass
@@ -319,6 +414,29 @@ class DeckPanel(Vertical):
         except Exception:
             pass
         self.refresh_chrome()
+        if self._deck is DeckId.FILES:
+            try:
+                self.file_view.rerender_for_viewport()
+            except Exception:
+                pass
+
+    def _notify_duplicate_ready(self, deck: DeckId) -> None:
+        """Ask AgentDetail to re-feed sibling duplicates from cache."""
+        try:
+            node: object | None = self.parent
+            for _ in range(5):
+                if node is None:
+                    break
+                reload = getattr(node, "_reload_duplicate_deck_from_cache", None)
+                if callable(reload):
+                    try:
+                        reload(deck, exclude_panel_index=self._panel_index)
+                    except Exception:
+                        pass
+                    break
+                node = getattr(node, "parent", None)
+        except Exception:
+            pass
 
     @on(FileListChanged)
     def _on_deck_file_list_changed(self, message: FileListChanged) -> None:
@@ -330,6 +448,7 @@ class DeckPanel(Vertical):
             self._file_source_label = None
         self.refresh_chrome()
         self._update_empty_state()
+        self._notify_duplicate_ready(DeckId.FILES)
         message.stop()
 
     @on(FileLineCountChanged)
@@ -349,6 +468,7 @@ class DeckPanel(Vertical):
         self._file_index = message.file_index
         self.refresh_chrome()
         self._update_empty_state()
+        self._notify_duplicate_ready(DeckId.FILES)
         message.stop()
 
     @on(LLMCallsVisibilityChanged)
@@ -361,4 +481,5 @@ class DeckPanel(Vertical):
         )
         self.refresh_chrome()
         self._update_empty_state()
+        self._notify_duplicate_ready(DeckId.TOOLS)
         message.stop()

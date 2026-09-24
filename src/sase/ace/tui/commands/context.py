@@ -363,6 +363,14 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         decks_active = bool(_decks_active(app))
     except Exception:
         decks_active = False
+    try:
+        from sase.ace.tui.widgets import AgentDetail as _AgentDetail
+        from sase.ace.tui.widgets.decks.model import DeckLayout as _DeckLayout
+
+        _detail = app.query_one("#agent-detail-panel", _AgentDetail)
+        deck_split = _detail.deck_layout is not _DeckLayout.SINGLE  # type: ignore[attr-defined]
+    except Exception:
+        deck_split = False
     return CommandContext(
         tab=tab,
         artifacts_subtab=getattr(app, "current_artifacts_pane_key", "patches"),
@@ -390,6 +398,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         has_artifact_files=has_artifact_files,
         agents_metadata_search_active=metadata_search_active,
         agent_decks_active=decks_active,
+        agent_deck_split=deck_split if decks_active else False,
         fleet_enabled=bool(fleet_available()) if callable(fleet_available) else False,
         selected_agent_remote=selected_remote,
         link_edges_present=link_edges_present,

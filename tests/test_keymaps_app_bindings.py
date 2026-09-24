@@ -235,19 +235,57 @@ def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
     assert [b.action for b in bindings if b.key == "ctrl+k"] == [
         "prev_agent_metadata_section",
         "artifacts_unload",
+        "prev_deck_card",
     ]
     assert [b.action for b in bindings if b.key == "ctrl+j"] == [
         "next_agent_metadata_section",
         "artifacts_load_more",
+        "next_deck_card",
+    ]
+    assert [b.action for b in bindings if b.key == "ctrl+n"] == [
+        "next_agent_file",
+        "next_deck",
+    ]
+    assert [b.action for b in bindings if b.key == "ctrl+p"] == [
+        "prev_agent_file",
+        "prev_deck",
+    ]
+    assert [b.action for b in bindings if b.key == "ctrl+f"] == [
+        "scroll_prompt_down",
+        "toggle_deck_focus",
+    ]
+    assert [b.action for b in bindings if b.key == "right_curly_bracket"] == [
+        "cycle_artifacts_split",
+        "grow_deck_panel",
+    ]
+    assert [b.action for b in bindings if b.key == "left_curly_bracket"] == [
+        "cycle_artifacts_split_reverse",
+        "shrink_deck_panel",
     ]
     assert by_action["next_agent_metadata_section"].key == "ctrl+j"
     assert by_action["artifacts_load_more"].key == "ctrl+j"
     assert by_action["artifacts_unload"].key == "ctrl+k"
+    assert by_action["next_deck_card"].key == "ctrl+j"
+    assert by_action["prev_deck_card"].key == "ctrl+k"
+    assert by_action["next_deck"].key == "ctrl+n"
+    assert by_action["prev_deck"].key == "ctrl+p"
+    assert by_action["toggle_deck_focus"].key == "ctrl+f"
+    assert by_action["grow_deck_panel"].key == "right_curly_bracket"
+    assert by_action["shrink_deck_panel"].key == "left_curly_bracket"
+    assert by_action["toggle_deck_split_below"].key == "backslash"
+    assert by_action["toggle_deck_split_right"].key == "vertical_line"
     assert fallback_by_action["jump_to_entry_fast"].key == "ctrl+o"
     assert fallback_by_action["jump_to_entry_forward"].key == "ctrl+shift+o"
     assert fallback_by_action["prev_agent_metadata_section"].key == "ctrl+k"
     assert fallback_by_action["artifacts_load_more"].key == "ctrl+j"
     assert fallback_by_action["artifacts_unload"].key == "ctrl+k"
+    assert fallback_by_action["next_deck_card"].key == "ctrl+j"
+    assert fallback_by_action["prev_deck_card"].key == "ctrl+k"
+    assert fallback_by_action["next_deck"].key == "ctrl+n"
+    assert fallback_by_action["prev_deck"].key == "ctrl+p"
+    assert fallback_by_action["toggle_deck_focus"].key == "ctrl+f"
+    assert fallback_by_action["grow_deck_panel"].key == "right_curly_bracket"
+    assert fallback_by_action["shrink_deck_panel"].key == "left_curly_bracket"
 
 
 def test_build_app_bindings_preserves_compound_key() -> None:

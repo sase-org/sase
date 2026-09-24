@@ -27,6 +27,15 @@ class AppKeymaps:
     prev_agent_metadata_section: str
     next_agent_file: str
     prev_agent_file: str
+    next_deck_card: str
+    prev_deck_card: str
+    next_deck: str
+    prev_deck: str
+    toggle_deck_split_below: str
+    toggle_deck_split_right: str
+    toggle_deck_focus: str
+    grow_deck_panel: str
+    shrink_deck_panel: str
     # Tab switching
     next_tab: str
     prev_tab: str

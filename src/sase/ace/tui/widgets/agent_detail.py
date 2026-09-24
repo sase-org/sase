@@ -9,6 +9,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
 
+from ._agent_detail_deck_layout import AgentDetailDeckLayoutMixin
 from ._agent_detail_decks import AgentDetailDeckMixin
 from ._agent_detail_display import AgentDetailDisplayMixin
 from ._agent_detail_helpers import agent_prompt_panel_type
@@ -36,6 +37,7 @@ class AgentMetadataIdentityChanged(Message):
 
 
 class AgentDetail(
+    AgentDetailDeckLayoutMixin,
     AgentDetailDeckMixin,
     AgentDetailDisplayMixin,
     AgentDetailStateMixin,
