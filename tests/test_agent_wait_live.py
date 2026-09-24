@@ -405,7 +405,7 @@ def test_settle_summary_blocked_target_prints_unblock_command() -> None:
     text = _export(render_wait_settle_panel(settlement, snapshot, exit_code=3))
 
     assert "plan awaits review" in text
-    assert "sase plan approve" in text
+    assert "sase plan approve planner" in text
     assert "sase agent show planner" in text
     assert "exit 3" in text
 

@@ -182,10 +182,19 @@ def test_plan_subcommand_help_is_complete() -> None:
     reject_help = parser_for(("sase", "plan", "reject")).format_help()
     show_help = parser_for(("sase", "plan", "show")).format_help()
 
-    assert "SELECTOR" in reject_help
-    assert "Notification id or unique prefix" in reject_help
-    assert "If SELECTOR is omitted, exactly one" in reject_help
+    assert "[PLAN]" in reject_help
+    assert "Pending plan: name (TAB completes)" in reject_help
+    assert "If PLAN is omitted, exactly one" in reject_help
+    assert "sase plan reject updates_tab_cached_open" in reject_help
     assert "sase plan reject abcdef12" in reject_help
+
+    assert "[PLAN]" in approve_help
+    assert "Pending plan: name (TAB completes)" in approve_help
+    assert "If PLAN is omitted, exactly one" in approve_help
+    assert "sase plan approve updates_tab_cached_open" in approve_help
+    assert "sase plan approve 202609/unrelated_red_gate_bead_close.md -k tale" in (
+        approve_help
+    )
 
     assert "{approve,commit,epic,tale}" in approve_help
     assert "-k {approve,commit,epic,tale}" in approve_help
@@ -196,9 +205,7 @@ def test_plan_subcommand_help_is_complete() -> None:
     assert "--prompt PROMPT" in approve_help
     assert "-w SPEC" in approve_help
     assert "--wait SPEC" in approve_help
-    assert "sase plan approve abcdef12 --kind tale --prompt 'Focus tests'" in (
-        approve_help
-    )
+    assert "sase plan approve 0qw --kind tale --prompt 'Focus tests'" in approve_help
     assert (
         "sase plan approve abcdef12 --kind tale --wait 'sase-s7.2,bead=sase-64.3'"
         in approve_help

@@ -282,7 +282,7 @@ def _row_for_member(
         error=error,
         blocked_reason=blocked_reason,
         inspect_commands=_inspect_commands(name, failed=failed, blocked=blocked),
-        unblock_command=_unblock_command(state),
+        unblock_command=_unblock_command(name, state),
         monitor=monitor,
         monitor_state=monitor_state,
     )
@@ -386,11 +386,12 @@ def _inspect_commands(name: str, *, failed: bool, blocked: bool) -> tuple[str, .
     return ()
 
 
-def _unblock_command(state: WaitState) -> str | None:
+def _unblock_command(name: str, state: WaitState) -> str | None:
     if state is WaitState.NEEDS_INPUT:
         return "sase questions"
     if state is WaitState.NEEDS_REVIEW:
-        return "sase plan approve"
+        # ``sase plan approve`` resolves the planner agent's name directly.
+        return f"sase plan approve {name}"
     return None
 
 
