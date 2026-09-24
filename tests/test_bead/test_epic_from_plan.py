@@ -577,3 +577,73 @@ def test_failed_forward_plan_commit_removes_graph_without_launch(
     )
     assert launches == []
     assert plan_path.read_text(encoding="utf-8") == EPIC_PLAN
+
+
+def test_relocated_launch_rolls_back_moved_id_and_preserves_original(
+    project_dir: Path,
+) -> None:
+    """A relocated launch removes the moved graph, never the original ID."""
+    from sase.bead.cli_work_handler import EpicGraphRelocatedError
+    from sase.bead.epic_from_plan import EpicFromPlanError
+
+    plan_path = project_dir / "rollout.md"
+    plan_path.write_text(EPIC_PLAN, encoding="utf-8")
+    with BeadProject(project_dir) as proj:
+        foreign = proj.create(
+            "Foreign published bead",
+            IssueType.TASK,
+            task_type="bug",
+            size="small",
+        )
+        foreign_title = foreign.title
+        foreign_status = foreign.status
+
+        moved_ids: list[str] = []
+        original_ids: list[str] = []
+
+        def launch_work(project: BeadProject, epic_id: str) -> bool:
+            original_ids.append(epic_id)
+            original_ids.extend(
+                child.id for child in project.get_epic_children(epic_id)
+            )
+            # Stand in for the publication-moved graph: it must exist so the
+            # rollback can remove it.
+            moved = project.create(
+                "Moved epic stand-in",
+                IssueType.PLAN,
+                tier=BeadTier.EPIC,
+            )
+            moved_phase = project.create(
+                "Moved phase stand-in",
+                IssueType.PHASE,
+                parent_id=moved.id,
+            )
+            moved_ids.extend((moved.id, moved_phase.id))
+            raise EpicGraphRelocatedError(epic_id, moved.id)
+
+        with pytest.raises(EpicFromPlanError) as excinfo:
+            create_and_launch_epic_from_plan(
+                proj,
+                plan_path=plan_path,
+                plan_ref="rollout.md",
+                commit_plan_update=_write_plan_update,
+                launch_work=launch_work,
+            )
+
+        exc = excinfo.value
+        assert exc.relocated_epic_id == moved_ids[0]
+        assert exc.graph_published is True
+        assert exc.rollback_performed is True
+        # The moved graph is gone.
+        for moved_id in moved_ids:
+            with pytest.raises(KeyError):
+                proj.show(moved_id)
+        # The original epic and its phases were never removed.
+        for original_id in original_ids:
+            assert proj.show(original_id).id == original_id
+        remaining = {issue.id: issue for issue in proj.list_issues()}
+        assert foreign.id in remaining
+        assert remaining[foreign.id].title == foreign_title
+        assert remaining[foreign.id].status == foreign_status
+
+    assert plan_path.read_text(encoding="utf-8") == EPIC_PLAN

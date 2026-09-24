@@ -53,6 +53,18 @@ class _PushStoreAfterLaunch(Protocol):
     ) -> None: ...
 
 
+class _WriteAndCommitPlanFile(Protocol):
+    def __call__(
+        self,
+        store: SddStore,
+        *,
+        workspace_dir: Path,
+        plan_path: Path,
+        content: str,
+        message: str,
+    ) -> bool: ...
+
+
 def resume_linked_epic(
     location: Any,
     *,
@@ -72,8 +84,14 @@ def resume_linked_epic(
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
     bead_context: BeadOperationContext | None = None,
+    write_and_commit_plan_file: _WriteAndCommitPlanFile | None = None,
+    workspace_dir: Path | None = None,
 ) -> PlanFileWorkResult:
-    from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
+    from sase.bead.cli_work_handler import (
+        BeadWorkError,
+        EpicGraphRelocatedError,
+        launch_epic_bead_work,
+    )
 
     try:
         with ExitStack() as stack:
@@ -143,6 +161,16 @@ def resume_linked_epic(
         raise
     except BeadWorkError as exc:
         detail = str(exc)
+        if isinstance(exc, EpicGraphRelocatedError):
+            detail = _relink_resumed_plan_to_moved_epic(
+                archived_path,
+                exc,
+                store=store,
+                write_and_commit_plan_file=write_and_commit_plan_file,
+                workspace_dir=workspace_dir,
+                render=render,
+                prior_detail=detail,
+            )
         if exc.graph_published and not exc.agents_spawned:
             try:
                 publish_epic_rollback(store)
@@ -197,3 +225,53 @@ def resume_linked_epic(
     if render:
         render_final(result)
     return result
+
+
+def _relink_resumed_plan_to_moved_epic(
+    archived_path: Path,
+    exc: Any,
+    *,
+    store: SddStore,
+    write_and_commit_plan_file: _WriteAndCommitPlanFile | None,
+    workspace_dir: Path | None,
+    render: bool,
+    prior_detail: str,
+) -> str:
+    """Point a resumed plan at its moved epic; return the resume detail."""
+    relocated_id = str(getattr(exc, "relocated_epic_id", ""))
+    original_id = str(getattr(exc, "original_epic_id", ""))
+    if write_and_commit_plan_file is None or workspace_dir is None:
+        return (
+            f"{prior_detail}; plan {archived_path} still links {original_id}; "
+            f"relink bead_id to {relocated_id} and re-run "
+            f"`sase bead work {archived_path}` to resume the moved epic"
+        )
+    from sase.sdd.frontmatter import set_frontmatter_fields
+
+    try:
+        content = archived_path.read_text(encoding="utf-8")
+        updated = set_frontmatter_fields(content, {"bead_id": relocated_id})
+        committed = write_and_commit_plan_file(
+            store,
+            workspace_dir=workspace_dir,
+            plan_path=archived_path,
+            content=updated,
+            message=f"Relink approved epic plan to moved epic {relocated_id}",
+        )
+    except Exception as relink_exc:  # noqa: BLE001 - resume stays actionable
+        return f"{prior_detail}; could not relink plan {archived_path} to {relocated_id}: {relink_exc}"
+    if not committed:
+        return (
+            f"{prior_detail}; could not commit relinked plan {archived_path} "
+            f"to {relocated_id}; re-running `sase bead work {archived_path}` "
+            "resumes the moved epic once relinked"
+        )
+    if render:
+        Console().print(
+            f"[yellow]↻[/yellow] Plan relinked     {original_id} → {relocated_id}"
+        )
+    return (
+        f"epic {original_id} was renumbered to {relocated_id} during "
+        f"publication; plan {archived_path} relinked to {relocated_id}. "
+        f"Re-running `sase bead work {archived_path}` resumes the moved epic."
+    )

@@ -40,6 +40,8 @@ if TYPE_CHECKING:
     from sase.bead.operation_context import BeadOperationContext
     from sase.xprompt.directive_edit import PromptWaitDirective
 
+_EPIC_CREATION_MAX_ATTEMPTS = 3
+
 
 def work_from_plan_file_locked(
     *,
@@ -172,6 +174,7 @@ def work_from_plan_file_locked(
                 location,
                 hooks=hooks,
                 store=store,
+                workspace_dir=workspace_dir,
                 archived_path=archived_path,
                 epic_id=linked_issue.id,
                 authored_phase_ids=phase_ids,
@@ -208,7 +211,7 @@ def work_from_plan_file_locked(
     launched_names: tuple[str, ...] = ()
     preserved_names: tuple[str, ...] = ()
     launch_state = ""
-    published_relocations: tuple[Any, ...] = ()
+    attempted_epic_ids: list[str] = []
 
     def commit_plan_link(path: Path, content: str, message: str) -> bool:
         return hooks.write_and_commit_plan_file(
@@ -220,19 +223,17 @@ def work_from_plan_file_locked(
         )
 
     def publish_created_graph(project: BeadProject, epic_id: str) -> Any:
-        nonlocal published_relocations
-        publication = hooks.checkpoint_and_publish_graph(
+        return hooks.checkpoint_and_publish_graph(
             store=store,
             project=project,
             epic_id=epic_id,
             no_push=no_push,
             render=render,
         )
-        published_relocations = tuple(getattr(publication, "bead_relocations", ()))
-        return publication
 
     def launch_created_epic(project: BeadProject, epic_id: str) -> bool:
         nonlocal launched_names, preserved_names, launch_state
+        attempted_epic_ids.append(epic_id)
         issue = project.show(epic_id)
         phases = [
             child
@@ -266,34 +267,65 @@ def work_from_plan_file_locked(
         launch_state = result.launch_state
         return result.launched
 
+    timer.fields["relocation_retries"] = 0
+    relocation_retries = 0
+    created: Any = None
     try:
-        with ExitStack() as stack:
-            with timer.stage("bead_project_open"):
-                project = stack.enter_context(
-                    BeadProject(
-                        location.root,
-                        beads_dirname=location.beads_dirname,
+        for attempt in range(1, _EPIC_CREATION_MAX_ATTEMPTS + 1):
+            launched_names = ()
+            preserved_names = ()
+            launch_state = ""
+            try:
+                with ExitStack() as stack:
+                    with timer.stage("bead_project_open"):
+                        project = stack.enter_context(
+                            BeadProject(
+                                location.root,
+                                beads_dirname=location.beads_dirname,
+                            )
+                        )
+                    created = create_and_launch_epic_from_plan(
+                        project,
+                        plan_path=archived_path,
+                        plan_ref=plan_ref,
+                        commit_plan_update=commit_plan_link,
+                        launch_work=launch_created_epic,
+                        parent_override=parent,
+                        replace_stale_bead_id=stale_epic_id,
+                        store=store,
+                        primary_root=workspace_dir,
+                        expect_prompt_snapshot=expect_prompt_snapshot,
+                        timer=timer,
                     )
-                )
-            created = create_and_launch_epic_from_plan(
-                project,
-                plan_path=archived_path,
-                plan_ref=plan_ref,
-                commit_plan_update=commit_plan_link,
-                launch_work=launch_created_epic,
-                parent_override=parent,
-                replace_stale_bead_id=stale_epic_id,
-                store=store,
-                primary_root=workspace_dir,
-                expect_prompt_snapshot=expect_prompt_snapshot,
-                timer=timer,
-            )
-            from sase.bead.relocation import resolve_created_bead_id
-
-            timer.fields["bead_id"] = resolve_created_bead_id(
-                created.epic.id,
-                published_relocations,
-            )
+                    timer.fields["bead_id"] = created.epic.id
+                    break
+            except EpicFromPlanError as retry_exc:
+                relocated_id = retry_exc.relocated_epic_id
+                rollback_clean = "; rollback also failed" not in str(retry_exc)
+                if (
+                    relocated_id is None
+                    or not rollback_clean
+                    or attempt >= _EPIC_CREATION_MAX_ATTEMPTS
+                ):
+                    raise
+                try:
+                    hooks.publish_epic_rollback(store)
+                except Exception:
+                    raise
+                relocation_retries += 1
+                timer.fields["relocation_retries"] = relocation_retries
+                if render:
+                    old_id = attempted_epic_ids[-1] if attempted_epic_ids else "?"
+                    Console().print(
+                        f"[yellow]↻[/yellow] Epic ID {old_id} "
+                        f"collided with a concurrently published bead "
+                        f"(moved to {relocated_id}); rolled back, "
+                        f"retrying (attempt {attempt + 1}/{_EPIC_CREATION_MAX_ATTEMPTS})"
+                    )
+                # The integrated store's counter is already past both beads,
+                # so the retry mints fresh IDs. stale_epic_id stays unchanged:
+                # rollback restored the original plan content.
+                continue
     except Exception as exc:
         retry_requires_push = False
         detail = str(exc)
@@ -323,24 +355,21 @@ def work_from_plan_file_locked(
             capacity=capacity,
         ) from exc
 
+    assert created is not None
     hooks.push_store_after_launch(
         store,
         no_push=no_push,
         archived_plan_path=archived_path,
     )
-    from sase.bead.relocation import resolve_created_bead_id
 
     result = PlanFileWorkResult(
         archived_plan_path=archived_path,
         authored_phase_ids=phase_ids,
         dry_run=False,
-        epic_id=resolve_created_bead_id(created.epic.id, published_relocations),
+        epic_id=created.epic.id,
         parent_id=created.epic.parent_id,
         replaced_stale_epic_id=stale_epic_id,
-        phase_bead_ids=tuple(
-            resolve_created_bead_id(phase.id, published_relocations)
-            for phase in created.phases
-        ),
+        phase_bead_ids=tuple(phase.id for phase in created.phases),
         launched_agent_names=launched_names,
         preserved_agent_names=preserved_names,
         launch_state=launch_state,
@@ -359,6 +388,7 @@ def resume_linked_epic(
     *,
     hooks: PlanFileWorkLaunchHooks,
     store: SddStore,
+    workspace_dir: Path,
     archived_path: Path,
     epic_id: str,
     authored_phase_ids: tuple[str, ...],
@@ -390,6 +420,8 @@ def resume_linked_epic(
         extra_waits=extra_waits,
         capacity=capacity,
         bead_context=bead_context,
+        write_and_commit_plan_file=hooks.write_and_commit_plan_file,
+        workspace_dir=workspace_dir,
     )
 
 

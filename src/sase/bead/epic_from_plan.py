@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.bead.cli_work_handler import BeadWorkError
+from sase.bead.cli_work_handler import BeadWorkError, EpicGraphRelocatedError
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType
 from sase.bead.phase_description import generated_phase_description
 from sase.bead.project import BeadProject
@@ -45,12 +45,14 @@ class EpicFromPlanError(RuntimeError):
         state_preserved: bool = False,
         rollback_performed: bool = False,
         retry_requires_push: bool = False,
+        relocated_epic_id: str | None = None,
     ) -> None:
         super().__init__(message)
         self.graph_published = graph_published
         self.state_preserved = state_preserved
         self.rollback_performed = rollback_performed
         self.retry_requires_push = retry_requires_push
+        self.relocated_epic_id = relocated_epic_id
 
 
 @dataclass(frozen=True)
@@ -248,6 +250,13 @@ def create_and_launch_epic_from_plan(
                 retry_requires_push=exc.retry_requires_push,
             ) from exc
 
+        relocated_epic_id: str | None = None
+        if isinstance(exc, EpicGraphRelocatedError):
+            # Publication moved our own freshly created graph. The pre-move
+            # epic.id now belongs to another clone's published bead, so the
+            # rollback must remove the moved ID and never the original.
+            relocated_epic_id = exc.relocated_epic_id
+
         rollback_errors = _rollback_epic_creation(
             proj,
             epic=epic,
@@ -256,6 +265,7 @@ def create_and_launch_epic_from_plan(
             plan_link_update_attempted=plan_link_update_attempted,
             plan_link_committed=plan_link_committed,
             commit_plan_update=commit_plan_update,
+            relocated_epic_id=relocated_epic_id,
         )
         detail = str(exc)
         if rollback_errors:
@@ -269,6 +279,7 @@ def create_and_launch_epic_from_plan(
             retry_requires_push=(
                 exc.retry_requires_push if isinstance(exc, BeadWorkError) else False
             ),
+            relocated_epic_id=relocated_epic_id,
         ) from exc
 
 
@@ -332,9 +343,15 @@ def _rollback_epic_creation(
     plan_link_update_attempted: bool,
     plan_link_committed: bool,
     commit_plan_update: PlanUpdateCommitter,
+    relocated_epic_id: str | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    if epic is not None:
+    remove_epic_id = (
+        relocated_epic_id
+        if relocated_epic_id is not None
+        else (epic.id if epic is not None else None)
+    )
+    if remove_epic_id is not None:
         try:
             from sase.bead.sync import (
                 bead_store_write_lock,
@@ -342,14 +359,14 @@ def _rollback_epic_creation(
             )
 
             with bead_store_write_lock(proj.beads_dir) as already_locked:
-                proj.remove(epic.id)
+                proj.remove(remove_epic_id)
                 commit_epic_creation_rollback(
                     proj.beads_dir,
-                    epic.id,
+                    remove_epic_id,
                     already_locked=already_locked,
                 )
         except Exception as exc:  # noqa: BLE001 - rollback is best effort
-            errors.append(f"could not remove epic {epic.id}: {exc}")
+            errors.append(f"could not remove epic {remove_epic_id}: {exc}")
 
     if plan_link_update_attempted:
         try:
