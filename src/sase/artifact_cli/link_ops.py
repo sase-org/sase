@@ -23,6 +23,7 @@ from sase.core.time import format_local
 from sase.sdd._artifact_link_commit import artifact_link_publication_error_for_roots
 from sase.sdd._artifact_link_event_canonical import ARTIFACT_LINK_EVENT_COMMIT_MESSAGE
 from sase.sdd._artifact_link_event_ownership import document_kinds_for_store
+from sase.sdd._artifact_link_store_support import lookup_artifact_relation_with_fallback
 from sase.sdd._artifact_link_store_support import unique_rows
 from sase.sdd._artifact_link_store_support import is_projected_row, pair_matches
 from sase.sdd._artifact_link_store_support import kind_of_ref
@@ -207,9 +208,7 @@ def remove_artifact_link(
     """Remove stored typed artifact links and persist the mutation."""
 
     if relation:
-        relation = str(
-            require_rust_binding("artifact_relation_lookup")(str(relation))["slug"]
-        )
+        relation = str(lookup_artifact_relation_with_fallback(str(relation))["slug"])
     checkout_store = _store()
     store = _publication_store(checkout_store)
     return _remove_artifact_link_event(
@@ -409,7 +408,7 @@ def _publication_roots_for_refs(
 
 
 def _cli_writable_relation(slug: str) -> str:
-    looked_up = dict(require_rust_binding("artifact_relation_lookup")(slug))
+    looked_up = lookup_artifact_relation_with_fallback(slug)
     name = str(looked_up.get("slug") or slug)
     written_by = str(looked_up.get("written_by") or "")
     if written_by == "cli":

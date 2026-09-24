@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from sase.artifact_links.projection._agent_bead import project_agent_bead_rows
+from sase.artifact_links.projection._agent_wait_bead import (
+    project_agent_wait_bead_rows,
+)
 from sase.artifact_links.projection._chop_agent import project_chop_agent_rows
 from sase.artifact_links.projection._model import ProjectedEdge, ProjectionInputs
 from sase.artifact_links.projection._stitch_rules import project_stitch_rules
@@ -24,6 +27,7 @@ def project_link_rows(inputs: ProjectionInputs) -> tuple[dict[str, Any], ...]:
     edges: list[ProjectedEdge] = []
     edges.extend(project_stitch_rules(inputs))
     edges.extend(project_agent_bead_rows(inputs))
+    edges.extend(project_agent_wait_bead_rows(inputs))
     edges.extend(project_chop_agent_rows(inputs))
     return tuple(_row_from_edge(edge) for edge in edges)
 

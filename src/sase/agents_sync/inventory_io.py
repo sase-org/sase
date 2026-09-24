@@ -30,8 +30,14 @@ def portable_metadata(raw: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
     metadata = {
         key: raw[key]
         for key in V2_METADATA_FIELDS
-        if key != "output_variables" and key in raw and raw[key] is not None
+        if key != "output_variables"
+        and key != "wait_for_beads"
+        and key in raw
+        and raw[key] is not None
     }
+    wait_beads = _portable_wait_for_beads(raw)
+    if wait_beads:
+        metadata["wait_for_beads"] = wait_beads
     try:
         json.dumps(metadata, allow_nan=False)
     except (TypeError, ValueError):
@@ -44,6 +50,32 @@ def portable_metadata(raw: dict[str, Any]) -> tuple[tuple[str, Any], ...]:
     if output_variables:
         metadata["output_variables"] = output_variables
     return tuple(sorted(metadata.items()))
+
+
+def _portable_wait_for_beads(raw: dict[str, Any]) -> list[str]:
+    """Normalize bead waits to a deduplicated list of non-empty strings.
+
+    Live runs publish ``wait_for_beads`` from ``agent_meta.json``; dismissed
+    bundles persist the TUI-side ``waiting_for_beads`` Agent field instead,
+    so accept that spelling as a fallback. Omit the key when empty.
+    """
+
+    raw_value = raw.get("wait_for_beads", None)
+    if raw_value is None:
+        raw_value = raw.get("waiting_for_beads", None)
+    if not isinstance(raw_value, list):
+        return []
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in raw_value:
+        if not isinstance(item, str):
+            continue
+        bead_id = item.strip()
+        if not bead_id or bead_id in seen:
+            continue
+        seen.add(bead_id)
+        result.append(bead_id)
+    return result
 
 
 def _portable_output_variables(value: object) -> dict[str, VarValue]:

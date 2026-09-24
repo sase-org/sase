@@ -52,6 +52,21 @@ def test_neighborhood_footer_caps_and_reports_overflow() -> None:
     assert footer.count("implements") == 5
 
 
+def test_neighborhood_footer_labels_awaits_from_both_perspectives() -> None:
+    agent = "agent:alice.athena.9w"
+    bead = "bead:sase-xx"
+    rows = (
+        {
+            "source_ref": agent,
+            "relation": "awaits",
+            "target_ref": bead,
+        },
+    )
+
+    assert neighborhood_footer(agent, rows) == "Links: awaits bead:sase-xx"
+    assert neighborhood_footer(bead, rows) == "Links: awaited-by agent:alice.athena.9w"
+
+
 def test_superseded_by_refs_only_matches_target_position() -> None:
     rows = (
         {

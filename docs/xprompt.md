@@ -2481,7 +2481,9 @@ the successful `build` agent and closed bead `sase-87.2`. Multiple `bead=` value
 preserve their authored order and are deduplicated. Bead-only waits do not name an
 agent, so they do not participate in bare-wait rewriting, agent-name templates, or
 cross-project lookup. Once a wait releases, reopening the bead does not re-park the
-agent.
+agent. Once the waiting agent is published, it is linked to every bead it waited on:
+`wait_for_beads` projects `agent:<name> awaits bead:<id>` (while `%id(..., bead=<id>)`
+yields `agent:<name> implements bead:<id>`).
 
 The repeatable `hood=<hood-name>` keyword snapshots the hood members that already exist
 when the waiter is launched and requires every current member to complete successfully.

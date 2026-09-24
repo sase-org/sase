@@ -73,6 +73,7 @@ V2_METADATA_FIELDS = frozenset(
         "role_suffix",
         "tribe",
         "vcs_provider",
+        "wait_for_beads",
         "workflow_name",
     }
 )

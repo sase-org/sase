@@ -122,6 +122,22 @@
       "recommended_target_kinds": [
         "agent"
       ]
+    },
+    {
+      "schema_version": 2,
+      "slug": "awaits",
+      "inverse": "awaited-by",
+      "directed": true,
+      "written_by": "projection",
+      "direction_note": "The waiting agent is the source; the bead it waited on is the target.",
+      "positive_example": "agent:sase-tj.land awaits bead:sase-tj.2",
+      "negative_example": "bead:sase-tj.2 awaits agent:sase-tj.land",
+      "recommended_source_kinds": [
+        "agent"
+      ],
+      "recommended_target_kinds": [
+        "bead"
+      ]
     }
   ],
   "reserved": [

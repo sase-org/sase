@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_cutover_state import artifact_link_indexes_imported
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
@@ -15,6 +14,7 @@ from sase.sdd._artifact_link_store_support import (
     canonicalize_artifact_link_ref,
     is_projected_row,
     kind_of_ref,
+    lookup_artifact_relation_with_fallback,
     pair_matches,
     read_artifact_link_index,
     row_touches,
@@ -132,9 +132,7 @@ class ArtifactLinkStoreRowsMixin:
         source = canonicalize_artifact_link_ref(source_ref)
         target = canonicalize_artifact_link_ref(target_ref)
         if relation is not None:
-            relation = str(
-                require_rust_binding("artifact_relation_lookup")(relation)["slug"]
-            )
+            relation = str(lookup_artifact_relation_with_fallback(relation)["slug"])
         matching = [
             row
             for row in self.load_aggregate().get("rows", [])

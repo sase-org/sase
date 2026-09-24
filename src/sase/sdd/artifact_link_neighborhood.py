@@ -11,6 +11,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sase.core.rust import require_rust_binding
+from sase.sdd._artifact_link_store_support import (
+    artifact_relation_label_with_fallback,
+)
 from sase.sdd.artifact_link_store import resolve_artifact_link_store
 
 
@@ -53,7 +56,10 @@ def _labeled_neighbors(
         this_is_source = source == canonical_ref
         neighbor = target if this_is_source else source
         relation = str(row.get("relation") or "")
-        label = str(label_fn(relation, this_is_source))
+        try:
+            label = str(label_fn(relation, this_is_source))
+        except (ValueError, TypeError, AttributeError):
+            label = artifact_relation_label_with_fallback(relation, this_is_source)
         items.append((relation, label, neighbor))
     return tuple(items)
 

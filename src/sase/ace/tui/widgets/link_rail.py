@@ -31,6 +31,7 @@ _MAX_TARGET_LABEL_CELLS = 34
 _MAX_WHY_CELLS = 42
 
 _RELATION_SIGILS = {
+    "awaits": "wait",
     "cites": "cite",
     "derives-from": "deriv",
     "implements": "impl",

@@ -72,3 +72,41 @@ def test_every_row_is_materialized_with_the_projected_shape(tmp_path: Path) -> N
     assert row["relation"] == "implements"
     assert row["target_ref"] == "bead:sase-xx"
     assert len(row["description"]) <= 240
+
+
+def test_agent_with_bead_id_and_wait_for_beads_yields_both_rows(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "agents-sidecar"
+    page_dir = root / "agents" / "alice.athena.9w"
+    page_dir.mkdir(parents=True)
+    (page_dir / "meta.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "owner": {"username": "alice", "machine_name": "athena"},
+                "project": {"key": "gh_sase-org__sase", "name": "sase"},
+                "source_run_id": "abc123",
+                "local_name": "9w",
+                "global_name": "alice.athena.9w",
+                "metadata": {
+                    "bead_id": "sase-xx",
+                    "wait_for_beads": ["sase-yy"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    inputs = ProjectionInputs(
+        project_key="gh_sase-org__sase",
+        primary_repo_root=None,
+        primary_repo_name=None,
+        agents_sidecar_root=root,
+    )
+
+    rows = project_link_rows(inputs)
+
+    assert {(row["relation"], row["target_ref"]) for row in rows} == {
+        ("implements", "bead:sase-xx"),
+        ("awaits", "bead:sase-yy"),
+    }

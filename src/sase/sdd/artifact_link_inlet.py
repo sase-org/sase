@@ -14,6 +14,7 @@ from sase.sdd._artifact_link_projection import preview_link_rows
 from sase.sdd._artifact_link_refresh import preview_artifact_link_projection_file
 from sase.sdd._artifact_link_store_support import (
     kind_of_ref,
+    lookup_artifact_relation_with_fallback,
     validate_artifact_link_row,
 )
 from sase.sdd.artifact_link_event_publisher import (
@@ -228,7 +229,7 @@ def _row_for_entry(
 
 def _cli_writable_relation(slug: str, *, index: int) -> dict[str, Any]:
     try:
-        relation = dict(require_rust_binding("artifact_relation_lookup")(slug))
+        relation = lookup_artifact_relation_with_fallback(slug)
     except (RuntimeError, TypeError, ValueError) as exc:
         raise ArtifactLinkFrontmatterInletError(
             f"invalid links[{index}].relation: {exc}"

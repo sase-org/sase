@@ -167,8 +167,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before creating, consuming, resolving, linking, or managing
   retention for SASE artifact references and indexed files.
-- Lines: 107
-- Approx. tokens: 1096
+- Lines: 108
+- Approx. tokens: 1114
 
 ### `sase/memory/sase_beads.md`
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1338
-- Total approx. tokens: 17678
+- Total lines: 1339
+- Total approx. tokens: 17696
 
 ## Commands
 

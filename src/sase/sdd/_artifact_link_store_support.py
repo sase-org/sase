@@ -63,6 +63,20 @@ _PROJECTION_RELATIONS = (
         "recommended_source_kinds": ["job", "chop"],
         "recommended_target_kinds": ["agent"],
     },
+    {
+        "schema_version": 2,
+        "slug": "awaits",
+        "inverse": "awaited-by",
+        "directed": True,
+        "written_by": "projection",
+        "direction_note": (
+            "The waiting agent is the source; the bead it waited on is the target."
+        ),
+        "positive_example": "agent:sase-tj.land awaits bead:sase-tj.2",
+        "negative_example": "bead:sase-tj.2 awaits agent:sase-tj.land",
+        "recommended_source_kinds": ["agent"],
+        "recommended_target_kinds": ["bead"],
+    },
 )
 
 
@@ -120,6 +134,39 @@ def kind_of_ref(value: str) -> str:
     canonical = canonicalize_artifact_link_ref(value)
     kind, _sep, _rest = canonical.partition(":")
     return kind
+
+
+def lookup_artifact_relation_with_fallback(slug: str) -> dict[str, Any]:
+    """Look up *slug*, falling back to the assembled registry on stale bindings.
+
+    Covers bindings older than the ``sase-core-revision.txt`` pin (mirroring
+    the ``_PROJECTION_RELATIONS`` entries ``assembled_artifact_relations()``
+    already carries). Truly unknown slugs still raise, preserving the
+    binding's contract.
+    """
+
+    try:
+        return dict(require_rust_binding("artifact_relation_lookup")(slug))
+    except Exception:  # noqa: BLE001 - stale binding predating the pin.
+        want = str(slug).strip()
+        for item in assembled_artifact_relations():
+            if str(item.get("slug") or "") == want:
+                return dict(item)
+        raise
+
+
+def artifact_relation_label_with_fallback(relation: str, this_is_source: bool) -> str:
+    """Render *relation* from one endpoint's perspective, with stale fallback."""
+
+    try:
+        return str(
+            require_rust_binding("artifact_relation_label")(relation, this_is_source)
+        )
+    except Exception:  # noqa: BLE001 - stale binding predating the pin.
+        info = lookup_artifact_relation_with_fallback(relation)
+        if bool(info.get("directed", True)) and not this_is_source:
+            return str(info.get("inverse") or relation)
+        return str(info.get("slug") or relation)
 
 
 def writes_sidecar_json(value: str) -> bool:

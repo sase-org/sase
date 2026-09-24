@@ -531,6 +531,18 @@ def test_add_rejects_reserved_and_machine_relations(
         == 1
     )
     assert "prompt-ref" in capsys.readouterr().err
+    assert (
+        handle_link_add(
+            argparse.Namespace(
+                source_ref="agent:alice.athena.9w",
+                relation="awaits",
+                target_ref="bead:sase-xx",
+                why="waited on it",
+            )
+        )
+        == 1
+    )
+    assert "not writable" in capsys.readouterr().err
 
 
 def test_migrate_notes_apply_and_dry_run_succeed(
@@ -633,6 +645,7 @@ def test_relation_list_covers_every_builtin_slug(
     payload = json.loads(capsys.readouterr().out)
     slugs = {item["slug"] for item in payload}
     assert slugs == {
+        "awaits",
         "cites",
         "read",
         "related",

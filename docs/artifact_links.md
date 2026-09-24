@@ -23,6 +23,7 @@ The registry is closed. Use one of these slugs exactly:
 | `derives-from` | `derived-into`   | yes      | CLI / plan inlet; research lineage derivation            |
 | `produced-by`  | `produced`       | yes      | projected from a stitch's recorded agent                 |
 | `launched`     | `launched-by`    | yes      | projected from a configured job and its published agents |
+| `awaits`       | `awaited-by`     | yes      | projected from a published agent's `wait_for_beads`      |
 
 `blocks` and `depends-on` are reserved. Use `sase bead dep` for scheduling and blocking
 relationships instead of storing those as artifact links.
@@ -32,10 +33,11 @@ Run `sase artifact link relation list` to inspect the closed registry, or
 negative examples, and recommended endpoint kinds. Both forms accept `-j/--json`.
 Direction matters: the replacement **supersedes** the old artifact, a plan or agent
 **implements** a bead, a stitch is **produced-by** an agent, a job **launched** an
-agent, and a derived report **derives-from** its source. `related` is undirected. Only
-`related`, `supersedes`, `implements`, and `derives-from` are writable by the CLI;
-`cites` and `read` are observational rows, while `produced-by` and `launched` are
-read-only projections from other durable evidence.
+agent, a waiting agent **awaits** a bead, and a derived report **derives-from** its
+source. `related` is undirected. Only `related`, `supersedes`, `implements`, and
+`derives-from` are writable by the CLI; `cites` and `read` are observational rows, while
+`produced-by`, `launched`, and `awaits` are read-only projections from other durable
+evidence.
 
 ## Commands
 
@@ -121,7 +123,9 @@ stored as link sidecars:
 - a commit with a `SASE_AGENT` trailer (or legacy `AGENT`) projects
   `stitch:<sha> produced-by agent:<name>`; and
 - a published job-agent name that resolves against the live AXE configuration projects
-  `job:<routine>/<job> launched agent:<name>`.
+  `job:<routine>/<job> launched agent:<name>`; and
+- a published agent's `wait_for_beads` (from `%wait(bead=<id>)`) projects
+  `agent:<name> awaits bead:<id>`.
 
 Projected rows carry `origin: projected` and a `created_by: projection:<rule>` marker.
 They appear in `sase artifact link list`, `sase artifact doctor`, and sase's TUI

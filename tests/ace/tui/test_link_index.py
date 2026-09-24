@@ -55,6 +55,34 @@ def test_directed_relation_has_perspective_corrected_labels() -> None:
     assert target_chips[0].directed is True
 
 
+def test_awaits_rows_index_with_perspective_labels_and_no_write() -> None:
+    index = _build_link_index(
+        _snapshot(
+            (
+                {
+                    "source_ref": "agent:alice.athena.9w",
+                    "relation": "awaits",
+                    "target_ref": "bead:sase-1",
+                    "description": "wait_for_beads names bead sase-1",
+                    "origin": "projected",
+                    "created_by": "projection:agent-wait-bead",
+                    "uses": 1,
+                },
+            )
+        )
+    )
+    source_chips = index.chips_for("agent:alice.athena.9w")
+    target_chips = index.chips_for("bead:sase-1")
+    assert len(source_chips) == 1
+    assert len(target_chips) == 1
+    assert source_chips[0].label == "awaits"
+    assert source_chips[0].this_is_source is True
+    assert source_chips[0].writable is False
+    assert target_chips[0].label == "awaited-by"
+    assert target_chips[0].this_is_source is False
+    assert target_chips[0].writable is False
+
+
 def test_symmetric_related_labels_both_directions_the_same() -> None:
     index = _build_link_index(
         _snapshot(

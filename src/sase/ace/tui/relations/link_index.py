@@ -22,6 +22,7 @@ from sase.core.agent_identity_facade import (
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_store_support import (
+    artifact_relation_label_with_fallback,
     canonicalize_artifact_link_ref,
     is_projected_row,
 )
@@ -212,7 +213,10 @@ def _build_chip(
     project_hint: str | None,
     accent_icon_cache: dict[tuple[str, str | None], tuple[str, str]],
 ) -> LinkChip:
-    label = str(label_fn(relation, this_is_source))
+    try:
+        label = str(label_fn(relation, this_is_source))
+    except (ValueError, TypeError, AttributeError):
+        label = artifact_relation_label_with_fallback(relation, this_is_source)
     parsed = parse_link_ref(neighbor_ref)
     neighbor_kind = parsed[0] if parsed is not None else ""
     neighbor_target = (

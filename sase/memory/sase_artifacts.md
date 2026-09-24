@@ -88,6 +88,7 @@ Typed links use a closed relation registry:
 - `derives-from`: inverse `derived-into`, directed yes, written by `cli`.
 - `produced-by`: inverse `produced`, directed yes, written by `projection`.
 - `launched`: inverse `launched-by`, directed yes, written by `projection`.
+- `awaits`: inverse `awaited-by`, directed yes, written by `projection`.
 
 Manual `link add` writes only the `cli` relations; `cites` is written by prompt-ref
 expansion and `read` by audited reads. These slugs are scheduling concepts, not artifact
