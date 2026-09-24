@@ -234,14 +234,14 @@ def test_renderers_cover_policy_statuses() -> None:
 
 def test_block_widgets_render_policy_blocks() -> None:
     """Transcript widgets show the policy glyphs, hints, and bodies."""
-    from sase.ace.tui.command_line.transcript import CommandLineBlockWidget
+    from sase.ace.tui.command_line.transcript import _CommandLineBlockWidget
 
     declined = _block()
     declined.status = "error"
     declined.tail_text = "Restart would stop 1 agent.\n"
     declined.exit_code = 2
     declined.declined = True
-    text = str(CommandLineBlockWidget.render_block(declined))
+    text = str(_CommandLineBlockWidget.render_block(declined))
     assert "⊘" in text
     assert "declined · exit 2 · R rerun with -y" in text
     assert "Restart would stop 1 agent." in text
@@ -249,7 +249,7 @@ def test_block_widgets_render_policy_blocks() -> None:
     denied = _block()
     denied.status = "denied"
     denied.tail_text = "You're already in the TUI\n"
-    text = str(CommandLineBlockWidget.render_block(denied))
+    text = str(_CommandLineBlockWidget.render_block(denied))
     assert "⊘" in text
     assert "not run" in text
     assert "You're already in the TUI" in text
@@ -257,14 +257,14 @@ def test_block_widgets_render_policy_blocks() -> None:
     foreground = _block()
     foreground.status = "foreground"
     foreground.exit_code = 0
-    text = str(CommandLineBlockWidget.render_block(foreground))
+    text = str(_CommandLineBlockWidget.render_block(foreground))
     assert "↗" in text
     assert "ran in terminal · exit 0" in text
 
     builtin = _block()
     builtin.status = "builtin"
     builtin.tail_text = "pinned · /tmp\n"
-    text = str(CommandLineBlockWidget.render_block(builtin))
+    text = str(_CommandLineBlockWidget.render_block(builtin))
     assert "›" in text
     assert "built-in" in text
     assert "pinned · /tmp" in text

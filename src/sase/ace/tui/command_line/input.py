@@ -26,6 +26,7 @@ from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.command_line.session import strip_implicit_prefix
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.completion.command_line_grammar import LineContext
 
 #: Dim, non-editable prefix rendered before the editable text.
 COMMAND_LINE_PREFIX = "❯ sase "
@@ -107,7 +108,7 @@ class CommandLineInput(SingleLineVimTextArea):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         kwargs.setdefault("id", "command-line-input")
         super().__init__(*args, **kwargs)
-        self.resolve_context: dict[str, Any] | None = None
+        self.resolve_context: LineContext | None = None
 
     def normalized_text(self) -> str:
         """Return the editable text with any typed ``sase `` prefix stripped."""
@@ -121,7 +122,7 @@ class CommandLineInput(SingleLineVimTextArea):
         except Exception:  # noqa: BLE001 - cursor restore is best effort.
             pass
 
-    def set_resolve_context(self, context: dict[str, Any] | None) -> None:
+    def set_resolve_context(self, context: LineContext | None) -> None:
         """Store the latest resolver response and repaint the overlay."""
         self.resolve_context = context
         try:
@@ -153,6 +154,7 @@ class CommandLineInput(SingleLineVimTextArea):
         except Exception:  # noqa: BLE001 - theme is best effort pre-mount.
             return
         base_name = str(getattr(self, "theme", "css") or "css")
+        base: TextAreaTheme | None
         try:
             base = self._themes[base_name]
         except (KeyError, AttributeError):

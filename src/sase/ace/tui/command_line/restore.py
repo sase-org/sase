@@ -54,7 +54,7 @@ class _ProcRow(Protocol):
     def log_path(self) -> str: ...
 
 
-def command_line_from_proc(proc: _ProcRow) -> str:
+def _command_line_from_proc(proc: _ProcRow) -> str:
     """Derive the panel input line that submitted a command-line proc."""
     command = list(proc.command or [])
     if len(command) >= 2 and command[0] == "sase":
@@ -87,7 +87,7 @@ def block_from_proc(proc: _ProcRow) -> CommandLineBlock | None:
     Active procs restore as running blocks so tail polling and exit watches
     keep them live; terminal rows settle immediately.
     """
-    line = command_line_from_proc(proc)
+    line = _command_line_from_proc(proc)
     if not line:
         return None
     block = CommandLineBlock(block_id=f"cmdline-{proc.proc_id}", line=line)
@@ -116,7 +116,7 @@ def block_from_proc(proc: _ProcRow) -> CommandLineBlock | None:
     return block
 
 
-def select_restore_rows(
+def _select_restore_rows(
     procs: Sequence[_ProcRow],
     *,
     now: float | None = None,
@@ -157,7 +157,7 @@ def restore_missing_blocks(
     """Append restored blocks for rows the transcript lacks; return them."""
     known = {block.proc_id for block in session.blocks if block.proc_id is not None}
     added: list[CommandLineBlock] = []
-    for proc in select_restore_rows(
+    for proc in _select_restore_rows(
         procs, now=now, limit=limit, window_seconds=window_seconds
     ):
         if proc.proc_id in known:
@@ -272,11 +272,9 @@ __all__ = [
     "RESTORE_LIMIT",
     "RESTORE_WINDOW_SECONDS",
     "block_from_proc",
-    "command_line_from_proc",
     "ensure_block_for_proc",
     "load_block_tail_text",
     "read_command_line_store_rows",
     "refresh_pruned_flags",
     "restore_missing_blocks",
-    "select_restore_rows",
 ]

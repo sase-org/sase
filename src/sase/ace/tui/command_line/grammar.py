@@ -15,6 +15,7 @@ from typing import Any
 from collections.abc import Callable
 
 from sase.completion.command_line_grammar import (
+    CommandLineGrammar,
     LineContext,
     load_command_line_grammar,
 )
@@ -34,11 +35,9 @@ _COMMAND_LINE_GRAMMAR_ERROR_ATTR = "_command_line_grammar_error"
 
 __all__ = [
     "CompletionSpecCacheError",
-    "command_line_grammar_error",
     "command_line_grammar_for",
     "ensure_command_line_grammar_loaded",
     "is_command_line_grammar_pending",
-    "load_command_line_grammar_sync",
     "resolve_command_line",
 ]
 
@@ -53,13 +52,7 @@ def is_command_line_grammar_pending(app: Any) -> bool:
     return bool(getattr(app, _COMMAND_LINE_GRAMMAR_LOADING_ATTR, False))
 
 
-def command_line_grammar_error(app: Any) -> str | None:
-    """Return the last loader error message, if the load failed."""
-    error = getattr(app, _COMMAND_LINE_GRAMMAR_ERROR_ATTR, None)
-    return str(error) if error else None
-
-
-def load_command_line_grammar_sync() -> Any:
+def _load_command_line_grammar_sync() -> CommandLineGrammar:
     """Build (or reuse) the spec and load the frozen grammar handle.
 
     Call only from a worker thread: the spec build shells out to a
@@ -97,7 +90,7 @@ def ensure_command_line_grammar_loaded(
 
     async def _load() -> None:
         try:
-            handle = await asyncio.to_thread(load_command_line_grammar_sync)
+            handle = await asyncio.to_thread(_load_command_line_grammar_sync)
         except CompletionSpecCacheError as error:
             setattr(app, _COMMAND_LINE_GRAMMAR_ERROR_ATTR, str(error))
             log.warning("command-line grammar unavailable: %s", error)

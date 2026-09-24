@@ -19,13 +19,15 @@ import re
 import subprocess
 from typing import Any, Literal
 
+from sase.completion.command_line_grammar import LineContext
+
 SubmitRoute = Literal["proc", "foreground", "deny"]
 
 #: Pattern matching a ``-y``/``--yes`` flag already present on a line.
 _CONFIRM_FLAG_RE = re.compile(r"(?:^|\s)(?:-y|--yes)(?:\s|$|=)")
 
 
-def submit_route_for(context: dict[str, Any] | None) -> SubmitRoute:
+def submit_route_for(context: LineContext | None) -> SubmitRoute:
     """Return the submit route for a resolver context (``proc`` by default)."""
     if not context:
         return "proc"
@@ -35,7 +37,7 @@ def submit_route_for(context: dict[str, Any] | None) -> SubmitRoute:
     return "proc"
 
 
-def deny_note_for(context: dict[str, Any] | None) -> str:
+def deny_note_for(context: LineContext | None) -> str:
     """Return the deny-policy note for a block body, never blank."""
     if context:
         note = str((context.get("run_policy") or {}).get("note", "") or "").strip()

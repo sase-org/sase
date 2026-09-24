@@ -18,6 +18,7 @@ from sase.ace.tui.command_line.session import (
     CommandLineSession,
     tokenize_command_line,
 )
+from sase.completion.command_line_grammar import LineContext
 
 #: Double-Enter guard window in seconds.
 SUBMIT_DEDUP_SECONDS = 0.3
@@ -116,7 +117,7 @@ def apply_exit_completion(
 
 
 def capture_resolve_context(
-    block: CommandLineBlock, context: dict[str, Any] | None
+    block: CommandLineBlock, context: LineContext | None
 ) -> None:
     """Capture the resolver's confirm flags on a block for declined logic."""
     if not context:

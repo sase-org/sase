@@ -43,9 +43,7 @@ __all__ = [
     "PopupAction",
     "PopupDecision",
     "CompletionPopupState",
-    "longest_common_prefix",
     "popup_footer",
-    "render_popup_row",
 ]
 
 
@@ -58,7 +56,7 @@ class PopupDecision:
     text: str | None = None
 
 
-def longest_common_prefix(values: list[str]) -> str:
+def _longest_common_prefix(values: list[str]) -> str:
     """Return the longest common prefix shared by all *values*."""
     if not values:
         return ""
@@ -122,7 +120,7 @@ class CompletionPopupState:
                 return PopupDecision(
                     "accept", text=str(self.items[0].get("insert_text", ""))
                 )
-            prefix = longest_common_prefix(
+            prefix = _longest_common_prefix(
                 [str(item.get("insert_text", "")) for item in self.items]
             )
             typed = self.typed_text[self.replace_start : self.replace_end]
@@ -191,7 +189,7 @@ _GLYPHS = {
 }
 
 
-def render_popup_row(item: dict[str, Any]) -> Text:
+def _render_popup_row(item: dict[str, Any]) -> Text:
     """Render one ranked completion item as a popup row.
 
     Rows follow the visual-language spec: entity glyph, value (fuzzy
@@ -254,7 +252,7 @@ class CommandLinePopup(OptionList):
         try:
             self.clear_options()
             for item in items[:POPUP_MAX_VISIBLE_ROWS]:
-                self.add_option(Option(render_popup_row(item)))
+                self.add_option(Option(_render_popup_row(item)))
         finally:
             self._applying_programmatic_highlight = False
         self.display = bool(items)

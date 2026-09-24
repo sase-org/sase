@@ -19,7 +19,7 @@ MONITOR_AGENT_JUMP_HINT = "⏎: agent"
 COMMAND_LINE_BLOCK_JUMP_HINT = "⏎: block"
 
 
-def is_command_line_row(task: Any) -> bool:
+def _is_command_line_row(task: Any) -> bool:
     """Return whether a Procs row is a TUI Command Line proc."""
     from sase.procs.command_line import COMMAND_LINE_PROC_TAG
 
@@ -46,7 +46,7 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
         """Route <enter>/click on the task list to its row action."""
         event.stop()
         task = self._get_selected_task()
-        if task is not None and is_command_line_row(task):
+        if task is not None and _is_command_line_row(task):
             self.action_open_command_line_block()
             return
         self.action_open_monitor_agent()
@@ -63,7 +63,7 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
     def _command_line_jump_hint(self) -> str | None:
         """Return the hints-line token for a selected Command Line row."""
         task = self._get_selected_task()
-        if task is None or not is_command_line_row(task):
+        if task is None or not _is_command_line_row(task):
             return None
         return COMMAND_LINE_BLOCK_JUMP_HINT
 
@@ -72,7 +72,7 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
         if self.jump_mode_active:  # type: ignore[attr-defined]
             return
         task = self._get_selected_task()
-        if task is None or not is_command_line_row(task):
+        if task is None or not _is_command_line_row(task):
             return
         proc_id = task.durable_proc_id or task.proc_id
         self._jump_to_command_line_block(proc_id)
@@ -87,7 +87,7 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
         screen.action_close()
 
         app = self.app  # type: ignore[attr-defined]
-        app.call_after_refresh(lambda: open_command_line_on_block(app, proc_id))
+        app.call_after_refresh(lambda: _open_command_line_on_block(app, proc_id))
 
     def action_open_monitor_agent(self) -> None:
         """Dismiss the Admin Center and reveal the selected monitor's agent."""
@@ -129,7 +129,7 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
         app.call_after_refresh(_reveal)
 
 
-def open_command_line_on_block(app: Any, proc_id: str) -> bool:
+def _open_command_line_on_block(app: Any, proc_id: str) -> bool:
     """Ensure a transcript block for *proc_id* and open the panel on it.
 
     Adds the block when the transcript lacks it; a missing (pruned) record
@@ -159,6 +159,4 @@ __all__ = [
     "COMMAND_LINE_BLOCK_JUMP_HINT",
     "MONITOR_AGENT_JUMP_HINT",
     "ProcsPaneAgentJumpMixin",
-    "is_command_line_row",
-    "open_command_line_on_block",
 ]

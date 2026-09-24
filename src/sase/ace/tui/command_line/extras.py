@@ -56,21 +56,14 @@ __all__ = [
     "DOC_PEEK_MIN_WIDTH",
     "EMPTY_STATE_RECENT_LIMIT",
     "FOR_SELECTION_LIMIT",
-    "EmptyStateRow",
-    "RankedHistoryEntry",
     "doc_peek_for_highlight",
-    "doc_peek_text",
     "doc_peek_visible",
     "empty_state_hint",
     "empty_state_rows",
-    "first_required_positional_kind",
-    "for_selection_rows",
-    "iter_leaf_paths",
     "marked_insert_text",
     "marked_values_for_kind",
     "provider_unavailable_note",
     "rank_history_entries",
-    "recent_rows",
     "relative_age",
     "selected_entity_kind",
     "slot_is_variadic",
@@ -78,7 +71,7 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True)
-class EmptyStateRow:
+class _EmptyStateRow:
     """One selectable row in the empty-state popup."""
 
     #: Text inserted into the input when the row is accepted (never run).
@@ -142,11 +135,11 @@ def _exit_mark(last_exit: int | None) -> str:
     return f"✗ {last_exit}"
 
 
-def recent_rows(
+def _recent_rows(
     entries: list[Any], *, limit: int = EMPTY_STATE_RECENT_LIMIT
-) -> list[EmptyStateRow]:
+) -> list[_EmptyStateRow]:
     """Return the newest history entries as empty-state RECENT rows."""
-    rows: list[EmptyStateRow] = []
+    rows: list[_EmptyStateRow] = []
     for entry in entries[: max(0, limit)]:
         line = str(getattr(entry, "line", "") or "")
         if not line.strip():
@@ -155,7 +148,7 @@ def recent_rows(
         mark = _exit_mark(getattr(entry, "last_exit", None))
         detail = "  ".join(part for part in (age, mark) if part)
         rows.append(
-            EmptyStateRow(
+            _EmptyStateRow(
                 insert_text=line, display=line, description=detail, badge="recent"
             )
         )
@@ -184,7 +177,7 @@ def selected_entity_kind(app: Any) -> str | None:
     return None
 
 
-def first_required_positional_kind(help_view: dict[str, Any] | None) -> str | None:
+def _first_required_positional_kind(help_view: dict[str, Any] | None) -> str | None:
     """Return the first required positional's value kind in *help_view*."""
     if not help_view:
         return None
@@ -196,7 +189,7 @@ def first_required_positional_kind(help_view: dict[str, Any] | None) -> str | No
     return None
 
 
-def iter_leaf_paths(
+def _iter_leaf_paths(
     help_lookup: Callable[[list[str]], dict[str, Any] | None],
 ) -> list[list[str]]:
     """Walk the help tree breadth-first; return paths with no subcommands."""
@@ -242,14 +235,14 @@ def _leaf_usage(path: list[str], entries: list[Any]) -> int:
     return count
 
 
-def for_selection_rows(
+def _for_selection_rows(
     help_lookup: Callable[[list[str]], dict[str, Any] | None],
     selected_kind: str | None,
     selected_value: str | None,
     entries: list[Any],
     *,
     limit: int = FOR_SELECTION_LIMIT,
-) -> list[EmptyStateRow]:
+) -> list[_EmptyStateRow]:
     """Derive ``FOR <selection>`` rows: leaves taking the selected kind.
 
     Lists leaf commands whose first required positional's kind matches
@@ -259,7 +252,7 @@ def for_selection_rows(
     if not selected_kind or not (selected_value or "").strip():
         return []
     try:
-        leaves = iter_leaf_paths(help_lookup)
+        leaves = _iter_leaf_paths(help_lookup)
     except Exception:  # noqa: BLE001 - derivation never breaks the panel.
         return []
     ranked: list[tuple[int, list[str]]] = []
@@ -268,12 +261,12 @@ def for_selection_rows(
             view = help_lookup(path)
         except Exception:  # noqa: BLE001 - one bad node skips one leaf.
             continue
-        if first_required_positional_kind(view) != selected_kind:
+        if _first_required_positional_kind(view) != selected_kind:
             continue
         ranked.append((_leaf_usage(path, entries), path))
     ranked.sort(key=lambda item: (-item[0], item[1]))
     rows = [
-        EmptyStateRow(
+        _EmptyStateRow(
             insert_text=f"{' '.join(path)} {selected_value}",
             display=f"{' '.join(path)} {selected_value}",
             badge="suggest",
@@ -289,9 +282,9 @@ def empty_state_rows(
     *,
     selected_kind: str | None,
     selected_value: str | None,
-) -> list[EmptyStateRow]:
+) -> list[_EmptyStateRow]:
     """Return the full empty-state row list: RECENT first, then FOR rows."""
-    return recent_rows(entries) + for_selection_rows(
+    return _recent_rows(entries) + _for_selection_rows(
         help_lookup, selected_kind, selected_value, entries
     )
 
@@ -313,7 +306,7 @@ def doc_peek_visible(width: int | None) -> bool:
         return False
 
 
-def doc_peek_text(
+def _doc_peek_text(
     help_view: dict[str, Any] | None,
     *,
     name: str,
@@ -411,7 +404,7 @@ def doc_peek_for_highlight(
             view = help_lookup([*path, canonical])
         except Exception:  # noqa: BLE001 - help lookup is best effort.
             return ""
-        return doc_peek_text(view, name=f"{' '.join([*path, canonical])}".strip())
+        return _doc_peek_text(view, name=f"{' '.join([*path, canonical])}".strip())
     if completion_kind == "option_name":
         token = str(highlighted.get("insert_text", "") or "").strip()
         if not token.startswith("-"):
@@ -427,19 +420,19 @@ def doc_peek_for_highlight(
             if token in strings or token.rstrip("=") in [
                 item.rstrip("=") for item in strings
             ]:
-                return doc_peek_text(view, name=token, option_strings=strings)
+                return _doc_peek_text(view, name=token, option_strings=strings)
     return ""
 
 
 @dataclass
-class RankedHistoryEntry:
+class _RankedHistoryEntry:
     """One history entry ranked by the ``ctrl+r`` fuzzy search."""
 
     line: str
     match_runs: list[list[int]] = field(default_factory=list)
 
 
-def rank_history_entries(query: str, entries: list[Any]) -> list[RankedHistoryEntry]:
+def rank_history_entries(query: str, entries: list[Any]) -> list[_RankedHistoryEntry]:
     """Rank history lines against *query* with the shared Rust fuzzy matcher.
 
     Entries that do not fuzzy-match are dropped; ties break by recency
@@ -450,12 +443,12 @@ def rank_history_entries(query: str, entries: list[Any]) -> list[RankedHistoryEn
     needle = (query or "").strip()
     if not needle:
         return [
-            RankedHistoryEntry(line=str(getattr(e, "line", "") or ""))
+            _RankedHistoryEntry(line=str(getattr(e, "line", "") or ""))
             for e in entries
             if str(getattr(e, "line", "") or "").strip()
         ]
     seen: set[str] = set()
-    scored: list[tuple[tuple[int, int, int, str, str], RankedHistoryEntry]] = []
+    scored: list[tuple[tuple[int, int, int, str, str], _RankedHistoryEntry]] = []
     for entry in entries:
         line = str(getattr(entry, "line", "") or "")
         if not line.strip() or line in seen:
@@ -470,7 +463,7 @@ def rank_history_entries(query: str, entries: list[Any]) -> list[RankedHistoryEn
         scored.append(
             (
                 fuzzy_sort_key(match, line),
-                RankedHistoryEntry(
+                _RankedHistoryEntry(
                     line=line,
                     match_runs=[[s, e] for s, e in match.runs],
                 ),

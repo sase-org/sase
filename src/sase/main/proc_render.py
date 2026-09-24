@@ -57,7 +57,7 @@ def _status_display(status: str) -> tuple[str, str]:
     return STATUS_DISPLAY.get(status, _UNKNOWN_DISPLAY)
 
 
-def status_text(status: str) -> Text:
+def _status_text(status: str) -> Text:
     """Return the colored ``<glyph> <status>`` label for a proc status."""
     glyph, style = _status_display(status)
     return Text(f"{glyph} {status}", style=style)
@@ -227,7 +227,7 @@ def proc_detail(
     table.add_column("value", overflow="fold", ratio=1)
 
     rows: list[tuple[str, RenderableType]] = [
-        ("Status", status_text(proc.status)),
+        ("Status", _status_text(proc.status)),
         ("Id", Text(f"{proc.proc_id}  ({short_proc_id(proc.proc_id)})")),
         ("Named proc shell", Text(proc.shell_name or "—")),
         ("Kind", _kind_text(proc.kind, verbose=True)),
@@ -326,7 +326,6 @@ __all__ = [
     "proc_list_json",
     "proc_show_json",
     "proc_table",
-    "status_text",
     "task_detail",
     "task_kill_json",
     "task_list_json",

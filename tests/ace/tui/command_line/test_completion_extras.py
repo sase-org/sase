@@ -17,18 +17,18 @@ import pytest
 
 from sase.ace.tui.command_line.extras import (
     doc_peek_for_highlight,
-    doc_peek_text,
+    _doc_peek_text,
     doc_peek_visible,
     empty_state_hint,
     empty_state_rows,
-    first_required_positional_kind,
-    for_selection_rows,
-    iter_leaf_paths,
+    _first_required_positional_kind,
+    _for_selection_rows,
+    _iter_leaf_paths,
     marked_insert_text,
     marked_values_for_kind,
     provider_unavailable_note,
     rank_history_entries,
-    recent_rows,
+    _recent_rows,
     relative_age,
     slot_is_variadic,
 )
@@ -63,7 +63,7 @@ def test_relative_age_buckets() -> None:
 
 def test_recent_rows_carry_age_and_exit_mark() -> None:
     """RECENT rows show the newest entries with age and ✓/✗ marks."""
-    rows = recent_rows(
+    rows = _recent_rows(
         [
             _entry("bead list", last_used=_stamp(hours=2), last_exit=0),
             _entry(
@@ -86,7 +86,7 @@ def test_recent_rows_carry_age_and_exit_mark() -> None:
 
 def test_recent_rows_skip_blanks_and_cap_at_five() -> None:
     """Blank lines never become rows; the list caps at five."""
-    rows = recent_rows([_entry(f"cmd {index}") for index in range(8)] + [_entry("  ")])
+    rows = _recent_rows([_entry(f"cmd {index}") for index in range(8)] + [_entry("  ")])
     assert len(rows) == 5
 
 
@@ -153,7 +153,7 @@ def _lookup(
 
 def test_iter_leaf_paths_skips_groups() -> None:
     """Only commands with no subcommands come back as leaves."""
-    assert iter_leaf_paths(_lookup(_help_tree())) == [
+    assert _iter_leaf_paths(_lookup(_help_tree())) == [
         ["bead", "close"],
         ["bead", "list"],
         ["agent", "show"],
@@ -162,15 +162,15 @@ def test_iter_leaf_paths_skips_groups() -> None:
 
 def test_iter_leaf_paths_empty_without_root() -> None:
     """A missing root degrades to no rows instead of raising."""
-    assert iter_leaf_paths(lambda path: None) == []
+    assert _iter_leaf_paths(lambda path: None) == []
 
 
 def test_first_required_positional_kind() -> None:
     """The first required positional decides the leaf's entity kind."""
     tree = _help_tree()
-    assert first_required_positional_kind(tree[("bead", "close")]) == "bead"
-    assert first_required_positional_kind(tree[("bead", "list")]) is None
-    assert first_required_positional_kind(None) is None
+    assert _first_required_positional_kind(tree[("bead", "close")]) == "bead"
+    assert _first_required_positional_kind(tree[("bead", "list")]) is None
+    assert _first_required_positional_kind(None) is None
 
 
 def test_for_rows_match_selected_kind_ranked_by_usage() -> None:
@@ -180,7 +180,9 @@ def test_for_rows_match_selected_kind_ranked_by_usage() -> None:
         _entry("bead close sase-2"),
         _entry("agent show athena.1"),
     ]
-    rows = for_selection_rows(_lookup(_help_tree()), "bead", "sase-9", entries, limit=5)
+    rows = _for_selection_rows(
+        _lookup(_help_tree()), "bead", "sase-9", entries, limit=5
+    )
     assert [row.display for row in rows] == ["bead close sase-9"]
     assert rows[0].insert_text == "bead close sase-9"
     assert rows[0].badge == "suggest"
@@ -189,9 +191,9 @@ def test_for_rows_match_selected_kind_ranked_by_usage() -> None:
 def test_for_rows_empty_without_selection() -> None:
     """No selection (or no value) means no FOR rows."""
     tree_lookup = _lookup(_help_tree())
-    assert for_selection_rows(tree_lookup, None, "sase-9", []) == []
-    assert for_selection_rows(tree_lookup, "bead", None, []) == []
-    assert for_selection_rows(tree_lookup, "proc", "abc", []) == []
+    assert _for_selection_rows(tree_lookup, None, "sase-9", []) == []
+    assert _for_selection_rows(tree_lookup, "bead", None, []) == []
+    assert _for_selection_rows(tree_lookup, "proc", "abc", []) == []
 
 
 def test_empty_state_rows_stack_recent_then_for() -> None:
@@ -228,7 +230,7 @@ def test_doc_peek_visible_only_on_wide_terminals() -> None:
 
 def test_doc_peek_text_covers_summary_usage_and_defaults() -> None:
     """The card shows summary, usage, arguments, choices, and defaults."""
-    card = doc_peek_text(
+    card = _doc_peek_text(
         {
             "summary": "Close a bead",
             "usage": "sase bead close ‹ID…› [-n NOTE]",
@@ -251,7 +253,7 @@ def test_doc_peek_text_covers_summary_usage_and_defaults() -> None:
     assert "sase bead close" in card
     assert "choices: done, canceled" in card
     assert "default: done" in card
-    assert doc_peek_text(None, name="bead close") == ""
+    assert _doc_peek_text(None, name="bead close") == ""
 
 
 def test_doc_peek_for_highlight_subcommand_and_option() -> None:

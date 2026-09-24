@@ -35,7 +35,7 @@ TAIL_POLL_SECONDS = 0.2
 EARLIER_DIVIDER = "── earlier ──"
 
 
-class CommandLineBlockWidget(Static):
+class _CommandLineBlockWidget(Static):
     """One transcript block widget; repaints only itself on tail ticks."""
 
     def __init__(
@@ -157,12 +157,12 @@ class CommandLineTranscript(VerticalScroll):
             (index for index, block in enumerate(blocks) if block.restored),
             None,
         )
-        for widget in list(self.query(CommandLineBlockWidget)):
+        for widget in list(self.query(_CommandLineBlockWidget)):
             if widget.block.block_id not in by_id:
                 widget.remove()
         existing = {
             widget.block.block_id: widget
-            for widget in self.query(CommandLineBlockWidget)
+            for widget in self.query(_CommandLineBlockWidget)
         }
         for index, block in enumerate(blocks):
             selected = block.block_id == selected_id
@@ -170,7 +170,7 @@ class CommandLineTranscript(VerticalScroll):
             existing_widget = existing.get(block.block_id)
             if existing_widget is None:
                 self.mount(
-                    CommandLineBlockWidget(
+                    _CommandLineBlockWidget(
                         block, selected=selected, show_divider=show_divider
                     )
                 )
@@ -205,7 +205,7 @@ class CommandLineTranscript(VerticalScroll):
 
     def _poll_once(self) -> None:
         try:
-            widgets = list(self.query(CommandLineBlockWidget))
+            widgets = list(self.query(_CommandLineBlockWidget))
         except Exception:  # noqa: BLE001 - teardown races degrade silently.
             return
         for widget in widgets:
@@ -235,6 +235,5 @@ class CommandLineTranscript(VerticalScroll):
 __all__ = [
     "EARLIER_DIVIDER",
     "TAIL_POLL_SECONDS",
-    "CommandLineBlockWidget",
     "CommandLineTranscript",
 ]

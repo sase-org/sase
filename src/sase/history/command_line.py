@@ -32,6 +32,7 @@ _COMMAND_LINE_HISTORY_LOCK_FILENAME = "command_line_history.lock"
 #: Maximum entries kept; eviction is least-recently-used by ``last_used``.
 COMMAND_LINE_HISTORY_LIMIT = 1000
 
+#: Store path override; tests patch this attribute, production leaves it ``None``.
 _history_file_override: Path | None = None
 
 
@@ -47,13 +48,7 @@ class CommandLineHistoryEntry:
     last_used: str = ""
 
 
-def set_command_line_history_file(path: Path | None) -> None:
-    """Override the store path (tests only)."""
-    global _history_file_override
-    _history_file_override = path
-
-
-def command_line_history_file() -> Path:
+def _command_line_history_file() -> Path:
     """Return the on-disk Command Line history path."""
     if _history_file_override is not None:
         return _history_file_override
@@ -62,7 +57,7 @@ def command_line_history_file() -> Path:
 
 def _command_line_history_lock_file() -> Path:
     """Return the lock file path for Command Line history mutations."""
-    return command_line_history_file().with_name(_COMMAND_LINE_HISTORY_LOCK_FILENAME)
+    return _command_line_history_file().with_name(_COMMAND_LINE_HISTORY_LOCK_FILENAME)
 
 
 @contextmanager
@@ -112,7 +107,7 @@ def _entry_to_json(entry: CommandLineHistoryEntry) -> dict[str, Any]:
 
 def load_command_line_history() -> list[CommandLineHistoryEntry]:
     """Load history newest-first; corrupt files read as empty."""
-    path = command_line_history_file()
+    path = _command_line_history_file()
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError:
@@ -131,9 +126,9 @@ def load_command_line_history() -> list[CommandLineHistoryEntry]:
     return parsed
 
 
-def save_command_line_history(entries: list[CommandLineHistoryEntry]) -> bool:
+def _save_command_line_history(entries: list[CommandLineHistoryEntry]) -> bool:
     """Atomically save history, enforcing the LRU cap. Never raises."""
-    path = command_line_history_file()
+    path = _command_line_history_file()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         capped = sorted(entries, key=lambda e: e.last_used, reverse=True)[
@@ -189,7 +184,7 @@ def record_command_line(
             entry.project = project if project is not None else entry.project
             if exit_code is not None:
                 entry.last_exit = exit_code
-            save_command_line_history(entries)
+            _save_command_line_history(entries)
             return entry
     recorded = CommandLineHistoryEntry(
         line=text,
@@ -200,7 +195,7 @@ def record_command_line(
         last_used=now,
     )
     entries.append(recorded)
-    save_command_line_history(entries)
+    _save_command_line_history(entries)
     return recorded
 
 
@@ -249,12 +244,9 @@ def ghost_for_prefix(
 __all__ = [
     "COMMAND_LINE_HISTORY_LIMIT",
     "CommandLineHistoryEntry",
-    "command_line_history_file",
     "ghost_for_prefix",
     "load_command_line_history",
     "locked_command_line_history",
     "prefix_matches",
     "record_command_line",
-    "save_command_line_history",
-    "set_command_line_history_file",
 ]

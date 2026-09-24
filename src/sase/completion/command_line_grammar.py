@@ -19,7 +19,7 @@ from typing import Any, Final, NotRequired, TypedDict, cast
 COMMAND_LINE_GRAMMAR_SCHEMA_VERSION: Final = 1
 
 
-class LineToken(TypedDict):
+class _LineToken(TypedDict):
     """One lexed token with its resolver role."""
 
     text: str
@@ -30,7 +30,7 @@ class LineToken(TypedDict):
     unterminated: bool
 
 
-class LineSlot(TypedDict):
+class _LineSlot(TypedDict):
     """The cursor slot classification."""
 
     kind: str
@@ -43,7 +43,7 @@ class LineSlot(TypedDict):
     replace_end: int
 
 
-class LineDiagnostic(TypedDict):
+class _LineDiagnostic(TypedDict):
     """One advisory diagnostic (never blocking)."""
 
     start: int
@@ -53,7 +53,7 @@ class LineDiagnostic(TypedDict):
     message: str
 
 
-class SignatureSegment(TypedDict):
+class _SignatureSegment(TypedDict):
     """One usage segment with its active/required flags."""
 
     text: str
@@ -62,14 +62,14 @@ class SignatureSegment(TypedDict):
     required: bool
 
 
-class LineSignature(TypedDict):
+class _LineSignature(TypedDict):
     """The live signature line."""
 
-    segments: list[SignatureSegment]
+    segments: list[_SignatureSegment]
     summary: str
 
 
-class RunPolicyOutcome(TypedDict):
+class _RunPolicyOutcome(TypedDict):
     """The evaluated run policy for the resolved node."""
 
     policy: str
@@ -79,15 +79,15 @@ class RunPolicyOutcome(TypedDict):
 class LineContext(TypedDict):
     """The full per-keystroke resolver response."""
 
-    tokens: list[LineToken]
+    tokens: list[_LineToken]
     argv: list[str]
     path: list[str]
     node_kind: str
-    slot: LineSlot
+    slot: _LineSlot
     used_dests: list[str]
-    diagnostics: list[LineDiagnostic]
-    signature: LineSignature
-    run_policy: RunPolicyOutcome
+    diagnostics: list[_LineDiagnostic]
+    signature: _LineSignature
+    run_policy: _RunPolicyOutcome
     writes: bool
     confirms: bool
     confirm_flag_present: bool
@@ -95,7 +95,7 @@ class LineContext(TypedDict):
     schema_version: int
 
 
-class DynamicCandidate(TypedDict):
+class _DynamicCandidate(TypedDict):
     """One caller-supplied completion candidate."""
 
     value: str
@@ -106,7 +106,7 @@ class DynamicCandidate(TypedDict):
     partial: NotRequired[bool | None]
 
 
-class CompletionItem(TypedDict):
+class _CompletionItem(TypedDict):
     """One ranked completion row."""
 
     insert_text: str
@@ -118,18 +118,18 @@ class CompletionItem(TypedDict):
     selected: bool
 
 
-class CommandLineCompletion(TypedDict):
+class _CommandLineCompletion(TypedDict):
     """The ranked completion response for the cursor slot."""
 
     replace_start: int
     replace_end: int
-    items: list[CompletionItem]
+    items: list[_CompletionItem]
     total: int
     kind: str
     schema_version: int
 
 
-class HelpPositional(TypedDict):
+class _HelpPositional(TypedDict):
     """One positional row in command help."""
 
     metavar: str
@@ -142,7 +142,7 @@ class HelpPositional(TypedDict):
     value_hint: str | None
 
 
-class HelpOption(TypedDict):
+class _HelpOption(TypedDict):
     """One option row in command help."""
 
     strings: list[str]
@@ -158,7 +158,7 @@ class HelpOption(TypedDict):
     value_hint: str | None
 
 
-class HelpChild(TypedDict):
+class _HelpChild(TypedDict):
     """One subcommand row in command help."""
 
     name: str
@@ -166,14 +166,14 @@ class HelpChild(TypedDict):
     summary: str
 
 
-class CommandHelp(TypedDict):
+class _CommandHelp(TypedDict):
     """The static help view for one command path."""
 
     usage: str
     summary: str
-    positionals: list[HelpPositional]
-    options: list[HelpOption]
-    children: list[HelpChild]
+    positionals: list[_HelpPositional]
+    options: list[_HelpOption]
+    children: list[_HelpChild]
     default_child: str | None
     run_policy: list[dict[str, Any]]
     writes: bool
@@ -210,13 +210,13 @@ class CommandLineGrammar:
         line: str,
         cursor: int,
         *,
-        dynamic: Sequence[DynamicCandidate] = (),
+        dynamic: Sequence[_DynamicCandidate] = (),
         selected: Sequence[str] = (),
         limit: int = 100,
-    ) -> CommandLineCompletion:
+    ) -> _CommandLineCompletion:
         """Return ranked candidates for the cursor slot."""
         return cast(
-            CommandLineCompletion,
+            _CommandLineCompletion,
             self._handle.complete(
                 line,
                 cursor,
@@ -226,10 +226,10 @@ class CommandLineGrammar:
             ),
         )
 
-    def command_help(self, path: Sequence[str]) -> CommandHelp | None:
+    def command_help(self, path: Sequence[str]) -> _CommandHelp | None:
         """Return the help view for *path*, or ``None`` when unknown."""
         result = self._handle.command_help(list(path))
-        return None if result is None else cast(CommandHelp, result)
+        return None if result is None else cast(_CommandHelp, result)
 
     def __len__(self) -> int:
         return len(self._handle)
@@ -246,20 +246,7 @@ def load_command_line_grammar(path: Path) -> CommandLineGrammar:
 
 __all__ = [
     "COMMAND_LINE_GRAMMAR_SCHEMA_VERSION",
-    "CommandHelp",
-    "CommandLineCompletion",
     "CommandLineGrammar",
-    "CompletionItem",
-    "DynamicCandidate",
-    "HelpChild",
-    "HelpOption",
-    "HelpPositional",
     "LineContext",
-    "LineDiagnostic",
-    "LineSignature",
-    "LineSlot",
-    "LineToken",
-    "RunPolicyOutcome",
-    "SignatureSegment",
     "load_command_line_grammar",
 ]

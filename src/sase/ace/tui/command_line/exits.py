@@ -38,7 +38,7 @@ def deliver_command_line_exit(app: Any, completion: Any) -> bool:
     return True
 
 
-def completion_toast_text(app: Any, block: Any) -> str:
+def _completion_toast_text(app: Any, block: Any) -> str:
     """Build the hidden-finish toast for a settled block (pure)."""
     glyph = "✓" if block.status == "success" else "✗"
     parts: list[str] = []
@@ -62,7 +62,7 @@ def _toast_completion(app: Any, block: Any) -> None:
         return
     severity = "information" if block.status == "success" else "error"
     try:
-        notify(completion_toast_text(app, block), severity=severity)
+        notify(_completion_toast_text(app, block), severity=severity)
     except Exception:  # noqa: BLE001 - toasts are best effort.
         pass
 
@@ -153,4 +153,4 @@ def _repaint_panel(app: Any) -> None:
             pass
 
 
-__all__ = ["completion_toast_text", "deliver_command_line_exit"]
+__all__ = ["deliver_command_line_exit"]

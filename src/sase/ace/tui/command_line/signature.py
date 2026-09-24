@@ -17,32 +17,12 @@ from typing import Any
 
 from rich.text import Text
 
-__all__ = [
-    "build_chips",
-    "build_signature",
-    "first_diagnostic_message",
-    "option_summary_text",
-    "role_style",
-    "signature_hint_line",
-]
+from sase.completion.command_line_grammar import LineContext
 
-#: Token-role colors from the panel visual language.
-_ROLE_STYLES = {
-    "command": "bold #00D7AF",
-    "subcommand": "bold #00D7AF",
-    "option": "#87D7FF",
-    "option_name": "#87D7FF",
-    "quoted": "#FFB86B",
-    "string": "#FFB86B",
-}
+__all__ = ["signature_hint_line"]
 
 
-def role_style(role: str) -> str:
-    """Return the highlight style for a resolver token *role*."""
-    return _ROLE_STYLES.get(role, "")
-
-
-def first_diagnostic_message(context: dict[str, Any] | None) -> str:
+def _first_diagnostic_message(context: LineContext | None) -> str:
     """Return the first advisory diagnostic message, or ``""``."""
     if not context:
         return ""
@@ -52,7 +32,7 @@ def first_diagnostic_message(context: dict[str, Any] | None) -> str:
     return str(diagnostics[0].get("message", "") or "")
 
 
-def build_signature(context: dict[str, Any] | None) -> Text:
+def _build_signature(context: LineContext | None) -> Text:
     """Render the live signature with the active slot emphasized."""
     text = Text()
     if not context:
@@ -72,7 +52,7 @@ def build_signature(context: dict[str, Any] | None) -> Text:
     return text
 
 
-def option_summary_text(help_option: dict[str, Any] | None) -> str:
+def _option_summary_text(help_option: dict[str, Any] | None) -> str:
     """Render the popup-highlighted option's summary row, or ``""``."""
     if not help_option:
         return ""
@@ -93,7 +73,7 @@ def option_summary_text(help_option: dict[str, Any] | None) -> str:
     return " · ".join(part for part in parts if part)
 
 
-def build_chips(context: dict[str, Any] | None) -> Text:
+def _build_chips(context: LineContext | None) -> Text:
     """Render the right-aligned policy chips for the signature row."""
     text = Text()
     if not context:
@@ -121,7 +101,7 @@ def build_chips(context: dict[str, Any] | None) -> Text:
 
 
 def signature_hint_line(
-    context: dict[str, Any] | None,
+    context: LineContext | None,
     *,
     highlighted_option: dict[str, Any] | None = None,
 ) -> Text:
@@ -132,16 +112,16 @@ def signature_hint_line(
     signature in red. Policy chips trail on the right.
     """
     if highlighted_option is not None:
-        summary = option_summary_text(highlighted_option)
+        summary = _option_summary_text(highlighted_option)
         if summary:
             return Text(summary, style="dim")
-    text = build_signature(context)
-    diagnostic = first_diagnostic_message(context)
+    text = _build_signature(context)
+    diagnostic = _first_diagnostic_message(context)
     if diagnostic:
         if len(text):
             text.append("  ")
         text.append(diagnostic, style="red")
-    chips = build_chips(context)
+    chips = _build_chips(context)
     if len(chips):
         if len(text):
             text.append("   ")

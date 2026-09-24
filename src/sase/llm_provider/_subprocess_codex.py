@@ -110,7 +110,7 @@ class _CodexTurnIntegrityState:
                     command_id=command_id,
                     command=command,
                     reason="killed_at_teardown",
-                    is_handoff=is_sase_handoff_command(command),
+                    is_handoff=_is_sase_handoff_command(command),
                 )
                 for command_id, command in self.killed_commands.items()
             ]
@@ -119,7 +119,7 @@ class _CodexTurnIntegrityState:
                     command_id=command_id,
                     command=command,
                     reason="started_without_result",
-                    is_handoff=is_sase_handoff_command(command),
+                    is_handoff=_is_sase_handoff_command(command),
                 )
                 for command_id, command in self.pending_commands.items()
             ]
@@ -263,7 +263,7 @@ _SASE_HANDOFF_COMMAND_PREFIXES = (
 )
 
 
-def is_sase_handoff_command(command: str | None) -> bool:
+def _is_sase_handoff_command(command: str | None) -> bool:
     """Return whether *command* is a SASE CLI command that hands off a turn."""
     if not command:
         return False

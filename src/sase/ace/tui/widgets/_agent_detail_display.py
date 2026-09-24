@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 from ..models.agent import AgentType
 from ..util.trace import tui_trace
 from ._agent_detail_helpers import agent_prompt_panel_type
 
 if TYPE_CHECKING:
+    from textual.css.query import QueryType
+    from textual.widget import Widget
+
     from ..models.agent import Agent
     from ..models.agent_tribe_summary import TribePanelIdentity
     from .prompt_panel._agent_display_state import AgentHintRender
@@ -37,6 +40,27 @@ class AgentDetailDisplayMixin:
 
     def _publish_metadata_identity_change(self, previous: object | None) -> None:
         raise NotImplementedError
+
+    if TYPE_CHECKING:
+
+        @overload
+        def query_one(self, selector: str) -> Widget: ...
+
+        @overload
+        def query_one(self, selector: type[QueryType]) -> QueryType: ...
+
+        @overload
+        def query_one(
+            self, selector: str, expect_type: type[QueryType]
+        ) -> QueryType: ...
+
+        def query_one(
+            self,
+            selector: str | type[QueryType],
+            expect_type: type[QueryType] | None = None,
+        ) -> QueryType | Widget: ...
+
+        def _sync_header_visibility(self) -> None: ...
 
     def update_display(
         self,

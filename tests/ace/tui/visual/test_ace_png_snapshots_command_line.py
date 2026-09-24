@@ -142,12 +142,13 @@ async def test_command_line_typed_ghost_png_snapshot(
     from sase.history import command_line as history_store
 
     seed = tmp_path / "command_line_history.json"
-    history_store.set_command_line_history_file(seed)
-    with history_store.locked_command_line_history():
+    with (
+        patch.object(history_store, "_history_file_override", seed),
+        history_store.locked_command_line_history(),
+    ):
         history_store.record_command_line(
             "bead list --status open", cwd="/home/test/projects/sase", project="sase"
         )
-    history_store.set_command_line_history_file(None)
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -414,15 +415,14 @@ def _seed_history_file(tmp_path: Path, *lines: str) -> Path:
     from sase.history import command_line as history_store
 
     seed = tmp_path / "command_line_history.json"
-    history_store.set_command_line_history_file(seed)
-    try:
-        with history_store.locked_command_line_history():
-            for line in lines:
-                history_store.record_command_line(
-                    line, cwd="/home/test/projects/sase", project="sase"
-                )
-    finally:
-        history_store.set_command_line_history_file(None)
+    with (
+        patch.object(history_store, "_history_file_override", seed),
+        history_store.locked_command_line_history(),
+    ):
+        for line in lines:
+            history_store.record_command_line(
+                line, cwd="/home/test/projects/sase", project="sase"
+            )
     return seed
 
 

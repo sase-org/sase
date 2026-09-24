@@ -15,27 +15,27 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.command_line.exits import (
-    completion_toast_text,
+    _completion_toast_text,
     deliver_command_line_exit,
 )
 from sase.ace.tui.command_line.restore import (
     RESTORE_LIMIT,
     block_from_proc,
-    command_line_from_proc,
+    _command_line_from_proc,
     ensure_block_for_proc,
     load_block_tail_text,
     refresh_pruned_flags,
     restore_missing_blocks,
-    select_restore_rows,
+    _select_restore_rows,
 )
 from sase.ace.tui.command_line.session import (
     CommandLineBlock,
     CommandLineSession,
 )
-from sase.ace.tui.command_line.transcript import CommandLineBlockWidget
+from sase.ace.tui.command_line.transcript import _CommandLineBlockWidget
 from sase.ace.tui.modals.procs_pane_agent_jump import (
-    is_command_line_row,
-    open_command_line_on_block,
+    _is_command_line_row,
+    _open_command_line_on_block,
 )
 
 
@@ -159,7 +159,7 @@ def test_select_restore_rows_filters_and_orders() -> None:
         _row("old", created_at="2026-09-20T11:00:00Z"),
         _row("oldest", created_at="2026-09-24T09:00:00Z"),
     ]
-    selected = select_restore_rows(rows, now=_NOW)
+    selected = _select_restore_rows(rows, now=_NOW)
     assert [row.proc_id for row in selected] == ["oldest", "new"]
 
 
@@ -169,7 +169,7 @@ def test_select_restore_rows_enforces_limit_newest() -> None:
         _row(f"proc-{index:02d}", created_at="2026-09-24T11:00:00Z")
         for index in range(25)
     ]
-    selected = select_restore_rows(rows, now=_NOW, limit=RESTORE_LIMIT)
+    selected = _select_restore_rows(rows, now=_NOW, limit=RESTORE_LIMIT)
     assert len(selected) == RESTORE_LIMIT
     assert selected[0].proc_id == "proc-19"
     assert selected[-1].proc_id == "proc-00"
@@ -177,9 +177,9 @@ def test_select_restore_rows_enforces_limit_newest() -> None:
 
 def test_command_line_from_proc_prefers_argv() -> None:
     """The input line is recovered from the stored argv first."""
-    assert command_line_from_proc(_row("p1")) == "bead show p1"
+    assert _command_line_from_proc(_row("p1")) == "bead show p1"
     assert (
-        command_line_from_proc(_row("p2", command=[], label=": bead list"))
+        _command_line_from_proc(_row("p2", command=[], label=": bead list"))
         == "bead list"
     )
 
@@ -283,24 +283,24 @@ def test_render_selected_unseen_divider_and_rotation() -> None:
     """The bar, dot, divider, and rotation marker render from session state."""
     block = CommandLineBlock(block_id="b1", line="bead list")
     block.status = "success"
-    rendered = CommandLineBlockWidget.render_block(block)
+    rendered = _CommandLineBlockWidget.render_block(block)
     assert "▌" not in str(rendered)
     assert "•" not in str(rendered)
 
     block.unseen = True
-    assert "•" in str(CommandLineBlockWidget.render_block(block))
+    assert "•" in str(_CommandLineBlockWidget.render_block(block))
 
-    selected = CommandLineBlockWidget.render_block(block, selected=True)
+    selected = _CommandLineBlockWidget.render_block(block, selected=True)
     assert "▌" in str(selected)
 
-    divider = CommandLineBlockWidget.render_block(block, show_divider=True)
+    divider = _CommandLineBlockWidget.render_block(block, show_divider=True)
     assert "── earlier ──" in str(divider)
 
     block.lost_bytes = 12
-    assert "earlier output rotated" in str(CommandLineBlockWidget.render_block(block))
+    assert "earlier output rotated" in str(_CommandLineBlockWidget.render_block(block))
 
     block.pruned = True
-    assert "record pruned" in str(CommandLineBlockWidget.render_block(block))
+    assert "record pruned" in str(_CommandLineBlockWidget.render_block(block))
 
 
 # -- toasts ------------------------------------------------------------------------
@@ -322,13 +322,15 @@ def test_completion_toast_text_success_and_failure() -> None:
     done.status = "success"
     done.exit_code = 0
     done.elapsed = 0.9
-    assert completion_toast_text(app, done) == "✓ bead list · exit 0 · 0.9s — : to view"
+    assert (
+        _completion_toast_text(app, done) == "✓ bead list · exit 0 · 0.9s — : to view"
+    )
 
     failed = CommandLineBlock(block_id="b2", line="bead close sase-zz")
     failed.status = "error"
     failed.exit_code = 2
     failed.elapsed = 0.7
-    assert "✗ bead close sase-zz · exit 2 · 0.7s" in completion_toast_text(app, failed)
+    assert "✗ bead close sase-zz · exit 2 · 0.7s" in _completion_toast_text(app, failed)
 
 
 def test_completion_toast_omits_hint_while_unbound() -> None:
@@ -341,7 +343,7 @@ def test_completion_toast_omits_hint_while_unbound() -> None:
     done = CommandLineBlock(block_id="b1", line="bead list")
     done.status = "success"
     done.exit_code = 0
-    text = completion_toast_text(app, done)
+    text = _completion_toast_text(app, done)
     assert "to view" not in text
     assert text.startswith("✓ bead list")
 
@@ -377,9 +379,9 @@ def test_deliver_exit_toasts_when_hidden_and_marks_unseen() -> None:
 
 def test_is_command_line_row_checks_tag() -> None:
     """Only ``command-line``-tagged rows divert Procs ``⏎`` to the panel."""
-    assert is_command_line_row(SimpleNamespace(tags=("command-line",))) is True
-    assert is_command_line_row(SimpleNamespace(tags=())) is False
-    assert is_command_line_row(SimpleNamespace(tags=None)) is False
+    assert _is_command_line_row(SimpleNamespace(tags=("command-line",))) is True
+    assert _is_command_line_row(SimpleNamespace(tags=())) is False
+    assert _is_command_line_row(SimpleNamespace(tags=None)) is False
 
 
 def test_open_command_line_on_block_reports_pruned(
@@ -395,7 +397,7 @@ def test_open_command_line_on_block_reports_pruned(
         notify=lambda message, **kwargs: notices.append(message),
     )
     monkeypatch.setattr(restore_module, "ensure_block_for_proc", lambda s, p: None)
-    assert open_command_line_on_block(app, "gone") is False
+    assert _open_command_line_on_block(app, "gone") is False
     assert opened == ["panel"]
     assert notices == ["Proc record pruned"]
     from sase.ace.tui.command_line.session import command_line_session_for
@@ -417,7 +419,7 @@ def test_open_command_line_on_block_selects_existing() -> None:
     session = command_line_session_for(app)
     block = session.add_block("bead show p1")
     block.proc_id = "p1"
-    assert open_command_line_on_block(app, "p1") is True
+    assert _open_command_line_on_block(app, "p1") is True
     assert opened == ["panel"]
     assert session.focus_block_proc_id == "p1"
 

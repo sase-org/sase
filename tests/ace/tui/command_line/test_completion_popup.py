@@ -15,20 +15,20 @@ import pytest
 
 from sase.ace.tui.command_line.popup import (
     CompletionPopupState,
-    longest_common_prefix,
+    _longest_common_prefix,
     popup_footer,
-    render_popup_row,
+    _render_popup_row,
 )
 from sase.ace.tui.command_line.signature import (
-    build_chips,
-    build_signature,
-    first_diagnostic_message,
-    option_summary_text,
+    _build_chips,
+    _build_signature,
+    _first_diagnostic_message,
+    _option_summary_text,
     signature_hint_line,
 )
 from sase.ace.tui.command_line.sources import (
     ProviderCache,
-    in_memory_candidates,
+    _in_memory_candidates,
     needs_provider_fetch,
     selected_entity_values,
 )
@@ -46,10 +46,10 @@ def _items(*insert_texts: str) -> list[dict]:
 
 def test_longest_common_prefix() -> None:
     """LCP spans the shared stem and collapses on divergence."""
-    assert longest_common_prefix(["close ", "closed"]) == "close"
-    assert longest_common_prefix(["bead "]) == "bead "
-    assert longest_common_prefix(["abc", "xyz"]) == ""
-    assert longest_common_prefix([]) == ""
+    assert _longest_common_prefix(["close ", "closed"]) == "close"
+    assert _longest_common_prefix(["bead "]) == "bead "
+    assert _longest_common_prefix(["abc", "xyz"]) == ""
+    assert _longest_common_prefix([]) == ""
 
 
 # -- Tab / Enter / Escape state machine ----------------------------------------
@@ -175,10 +175,13 @@ def test_provider_cache_drops_stale_generations() -> None:
 
 def test_provider_cache_entries_expire() -> None:
     """Expired entries read back as missing so the next keystroke refetches."""
-    cache = ProviderCache(ttl_seconds=0.01)
+    now = 100.0
+    cache = ProviderCache(ttl_seconds=10.0, clock=lambda: now)
     generation = cache.next_generation()
     assert cache.commit(generation, "bead", None, [{"value": "x"}]) is True
-    time.sleep(0.02)
+    now += 5.0
+    assert cache.cached("bead", None) == [{"value": "x"}]
+    now += 6.0
     assert cache.cached("bead", None) is None
 
 
@@ -214,11 +217,11 @@ def _agents_app() -> SimpleNamespace:
 
 def test_in_memory_agent_candidates_come_from_app_state() -> None:
     """Agent slots complete from the TUI's live agents without I/O."""
-    candidates = in_memory_candidates(_agents_app(), "agent")
+    candidates = _in_memory_candidates(_agents_app(), "agent")
     assert [candidate.value for candidate in candidates] == ["athena.1", "mus.2"]
     assert all(candidate.source == "tui" for candidate in candidates)
-    assert in_memory_candidates(_agents_app(), "bead") == []
-    assert in_memory_candidates(SimpleNamespace(), "agent") == []
+    assert _in_memory_candidates(_agents_app(), "bead") == []
+    assert _in_memory_candidates(SimpleNamespace(), "agent") == []
 
 
 def test_selected_entity_values_lead_with_selection() -> None:
@@ -276,7 +279,7 @@ def test_selected_first_ranking_through_rust_handle() -> None:
 
 def test_popup_row_marks_selected_and_highlights_runs() -> None:
     """Selected rows get ``◆ … sel``; fuzzy runs render bold."""
-    row = render_popup_row(
+    row = _render_popup_row(
         {
             "display": "athena.1",
             "match_runs": [[0, 3]],
@@ -355,7 +358,7 @@ def test_signature_shows_active_slot_diagnostic_and_chips() -> None:
 
 def test_signature_option_swap_replaces_slots() -> None:
     """A highlighted option swaps its summary (choices, default) into the row."""
-    summary = option_summary_text(
+    summary = _option_summary_text(
         {
             "summary": "Filter by status",
             "choices": ["open", "closed"],
@@ -379,16 +382,16 @@ def test_signature_option_swap_replaces_slots() -> None:
 def test_chips_cover_terminal_deny_and_stdin() -> None:
     """Foreground, deny, and stdin policies each render their own chip."""
     foreground = dict(_signature_context(), run_policy={"policy": "foreground"})
-    assert "↗ terminal" in build_chips(foreground).plain
+    assert "↗ terminal" in _build_chips(foreground).plain
     denied = dict(
         _signature_context(), run_policy={"policy": "deny", "note": "use edit"}
     )
-    assert "⊘ use edit" in build_chips(denied).plain
-    assert "reads stdin" in build_chips(dict(_signature_context(), stdin=True)).plain
-    assert build_chips(None).plain == ""
-    assert first_diagnostic_message(None) == ""
-    assert first_diagnostic_message({}) == ""
-    assert build_signature(None).plain == ""
+    assert "⊘ use edit" in _build_chips(denied).plain
+    assert "reads stdin" in _build_chips(dict(_signature_context(), stdin=True)).plain
+    assert _build_chips(None).plain == ""
+    assert _first_diagnostic_message(None) == ""
+    assert _first_diagnostic_message({}) == ""
+    assert _build_signature(None).plain == ""
 
 
 # -- input highlight overlay -----------------------------------------------------

@@ -42,6 +42,17 @@ class AgentDetailStateMixin:
     def _publish_metadata_identity_change(self, previous: object | None) -> None:
         raise NotImplementedError
 
+    if TYPE_CHECKING:
+
+        def _sync_header_visibility(self) -> None: ...
+
+        def update_display(
+            self,
+            agent: Agent,
+            stale_threshold_seconds: int = 10,
+            attempt_number: int | None = None,
+        ) -> None: ...
+
     def show_empty(self) -> None:
         """Show empty state for all panels."""
         previous_identity = self.metadata_identity

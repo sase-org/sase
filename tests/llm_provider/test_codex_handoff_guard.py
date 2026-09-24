@@ -11,7 +11,7 @@ import pytest
 from sase.llm_provider._subprocess_codex import (
     CodexStreamResult,
     CodexStrandedCommand,
-    is_sase_handoff_command,
+    _is_sase_handoff_command,
     stream_and_parse_codex_json_output,
 )
 from sase.llm_provider.codex import CodexProvider, _codex_single_turn_directive
@@ -61,7 +61,7 @@ def test_codex_parser_reports_stranded_monitor_despite_commentary(
     ],
 )
 def test_sase_handoff_command_classifier_covers_marker_writers(command: str) -> None:
-    assert is_sase_handoff_command(command)
+    assert _is_sase_handoff_command(command)
 
 
 def test_codex_handoff_guard_redrives_command_and_logs(

@@ -114,7 +114,7 @@ def offset_to_row_col(
     return (row, clamped - line_starts[row])
 
 
-def offset_for_row(line_starts: tuple[int, ...], row: int) -> int:
+def _offset_for_row(line_starts: tuple[int, ...], row: int) -> int:
     """Return the absolute offset for the start of ``row``."""
     if not line_starts:
         return 0
@@ -122,12 +122,12 @@ def offset_for_row(line_starts: tuple[int, ...], row: int) -> int:
     return line_starts[clamped_row]
 
 
-def invert_search_direction(direction: SearchDirection) -> SearchDirection:
+def _invert_search_direction(direction: SearchDirection) -> SearchDirection:
     """Return the opposite search direction."""
     return "reverse" if direction == "forward" else "forward"
 
 
-def wrap_feedback_message(direction: SearchDirection) -> str:
+def _wrap_feedback_message(direction: SearchDirection) -> str:
     """Return Vim-style wrap feedback for ``direction``."""
     if direction == "forward":
         return "search hit BOTTOM, continuing at TOP"
@@ -167,7 +167,7 @@ class VimSearchController:
         self.restore_scroll_x = origin_x
         self.restore_scroll_y = origin_y
         self.line_starts = line_start_offsets(corpus)
-        self.origin_offset = offset_for_row(self.line_starts, origin_y)
+        self.origin_offset = _offset_for_row(self.line_starts, origin_y)
         self.corpus = corpus
         self.direction = direction
         self.query = ""
@@ -238,7 +238,7 @@ class VimSearchController:
         if self.mode == "off":
             return False
 
-        self.direction = invert_search_direction(self.direction)
+        self.direction = _invert_search_direction(self.direction)
         if self.mode == "typing":
             self._update_preview()
             return True
@@ -259,7 +259,7 @@ class VimSearchController:
 
         query, recorded_direction = self.last_search
         direction = (
-            invert_search_direction(recorded_direction)
+            _invert_search_direction(recorded_direction)
             if reverse
             else recorded_direction
         )
@@ -287,7 +287,7 @@ class VimSearchController:
         self._render_command_line()
         self._scroll_to_selection(selection)
         if selection.wrapped:
-            self._host.vim_search_notify(wrap_feedback_message(direction))
+            self._host.vim_search_notify(_wrap_feedback_message(direction))
 
     def exit(
         self,
@@ -379,7 +379,7 @@ class VimSearchController:
             start, _end = self.match_spans[selection.index]
             return start
         viewport = self._host.vim_search_overlay_viewport()
-        return offset_for_row(self.line_starts, viewport.scroll_y)
+        return _offset_for_row(self.line_starts, viewport.scroll_y)
 
     def refresh_styled_base(self) -> None:
         """Repaint the overlay from a freshly built styled base.
@@ -469,9 +469,6 @@ __all__ = [
     "SearchViewport",
     "VimSearchController",
     "VimSearchMode",
-    "invert_search_direction",
     "line_start_offsets",
-    "offset_for_row",
     "offset_to_row_col",
-    "wrap_feedback_message",
 ]

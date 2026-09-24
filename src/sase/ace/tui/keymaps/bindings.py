@@ -6,7 +6,6 @@ from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.ace.tui.keymaps.display import key_display_name
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
-    CommandLineKeymaps,
     ConfigHubKeymaps,
     GateModalKeymaps,
     MachinesPaneKeymaps,
@@ -18,7 +17,6 @@ from sase.ace.tui.keymaps.app_keymaps import (
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.keymaps.metadata import (
     _BINDING_META,
-    _COMMAND_LINE_BINDING_META,
     _CONFIG_HUB_BINDING_META,
     _GATE_BINDING_META,
     _GATE_INPUT_PANEL_BINDING_META,
@@ -135,20 +133,6 @@ def build_gate_input_panel_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
             priority=True,
         )
         for action, description in _GATE_INPUT_PANEL_BINDING_META
-    ]
-
-
-def build_command_line_bindings(keymaps: CommandLineKeymaps) -> list[Binding]:
-    """Build instance-local bindings for the Command Line panel."""
-
-    return [
-        Binding(
-            getattr(keymaps, action),
-            action,
-            description,
-            show=False,
-        )
-        for action, description in _COMMAND_LINE_BINDING_META
     ]
 
 

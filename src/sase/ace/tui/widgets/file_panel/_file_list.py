@@ -73,7 +73,7 @@ def desired_file_pages(agent: Agent) -> tuple[list[str], str | None]:
 
 
 @dataclass(frozen=True)
-class FileSourceLabel:
+class _FileSourceLabel:
     """Display label metadata for one file-panel page slot."""
 
     tag: str
@@ -388,10 +388,10 @@ class FilePanelFileListMixin:
             return None
         return self.source_label_for_slot(current).label
 
-    def source_label_for_slot(self, slot: str) -> FileSourceLabel:
+    def source_label_for_slot(self, slot: str) -> _FileSourceLabel:
         """Return compact display metadata for a file-panel page slot."""
         if slot == _LIVE_DIFF_SENTINEL:
-            return FileSourceLabel(tag="diff", label="diff")
+            return _FileSourceLabel(tag="diff", label="diff")
         if is_commit_slot(slot):
             label = "commit diff"
             info = self._commit_diff_info_for_slot(slot)
@@ -408,7 +408,7 @@ class FilePanelFileListMixin:
                         else WORKSPACE_GLYPH
                     )
                     label = f"{glyph} {label}"
-            return FileSourceLabel(tag="git", label=label)
+            return _FileSourceLabel(tag="git", label=label)
         if is_linked_slot(slot):
             repo_name = linked_slot_repo_name(slot)
             group = self._linked_group_for_repo(repo_name)
@@ -417,15 +417,15 @@ class FilePanelFileListMixin:
                 if group is not None and group.kind == "external"
                 else WORKSPACE_GLYPH
             )
-            return FileSourceLabel(
+            return _FileSourceLabel(
                 tag="repo",
                 label=f"{glyph} {repo_name}",
             )
         expanded = os.path.expanduser(slot)
         label = os.path.basename(expanded) or expanded
-        return FileSourceLabel(tag="file", label=label)
+        return _FileSourceLabel(tag="file", label=label)
 
-    def file_source_labels(self) -> tuple[FileSourceLabel, ...]:
+    def file_source_labels(self) -> tuple[_FileSourceLabel, ...]:
         """Return display label metadata for all current file-panel page slots."""
         return tuple(self.source_label_for_slot(slot) for slot in self._file_list)
 

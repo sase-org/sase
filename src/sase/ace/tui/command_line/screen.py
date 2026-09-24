@@ -116,6 +116,7 @@ from sase.ace.tui.command_line.submit import (
 )
 from sase.ace.tui.command_line.transcript import CommandLineTranscript
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.completion.command_line_grammar import LineContext
 
 #: Idle hint shown in the signature row before the resolver lands.
 COMMAND_LINE_IDLE_HINT = "type to search · ⇥ complete · ; Command Palette"
@@ -249,7 +250,7 @@ class CommandLineScreen(ModalScreen[None]):
         self._walk_anchor: str | None = None
         self._applying_history = False
         self._tail_tokens: dict[str, str] = {}
-        self._resolve_context: dict[str, Any] | None = None
+        self._resolve_context: LineContext | None = None
         self._resolved_line: str | None = None
         self._popup_state = CompletionPopupState()
         self._provider_cache = ProviderCache()
@@ -571,20 +572,19 @@ class CommandLineScreen(ModalScreen[None]):
         )
         return True
 
-    def _submit_context_for(self, line: str) -> dict[str, Any] | None:
+    def _submit_context_for(self, line: str) -> LineContext | None:
         """Return the resolver context for *line* (cached when still fresh)."""
         if self._resolve_context is not None and self._resolved_line == line:
             return self._resolve_context
         try:
-            resolved = resolve_command_line(self.app, line, len(line))
+            return resolve_command_line(self.app, line, len(line))
         except Exception:  # noqa: BLE001 - advisory path never raises.
             return None
-        return cast("dict[str, Any] | None", resolved)
 
     def _submit_local(
         self,
         prepared: PreparedSubmit,
-        context: dict[str, Any] | None,
+        context: LineContext | None,
         *,
         clear_input: bool,
     ) -> bool | None:
@@ -1363,7 +1363,7 @@ class CommandLineScreen(ModalScreen[None]):
         self._record_keystroke_probe(time.perf_counter() - started, True)
 
     def _complete_line(
-        self, line: str, cursor: int, context: dict[str, Any]
+        self, line: str, cursor: int, context: LineContext
     ) -> dict[str, Any]:
         """Rank candidates for the cursor slot through the Rust handle."""
         handle = command_line_grammar_for(self.app)
@@ -1399,7 +1399,7 @@ class CommandLineScreen(ModalScreen[None]):
             }
 
     def _maybe_fetch_providers(
-        self, line: str, cursor: int, context: dict[str, Any]
+        self, line: str, cursor: int, context: LineContext
     ) -> None:
         """Schedule a debounced provider fetch for the active slot, if any."""
         slot = context.get("slot") or {}
@@ -1484,13 +1484,14 @@ class CommandLineScreen(ModalScreen[None]):
 
     def _last_completion(self) -> dict[str, Any]:
         """Rebuild the last completion view from the popup state."""
-        slot: dict[str, Any] = {}
+        value_kind = ""
         if self._resolve_context is not None:
             slot = self._resolve_context.get("slot") or {}
+            value_kind = str(slot.get("value_kind") or "")
         return {
             "items": self._popup_state.items,
             "total": len(self._popup_state.items),
-            "kind": str(slot.get("value_kind") or ""),
+            "kind": value_kind,
             "replace_start": self._popup_state.replace_start,
             "replace_end": self._popup_state.replace_end,
         }

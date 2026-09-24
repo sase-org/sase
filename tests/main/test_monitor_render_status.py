@@ -14,7 +14,7 @@ from sase.main.monitor_render import (
     monitor_detail,
     monitor_list_json,
     monitor_list_markdown,
-    status_text,
+    _status_text,
 )
 from sase.monitor.models import MonitorRecord
 from sase.monitor_status import MONITOR_STATUS_FAILURE_STYLE
@@ -92,7 +92,7 @@ def test_detail_panel_puts_compact_result_above_status_label() -> None:
     assert "TESTING" in out
     assert "TESTED" in out
     assert "running" in out
-    raw = status_text("running")
+    raw = _status_text("running")
     assert raw.plain == "● running"
 
 

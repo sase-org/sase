@@ -201,7 +201,7 @@ def test_history_enforces_lru_cap(
         )
         for index in range(25)
     ]
-    assert history_store.save_command_line_history(entries) is True
+    assert history_store._save_command_line_history(entries) is True
     loaded = history_store.load_command_line_history()
     assert len(loaded) == 20
     assert loaded[0].line == "bead show sase-24"

@@ -61,7 +61,7 @@ def _status_display(monitor_state: str) -> tuple[str, str]:
     return STATUS_DISPLAY.get(monitor_state, _UNKNOWN_DISPLAY)
 
 
-def status_text(monitor_state: str) -> Text:
+def _status_text(monitor_state: str) -> Text:
     """Return the colored ``<glyph> <state>`` label for a raw monitor state."""
     glyph, style = _status_display(monitor_state)
     return Text(f"{glyph} {monitor_state}", style=style)
@@ -412,7 +412,7 @@ def monitor_detail(record: MonitorRecord) -> Panel:
             ),
         ),
         ("Status label", _status_pair_text(record)),
-        ("Status", status_text(record.monitor_state)),
+        ("Status", _status_text(record.monitor_state)),
         (
             "Id",
             Text(f"{record.monitor_id}  ({short_monitor_id(record.monitor_id)})"),
@@ -582,5 +582,4 @@ __all__ = [
     "monitor_start_json",
     "monitor_stop_json",
     "monitor_table",
-    "status_text",
 ]

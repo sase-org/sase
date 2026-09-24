@@ -10,7 +10,7 @@ from sase.ace.tui.widgets.vim_search_controller import (
     VimSearchController,
     VimSearchMode,
     line_start_offsets,
-    offset_for_row,
+    _offset_for_row,
     offset_to_row_col,
 )
 
@@ -301,5 +301,5 @@ def test_controller_offset_helpers_map_logical_lines() -> None:
     assert offset_to_row_col(starts, 0) == (0, 0)
     assert offset_to_row_col(starts, 6) == (1, 0)
     assert offset_to_row_col(starts, 10) == (1, 4)
-    assert offset_for_row(starts, 2) == 11
-    assert offset_for_row(starts, 200) == 11
+    assert _offset_for_row(starts, 2) == 11
+    assert _offset_for_row(starts, 200) == 11
