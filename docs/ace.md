@@ -6348,9 +6348,10 @@ Choosing a remote inserts or replaces the pane's single `%dispatch:<alias>` sele
 Choosing `here` removes it. The prompt context line appears only while the pane has a
 `%dispatch` selector: a valid one shows the cached Target and Source, and for a remote
 also states that source proof is checked on submit; an invalid one shows `Target error`
-with the reason. It stays hidden for ordinary local launches. Submission runs that proof
-preflight off the UI thread before launch. A failure leaves the prompt intact, reports
-the exact reason, and returns focus to the originating pane.
+with the reason. It stays hidden for ordinary local launches. On submission, the prompt
+bar closes immediately and source proof runs off the UI thread as the first pending
+launch stage. A failed proof restores the prompt with `source blocked: <reason>` in its
+context line (or saves it to the stash if another prompt or modal now owns the screen).
 
 After source preflight passes, sase's TUI inserts a provisional `QUEUED` remote row
 before the background launch settles. A structured accepted owner response keeps it

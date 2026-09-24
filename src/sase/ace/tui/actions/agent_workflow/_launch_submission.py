@@ -29,6 +29,8 @@ from ._types import (
     current_prompt_session,
     invalidate_prompt_session,
 )
+from sase.xprompt._directive_scan import scan_dispatch_directive
+from sase.xprompt._exceptions import DirectiveError
 
 if TYPE_CHECKING:
     from sase.ace.patch import Patch
@@ -41,6 +43,10 @@ class LaunchSubmissionMixin:
 
     _prompt_context: PromptContext | None
     _bulk_patches: list[Patch] | None
+
+    if TYPE_CHECKING:
+
+        def _preflight_hold_confirm(self, launch_id: str) -> None: ...
 
     def _submit_resolved_launch(
         self,
@@ -63,7 +69,130 @@ class LaunchSubmissionMixin:
             owner_session_id=owner_session_id,
         )
         if launch is not None:
+            self._preflight_dispatch_pending_launch(
+                launch.launch_id, continue_with_guards=False
+            )
+
+    def _preflight_dispatch_pending_launch(
+        self, launch_id: str, *, continue_with_guards: bool = True
+    ) -> None:
+        """Preview a dispatch source after acceptance, before all other guards."""
+        from ._launch_submit_helpers import dispatch_payload_from_prompt_context
+        from ._pending_launch import pending_launch
+
+        launch = pending_launch(self, launch_id)
+        if launch is None:
+            return
+        try:
+            scan = scan_dispatch_directive(launch.prompt)
+        except DirectiveError as exc:
+            self._abort_dispatch_pending_launch(launch, str(exc))
+            return
+        if scan is None:
+            self._continue_after_dispatch_preview(
+                launch, continue_with_guards=continue_with_guards
+            )
+            return
+
+        payload = dispatch_payload_from_prompt_context(launch.context)
+        set_pending_launch_stage(self, launch_id, PendingLaunchStage.DISPATCH_PREVIEW)
+
+        def _work() -> None:
+            preview: object | None = None
+            error: str | None = None
+            try:
+                from sase.dispatch.launch import preview_dispatch_launch
+
+                preview = preview_dispatch_launch(launch.prompt, payload=payload)
+            except Exception as exc:  # source errors are returned to the draft
+                error = str(exc)
+            caller = getattr(self, "call_from_thread", None)
+            if callable(caller):
+                caller(
+                    self._complete_dispatch_pending_launch,
+                    launch_id,
+                    payload,
+                    preview,
+                    error,
+                    continue_with_guards,
+                )
+            else:
+                self._complete_dispatch_pending_launch(
+                    launch_id, payload, preview, error, continue_with_guards
+                )
+
+        run_worker = getattr(self, "run_worker", None)
+        try:
+            if callable(run_worker):
+                run_worker(
+                    _work,
+                    name=f"dispatch-launch-preflight:{launch_id}",
+                    thread=True,
+                    exclusive=False,
+                    group=f"dispatch-launch-preflight:{launch_id}",
+                )
+            else:
+                _work()
+        except Exception as exc:
+            self._abort_dispatch_pending_launch(launch, str(exc))
+
+    def _complete_dispatch_pending_launch(
+        self,
+        launch_id: str,
+        payload: dict[str, object],
+        preview: object | None,
+        error: str | None,
+        continue_with_guards: bool,
+    ) -> None:
+        """Record one completed preview and advance its live pending launch."""
+        from ._pending_launch import pending_launch
+
+        launch = pending_launch(self, launch_id)
+        if launch is None:
+            return
+        if error is not None or preview is None:
+            self._abort_dispatch_pending_launch(launch, error or "no source preview")
+            return
+        recorder = getattr(self, "_record_dispatch_launch_preview", None)
+        if callable(recorder):
+            recorder(preview, prompt=launch.prompt, payload=payload)
+        self._continue_after_dispatch_preview(
+            launch, continue_with_guards=continue_with_guards
+        )
+
+    def _continue_after_dispatch_preview(
+        self, launch: PendingLaunch, *, continue_with_guards: bool
+    ) -> None:
+        if continue_with_guards:
+            self._preflight_hold_confirm(launch.launch_id)
+        else:
             self._continue_pending_launch(launch)
+
+    def _abort_dispatch_pending_launch(self, launch: PendingLaunch, error: str) -> None:
+        """Return a blocked dispatch launch and annotate its restored prompt."""
+        cancel_pending_launch(self, launch)
+        message = f"source blocked: {error}"
+        restored = restore_pending_launch_prompt(
+            self,
+            launch,
+            reason=f"Dispatch not submitted: {error}",
+            explicit=False,
+        )
+        if not restored:
+            return
+
+        def _apply_override() -> None:
+            mounted = getattr(self, "_mounted_prompt_bar", None)
+            bar = mounted() if callable(mounted) else None
+            setter = getattr(bar, "_set_dispatch_preflight_override", None)
+            if callable(setter):
+                setter(launch.prompt, message, "error")
+
+        after_refresh = getattr(self, "call_after_refresh", None)
+        if callable(after_refresh):
+            after_refresh(_apply_override)
+        else:
+            _apply_override()
 
     def _accept_resolved_launch(
         self,

@@ -227,114 +227,23 @@ class PromptInputBarDispatchMixin(_MixinBase):
         self._schedule_height_update()
 
     def _maybe_preflight_dispatch_submission(self, prepared: object) -> bool:
-        """Run dispatch source validation before mutating a prepared submit."""
+        """Keep directive syntax errors in the editable prompt bar.
+
+        Source validation deliberately happens after ``Submitted`` is posted,
+        from the app's pending-launch pipeline.  It can require remote work and
+        must not keep an accepted prompt mounted while it runs.
+        """
         value = getattr(prepared, "value", "")
         if not isinstance(value, str):
             return False
         try:
-            scan = scan_dispatch_directive(value)
+            scan_dispatch_directive(value)
         except DirectiveError as exc:
             self._set_dispatch_preflight_override(value, str(exc), "error")
             self.notify(f"Dispatch not submitted: {exc}", severity="error")
             self._refocus_prepared_origin(prepared)
             return True
-        if scan is None:
-            return False
-        try:
-            from sase.ace.tui.actions.agent_workflow._launch_submit_helpers import (
-                dispatch_payload_from_prompt_context,
-            )
-            from sase.ace.tui.actions.agent_workflow._types import (
-                current_prompt_session,
-                prompt_session_is_live,
-            )
-
-            session = current_prompt_session(self.app)
-            if session is None:
-                self.notify("No prompt context - cannot launch", severity="error")
-                self._refocus_prepared_origin(prepared)
-                return True
-            payload = dispatch_payload_from_prompt_context(session.context)
-            session_id = session.session_id
-        except Exception as exc:
-            self.notify(f"Dispatch not submitted: {exc}", severity="error")
-            self._refocus_prepared_origin(prepared)
-            return True
-
-        self._set_dispatch_preflight_override(
-            value,
-            f"checking source for {scan.target}",
-            "pending",
-        )
-
-        def _work() -> None:
-            preview: RemoteDispatchLaunchPreview | None = None
-            error: str | None = None
-            try:
-                from sase.dispatch.launch import preview_dispatch_launch
-
-                preview = preview_dispatch_launch(value, payload=payload)
-            except Exception as exc:
-                error = str(exc)
-            self.app.call_from_thread(
-                self._complete_dispatch_preflight,
-                prepared,
-                session_id,
-                value,
-                payload,
-                preview,
-                error,
-                prompt_session_is_live,
-            )
-
-        try:
-            self.run_worker(
-                _work,
-                name="dispatch-launch-preflight",
-                thread=True,
-                exclusive=True,
-                group="dispatch-launch-preflight",
-            )
-        except Exception as exc:
-            self._set_dispatch_preflight_override(value, str(exc), "error")
-            self.notify(f"Dispatch not submitted: {exc}", severity="error")
-            self._refocus_prepared_origin(prepared)
-        return True
-
-    def _complete_dispatch_preflight(
-        self,
-        prepared: object,
-        session_id: str,
-        prompt: str,
-        payload: dict[str, object],
-        preview: RemoteDispatchLaunchPreview | None,
-        error: str | None,
-        live_check: object,
-    ) -> None:
-        """Commit a dispatch submission after worker-side source validation."""
-        if not self._prepared_submission_is_current(prepared):
-            return
-        if not callable(live_check) or not live_check(self.app, session_id):
-            return
-        if error is not None:
-            self._set_dispatch_preflight_override(
-                prompt, f"source blocked: {error}", "error"
-            )
-            self.notify(f"Dispatch not submitted: {error}", severity="error")
-            self._refocus_prepared_origin(prepared)
-            return
-        if preview is None:
-            self._commit_prepared_submission(prepared)
-            return
-        recorder = getattr(self.app, "_record_dispatch_launch_preview", None)
-        if callable(recorder):
-            recorder(preview, prompt=prompt, payload=payload)
-        self._set_dispatch_preflight_override(
-            prompt,
-            _dispatch_preview_source_summary(preview),
-            "ok",
-        )
-        self._commit_prepared_submission(prepared)
+        return False
 
     def _set_dispatch_preflight_override(
         self,

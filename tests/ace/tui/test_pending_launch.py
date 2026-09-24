@@ -164,6 +164,61 @@ async def test_submit_without_barrier_leaves_no_pending_state() -> None:
         assert record.proc_ids == ("task-0",)
 
 
+async def test_dispatch_preview_starts_after_the_prompt_bar_unmounts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _PendingLaunchApp([])
+    prompt = "%dispatch:apollo\n%id:dispatch\nDo remote work"
+    observed_bar_states: list[bool] = []
+    app._record_dispatch_launch_preview = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
+
+    def preview(_prompt: str, *, payload: dict[str, object]) -> object:
+        del payload
+        observed_bar_states.append(bool(app.query(PromptInputBar)))
+        return object()
+
+    monkeypatch.setattr("sase.dispatch.launch.preview_dispatch_launch", preview)
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        begin_prompt_session(app, _home_prompt_context())
+        await app.mount(PromptInputBar(initial_value=prompt, id="prompt-input-bar"))
+        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        _submit_launch(app, prompt)
+        await wait_for(pilot, lambda: bool(_launch_procs(app)))
+
+        assert observed_bar_states == [False]
+        assert not app.query(PromptInputBar)
+        assert _launch_procs(app)[0]["request"]["prompt"] == prompt
+
+
+async def test_blocked_dispatch_source_restores_prompt_with_context_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _PendingLaunchApp([])
+    prompt = "%dispatch:apollo\n%id:dispatch\nDo remote work"
+
+    def blocked(_prompt: str, *, payload: dict[str, object]) -> object:
+        del payload
+        raise RuntimeError("source is unavailable")
+
+    monkeypatch.setattr("sase.dispatch.launch.preview_dispatch_launch", blocked)
+
+    async with app.run_test(size=(100, 35)) as pilot:
+        begin_prompt_session(app, _home_prompt_context())
+        await app.mount(PromptInputBar(initial_value=prompt, id="prompt-input-bar"))
+        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        _submit_launch(app, prompt)
+        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        await pilot.pause()
+
+        bar = app.query_one(PromptInputBar)
+        text, severity, visible = bar._dispatch_context_text(prompt)
+        assert visible is True
+        assert severity == "error"
+        assert "source blocked: source is unavailable" in text.plain
+        assert _launch_procs(app) == []
+
+
 async def test_keep_bar_submit_snapshots_context_and_leaves_bar_session_live() -> None:
     app = _PendingLaunchApp([])
 

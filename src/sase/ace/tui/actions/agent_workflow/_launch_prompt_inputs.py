@@ -15,12 +15,26 @@ from ._types import (
 
 if TYPE_CHECKING:
     from sase.agent.prompt_placeholder_inputs import PromptInputPlan
+    from ._pending_launch import PendingLaunch
 
 
 class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
     """Mixin resolving prompt placeholders before launch submission."""
 
     _prompt_context: PromptContext | None
+
+    if TYPE_CHECKING:
+
+        def _accept_resolved_launch(
+            self,
+            prompt: str,
+            *,
+            keep_bar: bool = False,
+            extra_payload: dict[str, object] | None = None,
+            owner_session_id: PromptSessionId | None = None,
+        ) -> PendingLaunch | None: ...
+
+        def _preflight_dispatch_pending_launch(self, launch_id: str) -> None: ...
 
     def _finish_agent_launch(self, prompt: str, *, keep_bar: bool = False) -> None:
         """Complete agent launch with the given prompt.
@@ -181,7 +195,7 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
             owner_session_id=owner_session_id,
         )
         if launch is not None:
-            self._preflight_hold_confirm(launch.launch_id)
+            self._preflight_dispatch_pending_launch(launch.launch_id)
 
     def _preflight_project_tags(self, prompt: str) -> bool:
         """Reject D3 project-tag errors before the bar unmounts, if possible.
