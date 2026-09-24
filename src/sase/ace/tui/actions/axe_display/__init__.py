@@ -9,11 +9,12 @@ from ._data import (
     collect_axe_status_data,
     collect_chop_snapshot,
 )
+from ._panel_navigation import AxePanelNavigationMixin
 from ._read_cache import AxeCollectorStats, AxeStatusReadCache
 from ._render import AxeDisplayRenderMixin
 
 
-class AxeDisplayMixin(AxeDisplayRenderMixin):
+class AxeDisplayMixin(AxePanelNavigationMixin, AxeDisplayRenderMixin):
     """Mixin providing axe display refresh and state loading."""
 
 

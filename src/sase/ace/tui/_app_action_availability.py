@@ -253,6 +253,16 @@ def check_app_action(
             return False
     if action == "toggle_hide_non_run_agents" and app.current_tab != "agents":
         return False
+    if (
+        action in {"focus_next_agent_panel", "focus_prev_agent_panel"}
+        and app.current_tab != "agents"
+    ):
+        return False
+    if (
+        action in {"focus_next_service_panel", "focus_prev_service_panel"}
+        and app.current_tab != SERVICES_TAB
+    ):
+        return False
     if action == "show_diff" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "open_artifact_files" and app.current_tab != "agents":

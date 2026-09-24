@@ -32,10 +32,9 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.leader_mode.keys["mark_all_unread_done_agents_read"] == "u"
 
     bindings = build_app_bindings(registry.app)
-    by_key = {b.key: b.action for b in bindings if b.key != "V"}
+    by_key = {b.key: b.action for b in bindings if b.key not in {"V", "J", "K"}}
     assert by_key["a"] == "open_artifact_files"
     assert by_key["A"] == "accept_proposal"
-    assert by_key["J"] == "focus_next_agent_panel"
     assert by_key["space"] == "start_agent_from_patch"
     assert "ctrl+@" not in by_key
 
@@ -44,6 +43,14 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     # to the current tab.
     v_actions = {b.action for b in bindings if b.key == "V"}
     assert v_actions == {"show_agent_run_log", "view_agent_metadata"}
+
+    # `J` / `K` are tab-disjoint the same way: the Agents and Services
+    # panel jumps share each key, and `check_app_action` picks the one
+    # that applies to the current tab.
+    j_actions = {b.action for b in bindings if b.key == "J"}
+    assert j_actions == {"focus_next_agent_panel", "focus_next_service_panel"}
+    k_actions = {b.action for b in bindings if b.key == "K"}
+    assert k_actions == {"focus_prev_agent_panel", "focus_prev_service_panel"}
 
 
 def test_action_start_agent_home_is_removed() -> None:

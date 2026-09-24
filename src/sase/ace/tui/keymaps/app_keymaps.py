@@ -159,6 +159,8 @@ class AppKeymaps:
     edit_agent_tribe: str
     focus_next_agent_panel: str
     focus_prev_agent_panel: str
+    focus_next_service_panel: str
+    focus_prev_service_panel: str
     # Grouping controls
     choose_agent_grouping: str
     cycle_grouping_mode: str

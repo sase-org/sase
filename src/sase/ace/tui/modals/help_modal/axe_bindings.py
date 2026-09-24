@@ -50,6 +50,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.scroll_to_top), "Scroll to top"),
                 (d(a.scroll_to_bottom), "Scroll to bottom"),
+                (
+                    f"{d(a.focus_next_service_panel)} / {d(a.focus_prev_service_panel)}",
+                    "Jump into next / prev panel",
+                ),
                 (d(a.edit_query), "Edit search query"),
                 *link_follow_row,
             ],

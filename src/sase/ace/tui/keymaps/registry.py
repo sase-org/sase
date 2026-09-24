@@ -126,6 +126,9 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         frozenset({"choose_agent_grouping", "cycle_grouping_mode_reverse"}),
         # Tab-disjoint: Agents view picker vs Artifacts project scope.
         frozenset({"choose_agent_view", "pick_artifacts_project"}),
+        # Tab-disjoint: Agents vs Services panel jumps share J/K.
+        frozenset({"focus_next_agent_panel", "focus_next_service_panel"}),
+        frozenset({"focus_prev_agent_panel", "focus_prev_service_panel"}),
     }
 )
 

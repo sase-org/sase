@@ -91,3 +91,62 @@ def test_empty_list_defaults_to_service_procs() -> None:
 def test_out_of_range_global_defaults_to_service_procs() -> None:
     index = build_services_panel_index(_items())
     assert index.panel_for_global(99) == "service_procs"
+
+
+def test_first_and_last_global_per_panel() -> None:
+    index = build_services_panel_index(_items())
+    assert index.first_global("service_procs") == 0
+    assert index.last_global("service_procs") == 3
+    assert index.first_global("scheduled_routines") == 4
+    assert index.last_global("scheduled_routines") == 6
+
+
+def test_first_and_last_global_empty_panel_is_none() -> None:
+    index = build_services_panel_index([])
+    assert index.first_global("service_procs") is None
+    assert index.last_global("service_procs") is None
+    assert index.first_global("scheduled_routines") is None
+    assert index.last_global("scheduled_routines") is None
+
+
+def test_adjacent_nonempty_panel_wraps_both_directions() -> None:
+    index = build_services_panel_index(_items())
+    assert (
+        index.adjacent_nonempty_panel("service_procs", forward=True)
+        == "scheduled_routines"
+    )
+    assert (
+        index.adjacent_nonempty_panel("service_procs", forward=False)
+        == "scheduled_routines"
+    )
+    assert (
+        index.adjacent_nonempty_panel("scheduled_routines", forward=True)
+        == "service_procs"
+    )
+    assert (
+        index.adjacent_nonempty_panel("scheduled_routines", forward=False)
+        == "service_procs"
+    )
+
+
+def test_adjacent_nonempty_panel_skips_empty_panel() -> None:
+    procs_only = build_services_panel_index(
+        [ServiceProcItem(name="scheduler"), BgCmdItem(slot=1)]
+    )
+    assert procs_only.adjacent_nonempty_panel("service_procs", forward=True) is None
+    assert procs_only.adjacent_nonempty_panel("service_procs", forward=False) is None
+    routines_only = build_services_panel_index([LumberjackItem(name="hooks")])
+    assert (
+        routines_only.adjacent_nonempty_panel("scheduled_routines", forward=True)
+        is None
+    )
+    assert (
+        routines_only.adjacent_nonempty_panel("scheduled_routines", forward=False)
+        is None
+    )
+
+
+def test_adjacent_nonempty_panel_empty_index_is_none() -> None:
+    index = build_services_panel_index([])
+    assert index.adjacent_nonempty_panel("service_procs", forward=True) is None
+    assert index.adjacent_nonempty_panel("scheduled_routines", forward=False) is None

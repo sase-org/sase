@@ -358,4 +358,18 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         (),
     ),
+    (
+        "focus_next_service_panel",
+        "Focus next Services panel",
+        "Services",
+        AXE_ONLY,
+        (),
+    ),
+    (
+        "focus_prev_service_panel",
+        "Focus previous Services panel",
+        "Services",
+        AXE_ONLY,
+        (),
+    ),
 )

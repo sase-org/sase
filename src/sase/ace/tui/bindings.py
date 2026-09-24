@@ -235,6 +235,9 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Tribe-driven side-panel focus cycling (agents tab)
     Binding("J", "focus_next_agent_panel", "Next Panel", show=False),
     Binding("K", "focus_prev_agent_panel", "Prev Panel", show=False),
+    # Services tab side panels
+    Binding("J", "focus_next_service_panel", "Next Panel", show=False),
+    Binding("K", "focus_prev_service_panel", "Prev Panel", show=False),
     # Copy to clipboard (patches tab - % followed by key)
     Binding("percent_sign", "copy_tab_content", "Copy", show=False),
     # Scroll to top/bottom (Axe tab)

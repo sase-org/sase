@@ -137,6 +137,11 @@ class AxeOnboarding(VerticalScroll):
             style="dim",
         )
         text.append("\n")
+        append_keycap(text, key_display_name(app.focus_next_service_panel))
+        text.append("/")
+        append_keycap(text, key_display_name(app.focus_prev_service_panel))
+        text.append("jump to the next / previous panel.")
+        text.append("\n")
         append_keycap(text, key_display_name(app.kill_agent))
         text.append("start or stop the selected service proc.")
         if isinstance(toggle_host_key, str):

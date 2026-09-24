@@ -63,6 +63,28 @@ async def test_services_panels_routine_selected_png_snapshot(
         )
 
 
+async def test_services_panels_after_j_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`J` from the Scheduler row jumps to the first routine node."""
+    patch_startup_loaders(monkeypatch, axe_data=services_panels_data())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        await page.press("J")
+        page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "services_panels_after_J_120x40",
+            title="ACE services panels after J",
+        )
+
+
 async def test_services_panels_empty_routines_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

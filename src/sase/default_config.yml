@@ -758,6 +758,9 @@ ace:
       # Tribe-driven side panels (agents tab)
       focus_next_agent_panel: "J"
       focus_prev_agent_panel: "K"
+      # Services tab side panels
+      focus_next_service_panel: "J"
+      focus_prev_service_panel: "K"
       # Agents grouping picker. Lowercase `o` inside this picker toggles
       # split/merged panel layout. Artifacts panes with grouping still cycle
       # with o/O; the shared o key is resolved by tab availability. The

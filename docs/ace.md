@@ -2937,10 +2937,11 @@ machine-overlay configuration — daemon rows plus background commands (oneshot 
 procs) in a separate `── oneshots ──` section below the daemon procs. The lower
 **Scheduled Routines** panel holds every routine with its job rows nested under it. Each
 panel border title carries at-a-glance metadata (counts, status chips, and badges such
-as hidden oneshots or a non-running scheduler). Service proc rows show their lifecycle,
-enablement provenance, restart state, and bounded output. The dashboard status line
-reports the service host state (`Host: <state>`). Project-local `sase.yml` service
-entries are intentionally ignored.
+as hidden oneshots or a non-running scheduler). `J` jumps to the first row of the next
+panel and `K` to the last row of the previous panel, wrapping around and skipping empty
+panels. Service proc rows show their lifecycle, enablement provenance, restart state,
+and bounded output. The dashboard status line reports the service host state
+(`Host: <state>`). Project-local `sase.yml` service entries are intentionally ignored.
 
 Once service status has loaded, the info panel leads with a host clause:
 `Services · host ● running 4d · sase.service` while the host runs (uptime in its largest
@@ -3100,6 +3101,7 @@ scrolled off screen on selection.
 | Key                       | Action                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to next / previous sidebar row (service proc, routine, job, or background command) |
+| `J` / `K`                 | Jump into the first / last row of the next / previous panel                             |
 | `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (older / newer)                              |
 | `'`                       | Jump to a current-tab entry by adaptive hint                                            |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                              |

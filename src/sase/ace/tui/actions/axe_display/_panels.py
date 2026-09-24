@@ -86,6 +86,36 @@ class ServicesPanelIndex:
             global_idx, -1
         )
 
+    def first_global(self, key: ServicesPanelKey) -> int | None:
+        """Return the first global index rendered in panel ``key``."""
+        indices = self.panels.get(key, _ServicesPanelSlice()).global_indices
+        return indices[0] if indices else None
+
+    def last_global(self, key: ServicesPanelKey) -> int | None:
+        """Return the last global index rendered in panel ``key``."""
+        indices = self.panels.get(key, _ServicesPanelSlice()).global_indices
+        return indices[-1] if indices else None
+
+    def adjacent_nonempty_panel(
+        self, current_key: ServicesPanelKey, *, forward: bool
+    ) -> ServicesPanelKey | None:
+        """Return the next/previous panel holding at least one node.
+
+        Walks ``SERVICES_PANEL_ORDER`` with wrap, skipping empty panels,
+        and never returns ``current_key``. Returns ``None`` when no other
+        panel has nodes.
+        """
+        order = SERVICES_PANEL_ORDER
+        start = order.index(current_key)
+        step = 1 if forward else -1
+        for offset in range(1, len(order) + 1):
+            candidate = order[(start + step * offset) % len(order)]
+            if candidate == current_key:
+                continue
+            if self.panels.get(candidate, _ServicesPanelSlice()).global_indices:
+                return candidate
+        return None
+
 
 def build_services_panel_index(items: Sequence[object]) -> ServicesPanelIndex:
     """Build a :class:`ServicesPanelIndex` over ``items`` in visual order."""

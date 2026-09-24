@@ -20,6 +20,7 @@ def test_axe_onboarding_content_describes_axe_jobs_bgcmds_and_docs() -> None:
     assert "service host" in rendered
     assert "starts automatically with sase tui" in rendered
     assert "start or stop the selected service proc" in rendered
+    assert "jump to the next / previous panel" in rendered
     assert "start or stop the service host" in rendered
     assert "enable or disable the selected service proc" in rendered
     assert "routine" in rendered
