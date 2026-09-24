@@ -67,7 +67,7 @@ async def test_services_panels_after_j_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`J` from the Scheduler row jumps to the first routine node."""
+    """`J` from the Scheduler row jumps to the first routine row."""
     patch_startup_loaders(monkeypatch, axe_data=services_panels_data())
 
     async with AcePage(query='"visual"', patches=patches()) as page:

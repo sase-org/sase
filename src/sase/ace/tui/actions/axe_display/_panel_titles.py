@@ -55,7 +55,7 @@ _JOB_OVERRUN_STYLE = "bold #FFAF5F"
 class ServiceProcsPanelStats:
     """At-a-glance counts for the Service Procs panel title."""
 
-    nodes: int = 0
+    items: int = 0
     running: int = 0
     warn: int = 0
     fail: int = 0
@@ -173,7 +173,7 @@ def service_procs_panel_stats(
         else:
             oneshot_ok += 1
     return ServiceProcsPanelStats(
-        nodes=daemon_rows + len(oneshots),
+        items=daemon_rows + len(oneshots),
         running=running,
         warn=warn,
         fail=fail,
@@ -275,7 +275,7 @@ def service_procs_panel_title(stats: ServiceProcsPanelStats, *, focused: bool) -
     title.append(f"{_SERVICE_PROCS_ICON} ", style=_SERVICE_PROCS_STYLE)
     title.append("Service Procs", style=_SERVICE_PROCS_STYLE)
     title.append(" · ", style=_PANEL_UNFOCUSED_CHROME_STYLE)
-    title.append(str(stats.nodes), style=_chrome_style(focused=focused))
+    title.append(str(stats.items), style=_chrome_style(focused=focused))
     chip = _format_title_chip(
         _SERVICE_CHIP_METRICS,
         (stats.running, stats.warn, stats.fail, stats.muted),

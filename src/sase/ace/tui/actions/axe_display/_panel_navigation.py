@@ -16,12 +16,12 @@ class AxePanelNavigationMixin:
     _axe_items: list[Any]
 
     def _change_focused_service_panel(self, *, forward: bool) -> None:
-        """Select the first/last node of the adjacent non-empty panel.
+        """Select the first/last nav item of the adjacent non-empty panel.
 
-        ``J`` (forward) lands on the first node of the next panel;
-        ``K`` (backward) lands on the last rendered node of the previous
+        ``J`` (forward) lands on the first nav item of the next panel;
+        ``K`` (backward) lands on the last rendered nav item of the previous
         panel, both with wrap. No-op off the Services tab or when no
-        other panel has nodes.
+        other panel has nav items.
         """
         if self.current_tab != "services":
             return

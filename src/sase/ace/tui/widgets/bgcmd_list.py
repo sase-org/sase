@@ -224,7 +224,7 @@ class BgCmdList(OptionList):
                 key renders no roll-up chip.
             service_procs: Cached service-proc statuses keyed by name.
             empty_placeholder: Disabled placeholder row rendered when
-                ``items`` is empty. It is not a node: never selectable,
+                ``items`` is empty. It is not a nav item: never selectable,
                 never counted, and never emits ``SelectionChanged``.
         """
         del axe_running, lumberjack_names  # accepted for callers; not rendered

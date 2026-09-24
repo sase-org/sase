@@ -99,11 +99,11 @@ class ServicesPanelIndex:
     def adjacent_nonempty_panel(
         self, current_key: ServicesPanelKey, *, forward: bool
     ) -> ServicesPanelKey | None:
-        """Return the next/previous panel holding at least one node.
+        """Return the next/previous panel holding at least one nav item.
 
         Walks ``SERVICES_PANEL_ORDER`` with wrap, skipping empty panels,
         and never returns ``current_key``. Returns ``None`` when no other
-        panel has nodes.
+        panel has nav items.
         """
         order = SERVICES_PANEL_ORDER
         start = order.index(current_key)

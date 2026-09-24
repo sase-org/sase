@@ -5,7 +5,7 @@ distinguishable at a glance even before reading the label text.
 
 - Lumberjacks: gold accent + bold name (top-level).
 - Chops:      dimmer copper/amber, subordinate to the parent lumberjack.
-- Oneshots:   muted slate/teal, visibly quieter than daemon service nodes.
+- Oneshots:   muted slate/teal, visibly quieter than daemon service proc rows.
 """
 
 _LJ_ACCENT_STYLE = "bold #FFD700"

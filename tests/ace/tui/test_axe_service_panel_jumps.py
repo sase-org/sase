@@ -79,7 +79,7 @@ def test_k_counts_collapsed_routine_as_single_row() -> None:
     assert app.current_idx == 1
 
 
-def test_j_from_routines_wraps_to_first_service_node() -> None:
+def test_j_from_routines_wraps_to_first_service_proc() -> None:
     app = FakeServiceJumpApp(_items(), current_idx=5)
     app.action_focus_next_service_panel()
     assert app.current_idx == 0

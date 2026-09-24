@@ -54,7 +54,7 @@ def test_service_procs_title_grammar() -> None:
         oneshots=[(_oneshot_info(running=True), True)],
         host_state="running",
     )
-    assert stats.nodes == 3
+    assert stats.items == 3
     title = service_procs_panel_title(stats, focused=True)
     assert title.plain == "⚙ Service Procs · 3 [R2] ▷1"
 
@@ -109,7 +109,7 @@ def test_service_procs_sum_invariant() -> None:
     )
     chip_total = stats.running + stats.warn + stats.fail + stats.muted
     badge_total = stats.oneshot_running + stats.oneshot_ok + stats.oneshot_failed
-    assert chip_total + badge_total == stats.nodes == 8
+    assert chip_total + badge_total == stats.items == 8
     title = service_procs_panel_title(stats, focused=True)
     assert title.plain == "⚙ Service Procs · 8 [R1 F2 S1] ▷1 ✓1 ✗2"
 

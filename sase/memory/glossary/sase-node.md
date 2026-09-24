@@ -4,8 +4,9 @@ aliases:
   - node
 ---
 
-A sase node is one selectable row of a hierarchical TUI view. On the Agents tab's agent
-tree, that is an agent clan node, an agent node (with its member agent shell nodes), an
-agent step node — a workflow `python`, `bash`, or `parallel` step — or a proc shell
-node; on the Services tab, a service node. Grouping banners and panel titles (Agents
-tribe panels, Services panels) are chrome, not nodes.
+A sase node is one row of the Agents tab's agent tree: an agent clan node, an agent node
+(with its member sase shell nodes), an agent step node — a workflow `python`, `bash`, or
+`parallel` step — or a stand-alone proc shell node. Every sase node is a nav item, but
+nodes exist only on the Agents tab: Services and Artifacts nav items are not nodes.
+Grouping banners (including selectable collapsed ones) and tribe-panel titles are not
+nodes.
