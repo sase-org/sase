@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from rich.text import Text
+
 from ...models._projected_record import resolve_step_output
 from ...models.agent import Agent
 from ._agent_display_content import (
@@ -13,6 +15,7 @@ from ._agent_display_content import (
     render_timestamp_divider,
 )
 from ._agent_display_header import AgentHeader
+from ._agent_display_xprompt import attach_xprompt_to_identity
 from ._agent_display_hint_annotators import (
     hint_monitor_annotator,
     render_reply_with_hints,
@@ -52,31 +55,37 @@ def render_agent_prompt_hint_body(
     if raw_xprompt:
         source_xprompt = raw_xprompt
         raw_xprompt = humanize_text(source_xprompt)
-        append_section_heading(header_text, "AGENT XPROMPT")
-        xprompt_start = len(header_text.plain)
+        xprompt = Text()
+        xprompt_hints_before = hint_counter
         hint_counter = append_bounded_text_with_file_hints(
-            header_text,
+            xprompt,
             raw_xprompt + "\n",
             hint_counter,
             hint_mappings,
             workspace_dir,
             matcher=iter_xprompt_file_path_matches,
         )
-        xprompt_source = header_text.plain[xprompt_start:]
-        hint_spans = tuple(
-            span for span in header_text.spans if span.end > xprompt_start
-        )
+        xprompt_source = xprompt.plain
+        hint_spans = tuple(xprompt.spans)
         apply_authored_prompt_overlays(
-            header_text,
+            xprompt,
             xprompt_source,
             highlight_context,
-            region_start=xprompt_start,
+            region_start=0,
             include_xprompt=True,
             hint_spans=hint_spans,
         )
-        header_text.append("\n")
-        header_text.append("─" * 50 + "\n", style="dim")
-        header_text.append("\n")
+        if not attach_xprompt_to_identity(
+            panel,
+            header_text,
+            xprompt,
+            has_hints=hint_counter != xprompt_hints_before,
+        ):
+            append_section_heading(header_text, "AGENT XPROMPT")
+            header_text.append_text(xprompt)
+            header_text.append("\n")
+            header_text.append("─" * 50 + "\n", style="dim")
+            header_text.append("\n")
 
     # AGENT PROMPT section (with file path hints, Text instead of Syntax)
     append_section_heading(header_text, "AGENT PROMPT")

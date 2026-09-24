@@ -41,6 +41,7 @@ class AgentPromptPanel(
         return getattr(self, "id", None) == "agent-prompt-panel"
 
     _identity_header_sink: IdentityHeaderSink | None = None
+    _detach_xprompt: bool = False
     _identity_last_published: IdentityHeader | None = None
     _identity_last_content: Any = ""
     _member_jump_map_sink: MemberJumpMapSink | None = None
@@ -49,14 +50,25 @@ class AgentPromptPanel(
     _main_document_sink: Any | None = None
     _main_document_partial: bool = False
 
-    def attach_identity_header_sink(self, sink: IdentityHeaderSink | None) -> None:
+    def attach_identity_header_sink(
+        self,
+        sink: IdentityHeaderSink | None,
+        *,
+        detach_xprompt: bool = False,
+    ) -> None:
         """Publish detached identity headers to ``sink`` on each update."""
         self._identity_header_sink = sink
+        self._detach_xprompt = sink is not None and detach_xprompt
 
     @property
     def detaches_identity_header(self) -> bool:
         """Whether builders should split the identity out of documents."""
         return self._identity_header_sink is not None
+
+    @property
+    def detaches_xprompt(self) -> bool:
+        """Whether xprompts travel with the detached identity header."""
+        return self.detaches_identity_header and self._detach_xprompt
 
     def attach_member_jump_map_sink(self, sink: MemberJumpMapSink | None) -> None:
         """Publish carried jump maps to ``sink`` on each update."""

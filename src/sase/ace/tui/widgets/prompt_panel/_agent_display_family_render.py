@@ -24,6 +24,10 @@ from ._agent_display_family import (
 )
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
+from ._agent_display_xprompt import (
+    attach_xprompt_to_identity,
+    memoize_xprompt,
+)
 from ._agent_gate_section import GateTextAnnotator, build_gate_phase
 from ._agent_monitor_section import MonitorTextAnnotator, build_monitor_phase
 from ._agent_xprompt_highlighting import (
@@ -116,8 +120,8 @@ class AgentFamilyDisplayMixin:
             agent,
             raw_xprompt or "",
         )
+        xprompt: Text | None = None
         if raw_xprompt:
-            append_section_heading(header_text, "AGENT XPROMPT")
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
             xprompt = (
                 self._render_xprompt(
@@ -129,22 +133,36 @@ class AgentFamilyDisplayMixin:
                 if hint_state is None
                 else Text(humanized_xprompt)
             )
-            if hint_state is None:
-                header_text.append_text(xprompt)
-            else:
-                header_text.append_text(
-                    self._family_text_with_hints(
-                        xprompt,
-                        hint_state,
-                        workspace_dir=hint_state.workspace_dir,
-                        budget=hint_budget,
-                        xprompt_agent=agent,
-                        raw_xprompt=raw_xprompt,
-                        semantic_context=highlight_context,
-                    )
+            xprompt_hints_before = (
+                hint_state.hint_counter if hint_state is not None else None
+            )
+            if hint_state is not None:
+                xprompt = self._family_text_with_hints(
+                    xprompt,
+                    hint_state,
+                    workspace_dir=hint_state.workspace_dir,
+                    budget=hint_budget,
+                    xprompt_agent=agent,
+                    raw_xprompt=raw_xprompt,
+                    semantic_context=highlight_context,
                 )
-            header_text.append("\n")
-            rendered_content_section = True
+            xprompt_detached = attach_xprompt_to_identity(
+                self,
+                header_text,
+                xprompt,
+                has_hints=(
+                    xprompt_hints_before is not None
+                    and hint_state is not None
+                    and hint_state.hint_counter != xprompt_hints_before
+                ),
+            )
+            if not xprompt_detached:
+                append_section_heading(header_text, "AGENT XPROMPT")
+                header_text.append_text(xprompt)
+                header_text.append("\n")
+                rendered_content_section = True
+        if hint_state is None:
+            memoize_xprompt(self, agent, xprompt)
 
         prompt_content = get_prompt_content(agent)
         if prompt_content:

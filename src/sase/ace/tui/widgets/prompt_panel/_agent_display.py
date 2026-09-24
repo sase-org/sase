@@ -32,6 +32,7 @@ from ._agent_display_tribe import tribe_enrichment_sections_for_fold_state
 from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import immediate_detail_header_summary
 from ._agent_display_render import AgentDisplayRenderMixin
+from ._agent_display_xprompt import attach_memoized_xprompt
 from ._member_roster import member_jump_map_publisher_for
 from ._agent_tribe_aggregation import (
     get_cached_tribe_section_snapshot,
@@ -279,6 +280,12 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                     if agent.is_clan_container or lane_summary_enabled
                     else None
                 ),
+            )
+            attach_memoized_xprompt(
+                self,
+                agent,
+                header_text,
+                attempt_pinned=self.attempt_pinned_number is not None,
             )
             # Partial paint keeps the traceback in a Reply card so j/k never
             # makes it jump before the full paint replaces it ~150 ms later.

@@ -47,6 +47,7 @@ class AgentHintRenderCacheKey:
     attempt_view_mode: str
     attempt_pinned_number: int | None
     detaches_identity_header: bool = False
+    detaches_xprompt: bool = False
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,7 @@ def agent_hint_render_cache_key(
         detaches_identity_header=bool(
             getattr(widget, "detaches_identity_header", False)
         ),
+        detaches_xprompt=bool(getattr(widget, "detaches_xprompt", False)),
     )
 
 

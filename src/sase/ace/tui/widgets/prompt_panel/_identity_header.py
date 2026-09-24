@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from rich.console import Group, RenderableType
@@ -19,6 +19,7 @@ from .._agent_list_styling import (
 )
 from ._agent_display_family import FAMILY_IDENTITY_COLOR
 from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
+from ._helpers import append_major_section_divider, append_section_heading
 
 if TYPE_CHECKING:
     from ._member_roster import MemberJumpMap
@@ -43,12 +44,42 @@ class IdentityHeader:
     expanded: AgentHeader
     compact: Text
     has_hints: bool = False
+    xprompt: Text | None = None
+    xprompt_pending: bool = False
+
+    def with_xprompt(self, text: Text, *, has_hints: bool = False) -> IdentityHeader:
+        """Return this identity with its full, highlighted xprompt attached."""
+        xprompt = text.copy()
+        xprompt = xprompt[: len(xprompt.plain.rstrip("\n"))]
+        return replace(
+            self,
+            xprompt=xprompt,
+            has_hints=self.has_hints or has_hints,
+            xprompt_pending=False,
+        )
+
+    def with_xprompt_pending(self) -> IdentityHeader:
+        """Return this identity marked for an imminent xprompt paint."""
+        return replace(self, xprompt_pending=True)
+
+    def expanded_renderable(self) -> RenderableType:
+        """Return the expanded identity fields followed by its xprompt, if any."""
+        if self.xprompt is None:
+            return self.expanded
+        heading = Text()
+        append_section_heading(heading, "AGENT XPROMPT")
+        return Group(self.expanded, Text("\n"), heading, self.xprompt)
 
     def inline_renderable(self) -> RenderableType:
         """Return the kind line plus expanded block for inline documents."""
         kind_line = Text()
         kind_line.append(f"{self.kind_label}\n", style=f"bold {self.accent} underline")
-        return Group(kind_line, self.expanded)
+        parts: list[RenderableType] = [kind_line, self.expanded_renderable()]
+        if self.xprompt is not None:
+            divider = Text()
+            append_major_section_divider(divider)
+            parts.append(divider)
+        return Group(*parts)
 
 
 def identity_kind_for_agent(agent: Agent) -> tuple[str, str]:

@@ -51,6 +51,10 @@ from ._agent_display_header_summary import (
 )
 from ._agent_display_hints import clear_agent_hint_render_cache
 from ._agent_display_step_render import AgentStepDisplayMixin
+from ._agent_display_xprompt import (
+    attach_xprompt_to_identity,
+    memoize_xprompt,
+)
 from ._agent_gate_section import build_gate_phase
 from ._agent_monitor_section import build_monitor_phase
 from ._agent_xprompt_highlighting import (
@@ -423,21 +427,23 @@ class AgentDisplayRenderMixin(
             agent,
             raw_xprompt or "",
         )
+        xprompt: Text | None = None
         if raw_xprompt:
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
-            append_section_heading(header_text, "AGENT XPROMPT")
-            header_text.append_text(
-                self._render_xprompt(
-                    agent,
-                    raw_xprompt,
-                    humanized_xprompt,
-                    context=highlight_context,
-                )
+            xprompt = self._render_xprompt(
+                agent,
+                raw_xprompt,
+                humanized_xprompt,
+                context=highlight_context,
             )
-            header_text.append("\n")
-            header_text.append("\n")
-            header_text.append("\u2500" * 50 + "\n", style="dim")
-            header_text.append("\n")
+            if not attach_xprompt_to_identity(self, header_text, xprompt):
+                append_section_heading(header_text, "AGENT XPROMPT")
+                header_text.append_text(xprompt)
+                header_text.append("\n")
+                header_text.append("\n")
+                header_text.append("\u2500" * 50 + "\n", style="dim")
+                header_text.append("\n")
+        memoize_xprompt(self, agent, xprompt)
 
         # AGENT PROMPT section
         append_section_heading(header_text, "AGENT PROMPT")
