@@ -31,6 +31,9 @@ def write_done_marker_and_update_index(
     done_marker: dict[str, Any],
 ) -> str:
     """Write ``done.json`` and refresh the artifact index for that directory."""
+    from sase.agent.handoff_inflight import merge_handoff_aborted_into_done_marker
+
+    merge_handoff_aborted_into_done_marker(artifacts_dir, done_marker)
     canonicalize_patch_metadata(done_marker)
     done_path = os.path.join(artifacts_dir, "done.json")
     with open(done_path, "w", encoding="utf-8") as f:

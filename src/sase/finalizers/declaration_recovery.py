@@ -54,6 +54,11 @@ def ensure_final_declaration_or_recover(
         FINALIZER_RECOVERIES.labels(kind="declaration", result="not_required").inc()
         return invoke_result
 
+    aborted_handoff = _adopt_or_record_aborted_handoff(
+        artifacts_dir,
+        context=context,
+    )
+
     previous_nonce = os.environ.get(declaration.SASE_FINAL_TURN_NONCE_ENV)
     recovery_nonce = declaration.mint_finalizer_turn_nonce()
     try:
@@ -66,6 +71,7 @@ def ensure_final_declaration_or_recover(
             original_prompt=original_prompt,
             response_text=invoke_result.content,
             artifacts_dir=artifacts_dir,
+            handoff_aborted=aborted_handoff,
         )
         _write_text_atomic(
             root / FINAL_DECLARATION_RECOVERY_EVIDENCE_FILENAME,
@@ -109,6 +115,38 @@ def ensure_final_declaration_or_recover(
             os.environ.pop(declaration.SASE_FINAL_TURN_NONCE_ENV, None)
         else:
             os.environ[declaration.SASE_FINAL_TURN_NONCE_ENV] = previous_nonce
+
+
+def _adopt_or_record_aborted_handoff(
+    artifacts_dir: str | None,
+    *,
+    context: FinalContextPublication,
+) -> dict[str, Any] | None:
+    """Adopt a late handoff or record a killed one, best-effort.
+
+    Runs when the provider turn ended with no pending handoff marker: a live
+    in-flight owner is given a bounded wait to land its handoff, while a dead
+    owner is recorded as ``handoff_aborted`` (and notified) so the recovery
+    evidence stays accurate. Never raises.
+    """
+    import logging
+
+    from sase.agent.handoff_inflight import adopt_or_record_aborted_handoff
+
+    assigned = context.context.assigned_bead
+    try:
+        return adopt_or_record_aborted_handoff(
+            artifacts_dir,
+            agent_name=os.environ.get("SASE_AGENT_NAME")
+            or os.environ.get("SASE_AGENT"),
+            assigned_bead_id=assigned.bead_id if assigned is not None else None,
+        )
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "aborted-handoff check failed; continuing with normal recovery",
+            exc_info=True,
+        )
+        return None
 
 
 def _latest_context_matches_nonce(root: Path, nonce: str) -> bool:

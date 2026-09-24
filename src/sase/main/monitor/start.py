@@ -9,6 +9,10 @@ from collections.abc import Mapping
 from pathlib import Path
 import sys
 
+from sase.agent.handoff_inflight import (
+    clear_handoff_inflight_marker,
+    write_handoff_inflight_marker,
+)
 from sase.core.cli_duration import parse_cli_duration
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.monitor import (
@@ -177,9 +181,15 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
             file=sys.stderr,
             flush=True,
         )
+        # Record the in-flight handoff before any slow work so the host can
+        # notice a killed start instead of recovering silently (sase-18e.3).
+        # The pending handoff marker supersedes this when the start lands;
+        # every error exit below removes it.
+        write_handoff_inflight_marker(command, lane=agent)
     cwd = resolve_cwd(getattr(args, "cwd", None), agent, exact=exact_caller)
     project_name = _monitor_start_project_name(infer_project_name(str(cwd)))
     if not project_name:
+        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
         print(
             f"sase monitor start: could not infer a project from cwd {cwd}",
             file=sys.stderr,
@@ -212,6 +222,7 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
     try:
         record = start_monitor(request)
     except (MonitorAlreadyRunningError, MonitorError) as exc:
+        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 1
 
@@ -242,7 +253,11 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
             )
     sys.stdout.flush()
 
-    maybe_handoff_monitor_from_agent(record)
+    try:
+        maybe_handoff_monitor_from_agent(record)
+    except MonitorError:
+        clear_handoff_inflight_marker(os.environ.get("SASE_ARTIFACTS_DIR"))
+        raise
     return 0
 
 

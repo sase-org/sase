@@ -78,6 +78,11 @@ def write_shell_pending_marker(
     except (OSError, PendingHandoffError) as exc:
         raise ShellHandoffError(f"could not write shell handoff marker: {exc}") from exc
 
+    # A pending marker supersedes any in-flight marker the handoff command
+    # wrote before its slow work (sase-18e.3 aborted-handoff evidence).
+    from sase.agent.handoff_inflight import clear_handoff_inflight_marker
+
+    clear_handoff_inflight_marker(artifacts_dir)
     _touch_shell_refresh_pulse_for_artifacts_dir(artifacts_dir)
     return marker_path
 

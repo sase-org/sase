@@ -12,6 +12,8 @@ from sase.llm_provider.commit_finalizer_baseline import load_dirty_baseline
 from sase.llm_provider.commit_finalizer_git import normalize_path
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from sase.core.finalizer_wire import FinalizerObligationWire
     from sase.finalizers.declaration import FinalContextPublication
     from sase.llm_provider.commit_finalizer_baseline import DirtyBaseline
@@ -47,6 +49,7 @@ def build_recovery_evidence(
     original_prompt: str | None,
     response_text: str,
     artifacts_dir: str | None,
+    handoff_aborted: Mapping[str, object] | None = None,
 ) -> str:
     """Render the host's bounded, best-effort brief for a recovery turn."""
 
@@ -56,6 +59,7 @@ def build_recovery_evidence(
             original_prompt=original_prompt,
             response_text=response_text,
             artifacts_dir=artifacts_dir,
+            handoff_aborted=handoff_aborted,
         )
     except Exception:
         _logger.warning(
@@ -71,11 +75,16 @@ def _build_recovery_evidence_body(
     original_prompt: str | None,
     response_text: str,
     artifacts_dir: str | None,
+    handoff_aborted: Mapping[str, object] | None = None,
 ) -> str:
     root = _artifacts_root(artifacts_dir)
     baseline = load_dirty_baseline(root) if root is not None else None
     host_paths = _host_paths_by_obligation(root)
     sections: list[str] = []
+
+    aborted_section = _handoff_aborted_section(handoff_aborted)
+    if aborted_section is not None:
+        sections.append(aborted_section)
 
     prompt_section = _prompt_section(original_prompt)
     if prompt_section is not None:
@@ -124,6 +133,22 @@ def _host_paths_by_obligation(root: Path | None) -> dict[str, str]:
     except Exception:
         return {}
     return {record.obligation_id: record.path for record in records}
+
+
+def _handoff_aborted_section(
+    handoff_aborted: Mapping[str, object] | None,
+) -> str | None:
+    """Render the killed-handoff notice so the recovery commit stays accurate."""
+    if not handoff_aborted:
+        return None
+    command = handoff_aborted.get("command") or "unknown command"
+    return (
+        "## Handoff attempt that never landed\n\n"
+        f"This run tried `{command}` but it was killed before the monitor "
+        "started; no follow-up agent will run. Commit the work described "
+        "below from this run's own evidence; do not assume a monitor or "
+        "follow-up agent exists."
+    )
 
 
 def _prompt_section(original_prompt: str | None) -> str | None:
