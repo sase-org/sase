@@ -341,12 +341,15 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         )
 
         def mutate(project: Any) -> Issue:
-            from sase.bead.epic_symbols import raise_if_leftover_epic_symbols
-
-            raise_if_leftover_epic_symbols(
-                [project.show(row.issue.id)],
-                start=Path(workspace) if workspace else None,
+            from sase.bead.epic_symbols import (
+                raise_if_leftover_epic_symbols,
+                raise_if_surviving_flag_definition,
             )
+
+            issues = [project.show(row.issue.id)]
+            start = Path(workspace) if workspace else None
+            raise_if_leftover_epic_symbols(issues, start=start)
+            raise_if_surviving_flag_definition(issues, start=start)
             project.close(
                 [row.issue.id],
                 reason=result.reason,

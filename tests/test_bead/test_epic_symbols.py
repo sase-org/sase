@@ -123,3 +123,24 @@ def test_raise_if_leftover_epic_symbols_names_the_justfile_flags(
     assert '--epic-symbol "sase-o8.2(CommonPlaceholderIndex)"' in message
     assert '--epic-symbol "sase-o8.2(load_common_placeholder_index)"' in message
     assert "sase bead epic-symbols sase-o8.2" in message
+
+
+def test_raise_if_surviving_flag_definition_refuses_registry_bead(
+    tmp_path: Path,
+) -> None:
+    from sase.bead.epic_symbols import raise_if_surviving_flag_definition
+
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "Justfile").write_text("check:\n", encoding="utf-8")
+    registry = tmp_path / "src/sase/feature_flags/registry.py"
+    registry.parent.mkdir(parents=True)
+    registry.write_text('    bead="sase-abc",\n', encoding="utf-8")
+
+    with pytest.raises(_LeftoverEpicSymbolsError, match="rule 7"):
+        raise_if_surviving_flag_definition([_issue("sase-abc")], start=tmp_path)
+    raise_if_surviving_flag_definition([_issue("sase-other")], start=tmp_path)
+    raise_if_surviving_flag_definition(
+        [_issue("sase-abc", status=Status.CLOSED)], start=tmp_path
+    )
+    registry.write_text("", encoding="utf-8")
+    raise_if_surviving_flag_definition([_issue("sase-abc")], start=tmp_path)

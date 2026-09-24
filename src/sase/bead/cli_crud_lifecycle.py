@@ -12,7 +12,10 @@ from sase.bead.cli_common import (
     resolve_bead_operation_context,
 )
 from sase.bead.cli_crud_common import mutation_outcome_ids, resolve_mutation_author
-from sase.bead.epic_symbols import raise_if_leftover_epic_symbols
+from sase.bead.epic_symbols import (
+    raise_if_leftover_epic_symbols,
+    raise_if_surviving_flag_definition,
+)
 from sase.bead.model import Issue, IssueType
 from sase.bead.mutation_commit import (
     close_mutation_commit_message,
@@ -115,6 +118,7 @@ def _refuse_leftover_epic_symbols(
     """Refuse a close that would stale remaining Justfile ``--epic-symbol`` entries."""
     issues = [project.show(issue_id) for issue_id in issue_ids]
     raise_if_leftover_epic_symbols(issues, start=start)
+    raise_if_surviving_flag_definition(issues, start=start)
 
 
 def handle_bead_close(args: argparse.Namespace) -> None:

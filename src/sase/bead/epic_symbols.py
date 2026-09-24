@@ -40,6 +40,10 @@ class _EpicSymbolEntry:
         return f'--epic-symbol "{self.raw}"'
 
 
+_FLAG_REGISTRY_RELPATH = Path("src/sase/feature_flags/registry.py")
+_FLAG_DEFINITION_BEAD = re.compile(r"""\bbead\s*=\s*["']([^"']+)["']""")
+
+
 class _LeftoverEpicSymbolsError(ValueError):
     """Raised when closing would stale remaining ``--epic-symbol`` entries."""
 
@@ -154,4 +158,41 @@ def raise_if_leftover_epic_symbols(
     close_ids = [issue.id for issue in issue_list if issue.status is not Status.CLOSED]
     raise _LeftoverEpicSymbolsError(
         _leftover_epic_symbols_error_message(leftovers, close_ids=close_ids)
+    )
+
+
+def _registry_flag_beads(start: Path | None = None) -> set[str]:
+    """Return bead ids named by the working tree's feature-flag registry."""
+    justfile = discover_justfile(start)
+    if justfile is None:
+        return set()
+    registry = justfile.parent / _FLAG_REGISTRY_RELPATH
+    if not registry.is_file():
+        return set()
+    return set(_FLAG_DEFINITION_BEAD.findall(registry.read_text(encoding="utf-8")))
+
+
+def raise_if_surviving_flag_definition(
+    issues: Iterable[Issue],
+    *,
+    start: Path | None = None,
+) -> None:
+    """Refuse closing a flag bead whose registry definition still exists.
+
+    ``check_feature_flags`` rule 7 fails every workspace once a named flag bead
+    is closed while its definition survives, so close must surface it first.
+    """
+    targets = [issue.id for issue in issues if issue.status is not Status.CLOSED]
+    if not targets:
+        return
+    surviving = sorted(set(targets) & _registry_flag_beads(start))
+    if not surviving:
+        return
+    names = ", ".join(surviving)
+    raise _LeftoverEpicSymbolsError(
+        f"refusing to close {names}: the feature-flag registry "
+        f"({_FLAG_REGISTRY_RELPATH}) still defines a flag naming it, which "
+        "turns unrelated agents' just check red (check_feature_flags rule 7). "
+        "Remove the flag definition (and its references and schema entry) "
+        "before closing the flag bead."
     )
