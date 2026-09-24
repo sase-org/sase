@@ -79,17 +79,15 @@ class AgentMetadataSearchMixin:
         ):
             return False
         try:
-            detail = self._agent_detail()
+            self._agent_detail()
         except Exception:
             return False
-        if bool(getattr(detail, "decks_enabled", False)):
-            try:
-                from ._deck_search_host import deck_search_panel
+        try:
+            from ._deck_search_host import deck_search_panel
 
-                return deck_search_panel(self) is not None
-            except Exception:
-                return False
-        return detail.is_metadata_visible()
+            return deck_search_panel(self) is not None
+        except Exception:
+            return False
 
     def action_search_forward(self) -> None:
         """Start forward incremental search over the Agents metadata panel."""
@@ -129,19 +127,15 @@ class AgentMetadataSearchMixin:
                 return True
 
         try:
-            detail = self._agent_detail()
-            decks = bool(getattr(detail, "decks_enabled", False))
+            self._agent_detail()
         except Exception:
-            decks = False
-        if decks:
-            try:
-                from ._deck_search_host import deck_structural_exit_keys
+            pass
+        try:
+            from ._deck_search_host import deck_structural_exit_keys
 
-                passthrough: tuple[str, ...] | None = deck_structural_exit_keys(self)
-            except Exception:
-                passthrough = ()
-        else:
-            passthrough = None
+            passthrough: tuple[str, ...] | None = deck_structural_exit_keys(self)
+        except Exception:
+            passthrough = ()
         disposition = search.handle_key(
             event.key,
             event.character,
@@ -165,18 +159,12 @@ class AgentMetadataSearchMixin:
                 continue
             try:
                 panel = self._agent_metadata_search_deck_panel()
-                detail = self._agent_detail()
-                decks = bool(getattr(detail, "decks_enabled", False))
+                self._agent_detail()
             except Exception:
                 panel = None
-                decks = False
-            if decks and panel is not None:
-                scroll = panel.search_scroll()
-            else:
-                scroll = self.query_one(  # type: ignore[attr-defined]
-                    "#agent-search-scroll",
-                    VerticalScroll,
-                )
+            if panel is None:
+                return False
+            scroll = panel.search_scroll()
             height = max(1, scroll.scrollable_content_region.height)
             amount = height if full_page else max(1, height // 2)
             scroll.scroll_relative(y=direction * amount, animate=False)
@@ -248,7 +236,8 @@ class AgentMetadataSearchMixin:
 
     def _deck_search_active(self) -> bool:
         try:
-            return bool(getattr(self._agent_detail(), "decks_enabled", False))
+            self._agent_detail()
+            return True
         except Exception:
             return False
 
@@ -331,13 +320,12 @@ class AgentMetadataSearchMixin:
         self._agent_metadata_search_host_active = True
         self._agent_metadata_search_identity = detail.metadata_identity
         self._agent_metadata_search_restore_focus = self.focused  # type: ignore[attr-defined]
-        if bool(getattr(detail, "decks_enabled", False)):
-            try:
-                panel = self._agent_metadata_search_deck_panel()
-                if panel is not None:
-                    self._agent_metadata_search_panel = panel
-            except Exception:
-                pass
+        try:
+            panel = self._agent_metadata_search_deck_panel()
+            if panel is not None:
+                self._agent_metadata_search_panel = panel
+        except Exception:
+            pass
 
     def vim_search_exited(self, *, refresh: bool) -> None:
         """Clear host-only state; native metadata continues refreshing."""

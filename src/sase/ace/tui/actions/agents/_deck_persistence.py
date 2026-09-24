@@ -57,17 +57,6 @@ class AgentDeckPersistenceMixin:
         if loaded is not None and not isinstance(loaded, AgentsDeckStateSnapshot):
             self._agents_deck_state_loaded_snapshot = None
 
-    def _decks_persistence_active(self) -> bool:
-        """Return whether deck layout persistence applies this session."""
-        try:
-            if getattr(self, "current_tab", None) != "agents":
-                return True
-            from ...widgets.decks.flag import agent_decks_active
-
-            return bool(agent_decks_active(self))
-        except Exception:
-            return True
-
     def _capture_agents_deck_state(self) -> AgentsDeckStateSnapshot | None:
         """Capture the effective (pre-zoom) deck state, or None when unavailable."""
         try:
@@ -86,8 +75,6 @@ class AgentDeckPersistenceMixin:
     def _agents_deck_state_changed(self) -> None:
         """Record the latest deck layout and schedule a coalesced save."""
         self._ensure_agents_deck_persistence_state()
-        if not self._decks_persistence_active():
-            return
         snapshot = self._capture_agents_deck_state()
         if snapshot is None:
             if not self._agents_deck_state_merged:  # type: ignore[attr-defined]
@@ -156,10 +143,6 @@ class AgentDeckPersistenceMixin:
             return False
         from ...models.agent_deck_persistence import EMPTY_AGENTS_DECK_STATE
 
-        if not self._decks_persistence_active():
-            self._agents_deck_state_merged = True  # type: ignore[attr-defined]
-            self._agents_deck_state_loaded_snapshot = None  # type: ignore[attr-defined]
-            return True
         snapshot = (
             self._agents_deck_state_loaded_snapshot  # type: ignore[attr-defined]
             or EMPTY_AGENTS_DECK_STATE

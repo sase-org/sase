@@ -21,8 +21,6 @@ from ._agent_detail_panels import (
     DetailPanelMode,
 )
 from ._agent_detail_state import AgentDetailStateMixin
-from .file_panel import AgentFilePanel
-from .llm_calls_panel import AgentLLMCallsPanel
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -70,48 +68,28 @@ class AgentDetail(
         # capture the value at start and discard their result if the
         # generation has advanced before they complete.
         self._agent_detail_generation: int = 0
-        self._decks_enabled = False
         from .decks.main_document import EMPTY_MAIN_DOCUMENT
 
         self._main_deck_document = EMPTY_MAIN_DOCUMENT
 
     def compose(self) -> ComposeResult:
-        """Compose the two-panel layout (prompt and file)."""
+        """Compose the deck layout."""
         from .agent_header_panel import AgentHeaderPanel
         from .agent_jump_panel import AgentJumpPanel
         from .decks.area import DeckArea
 
         AgentPromptPanel = agent_prompt_panel_type()
-        try:
-            from .decks.flag import agent_decks_enabled
-
-            decks_enabled = bool(agent_decks_enabled())
-        except Exception:
-            decks_enabled = False
-        self._decks_enabled = decks_enabled
         with Vertical(id="agent-detail-layout"):
             yield AgentHeaderPanel(id="agent-header-panel", classes="hidden")
-            if decks_enabled:
-                with Vertical(id="agent-deck-source-host"):
-                    with VerticalScroll(id="agent-prompt-scroll"):
-                        yield AgentPromptPanel(
-                            id="agent-prompt-panel", classes="-deck-source"
-                        )
-                    with VerticalScroll(id="agent-search-scroll", classes="hidden"):
-                        yield Static(id="agent-search-panel")
-                    yield Static(id="agent-search-command", classes="hidden")
-                yield DeckArea(id="agent-deck-area", classes="-single")
-                yield AgentJumpPanel(id="agent-jump-panel", classes="hidden")
-                return
-            with VerticalScroll(id="agent-prompt-scroll", classes="expanded"):
-                yield AgentPromptPanel(id="agent-prompt-panel")
-            with VerticalScroll(id="agent-search-scroll", classes="hidden"):
-                yield Static(id="agent-search-panel")
-            yield Static(id="agent-search-command", classes="hidden")
-            with VerticalScroll(id="agent-file-scroll", classes="hidden"):
-                yield AgentFilePanel(id="agent-file-panel")
-            with VerticalScroll(id="agent-llm-calls-scroll", classes="hidden"):
-                yield AgentLLMCallsPanel(id="agent-llm-calls-panel")
+            with Vertical(id="agent-deck-source-host"):
+                with VerticalScroll(id="agent-prompt-scroll"):
+                    yield AgentPromptPanel(
+                        id="agent-prompt-panel", classes="-deck-source"
+                    )
+                with VerticalScroll(id="agent-search-scroll", classes="hidden"):
+                    yield Static(id="agent-search-panel")
+                yield Static(id="agent-search-command", classes="hidden")
+            yield DeckArea(id="agent-deck-area", classes="-single")
             yield AgentJumpPanel(id="agent-jump-panel", classes="hidden")
 
     @property
@@ -141,11 +119,10 @@ class AgentDetail(
             prompt_panel.attach_identity_header_sink(self._on_identity_header)
         except Exception:
             pass
-        if self.decks_enabled:
-            try:
-                prompt_panel.attach_main_document_sink(self._on_main_document)
-            except Exception:
-                pass
+        try:
+            prompt_panel.attach_main_document_sink(self._on_main_document)
+        except Exception:
+            pass
         self._sync_header_visibility()
         self._attach_jump_panel_sink()
 
@@ -206,16 +183,7 @@ class AgentDetail(
         except Exception:
             return False
         try:
-            if self.decks_enabled:
-                self.reapply_main_view_pins()  # type: ignore[attr-defined]
-                return expanded
-            prompt_panel = self.query_one(
-                "#agent-prompt-panel", agent_prompt_panel_type()
-            )
-            if bool(getattr(prompt_panel, "is_pinned_to_bottom", False)):
-                reschedule = getattr(prompt_panel, "_schedule_bottom_pin_reapply", None)
-                if callable(reschedule):
-                    reschedule()
+            self.reapply_main_view_pins()  # type: ignore[attr-defined]
         except Exception:
             pass
         return expanded

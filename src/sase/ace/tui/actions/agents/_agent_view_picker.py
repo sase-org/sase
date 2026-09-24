@@ -86,25 +86,7 @@ class AgentViewPickerMixin:
         """Return why the Agent view picker cannot open right now."""
         if self.current_tab != "agents":
             return "Agent view is only available on the Agents tab"
-        try:
-            from ...widgets.decks.flag import agent_decks_active
-
-            if bool(agent_decks_active(self)):
-                return "Agent decks replace the view picker"
-        except Exception:
-            pass
-        busy_reason = self._agent_view_picker_busy_reason()
-        if busy_reason is not None:
-            return busy_reason
-        resolve_panel = getattr(self, "_resolve_focused_panel", None)
-        if callable(resolve_panel) and resolve_panel() is not None:
-            return "Select an agent row first"
-        if getattr(self, "_current_group_key", None) is not None:
-            return "Select an agent row first"
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if agent is None:
-            return "No agent selected"
-        return None
+        return "Agent decks replace the view picker"
 
     def _can_open_agent_view_picker(self) -> bool:
         """Return whether the Agent view picker is currently applicable."""

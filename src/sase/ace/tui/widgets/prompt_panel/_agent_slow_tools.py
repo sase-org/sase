@@ -83,23 +83,14 @@ class _SourcedSlowToolCall:
 def slow_tool_overflow_hint(
     overflow: int,
     *,
-    decks_enabled: bool,
     next_deck_key: str = "",
     prev_deck_key: str = "",
-    view_picker_key: str = "",
 ) -> str:
     """Return the SLOW TOOL CALLS overflow line for ``overflow`` hidden calls."""
-    if decks_enabled:
-        if next_deck_key and prev_deck_key:
-            return (
-                f"+ {overflow} more · {next_deck_key}/{prev_deck_key} "
-                "→ Tools deck for the full LLM Calls timeline"
-            )
-        return f"+ {overflow} more · full timeline in LLM Calls"
-    if view_picker_key:
+    if next_deck_key and prev_deck_key:
         return (
-            f"+ {overflow} more · {view_picker_key} "
-            "→ LLM Calls view for the full timeline"
+            f"+ {overflow} more · {next_deck_key}/{prev_deck_key} "
+            "→ Tools deck for the full LLM Calls timeline"
         )
     return f"+ {overflow} more · full timeline in LLM Calls"
 
@@ -309,12 +300,6 @@ def _append_slow_tool_calls_section(
     overflow = len(slow_calls) - len(visible)
     overflow_tail = None
     if overflow > 0:
-        try:
-            from ..decks.flag import agent_decks_enabled
-
-            decks = bool(agent_decks_enabled())
-        except Exception:
-            decks = False
         keys = overflow_hint_keys
         if keys is None:
             try:
@@ -324,10 +309,8 @@ def _append_slow_tool_calls_section(
         keys = keys or {}
         hint = slow_tool_overflow_hint(
             overflow,
-            decks_enabled=decks,
             next_deck_key=str(keys.get("next_deck", "") or ""),
             prev_deck_key=str(keys.get("prev_deck", "") or ""),
-            view_picker_key=str(keys.get("view_picker", "") or ""),
         )
         overflow_tail = Text(
             f"  {hint}\n",

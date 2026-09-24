@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from textual.containers import VerticalScroll
-
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.widgets._agent_display_family_helpers import make_family
@@ -17,10 +15,6 @@ from tests.ace.tui.widgets._agent_jump_panel_helpers import (
     _labeled_map_and_roster,
     _show_agent,
     _solo,
-)
-from tests.ace.tui.widgets._prompt_panel_section_navigation_helpers import (
-    _MetadataNavigationApp,
-    section,
 )
 
 
@@ -146,21 +140,23 @@ async def test_identity_change_resets_panel_scroll(tmp_path: Path) -> None:
 
 
 async def test_bottom_pinned_body_stays_pinned_across_jump_toggle() -> None:
-    app = _MetadataNavigationApp()
-    async with app.run_test(size=(50, 16)) as pilot:
+    from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
+
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
-        scroll = app.query_one("#agent-prompt-scroll", VerticalScroll)
-        body = section("ONE", "one\n" * 30)
-        prompt.prepare_section_document("pin-document")
-        prompt.update(body)
+        await _show_agent(detail, _solo(), pilot)
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
-        await pilot.press("G")
+        detail.show_deck(0, DeckId.MAIN)
+        detail.show_deck(1, DeckId.FILES)
         await pilot.pause()
-        assert prompt.is_pinned_to_bottom
         detail._on_member_jump_map(_labeled_map(_solo(), ["aa", "bb"]))  # noqa: SLF001
         await pilot.pause()
+        main_view = detail.deck_area.panel(0).main_view
+        main_view.pin_to_bottom()
+        assert bool(main_view.is_pinned_to_bottom) is True
         detail.toggle_jump_panel_expanded()
         await pilot.pause()
-        assert prompt.is_pinned_to_bottom
-        assert int(scroll.scroll_y) == prompt.bottom_scroll_target(scroll)
+        main_view = detail.deck_area.panel(0).main_view
+        assert bool(main_view.is_pinned_to_bottom) is True

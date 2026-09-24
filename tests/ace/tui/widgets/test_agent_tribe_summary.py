@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from types import SimpleNamespace
 
 from textual.app import App, ComposeResult
 
-from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
@@ -62,7 +60,6 @@ async def test_tribe_document_invalidates_agent_render_and_uses_prompt_scroll() 
         assert detail._current_agent is None
         assert detail._current_tribe_identity == ("panel", "focus")
         assert detail._agent_detail_generation == prior_generation + 1
-        assert detail._panel_mode is DetailPanelMode.INFO
         assert not detail._is_agent_detail_render_current(
             agent.identity,
             prior_generation,
@@ -73,11 +70,7 @@ async def test_tribe_document_invalidates_agent_render_and_uses_prompt_scroll() 
         combined = _header_and_body_text(prompt)
         assert "TRIBE\nName: @focus" in combined
         assert "summary_agent" in combined
-        route_owner = SimpleNamespace(query_one=lambda *_args: detail)
-        assert (
-            BasicNavigationMixin._get_agent_detail_scroll_id(route_owner)
-            == "#agent-prompt-scroll"
-        )
+        assert detail.effective_detail_scroll_id() == "#agent-deck-panel-0-main-scroll"
 
         detail.update_display_immediate(agent)
         await pilot.pause()

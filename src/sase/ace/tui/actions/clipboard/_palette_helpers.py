@@ -11,16 +11,8 @@ def warm_agent_file_path(app: Any) -> str | None:
         from ...widgets import AgentDetail
 
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        if bool(getattr(detail, "decks_enabled", False)):
-            view = detail.focused_file_view()  # type: ignore[attr-defined]
-            return None if view is None else view.get_current_file_path()
-        from ...widgets.file_panel import AgentFilePanel
-
-        if not detail.is_file_visible():
-            return None
-        return detail.query_one(
-            "#agent-file-panel", AgentFilePanel
-        ).get_current_file_path()
+        view = detail.focused_file_view()  # type: ignore[attr-defined]
+        return None if view is None else view.get_current_file_path()
     except Exception:
         return None
 

@@ -5198,11 +5198,6 @@
           "default": true,
           "deprecated": true
         },
-        "agent_decks": {
-          "type": "boolean",
-          "description": "The Agents tab shows one or two deck panels of agent data decks (Main, Files, Tools) and cards instead of the metadata panel plus one Files or LLM Calls panel.",
-          "default": false
-        },
         "agent_sudo_requests": {
           "type": "boolean",
           "description": "Gate the typed sudo request workflow while the runner, TUI modal, skill guard, and SSH relay phases land.",

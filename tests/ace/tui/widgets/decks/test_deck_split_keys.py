@@ -9,7 +9,6 @@ from textual.app import App, ComposeResult
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckLayout
-from sase.feature_flags import override_flags
 from tests.ace.tui.widgets.decks._deck_spread_test_helpers import pin_paged
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
 
@@ -23,7 +22,7 @@ class _DetailApp(App[None]):
         yield AgentDetail(id="agent-detail-panel")
 
 
-def _check(action: str, tab: str, decks: bool) -> bool | None:
+def _check(action: str, tab: str) -> bool | None:
     from sase.ace.tui._app_action_availability import check_app_action
 
     class _App:
@@ -35,30 +34,21 @@ def _check(action: str, tab: str, decks: bool) -> bool | None:
             return None
 
     app = _App()
-    import sase.ace.tui.widgets.decks.flag as flag
-
-    orig = flag.agent_decks_active
-    flag.agent_decks_active = lambda _a: decks  # type: ignore[method-assign]
-    try:
-        return check_app_action(app, action, (), lambda _a, _p: None)
-    finally:
-        flag.agent_decks_active = orig  # type: ignore[method-assign]
+    return check_app_action(app, action, (), lambda _a, _p: None)
 
 
 def test_layout_actions_gated_to_agents_decks() -> None:
-    assert _check("toggle_deck_split_below", "agents", True) is None
-    assert _check("toggle_deck_split_below", "agents", False) is False
-    assert _check("toggle_deck_split_below", "artifacts", True) is False
-    assert _check("toggle_deck_focus", "agents", True) is False  # SINGLE, no split
-    assert _check("grow_deck_panel", "services", True) is False
-    assert _check("shrink_deck_panel", "artifacts", True) is False
+    assert _check("toggle_deck_split_below", "agents") is None
+    assert _check("toggle_deck_split_below", "artifacts") is False
+    assert _check("toggle_deck_focus", "agents") is False  # SINGLE, no split
+    assert _check("grow_deck_panel", "services") is False
+    assert _check("shrink_deck_panel", "artifacts") is False
 
 
 def test_scroll_prompt_hidden_on_agents_while_decks_on() -> None:
-    assert _check("scroll_prompt_down", "agents", True) is False
-    assert _check("scroll_prompt_up", "agents", True) is False
-    assert _check("scroll_prompt_down", "services", True) is None
-    assert _check("scroll_prompt_down", "agents", False) is None
+    assert _check("scroll_prompt_down", "agents") is False
+    assert _check("scroll_prompt_up", "agents") is False
+    assert _check("scroll_prompt_down", "services") is None
 
 
 def test_footer_deck_entries() -> None:
@@ -109,24 +99,23 @@ def test_rerender_for_viewport_only_images() -> None:
 
 
 async def test_click_focuses_other_panel(tmp_path: Path) -> None:
-    with override_flags(agent_decks=True):
-        app = _DetailApp()
-        pin_paged(app)
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            detail = app.query_one("#agent-detail-panel", AgentDetail)
-            agent = make_artifact_agent(tmp_path, status="DONE")
-            detail.update_display(agent)
-            await pilot.pause()
-            detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
-            await pilot.pause()
-            assert detail.deck_area.state.focused == 1
-            area = detail.deck_area
-            from sase.ace.tui.widgets.decks.panel import DeckPanelFocusRequested
+    app = _DetailApp()
+    pin_paged(app)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        assert detail.deck_area.state.focused == 1
+        area = detail.deck_area
+        from sase.ace.tui.widgets.decks.panel import DeckPanelFocusRequested
 
-            area.on_deck_panel_focus_requested(DeckPanelFocusRequested(0))
-            await pilot.pause()
-            assert detail.deck_area.state.focused == 0
-            # Same index is a no-op.
-            area.on_deck_panel_focus_requested(DeckPanelFocusRequested(0))
-            assert detail.deck_area.state.focused == 0
+        area.on_deck_panel_focus_requested(DeckPanelFocusRequested(0))
+        await pilot.pause()
+        assert detail.deck_area.state.focused == 0
+        # Same index is a no-op.
+        area.on_deck_panel_focus_requested(DeckPanelFocusRequested(0))
+        assert detail.deck_area.state.focused == 0

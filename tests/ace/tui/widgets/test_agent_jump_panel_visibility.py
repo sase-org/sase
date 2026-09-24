@@ -10,7 +10,6 @@ from textual.containers import VerticalScroll
 
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets._agent_detail_panels import DetailLayoutMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MemberJumpNumbering,
@@ -137,29 +136,23 @@ async def test_tribe_panel_shows_jump_panel() -> None:
 async def test_panel_sits_below_secondary_scroll_in_every_layout(
     tmp_path: Path,
 ) -> None:
+    from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
+
     root, _child = make_family(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await _show_agent(detail, root, pilot)
         panel = _jump_panel(detail)
-        detail._has_file_content = True  # noqa: SLF001
-        detail._has_llm_calls_content = True  # noqa: SLF001
-        for layout in (
-            DetailLayoutMode.METADATA_ONLY,
-            DetailLayoutMode.METADATA_LARGER,
-            DetailLayoutMode.EQUAL,
-            DetailLayoutMode.SECONDARY_LARGER,
-            DetailLayoutMode.SECONDARY_ONLY,
-        ):
-            detail.set_detail_layout(layout)
-            await pilot.pause()
-            assert not panel.has_class("hidden")
-            file_scroll = detail.query_one("#agent-file-scroll", VerticalScroll)
-            llm_scroll = detail.query_one("#agent-llm-calls-scroll", VerticalScroll)
-            assert panel.region.y >= file_scroll.region.bottom
-            assert panel.region.y >= llm_scroll.region.bottom
-            assert panel.region.bottom <= detail.region.bottom
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        detail.show_deck(0, DeckId.MAIN)
+        detail.show_deck(1, DeckId.FILES)
+        await pilot.pause()
+        assert not panel.has_class("hidden")
+        area = detail.query_one("#agent-deck-area")
+        assert panel.region.y >= area.region.bottom
+        assert panel.region.bottom <= detail.region.bottom
 
 
 async def test_search_overlay_keeps_jump_panel_visible(tmp_path: Path) -> None:

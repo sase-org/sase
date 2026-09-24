@@ -300,10 +300,9 @@ class FileViewingMixin(HintMixinBase):
             from ...widgets import AgentDetail as _HintAgentDetail
 
             _hint_detail = self.query_one("#agent-detail-panel", _HintAgentDetail)  # type: ignore[attr-defined]
-            if bool(getattr(_hint_detail, "decks_enabled", False)):
-                ensure = getattr(_hint_detail, "ensure_main_deck_shown", None)
-                if callable(ensure):
-                    ensure()
+            ensure = getattr(_hint_detail, "ensure_main_deck_shown", None)
+            if callable(ensure):
+                ensure()
         except Exception:
             pass
 

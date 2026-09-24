@@ -16,9 +16,7 @@ class AgentDetailDeckTargetsMixin:
     """Pure deck lookups over ``deck_area`` for key actions and clipboard."""
 
     def focused_deck(self) -> Any | None:
-        """Return the focused panel's deck, or None with the flag off."""
-        if not bool(getattr(self, "decks_enabled", False)):
-            return None
+        """Return the focused panel's deck."""
         try:
             return self.deck_area.focused_panel().deck  # type: ignore[attr-defined]
         except Exception:
@@ -26,8 +24,6 @@ class AgentDetailDeckTargetsMixin:
 
     def focused_file_view(self) -> Any | None:
         """Return the Files view key actions and clipboard target."""
-        if not bool(getattr(self, "decks_enabled", False)):
-            return None
         try:
             from .decks.model import DeckId
 
@@ -44,8 +40,6 @@ class AgentDetailDeckTargetsMixin:
 
     def focused_tools_view(self) -> Any | None:
         """Return the Tools view only when the focused deck is Tools."""
-        if not bool(getattr(self, "decks_enabled", False)):
-            return None
         try:
             from .decks.model import DeckId
 
@@ -58,8 +52,6 @@ class AgentDetailDeckTargetsMixin:
 
     def main_view_for_actions(self) -> tuple[Any, Any] | None:
         """Return the (panel, Main view) fold and E actions should use."""
-        if not bool(getattr(self, "decks_enabled", False)):
-            return None
         try:
             from .decks.model import DeckId
 
@@ -76,8 +68,6 @@ class AgentDetailDeckTargetsMixin:
 
     def ensure_main_deck_shown(self) -> None:
         """Show Main on the focused panel when no visible panel shows it."""
-        if not bool(getattr(self, "decks_enabled", False)):
-            return
         try:
             from .decks.model import DeckId
 
@@ -94,8 +84,6 @@ class AgentDetailDeckTargetsMixin:
 
     def reapply_main_view_pins(self) -> None:
         """Re-apply bottom pins on every visible Main view."""
-        if not bool(getattr(self, "decks_enabled", False)):
-            return
         try:
             area = self.deck_area  # type: ignore[attr-defined]
             for deck_panel in area.visible_panels():

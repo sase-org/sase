@@ -114,17 +114,7 @@ class AgentDetailPanelMixin(Static):
 
     def _expand_prompt_only(self) -> None:
         """Hide the file panel and expand the prompt panel to fill the space."""
-        if bool(getattr(self, "decks_enabled", False)):
-            return
-        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-        prompt_scroll = self._active_metadata_scroll()
-        self._show_active_metadata_scroll(prompt_scroll)
-        file_scroll.add_class("hidden")
-        llm_calls_scroll.add_class("hidden")
-        self._clear_detail_layout_classes()
-        prompt_scroll.add_class("expanded")
-        self._sync_header_visibility()
+        return
 
     @property
     def panel_mode_label(self) -> str:
@@ -133,15 +123,7 @@ class AgentDetailPanelMixin(Static):
         Returns:
             ``"file"``, ``"llm calls"``, or ``"none"``.
         """
-        if bool(getattr(self, "decks_enabled", False)):
-            return ""
-        if self.is_info_mode():
-            return _MODE_LABELS[DetailPanelMode.INFO]
-        if self.is_llm_calls_visible():
-            return _MODE_LABELS[DetailPanelMode.LLM_CALLS]
-        if self.is_file_visible():
-            return _MODE_LABELS[DetailPanelMode.AUTO]
-        return _MODE_LABELS[self._selected_secondary_mode()]
+        return ""
 
     @property
     def panel_mode(self) -> DetailPanelMode:
@@ -158,26 +140,15 @@ class AgentDetailPanelMixin(Static):
 
         Returns True when the saved preference changed.
         """
-        if bool(getattr(self, "decks_enabled", False)):
-            return False
-        old = self.detail_layout_mode
-        self._detail_layout_mode = layout
-        self._apply_detail_layout_classes()
-        return old is not layout
+        return False
 
     def cycle_detail_layout(self, *, direction: int = 1) -> bool:
         """Cycle the saved layout in the canonical order."""
-        if bool(getattr(self, "decks_enabled", False)):
-            return False
-        return self.set_detail_layout(
-            next_detail_layout_mode(self._detail_layout_mode, direction=direction)
-        )
+        return False
 
     def toggle_layout(self) -> None:
         """Retained compatibility alias for cycling to the next layout."""
-        if bool(getattr(self, "decks_enabled", False)):
-            return
-        self.cycle_detail_layout(direction=1)
+        return
 
     def _clear_detail_layout_classes(self) -> None:
         """Remove all saved-layout sizing classes from detail scroll containers."""
@@ -237,39 +208,7 @@ class AgentDetailPanelMixin(Static):
 
     def _apply_detail_layout_classes(self) -> None:
         """Apply the saved layout to the selected secondary panel."""
-        if bool(getattr(self, "decks_enabled", False)):
-            return
-        prompt_scroll = self._active_metadata_scroll()
-        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-        self._clear_detail_layout_classes()
-        self._hide_unselected_secondary_scroll()
-
-        secondary_scroll = self._selected_secondary_scroll()
-        secondary_available = self.selected_secondary_available()
-        if (
-            self._detail_layout_mode is DetailLayoutMode.METADATA_ONLY
-            or not secondary_available
-        ):
-            self._show_active_metadata_scroll(prompt_scroll)
-            file_scroll.add_class("hidden")
-            llm_calls_scroll.add_class("hidden")
-            prompt_scroll.add_class("expanded")
-        elif self._detail_layout_mode is DetailLayoutMode.SECONDARY_ONLY:
-            self._hide_metadata_scrolls()
-            secondary_scroll.remove_class("hidden")
-            secondary_scroll.add_class("expanded")
-        else:
-            self._show_active_metadata_scroll(prompt_scroll)
-            secondary_scroll.remove_class("hidden")
-            if self._detail_layout_mode is DetailLayoutMode.METADATA_LARGER:
-                prompt_scroll.add_class("layout-priority")
-                secondary_scroll.add_class("layout-secondary")
-            elif self._detail_layout_mode is DetailLayoutMode.EQUAL:
-                prompt_scroll.add_class("layout-equal")
-                secondary_scroll.add_class("layout-equal")
-        self._update_panel_indicators()
-        self._sync_header_visibility()
+        return
 
     def set_panel_mode(
         self,
@@ -283,19 +222,7 @@ class AgentDetailPanelMixin(Static):
         Same-mode selections are a no-op only when the rendered detail already
         belongs to the selected row and attempt.
         """
-        if bool(getattr(self, "decks_enabled", False)):
-            return False
-        if (
-            mode is not DetailPanelMode.INFO
-            and mode is self._panel_mode
-            and self._current_agent is not None
-            and self._current_agent.identity == agent.identity
-            and getattr(self, "_current_attempt_number", None) == attempt_number
-        ):
-            return False
-        self._apply_panel_mode(mode, agent)
-        self._update_panel_indicators()
-        return True
+        return False
 
     def _apply_panel_mode(self, mode: DetailPanelMode, agent: Agent) -> None:
         """Apply visual transition to the given panel mode.
@@ -451,62 +378,4 @@ class AgentDetailPanelMixin(Static):
 
     def _update_panel_indicators(self) -> None:
         """Update the border subtitle on the prompt panel to show panel state."""
-        if bool(getattr(self, "decks_enabled", False)):
-            return
-        try:
-            prompt_scroll = self._active_metadata_scroll()
-        except Exception:
-            return
-
-        if self._current_agent is None:
-            prompt_scroll.border_subtitle = ""
-            return
-
-        text = Text()
-
-        # Files indicator
-        file_active = self.is_file_visible()
-        if file_active:
-            text.append("●", style="bold green")
-            text.append(" files", style="bold green")
-            if self._file_count > 1:
-                text.append(
-                    f" [{self._file_index + 1}/{self._file_count}]",
-                    style="bold green",
-                )
-            source_label = self._current_file_source_label()
-            if source_label:
-                text.append(f" · {source_label}", style="bold green")
-        elif self._has_file_content:
-            text.append("●", style="green")
-            text.append(" files", style="dim")
-            if self._file_count > 1:
-                text.append(
-                    f" [{self._file_index + 1}/{self._file_count}]",
-                    style="dim",
-                )
-            source_label = self._current_file_source_label()
-            if source_label:
-                text.append(f" · {source_label}", style="dim")
-        else:
-            text.append("○", style="dim")
-            text.append(" files", style="dim")
-
-        # LLM Calls indicator - only for entries with tool sources.
-        if self._current_agent and supports_slow_tool_sources(self._current_agent):
-            text.append("  ")
-
-            llm_calls_active = (
-                self.is_llm_calls_visible() and self._has_llm_calls_content
-            )
-            if llm_calls_active:
-                text.append("●", style="bold #87D7FF")
-                text.append(" llm calls", style="bold #87D7FF")
-            elif self._has_llm_calls_content:
-                text.append("●", style="#87D7FF")
-                text.append(" llm calls", style="dim")
-            else:
-                text.append("○", style="dim")
-                text.append(" llm calls", style="dim")
-
-        prompt_scroll.border_subtitle = text
+        return

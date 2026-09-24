@@ -211,10 +211,8 @@ async def test_update_display_expands_prompt_for_done_workflow_without_diff() ->
 
         detail.update_display(agent)
 
-        diff_scroll = detail.query_one("#agent-file-scroll")
-        llm_calls_scroll = detail.query_one("#agent-llm-calls-scroll")
-        prompt_scroll = detail.query_one("#agent-prompt-scroll")
-        assert diff_scroll.has_class("hidden")
-        assert llm_calls_scroll.has_class("hidden")
-        assert prompt_scroll.has_class("expanded")
+        from sase.ace.tui.widgets.decks.model import DeckId
+
+        assert detail.deck_area.panels_showing(DeckId.FILES) == ()
+        assert not detail.is_file_visible()
         assert not detail.is_llm_calls_visible()

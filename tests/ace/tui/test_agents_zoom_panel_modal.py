@@ -21,12 +21,7 @@ from sase.ace.tui.models.agent_status import (
     STOPPED_GLYPH,
     STOPPED_STATUS,
 )
-from sase.ace.tui.widgets.agent_detail import AgentDetail
-from sase.ace.tui.widgets.file_panel import AgentFilePanel
-
 from tests.ace.tui._agents_zoom_panel_helpers import (
-    _DetailTestApp,
-    _FakeZoomApp,
     _ModalTestApp,
     _make_agent,
 )
@@ -68,42 +63,6 @@ async def test_zoom_modal_z_closes() -> None:
         await pilot.pause()
 
         assert not isinstance(pilot.app.screen, ZoomPanelModal)
-
-
-async def test_zoom_seed_uses_textual_content_and_paints_file_panel() -> None:
-    file_renderable = Text("seeded file content")
-    agent = _make_agent(status="DONE")
-
-    async with _DetailTestApp().run_test(size=(120, 40)) as pilot:
-        detail = pilot.app.query_one("#agent-detail-panel", AgentDetail)
-        file_panel = detail.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.update(file_renderable)
-        detail._has_file_content = True
-
-        app = _FakeZoomApp(agent=agent, detail=detail)
-        seed = app._zoom_seed_from_detail(detail)
-
-        assert seed.file_renderable is not None
-        assert "seeded file content" in (
-            _renderable_to_text(seed.file_renderable) or ""
-        )
-
-        modal = ZoomPanelModal(
-            agent_provider=lambda: None,
-            initial_agent=agent,
-            initial_target=ZoomPanelTarget.FILE,
-            seed=seed,
-            refresh_interval=10,
-        )
-        pilot.app.push_screen(modal)
-        await pilot.pause()
-
-        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
-
-        zoom_file_panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
-        assert "seeded file content" in (
-            _renderable_to_text(zoom_file_panel.content) or ""
-        )
 
 
 async def test_zoom_metadata_copy_fallback_uses_textual_content() -> None:

@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from ...models.agent_status import is_resumable_done_status
 from ._panel_types import TabName
@@ -138,42 +137,23 @@ class AgentPanelDetailMixin:
         ):
             subprocess.run([editor, *chat_paths], check=False)
 
-    def _decks_active(self) -> bool:
-        """Return whether deck panels own Agents detail navigation."""
-        try:
-            from ...widgets.decks.flag import agent_decks_active
-
-            return bool(agent_decks_active(self))
-        except Exception:
-            return False
-
     def action_next_agent_file(self) -> None:
         """Cycle to the next file / next (older) chop run."""
         if self.current_tab == "agents":
-            if self._decks_active():
-                return
-            from ...widgets import AgentDetail
-
-            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            agent_detail.cycle_next_file()
+            return
         elif self.current_tab == "services":
             self._axe_step_chop_run(direction=1)  # type: ignore[attr-defined]
 
     def action_prev_agent_file(self) -> None:
         """Cycle to the previous file / previous (newer) chop run."""
         if self.current_tab == "agents":
-            if self._decks_active():
-                return
-            from ...widgets import AgentDetail
-
-            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            agent_detail.cycle_prev_file()
+            return
         elif self.current_tab == "services":
             self._axe_step_chop_run(direction=-1)  # type: ignore[attr-defined]
 
     def action_next_deck_card(self) -> None:
         """Cycle to the next card in the focused deck panel (wraps)."""
-        if self.current_tab != "agents" or not self._decks_active():
+        if self.current_tab != "agents":
             return
         from ...widgets import AgentDetail
 
@@ -182,7 +162,7 @@ class AgentPanelDetailMixin:
 
     def action_prev_deck_card(self) -> None:
         """Cycle to the previous card in the focused deck panel (wraps)."""
-        if self.current_tab != "agents" or not self._decks_active():
+        if self.current_tab != "agents":
             return
         from ...widgets import AgentDetail
 
@@ -191,7 +171,7 @@ class AgentPanelDetailMixin:
 
     def action_next_deck(self) -> None:
         """Cycle the focused deck panel to the next deck (wraps)."""
-        if self.current_tab != "agents" or not self._decks_active():
+        if self.current_tab != "agents":
             return
         from ...widgets import AgentDetail
 
@@ -200,7 +180,7 @@ class AgentPanelDetailMixin:
 
     def action_prev_deck(self) -> None:
         """Cycle the focused deck panel to the previous deck (wraps)."""
-        if self.current_tab != "agents" or not self._decks_active():
+        if self.current_tab != "agents":
             return
         from ...widgets import AgentDetail
 
@@ -217,187 +197,16 @@ class AgentPanelDetailMixin:
         """Zoom the active agent or tribe detail panel."""
         if self.current_tab != "agents":
             return
+        from ...widgets import AgentDetail as _DeckAgentDetail
+
+        detail = self.query_one("#agent-detail-panel", _DeckAgentDetail)  # type: ignore[attr-defined]
+        detail.toggle_deck_zoom()  # type: ignore[attr-defined]
         try:
-            from ...widgets.decks.flag import agent_decks_active
-
-            decks_active = bool(agent_decks_active(self))
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
         except Exception:
-            decks_active = False
-        if decks_active:
-            from ...widgets import AgentDetail as _DeckAgentDetail
-
-            detail = self.query_one("#agent-detail-panel", _DeckAgentDetail)  # type: ignore[attr-defined]
-            detail.toggle_deck_zoom()  # type: ignore[attr-defined]
-            try:
-                refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
-                if callable(refresh):
-                    refresh()
-            except Exception:
-                pass
-            return
-
-        from ...modals import ZoomPanelModal, ZoomPanelTarget
-        from ...widgets import AgentDetail
-
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        tribe_resolver = getattr(self, "_focused_tribe_summary", None)
-        tribe_summary_provider = (
-            cast(Callable[..., Any], tribe_resolver)
-            if callable(tribe_resolver)
-            else None
-        )
-        tribe_snapshot = (
-            tribe_summary_provider(with_entry_target=False)
-            if tribe_summary_provider is not None
-            else None
-        )
-        if tribe_snapshot is not None:
-            assert tribe_summary_provider is not None
-            focused_tribe_summary = tribe_summary_provider
-            panel_identity = tribe_snapshot.container_identity
-
-            def tribe_provider() -> Any:
-                snapshot = focused_tribe_summary(with_entry_target=False)
-                if snapshot is None or snapshot.container_identity != panel_identity:
-                    return None
-                return snapshot
-
-            self.push_screen(  # type: ignore[attr-defined]
-                ZoomPanelModal(
-                    tribe_provider=tribe_provider,
-                    initial_tribe=tribe_snapshot,
-                    initial_target=ZoomPanelTarget.METADATA,
-                    seed=self._zoom_seed_for_tribe(agent_detail),
-                    refresh_interval=getattr(self, "refresh_interval", 10),
-                )
-            )
-            return
-
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if agent is None:
-            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        target = self._zoom_target_for_detail(agent_detail)
-        seed = self._zoom_seed_from_detail(agent_detail)
-        agent_identity = agent.identity
-
-        def agent_provider() -> Agent | None:
-            for candidate in list(getattr(self, "_agents", [])) + list(
-                getattr(self, "_agents_with_children", [])
-            ):
-                if candidate.identity == agent_identity:
-                    return candidate
-            return None
-
-        self.push_screen(  # type: ignore[attr-defined]
-            ZoomPanelModal(
-                agent_provider=agent_provider,
-                initial_agent=agent,
-                initial_target=target,
-                seed=seed,
-                refresh_interval=getattr(self, "refresh_interval", 10),
-            )
-        )
-
-    def _zoom_seed_for_tribe(self, agent_detail: Any) -> Any:
-        """Capture the focused tribe document for the zoom modal's first paint."""
-        from ...modals import ZoomPanelSeed
-        from ...widgets.prompt_panel import AgentPromptPanel
-
-        prompt_panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
-        seed_renderable = prompt_panel.inline_document_renderable()
-        return ZoomPanelSeed(
-            metadata_renderable=seed_renderable,
-            metadata_subtitle=self._zoom_border_subtitle(
-                agent_detail, "#agent-prompt-scroll"
-            ),
-            has_file_content=False,
-            has_llm_calls_content=False,
-        )
-
-    def _zoom_target_for_detail(self, agent_detail: Any) -> Any:
-        """Choose the initial zoom target from the base Agents detail state."""
-        from ...modals import ZoomPanelTarget
-        from ...widgets._agent_detail_panels import DetailLayoutMode
-
-        if getattr(self, "current_attempt_number", None) is not None:
-            return ZoomPanelTarget.METADATA
-        layout_mode = agent_detail.detail_layout_mode
-        if layout_mode is DetailLayoutMode.METADATA_ONLY or agent_detail.is_info_mode():
-            return ZoomPanelTarget.METADATA
-        if layout_mode is DetailLayoutMode.SECONDARY_ONLY:
-            if agent_detail.is_llm_calls_visible():
-                return ZoomPanelTarget.LLM_CALLS
-            if agent_detail.is_file_visible():
-                return ZoomPanelTarget.FILE
-            return ZoomPanelTarget.METADATA
-        if layout_mode is DetailLayoutMode.METADATA_LARGER:
-            return ZoomPanelTarget.METADATA
-        if agent_detail.is_llm_calls_visible():
-            return ZoomPanelTarget.LLM_CALLS
-        if agent_detail.is_file_visible():
-            return ZoomPanelTarget.FILE
-        return ZoomPanelTarget.METADATA
-
-    def _zoom_seed_from_detail(self, agent_detail: Any) -> Any:
-        """Capture lightweight render state for the zoom modal's first paint."""
-        from ...modals import ZoomPanelSeed
-        from ...widgets.file_panel import AgentFilePanel
-        from ...widgets.prompt_panel import AgentPromptPanel
-        from ...widgets.llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
-
-        prompt_panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
-        file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
-        llm_calls_panel = agent_detail.query_one(
-            "#agent-llm-calls-panel", AgentLLMCallsPanel
-        )
-        file_list = tuple(getattr(file_panel, "_file_list", ()))
-        raw_llm_calls_detail_level = getattr(
-            agent_detail, "llm_calls_detail_level", None
-        )
-        if raw_llm_calls_detail_level is None:
-            raw_llm_calls_detail_level = getattr(
-                llm_calls_panel, "detail_level", ToolDetailLevel.COMPACT
-            )
-        llm_calls_detail_level = ToolDetailLevel(
-            int(cast(ToolDetailLevel | int, raw_llm_calls_detail_level))
-        )
-        return ZoomPanelSeed(
-            metadata_renderable=prompt_panel.inline_document_renderable(),
-            file_renderable=getattr(file_panel, "content", None),
-            llm_calls_renderable=getattr(llm_calls_panel, "content", None),
-            metadata_subtitle=self._zoom_border_subtitle(
-                agent_detail, "#agent-prompt-scroll"
-            ),
-            file_subtitle=self._zoom_border_subtitle(
-                agent_detail, "#agent-file-scroll"
-            ),
-            llm_calls_subtitle=self._zoom_border_subtitle(
-                agent_detail, "#agent-llm-calls-scroll"
-            ),
-            file_list=file_list,
-            file_index=getattr(file_panel, "current_file_index", 0),
-            has_file_content=bool(
-                agent_detail.is_file_visible()
-                or getattr(agent_detail, "_has_file_content", False)
-            ),
-            has_llm_calls_content=bool(
-                agent_detail.is_llm_calls_visible()
-                or getattr(agent_detail, "_has_llm_calls_content", False)
-            ),
-            llm_calls_detail_level=llm_calls_detail_level,
-            attempt_view_mode=getattr(agent_detail, "attempt_view_mode", "merged"),
-            attempt_number=getattr(self, "current_attempt_number", None),
-        )
-
-    def _zoom_border_subtitle(self, agent_detail: Any, selector: str) -> Any:
-        """Return a base detail scroll subtitle, if that scroll exists."""
-        try:
-            scroll = agent_detail.query_one(selector)
-        except Exception:
-            return None
-        return getattr(scroll, "border_subtitle", None)
+            pass
 
     def action_edit_panel(self) -> None:
         """Open the visible panel's content in $EDITOR."""

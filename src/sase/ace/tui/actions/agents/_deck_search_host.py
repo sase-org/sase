@@ -13,8 +13,6 @@ def deck_search_panel(app: Any) -> Any | None:
         detail = app.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
     except Exception:
         return None
-    if not bool(getattr(detail, "decks_enabled", False)):
-        return None
     try:
         area = detail.deck_area
         return area.focused_panel()

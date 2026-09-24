@@ -114,7 +114,6 @@ async def test_mounted_clan_fold_chords_zoom_and_patch_isolation(
         await wait_for_visual_idle(page)
         await page.press("ctrl+j")
         await page.pause()
-        assert panel.active_section_identity == "errors"
         await page.press("z", "A")
         assert page.app._panel_fold_overrides.get_override("errors") is (
             FoldLevel.FULLY_EXPANDED
@@ -127,10 +126,14 @@ async def test_mounted_clan_fold_chords_zoom_and_patch_isolation(
             page.app.deltas_collapsed,
         ) == patch_folds
 
+        detail = page.app.query_one("#agent-detail-panel")
         await page.press("Z")
-        await page.expect_modal("ZoomPanelModal")
-        await page.press("z")
+        await page.pause()
+        assert bool(detail.is_deck_zoomed) is True
         await page.expect_no_modal()
+        await page.press("Z")
+        await page.pause()
+        assert bool(detail.is_deck_zoomed) is False
 
         await page.press("tab")
         await page.expect_state("tab", "patches")

@@ -202,7 +202,7 @@ def test_handoff_end_to_end_settles_through_proc(
         shown = tool_run_show(run_id)
         if shown["run"]["state"] not in ("created", "running"):
             break
-        time.sleep(0.2)
+        time.sleep(0.2)  # sase-test-wait: poll interval while the run settles
     assert shown is not None
     run = shown["run"]
     assert run["state"] == "failed"

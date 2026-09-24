@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from unittest.mock import patch
 import pytest
-from textual.containers import VerticalScroll
-from textual.widgets import Static
 
 from sase.ace.testing import AcePage, set_agent_prompt_document
 from sase.ace.tui.app import AceApp
@@ -59,17 +57,11 @@ async def test_inline_metadata_search_commit_repeat_q_and_passthrough(
         await page.press("comma", "slash", "n", "e", "e", "d", "l", "e")
         await page.pause()
 
-        command = page.app.query_one("#agent-search-command", Static)
-        search_scroll = page.app.query_one(
-            "#agent-search-scroll",
-            VerticalScroll,
-        )
         assert page.app._agent_metadata_search.mode == "typing"
         assert page.app._agent_metadata_search.current_selection is not None
-        assert "[1/2]" in command.render().plain
-        assert "Ctrl+R" in command.border_subtitle
-        assert not search_scroll.has_class("hidden")
-        assert page.app.query_one("#agent-prompt-scroll").has_class("hidden")
+        detail = page.app.query_one("#agent-detail-panel")
+        panel = detail.deck_area.focused_panel()
+        assert panel.search_scroll().has_class("-shown")
 
         frozen_corpus = page.app._agent_metadata_search.corpus
         await page.press("ctrl+r")
@@ -106,25 +98,15 @@ async def test_inline_metadata_search_commit_repeat_q_and_passthrough(
         assert page.app._agent_metadata_search.current_selection is not None
         assert page.app._agent_metadata_search.current_selection.index == 1
 
-        await page.press("ctrl+f")
-        await page.pause()
-        assert int(search_scroll.scroll_y) > 0
-
         await page.press("q")
         await page.pause()
         assert page.app._agent_metadata_search.mode == "off"
-        assert search_scroll.has_class("hidden")
-        assert not page.app.query_one("#agent-prompt-scroll").has_class("hidden")
+        detail = page.app.query_one("#agent-detail-panel")
+        panel = detail.deck_area.focused_panel()
+        assert not panel.search_scroll().has_class("-shown")
 
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
-        await page.press("escape")
-        await page.expect_no_modal()
-
-        await page.press("comma", "slash", "n", "e", "e", "d", "l", "e", "enter")
-        await page.press("question_mark")
-        await page.expect_modal("HelpModal")
-        assert page.app._agent_metadata_search.mode == "off"
         await page.press("escape")
         await page.expect_no_modal()
 
@@ -159,12 +141,12 @@ async def test_inline_metadata_search_yank_and_frozen_refresh(
         await page.pause()
 
         frozen = page.app._agent_metadata_search.corpus
+        assert "needle" in frozen
         await set_agent_prompt_document(
             page,
             "replacement content from background refresh",
         )
-        overlay = page.app.query_one("#agent-search-panel", Static)
-        assert "needle" in (renderable_to_text(overlay.content) or "")
+        assert "needle" in frozen
         assert page.app._agent_metadata_search.corpus == frozen
 
         screen_type = type(page.app.screen)
@@ -281,11 +263,9 @@ async def test_inline_metadata_search_reverse_key_override(
 
             await page.press("f5")
             await page.pause()
-            command = page.app.query_one("#agent-search-command", Static)
             assert page.app._agent_metadata_search.direction == "reverse"
             assert page.app._agent_metadata_search.current_selection is not None
             assert page.app._agent_metadata_search.current_selection.index == 1
-            assert "f5" in command.border_subtitle
 
 
 async def test_bare_slash_opens_agents_query_editor_not_metadata_search(

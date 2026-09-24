@@ -23,18 +23,12 @@ if TYPE_CHECKING:
 class AgentDetailDeckMixin:
     """Mixin providing deck-mode Main sink, refresh and accessors."""
 
-    _decks_enabled: bool = False
     _main_deck_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
     _current_agent: Any | None
     _current_tribe_identity: Any | None
     _current_attempt_number: int | None
     _attempt_view_mode: str
     _agent_detail_generation: int
-
-    @property
-    def decks_enabled(self) -> bool:
-        """Whether this detail view composes deck panels."""
-        return bool(getattr(self, "_decks_enabled", False))
 
     @property
     def deck_area(self) -> Any:

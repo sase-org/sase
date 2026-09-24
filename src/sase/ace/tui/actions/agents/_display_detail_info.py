@@ -232,27 +232,7 @@ class AgentInfoDisplayMixin:
             starting_count,
             proc_shell_count,
         ) = self._agent_info_metrics()
-        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         view_mode = ""
-        try:
-            from ...widgets.decks.flag import agent_decks_active
-
-            _decks_active = bool(agent_decks_active(self))
-        except Exception:
-            _decks_active = False
-        if _decks_active:
-            view_mode = ""
-        elif self._focused_tribe_panel_context() is not None:  # type: ignore[attr-defined]
-            view_mode = "tribe" if not _decks_active else ""
-        elif current_agent is not None:
-            try:
-                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            except NoMatches:
-                log.debug(
-                    "agents info panel view mode skipped: widget tree unavailable"
-                )
-            else:
-                view_mode = agent_detail.panel_mode_label
         from ._grouping import _MODE_LABELS
 
         grouping_mode = _MODE_LABELS.get(
@@ -281,20 +261,19 @@ class AgentInfoDisplayMixin:
         )
         nodes_collapsed = False
         nodes_zoomed = False
-        if _decks_active:
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except NoMatches:
+            agent_detail = None
+        if agent_detail is not None:
             try:
-                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            except NoMatches:
-                agent_detail = None
-            if agent_detail is not None:
-                try:
-                    nodes_collapsed = bool(agent_detail.is_nodes_collapsed)  # type: ignore[attr-defined]
-                except Exception:
-                    nodes_collapsed = False
-                try:
-                    nodes_zoomed = bool(agent_detail.is_deck_zoomed)  # type: ignore[attr-defined]
-                except Exception:
-                    nodes_zoomed = False
+                nodes_collapsed = bool(agent_detail.is_nodes_collapsed)  # type: ignore[attr-defined]
+            except Exception:
+                nodes_collapsed = False
+            try:
+                nodes_zoomed = bool(agent_detail.is_deck_zoomed)  # type: ignore[attr-defined]
+            except Exception:
+                nodes_zoomed = False
         update_state = getattr(agent_info_panel, "update_state", None)
         if callable(update_state):
             update_state(

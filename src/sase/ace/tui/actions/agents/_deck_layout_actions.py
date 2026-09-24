@@ -17,20 +17,9 @@ class AgentDeckLayoutActionsMixin:
         except Exception:
             return None
 
-    def _decks_layout_active(self) -> bool:
-        """Return whether deck splits own Agents detail navigation."""
-        if getattr(self, "current_tab", None) != "agents":
-            return False
-        try:
-            from ...widgets.decks.flag import agent_decks_active
-
-            return bool(agent_decks_active(self))
-        except Exception:
-            return False
-
     def _deck_split_active(self) -> bool:
         """Return whether a split layout is active."""
-        if not self._decks_layout_active():
+        if self.current_tab != "agents":
             return False
         try:
             from ...widgets.decks.model import DeckLayout
@@ -52,7 +41,7 @@ class AgentDeckLayoutActionsMixin:
 
     def action_toggle_deck_split_below(self) -> None:
         """Toggle a top-bottom deck split."""
-        if not self._decks_layout_active():
+        if self.current_tab != "agents":
             return
         try:
             from ...widgets.decks.model import DeckLayout
@@ -67,7 +56,7 @@ class AgentDeckLayoutActionsMixin:
 
     def action_toggle_deck_split_right(self) -> None:
         """Toggle a left-right deck split."""
-        if not self._decks_layout_active():
+        if self.current_tab != "agents":
             return
         try:
             from ...widgets.decks.model import DeckLayout
@@ -121,7 +110,7 @@ class AgentDeckLayoutActionsMixin:
 
     def action_toggle_node_panel(self) -> None:
         """Collapse or expand the node panel without unmounting it."""
-        if not self._decks_layout_active():
+        if self.current_tab != "agents":
             return
         try:
             detail = self._deck_layout_detail()
@@ -134,7 +123,7 @@ class AgentDeckLayoutActionsMixin:
 
     def on_node_spine_expand_requested(self, _message: object) -> None:
         """Expand the node panel when the collapsed spine is clicked."""
-        if not self._decks_layout_active():
+        if self.current_tab != "agents":
             return
         try:
             detail = self._deck_layout_detail()

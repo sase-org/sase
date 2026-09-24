@@ -17,57 +17,11 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._messages import TribeSectionSnapshotLoaded
 
 from tests.ace.tui._agents_zoom_panel_helpers import (
-    _FakeDetail,
-    _FakeZoomApp,
     _make_agent,
     _make_tribe_snapshot,
     _ModalTestApp,
     _RecordingZoomPanelModal,
 )
-
-
-def test_action_zoom_panel_routes_whole_panel_focus_to_tribe_modal() -> None:
-    detail = _FakeDetail(file_visible=True, llm_calls_visible=True)
-    snapshot = _make_tribe_snapshot("epic", status="RUNNING")
-    app = _FakeZoomApp(agent=None, detail=detail)
-    focused_snapshot = snapshot
-
-    def focused_tribe_summary(*, with_entry_target: bool = True) -> Any:
-        assert with_entry_target is False
-        return focused_snapshot
-
-    app._focused_tribe_summary = focused_tribe_summary  # type: ignore[attr-defined]
-
-    app.action_zoom_panel()
-
-    assert len(app.pushed) == 1
-    modal = app.pushed[0]
-    assert isinstance(modal, ZoomPanelModal)
-    assert modal._is_tribe_zoom
-    assert modal._target == ZoomPanelTarget.METADATA
-    assert not modal._has_file_content
-    assert not modal._has_llm_calls_content
-    assert _renderable_to_text(modal._seed.metadata_renderable) == "metadata"
-    assert modal._seed.metadata_subtitle == "metadata · seeded"
-
-    refreshed = _make_tribe_snapshot("epic", status="DONE")
-    focused_snapshot = refreshed
-    assert modal._tribe_provider() is refreshed
-
-    focused_snapshot = _make_tribe_snapshot("review", status="DONE")
-    assert modal._tribe_provider() is None
-
-
-def test_action_zoom_panel_keeps_row_selection_in_agent_mode() -> None:
-    agent = _make_agent()
-    app = _FakeZoomApp(agent=agent)
-
-    app.action_zoom_panel()
-
-    modal = app.pushed[0]
-    assert isinstance(modal, ZoomPanelModal)
-    assert not modal._is_tribe_zoom
-    assert modal._agent_provider() is agent
 
 
 def test_tribe_zoom_is_metadata_only() -> None:

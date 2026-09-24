@@ -101,22 +101,9 @@ class AgentDetailJumpMixin(Static):
         except Exception:
             return False
         try:
-            if bool(getattr(self, "decks_enabled", False)):
-                reapply = getattr(self, "reapply_main_view_pins", None)
-                if callable(reapply):
-                    reapply()
-            else:
-                from ._agent_detail_helpers import agent_prompt_panel_type
-
-                prompt_panel = self.query_one(
-                    "#agent-prompt-panel", agent_prompt_panel_type()
-                )
-                if bool(getattr(prompt_panel, "is_pinned_to_bottom", False)):
-                    reschedule = getattr(
-                        prompt_panel, "_schedule_bottom_pin_reapply", None
-                    )
-                    if callable(reschedule):
-                        reschedule()
+            reapply = getattr(self, "reapply_main_view_pins", None)
+            if callable(reapply):
+                reapply()
         except Exception:
             pass
         return expanded

@@ -4,19 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from textual.containers import VerticalScroll
-
-from ..llm_calls import supports_slow_tool_sources
 from ..models.agent import AgentType
 from ..util.trace import tui_trace
-from ._agent_detail_helpers import _ACTIVE_STATUSES, agent_prompt_panel_type
+from ._agent_detail_helpers import agent_prompt_panel_type
 from ._agent_detail_panels import (
     AgentDetailPanelMixin,
     DetailLayoutMode,
     DetailPanelMode,
 )
-from .file_panel import AgentFilePanel
-from .llm_calls_panel import AgentLLMCallsPanel
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -124,138 +119,11 @@ class AgentDetailDisplayMixin(AgentDetailPanelMixin):
         stale_threshold_seconds: int = 10,
         attempt_number: int | None = None,
     ) -> None:
-        if bool(getattr(self, "decks_enabled", False)):
-            self._deck_update_display_impl(  # type: ignore[attr-defined]
-                agent,
-                stale_threshold_seconds=stale_threshold_seconds,
-                attempt_number=attempt_number,
-            )
-            return
-        PromptPanel = agent_prompt_panel_type()
-        prompt_panel = self.query_one("#agent-prompt-panel", PromptPanel)
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        llm_calls_panel = self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
-
-        # Detect agent change and reset per-agent state, but preserve the
-        # user's explicit panel mode choice so that e.g. pressing ']' to show
-        # tools persists across j/k navigation.
-        prev_agent = self._current_agent
-        self._current_agent = agent
-        self._current_attempt_number = attempt_number
-        if self._panel_mode is DetailPanelMode.INFO:
-            self._panel_mode = DetailPanelMode.AUTO
-            self._detail_layout_mode = DetailLayoutMode.METADATA_ONLY
-        if prev_agent is not None and prev_agent.identity != agent.identity:
-            self._has_file_content = False
-            self._has_llm_calls_content = False
-            # Reset from LLM Calls mode when switching to non-agent entry
-            if (
-                not supports_slow_tool_sources(agent)
-                and self._panel_mode == DetailPanelMode.LLM_CALLS
-            ):
-                self._panel_mode = DetailPanelMode.AUTO
-            if self._panel_mode != DetailPanelMode.LLM_CALLS:
-                llm_calls_scroll = self.query_one(
-                    "#agent-llm-calls-scroll", VerticalScroll
-                )
-                llm_calls_scroll.add_class("hidden")
-
-        prompt_panel.attempt_view_mode = self._attempt_view_mode
-        prompt_panel.attempt_pinned_number = attempt_number
-        generation = self._agent_detail_generation
-
-        set_render_context = getattr(
-            prompt_panel, "set_agent_detail_render_context", None
+        self._deck_update_display_impl(  # type: ignore[attr-defined]
+            agent,
+            stale_threshold_seconds=stale_threshold_seconds,
+            attempt_number=attempt_number,
         )
-        if callable(set_render_context):
-            set_render_context(
-                generation=generation,
-                attempt_view_mode=self._attempt_view_mode,
-                attempt_pinned_number=attempt_number,
-                is_current=self._is_agent_detail_render_current,
-            )
-
-        if self._should_render_workflow_detail_async(agent, attempt_number):
-            prompt_panel.start_workflow_detail_render(
-                agent,
-                generation=generation,
-                attempt_view_mode=self._attempt_view_mode,
-                attempt_pinned_number=attempt_number,
-                is_current=self._is_agent_detail_render_current,
-            )
-        else:
-            prompt_panel.update_display(agent)
-
-        if agent.is_clan_container:
-            # Synthetic clans have no files or LLM Calls of their own. Keep their
-            # aggregate detail document on the full pane and avoid launching
-            # any secondary-panel work from stale prior selections.
-            self._has_file_content = False
-            self._has_llm_calls_content = False
-            self._file_count = 0
-            self._file_index = 0
-            self._file_visible_lines = 0
-            self._file_total_lines = 0
-            self._file_content_capped = False
-            file_panel.show_empty()
-            llm_calls_panel.show_empty()
-            llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-            llm_calls_scroll.add_class("hidden")
-            self._expand_prompt_only()
-            self._update_panel_indicators()
-            return
-        if agent.is_proc_shell:
-            self._has_file_content = False
-            self._has_llm_calls_content = False
-            self._file_count = 0
-            self._file_index = 0
-            self._file_visible_lines = 0
-            self._file_total_lines = 0
-            self._file_content_capped = False
-            file_panel.show_empty()
-            llm_calls_panel.show_empty()
-            llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-            llm_calls_scroll.add_class("hidden")
-            self._expand_prompt_only()
-            self._update_panel_indicators()
-            return
-        self._update_panel_indicators()
-
-        # Attempt-pinned view: bypass file/LLM Calls panels — we can't
-        # reconstruct per-attempt file or tool history from the archived
-        # snapshots. Expand the prompt panel to fill the area.
-        if attempt_number is not None:
-            self._expand_prompt_only()
-            return
-
-        # Probe LLM Calls availability in the background so that
-        # _has_llm_calls_content is accurate for panel mode cycling.
-        if supports_slow_tool_sources(agent):
-            llm_calls_panel.update_display(
-                agent, stale_threshold_seconds=stale_threshold_seconds
-            )
-
-        # When LLM Calls is visible, keep it showing and just refresh data
-        if self._panel_mode == DetailPanelMode.LLM_CALLS:
-            # Still update file panel in background (for later File view use)
-            if agent.status in _ACTIVE_STATUSES:
-                file_panel.update_display(
-                    agent, stale_threshold_seconds=stale_threshold_seconds
-                )
-            self._apply_detail_layout_classes()
-            return
-
-        # Bash/python workflow steps don't have files - expand prompt
-        if agent.is_workflow_child and agent.step_type in ("bash", "python"):
-            self._expand_prompt_only()
-            return
-
-        from ._agent_detail_files import dispatch_file_view
-
-        if not dispatch_file_view(
-            file_panel, agent, stale_threshold_seconds=stale_threshold_seconds
-        ):
-            self._expand_prompt_only()
 
     def _should_render_workflow_detail_async(
         self, agent: Agent, attempt_number: int | None

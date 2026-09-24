@@ -146,42 +146,16 @@ def check_app_action(
     if action in _DECK_NAV_ACTIONS:
         if app.current_tab != "agents":
             return False
-        try:
-            from sase.ace.tui.widgets.decks.flag import agent_decks_active
-
-            if not bool(agent_decks_active(app)):
-                return False
-        except Exception:
-            return False
     if action in _DECK_LAYOUT_ACTIONS:
         if app.current_tab != "agents":
-            return False
-        try:
-            from sase.ace.tui.widgets.decks.flag import agent_decks_active
-
-            if not bool(agent_decks_active(app)):
-                return False
-        except Exception:
             return False
         if action in _DECK_SPLIT_ONLY_ACTIONS and not _deck_split_active(app):
             return False
     if action in {"scroll_prompt_down", "scroll_prompt_up"}:
         if app.current_tab == "agents":
-            try:
-                from sase.ace.tui.widgets.decks.flag import agent_decks_active
-
-                if bool(agent_decks_active(app)):
-                    return False
-            except Exception:
-                pass
+            return False
     if action in _LEGACY_DECK_KEY_ACTIONS and app.current_tab == "agents":
-        try:
-            from sase.ace.tui.widgets.decks.flag import agent_decks_active
-
-            if bool(agent_decks_active(app)):
-                return False
-        except Exception:
-            pass
+        return False
     if action in _AGENT_FLEET_ACTIONS:
         if app.current_tab != "agents":
             return False

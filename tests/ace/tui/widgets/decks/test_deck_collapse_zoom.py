@@ -18,7 +18,6 @@ from sase.ace.tui.widgets.decks.node_spine import (
     NodeSpine,
     spine_geometry,
 )
-from sase.feature_flags import override_flags
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
 
 _ROOT = Path(__file__).resolve().parents[5]
@@ -108,7 +107,7 @@ def test_spine_geometry_edges() -> None:
     assert (single_start, single_size) == (0, 7)
 
 
-def _check(action: str, tab: str, decks: bool) -> bool | None:
+def _check(action: str, tab: str) -> bool | None:
     from sase.ace.tui._app_action_availability import check_app_action
 
     class _App:
@@ -120,24 +119,16 @@ def _check(action: str, tab: str, decks: bool) -> bool | None:
             return None
 
     app = _App()
-    import sase.ace.tui.widgets.decks.flag as flag
-
-    orig = flag.agent_decks_active
-    flag.agent_decks_active = lambda _a: decks  # type: ignore[method-assign]
-    try:
-        return check_app_action(app, action, (), lambda _a, _p: None)
-    finally:
-        flag.agent_decks_active = orig  # type: ignore[method-assign]
+    return check_app_action(app, action, (), lambda _a, _p: None)
 
 
 def test_collapse_and_zoom_gating() -> None:
-    assert _check("toggle_node_panel", "agents", True) is None
-    assert _check("toggle_node_panel", "agents", False) is False
-    assert _check("toggle_node_panel", "artifacts", True) is False
-    assert _check("toggle_node_panel", "services", True) is False
-    # Z is the in-place zoom while decks are on.
-    assert _check("zoom_panel", "agents", True) is None
-    assert _check("zoom_panel", "artifacts", True) is False
+    assert _check("toggle_node_panel", "agents") is None
+    assert _check("toggle_node_panel", "artifacts") is False
+    assert _check("toggle_node_panel", "services") is False
+    # Z is the in-place zoom.
+    assert _check("zoom_panel", "agents") is None
+    assert _check("zoom_panel", "artifacts") is False
 
 
 def test_keymap_default_and_catalog_cover_collapse() -> None:
@@ -182,93 +173,89 @@ def test_info_chip_renders_collapse_and_zoom() -> None:
 
 
 async def test_collapse_expand_in_single_and_split(tmp_path: Path) -> None:
-    with override_flags(agent_decks=True):
-        app = _DetailApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            detail = app.query_one("#agent-detail-panel", AgentDetail)
-            agent = make_artifact_agent(tmp_path, status="DONE")
-            detail.update_display(agent)
-            await pilot.pause()
-            assert detail.is_nodes_collapsed is False
-            detail.toggle_node_panel()
-            await pilot.pause()
-            assert detail.is_nodes_collapsed is True
-            assert detail.deck_area.state.nodes_collapsed is True
-            detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
-            await pilot.pause()
-            assert detail.deck_area.state.layout is DeckLayout.LEFT_RIGHT
-            assert detail.is_nodes_collapsed is True
-            detail.toggle_node_panel()
-            await pilot.pause()
-            assert detail.is_nodes_collapsed is False
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        assert detail.is_nodes_collapsed is False
+        detail.toggle_node_panel()
+        await pilot.pause()
+        assert detail.is_nodes_collapsed is True
+        assert detail.deck_area.state.nodes_collapsed is True
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        assert detail.deck_area.state.layout is DeckLayout.LEFT_RIGHT
+        assert detail.is_nodes_collapsed is True
+        detail.toggle_node_panel()
+        await pilot.pause()
+        assert detail.is_nodes_collapsed is False
 
 
 async def test_zoom_round_trip_keeps_widget_and_card(tmp_path: Path) -> None:
-    with override_flags(agent_decks=True):
-        app = _DetailApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            detail = app.query_one("#agent-detail-panel", AgentDetail)
-            agent = make_artifact_agent(tmp_path, status="DONE")
-            detail.update_display(agent)
-            await pilot.pause()
-            detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
-            await pilot.pause()
-            area = detail.deck_area
-            widget_before = area.focused_panel()
-            deck_before = widget_before.deck
-            card_before = widget_before.main_view.active_card_id
-            detail.toggle_deck_zoom()
-            await pilot.pause()
-            assert detail.is_deck_zoomed is True
-            assert detail.is_nodes_collapsed is True
-            assert area.visible_panels() == (widget_before,)
-            assert area.focused_panel() is widget_before
-            detail.toggle_deck_zoom()
-            await pilot.pause()
-            assert detail.is_deck_zoomed is False
-            assert area.state.layout is DeckLayout.LEFT_RIGHT
-            assert area.focused_panel() is widget_before
-            assert widget_before.deck is deck_before
-            assert widget_before.main_view.active_card_id == card_before
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        area = detail.deck_area
+        widget_before = area.focused_panel()
+        deck_before = widget_before.deck
+        card_before = widget_before.main_view.active_card_id
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert detail.is_deck_zoomed is True
+        assert detail.is_nodes_collapsed is True
+        assert area.visible_panels() == (widget_before,)
+        assert area.focused_panel() is widget_before
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert detail.is_deck_zoomed is False
+        assert area.state.layout is DeckLayout.LEFT_RIGHT
+        assert area.focused_panel() is widget_before
+        assert widget_before.deck is deck_before
+        assert widget_before.main_view.active_card_id == card_before
 
 
 async def test_split_key_ends_zoom(tmp_path: Path) -> None:
-    with override_flags(agent_decks=True):
-        app = _DetailApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            detail = app.query_one("#agent-detail-panel", AgentDetail)
-            agent = make_artifact_agent(tmp_path, status="DONE")
-            detail.update_display(agent)
-            await pilot.pause()
-            detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
-            await pilot.pause()
-            detail.toggle_deck_zoom()
-            await pilot.pause()
-            assert detail.is_deck_zoomed is True
-            detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
-            await pilot.pause()
-            assert detail.is_deck_zoomed is False
-            assert detail.deck_area.state.layout is DeckLayout.TOP_BOTTOM
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert detail.is_deck_zoomed is True
+        detail.toggle_deck_split(DeckLayout.TOP_BOTTOM)
+        await pilot.pause()
+        assert detail.is_deck_zoomed is False
+        assert detail.deck_area.state.layout is DeckLayout.TOP_BOTTOM
 
 
 async def test_collapse_key_ends_zoom(tmp_path: Path) -> None:
-    with override_flags(agent_decks=True):
-        app = _DetailApp()
-        async with app.run_test(size=(100, 30)) as pilot:
-            await pilot.pause()
-            detail = app.query_one("#agent-detail-panel", AgentDetail)
-            agent = make_artifact_agent(tmp_path, status="DONE")
-            detail.update_display(agent)
-            await pilot.pause()
-            detail.toggle_deck_zoom()
-            await pilot.pause()
-            assert detail.is_deck_zoomed is True
-            detail.toggle_node_panel()
-            await pilot.pause()
-            assert detail.is_deck_zoomed is False
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert detail.is_deck_zoomed is True
+        detail.toggle_node_panel()
+        await pilot.pause()
+        assert detail.is_deck_zoomed is False
 
 
 async def test_spine_tracks_selection() -> None:

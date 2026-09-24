@@ -85,14 +85,7 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def _decks_navigation_active(self) -> bool:
         """Return whether deck panels own Agents detail navigation."""
-        if self.current_tab != "agents":
-            return False
-        try:
-            from ...widgets.decks.flag import agent_decks_active
-
-            return bool(agent_decks_active(self))
-        except Exception:
-            return False
+        return self.current_tab == "agents"
 
     def _release_focused_deck_bottom_pin(self) -> bool:
         """Release the focused deck panel's Main bottom pin in deck mode."""
@@ -331,12 +324,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         route_artifacts = getattr(self, "_navigate_non_pr_artifacts", None)
         if callable(route_artifacts) and route_artifacts(action="down10", offset=10):
             return
-        if self.current_tab == "agents":
-            scroll_container = self.query_one("#agent-prompt-scroll", VerticalScroll)  # type: ignore[attr-defined]
-            self._release_agent_metadata_bottom_pin()
-            height = scroll_container.scrollable_content_region.height
-            scroll_container.scroll_relative(y=height // 2, animate=False)
-        elif self.current_tab == "services":
+        if self.current_tab == "services":
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             height = scroll_container.scrollable_content_region.height
@@ -347,12 +335,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         route_artifacts = getattr(self, "_navigate_non_pr_artifacts", None)
         if callable(route_artifacts) and route_artifacts(action="up10", offset=-10):
             return
-        if self.current_tab == "agents":
-            scroll_container = self.query_one("#agent-prompt-scroll", VerticalScroll)  # type: ignore[attr-defined]
-            self._release_agent_metadata_bottom_pin()
-            height = scroll_container.scrollable_content_region.height
-            scroll_container.scroll_relative(y=-(height // 2), animate=False)
-        elif self.current_tab == "services":
+        if self.current_tab == "services":
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             height = scroll_container.scrollable_content_region.height

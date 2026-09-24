@@ -274,7 +274,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # File cycling (agents tab)
     Binding("ctrl+n", "next_agent_file", "Next File", show=False),
     Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
-    # Deck navigation (agents tab, agent_decks flag on)
+    # Deck navigation (agents tab)
     Binding("ctrl+j", "next_deck_card", "Next Deck Card", show=False),
     Binding("ctrl+k", "prev_deck_card", "Previous Deck Card", show=False),
     Binding("ctrl+n", "next_deck", "Next Deck", show=False),

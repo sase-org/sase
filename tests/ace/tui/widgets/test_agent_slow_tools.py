@@ -211,31 +211,15 @@ def test_slow_tool_overflow_hint_decks_on_with_keys() -> None:
     assert (
         slow_tool_overflow_hint(
             2,
-            decks_enabled=True,
             next_deck_key="^N",
             prev_deck_key="^P",
-            view_picker_key="p",
         )
         == "+ 2 more · ^N/^P → Tools deck for the full LLM Calls timeline"
     )
 
 
-def test_slow_tool_overflow_hint_decks_off_with_key() -> None:
-    assert (
-        slow_tool_overflow_hint(1, decks_enabled=False, view_picker_key="p")
-        == "+ 1 more · p → LLM Calls view for the full timeline"
-    )
-
-
 def test_slow_tool_overflow_hint_drops_key_clause_without_keys() -> None:
-    assert (
-        slow_tool_overflow_hint(3, decks_enabled=True)
-        == "+ 3 more · full timeline in LLM Calls"
-    )
-    assert (
-        slow_tool_overflow_hint(3, decks_enabled=False)
-        == "+ 3 more · full timeline in LLM Calls"
-    )
+    assert slow_tool_overflow_hint(3) == "+ 3 more · full timeline in LLM Calls"
 
 
 def test_slow_tools_section_truncates_long_targets() -> None:

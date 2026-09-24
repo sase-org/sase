@@ -208,15 +208,12 @@ class AgentFooterDisplayMixin:
                     panel_hint_collapse_available = bool(
                         enumerate_hint_targets(collapsible_only=True)
                     )
-            if bool(getattr(agent_detail, "decks_enabled", False)):
-                try:
-                    llm_calls_visible = (
-                        agent_detail.focused_tools_view() is not None  # type: ignore[attr-defined]
-                    )
-                except Exception:
-                    llm_calls_visible = False
-            else:
-                llm_calls_visible = agent_detail.is_llm_calls_visible()
+            try:
+                llm_calls_visible = (
+                    agent_detail.focused_tools_view() is not None  # type: ignore[attr-defined]
+                )
+            except Exception:
+                llm_calls_visible = False
             left_navigation_kind: str | None = None
             resolve_left_navigation = getattr(
                 self, "_resolve_agent_left_navigation_target", None
@@ -314,32 +311,31 @@ class AgentFooterDisplayMixin:
             deck_split = False
             deck_card_count = 0
             try:
-                if bool(getattr(agent_detail, "decks_enabled", False)):
-                    from ...widgets.decks.model import DeckId as _DeckId
-                    from ...widgets.decks.model import DeckLayout as _DeckLayout
+                from ...widgets.decks.model import DeckId as _DeckId
+                from ...widgets.decks.model import DeckLayout as _DeckLayout
 
-                    layout = agent_detail.deck_area.state.layout  # type: ignore[attr-defined]
-                    deck_split = layout is not _DeckLayout.SINGLE
-                    try:
-                        focused = agent_detail.deck_area.focused_panel()  # type: ignore[attr-defined]
-                        if focused.deck is _DeckId.MAIN:
-                            try:
-                                deck_card_count = len(
-                                    agent_detail._main_deck_document.cards  # type: ignore[attr-defined]
-                                )
-                            except Exception:
-                                deck_card_count = 0
-                        elif focused.deck is _DeckId.FILES:
-                            try:
-                                deck_card_count = len(
-                                    getattr(focused.file_view, "_file_list", [])
-                                )
-                            except Exception:
-                                deck_card_count = 0
-                        else:
-                            deck_card_count = 1
-                    except Exception:
-                        deck_card_count = 0
+                layout = agent_detail.deck_area.state.layout  # type: ignore[attr-defined]
+                deck_split = layout is not _DeckLayout.SINGLE
+                try:
+                    focused = agent_detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+                    if focused.deck is _DeckId.MAIN:
+                        try:
+                            deck_card_count = len(
+                                agent_detail._main_deck_document.cards  # type: ignore[attr-defined]
+                            )
+                        except Exception:
+                            deck_card_count = 0
+                    elif focused.deck is _DeckId.FILES:
+                        try:
+                            deck_card_count = len(
+                                getattr(focused.file_view, "_file_list", [])
+                            )
+                        except Exception:
+                            deck_card_count = 0
+                    else:
+                        deck_card_count = 1
+                except Exception:
+                    deck_card_count = 0
             except Exception:
                 deck_split = False
                 deck_card_count = 0

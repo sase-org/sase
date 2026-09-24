@@ -156,12 +156,12 @@ async def test_flush_waits_for_latest_queued_generation() -> None:
     assert app._agents_deck_state_completed_generation == 1
 
 
-def test_install_marks_deck_mode_only_sessions_merged() -> None:
+def test_install_applies_snapshot_and_marks_merged() -> None:
     app = _Harness()
-    app._decks_persistence_active = lambda: False  # type: ignore[method-assign]
+    snapshot = _split_snapshot()
 
-    app._resolve_agents_deck_state_load(_split_snapshot())
+    app._resolve_agents_deck_state_load(snapshot)
 
     assert app._agents_deck_state_merged is True
-    assert app.applied == []
-    assert app._deck_area_state == DeckAreaState()
+    assert app.applied == [snapshot]
+    assert app._deck_area_state == area_state_from_snapshot(snapshot)

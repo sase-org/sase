@@ -37,7 +37,7 @@ def test_artifacts_paging_actions_are_artifacts_only() -> None:
     assert _available(artifacts, "artifacts_unload")
     assert not _available(agents, "artifacts_load_more")
     assert not _available(agents, "artifacts_unload")
-    assert _available(agents, "next_agent_metadata_section")
+    assert _available(agents, "next_deck_card")
     assert not _available(prompt_open, "artifacts_load_more")
     assert not _available(prompt_open, "artifacts_unload")
 
@@ -238,4 +238,4 @@ async def test_agents_tab_ctrl_j_does_not_rewrite_artifacts_query() -> None:
         page.app.action_artifacts_load_more()
         assert page.app.query_string == original
         assert not _available(page.app, "artifacts_load_more")
-        assert _available(page.app, "next_agent_metadata_section")
+        assert _available(page.app, "next_deck_card")

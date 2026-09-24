@@ -10,10 +10,7 @@ from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
 
 from sase.ace.tui._app_action_availability import check_app_action
-from sase.ace.tui.widgets._agent_detail_panels import (
-    DetailLayoutMode,
-    DetailPanelMode,
-)
+from sase.ace.tui.widgets._agent_detail_panels import DetailLayoutMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.agent_header_panel import AgentHeaderPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -26,10 +23,6 @@ from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
-from tests.ace.tui.widgets._prompt_panel_section_navigation_helpers import (
-    _MetadataNavigationApp,
-    section,
-)
 
 from sase.ace.tui.models._agent_tree import project_clan_tree
 
@@ -163,44 +156,25 @@ async def test_clan_selection_shows_header() -> None:
 
 
 async def test_secondary_only_keeps_header_visible_and_toggleable() -> None:
+    from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
+
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await _show_agent(detail, _solo(), pilot)
         panel = _header_panel(detail)
 
-        detail._has_file_content = True  # noqa: SLF001
-        assert detail.set_detail_layout(DetailLayoutMode.SECONDARY_ONLY) is True
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        detail.show_deck(0, DeckId.MAIN)
+        detail.show_deck(1, DeckId.FILES)
         await pilot.pause()
         assert not panel.has_class("hidden")
         assert detail.header_toggle_available() is True
-        assert detail.is_metadata_visible() is False
-        file_scroll = detail.query_one("#agent-file-scroll", VerticalScroll)
-        assert file_scroll.region.y >= panel.region.bottom
-        assert file_scroll.region.bottom <= detail.region.bottom
         assert detail.toggle_header_expanded() is True
         await pilot.pause()
         assert "Name:" in _header_text(panel)
-        assert file_scroll.region.bottom <= detail.region.bottom
         assert detail.toggle_header_expanded() is False
-        await pilot.pause()
-
-        detail._panel_mode = DetailPanelMode.LLM_CALLS  # noqa: SLF001
-        detail._has_llm_calls_content = True  # noqa: SLF001
-        detail.set_detail_layout(DetailLayoutMode.SECONDARY_ONLY)
-        await pilot.pause()
-        assert not panel.has_class("hidden")
-        assert detail.header_toggle_available() is True
-        assert detail.is_metadata_visible() is False
-        llm_scroll = detail.query_one("#agent-llm-calls-scroll", VerticalScroll)
-        assert llm_scroll.region.y >= panel.region.bottom
-        assert llm_scroll.region.bottom <= detail.region.bottom
-        assert detail.toggle_header_expanded() is True
-        await pilot.pause()
-        assert "Name:" in _header_text(panel)
-        assert llm_scroll.region.bottom <= detail.region.bottom
-
-        assert detail.set_detail_layout(DetailLayoutMode.METADATA_LARGER) is True
         await pilot.pause()
         assert not panel.has_class("hidden")
         assert detail.header_toggle_available() is True
@@ -239,22 +213,23 @@ async def test_hint_document_forces_expansion() -> None:
 
 
 async def test_bottom_pinned_body_stays_pinned_across_toggle() -> None:
-    app = _MetadataNavigationApp()
-    async with app.run_test(size=(50, 16)) as pilot:
+    from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
+
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        panel = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
-        scroll = app.query_one("#agent-prompt-scroll", VerticalScroll)
-        body = section("ONE", "one\n" * 30)
-        panel.prepare_section_document("pin-document")
-        panel.update(body)
+        await _show_agent(detail, _solo(), pilot)
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
         await pilot.pause()
-        await pilot.press("G")
+        detail.show_deck(0, DeckId.MAIN)
+        detail.show_deck(1, DeckId.FILES)
         await pilot.pause()
-        assert panel.is_pinned_to_bottom
+        main_view = detail.deck_area.panel(0).main_view
+        main_view.pin_to_bottom()
+        assert bool(main_view.is_pinned_to_bottom) is True
         detail.toggle_header_expanded()
         await pilot.pause()
-        assert panel.is_pinned_to_bottom
-        assert int(scroll.scroll_y) == panel.bottom_scroll_target(scroll)
+        assert bool(main_view.is_pinned_to_bottom) is True
 
 
 async def test_empty_state_hides_header() -> None:
