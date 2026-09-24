@@ -422,7 +422,6 @@ async def test_deny_submit_adds_block_and_records_nothing(
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line import screen as screen_module
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     history_file = tmp_path / "command_line_history.json"
     monkeypatch.setattr(
@@ -433,7 +432,6 @@ async def test_deny_submit_adds_block_and_records_nothing(
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_panel(page, monkeypatch, history_file)
@@ -459,7 +457,6 @@ async def test_foreground_submit_runs_in_terminal_and_records(
     from sase.ace.tui.command_line import screen as screen_module
     from sase.ace.tui.command_line.context import CommandLineContext
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     history_file = tmp_path / "command_line_history.json"
     calls: dict[str, Any] = {}
@@ -478,7 +475,6 @@ async def test_foreground_submit_runs_in_terminal_and_records(
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_panel(page, monkeypatch, history_file)
@@ -505,7 +501,6 @@ async def test_builtin_cd_submit_pins_and_renders_block(
     from sase.ace.tui.command_line import screen as screen_module
     from sase.ace.tui.command_line.context import CommandLineContext
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     history_file = tmp_path / "command_line_history.json"
     target = tmp_path / "work"
@@ -516,7 +511,6 @@ async def test_builtin_cd_submit_pins_and_renders_block(
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_panel(page, monkeypatch, history_file)
@@ -543,7 +537,6 @@ async def test_proc_submit_captures_confirm_flags(
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line import screen as screen_module
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     history_file = tmp_path / "command_line_history.json"
     monkeypatch.setattr(
@@ -561,7 +554,6 @@ async def test_proc_submit_captures_confirm_flags(
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_panel(page, monkeypatch, history_file)

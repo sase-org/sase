@@ -1,4 +1,4 @@
-"""Bottom-anchored Command Line panel screen (beta flag ``ace_command_line``).
+"""Bottom-anchored Command Line panel screen (bound to ``:``).
 
 View-only composition over the app-held
 :class:`~sase.ace.tui.command_line.session.CommandLineSession`: transcript,
@@ -338,6 +338,31 @@ class CommandLineScreen(ModalScreen[None]):
             self.app, on_ready=self._on_grammar_ready_from_worker
         )
         self._refresh_completion()
+        self._maybe_show_palette_moved_tip()
+
+    def _maybe_show_palette_moved_tip(self) -> None:
+        """Show the one-time ``:``/``;`` flip tip in the hint row."""
+        from sase.ace.tui.command_line.palette_moved_tip import (
+            COMMAND_LINE_PALETTE_MOVED_TIP,
+            has_shown_palette_moved_tip,
+            mark_palette_moved_tip_shown,
+        )
+
+        try:
+            if has_shown_palette_moved_tip():
+                return
+        except Exception:  # noqa: BLE001 - tip reads always degrade.
+            return
+        try:
+            self.query_one("#command-line-hint-row", Static).update(
+                COMMAND_LINE_PALETTE_MOVED_TIP
+            )
+        except Exception:  # noqa: BLE001 - unmounted screen cannot render.
+            return
+        try:
+            mark_palette_moved_tip_shown()
+        except Exception:  # noqa: BLE001 - marker writes are best effort.
+            pass
 
     def _on_grammar_ready_from_worker(self) -> None:
         """Hop the loader-thread ready signal back to the UI thread."""

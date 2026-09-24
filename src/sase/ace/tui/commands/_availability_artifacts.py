@@ -64,6 +64,7 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.show_help",
         "app.open_config_center",
         "app.open_command_palette",
+        "app.open_command_line",
         "app.dismiss_toasts",
         "app.refresh",
         "app.artifacts_copy_reference",

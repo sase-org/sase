@@ -13,9 +13,10 @@ sase tui [QUERY] [options]
 
 Run `sase tui` from an interactive terminal. It opens on the Agents tab and starts the
 service host (pass `-x` to skip that). Press `?` on any tab for the keymap and a short
-guide, `:` for the [Command Palette](#command-palette), and `q` to quit. The command was
-previously `sase ace`, which no longer exists; the TUI's settings still live under the
-`ace:` section of `sase.yml` (for example `ace.keymaps` and `ace.page_size`).
+guide, `:` for the [Command Line](#command-line), `;` for the
+[Command Palette](#command-palette), and `q` to quit. The command was previously
+`sase ace`, which no longer exists; the TUI's settings still live under the `ace:`
+section of `sase.yml` (for example `ace.keymaps` and `ace.page_size`).
 
 If no Patches query is provided, sase's TUI loads the last used Patches query, then the
 first saved Patches query, then falls back to `!!!` for error suffixes. The top-level
@@ -3422,7 +3423,8 @@ These work on all tabs:
 | `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Services tabs                                                                                                                    |
 | `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)               |
 | `.`                     | Artifacts: collapse/expand the relations panel; Services: show/hide oneshot rows; Agents: expand/collapse the jump panel                                               |
-| `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
+| `:`                     | Open the [Command Line](#command-line): run `sase` commands without leaving the TUI                                                                                    |
+| `;`                     | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
 | `i`                     | Show notifications inbox                                                                                                                                               |
 | `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |
 | `Space`                 | Prefill the prompt with the most recently launched VCS xprompt (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt)                                   |
@@ -3497,10 +3499,10 @@ declining returns to the TUI.
 
 ## Command Palette
 
-Press `:` or `;` from any tab to open the **Command Palette** — a context-aware modal
-listing every keymapped action that is currently runnable. The palette is the discovery
-surface for the TUI: rather than memorizing every chord, you can search by command
-label, key sequence (e.g. `%n`, `,A`, `zc`), category, or alias.
+Press `;` from any tab to open the **Command Palette** — a context-aware modal listing
+every keymapped action that is currently runnable. The palette is the discovery surface
+for the TUI: rather than memorizing every chord, you can search by command label, key
+sequence (e.g. `%n`, `,A`, `zc`), category, or alias.
 
 **Behavior:**
 
@@ -3511,12 +3513,17 @@ label, key sequence (e.g. `%n`, `,A`, `zc`), category, or alias.
 - Each row shows the keybinding, the command label, and a category badge such as
   `Navigation`, `PR Actions`, `Agent Actions`, `Copy`, or `Leader`.
 - A title-bar badge (`Agents`, `Artifacts`, or `Services`) reflects the current tab.
+- Typing `:` into an empty filter hops to the [Command Line](#command-line).
+- When the filter has no match, a fallback row offers `Run `sase
+  <query>` in Command Line`, which opens the Command Line pre-filled with the filter
+  text (without running it).
 
 **Keybindings inside the palette:**
 
 | Key                 | Action                                       |
 | ------------------- | -------------------------------------------- |
 | `Type`              | Filter commands (case-insensitive substring) |
+| `:` on empty filter | Hop to the Command Line                      |
 | `↑` / `↓`           | Move highlight                               |
 | `Ctrl+P` / `Ctrl+N` | Move highlight                               |
 | `Enter`             | Run the highlighted command                  |
@@ -3527,9 +3534,36 @@ behavior matches pressing the chord directly. Selecting a built-in mode subcomma
 `%n` to copy an agent name) runs the action without forcing you through the transient
 prefix mode. Custom modes defined in `sase.yml` are also represented per-command.
 
-The `:` / `;` binding follows your configured keymap. To rebind it, set
+The `;` binding follows your configured keymap. To rebind it, set
 `ace.keymaps.app.open_command_palette` in `~/.config/sase/sase.yml`; comma-separated
 keys in that setting are treated as alternate bindings for the same action.
+
+## Command Line
+
+Press `:` from any tab to open the **Command Line** — a bottom-anchored drawer where you
+type `sase` commands (the `sase` prefix is implicit) and run them without leaving the
+TUI.
+
+**Behavior:**
+
+- Selection-aware, fuzzy completion with a live signature line: the panel knows the
+  current selection, ranks the selected entity first, and shows advisory grammar
+  diagnostics. `Tab` completes, `Ctrl+R` searches history, and `;` on an empty line hops
+  back to the Command Palette.
+- Every command runs as an ordinary durable proc (tagged `command-line`, visible by
+  default in Admin Center → Procs), so hiding the panel never interrupts anything.
+  Finished command-line procs keep their own retention bucket of 50.
+- Run policies: most commands run as procs, some (editors, pagers, interactive tools)
+  run in the real terminal with the TUI suspended, and a few refuse with an alternative.
+  Commands that ask to confirm render a declined block with an explicit `R`
+  rerun-with-`-y`.
+- Built-ins: `cd` (pin a working directory), `clear`, `help`, and `history`. They run
+  instantly with no proc.
+- Block keys (`NORMAL` mode): `o` expand, `v` pager, `K` kill, `r`/`R` rerun, `e` edit,
+  `y`/`Y` copy output/command, `p` open in Procs, `x` remove, `i` back to input.
+
+The `:` binding follows your configured keymap. To rebind it, set
+`ace.keymaps.app.open_command_line` in `~/.config/sase/sase.yml`.
 
 ## Machines Tab
 
@@ -6060,7 +6094,7 @@ ace:
   keymaps:
     modes:
       my_mode:
-        prefix: ";"
+        prefix: "B"
         keys:
           run_tests:
             key: "t"
@@ -6073,7 +6107,7 @@ ace:
             action: "refresh"
 ```
 
-Pressing `;` activates the mode, then pressing `t` runs `just test`, `l` shows the git
+Pressing `B` activates the mode, then pressing `t` runs `just test`, `l` shows the git
 log, etc.
 
 ### Validation

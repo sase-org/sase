@@ -474,13 +474,11 @@ async def test_block_keys_select_move_and_switch_hints(
         COMMAND_LINE_INPUT_HINTS,
     )
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
     from textual.widgets import Static
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(
@@ -516,12 +514,10 @@ async def test_forwarded_j_key_moves_selection(
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.input import CommandLineInput
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(
@@ -548,12 +544,10 @@ async def test_o_toggles_expand_and_x_removes(
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(
@@ -582,12 +576,10 @@ async def test_e_loads_line_into_input(
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.input import CommandLineInput
-    from sase.feature_flags import override_flags
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(page, monkeypatch, ["bead show sase-9"])
@@ -608,7 +600,6 @@ async def test_r_reruns_and_R_appends_confirm_flag(
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line import screen as screen_module
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     counter = {"n": 0}
 
@@ -620,7 +611,6 @@ async def test_r_reruns_and_R_appends_confirm_flag(
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
         mock_patch.object(screen_module, "submit_in_worker", side_effect=_fake_submit),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
@@ -649,13 +639,11 @@ async def test_v_opens_pager_for_selected_block(
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
     from sase.pager.screen import PagerScreen
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
@@ -677,12 +665,10 @@ async def test_p_opens_procs_with_focus_target(
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
@@ -708,12 +694,10 @@ async def test_y_and_Y_copy_output_and_command(
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
@@ -744,12 +728,10 @@ async def test_K_warns_when_finished_and_confirms_when_running(
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
@@ -798,12 +780,10 @@ async def test_procs_jump_focus_selects_block_on_open(
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
     from sase.ace.tui.command_line.session import command_line_session_for
-    from sase.feature_flags import override_flags
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             from sase.ace.tui.command_line import screen as screen_module

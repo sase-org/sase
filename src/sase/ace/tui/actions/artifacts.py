@@ -110,6 +110,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "open_config_center",
         "open_models_panel",
         "open_command_palette",
+        "open_command_line",
         "dismiss_toasts",
         "refresh",
         "artifacts_copy_reference",

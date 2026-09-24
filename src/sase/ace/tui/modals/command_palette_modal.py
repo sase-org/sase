@@ -43,7 +43,7 @@ _LABEL_COL_WIDTH = 36
 _CATEGORY_COL_WIDTH = 18
 _POSITION_GAUGE_WIDTH = 10
 COMMAND_PALETTE_INPUT_HINT = (
-    "Search command text, or use key:<key> for keymaps (key:j, key::, key:,A)"
+    "Search command text, or use key:<key> for keymaps (key:j, key:;, key:,A)"
 )
 
 
@@ -325,9 +325,12 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
         text.append_text(_build_count_text(shown, total))
         return text
 
-    def _build_empty_state(self) -> Text:
+    def _build_empty_state(self, query: str = "") -> Text:
         text = Text()
         text.append("No matching commands", style="dim italic")
+        query = query.strip()
+        if query:
+            text.append(f"  ·  ⏎ Run `sase {query}` in Command Line", style="dim")
         return text
 
     def _build_options(self, specs: list[CommandSpec]) -> list[Option]:
@@ -346,10 +349,19 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
         self._refresh_empty_visibility()
         self._refresh_status()
 
+    def _filter_text(self) -> str:
+        """Return the current filter text ("" when unmounted)."""
+        try:
+            return self.query_one("#command-palette-filter-input", FilterInput).value
+        except Exception:  # noqa: BLE001 - unmounted modal has no input.
+            return ""
+
     def _refresh_empty_visibility(self) -> None:
         empty = self.query_one("#command-palette-empty", Static)
         option_list = self.query_one("#command-palette-list", OptionList)
         is_empty = not self._filtered_specs
+        if is_empty:
+            empty.update(self._build_empty_state(self._filter_text()))
         empty.display = is_empty
         option_list.display = not is_empty
 
@@ -375,6 +387,13 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "command-palette-filter-input":
+            return
+        if event.value == ":":
+            # ``:`` on an empty filter hops to the Command Line.
+            event.input.value = ""
+            self.dismiss(
+                CommandPaletteResult(selected_id=None, command_line_prefill="")
+            )
             return
         self._apply_filter(event.value)
 
@@ -422,6 +441,13 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
 
     def _submit_highlighted(self) -> None:
         if not self._filtered_specs:
+            # No strong match: offer the fallback row — open the Command
+            # Line pre-filled with the filter text (not run).
+            query = self._filter_text().strip()
+            if query:
+                self.dismiss(
+                    CommandPaletteResult(selected_id=None, command_line_prefill=query)
+                )
             return
         option_list = self.query_one("#command-palette-list", OptionList)
         idx = option_list.highlighted

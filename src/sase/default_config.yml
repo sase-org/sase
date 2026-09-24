@@ -825,8 +825,8 @@ ace:
       patches_toggle_reverted: "X"
       show_notifications: "i"
       open_config_center: "number_sign"
-      open_command_palette: "colon,semicolon"
-      open_command_line: "unbound"
+      open_command_palette: "semicolon"
+      open_command_line: "colon"
       dismiss_toasts: "ctrl+l"
       # Workspace mode prefixes
       checkout: "C"

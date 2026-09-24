@@ -321,6 +321,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.artifacts_copy_reference), "Copy @patch: reference"),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),
+                (d(a.open_command_line), "Open command line"),
             ],
         ),
     )

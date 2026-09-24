@@ -1,11 +1,11 @@
-"""Phase 5 end-to-end coverage for the ``:`` command palette key.
+"""Phase 5 end-to-end coverage for the ``:`` Command Line and ``;`` palette keys.
 
 The Phase 3 wiring tests in ``tests/test_command_palette_wiring.py``
-already prove that ``:`` opens the palette on the Patches tab and that the
+already prove that ``;`` opens the palette on the Patches tab and that the
 palette dispatches selections through the existing app actions. This
 suite locks in equivalent behavior on the **Agents** and **AXE** tabs
-and protects the user-visible acceptance from the Phase 5 plan that
-``:`` is bound consistently across every tab.
+and protects the user-visible acceptance that ``:`` (Command Line) and
+``;`` (palette) are bound consistently across every tab.
 """
 
 from __future__ import annotations
@@ -14,11 +14,12 @@ from unittest.mock import patch
 
 from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui import AceApp
+from sase.ace.tui.command_line.screen import CommandLineScreen
 from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 
 
-async def test_colon_opens_command_palette_from_agents_tab() -> None:
-    """Pressing ``:`` from the Agents tab opens the palette with the agents badge."""
+async def test_colon_opens_command_line_from_agents_tab() -> None:
+    """Pressing ``:`` from the Agents tab opens the Command Line panel."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -31,16 +32,14 @@ async def test_colon_opens_command_palette_from_agents_tab() -> None:
             await page.expect_state("tab", "agents")
 
             await page.press("colon")
-            await page.expect_modal("CommandPaletteModal")
+            await page.expect_modal("CommandLineScreen")
 
             modal = page.app.screen
-            assert isinstance(modal, CommandPaletteModal)
-            assert modal._tab == "agents"
-            assert "Agents" in modal._build_title().plain
+            assert isinstance(modal, CommandLineScreen)
 
 
-async def test_colon_opens_command_palette_from_axe_tab() -> None:
-    """Pressing ``:`` from the AXE tab opens the palette with the AXE badge."""
+async def test_colon_opens_command_line_from_axe_tab() -> None:
+    """Pressing ``:`` from the AXE tab opens the Command Line panel."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -53,12 +52,10 @@ async def test_colon_opens_command_palette_from_axe_tab() -> None:
             await page.expect_state("tab", "axe")
 
             await page.press("colon")
-            await page.expect_modal("CommandPaletteModal")
+            await page.expect_modal("CommandLineScreen")
 
             modal = page.app.screen
-            assert isinstance(modal, CommandPaletteModal)
-            assert modal._tab == "services"
-            assert "Services" in modal._build_title().plain
+            assert isinstance(modal, CommandLineScreen)
 
 
 async def test_semicolon_opens_command_palette_from_agents_and_axe_tabs() -> None:
@@ -106,7 +103,7 @@ async def test_palette_executes_refresh_from_agents_tab() -> None:
             await page.press("shift+tab")
             await page.expect_state("tab", "agents")
 
-            await page.press("colon")
+            await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
             for ch in "refresh":
                 await page.press(ch)
@@ -130,7 +127,7 @@ async def test_palette_executes_refresh_from_axe_tab() -> None:
             await page.press("tab")
             await page.expect_state("tab", "axe")
 
-            await page.press("colon")
+            await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
             for ch in "refresh":
                 await page.press(ch)
@@ -156,7 +153,7 @@ async def test_palette_escape_dismisses_from_each_tab() -> None:
                     await page.press("tab")
                 await page.expect_state("tab", expected_tab)
 
-                await page.press("colon")
+                await page.press("semicolon")
                 await page.expect_modal("CommandPaletteModal")
                 await page.press("escape")
                 await page.expect_no_modal()

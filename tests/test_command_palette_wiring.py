@@ -3,10 +3,11 @@
 Covers the acceptance items from
 ``sdd/plans/202604/tui_command_palette.md`` Phase 3:
 
-- Pressing ``:`` opens the palette modal.
+- Pressing ``;`` opens the palette modal.
+- Pressing ``:`` opens the Command Line panel.
 - The palette shows commands applicable to the current tab + selection.
 - Selecting commands dispatches through existing app actions / mode handlers.
-- ``:`` does not interfere with prompt text areas or modal inputs.
+- ``;`` does not interfere with prompt text areas or modal inputs.
 """
 
 from __future__ import annotations
@@ -18,8 +19,8 @@ from sase.ace.tui import AceApp
 from sase.ace.tui.commands import CommandContext, extract_command_context
 
 
-async def test_colon_opens_command_palette_modal() -> None:
-    """Pressing ``:`` from the Patches tab opens the palette modal."""
+async def test_colon_opens_command_line_modal() -> None:
+    """Pressing ``:`` from the Patches tab opens the Command Line panel."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -30,7 +31,7 @@ async def test_colon_opens_command_palette_modal() -> None:
         ) as page:
             await page.expect_state("tab", "changespecs")  # legacy tab id
             await page.press("colon")
-            await page.expect_modal("CommandPaletteModal")
+            await page.expect_modal("CommandLineScreen")
 
 
 async def test_semicolon_opens_command_palette_modal() -> None:
@@ -48,6 +49,43 @@ async def test_semicolon_opens_command_palette_modal() -> None:
             await page.expect_modal("CommandPaletteModal")
 
 
+async def test_palette_colon_hops_to_command_line() -> None:
+    """Typing ``:`` into an empty palette filter hops to the Command Line."""
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(
+            query="test_feature",
+            patches=[make_patch()],
+        ) as page:
+            await page.press("semicolon")
+            await page.expect_modal("CommandPaletteModal")
+            await page.press("colon")
+            await page.expect_modal("CommandLineScreen")
+
+
+async def test_palette_no_match_fallback_prefills_command_line() -> None:
+    """Enter on a matchless filter opens the Command Line pre-filled."""
+    from sase.ace.tui.command_line.input import CommandLineInput
+
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(
+            query="test_feature",
+            patches=[make_patch()],
+        ) as page:
+            await page.press("semicolon")
+            await page.expect_modal("CommandPaletteModal")
+            for ch in "zzznoresult":
+                await page.press(ch)
+            await page.press("enter")
+            await page.expect_modal("CommandLineScreen")
+            assert page.app.screen.query_one(CommandLineInput).text == "zzznoresult"
+
+
 async def test_palette_escape_dismisses_without_side_effects() -> None:
     """Esc closes the palette and leaves no app-state changes behind."""
     with (
@@ -58,7 +96,7 @@ async def test_palette_escape_dismisses_without_side_effects() -> None:
             query="test_feature",
             patches=[make_patch()],
         ) as page:
-            await page.press("colon")
+            await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
             await page.press("escape")
             await page.expect_no_modal()
@@ -75,7 +113,7 @@ async def test_palette_executes_refresh_via_action() -> None:
             query="test_feature",
             patches=[make_patch()],
         ) as page:
-            await page.press("colon")
+            await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
             # Type "refresh" into the filter, then submit.
             for ch in "refresh":
@@ -97,7 +135,7 @@ async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
             patches=[make_patch()],
         ) as page:
             await page.press(page.artifacts_digit("patches"))
-            await page.press("colon")
+            await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
 
             from sase.ace.tui.modals.command_palette_modal import (
@@ -130,7 +168,7 @@ async def test_palette_context_uses_current_tab_badge() -> None:
             await page.press("tab")
             await page.expect_state("tab", "axe")
 
-            await page.press("colon")
+            await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
 
             from sase.ace.tui.modals.command_palette_modal import (
@@ -147,7 +185,7 @@ async def test_palette_context_uses_current_tab_badge() -> None:
 async def test_palette_filter_input_swallows_typing_no_action_dispatched() -> None:
     """Typing 'q' into the palette filter must not dispatch ``action_quit``.
 
-    Acceptance: ``:`` does not interfere with input widgets — the
+    Acceptance: ``;`` does not interfere with input widgets — the
     palette's filter input absorbs printable keys.
     """
     with (
@@ -159,7 +197,7 @@ async def test_palette_filter_input_swallows_typing_no_action_dispatched() -> No
             query="test_feature",
             patches=[make_patch()],
         ) as page:
-            await page.press("colon")
+            await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
             await page.press("q")
             # Modal still open, action_quit not fired by the filter input.

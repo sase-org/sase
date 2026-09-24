@@ -1,4 +1,4 @@
-"""Panel-shell tests for the ``:`` Command Line (beta flag ``ace_command_line``).
+"""Panel-shell tests for the ``:`` Command Line.
 
 Covers the panel-shell phase contract: both flag states, Escape semantics,
 draft persistence across hide/reopen, history locking and LRU, leading
@@ -41,7 +41,6 @@ from sase.ace.tui.command_line.submit import (
 )
 from sase.ace.tui.commands.availability import is_command_available
 from sase.ace.tui.commands.types import CommandContext, CommandExecutor, CommandSpec
-from sase.feature_flags import override_flags
 from sase.history import command_line as history_store
 
 
@@ -84,40 +83,30 @@ def test_strip_implicit_prefix_keeps_other_text_verbatim() -> None:
     assert strip_implicit_prefix("bead sase list") == "bead sase list"
 
 
-# -- flag states --------------------------------------------------------------
+# -- landed states (flag removed) --------------------------------------------
 
 
-def test_palette_row_hidden_when_flag_off() -> None:
-    """The palette has no Command Line row with the flag off."""
-    with override_flags(ace_command_line=False):
-        assert is_command_available(_command_line_spec(), CommandContext()) is False
+def test_palette_row_always_visible_after_land() -> None:
+    """The catalog row is available unconditionally after the flip."""
+    assert is_command_available(_command_line_spec(), CommandContext()) is True
 
 
-def test_palette_row_visible_when_flag_on() -> None:
-    """The catalog row is available with the flag on."""
-    with override_flags(ace_command_line=True):
-        assert is_command_available(_command_line_spec(), CommandContext()) is True
+def test_palette_moved_tip_marker_round_trip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one-time flip tip marker persists under ``sase_home``."""
+    from sase.ace.tui.command_line import palette_moved_tip as tip
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    assert tip.has_shown_palette_moved_tip() is False
+    assert "Command Palette moved to" in tip.COMMAND_LINE_PALETTE_MOVED_TIP
+    assert "`;`" in tip.COMMAND_LINE_PALETTE_MOVED_TIP
+    tip.mark_palette_moved_tip_shown()
+    assert tip.has_shown_palette_moved_tip() is True
 
 
-def test_action_off_shows_notice_without_pushing() -> None:
-    """``open_command_line`` only shows a notice when the flag is off."""
-    from sase.ace.tui.actions.base import BaseActionsMixin
-
-    pushed: list[object] = []
-    notices: list[str] = []
-    stub = SimpleNamespace(
-        notify=lambda message, **kwargs: notices.append(message),
-        push_screen=lambda screen, **kwargs: pushed.append(screen),
-    )
-    with override_flags(ace_command_line=False):
-        BaseActionsMixin.action_open_command_line(stub)  # type: ignore[arg-type]
-    assert pushed == []
-    assert len(notices) == 1
-    assert "ace_command_line" in notices[0]
-
-
-def test_action_on_pushes_command_line_screen() -> None:
-    """``open_command_line`` pushes the panel when the flag is on."""
+def test_action_pushes_command_line_screen_unconditionally() -> None:
+    """``open_command_line`` pushes the panel with no flag gate."""
     from sase.ace.tui.actions.base import BaseActionsMixin
     from sase.ace.tui.command_line.screen import CommandLineScreen
 
@@ -126,8 +115,7 @@ def test_action_on_pushes_command_line_screen() -> None:
         notify=lambda message, **kwargs: None,
         push_screen=lambda screen, **kwargs: pushed.append(screen),
     )
-    with override_flags(ace_command_line=True):
-        BaseActionsMixin.action_open_command_line(stub)  # type: ignore[arg-type]
+    BaseActionsMixin.action_open_command_line(stub)  # type: ignore[arg-type]
     assert len(pushed) == 1
     assert isinstance(pushed[0], CommandLineScreen)
 
@@ -387,7 +375,6 @@ async def test_panel_escape_keeps_draft_across_reopen() -> None:
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             page.app.action_open_command_line()
@@ -425,7 +412,6 @@ async def test_submit_failure_turns_block_red_and_restores_line() -> None:
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
         mock_patch.object(screen_module, "submit_in_worker", side_effect=_boom),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             page.app.action_open_command_line()
@@ -462,7 +448,6 @@ async def test_submit_happy_path_settles_on_exit_completion() -> None:
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
         mock_patch.object(screen_module, "submit_in_worker", side_effect=_fake_submit),
-        override_flags(ace_command_line=True),
     ):
         async with AcePage(query="test_feature", patches=[make_patch()]) as page:
             page.app.action_open_command_line()

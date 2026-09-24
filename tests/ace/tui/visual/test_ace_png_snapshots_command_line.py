@@ -21,7 +21,6 @@ from sase.ace.tui.command_line.history import CommandLineHistory
 from sase.ace.tui.command_line.input import CommandLineInput
 from sase.ace.tui.command_line.screen import CommandLineScreen
 from sase.ace.tui.command_line.session import command_line_session_for
-from sase.feature_flags import override_flags
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
@@ -118,7 +117,6 @@ async def test_command_line_empty_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -152,7 +150,6 @@ async def test_command_line_typed_ghost_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -179,7 +176,6 @@ async def test_command_line_running_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -210,7 +206,6 @@ async def test_command_line_success_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -242,7 +237,6 @@ async def test_command_line_error_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -274,7 +268,6 @@ async def test_command_line_submit_failed_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -303,7 +296,6 @@ async def test_command_line_block_selected_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -346,7 +338,6 @@ async def test_command_line_block_expanded_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -381,7 +372,6 @@ async def test_command_line_earlier_divider_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -479,7 +469,6 @@ async def test_command_line_empty_state_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -518,7 +507,6 @@ async def test_command_line_doc_peek_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -572,7 +560,6 @@ async def test_command_line_history_search_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -606,7 +593,6 @@ async def test_command_line_declined_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -640,7 +626,6 @@ async def test_command_line_denied_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -669,7 +654,6 @@ async def test_command_line_foreground_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -699,7 +683,6 @@ async def test_command_line_help_png_snapshot(
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
-        override_flags(ace_command_line=True),
     ):
         patch_startup_loaders(monkeypatch)
         async with AcePage(query='"visual"', patches=patches(), size=size) as page:

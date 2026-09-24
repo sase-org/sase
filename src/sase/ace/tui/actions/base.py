@@ -682,22 +682,15 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
             refresh()
 
     def action_open_command_line(self) -> None:
-        """Open the bottom-anchored Command Line panel (beta flag gated)."""
-        from ..command_line.flag import command_line_enabled
+        """Open the bottom-anchored Command Line panel (bound to ``:``)."""
         from ..command_line.screen import CommandLineScreen
 
-        if not command_line_enabled():
-            self.notify(  # type: ignore[attr-defined]
-                "Command Line is behind the `ace_command_line` beta flag.",
-                severity="information",
-            )
-            return
         self.push_screen(  # type: ignore[attr-defined]
             CommandLineScreen(), callback=None
         )
 
     def action_open_command_palette(self) -> None:
-        """Open the context-aware command palette modal (bound to ``:``)."""
+        """Open the context-aware command palette modal (bound to ``;``)."""
         from ..commands import (
             CommandPaletteResult,
             build_command_catalog,
@@ -714,7 +707,18 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         catalog_by_id = {s.id: s for s in catalog}
 
         def _on_dismiss(result: CommandPaletteResult | None) -> None:
-            if result is None or result.selected_id is None:
+            if result is None:
+                return
+            if result.command_line_prefill is not None:
+                from ..command_line.session import command_line_session_for
+
+                session = command_line_session_for(self)  # type: ignore[arg-type]
+                session.draft = result.command_line_prefill
+                session.draft_cursor = len(result.command_line_prefill)
+                session.selected_block_id = None
+                self.action_open_command_line()
+                return
+            if result.selected_id is None:
                 return
             spec = catalog_by_id.get(result.selected_id)
             if spec is None:

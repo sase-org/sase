@@ -76,15 +76,26 @@ def test_footer_key_display_compound_alternatives() -> None:
     assert footer_key_display("ctrl+@") == "Ctrl+Space"
 
 
-def test_help_modal_displays_command_palette_alternatives() -> None:
-    """The help modal uses the same readable display for compound app bindings."""
+def test_help_modal_displays_command_palette_key() -> None:
+    """The help modal uses the same readable display for the palette key."""
     reg = load_keymap_registry({})
     entries = [
         entry
         for _section_name, section_entries in cls_bindings(reg)
         for entry in section_entries
     ]
-    assert (": / ;", "Open command palette") in entries
+    assert (";", "Open command palette") in entries
+
+
+def test_help_modal_displays_command_line_key() -> None:
+    """The help modal shows the Command Line on its flipped ``:`` key."""
+    reg = load_keymap_registry({})
+    entries = [
+        entry
+        for _section_name, section_entries in agents_bindings(reg)
+        for entry in section_entries
+    ]
+    assert (":", "Open command line") in entries
 
 
 def test_help_modal_displays_space_repeat_agent_shortcuts() -> None:

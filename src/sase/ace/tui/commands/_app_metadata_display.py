@@ -168,9 +168,9 @@ DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
         "Open command palette",
         "Misc",
         ALL_TABS,
-        ("commands", ":"),
+        ("commands",),
     ),
-    # Command Line panel (beta flag ``ace_command_line``; hidden when off).
+    # Command Line panel (bound to ``:``).
     (
         "open_command_line",
         "Command Line",

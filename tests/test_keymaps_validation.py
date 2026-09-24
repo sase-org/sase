@@ -314,7 +314,7 @@ def test_jump_forward_and_job_run_remain_independently_configurable() -> None:
 def test_compound_key_conflict_reverts_override() -> None:
     """A key inside a compound binding conflicts like a normal app key."""
     reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "semicolon"}}})
-    assert reg.app.open_command_palette == "colon,semicolon"
+    assert reg.app.open_command_palette == "semicolon"
     assert reg.app.next_patch == "j"
 
 

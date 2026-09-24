@@ -23,13 +23,19 @@ from sase.ace.tui.keymaps import (
 
 
 def test_open_command_palette_default_binding() -> None:
-    """``:`` and ``;`` are bound to open_command_palette by default.
+    """``;`` is bound to open_command_palette by default.
 
     Phase 1 of the command palette plan: every keymap (including the
     one that opens the palette itself) lives in default_config.yml.
     """
     reg = load_keymap_registry({})
-    assert reg.app.open_command_palette == "colon,semicolon"
+    assert reg.app.open_command_palette == "semicolon"
+
+
+def test_open_command_line_default_binding() -> None:
+    """``:`` is bound to open_command_line by default after the flip."""
+    reg = load_keymap_registry({})
+    assert reg.app.open_command_line == "colon"
 
 
 def test_saved_query_picker_default_binding() -> None:

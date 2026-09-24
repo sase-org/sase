@@ -178,15 +178,25 @@ def test_filter_specs_key_filter_matches_app_binding_alternatives() -> None:
     a = _spec(
         "app.open_command_palette",
         "Open command palette",
-        key_display=": / ;",
-        key_sequence=("colon,semicolon",),
+        key_display=";",
+        key_sequence=("semicolon",),
     )
     b = _spec("app.refresh", "Refresh", key_display="r", key_sequence=("r",))
+    c = _spec(
+        "app.open_command_line",
+        "Command Line",
+        key_display=":",
+        key_sequence=("colon",),
+    )
 
-    assert [s.id for s in filter_specs([a, b], "key::")] == ["app.open_command_palette"]
-    assert [s.id for s in filter_specs([a, b], "key:semicolon")] == [
+    assert [s.id for s in filter_specs([a, b, c], "key:;")] == [
         "app.open_command_palette"
     ]
+    assert [s.id for s in filter_specs([a, b, c], "key:semicolon")] == [
+        "app.open_command_palette"
+    ]
+    # After the flip ``:`` addresses the Command Line, not the palette.
+    assert [s.id for s in filter_specs([a, b, c], "key::")] == ["app.open_command_line"]
 
 
 def test_filter_specs_key_filter_does_not_match_text_metadata() -> None:
@@ -526,15 +536,15 @@ async def test_modal_escape_returns_none() -> None:
         assert result.selected_id is None
 
 
-async def test_modal_enter_with_no_results_is_noop() -> None:
-    """Enter while no commands match should not dismiss the modal."""
-    dismiss_count = 0
+async def test_modal_enter_with_no_results_offers_command_line_fallback() -> None:
+    """Enter with no match dismisses with a Command Line prefill (not run)."""
+    result: CommandPaletteResult | None = None
 
     async with _TestApp().run_test() as pilot:
 
-        def on_dismiss(_r: CommandPaletteResult | None) -> None:
-            nonlocal dismiss_count
-            dismiss_count += 1
+        def on_dismiss(r: CommandPaletteResult | None) -> None:
+            nonlocal result
+            result = r
 
         modal = CommandPaletteModal(
             specs=[_spec("app.refresh", "Refresh tab")],
@@ -550,7 +560,52 @@ async def test_modal_enter_with_no_results_is_noop() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-        assert dismiss_count == 0
+        assert result is not None
+        assert result.selected_id is None
+        assert result.command_line_prefill == "zzznoresult"
+
+
+async def test_modal_colon_on_empty_filter_hops_to_command_line() -> None:
+    """Typing ``:`` into an empty filter dismisses with an empty prefill."""
+    result: CommandPaletteResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(r: CommandPaletteResult | None) -> None:
+            nonlocal result
+            result = r
+
+        modal = CommandPaletteModal(
+            specs=[_spec("app.refresh", "Refresh tab")],
+            tab="changespecs",  # legacy tab id
+        )
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#command-palette-filter-input", Input)
+        filter_input.value = ":"
+        await pilot.pause()
+
+        assert result is not None
+        assert result.selected_id is None
+        assert result.command_line_prefill == ""
+
+
+async def test_modal_empty_state_names_command_line_fallback() -> None:
+    """The no-match empty state advertises the fallback row."""
+    specs = [_spec("app.refresh", "Refresh tab")]
+    async with _TestApp().run_test() as pilot:
+        modal = CommandPaletteModal(specs=specs, tab="changespecs")  # legacy tab id
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        filter_input = modal.query_one("#command-palette-filter-input", Input)
+        filter_input.value = "bead list"
+        await pilot.pause()
+
+        assert "Run `sase bead list` in Command Line" in _static_text(
+            modal, "#command-palette-empty"
+        )
 
 
 # --- modal: navigation ---

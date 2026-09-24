@@ -190,6 +190,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.refresh), refresh_help_label()),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),
+                (d(a.open_command_line), "Open command line"),
             ],
         ),
     )

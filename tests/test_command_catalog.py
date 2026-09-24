@@ -58,12 +58,20 @@ def test_app_command_spec_uses_configured_key() -> None:
     assert by_id["app.next_patch"].key_display == "P"
 
 
-def test_open_command_palette_command_uses_default_alternatives() -> None:
-    """The palette opener command picks up both default key alternatives."""
+def test_open_command_palette_command_uses_default_key() -> None:
+    """The palette opener command picks up its default key."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.open_command_palette"]
-    assert spec.key_sequence == ("colon,semicolon",)
-    assert spec.key_display == ": / ;"
+    assert spec.key_sequence == ("semicolon",)
+    assert spec.key_display == ";"
+
+
+def test_open_command_line_command_uses_default_key() -> None:
+    """The Command Line command picks up its default key after the flip."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.open_command_line"]
+    assert spec.key_sequence == ("colon",)
+    assert spec.key_display == ":"
 
 
 def test_jump_commands_use_back_and_forward_defaults_on_every_tab() -> None:

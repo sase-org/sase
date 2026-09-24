@@ -316,6 +316,11 @@ class CommandPaletteResult:
     """What the palette modal returns when dismissed.
 
     ``selected_id`` is ``None`` when the user cancels with Esc.
+    ``command_line_prefill`` carries a Command Line hop: ``""`` opens the
+    panel empty (``:`` on an empty filter), any other text pre-fills the
+    input without running it (the no-match fallback row). ``None`` means
+    no hop — a normal selection or cancel.
     """
 
     selected_id: str | None
+    command_line_prefill: str | None = None

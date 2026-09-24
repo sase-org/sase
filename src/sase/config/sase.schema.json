@@ -5186,11 +5186,6 @@
         "type": "boolean"
       },
       "properties": {
-        "ace_command_line": {
-          "type": "boolean",
-          "description": "The TUI offers the Command Line panel through `open_command_line` and a Command Palette row.",
-          "default": false
-        },
         "ace_refresh_tokens": {
           "type": "boolean",
           "description": "Gate sase's TUI and proc refreshes on per-surface stat-only change tokens.",
