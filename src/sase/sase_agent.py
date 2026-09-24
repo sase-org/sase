@@ -78,7 +78,7 @@ def sase_agent_ref_for_name(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
     *,
-    reserved_family_names: Collection[str] | None = None,
+    reserved_agent_session_names: Collection[str] | None = None,
 ) -> SaseAgentRef:
     """Return the sase agent described by the already-projected name *name*.
 
@@ -99,8 +99,8 @@ def sase_agent_ref_for_name(
         local_name=local_name,
         global_name=globalize_owned_agent_name(local_name, snapshot),
         is_family=(
-            local_name in reserved_family_names
-            if reserved_family_names is not None
+            local_name in reserved_agent_session_names
+            if reserved_agent_session_names is not None
             else _is_reserved_family_name(local_name)
         ),
         member_local_name=None,
@@ -147,9 +147,9 @@ def _is_reserved_family_name(local_name: str) -> bool:
     rebuild, which would hold the name-allocation lock against live launches.
     """
     try:
-        from sase.agent.names import get_reserved_family_names_for_display
+        from sase.agent.names import get_reserved_agent_session_names_for_display
 
-        return local_name in get_reserved_family_names_for_display()
+        return local_name in get_reserved_agent_session_names_for_display()
     except Exception:
         return False
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.agent.names import AgentFamilyMember
+from sase.agent.names import AgentSessionMember
 from sase.agent.names._lookup_artifacts import is_success_outcome
 from sase.core.dismissed_agent_completion import archived_response_path
 from sase.scripts._agent_chat_from_name_common import (
@@ -48,7 +48,7 @@ def resolve_agent_chat_path(name: str | None = None) -> str:
 
 
 def _resolve_family_member_resume_transcript(
-    member: AgentFamilyMember,
+    member: AgentSessionMember,
 ) -> str | None:
     """Resolve one sequential member's owned transcript for plain resume.
 

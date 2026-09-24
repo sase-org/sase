@@ -56,7 +56,7 @@ def wipe_agent_name_for_reuse(
     The wipe is intentionally stronger than dismissal: artifact directories,
     dismissed bundles/index rows, notifications, workspace claims, and registry
     reservations tied to the owner and its descendants are removed so normal
-    name lookup cannot rediscover the old agent. Clan and family container
+    name lookup cannot rediscover the old agent. Clan and agent-session container
     reservations are never wiped because their owner paths belong to members and
     the reservations are re-derived from those members during registry rebuilds.
     ``allow_stale_container`` is reserved for callers that have already proved a

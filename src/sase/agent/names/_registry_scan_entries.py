@@ -99,7 +99,7 @@ def add_owner_clan(
     )
 
 
-def add_owner_family(
+def add_owner_agent_session(
     entries: dict[str, dict[str, Any]],
     name: str | None,
     owner: dict[str, Any],
@@ -239,7 +239,7 @@ def localize_payload_name(
 
     Sync preserves an imported artifact's ``name`` field as an already
     localized spelling, but other name fields on the same payload
-    (``workflow_name``, family, clan) keep the source machine's bare
+    (``workflow_name``, agent session, clan) keep the source machine's bare
     spelling. Registering a bare spelling as a local claim would squat every
     locally-allocated name beneath it, so every payload-derived name must be
     localized through the same import provenance before it reaches the

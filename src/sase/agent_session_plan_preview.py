@@ -1,7 +1,7 @@
-"""Surface-neutral agent-family plan/bead preview value and formatters.
+"""Surface-neutral agent-session plan/bead preview value and formatters.
 
 Both sase's TUI prompt-input completion menu and the external-editor agent
-catalog render the same "preview ladder" for a family completion entry: an
+catalog render the same "preview ladder" for an agent-session completion entry: an
 authored plan's tier and title, a bead's type and title, or nothing. This
 module holds the shared value type and text formatters so the wording cannot
 drift between surfaces; it intentionally has no sase's TUI model imports so the
@@ -23,7 +23,7 @@ from sase.plan_tier_presentation import (
 from sase.sdd.plan_display import PlanDisplay, PlanDisplayTier
 from sase.sdd.plan_waves import plan_phase_waves
 
-AgentFamilyPlanPreviewKind = Literal["tale", "epic", "plan", "phase", "task"]
+AgentSessionPlanPreviewKind = Literal["tale", "epic", "plan", "phase", "task"]
 
 #: Phase details beyond this count are dropped from both the row subtitle and
 #: the editor documentation block; ``phase_count``/``wave_count`` still carry
@@ -33,10 +33,10 @@ _GOAL_CLIP_LENGTH: Final = 240
 
 
 @dataclass(frozen=True, slots=True)
-class AgentFamilyPlanPreview:
-    """One resolved preview rung for a family's completion row/detail."""
+class AgentSessionPlanPreview:
+    """One resolved preview rung for an agent-session's completion row/detail."""
 
-    kind: AgentFamilyPlanPreviewKind | None
+    kind: AgentSessionPlanPreviewKind | None
     title: str | None
     goal: str | None
     parent_title: str | None
@@ -57,7 +57,7 @@ class AgentFamilyPlanPreview:
 #: Singleton for "resolved, nothing to show" — distinct from an unresolved
 #: cache miss, which callers must track separately (see
 #: ``agent_family_preview_cache``).
-EMPTY_AGENT_FAMILY_PLAN_PREVIEW: Final = AgentFamilyPlanPreview(
+EMPTY_AGENT_SESSION_PLAN_PREVIEW: Final = AgentSessionPlanPreview(
     kind=None,
     title=None,
     goal=None,
@@ -71,13 +71,13 @@ EMPTY_AGENT_FAMILY_PLAN_PREVIEW: Final = AgentFamilyPlanPreview(
     description=None,
 )
 
-_PLAN_TIER_KINDS: dict[PlanDisplayTier, AgentFamilyPlanPreviewKind] = {
+_PLAN_TIER_KINDS: dict[PlanDisplayTier, AgentSessionPlanPreviewKind] = {
     "tale": "tale",
     "epic": "epic",
     "plan": "plan",
 }
 
-_LABELS: dict[AgentFamilyPlanPreviewKind, str] = {
+_LABELS: dict[AgentSessionPlanPreviewKind, str] = {
     "tale": PLAN_TIER_PRESENTATIONS["tale"].label,
     "epic": PLAN_TIER_PRESENTATIONS["epic"].label,
     "plan": GENERIC_PLAN_LABEL,
@@ -85,7 +85,7 @@ _LABELS: dict[AgentFamilyPlanPreviewKind, str] = {
     "task": BEAD_TYPE_PRESENTATIONS["task"].label,
 }
 
-_ACCENTS: dict[AgentFamilyPlanPreviewKind, str] = {
+_ACCENTS: dict[AgentSessionPlanPreviewKind, str] = {
     "tale": PLAN_TIER_PRESENTATIONS["tale"].accent_color,
     "epic": PLAN_TIER_PRESENTATIONS["epic"].accent_color,
     "plan": GENERIC_PLAN_ACCENT,
@@ -94,27 +94,27 @@ _ACCENTS: dict[AgentFamilyPlanPreviewKind, str] = {
 }
 
 
-def agent_family_plan_preview_label(kind: AgentFamilyPlanPreviewKind) -> str:
+def agent_session_plan_preview_label(kind: AgentSessionPlanPreviewKind) -> str:
     """Return the cross-surface chip word for *kind* (``"Epic"``, ...)."""
     return _LABELS[kind]
 
 
-def agent_family_plan_preview_accent(kind: AgentFamilyPlanPreviewKind) -> str:
+def agent_session_plan_preview_accent(kind: AgentSessionPlanPreviewKind) -> str:
     """Return the cross-surface accent hex color for *kind*."""
     return _ACCENTS[kind]
 
 
-def agent_family_plan_preview_from_plan(plan: PlanDisplay) -> AgentFamilyPlanPreview:
-    """Project one resolved ``PlanDisplay`` into a family preview.
+def agent_session_plan_preview_from_plan(plan: PlanDisplay) -> AgentSessionPlanPreview:
+    """Project one resolved ``PlanDisplay`` into an agent-session preview.
 
-    Returns :data:`EMPTY_AGENT_FAMILY_PLAN_PREVIEW` when even the tier is
+    Returns :data:`EMPTY_AGENT_SESSION_PLAN_PREVIEW` when even the tier is
     unknown; a known tier with a missing title still yields a preview so the
     caller can render the chip and fall back to a prompt snippet in its
     place.
     """
     kind = _PLAN_TIER_KINDS.get(plan.effective_tier) if plan.effective_tier else None
     if kind is None:
-        return EMPTY_AGENT_FAMILY_PLAN_PREVIEW
+        return EMPTY_AGENT_SESSION_PLAN_PREVIEW
 
     phase_count: int | None = None
     wave_count: int | None = None
@@ -130,7 +130,7 @@ def agent_family_plan_preview_from_plan(plan: PlanDisplay) -> AgentFamilyPlanPre
         phase_ids = tuple(phase.id for phase in bounded)
         phase_sizes = tuple(phase.size for phase in bounded)
 
-    return AgentFamilyPlanPreview(
+    return AgentSessionPlanPreview(
         kind=kind,
         title=plan.title,
         goal=plan.goal,
@@ -145,18 +145,18 @@ def agent_family_plan_preview_from_plan(plan: PlanDisplay) -> AgentFamilyPlanPre
     )
 
 
-def agent_family_plan_preview_from_bead(
+def agent_session_plan_preview_from_bead(
     *,
     bead_type: Literal["phase", "task"],
     title: str | None,
     parent_title: str | None,
     size: PhaseSizeValue | None,
     description: str | None = None,
-) -> AgentFamilyPlanPreview:
-    """Project one resolved phase/task bead identity into a family preview."""
+) -> AgentSessionPlanPreview:
+    """Project one resolved phase/task bead identity into an agent-session preview."""
     if not title:
-        return EMPTY_AGENT_FAMILY_PLAN_PREVIEW
-    return AgentFamilyPlanPreview(
+        return EMPTY_AGENT_SESSION_PLAN_PREVIEW
+    return AgentSessionPlanPreview(
         kind=bead_type,
         title=title,
         goal=None,
@@ -171,8 +171,8 @@ def agent_family_plan_preview_from_bead(
     )
 
 
-def agent_family_plan_structure_text(
-    preview: AgentFamilyPlanPreview,
+def agent_session_plan_structure_text(
+    preview: AgentSessionPlanPreview,
     *,
     compact: bool,
 ) -> str:
@@ -188,8 +188,8 @@ def agent_family_plan_structure_text(
     return f"{preview.phase_count} {phase_word} · {preview.wave_count} {wave_word}"
 
 
-def agent_family_plan_preview_detail(
-    preview: AgentFamilyPlanPreview,
+def agent_session_plan_preview_detail(
+    preview: AgentSessionPlanPreview,
     *,
     fallback_title: str = "",
 ) -> str:
@@ -206,7 +206,7 @@ def agent_family_plan_preview_detail(
     if not title:
         return ""
     segments: list[str] = [preview.kind]
-    structure = agent_family_plan_structure_text(preview, compact=False)
+    structure = agent_session_plan_structure_text(preview, compact=False)
     if structure:
         segments.append(structure)
     segments.append(title)
@@ -219,8 +219,8 @@ def _clip_goal(goal: str) -> str:
     return goal[: _GOAL_CLIP_LENGTH - 1].rstrip() + "…"
 
 
-def agent_family_plan_preview_documentation(
-    preview: AgentFamilyPlanPreview,
+def agent_session_plan_preview_documentation(
+    preview: AgentSessionPlanPreview,
     *,
     fallback_title: str = "",
 ) -> str:
@@ -229,7 +229,7 @@ def agent_family_plan_preview_documentation(
     Bounded to the same ``_MAX_PREVIEW_PHASES`` phases already carried by
     *preview* and a clipped goal, so a caller can pass this straight through
     to an editor's documentation popup. Returns ``""`` under the same
-    conditions as :func:`agent_family_plan_preview_detail`.
+    conditions as :func:`agent_session_plan_preview_detail`.
     """
     if preview.kind is None:
         return ""
@@ -237,8 +237,8 @@ def agent_family_plan_preview_documentation(
     if not title:
         return ""
 
-    label = agent_family_plan_preview_label(preview.kind)
-    structure = agent_family_plan_structure_text(preview, compact=False)
+    label = agent_session_plan_preview_label(preview.kind)
+    structure = agent_session_plan_structure_text(preview, compact=False)
     header = f"**{label}**" + (f" · {structure}" if structure else "")
     lines = [header, "", f"## {title}"]
     if preview.goal:
@@ -260,14 +260,14 @@ def agent_family_plan_preview_documentation(
 
 
 __all__ = [
-    "AgentFamilyPlanPreview",
-    "AgentFamilyPlanPreviewKind",
-    "EMPTY_AGENT_FAMILY_PLAN_PREVIEW",
-    "agent_family_plan_preview_accent",
-    "agent_family_plan_preview_detail",
-    "agent_family_plan_preview_documentation",
-    "agent_family_plan_preview_from_bead",
-    "agent_family_plan_preview_from_plan",
-    "agent_family_plan_preview_label",
-    "agent_family_plan_structure_text",
+    "AgentSessionPlanPreview",
+    "AgentSessionPlanPreviewKind",
+    "EMPTY_AGENT_SESSION_PLAN_PREVIEW",
+    "agent_session_plan_preview_accent",
+    "agent_session_plan_preview_detail",
+    "agent_session_plan_preview_documentation",
+    "agent_session_plan_preview_from_bead",
+    "agent_session_plan_preview_from_plan",
+    "agent_session_plan_preview_label",
+    "agent_session_plan_structure_text",
 ]

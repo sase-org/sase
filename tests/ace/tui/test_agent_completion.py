@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.style import Style
 
 import sase.ace.tui.models.agent_family_preview_cache as family_preview_cache
-from sase.agent_family_plan_preview import AgentFamilyPlanPreview
+from sase.agent_session_plan_preview import AgentSessionPlanPreview
 from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     filter_agent_completion_candidates,
@@ -47,8 +47,8 @@ def _agent(tmp_path: Path, **overrides: Any) -> Agent:
     return Agent(**defaults)
 
 
-def _plan_preview(title: str) -> AgentFamilyPlanPreview:
-    return AgentFamilyPlanPreview(
+def _plan_preview(title: str) -> AgentSessionPlanPreview:
+    return AgentSessionPlanPreview(
         kind="epic",
         title=title,
         goal="Preview goal",

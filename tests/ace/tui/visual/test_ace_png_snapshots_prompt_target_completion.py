@@ -6,7 +6,7 @@ from typing import Literal
 
 import pytest
 
-from sase.agent_family_plan_preview import AgentFamilyPlanPreview
+from sase.agent_session_plan_preview import AgentSessionPlanPreview
 from sase.ace.testing import AcePage
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
@@ -34,7 +34,7 @@ def _target(
     kind: Literal["agent", "family", "clan", "tribe"],
     status: str,
     members: tuple[str, ...] = (),
-    plan_preview: AgentFamilyPlanPreview | None = None,
+    plan_preview: AgentSessionPlanPreview | None = None,
     prompt_snippet: str = "",
 ) -> CompletionCandidate:
     workflow = (
@@ -85,8 +85,8 @@ def _preview(
     phase_count: int | None = None,
     wave_count: int | None = None,
     phase_titles: tuple[str, ...] = (),
-) -> AgentFamilyPlanPreview:
-    return AgentFamilyPlanPreview(
+) -> AgentSessionPlanPreview:
+    return AgentSessionPlanPreview(
         kind=kind,
         title=title,
         goal=goal,

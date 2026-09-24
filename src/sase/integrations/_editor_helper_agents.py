@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from sase.integrations._editor_helper_agent_plans import FamilyPlanPreviewResult
+    from sase.integrations._editor_helper_agent_plans import (
+        AgentSessionPlanPreviewResult,
+    )
 
 from sase.agent.status_buckets import aggregate_agent_group_status
 from sase.monitor_state import is_monitor_member_role
@@ -412,11 +414,13 @@ def _hood_entries(members: list[_CatalogMember]) -> list[dict[str, Any]]:
 def _family_plan_enrichments(
     pending: list[tuple[str, list[_CatalogMember]]],
     snapshot: Any,
-) -> dict[str, FamilyPlanPreviewResult]:
-    from sase.integrations._editor_helper_agent_plans import enrich_catalog_families
+) -> dict[str, AgentSessionPlanPreviewResult]:
+    from sase.integrations._editor_helper_agent_plans import (
+        enrich_catalog_agent_sessions,
+    )
 
     try:
-        return enrich_catalog_families(
+        return enrich_catalog_agent_sessions(
             snapshot,
             [
                 (
@@ -434,18 +438,18 @@ def _family_plan_enrichments(
 
 def _apply_family_plan_preview(
     entry: dict[str, Any],
-    result: FamilyPlanPreviewResult,
+    result: AgentSessionPlanPreviewResult,
     *,
     count: int,
     status: str,
 ) -> None:
-    from sase.agent_family_plan_preview import (
-        agent_family_plan_preview_detail,
-        agent_family_plan_preview_documentation,
+    from sase.agent_session_plan_preview import (
+        agent_session_plan_preview_detail,
+        agent_session_plan_preview_documentation,
     )
 
     fallback = result.fallback_title
-    detail = agent_family_plan_preview_detail(
+    detail = agent_session_plan_preview_detail(
         result.preview,
         fallback_title=fallback,
     )
@@ -453,7 +457,7 @@ def _apply_family_plan_preview(
         entry["detail"] = detail
     elif fallback:
         entry["detail"] = f"family · {count} {_members_label(count)} · {fallback}"
-    documentation = agent_family_plan_preview_documentation(
+    documentation = agent_session_plan_preview_documentation(
         result.preview,
         fallback_title=fallback,
     )

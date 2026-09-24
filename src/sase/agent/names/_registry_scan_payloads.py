@@ -20,14 +20,14 @@ def clan_from_payload(payload: dict[str, Any] | None) -> tuple[str, str] | None:
         return None
     clan = payload.get("agent_clan")
     if not isinstance(clan, str) or not clan:
-        family = agent_session_value(payload)
+        agent_session = agent_session_value(payload)
         if (
             agent_session_parallel_value(payload) is not True
-            or not isinstance(family, str)
-            or not family
+            or not isinstance(agent_session, str)
+            or not agent_session
         ):
             return None
-        clan = family
+        clan = agent_session
     generation = payload.get("agent_clan_generation")
     if not isinstance(generation, str) or not generation:
         parent = payload.get("parent_timestamp")
@@ -35,11 +35,11 @@ def clan_from_payload(payload: dict[str, Any] | None) -> tuple[str, str] | None:
     return clan, generation
 
 
-def family_from_payload(payload: dict[str, Any] | None) -> str | None:
+def agent_session_from_payload(payload: dict[str, Any] | None) -> str | None:
     if not isinstance(payload, dict) or agent_session_parallel_value(payload) is True:
         return None
-    family = agent_session_value(payload)
-    return family if isinstance(family, str) and family else None
+    agent_session = agent_session_value(payload)
+    return agent_session if isinstance(agent_session, str) and agent_session else None
 
 
 _NAME_KEYS = ("name", "workflow_name")
@@ -72,19 +72,19 @@ def owner_identity_names(
     """
     keys = _BUNDLE_NAME_KEYS if bundle else _NAME_KEYS
     own_name = _first_name(primary, _BUNDLE_OWN_NAME_KEYS if bundle else _OWN_NAME_KEYS)
-    session = family_from_payload(primary)
+    agent_session = agent_session_from_payload(primary)
 
     names = _payload_names(primary, keys)
     done_names = _payload_names(secondary, keys)
-    if session is not None and own_name is not None:
+    if agent_session is not None and own_name is not None:
         done_names = {
             name
             for name in done_names
-            if name == own_name or agent_session_base(name) != session
+            if name == own_name or agent_session_base(name) != agent_session
         }
     names |= done_names
-    if session is not None:
-        names.discard(session)
+    if agent_session is not None:
+        names.discard(agent_session)
     return names
 
 

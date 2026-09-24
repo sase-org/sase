@@ -168,7 +168,7 @@ def _resolve_wait_dependency_entry(
         AgentNameTemplateError,
         NamedAgent,
         find_agent_clan,
-        find_agent_family,
+        find_agent_session,
         is_agent_name_template,
         resolve_resume_agent_name,
         resolve_agent_name_template_reference,
@@ -213,12 +213,12 @@ def _resolve_wait_dependency_entry(
                 producer_dirs = tuple(str(member.artifacts_dir) for member in producers)
 
         if selected is None and not is_agent_session_member(name):
-            family = find_agent_family(name)
-            if family is not None:
+            agent_session = find_agent_session(name)
+            if agent_session is not None:
                 producers = _matching_group_members(
                     [
                         member
-                        for member in family.members
+                        for member in agent_session.members
                         if is_success_outcome(member.outcome)
                     ],
                     resume_agent,

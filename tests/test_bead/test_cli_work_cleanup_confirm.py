@@ -252,7 +252,7 @@ def test_preview_renders_kill_remove_and_release(
         "sase.agent.names.get_live_agent_name_subset",
         lambda names: {"live": "/agents/live"} if "live" in names else {},
     )
-    monkeypatch.setattr("sase.agent.names.find_agent_family", lambda name: None)
+    monkeypatch.setattr("sase.agent.names.find_agent_session", lambda name: None)
     monkeypatch.setattr("sase.agent.names.find_agent_clan", lambda name: None)
     monkeypatch.setattr(
         "sase.agent.names.find_named_agent",
@@ -286,7 +286,7 @@ def test_orphaned_family_bundle_is_released_and_launch_proceeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.agent.names import (
-        find_agent_family,
+        find_agent_session,
         is_name_reserved,
         rebuild_name_registry,
     )
@@ -313,7 +313,7 @@ def test_orphaned_family_bundle_is_released_and_launch_proceeds(
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     rebuild_name_registry()
     assert is_name_reserved(family_name)
-    assert find_agent_family(family_name) is None
+    assert find_agent_session(family_name) is None
 
     launched: list[str] = []
     monkeypatch.setattr(

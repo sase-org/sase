@@ -18,7 +18,7 @@ def preview_legacy_bead_work_force_reuse(
     from sase.agent.launch_validation import force_reuse_owner_names
     from sase.agent.names import (
         find_agent_clan,
-        find_agent_family,
+        find_agent_session,
         find_named_agent,
         get_live_agent_name_subset,
         lookup_registered_name,
@@ -49,16 +49,16 @@ def preview_legacy_bead_work_force_reuse(
         container_kind = owner.get("container_kind")
         # legacy agent-family spelling: pre-rename registries still store "family".
         if is_agent_session_container_kind(container_kind):
-            family = find_agent_family(name)
+            agent_session = find_agent_session(name)
             members = (
                 tuple(
                     member
-                    for member in family.members
+                    for member in agent_session.members
                     if isinstance(member.name, str)
                     and member.name
                     and member.name != name
                 )
-                if family is not None
+                if agent_session is not None
                 else ()
             )
             if not members:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from sase.agent.names import AgentFamilyMember
+from sase.agent.names import AgentSessionMember
 from sase.history.chat_storage import find_chat_by_timestamp
 from sase.scripts._agent_chat_from_name_common import (
     format_finished_at,
@@ -49,7 +49,7 @@ def failed_agent_fork_source(
 
 
 def failed_agent_family_member_shell(
-    member: AgentFamilyMember,
+    member: AgentSessionMember,
     done: dict[str, Any],
     outcome: str,
 ) -> ForkFamilyMemberSource:

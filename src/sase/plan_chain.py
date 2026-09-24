@@ -182,7 +182,7 @@ def set_agent_session_fields(
 
 @dataclass(frozen=True)
 class _PlanChainSuffixInfo:
-    """Structured classification for a plan-chain family suffix."""
+    """Structured classification for a plan-chain agent-session suffix."""
 
     suffix: str
     role: str
@@ -355,7 +355,7 @@ def plan_chain_feedback_round(
 
 
 def agent_session_phase_name(base_name: str, suffix: str) -> str:
-    """Return the visible agent-family phase name for *base_name* and *suffix*."""
+    """Return the visible agent-session phase name for *base_name* and *suffix*."""
     canonical = canonical_plan_chain_suffix(suffix)
     if canonical is None:
         raise ValueError(f"not a plan-chain suffix: {suffix!r}")
@@ -370,7 +370,7 @@ def plan_chain_agent_name(base_name: str, suffix: str) -> str:
 def planner_row_name(name: object, *, include_legacy_dash: bool = False) -> str | None:
     """Return the canonical ``<base>--plan`` row name for a plan-phase member.
 
-    Returns ``None`` unless *name* is a plan-chain family member whose suffix
+    Returns ``None`` unless *name* is a plan-chain agent-session member whose suffix
     canonicalizes to the planner ``--plan`` phase. Legacy spellings such as
     ``base.plan`` (and ``base-plan`` when *include_legacy_dash* is set) map onto
     the same canonical planner-row name, so a ``%wait`` on either form resolves
@@ -408,7 +408,7 @@ def _split_agent_session_name(
 def agent_session_base(
     name: object, *, include_legacy_dash: bool = False
 ) -> str | None:
-    """Return the base family name for a known family member name."""
+    """Return the base agent-session name for a known agent-session member name."""
     split = _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
     return split[0] if split is not None else None
 
@@ -416,13 +416,13 @@ def agent_session_base(
 def _agent_session_suffix(
     name: object, *, include_legacy_dash: bool = False
 ) -> str | None:
-    """Return the canonical suffix for a known family member name."""
+    """Return the canonical suffix for a known agent-session member name."""
     split = _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
     return split[1] if split is not None else None
 
 
 def agent_session_suffix_token(suffix: object) -> str | None:
-    """Return the bare token from an agent-family suffix."""
+    """Return the bare token from an agent-session suffix."""
     if not isinstance(suffix, str):
         return None
     for separator in (AGENT_SESSION_SEPARATOR, ".", "-"):
@@ -433,7 +433,7 @@ def agent_session_suffix_token(suffix: object) -> str | None:
 
 
 def is_agent_session_member(name: object, *, include_legacy_dash: bool = False) -> bool:
-    """Return whether *name* has a known agent-family suffix."""
+    """Return whether *name* has a known agent-session suffix."""
     return (
         _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
         is not None
@@ -483,7 +483,7 @@ def _allocate_agent_session_child_name(
     *,
     extra_reserved_suffixes: list[str] | tuple[str, ...] = (),
 ) -> str:
-    """Allocate a concrete family child name from a suffix template."""
+    """Allocate a concrete agent-session child name from a suffix template."""
     if not base_name:
         raise ValueError("base_name is required")
     if "@" not in suffix_template:
@@ -505,14 +505,14 @@ def allocate_agent_session_child_suffix(
     *,
     extra_reserved_suffixes: list[str] | tuple[str, ...] = (),
 ) -> str:
-    """Allocate and return only the suffix portion for a family child name."""
+    """Allocate and return only the suffix portion for an agent-session child name."""
     name = _allocate_agent_session_child_name(
         base_name,
         suffix_template,
         extra_reserved_suffixes=extra_reserved_suffixes,
     )
     if not name.startswith(base_name):
-        raise AssertionError("allocated family name did not preserve base")
+        raise AssertionError("allocated agent-session name did not preserve base")
     return name[len(base_name) :]
 
 

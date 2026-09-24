@@ -66,7 +66,7 @@ def spawn_segments_into(
     segment_template_groups: Sequence[str | None] | None,
     segment_swarm_xprompts: Sequence[Sequence[str]] | None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None,
-    allow_reserved_family_separator_names: bool,
+    allow_reserved_agent_session_separator_names: bool,
     default_bare_segments_to_home: bool,
     multi_agent_prompt_text: str | None,
     timestamp_allocator: LaunchTimestampBatchAllocator,
@@ -148,8 +148,8 @@ def spawn_segments_into(
 
             preflight_launch_name_requests(
                 segments,
-                allow_reserved_family_separator_names=(
-                    allow_reserved_family_separator_names
+                allow_reserved_agent_session_separator_names=(
+                    allow_reserved_agent_session_separator_names
                 ),
             )
         else:
@@ -157,8 +157,8 @@ def spawn_segments_into(
 
             validate_launch_name_requests(
                 segments,
-                allow_reserved_family_separator_names=(
-                    allow_reserved_family_separator_names
+                allow_reserved_agent_session_separator_names=(
+                    allow_reserved_agent_session_separator_names
                 ),
             )
     except Exception:
@@ -452,8 +452,8 @@ def spawn_segments_into(
                     extra_env=extra_env,
                     timestamp_allocator=timestamp_allocator,
                     on_slot_executed=_on_slot_executed,
-                    allow_reserved_family_separator_names=(
-                        allow_reserved_family_separator_names
+                    allow_reserved_agent_session_separator_names=(
+                        allow_reserved_agent_session_separator_names
                     ),
                     pending_agent_session_parents=pending_agent_session_parents,
                 )

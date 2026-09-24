@@ -103,13 +103,13 @@ def test_fork_source_predicates_accept_both_kinds() -> None:
 
 def test_fork_wait_writer_emits_session_kind(monkeypatch: Any) -> None:
     from sase.agent import names as agent_names
-    from sase.agent.names._lookup_groups import AgentFamily
+    from sase.agent.names._lookup_groups import AgentSession
 
     monkeypatch.setattr(agent_names, "find_agent_clan", lambda _name: None)
     monkeypatch.setattr(
         agent_names,
-        "find_agent_family",
-        lambda _name: AgentFamily(base_name="feat", root=None, members=()),
+        "find_agent_session",
+        lambda _name: AgentSession(base_name="feat", root=None, members=()),
     )
     assert fork_wait_dependency("feat") == {"kind": "session", "name": "feat"}
 

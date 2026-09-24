@@ -14,8 +14,8 @@ import pytest
 from sase.agent.names import (
     claim_registered_name,
     get_reserved_agent_names,
-    get_reserved_family_names,
-    get_reserved_family_names_for_display,
+    get_reserved_agent_session_names,
+    get_reserved_agent_session_names_for_display,
     load_name_registry,
     lookup_registered_name,
     lowest_name_suggestion,
@@ -74,7 +74,7 @@ def test_registry_rebuild_collects_clan_container(tmp_path: Path) -> None:
     assert data["entries"]["foo"]["clan_generation"] == "run0"
 
 
-def test_registry_rebuild_collects_family_container(tmp_path: Path) -> None:
+def test_registry_rebuild_collects_agent_session_container(tmp_path: Path) -> None:
     artifact_dir = _make_agent(tmp_path, "proj", "run1", "foo--0")
     (artifact_dir / "agent_meta.json").write_text(
         json.dumps(
@@ -97,7 +97,7 @@ def test_registry_rebuild_collects_family_container(tmp_path: Path) -> None:
     assert data["entries"]["foo--0"]["reservation_kind"] == "claimed"
 
 
-def test_registry_rebuild_family_container_outranks_auto_prefix(
+def test_registry_rebuild_agent_session_container_outranks_auto_prefix(
     tmp_path: Path,
 ) -> None:
     _make_agent(tmp_path, "proj", "run1", "sq.w0")
@@ -567,15 +567,15 @@ def test_reservation_reads_skip_the_stale_proof_memo(tmp_path: Path) -> None:
             assert "bar" in get_reserved_agent_names()
 
 
-def _make_family_agent(tmp_path: Path, suffix: str, family: str) -> Path:
-    """Create an artifact whose rebuild registers *family* as a container."""
-    artifact_dir = _make_agent(tmp_path, "proj", suffix, f"{family}--0")
+def _make_session_agent(tmp_path: Path, suffix: str, agent_session: str) -> Path:
+    """Create an artifact whose rebuild registers *agent_session* as a container."""
+    artifact_dir = _make_agent(tmp_path, "proj", suffix, f"{agent_session}--0")
     (artifact_dir / "agent_meta.json").write_text(
         json.dumps(
             {
-                "name": f"{family}--0",
-                "workflow_name": family,
-                "agent_session": family,
+                "name": f"{agent_session}--0",
+                "workflow_name": agent_session,
+                "agent_session": agent_session,
                 "agent_session_role": "root",
                 "role_suffix": "--0",
             }
@@ -585,7 +585,9 @@ def _make_family_agent(tmp_path: Path, suffix: str, family: str) -> Path:
     return artifact_dir
 
 
-def test_display_family_read_never_rebuilds_a_stale_registry(tmp_path: Path) -> None:
+def test_display_agent_session_read_never_rebuilds_a_stale_registry(
+    tmp_path: Path,
+) -> None:
     """A render answers from a stale registry instead of rebuilding it.
 
     ``rebuild_name_registry`` holds the process-wide name-allocation flock for
@@ -594,7 +596,7 @@ def test_display_family_read_never_rebuilds_a_stale_registry(tmp_path: Path) -> 
     the answer, so it must tolerate staleness; only reservation reads, which
     decide whether a name is free, may pay for a rebuild.
     """
-    artifact_dir = _make_family_agent(tmp_path, "run1", "foo")
+    artifact_dir = _make_session_agent(tmp_path, "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         # Deleting the owner leaves the registry permanently stale until some
@@ -610,7 +612,7 @@ def test_display_family_read_never_rebuilds_a_stale_registry(tmp_path: Path) -> 
             "rebuild_name_registry",
             wraps=_registry.rebuild_name_registry,
         ) as rebuild:
-            assert "foo" in get_reserved_family_names_for_display()
+            assert "foo" in get_reserved_agent_session_names_for_display()
             assert rebuild.call_count == 0
 
             # The reservation tier still pays for a correct answer.
@@ -618,15 +620,15 @@ def test_display_family_read_never_rebuilds_a_stale_registry(tmp_path: Path) -> 
             assert rebuild.call_count == 1
 
 
-def test_display_family_read_rebuilds_when_no_registry_exists(
+def test_display_agent_session_read_rebuilds_when_no_registry_exists(
     tmp_path: Path,
 ) -> None:
     """With nothing on disk there is no stale answer to prefer, so rebuild."""
-    _make_family_agent(tmp_path, "run1", "foo")
+    _make_session_agent(tmp_path, "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):
         reset_name_registry_caches_for_tests()
         assert not _registry._registry_path().exists()
-        assert "foo" in get_reserved_family_names_for_display()
+        assert "foo" in get_reserved_agent_session_names_for_display()
 
 
 def test_stale_proof_memo_expires_after_ttl(
@@ -652,7 +654,7 @@ def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
     tmp_path: Path,
 ) -> None:
     """A realistic v2 file loads, answers container queries, and rebuilds as v3."""
-    artifact_dir = _make_family_agent(tmp_path, "run1", "foo")
+    artifact_dir = _make_session_agent(tmp_path, "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):
         reset_name_registry_caches_for_tests()
         path = _registry_store.registry_path()
@@ -692,11 +694,11 @@ def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
         assert upgraded["entries"]["foo"]["container_kind"] == "session"
         assert upgraded["entries"]["foo--0"]["reservation_kind"] == "claimed"
 
-        assert _registry_queries.get_reserved_family_names(
+        assert _registry_queries.get_reserved_agent_session_names(
             load_registry=lambda: upgraded
         ) == {"foo"}
         # The raw legacy spelling still resolves through the same reader.
-        assert _registry_queries.get_reserved_family_names(
+        assert _registry_queries.get_reserved_agent_session_names(
             load_registry=lambda: {"entries": {"foo": {"container_kind": "family"}}}
         ) == {"foo"}
 
@@ -704,7 +706,7 @@ def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
         assert data["schema_version"] == 3
         assert data["entries"]["foo"]["container_kind"] == "session"
         assert data["entries"]["foo"]["reservation_kind"] == "session"
-        assert get_reserved_family_names() == {"foo"}
+        assert get_reserved_agent_session_names() == {"foo"}
 
         rewritten = json.loads(path.read_text(encoding="utf-8"))
         assert rewritten["schema_version"] == 3
@@ -715,7 +717,7 @@ def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
 
 def test_v3_rebuild_emits_no_family_kinds(tmp_path: Path) -> None:
     """A v3 rebuild stores session container kinds and no family spelling."""
-    _make_family_agent(tmp_path, "run1", "foo")
+    _make_session_agent(tmp_path, "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         written = json.loads(

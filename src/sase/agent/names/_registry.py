@@ -162,7 +162,7 @@ def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> NoRetur
             f"agent name '{name}' is reserved as a foreign owner namespace"
         )
     raise NameCollisionError(
-        f"agent name '{name}' is reserved for agent family '{name}'; "
+        f"agent name '{name}' is reserved for agent session '{name}'; "
         "attach a member with %i(suffix, family=parent) instead"
     )
 
@@ -466,9 +466,11 @@ lookup_registered_name = _queries.lookup_registered_name
 is_name_reserved = _queries.is_name_reserved
 get_reserved_agent_names = _queries.get_reserved_agent_names
 get_reserved_clan_names = _queries.get_reserved_clan_names
-get_reserved_family_names = _queries.get_reserved_family_names
+get_reserved_agent_session_names = _queries.get_reserved_agent_session_names
 get_blocked_local_namespace_roots = _queries.get_blocked_local_namespace_roots
-get_reserved_family_names_for_display = _queries.get_reserved_family_names_for_display
+get_reserved_agent_session_names_for_display = (
+    _queries.get_reserved_agent_session_names_for_display
+)
 get_reserved_agent_name_map = _queries.get_reserved_agent_name_map
 lowest_name_suggestion = _queries.lowest_name_suggestion
 

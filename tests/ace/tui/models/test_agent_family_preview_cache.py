@@ -17,7 +17,7 @@ from sase.ace.tui.models.agent_family_preview_cache import (
     should_resolve_family_plan_preview,
     warm_family_plan_previews,
 )
-from sase.agent_family_plan_preview import AgentFamilyPlanPreview
+from sase.agent_session_plan_preview import AgentSessionPlanPreview
 from tests.ace.tui.models._agent_associated_plan_helpers import write_epic, write_plan
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -134,7 +134,7 @@ class TestCachedFamilyPlanPreview:
         warm_family_plan_previews([agent])
         preview = cached_family_plan_preview(agent)
 
-        assert isinstance(preview, AgentFamilyPlanPreview)
+        assert isinstance(preview, AgentSessionPlanPreview)
         assert preview.kind == "tale"
         assert preview.title == "Associated plan metadata"
 
@@ -154,7 +154,7 @@ class TestWarmFamilyPlanPreviews:
 
         assert key is not None
         preview = changed[key]
-        assert isinstance(preview, AgentFamilyPlanPreview)
+        assert isinstance(preview, AgentSessionPlanPreview)
         assert preview.kind == "tale"
 
     def test_falls_back_to_the_first_concrete_member_when_root_is_empty(

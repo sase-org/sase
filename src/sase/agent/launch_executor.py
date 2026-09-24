@@ -65,13 +65,13 @@ def execute_launch_plan(
     extra_env: dict[str, str] | None = None,
     timestamp_allocator: LaunchTimestampBatchAllocator | None = None,
     base_timestamp: str | None = None,
-    allow_reserved_family_separator_names: bool = False,
+    allow_reserved_agent_session_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
     pending_agent_session_parents: list[AgentSessionAttachSibling] | None = None,
 ) -> LaunchExecutionResult:
     """Execute a normalized fan-out plan through a host-provided spawn hook."""
     if allow_hyphenated_names is not None:
-        allow_reserved_family_separator_names = allow_hyphenated_names
+        allow_reserved_agent_session_separator_names = allow_hyphenated_names
 
     if not plan.slots:
         return LaunchExecutionResult(records=[])
@@ -86,8 +86,8 @@ def execute_launch_plan(
 
         preflight_launch_name_requests(
             [slot.prompt for slot in plan.slots],
-            allow_reserved_family_separator_names=(
-                allow_reserved_family_separator_names
+            allow_reserved_agent_session_separator_names=(
+                allow_reserved_agent_session_separator_names
             ),
         )
     else:
@@ -95,8 +95,8 @@ def execute_launch_plan(
 
         validate_launch_name_requests(
             [slot.prompt for slot in plan.slots],
-            allow_reserved_family_separator_names=(
-                allow_reserved_family_separator_names
+            allow_reserved_agent_session_separator_names=(
+                allow_reserved_agent_session_separator_names
             ),
         )
 

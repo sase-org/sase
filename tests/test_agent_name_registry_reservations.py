@@ -22,7 +22,7 @@ from sase.agent.names import (
     convert_registered_agent_to_agent_session,
     get_reserved_agent_names,
     get_reserved_clan_names,
-    get_reserved_family_names,
+    get_reserved_agent_session_names,
     load_name_registry,
     lookup_registered_name,
     mutate_registered_name_reservations,
@@ -377,7 +377,9 @@ def test_concurrent_create_only_clan_reservations_allow_one_declaration(
     assert sorted(results) == ["collision", "created"]
 
 
-def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> None:
+def test_agent_session_conversion_reserves_base_and_original_member(
+    tmp_path: Path,
+) -> None:
     artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
     root_dir = artifacts_root / "run1"
     other_dir = artifacts_root / "run2"
@@ -389,15 +391,15 @@ def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> 
         before_conversion = agent_name_registry_freshness_token()
         convert_registered_agent_to_agent_session("foo", "foo--0", root_dir)
 
-        assert get_reserved_family_names() == {"foo"}
+        assert get_reserved_agent_session_names() == {"foo"}
         assert agent_name_registry_freshness_token() > before_conversion
         assert lookup_registered_name("foo")["container_kind"] == "session"
         assert lookup_registered_name("foo--0")["reservation_kind"] == "claimed"
-        with pytest.raises(NameCollisionError, match="reserved for agent family"):
+        with pytest.raises(NameCollisionError, match="reserved for agent session"):
             claim_registered_name("foo", other_dir, replace_existing=True)
 
 
-def test_auto_prefix_hood_neighbor_does_not_block_family_conversion(
+def test_auto_prefix_hood_neighbor_does_not_block_agent_session_conversion(
     tmp_path: Path,
 ) -> None:
     artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
@@ -425,7 +427,7 @@ def test_auto_prefix_hood_neighbor_does_not_block_family_conversion(
         assert {"sq", "sq.w0"} <= get_reserved_agent_names()
 
 
-def test_family_conversion_still_rejects_other_exact_claim_owner(
+def test_agent_session_conversion_still_rejects_other_exact_claim_owner(
     tmp_path: Path,
 ) -> None:
     artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"

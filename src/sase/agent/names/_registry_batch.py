@@ -154,8 +154,8 @@ class RegisteredNameReservationSnapshot:
             if entry.get("container_kind") == "clan"
         }
 
-    def reserved_family_names(self) -> set[str]:
-        """Return family container names in this snapshot."""
+    def reserved_agent_session_names(self) -> set[str]:
+        """Return agent-session container names in this snapshot."""
         return {
             name
             for name, entry in self.entries.items()

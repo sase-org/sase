@@ -9,7 +9,7 @@ from pathlib import Path
 
 from sase.agent.names import (
     find_agent_clan,
-    find_agent_family,
+    find_agent_session,
     resolve_resume_agent_name,
 )
 from sase.agent.names._lookup_artifacts import is_success_outcome
@@ -208,7 +208,7 @@ def _resolve_fork_source(name: str) -> ForkSource:
             members=tuple(clan_members),
         )
 
-    family = find_agent_family(name)
+    family = find_agent_session(name)
     if family is not None:
         current = _current_artifacts_dir()
         family_members: list[ForkFamilyMemberSource] = []

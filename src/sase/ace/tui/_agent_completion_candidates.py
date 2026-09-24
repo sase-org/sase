@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from sase.agent_family_plan_preview import AgentFamilyPlanPreview
+from sase.agent_session_plan_preview import AgentSessionPlanPreview
 from sase.ace.tui._agent_completion_models import AgentCompletionCandidate
 from sase.ace.tui._agent_completion_prompt import (
     prompt_snippet,
@@ -345,11 +345,11 @@ def _build_family_completion_candidates(
 
 def _cached_plan_preview_for_family(
     agent: Agent,
-) -> AgentFamilyPlanPreview | None:
+) -> AgentSessionPlanPreview | None:
     cached = cached_family_plan_preview(agent)
     if cached is FAMILY_PREVIEW_CACHE_MISS or cached is None:
         return None
-    assert isinstance(cached, AgentFamilyPlanPreview)
+    assert isinstance(cached, AgentSessionPlanPreview)
     return cached
 
 
@@ -465,7 +465,7 @@ def _candidate_from_agent(
     member_count: int | None = None,
     aggregate_status: str | None = None,
     member_names: tuple[str, ...] = (),
-    plan_preview: AgentFamilyPlanPreview | None = None,
+    plan_preview: AgentSessionPlanPreview | None = None,
     extra_search_aliases: tuple[str, ...] = (),
 ) -> AgentCompletionCandidate:
     role = agent.agent_session_role or agent.role_suffix

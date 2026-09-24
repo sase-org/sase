@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sase.agent.names import AgentFamilyMember
+from sase.agent.names import AgentSessionMember
 from sase.agent.names._lookup_artifacts import SUCCESS_OUTCOME, is_success_outcome
 from sase.core.dismissed_agent_completion import (
     FAILURE_OUTCOMES,
@@ -28,7 +28,7 @@ from sase.scripts._fork_proc_sources import proc_info_from_monitor
 
 
 def resolve_family_member_shell(
-    member: AgentFamilyMember,
+    member: AgentSessionMember,
 ) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
     """Classify and resolve one sequential family member's concrete shell.
 
@@ -55,7 +55,7 @@ def resolve_family_member_shell(
 
 
 def _resolve_gate_shell_family_member_shell(
-    member: AgentFamilyMember,
+    member: AgentSessionMember,
     meta: dict[str, object],
 ) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
     """Resolve a gate-shell member from its settle-time chat file.
@@ -86,7 +86,7 @@ def _resolve_gate_shell_family_member_shell(
 
 
 def _resolve_monitor_family_member_shell(
-    member: AgentFamilyMember,
+    member: AgentSessionMember,
 ) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
     record = read_family_monitor_marker(member.artifacts_dir)
     if record is None:
@@ -105,7 +105,7 @@ def _resolve_monitor_family_member_shell(
 
 
 def _resolve_agent_family_member_shell(
-    member: AgentFamilyMember,
+    member: AgentSessionMember,
 ) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
     """Resolve one sequential agent member's owned transcript or failure record.
 

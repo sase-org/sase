@@ -7,7 +7,7 @@ The cache expresses three states for one family's cache key:
   the prompt-snippet rung.
 * ``None`` — resolved, nothing to show; render the prompt-snippet rung and
   stop retrying until the (short) empty-result TTL expires.
-* :class:`~sase.agent_family_plan_preview.AgentFamilyPlanPreview` — render
+* :class:`~sase.agent_session_plan_preview.AgentSessionPlanPreview` — render
   the plan/bead ladder.
 
 Resolution (:func:`warm_family_plan_previews`) may touch plan and bead
@@ -25,10 +25,10 @@ from time import monotonic
 from typing import Final, Literal, cast
 
 from sase.agent.bead_display import BeadIssueLookupSession
-from sase.agent_family_plan_preview import (
-    AgentFamilyPlanPreview,
-    agent_family_plan_preview_from_bead,
-    agent_family_plan_preview_from_plan,
+from sase.agent_session_plan_preview import (
+    AgentSessionPlanPreview,
+    agent_session_plan_preview_from_bead,
+    agent_session_plan_preview_from_plan,
 )
 
 from ._agent_associated_plan_types import AgentPlanEnrichment
@@ -73,14 +73,14 @@ class _FamilyPreviewCache:
         self._empty_ttl_seconds = empty_ttl_seconds
         self._max_entries = max_entries
         self._entries: OrderedDict[
-            FamilyPreviewCacheKey, tuple[float, AgentFamilyPlanPreview | None]
+            FamilyPreviewCacheKey, tuple[float, AgentSessionPlanPreview | None]
         ] = OrderedDict()
         self._lock = RLock()
 
     def get(
         self,
         key: FamilyPreviewCacheKey,
-    ) -> AgentFamilyPlanPreview | None | object:
+    ) -> AgentSessionPlanPreview | None | object:
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
@@ -105,7 +105,7 @@ class _FamilyPreviewCache:
     def set(
         self,
         key: FamilyPreviewCacheKey,
-        value: AgentFamilyPlanPreview | None,
+        value: AgentSessionPlanPreview | None,
     ) -> None:
         ttl_seconds = (
             self._ttl_seconds if value is not None else self._empty_ttl_seconds
@@ -161,7 +161,7 @@ def _family_member_token(agent: Agent) -> FamilyPreviewMemberToken:
     )
 
 
-def cached_family_plan_preview(agent: Agent) -> AgentFamilyPlanPreview | None | object:
+def cached_family_plan_preview(agent: Agent) -> AgentSessionPlanPreview | None | object:
     """Return the cached preview state for *agent*'s family.
 
     Returns :data:`FAMILY_PREVIEW_CACHE_MISS` when never resolved, ``None``
@@ -185,7 +185,7 @@ def should_resolve_family_plan_preview(agent: Agent) -> bool:
 
 def warm_family_plan_previews(
     candidates: Iterable[Agent],
-) -> dict[FamilyPreviewCacheKey, AgentFamilyPlanPreview | None]:
+) -> dict[FamilyPreviewCacheKey, AgentSessionPlanPreview | None]:
     """Resolve uncached/expired family previews off the event loop.
 
     Opens one :class:`BeadIssueLookupSession` for the whole batch. Resolves
@@ -195,7 +195,7 @@ def warm_family_plan_previews(
     Returns a key-indexed mapping of every key resolved this call, so the
     caller can decide what changed.
     """
-    resolved: dict[FamilyPreviewCacheKey, AgentFamilyPlanPreview | None] = {}
+    resolved: dict[FamilyPreviewCacheKey, AgentSessionPlanPreview | None] = {}
     with BeadIssueLookupSession() as lookup_session:
         for agent in candidates:
             key = _family_plan_preview_cache_key(agent)
@@ -217,7 +217,7 @@ def _resolve_family_plan_preview(
     agent: Agent,
     *,
     lookup_session: BeadIssueLookupSession,
-) -> AgentFamilyPlanPreview | None:
+) -> AgentSessionPlanPreview | None:
     for candidate in _family_resolution_order(agent):
         enrichment = resolve_agent_plan_enrichment(
             candidate,
@@ -241,16 +241,16 @@ def _family_resolution_order(agent: Agent) -> tuple[Agent, ...]:
 
 def _preview_from_enrichment(
     enrichment: AgentPlanEnrichment,
-) -> AgentFamilyPlanPreview | None:
+) -> AgentSessionPlanPreview | None:
     if enrichment.associated_plan is not None:
-        preview = agent_family_plan_preview_from_plan(enrichment.associated_plan)
+        preview = agent_session_plan_preview_from_plan(enrichment.associated_plan)
         if not preview.is_empty:
             return preview
 
     bead = enrichment.phase_bead
     if bead is not None and bead.bead_type in ("phase", "task"):
         bead_type = cast("Literal['phase', 'task']", bead.bead_type)
-        preview = agent_family_plan_preview_from_bead(
+        preview = agent_session_plan_preview_from_bead(
             bead_type=bead_type,
             title=bead.title,
             parent_title=bead.epic_title,

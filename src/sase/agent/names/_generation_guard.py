@@ -3,9 +3,9 @@
 Classification of names already on disk is total: a legacy spelling such as
 ``fi--code.f0`` is read rather than rejected. Generation is the opposite side
 of that contract — every name SASE composes must satisfy the strict rule that
-a ``--<role>`` family suffix appears at most once, in the final dot-separated
+a ``--<role>`` agent-session suffix appears at most once, in the final dot-separated
 segment. Historical names such as ``4x--epic.f-0`` and ``fi--code.f0--code``
-exist because family attachment and resume-derived naming appended to a base
+exist because agent-session attachment and resume-derived naming appended to a base
 that already carried a role suffix; these helpers close that door.
 """
 
@@ -50,9 +50,9 @@ def ensure_generated_agent_name(name: str, *, reason: str) -> None:
 def generated_child_name_base(name: str) -> str:
     """Return the base a generated ``<base>.<suffix>`` child must hang off of.
 
-    Appending a dotted segment to a family member such as ``fi--code`` would
+    Appending a dotted segment to an agent-session member such as ``fi--code`` would
     push its ``--code`` suffix out of the final segment, so the child hangs off
-    the family name (``fi``) instead. A legacy base that still carries a family
+    the agent-session name (``fi``) instead. A legacy base that still carries an agent-session
     marker after that step (``fi--code.f0``) falls back to its top-level hood.
     Names that can already parent a dotted child are returned unchanged.
     """

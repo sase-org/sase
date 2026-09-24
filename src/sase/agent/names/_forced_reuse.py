@@ -1,7 +1,7 @@
-"""Shared forced-name-reuse cleanup for concrete owners, families, and clans.
+"""Shared forced-name-reuse cleanup for concrete owners, agent sessions, and clans.
 
 Both the ACE/``sase agent restart`` launch boundary and deterministic bead
-relaunch need the same policy: a concrete owner is wiped directly, a family
+relaunch need the same policy: a concrete owner is wiped directly, an agent-session
 container relaunch replaces its newest generation (every concrete member is
 wiped, then the registry is rebuilt and checked for residual reservations),
 and a populated clan container is refused unless the caller opts into the
@@ -42,10 +42,10 @@ class ForcedReuseCleanupBatchError(ForcedReuseCleanupError):
 def wipe_force_reuse_owner(name: str, *, allow_container_skip: bool) -> None:
     """Wipe a single deterministic owner, raising on any cleanup failure.
 
-    A concrete owner is wiped and verified gone. A family container always
-    resolves and replaces its newest generation: relaunching a family root
+    A concrete owner is wiped and verified gone. An agent-session container always
+    resolves and replaces its newest generation: relaunching an agent-session root
     means the prior generation's concrete shells must be gone before the
-    bare family name is reused. A populated clan container is a rootless
+    bare agent-session name is reused. A populated clan container is a rootless
     parallel group, not one replaceable agent, and is refused unless
     *allow_container_skip* allows the caller to skip past it (its members
     retain their own explicit relaunch path).
@@ -72,7 +72,7 @@ def wipe_force_reuse_owners(
         ) from exc
 
     errors: list[str] = []
-    family_names: list[str] = []
+    agent_session_names: list[str] = []
     stale_clan_names: list[str] = []
     for result in results:
         name = result.target_name
@@ -82,7 +82,7 @@ def wipe_force_reuse_owners(
             )
             continue
         if is_agent_session_container_kind(result.skipped_container_kind):
-            family_names.append(name)
+            agent_session_names.append(name)
             continue
         if result.skipped_container_kind == "clan":
             if _clan_has_members(name):
@@ -115,51 +115,51 @@ def wipe_force_reuse_owners(
 
     if stale_clan_names:
         release_stale_containers(tuple((name, "clan") for name in stale_clan_names))
-    if family_names:
-        _wipe_families_for_forced_reuse(family_names)
+    if agent_session_names:
+        _wipe_agent_sessions_for_forced_reuse(agent_session_names)
 
 
-def _wipe_families_for_forced_reuse(names: Sequence[str]) -> None:
-    """Resolve and wipe concrete members for several family containers."""
+def _wipe_agent_sessions_for_forced_reuse(names: Sequence[str]) -> None:
+    """Resolve and wipe concrete members for several agent-session containers."""
     from sase.agent.names import (
-        find_agent_family,
+        find_agent_session,
         load_name_registry,
     )
 
     materialized = _dedupe_names(names)
-    members_by_family: dict[str, tuple[str, ...]] = {}
+    members_by_agent_session: dict[str, tuple[str, ...]] = {}
     all_member_names: set[str] = set()
-    stale_families: list[str] = []
+    stale_agent_sessions: list[str] = []
     for name in materialized:
         try:
-            family = find_agent_family(name)
+            agent_session = find_agent_session(name)
         except Exception as exc:  # noqa: BLE001
             raise ForcedReuseCleanupError(
-                f"forced reuse cleanup could not resolve agent family '{name}': {exc}"
+                f"forced reuse cleanup could not resolve agent session '{name}': {exc}"
             ) from exc
 
         member_names = tuple(
             sorted(
                 {
                     member.name
-                    for member in family.members
+                    for member in agent_session.members
                     if isinstance(member.name, str)
                     and member.name
                     and member.name != name
                 }
-                if family is not None
+                if agent_session is not None
                 else set()
             )
         )
         if not member_names:
-            stale_families.append(name)
+            stale_agent_sessions.append(name)
             continue
-        members_by_family[name] = member_names
+        members_by_agent_session[name] = member_names
         all_member_names.update(member_names)
 
-    if stale_families:
+    if stale_agent_sessions:
         release_stale_containers(
-            tuple((name, AGENT_SESSION_CONTAINER_KIND) for name in stale_families)
+            tuple((name, AGENT_SESSION_CONTAINER_KIND) for name in stale_agent_sessions)
         )
     if not all_member_names:
         return
@@ -168,23 +168,27 @@ def _wipe_families_for_forced_reuse(names: Sequence[str]) -> None:
         results = _wipe_names_for_reuse_batch(tuple(sorted(all_member_names)))
     except Exception as exc:  # noqa: BLE001
         raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for agent family members failed: {exc}"
+            f"forced reuse cleanup for agent session members failed: {exc}"
         ) from exc
 
     errors: list[str] = []
     for result in results:
         member_name = result.target_name
         if result.errors:
-            family_name = _family_for_member(members_by_family, member_name)
+            agent_session_name = _agent_session_for_member(
+                members_by_agent_session, member_name
+            )
             errors.append(
-                f"agent family '{family_name}' member '{member_name}' "
+                f"agent session '{agent_session_name}' member '{member_name}' "
                 "reported errors: " + "; ".join(result.errors)
             )
             continue
         if result.skipped_container_kind:
-            family_name = _family_for_member(members_by_family, member_name)
+            agent_session_name = _agent_session_for_member(
+                members_by_agent_session, member_name
+            )
             errors.append(
-                f"agent family '{family_name}' member '{member_name}' resolved to a "
+                f"agent session '{agent_session_name}' member '{member_name}' resolved to a "
                 f"{result.skipped_container_kind} container"
             )
     if errors:
@@ -194,22 +198,22 @@ def _wipe_families_for_forced_reuse(names: Sequence[str]) -> None:
         registry = load_name_registry()
     except Exception as exc:  # noqa: BLE001
         raise ForcedReuseCleanupError(
-            "forced reuse cleanup for agent families could not read the name "
+            "forced reuse cleanup for agent sessions could not read the name "
             f"registry after rebuild: {exc}"
         ) from exc
     entries = registry.get("entries")
     if not isinstance(entries, dict):
         raise ForcedReuseCleanupError(
-            "forced reuse cleanup for agent families received an "
+            "forced reuse cleanup for agent sessions received an "
             "invalid name registry after rebuild"
         )
 
     residual_errors: list[str] = []
-    for family_name, member_names in members_by_family.items():
-        residual_names = sorted({family_name, *member_names} & set(entries))
+    for agent_session_name, member_names in members_by_agent_session.items():
+        residual_names = sorted({agent_session_name, *member_names} & set(entries))
         if residual_names:
             residual_errors.append(
-                f"forced reuse cleanup left agent family '{family_name}' "
+                f"forced reuse cleanup left agent session '{agent_session_name}' "
                 f"reservations after rebuild: {', '.join(residual_names)}"
             )
     if residual_errors:
@@ -280,13 +284,13 @@ def _clan_has_members(name: str) -> bool:
     return clan is not None and bool(clan.members)
 
 
-def _family_for_member(
-    members_by_family: dict[str, tuple[str, ...]],
+def _agent_session_for_member(
+    members_by_agent_session: dict[str, tuple[str, ...]],
     member_name: str,
 ) -> str:
-    for family_name, member_names in members_by_family.items():
+    for agent_session_name, member_names in members_by_agent_session.items():
         if member_name in member_names:
-            return family_name
+            return agent_session_name
     return "unknown"
 
 

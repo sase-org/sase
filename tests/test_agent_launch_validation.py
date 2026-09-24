@@ -31,7 +31,7 @@ from sase.agent.launch_validation import (
     _AgentNameClanCollisionError as AgentNameClanCollisionError,
 )
 from sase.agent.launch_validation import (
-    _AgentNameFamilyCollisionError as AgentNameFamilyCollisionError,
+    _AgentNameAgentSessionCollisionError as AgentNameAgentSessionCollisionError,
 )
 
 
@@ -153,7 +153,7 @@ def test_collision_validation_suggests_clan_hood_name(tmp_path: Path) -> None:
             )
 
 
-def test_collision_validation_preserves_family_container(tmp_path: Path) -> None:
+def test_collision_validation_preserves_agent_session_container(tmp_path: Path) -> None:
     from sase.agent.names import (
         claim_registered_name,
         convert_registered_agent_to_agent_session,
@@ -165,12 +165,12 @@ def test_collision_validation_preserves_family_container(tmp_path: Path) -> None
         claim_registered_name("review", artifacts_dir)
         convert_registered_agent_to_agent_session("review", "review--0", artifacts_dir)
         with pytest.raises(
-            AgentNameFamilyCollisionError,
+            AgentNameAgentSessionCollisionError,
             match=r"Attach a member with %i\(suffix, family=parent\)",
         ):
             validate_launch_name_requests(["%id:review\nDo work"])
         with pytest.raises(
-            AgentNameFamilyCollisionError, match="reserved for agent family"
+            AgentNameAgentSessionCollisionError, match="reserved for agent session"
         ):
             validate_launch_name_requests(
                 ["%id:!review\nDo work"], allow_force_reuse=True
@@ -245,7 +245,7 @@ def test_validation_loads_reserved_name_set_once_for_many_names(
     assert calls["count"] == 1
 
 
-def test_user_agent_names_cannot_contain_reserved_family_separator() -> None:
+def test_user_agent_names_cannot_contain_reserved_agent_session_separator() -> None:
     validate_user_agent_name("foo-bar")
     with pytest.raises(AgentNameSyntaxError, match="cannot contain '--'"):
         validate_user_agent_name("foo--bar")
@@ -279,7 +279,9 @@ def test_name_directive_allows_hyphenated_name_before_launch() -> None:
     validate_launch_name_requests(["%id:foo-bar\nDo work"])
 
 
-def test_name_directive_rejects_reserved_family_separator_before_launch() -> None:
+def test_name_directive_rejects_reserved_agent_session_separator_before_launch() -> (
+    None
+):
     with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
         validate_launch_name_requests(["%id:foo--bar\nDo work"])
 
@@ -311,12 +313,12 @@ def test_duplicate_indexed_templates_are_not_exact_name_collisions(
         validate_launch_name_requests(["%id:foo-@\nFirst", "%id:foo-@\nSecond"])
 
 
-def test_direct_generated_family_name_remains_invalid() -> None:
+def test_direct_generated_agent_session_name_remains_invalid() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--1"):
         validate_launch_name_requests(["%id:foo--1\nDo work"])
 
 
-def test_template_rendering_rejects_reserved_family_separator() -> None:
+def test_template_rendering_rejects_reserved_agent_session_separator() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--0"):
         validate_launch_name_requests(["%id:foo--@\nDo work"])
 
@@ -361,18 +363,18 @@ def test_forced_reuse_preflight_defers_existing_name_collision(
         )
 
 
-def test_internal_bypass_allows_reserved_family_separator_system_names(
+def test_internal_bypass_allows_reserved_agent_session_separator_system_names(
     tmp_path: Path,
 ) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         validate_launch_name_requests(
             ["%id:sase--42.3\nDo work"],
-            allow_reserved_family_separator_names=True,
+            allow_reserved_agent_session_separator_names=True,
         )
     assert internal_agent_name_bypass_enabled({INTERNAL_AGENT_NAME_BYPASS_ENV: "1"})
 
 
-def test_tui_agent_rename_rejects_reserved_family_separator_name(
+def test_tui_agent_rename_rejects_reserved_agent_session_separator_name(
     tmp_path: Path,
 ) -> None:
     from sase.ace.tui.actions.rename import RenameMixin
@@ -414,7 +416,7 @@ def test_tui_agent_rename_rejects_reserved_family_separator_name(
     assert app.notifications == [
         (
             "Agent name 'foo--bar' cannot contain '--'; double dash is "
-            "reserved for agent-family phases.",
+            "reserved for agent-session phases.",
             "error",
         )
     ]

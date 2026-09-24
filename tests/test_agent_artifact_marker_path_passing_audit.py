@@ -114,9 +114,9 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "inspected before consulting an exact dismissed-archive fallback."
         ),
     ),
-    "src/sase/agent/names/_lookup_groups.py:_iter_family_members": PathPassingReview(
+    "src/sase/agent/names/_lookup_groups.py:_iter_agent_session_members": PathPassingReview(
         exemption=(
-            "Read-only family completion lookup: done.json presence and outcome are "
+            "Read-only agent-session completion lookup: done.json presence and outcome are "
             "inspected before consulting an exact dismissed-archive fallback."
         ),
     ),

@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from sase.agent.names._registry_scan_payloads import (
-    family_from_payload,
+    agent_session_from_payload,
     owner_identity_names,
 )
 from sase.agent.names._wipe_payload import read_json_object
@@ -29,7 +29,7 @@ def session_root_removal_refusal(
     member and its own descendants. A closure that reaches the session root
     (``P--plan``) while the root's own names are not wipe targets means a
     shared name leaked into the plan, so the whole batch is refused rather
-    than deleting the session out from under its family-attach parent.
+    than deleting the session out from under its agent-session-attach parent.
     """
     session = agent_session_base(target_name)
     if session is None:
@@ -50,7 +50,7 @@ def session_root_removal_refusal(
 
 
 def _is_session_root(meta: Mapping[str, Any] | None, session: str) -> bool:
-    if meta is None or family_from_payload(dict(meta)) != session:
+    if meta is None or agent_session_from_payload(dict(meta)) != session:
         return False
     return (
         agent_session_role_value(meta) == "root"

@@ -91,9 +91,9 @@ def test_adapter_passes_one_slot_preplanned_plans(
     assert captured["project_name"] == "proj"
     assert captured["is_home_mode"] is False
     assert list(captured["segment_extra_env"]) == envs
-    # All segments carry the internal-name bypass env, so reserved-family names
+    # All segments carry the internal-name bypass env, so reserved agent-session names
     # are permitted.
-    assert captured["allow_reserved_family_separator_names"] is True
+    assert captured["allow_reserved_agent_session_separator_names"] is True
     assert captured["local_xprompts"] == {}
 
 

@@ -44,9 +44,9 @@ class _RegistryQueryFacade:
             load_registry=self._reservation_loader
         )
 
-    def get_reserved_family_names(self) -> set[str]:
-        """Return every name owned by a sequential family container."""
-        return _registry_queries.get_reserved_family_names(
+    def get_reserved_agent_session_names(self) -> set[str]:
+        """Return every name owned by a sequential agent-session container."""
+        return _registry_queries.get_reserved_agent_session_names(
             load_registry=self._reservation_loader
         )
 
@@ -56,15 +56,15 @@ class _RegistryQueryFacade:
             load_registry=self._reservation_loader
         )
 
-    def get_reserved_family_names_for_display(self) -> set[str]:
-        """Return family-container names for a render, never forcing a rebuild.
+    def get_reserved_agent_session_names_for_display(self) -> set[str]:
+        """Return agent-session-container names for a render, never forcing a rebuild.
 
-        Link rendering only needs to know which names are family containers so it
-        can shape a URL. Unlike :func:`get_reserved_family_names`, which gates
+        Link rendering only needs to know which names are agent-session containers so it
+        can shape a URL. Unlike :func:`get_reserved_agent_session_names`, which gates
         allocation and must pay the full staleness proof, this read tolerates a
         stale answer rather than take the name-allocation lock.
         """
-        return _registry_queries.get_reserved_family_names(
+        return _registry_queries.get_reserved_agent_session_names(
             load_registry=self._display_loader
         )
 

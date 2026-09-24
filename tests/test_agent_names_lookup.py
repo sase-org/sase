@@ -13,13 +13,13 @@ from sase.core.agent_identity_facade import (
 
 from sase.agent.names import (
     find_agent_clan,
-    find_agent_family,
+    find_agent_session,
     find_named_agent,
     get_most_recent_agent_name,
     is_agent_clan_complete,
-    is_agent_family_complete,
+    is_agent_session_complete,
     most_recent_completed_clan_member,
-    most_recent_completed_family_member,
+    most_recent_completed_agent_session_member,
     resolve_resume_agent_name,
     resolve_wait_dependency,
 )
@@ -241,7 +241,7 @@ class TestGetMostRecentAgentName:
         assert result is None
 
 
-def test_find_agent_family_includes_sequential_descendants(tmp_path: Path) -> None:
+def test_find_agent_session_includes_sequential_descendants(tmp_path: Path) -> None:
     _make_agent(
         tmp_path,
         "proj",
@@ -276,10 +276,10 @@ def test_find_agent_family_includes_sequential_descendants(tmp_path: Path) -> No
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
-        family = find_agent_family("foo")
+        agent_session = find_agent_session("foo")
 
-    assert family is not None
-    assert [member.name for member in family.members] == [
+    assert agent_session is not None
+    assert [member.name for member in agent_session.members] == [
         "foo--0",
         "foo--review",
         "foo--land",
@@ -314,16 +314,16 @@ def test_family_lookup_combines_legacy_and_qualified_local_relations(
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
-        family = find_agent_family("foo")
+        agent_session = find_agent_session("foo")
 
-    assert family is not None
-    assert [member.name for member in family.members] == [
+    assert agent_session is not None
+    assert [member.name for member in agent_session.members] == [
         "foo--0",
         "athena.foo--code",
     ]
 
 
-def test_family_lookup_accepts_dotted_numeric_family_roots(
+def test_agent_session_lookup_accepts_dotted_numeric_session_roots(
     tmp_path: Path,
 ) -> None:
     base_name = "sase-x7.3.1.5"
@@ -351,12 +351,12 @@ def test_family_lookup_accepts_dotted_numeric_family_roots(
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
-        family = find_agent_family(base_name)
-        legacy_parent = find_agent_family("sase-x7.3.1")
+        agent_session = find_agent_session(base_name)
+        legacy_parent = find_agent_session("sase-x7.3.1")
         resolved = resolve_resume_agent_name(base_name)
 
-    assert family is not None
-    assert [member.name for member in family.members] == [
+    assert agent_session is not None
+    assert [member.name for member in agent_session.members] == [
         f"{base_name}--plan",
         f"{base_name}--code",
     ]
@@ -365,7 +365,7 @@ def test_family_lookup_accepts_dotted_numeric_family_roots(
     assert resolved.artifacts_dir == str(newest)
 
 
-def test_resume_family_name_uses_newest_completed_renamed_member(
+def test_resume_agent_session_name_uses_newest_completed_renamed_member(
     tmp_path: Path,
 ) -> None:
     _make_agent(
@@ -411,7 +411,7 @@ def _add_meta_fields(artifact_dir: Path, extra: dict[str, object]) -> None:
 class TestWaitSuccessOutcomeClassification:
     """noop/epic_approved/plan_committed count as success, like "completed"."""
 
-    def test_family_is_complete_and_resolves_newest_success_member(
+    def test_agent_session_is_complete_and_resolves_newest_success_member(
         self, tmp_path: Path, outcome: str
     ) -> None:
         _make_agent(
@@ -439,8 +439,8 @@ class TestWaitSuccessOutcomeClassification:
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
-            assert is_agent_family_complete("foo") is True
-            member = most_recent_completed_family_member("foo")
+            assert is_agent_session_complete("foo") is True
+            member = most_recent_completed_agent_session_member("foo")
             assert resolve_wait_dependency("foo") is True
             resolved = resolve_resume_agent_name("foo")
 
@@ -497,10 +497,10 @@ class TestWaitSuccessOutcomeClassification:
             assert resolve_wait_dependency("foo") is True
 
 
-def test_family_incomplete_when_member_outcome_is_plan_rejected(
+def test_agent_session_incomplete_when_member_outcome_is_plan_rejected(
     tmp_path: Path,
 ) -> None:
-    """plan_rejected stays excluded from wait/family success classification."""
+    """plan_rejected stays excluded from wait/agent-session success classification."""
     _make_agent(
         tmp_path,
         "proj",
@@ -514,7 +514,7 @@ def test_family_incomplete_when_member_outcome_is_plan_rejected(
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
-        assert is_agent_family_complete("foo") is False
+        assert is_agent_session_complete("foo") is False
         assert resolve_wait_dependency("foo") is False
 
 

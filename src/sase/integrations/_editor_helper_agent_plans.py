@@ -1,8 +1,8 @@
-"""Snapshot-based family plan-preview resolution for the editor helper.
+"""Snapshot-based agent-session plan-preview resolution for the editor helper.
 
 The agent-catalog helper is a short-lived subprocess behind a 5 s timeout,
 so this module bounds work per call: plan-file reads are deduped by resolved
-path, and only the most recent :data:`_FAMILY_PREVIEW_LIMIT` families are
+path, and only the most recent :data:`_AGENT_SESSION_PREVIEW_LIMIT` agent sessions are
 enriched. Failures degrade to an empty preview rather than raising.
 """
 
@@ -15,28 +15,28 @@ from pathlib import Path
 from typing import Any, Final, Literal
 
 from sase.agent.bead_display import BeadIssueLookupSession, lookup_bead_issue
-from sase.agent_family_plan_preview import (
-    EMPTY_AGENT_FAMILY_PLAN_PREVIEW,
-    AgentFamilyPlanPreview,
-    agent_family_plan_preview_from_bead,
-    agent_family_plan_preview_from_plan,
+from sase.agent_session_plan_preview import (
+    EMPTY_AGENT_SESSION_PLAN_PREVIEW,
+    AgentSessionPlanPreview,
+    agent_session_plan_preview_from_bead,
+    agent_session_plan_preview_from_plan,
 )
 from sase.bead.model import Issue, IssueType
 from sase.phase_size_presentation import normalize_phase_size
 from sase.sdd.plan_display import load_plan_display
 
-#: Newest families to enrich per catalog call. Older families keep the
+#: Newest agent sessions to enrich per catalog call. Older agent sessions keep the
 #: historical ``family · N members`` detail. Lower this if catalog wall time
 #: grows more than ~150 ms on a realistic artifact store.
-_FAMILY_PREVIEW_LIMIT: Final = 20
+_AGENT_SESSION_PREVIEW_LIMIT: Final = 20
 _LEFTOVER_HASH_REF_RE = re.compile(
     r"^#[A-Za-z][\w-]*(?:!!|\?\?)?(?:\([^)]*\)|[_:][^\s]+)?\s*"
 )
 
 
 @dataclass(frozen=True, slots=True)
-class _FamilyPlanMember:
-    """Plan, bead, and snippet fields for one newest-generation family member."""
+class _AgentSessionPlanMember:
+    """Plan, bead, and snippet fields for one newest-generation agent-session member."""
 
     artifact_dir: str
     timestamp: str
@@ -53,32 +53,32 @@ class _FamilyPlanMember:
 
 
 @dataclass(frozen=True, slots=True)
-class FamilyPlanPreviewResult:
+class AgentSessionPlanPreviewResult:
     """Resolved preview plus the stripped prompt snippet used as fallback."""
 
-    preview: AgentFamilyPlanPreview
+    preview: AgentSessionPlanPreview
     fallback_title: str
 
 
-def enrich_catalog_families(
+def enrich_catalog_agent_sessions(
     snapshot: Any,
-    families: Sequence[tuple[str, Sequence[tuple[str, str]]]],
-) -> dict[str, FamilyPlanPreviewResult]:
-    """Resolve previews for the most recent families on one snapshot.
+    agent_sessions: Sequence[tuple[str, Sequence[tuple[str, str]]]],
+) -> dict[str, AgentSessionPlanPreviewResult]:
+    """Resolve previews for the most recent agent sessions on one snapshot.
 
-    *families* is ``(name, ((artifact_dir, timestamp), ...) in root-then-
-    member order)``. Only :data:`_FAMILY_PREVIEW_LIMIT` families are
-    indexed and resolved; older families are omitted. Never raises.
+    *agent_sessions* is ``(name, ((artifact_dir, timestamp), ...) in root-then-
+    member order)``. Only :data:`_AGENT_SESSION_PREVIEW_LIMIT` agent sessions are
+    indexed and resolved; older agent sessions are omitted. Never raises.
     """
     try:
         ranked = sorted(
-            ((name, tuple(members)) for name, members in families if members),
+            ((name, tuple(members)) for name, members in agent_sessions if members),
             key=lambda item: max(
                 (timestamp for _dir, timestamp in item[1]), default=""
             ),
             reverse=True,
-        )[:_FAMILY_PREVIEW_LIMIT]
-        contexts = _family_plan_members_from_snapshot(
+        )[:_AGENT_SESSION_PREVIEW_LIMIT]
+        contexts = _agent_session_plan_members_from_snapshot(
             snapshot,
             (
                 artifact_dir
@@ -86,7 +86,7 @@ def enrich_catalog_families(
                 for artifact_dir, _ts in members
             ),
         )
-        return _resolve_family_plan_previews(
+        return _resolve_agent_session_plan_previews(
             [
                 (
                     name,
@@ -103,15 +103,15 @@ def enrich_catalog_families(
         return {}
 
 
-def _family_plan_members_from_snapshot(
+def _agent_session_plan_members_from_snapshot(
     snapshot: Any,
     artifact_dirs: Iterable[str],
-) -> dict[str, _FamilyPlanMember]:
+) -> dict[str, _AgentSessionPlanMember]:
     """Index matching snapshot records by ``artifact_dir``."""
     wanted = {directory for directory in artifact_dirs if directory}
     if not wanted:
         return {}
-    members: dict[str, _FamilyPlanMember] = {}
+    members: dict[str, _AgentSessionPlanMember] = {}
     for record in getattr(snapshot, "records", ()) or ():
         artifact_dir = getattr(record, "artifact_dir", None)
         if not artifact_dir or artifact_dir not in wanted:
@@ -120,26 +120,26 @@ def _family_plan_members_from_snapshot(
     return members
 
 
-def _resolve_family_plan_previews(
-    families: Sequence[tuple[str, Sequence[_FamilyPlanMember]]],
-) -> dict[str, FamilyPlanPreviewResult]:
+def _resolve_agent_session_plan_previews(
+    agent_sessions: Sequence[tuple[str, Sequence[_AgentSessionPlanMember]]],
+) -> dict[str, AgentSessionPlanPreviewResult]:
     ranked = sorted(
-        ((name, tuple(members)) for name, members in families if members),
+        ((name, tuple(members)) for name, members in agent_sessions if members),
         key=lambda item: max((member.timestamp for member in item[1]), default=""),
         reverse=True,
     )
-    selected = ranked[:_FAMILY_PREVIEW_LIMIT]
-    results: dict[str, FamilyPlanPreviewResult] = {}
-    plan_cache: dict[str, AgentFamilyPlanPreview] = {}
+    selected = ranked[:_AGENT_SESSION_PREVIEW_LIMIT]
+    results: dict[str, AgentSessionPlanPreviewResult] = {}
+    plan_cache: dict[str, AgentSessionPlanPreview] = {}
     with BeadIssueLookupSession() as lookup_session:
         for name, members in selected:
             try:
-                preview = _resolve_one_family(
+                preview = _resolve_one_agent_session(
                     members,
                     plan_cache=plan_cache,
                     lookup_session=lookup_session,
                 )
-                results[name] = FamilyPlanPreviewResult(
+                results[name] = AgentSessionPlanPreviewResult(
                     preview=preview,
                     fallback_title=_fallback_title(members),
                 )
@@ -148,13 +148,13 @@ def _resolve_family_plan_previews(
     return results
 
 
-def _resolve_one_family(
-    members: Sequence[_FamilyPlanMember],
+def _resolve_one_agent_session(
+    members: Sequence[_AgentSessionPlanMember],
     *,
-    plan_cache: dict[str, AgentFamilyPlanPreview],
+    plan_cache: dict[str, AgentSessionPlanPreview],
     lookup_session: BeadIssueLookupSession,
-) -> AgentFamilyPlanPreview:
-    ordered = _family_resolution_order(members)
+) -> AgentSessionPlanPreview:
+    ordered = _agent_session_resolution_order(members)
     for member in ordered:
         for raw_path in _plan_path_candidates(member):
             preview = _preview_from_plan_path(
@@ -167,9 +167,9 @@ def _resolve_one_family(
     return _resolve_bead_preview(ordered, lookup_session=lookup_session)
 
 
-def _family_resolution_order(
-    members: Sequence[_FamilyPlanMember],
-) -> tuple[_FamilyPlanMember, ...]:
+def _agent_session_resolution_order(
+    members: Sequence[_AgentSessionPlanMember],
+) -> tuple[_AgentSessionPlanMember, ...]:
     if len(members) <= 1:
         return tuple(members)
     return (
@@ -178,7 +178,7 @@ def _family_resolution_order(
     )
 
 
-def _plan_path_candidates(member: _FamilyPlanMember) -> tuple[str, ...]:
+def _plan_path_candidates(member: _AgentSessionPlanMember) -> tuple[str, ...]:
     seen: set[str] = set()
     ordered: list[str] = []
     for value in (
@@ -197,26 +197,26 @@ def _plan_path_candidates(member: _FamilyPlanMember) -> tuple[str, ...]:
 
 def _preview_from_plan_path(
     raw: str,
-    member: _FamilyPlanMember,
+    member: _AgentSessionPlanMember,
     *,
-    plan_cache: dict[str, AgentFamilyPlanPreview],
-) -> AgentFamilyPlanPreview:
+    plan_cache: dict[str, AgentSessionPlanPreview],
+) -> AgentSessionPlanPreview:
     path = _resolve_plan_file_path(raw, member)
     if path is None:
-        return EMPTY_AGENT_FAMILY_PLAN_PREVIEW
+        return EMPTY_AGENT_SESSION_PLAN_PREVIEW
     key = str(path)
     cached = plan_cache.get(key)
     if cached is not None:
         return cached
     try:
-        preview = agent_family_plan_preview_from_plan(load_plan_display(path))
+        preview = agent_session_plan_preview_from_plan(load_plan_display(path))
     except Exception:
-        preview = EMPTY_AGENT_FAMILY_PLAN_PREVIEW
+        preview = EMPTY_AGENT_SESSION_PLAN_PREVIEW
     plan_cache[key] = preview
     return preview
 
 
-def _resolve_plan_file_path(raw: str, member: _FamilyPlanMember) -> Path | None:
+def _resolve_plan_file_path(raw: str, member: _AgentSessionPlanMember) -> Path | None:
     try:
         expanded = Path(raw).expanduser()
     except (OSError, RuntimeError, TypeError, ValueError):
@@ -237,7 +237,7 @@ def _resolve_plan_file_path(raw: str, member: _FamilyPlanMember) -> Path | None:
     return _resolved_or_self(expanded)
 
 
-def _resolve_plan_reference(raw: str, member: _FamilyPlanMember) -> Path | None:
+def _resolve_plan_reference(raw: str, member: _AgentSessionPlanMember) -> Path | None:
     try:
         from sase.sdd.plan_refs import (
             resolve_plan_reference,
@@ -279,10 +279,10 @@ def _resolved_or_self(path: Path) -> Path:
 
 
 def _resolve_bead_preview(
-    members: Sequence[_FamilyPlanMember],
+    members: Sequence[_AgentSessionPlanMember],
     *,
     lookup_session: BeadIssueLookupSession,
-) -> AgentFamilyPlanPreview:
+) -> AgentSessionPlanPreview:
     seen: set[str] = set()
     for member in members:
         for bead_id in (member.phase_bead_id, member.epic_bead_id):
@@ -308,15 +308,15 @@ def _resolve_bead_preview(
             )
             if preview is not None and not preview.is_empty:
                 return preview
-    return EMPTY_AGENT_FAMILY_PLAN_PREVIEW
+    return EMPTY_AGENT_SESSION_PLAN_PREVIEW
 
 
 def _preview_from_issue(
     issue: Issue,
-    member: _FamilyPlanMember,
+    member: _AgentSessionPlanMember,
     *,
     lookup_session: BeadIssueLookupSession,
-) -> AgentFamilyPlanPreview | None:
+) -> AgentSessionPlanPreview | None:
     bead_type: Literal["phase", "task"]
     if issue.issue_type is IssueType.PHASE:
         bead_type = "phase"
@@ -329,7 +329,7 @@ def _preview_from_issue(
         member,
         lookup_session=lookup_session,
     )
-    return agent_family_plan_preview_from_bead(
+    return agent_session_plan_preview_from_bead(
         bead_type=bead_type,
         title=issue.title,
         parent_title=parent_title,
@@ -339,7 +339,7 @@ def _preview_from_issue(
 
 def _parent_title_for_issue(
     issue: Issue,
-    member: _FamilyPlanMember,
+    member: _AgentSessionPlanMember,
     *,
     lookup_session: BeadIssueLookupSession,
 ) -> str | None:
@@ -363,7 +363,7 @@ def _parent_title_for_issue(
     return title or None
 
 
-def _fallback_title(members: Sequence[_FamilyPlanMember]) -> str:
+def _fallback_title(members: Sequence[_AgentSessionPlanMember]) -> str:
     from sase.ace.tui._agent_completion_prompt import prompt_snippet
 
     for member in members:
@@ -388,7 +388,7 @@ def _usable_prompt_snippet(snippet: str) -> str:
     return cleaned
 
 
-def _member_from_record(record: Any) -> _FamilyPlanMember:
+def _member_from_record(record: Any) -> _AgentSessionPlanMember:
     meta = getattr(record, "agent_meta", None)
     done = getattr(record, "done", None)
     plan_marker = getattr(record, "plan_path", None)
@@ -396,7 +396,7 @@ def _member_from_record(record: Any) -> _FamilyPlanMember:
         getattr(plan_marker, "plan_path", None) if plan_marker is not None else None,
         getattr(done, "plan_path", None) if done is not None else None,
     )
-    return _FamilyPlanMember(
+    return _AgentSessionPlanMember(
         artifact_dir=str(record.artifact_dir),
         timestamp=str(getattr(record, "timestamp", "") or ""),
         plan_path=_optional_str(getattr(meta, "plan_path", None) if meta else None),
@@ -439,6 +439,6 @@ def _optional_str(value: object) -> str | None:
 
 
 __all__ = [
-    "FamilyPlanPreviewResult",
-    "enrich_catalog_families",
+    "AgentSessionPlanPreviewResult",
+    "enrich_catalog_agent_sessions",
 ]

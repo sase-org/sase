@@ -182,13 +182,13 @@ def test_agent_session_attach_metadata_matches_runner_followup_and_tui_agent_ses
     for key in parity_keys:
         assert member_meta.get(key) == followup_meta.get(key)
 
-    from sase.agent.names import find_agent_family
+    from sase.agent.names import find_agent_session
 
-    family = find_agent_family("foo")
-    assert family is not None
-    assert family.root is not None
-    assert family.root.timestamp == parent_ts
-    assert {member.name for member in family.members} == {
+    agent_session = find_agent_session("foo")
+    assert agent_session is not None
+    assert agent_session.root is not None
+    assert agent_session.root.timestamp == parent_ts
+    assert {member.name for member in agent_session.members} == {
         "foo--plan",
         "foo--code",
     }

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from rich.text import Text
 
-from sase.agent_family_plan_preview import (
-    AgentFamilyPlanPreview,
-    agent_family_plan_preview_accent,
-    agent_family_plan_preview_label,
-    agent_family_plan_structure_text,
+from sase.agent_session_plan_preview import (
+    AgentSessionPlanPreview,
+    agent_session_plan_preview_accent,
+    agent_session_plan_preview_label,
+    agent_session_plan_structure_text,
 )
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
@@ -167,7 +167,7 @@ def _family_preview(
     if not title:
         return _family_preview_line(
             preview,
-            structure=agent_family_plan_structure_text(preview, compact=True),
+            structure=agent_session_plan_structure_text(preview, compact=True),
             title="",
             title_style="",
             budget=budget,
@@ -197,12 +197,12 @@ def _family_preview(
     )
 
 
-def _structure_degradation(preview: AgentFamilyPlanPreview) -> tuple[str, ...]:
+def _structure_degradation(preview: AgentSessionPlanPreview) -> tuple[str, ...]:
     variants: list[str] = []
     for value in (
-        agent_family_plan_structure_text(preview, compact=False),
+        agent_session_plan_structure_text(preview, compact=False),
         _phase_count_structure(preview),
-        agent_family_plan_structure_text(preview, compact=True),
+        agent_session_plan_structure_text(preview, compact=True),
         "",
     ):
         if value not in variants:
@@ -210,7 +210,7 @@ def _structure_degradation(preview: AgentFamilyPlanPreview) -> tuple[str, ...]:
     return tuple(variants)
 
 
-def _phase_count_structure(preview: AgentFamilyPlanPreview) -> str:
+def _phase_count_structure(preview: AgentSessionPlanPreview) -> str:
     if preview.phase_count is None:
         return ""
     noun = "phase" if preview.phase_count == 1 else "phases"
@@ -218,7 +218,7 @@ def _phase_count_structure(preview: AgentFamilyPlanPreview) -> str:
 
 
 def _family_preview_line(
-    preview: AgentFamilyPlanPreview,
+    preview: AgentSessionPlanPreview,
     *,
     structure: str,
     title: str,
@@ -228,8 +228,8 @@ def _family_preview_line(
 ) -> Text:
     assert preview.kind is not None
     text = Text(no_wrap=True, overflow="ellipsis")
-    label = agent_family_plan_preview_label(preview.kind)
-    accent = agent_family_plan_preview_accent(preview.kind)
+    label = agent_session_plan_preview_label(preview.kind)
+    accent = agent_session_plan_preview_accent(preview.kind)
     text.append(label, style=f"bold {accent}")
     if structure:
         text.append(" · ", style="dim")

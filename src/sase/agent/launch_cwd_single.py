@@ -125,7 +125,7 @@ def launch_single_agent(
 
         validate_launch_name_requests(
             [query],
-            allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
+            allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env
             ),
         )
@@ -165,7 +165,7 @@ def launch_single_agent(
             ),
             extra_env=extra_env,
             base_timestamp=timestamp,
-            allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
+            allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env
             ),
         )

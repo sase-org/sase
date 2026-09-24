@@ -3,8 +3,8 @@
 ``wipe_force_reuse_owner()`` is the shared agent-name-layer operation behind
 both the ACE/``sase agent restart`` launch boundary and deterministic bead
 relaunch. These tests seed a real name registry (rather than mocking the
-low-level wipe) to prove a family-root forced reuse replaces the newest
-family generation deterministically, leaves an enclosing clan and unrelated
+low-level wipe) to prove an agent-session-root forced reuse replaces the newest
+agent-session generation deterministically, leaves an enclosing clan and unrelated
 agents untouched, tolerates a member that a concurrent cleanup proc already
 removed, and still refuses a populated clan container directly.
 """
@@ -70,56 +70,63 @@ def test_stale_session_container_skips_wipe_and_releases(tmp_path: Path) -> None
         assert lookup_registered_name("foo") is None
 
 
-def test_wipe_force_reuse_owner_replaces_newest_family_generation(
+def test_wipe_force_reuse_owner_replaces_newest_agent_session_generation(
     tmp_path: Path,
 ) -> None:
-    family_name = "epic.phase"
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
-    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
-    plan = _artifact(tmp_path, "20260801120000", plan_name, done=True, meta=family_meta)
+    agent_session_name = "epic.phase"
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
+    agent_session_meta = {
+        "agent_session": agent_session_name,
+        "agent_session_parallel": False,
+    }
+    plan = _artifact(
+        tmp_path, "20260801120000", plan_name, done=True, meta=agent_session_meta
+    )
     code = _artifact(
         tmp_path,
         "20260801120100",
         code_name,
-        meta={**family_meta, "parent_timestamp": plan.name},
+        meta={**agent_session_meta, "parent_timestamp": plan.name},
     )
     sibling = _artifact(tmp_path, "20260801120200", "unrelated", done=True)
 
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
-        assert {family_name, plan_name, code_name} <= get_reserved_agent_names()
+        assert {agent_session_name, plan_name, code_name} <= get_reserved_agent_names()
 
-        wipe_force_reuse_owner(family_name, allow_container_skip=False)
+        wipe_force_reuse_owner(agent_session_name, allow_container_skip=False)
 
         assert not plan.exists()
         assert not code.exists()
-        assert {family_name, plan_name, code_name}.isdisjoint(
+        assert {agent_session_name, plan_name, code_name}.isdisjoint(
             get_reserved_agent_names()
         )
         assert "unrelated" in get_reserved_agent_names()
         assert sibling.exists()
 
 
-def test_wipe_force_reuse_owner_family_preserves_enclosing_clan(
+def test_wipe_force_reuse_owner_agent_session_preserves_enclosing_clan(
     tmp_path: Path,
 ) -> None:
     clan_name = "sase-sq"
-    family_name = f"{clan_name}.1"
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
-    family_meta = {
-        "agent_session": family_name,
+    agent_session_name = f"{clan_name}.1"
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
+    agent_session_meta = {
+        "agent_session": agent_session_name,
         "agent_session_parallel": False,
         "agent_clan": clan_name,
         "agent_clan_generation": "gen-1",
     }
-    plan = _artifact(tmp_path, "20260801130000", plan_name, done=True, meta=family_meta)
+    plan = _artifact(
+        tmp_path, "20260801130000", plan_name, done=True, meta=agent_session_meta
+    )
     code = _artifact(
         tmp_path,
         "20260801130100",
         code_name,
-        meta={**family_meta, "parent_timestamp": plan.name},
+        meta={**agent_session_meta, "parent_timestamp": plan.name},
     )
     sibling_phase = f"{clan_name}.2"
     sibling = _artifact(
@@ -136,9 +143,9 @@ def test_wipe_force_reuse_owner_family_preserves_enclosing_clan(
         assert clan_owner is not None
         assert clan_owner["container_kind"] == "clan"
 
-        wipe_force_reuse_owner(family_name, allow_container_skip=False)
+        wipe_force_reuse_owner(agent_session_name, allow_container_skip=False)
 
-        assert {family_name, plan_name, code_name}.isdisjoint(
+        assert {agent_session_name, plan_name, code_name}.isdisjoint(
             get_reserved_agent_names()
         )
         assert not plan.exists()
@@ -164,20 +171,25 @@ def test_wipe_force_reuse_owner_already_absent_name_is_a_no_op_success(
         assert "epic.gone" not in get_reserved_agent_names()
 
 
-def test_wipe_force_reuse_owner_family_tolerates_member_removed_concurrently(
+def test_wipe_force_reuse_owner_agent_session_tolerates_member_removed_concurrently(
     tmp_path: Path,
 ) -> None:
     """A member the ACE persistence proc already removed must not abort reuse."""
-    family_name = "epic.race"
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
-    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
-    plan = _artifact(tmp_path, "20260801140000", plan_name, done=True, meta=family_meta)
+    agent_session_name = "epic.race"
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
+    agent_session_meta = {
+        "agent_session": agent_session_name,
+        "agent_session_parallel": False,
+    }
+    plan = _artifact(
+        tmp_path, "20260801140000", plan_name, done=True, meta=agent_session_meta
+    )
     code = _artifact(
         tmp_path,
         "20260801140100",
         code_name,
-        meta={**family_meta, "parent_timestamp": plan.name},
+        meta={**agent_session_meta, "parent_timestamp": plan.name},
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -190,10 +202,10 @@ def test_wipe_force_reuse_owner_family_tolerates_member_removed_concurrently(
 
         shutil.rmtree(code)
 
-        wipe_force_reuse_owner(family_name, allow_container_skip=False)
+        wipe_force_reuse_owner(agent_session_name, allow_container_skip=False)
 
         assert not plan.exists()
-        assert {family_name, plan_name, code_name}.isdisjoint(
+        assert {agent_session_name, plan_name, code_name}.isdisjoint(
             get_reserved_agent_names()
         )
 

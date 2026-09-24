@@ -75,13 +75,13 @@ class _AgentNameClanCollisionError(_LaunchNameValidationError):
         )
 
 
-class _AgentNameFamilyCollisionError(_LaunchNameValidationError):
-    """Raised when an agent tries to claim a family container's name."""
+class _AgentNameAgentSessionCollisionError(_LaunchNameValidationError):
+    """Raised when an agent tries to claim an agent-session container's name."""
 
     def __init__(self, name: str) -> None:
         self.name = name
         super().__init__(
-            f"Agent name '{name}' is reserved for agent family '{name}'. "
+            f"Agent name '{name}' is reserved for agent session '{name}'. "
             "Attach a member with %i(suffix, family=parent) instead."
         )
 
@@ -112,7 +112,7 @@ class AgentNameSyntaxError(_LaunchNameValidationError):
         self.name = name
         super().__init__(
             f"Agent name '{name}' cannot contain '{AGENT_SESSION_SEPARATOR}'; "
-            "double dash is reserved for agent-family phases."
+            "double dash is reserved for agent-session phases."
         )
 
 
@@ -222,17 +222,19 @@ def validate_launch_name_requests(
     prompts: list[str],
     *,
     allow_force_reuse: bool = False,
-    allow_reserved_family_separator_names: bool = False,
+    allow_reserved_agent_session_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
 ) -> None:
     """Validate explicit launch names under the global name allocation lock."""
     if allow_hyphenated_names is not None:
-        allow_reserved_family_separator_names = allow_hyphenated_names
+        allow_reserved_agent_session_separator_names = allow_hyphenated_names
 
     requests = _preflight_launch_name_requests(
         prompts,
         allow_force_reuse=allow_force_reuse,
-        allow_reserved_family_separator_names=(allow_reserved_family_separator_names),
+        allow_reserved_agent_session_separator_names=(
+            allow_reserved_agent_session_separator_names
+        ),
     )
     if not requests:
         return
@@ -241,7 +243,7 @@ def validate_launch_name_requests(
         agent_name_allocation_lock,
         get_reserved_agent_names,
         get_reserved_clan_names,
-        get_reserved_family_names,
+        get_reserved_agent_session_names,
         lowest_name_suggestion,
     )
 
@@ -259,10 +261,10 @@ def validate_launch_name_requests(
     # same collision contract while making validation independent of segment count.
     reserved_names: set[str] | None = None
     clan_names: set[str] | None = None
-    family_names: set[str] | None = None
+    agent_session_names: set[str] | None = None
     reserved_keys: set[str] | None = None
     clan_keys: set[str] | None = None
-    family_keys: set[str] | None = None
+    agent_session_keys: set[str] | None = None
     with agent_name_allocation_lock():
         for request in requests:
             if request.name_template:
@@ -271,7 +273,7 @@ def validate_launch_name_requests(
                 if reserved_names is None:
                     reserved_names = get_reserved_agent_names()
                     clan_names = get_reserved_clan_names()
-                    family_names = get_reserved_family_names()
+                    agent_session_names = get_reserved_agent_session_names()
                     reserved_keys = {
                         current_owner_agent_name_key(name, identity)
                         for name in reserved_names
@@ -280,20 +282,20 @@ def validate_launch_name_requests(
                         current_owner_agent_name_key(name, identity)
                         for name in clan_names
                     }
-                    family_keys = {
+                    agent_session_keys = {
                         current_owner_agent_name_key(name, identity)
-                        for name in family_names
+                        for name in agent_session_names
                     }
                 request_key = current_owner_agent_name_key(request.name, identity)
                 if clan_keys is not None and request_key in clan_keys:
                     raise _AgentNameClanCollisionError(request.name)
-                if family_keys is not None and request_key in family_keys:
-                    raise _AgentNameFamilyCollisionError(request.name)
+                if agent_session_keys is not None and request_key in agent_session_keys:
+                    raise _AgentNameAgentSessionCollisionError(request.name)
                 continue
             if reserved_names is None:
                 reserved_names = get_reserved_agent_names()
                 clan_names = get_reserved_clan_names()
-                family_names = get_reserved_family_names()
+                agent_session_names = get_reserved_agent_session_names()
                 reserved_keys = {
                     current_owner_agent_name_key(name, identity)
                     for name in reserved_names
@@ -301,17 +303,17 @@ def validate_launch_name_requests(
                 clan_keys = {
                     current_owner_agent_name_key(name, identity) for name in clan_names
                 }
-                family_keys = {
+                agent_session_keys = {
                     current_owner_agent_name_key(name, identity)
-                    for name in family_names
+                    for name in agent_session_names
                 }
             request_key = current_owner_agent_name_key(request.name, identity)
             assert reserved_keys is not None
             if request_key in seen or request_key in reserved_keys:
                 if clan_keys is not None and request_key in clan_keys:
                     raise _AgentNameClanCollisionError(request.name)
-                if family_keys is not None and request_key in family_keys:
-                    raise _AgentNameFamilyCollisionError(request.name)
+                if agent_session_keys is not None and request_key in agent_session_keys:
+                    raise _AgentNameAgentSessionCollisionError(request.name)
                 raise AgentNameLaunchCollisionError(
                     request.name, lowest_name_suggestion(request.name)
                 )
@@ -322,16 +324,18 @@ def preflight_launch_name_requests(
     prompts: list[str],
     *,
     allow_force_reuse: bool = False,
-    allow_reserved_family_separator_names: bool = False,
+    allow_reserved_agent_session_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
 ) -> None:
     """Validate launch-name syntax without reading or mutating name state."""
     if allow_hyphenated_names is not None:
-        allow_reserved_family_separator_names = allow_hyphenated_names
+        allow_reserved_agent_session_separator_names = allow_hyphenated_names
     _preflight_launch_name_requests(
         prompts,
         allow_force_reuse=allow_force_reuse,
-        allow_reserved_family_separator_names=(allow_reserved_family_separator_names),
+        allow_reserved_agent_session_separator_names=(
+            allow_reserved_agent_session_separator_names
+        ),
     )
 
 
@@ -339,14 +343,14 @@ def _preflight_launch_name_requests(
     prompts: list[str],
     *,
     allow_force_reuse: bool,
-    allow_reserved_family_separator_names: bool,
+    allow_reserved_agent_session_separator_names: bool,
 ) -> list[_LaunchNameRequest]:
     """Return syntax-checked requests without consulting reservation state."""
     requests = _explicit_launch_name_requests(prompts)
     if allow_force_reuse:
         _validate_force_reuse_bead_authorizations(prompts)
 
-    if not allow_reserved_family_separator_names:
+    if not allow_reserved_agent_session_separator_names:
         for request in requests:
             if request.agent_session_attach_parent is not None:
                 validate_user_agent_name(request.agent_session_attach_parent)
@@ -368,7 +372,7 @@ def _preflight_launch_name_requests(
                 )
             try:
                 parse_agent_name_template(request.name)
-                if not allow_reserved_family_separator_names:
+                if not allow_reserved_agent_session_separator_names:
                     validate_user_agent_name(
                         render_agent_name_template(request.name, "0")
                     )

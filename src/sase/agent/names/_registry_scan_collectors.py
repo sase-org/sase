@@ -12,7 +12,7 @@ from sase.agent.names._registry_entries import (
 from sase.agent.names._registry_scan_entries import (
     promote_container_over_auto_prefix,
     add_owner_clan,
-    add_owner_family,
+    add_owner_agent_session,
     add_owner_names,
     localize_payload_name,
     source_owner_from_payload,
@@ -21,7 +21,7 @@ from sase.agent.names._registry_scan_payloads import (
     artifact_owner,
     bundle_owner,
     clan_from_payload,
-    family_from_payload,
+    agent_session_from_payload,
     load_dismissed_suffixes,
     owner_identity_names,
     read_json_object,
@@ -134,7 +134,7 @@ def _collect_workflow_artifact_entries(
         )
         provenance_payload = meta or done or {}
         clan = clan_from_payload(meta)
-        family = family_from_payload(meta)
+        agent_session = agent_session_from_payload(meta)
         names = owner_identity_names(meta, done)
         add_owner_clan(
             entries,
@@ -143,9 +143,9 @@ def _collect_workflow_artifact_entries(
             provenance_payload,
             identity,
         )
-        add_owner_family(
+        add_owner_agent_session(
             entries,
-            _localize_optional_name(family, provenance_payload, identity),
+            _localize_optional_name(agent_session, provenance_payload, identity),
             owner,
             provenance_payload,
             identity,
@@ -186,7 +186,7 @@ def collect_dismissed_bundle_entries(
         parsed_sources += 1
         owner = bundle_owner(path, bundle)
         clan = clan_from_payload(bundle)
-        family = family_from_payload(bundle)
+        agent_session = agent_session_from_payload(bundle)
         names = owner_identity_names(bundle, bundle=True)
         add_owner_clan(
             entries,
@@ -195,9 +195,9 @@ def collect_dismissed_bundle_entries(
             bundle,
             identity,
         )
-        add_owner_family(
+        add_owner_agent_session(
             entries,
-            _localize_optional_name(family, bundle, identity),
+            _localize_optional_name(agent_session, bundle, identity),
             owner,
             bundle,
             identity,
@@ -227,7 +227,7 @@ def collect_owner_namespace_entries(
     imported artifact's own bare spelling (its first dotted segment, e.g.
     ``athena`` from ``athena.research.b``). That auto-prefix squats the root
     a container reservation must occupy, so it is displaced the same way a
-    clan or family container displaces one.
+    clan or agent-session container displaces one.
     """
     owner = identity.owner
     for machine_name in identity.sibling_machines:

@@ -74,8 +74,8 @@ def get_reserved_clan_names(*, load_registry: RegistryLoader) -> set[str]:
     }
 
 
-def get_reserved_family_names(*, load_registry: RegistryLoader) -> set[str]:
-    """Return every name owned by a sequential family container."""
+def get_reserved_agent_session_names(*, load_registry: RegistryLoader) -> set[str]:
+    """Return every name owned by a sequential agent-session container."""
     return {
         name
         for name, entry in load_registry()["entries"].items()

@@ -68,7 +68,7 @@ def launch_multi_prompt_branch(
 
         validate_launch_name_requests(
             normalized_segments,
-            allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
+            allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env,
                 segment_extra_env,
             ),
@@ -102,7 +102,7 @@ def launch_multi_prompt_branch(
             segment_extra_env=segment_extra_env,
             segment_template_groups=segment_template_groups,
             segment_swarm_xprompts=segment_swarm_xprompts,
-            allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
+            allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env,
                 segment_extra_env,
             ),
@@ -152,7 +152,7 @@ def launch_repeat_branch_if_applicable(
 
         validate_launch_name_requests(
             [spec.prompt for spec in repeat_specs],
-            allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
+            allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env,
             ),
         )
@@ -238,7 +238,7 @@ def launch_alt_branch_if_applicable(
 
         validate_launch_name_requests(
             [slot.prompt for slot in alt_plan.slots],
-            allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
+            allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env,
             ),
         )
@@ -262,7 +262,7 @@ def launch_alt_branch_if_applicable(
             vcs_ref=alt_vcs_ref,
             extra_env=extra_env,
             preplanned_fanout_plans=[alt_plan],
-            allow_reserved_family_separator_names=internal_agent_name_bypass_for_launch(
+            allow_reserved_agent_session_separator_names=internal_agent_name_bypass_for_launch(
                 extra_env
             ),
             default_bare_segments_to_home=True,

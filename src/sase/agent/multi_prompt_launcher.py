@@ -81,7 +81,7 @@ def launch_multi_prompt_agents(
     segment_template_groups: Sequence[str | None] | None = None,
     segment_swarm_xprompts: Sequence[Sequence[str]] | None = None,
     preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None = None,
-    allow_reserved_family_separator_names: bool = False,
+    allow_reserved_agent_session_separator_names: bool = False,
     allow_hyphenated_names: bool | None = None,
     default_bare_segments_to_home: bool = False,
     multi_agent_prompt_text: str | None = None,
@@ -94,7 +94,7 @@ def launch_multi_prompt_agents(
     already-spawned results so callers can roll them back.
     """
     if allow_hyphenated_names is not None:
-        allow_reserved_family_separator_names = allow_hyphenated_names
+        allow_reserved_agent_session_separator_names = allow_hyphenated_names
 
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
 
@@ -117,8 +117,8 @@ def launch_multi_prompt_agents(
             segment_template_groups=segment_template_groups,
             segment_swarm_xprompts=segment_swarm_xprompts,
             preplanned_fanout_plans=preplanned_fanout_plans,
-            allow_reserved_family_separator_names=(
-                allow_reserved_family_separator_names
+            allow_reserved_agent_session_separator_names=(
+                allow_reserved_agent_session_separator_names
             ),
             default_bare_segments_to_home=default_bare_segments_to_home,
             multi_agent_prompt_text=multi_agent_prompt_text,

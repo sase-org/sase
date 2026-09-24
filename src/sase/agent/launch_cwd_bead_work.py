@@ -153,7 +153,7 @@ def launch_planned_bead_work_agents(
     try:
         preflight_launch_name_requests(
             normalized_segments,
-            allow_reserved_family_separator_names=allow_bypass,
+            allow_reserved_agent_session_separator_names=allow_bypass,
         )
     except RuntimeError:
         record_failed_launch_prompt(normalized_query)
@@ -192,7 +192,7 @@ def launch_planned_bead_work_agents(
             vcs_ref=vcs_ref,
             segment_extra_env=list(segment_extra_env),
             preplanned_fanout_plans=preplanned_fanout_plans,
-            allow_reserved_family_separator_names=allow_bypass,
+            allow_reserved_agent_session_separator_names=allow_bypass,
             default_bare_segments_to_home=True,
             name_reservation_evidence=reservation_batch.name_evidence,
         )

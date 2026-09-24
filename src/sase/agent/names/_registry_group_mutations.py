@@ -1,4 +1,4 @@
-"""Registry mutations for clan and family containers."""
+"""Registry mutations for clan and agent-session containers."""
 
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ def convert_registered_agent_to_agent_session(
         entries = dict(operations.load()["entries"])
         ensure_local_namespace_available(entries, name)
         ensure_local_namespace_available(entries, member_name)
-        family_storage_name, existing = operations.equivalent_entry(
+        agent_session_storage_name, existing = operations.equivalent_entry(
             entries, name, identity
         )
         if isinstance(existing, dict):
@@ -160,15 +160,15 @@ def convert_registered_agent_to_agent_session(
         ):
             operations.raise_name_collision(member_name)
 
-        family_entry = local_artifact_entry(
+        agent_session_entry = local_artifact_entry(
             operations,
             artifact_dir,
-            family_storage_name,
+            agent_session_storage_name,
             reservation_kind=AGENT_SESSION_CONTAINER_KIND,
             identity=identity,
         )
-        family_entry["container_kind"] = AGENT_SESSION_CONTAINER_KIND
-        entries[family_storage_name] = family_entry
+        agent_session_entry["container_kind"] = AGENT_SESSION_CONTAINER_KIND
+        entries[agent_session_storage_name] = agent_session_entry
         entries[member_storage_name] = local_artifact_entry(
             operations,
             artifact_dir,

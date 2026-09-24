@@ -275,7 +275,7 @@ def test_editor_helper_family_catalog_recency_cap_skips_older_families(
 ) -> None:
     from sase.integrations import _editor_helper_agent_plans as plans
 
-    monkeypatch.setattr(plans, "_FAMILY_PREVIEW_LIMIT", 2)
+    monkeypatch.setattr(plans, "_AGENT_SESSION_PREVIEW_LIMIT", 2)
     tale = tmp_path / "tale.md"
     tale.write_text(_TALE_PLAN, encoding="utf-8")
     by_target = _catalog_by_target(

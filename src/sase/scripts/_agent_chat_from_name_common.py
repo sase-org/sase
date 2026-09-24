@@ -10,8 +10,8 @@ from typing import Any
 
 from sase.agent.names import (
     AgentClan,
-    AgentFamilyMember,
-    find_agent_family,
+    AgentSessionMember,
+    find_agent_session,
     find_named_agent,
     get_most_recent_agent_name,
     get_reserved_agent_name_map,
@@ -135,17 +135,19 @@ def validate_readable_transcript(name: str, transcript_path: str) -> None:
         ) from exc
 
 
-def find_family_member(name: str) -> AgentFamilyMember | None:
+def find_family_member(name: str) -> AgentSessionMember | None:
     """Return the exact member represented by a recognized family-child name."""
     base_name = _canonical_family_member_base(name)
     if base_name is None:
         base_name = agent_session_base(name, include_legacy_dash=True)
-        if base_name is None or find_agent_family(name) is not None:
+        if base_name is None or find_agent_session(name) is not None:
             return None
-    family = find_agent_family(base_name)
-    if family is None:
+    agent_session = find_agent_session(base_name)
+    if agent_session is None:
         return None
-    return next((member for member in family.members if member.name == name), None)
+    return next(
+        (member for member in agent_session.members if member.name == name), None
+    )
 
 
 def _canonical_family_member_base(name: str) -> str | None:

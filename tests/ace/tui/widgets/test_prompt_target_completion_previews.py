@@ -12,7 +12,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_agents import (
     append_agent_completion_row,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.agent_family_plan_preview import AgentFamilyPlanPreview
+from sase.agent_session_plan_preview import AgentSessionPlanPreview
 
 
 def _preview(
@@ -25,8 +25,8 @@ def _preview(
     phase_count: int | None = None,
     wave_count: int | None = None,
     phase_titles: tuple[str, ...] = (),
-) -> AgentFamilyPlanPreview:
-    return AgentFamilyPlanPreview(
+) -> AgentSessionPlanPreview:
+    return AgentSessionPlanPreview(
         kind=kind,  # type: ignore[arg-type]
         title=title,
         goal=goal,
@@ -43,7 +43,7 @@ def _preview(
 
 def _candidate(
     *,
-    plan_preview: AgentFamilyPlanPreview | None,
+    plan_preview: AgentSessionPlanPreview | None,
     prompt_snippet: str = "Launch prompt snippet",
     member_names: tuple[str, ...] = ("ship--plan", "ship--code"),
 ) -> AgentCompletionCandidate:

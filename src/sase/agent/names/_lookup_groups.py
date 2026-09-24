@@ -1,4 +1,4 @@
-"""Look up agent families and clans from artifact metadata."""
+"""Look up agent sessions and clans from artifact metadata."""
 
 from __future__ import annotations
 
@@ -33,8 +33,8 @@ from sase.plan_chain import (
 
 
 @dataclass(frozen=True)
-class AgentFamilyMember:
-    """One artifact member of a plan-chain agent family."""
+class AgentSessionMember:
+    """One artifact member of a plan-chain agent session."""
 
     name: str
     artifacts_dir: Path
@@ -49,12 +49,12 @@ class AgentFamilyMember:
 
 
 @dataclass(frozen=True)
-class AgentFamily:
-    """Newest known generation of a plan-chain agent family."""
+class AgentSession:
+    """Newest known generation of a plan-chain agent session."""
 
     base_name: str
-    root: AgentFamilyMember | None
-    members: tuple[AgentFamilyMember, ...]
+    root: AgentSessionMember | None
+    members: tuple[AgentSessionMember, ...]
 
     @property
     def timestamp(self) -> str:
@@ -104,10 +104,10 @@ class AgentClan:
         )
 
 
-def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
-    family = agent_session_value(meta)
-    if isinstance(family, str) and family:
-        return family
+def _agent_session_base_from_meta(meta: dict[str, Any]) -> str | None:
+    agent_session = agent_session_value(meta)
+    if isinstance(agent_session, str) and agent_session:
+        return agent_session
 
     workflow_name = meta.get("workflow_name")
     if not isinstance(workflow_name, str) or not workflow_name:
@@ -123,18 +123,20 @@ def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
     return None
 
 
-def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
+def _iter_agent_session_members(base_name: str) -> list[AgentSessionMember]:
     from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     base_key = current_owner_agent_name_key(base_name)
     rows: list[tuple[Path, dict[str, Any], str, str | None, str | None]] = []
     for artifact_dir in iter_ace_run_artifact_dirs():
         meta = read_json_dict(artifact_dir / "agent_meta.json")
-        family_base = None if meta is None else _family_base_from_meta(meta)
+        agent_session_base_name = (
+            None if meta is None else _agent_session_base_from_meta(meta)
+        )
         if (
             meta is None
-            or family_base is None
-            or current_owner_agent_name_key(family_base) != base_key
+            or agent_session_base_name is None
+            or current_owner_agent_name_key(agent_session_base_name) != base_key
         ):
             continue
 
@@ -160,7 +162,7 @@ def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
         if outcome is None and not (artifact_dir / "done.json").exists()
     )
     return [
-        AgentFamilyMember(
+        AgentSessionMember(
             name=name,
             artifacts_dir=artifact_dir,
             timestamp=artifact_dir.name,
@@ -192,14 +194,14 @@ def _clan_identity_from_meta(
     clan = meta.get("agent_clan")
     legacy_parallel = agent_session_parallel_value(meta) is True
     if not isinstance(clan, str) or not clan:
-        legacy_family = agent_session_value(meta)
+        legacy_agent_session = agent_session_value(meta)
         if (
             not legacy_parallel
-            or not isinstance(legacy_family, str)
-            or not legacy_family
+            or not isinstance(legacy_agent_session, str)
+            or not legacy_agent_session
         ):
             return None
-        clan = legacy_family
+        clan = legacy_agent_session
 
     generation = meta.get("agent_clan_generation")
     if not isinstance(generation, str) or not generation:
@@ -312,29 +314,29 @@ def most_recent_completed_clan_member(clan_name: str) -> NamedAgent | None:
     )
 
 
-def find_agent_family(base_name: str) -> AgentFamily | None:
+def find_agent_session(base_name: str) -> AgentSession | None:
     """Return the newest known generation for *base_name*.
 
-    Only plan-chain/family metadata is considered. Plain exact agents named
-    ``base_name`` are intentionally excluded so legacy exact-name lookups keep
-    their existing behavior when no family members exist.
+    Only plan-chain/agent-session metadata is considered. Plain exact agents
+    named ``base_name`` are intentionally excluded so legacy exact-name lookups
+    keep their existing behavior when no agent-session members exist.
     """
     from sase.core.agent_identity_facade import (
         current_owner_agent_name_lookup_candidates,
     )
 
     for candidate in current_owner_agent_name_lookup_candidates(base_name):
-        if (family := _find_agent_family_exact(candidate)) is not None:
-            return family
+        if (agent_session := _find_agent_session_exact(candidate)) is not None:
+            return agent_session
     return None
 
 
-def _find_agent_family_exact(base_name: str) -> AgentFamily | None:
-    """Return one exact durable family spelling."""
-    if not base_name or _is_canonical_agent_family_member_name(base_name):
+def _find_agent_session_exact(base_name: str) -> AgentSession | None:
+    """Return one exact durable agent-session spelling."""
+    if not base_name or _is_canonical_agent_session_member_name(base_name):
         return None
 
-    members = _iter_family_members(base_name)
+    members = _iter_agent_session_members(base_name)
     if not members:
         return None
 
@@ -358,43 +360,43 @@ def _find_agent_family_exact(base_name: str) -> AgentFamily | None:
         generation = tuple(
             sorted(generation_members, key=lambda member: member.timestamp)
         )
-        return AgentFamily(base_name=base_name, root=root, members=generation)
+        return AgentSession(base_name=base_name, root=root, members=generation)
 
     # Legacy recovery path: if only child artifacts remain, treat all known
-    # family members as one generation and let timestamp ordering choose the
-    # newest completed handoff member.
-    return AgentFamily(
+    # agent-session members as one generation and let timestamp ordering choose
+    # the newest completed handoff member.
+    return AgentSession(
         base_name=base_name,
         root=None,
         members=tuple(sorted(members, key=lambda member: member.timestamp)),
     )
 
 
-def _is_canonical_agent_family_member_name(name: str) -> bool:
+def _is_canonical_agent_session_member_name(name: str) -> bool:
     try:
         return parse_agent_session_name(name).kind is AgentSessionNameKind.MEMBER
     except (RuntimeError, ValueError):
         return False
 
 
-def is_agent_family_complete(base_name: str) -> bool | None:
-    """Return whether the newest *base_name* family generation completed."""
-    family = find_agent_family(base_name)
-    if family is None:
+def is_agent_session_complete(base_name: str) -> bool | None:
+    """Return whether the newest *base_name* agent-session generation completed."""
+    agent_session = find_agent_session(base_name)
+    if agent_session is None:
         return None
-    if not family.members:
+    if not agent_session.members:
         return False
-    return all(is_success_outcome(member.outcome) for member in family.members)
+    return all(is_success_outcome(member.outcome) for member in agent_session.members)
 
 
-def most_recent_completed_family_member(base_name: str) -> NamedAgent | None:
-    """Return the newest successful member of the newest *base_name* family."""
-    family = find_agent_family(base_name)
-    if family is None:
+def most_recent_completed_agent_session_member(base_name: str) -> NamedAgent | None:
+    """Return the newest successful member of the newest *base_name* session."""
+    agent_session = find_agent_session(base_name)
+    if agent_session is None:
         return None
 
     completed = [
-        member for member in family.members if is_success_outcome(member.outcome)
+        member for member in agent_session.members if is_success_outcome(member.outcome)
     ]
     if not completed:
         return None

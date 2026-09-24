@@ -12,7 +12,7 @@ from sase.plan_chain import agent_session_role_value
 
 def fork_wait_dependency(name: str) -> dict[str, str]:
     """Return a stable wait identity for one explicit ``#fork`` target."""
-    from sase.agent.names import find_agent_clan, find_agent_family, find_named_agent
+    from sase.agent.names import find_agent_clan, find_agent_session, find_named_agent
 
     clan = find_agent_clan(name)
     if clan is not None:
@@ -22,16 +22,16 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
             "generation": clan.generation,
         }
 
-    family = find_agent_family(name)
-    if family is not None:
+    agent_session = find_agent_session(name)
+    if agent_session is not None:
         dependency = {
             "kind": "session",
-            "name": family.base_name,
+            "name": agent_session.base_name,
         }
-        if family.root is not None:
-            dependency.update(_artifact_identity(family.root.artifacts_dir))
-        elif family.timestamp:
-            dependency["timestamp"] = family.timestamp
+        if agent_session.root is not None:
+            dependency.update(_artifact_identity(agent_session.root.artifacts_dir))
+        elif agent_session.timestamp:
+            dependency["timestamp"] = agent_session.timestamp
         return dependency
 
     agent = find_named_agent(name)
