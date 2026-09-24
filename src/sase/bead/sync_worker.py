@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.sdd._push_race import is_retryable_push_race
 from sase.sdd._repository_health import default_git_runner as _git
 from sase.sdd._repository_types import SddIntegrationOutcome
 
@@ -560,12 +561,7 @@ def _is_non_fast_forward_rejection(
     result: subprocess.CompletedProcess[str],
 ) -> bool:
     """Return whether a push lost a race and can succeed after integration."""
-    output = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
-    return (
-        "non-fast-forward" in output
-        or "fetch first" in output
-        or ("[rejected]" in output and "failed to push some refs" in output)
-    )
+    return is_retryable_push_race(result.stdout, result.stderr)
 
 
 def _git_runner_for_deadline(

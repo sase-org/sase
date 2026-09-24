@@ -17,6 +17,7 @@ from sase.agents_sync.models import ProjectTarget
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
+from sase.sdd._push_race import is_retryable_push_race
 
 DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 10.0
 AGENTS_SYNC_AUTO_COMMIT_TYPE = "agents_sync"
@@ -326,7 +327,7 @@ def bounded_agents_lock(path: Path, timeout_seconds: float) -> Iterator[bool]:
 
 def is_agents_non_fast_forward(result: subprocess.CompletedProcess[str]) -> bool:
     text = f"{result.stdout}\n{result.stderr}".lower()
-    return "non-fast-forward" in text or "fetch first" in text or "[rejected]" in text
+    return "[rejected]" in text or is_retryable_push_race(result.stdout, result.stderr)
 
 
 def agents_git_error(

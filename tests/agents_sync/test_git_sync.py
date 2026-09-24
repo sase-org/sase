@@ -261,6 +261,32 @@ def test_non_fast_forward_recomputes_and_retries_push_once(
     assert not (sidecar / ".git" / "rebase-apply").exists()
 
 
+@pytest.mark.parametrize(
+    ("stderr", "expected"),
+    [
+        (" ! [rejected] main -> main (non-fast-forward)", True),
+        (" ! [rejected] main -> main (fetch first)", True),
+        (" ! [rejected] main -> main (already exists)", True),
+        (
+            " ! [remote rejected] main -> main (cannot lock ref 'refs/heads/main': "
+            "is at bd35e42 but expected b4b58c9)\n"
+            "error: failed to push some refs",
+            True,
+        ),
+        (" ! [remote rejected] main -> main (pre-receive hook declined)", False),
+        ("fatal: unable to access 'https://github.com/x/y.git/'", False),
+    ],
+)
+def test_is_agents_non_fast_forward_classifies_push_races(
+    stderr: str, expected: bool
+) -> None:
+    result = subprocess.CompletedProcess(
+        ["git", "push"], returncode=1, stdout="", stderr=stderr
+    )
+
+    assert git_sync.is_agents_non_fast_forward(result) is expected
+
+
 def test_bounded_lock_contention_is_a_benign_skip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

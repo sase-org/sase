@@ -215,6 +215,115 @@ def test_managed_sync_worker_reintegrates_after_push_race(tmp_path, monkeypatch)
     assert events.count("push_rejected_retry") == 1
 
 
+def _push_outcome_worker(tmp_path, monkeypatch, pushes):
+    """Run the managed worker with scripted ``git push`` results."""
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    integrations: list[int] = []
+
+    def integrate(*_args, **_kwargs):
+        integrations.append(len(integrations) + 1)
+        return SddIntegrationOutcome(
+            SddIntegrationStatus.SUCCESS,
+            integrated=bool(len(integrations) > 1),
+            upstream_present=True,
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository",
+        integrate,
+    )
+    remaining = iter(pushes)
+    push_calls: list[int] = []
+
+    def fake_git(repo_root, args, *, op, network=False):
+        del op, network
+        if args[:2] == ["rev-parse", "--git-dir"]:
+            return subprocess.CompletedProcess(
+                ["git", *args],
+                returncode=0,
+                stdout=str(repo_root / ".git") + "\n",
+                stderr="",
+            )
+        if args == ["push"]:
+            push_calls.append(len(push_calls) + 1)
+            return next(remaining)
+        raise AssertionError(f"unexpected git call: {args}")
+
+    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+    log_path = tmp_path / "sync.log"
+    outcome = run_managed_sync_worker(tmp_path, beads_dir, log_path=log_path)
+    events = [
+        json.loads(line)["event"]
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+    ]
+    return outcome, integrations, push_calls, events, log_path
+
+
+def test_managed_sync_worker_reintegrates_after_remote_ref_lock_race(
+    tmp_path, monkeypatch
+):
+    outcome, integrations, push_calls, events, log_path = _push_outcome_worker(
+        tmp_path,
+        monkeypatch,
+        [
+            subprocess.CompletedProcess(
+                ["git", "push"],
+                returncode=1,
+                stdout="",
+                stderr=(
+                    "To github.com:sase-org/sase--beads.git\n"
+                    " ! [remote rejected] main -> main (cannot lock ref "
+                    "'refs/heads/main': is at bd35e42 but expected b4b58c9)\n"
+                    "error: failed to push some refs to "
+                    "'github.com:sase-org/sase--beads.git'"
+                ),
+            ),
+            subprocess.CompletedProcess(
+                ["git", "push"], returncode=0, stdout="", stderr=""
+            ),
+        ],
+    )
+
+    assert outcome.pushed is True
+    assert outcome.error is None
+    assert integrations == [1, 2]
+    assert push_calls == [1, 2]
+    assert events.count("push_rejected_retry") == 1
+    completed = [
+        json.loads(line)
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if json.loads(line)["event"] == "completed"
+    ]
+    assert completed[0]["push_attempts"] == 2
+
+
+def test_managed_sync_worker_does_not_retry_remote_hook_decline(tmp_path, monkeypatch):
+    outcome, integrations, push_calls, events, _log_path = _push_outcome_worker(
+        tmp_path,
+        monkeypatch,
+        [
+            subprocess.CompletedProcess(
+                ["git", "push"],
+                returncode=1,
+                stdout="",
+                stderr=(
+                    " ! [remote rejected] main -> main (pre-receive hook declined)\n"
+                    "error: failed to push some refs"
+                ),
+            ),
+        ],
+    )
+
+    assert outcome.pushed is False
+    assert outcome.error is not None
+    assert outcome.error.startswith("git push failed")
+    assert integrations == [1]
+    assert push_calls == [1]
+    assert "push_rejected_retry" not in events
+
+
 def test_managed_sync_worker_bounds_rejected_push_retries(tmp_path, monkeypatch):
     init_git_repo(tmp_path)
     beads_dir = tmp_path / "beads"

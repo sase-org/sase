@@ -152,3 +152,21 @@ def test_bead_sync_diagnostics_stays_quiet_after_healthy_same_clone_sync(
     )
 
     assert bead_sync_diagnostics(beads_dir) == []
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        "git push failed: ! [remote rejected] main -> main (cannot lock ref "
+        "'refs/heads/main': is at bd35e42 but expected b4b58c9)",
+        "git push rejected after 3 attempts: ! [remote rejected] main -> main "
+        "(cannot lock ref 'refs/heads/main')\nerror: failed to push some refs",
+        "error: failed to push some refs to 'github.com:sase-org/sase--beads.git'",
+    ],
+)
+def test_classify_sync_error_reports_ref_lock_race_as_push_rejection(
+    error: str,
+) -> None:
+    from sase.bead._sync_logs import classify_sync_error
+
+    assert classify_sync_error(error) == "push rejection"

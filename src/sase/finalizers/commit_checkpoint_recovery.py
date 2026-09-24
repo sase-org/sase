@@ -33,7 +33,7 @@ from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 from sase.workflows.commit.checkpoint import checkpoint_load
 from sase.workflows.commit.runtime_tags import (
-    RUN_OWNED_COMMIT_TAG_KEYS,
+    parse_trailing_commit_tag_values,
     update_trailing_commit_tags,
 )
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
@@ -400,10 +400,13 @@ def _normalized_commit_message(value: object) -> str:
     if not isinstance(value, str):
         return ""
     text = value.replace("\r\n", "\n").replace("\r", "\n")
+    # The footer is host-owned (TYPE, AGENT, BEAD, PLAN, and any future stamp),
+    # so identity is the agent-authored subject and body only. Removing every
+    # parsed key also drops the ``[n]: url`` reference lines behind linked tags.
     text = update_trailing_commit_tags(
         text,
         {},
-        remove_keys=RUN_OWNED_COMMIT_TAG_KEYS,
+        remove_keys=frozenset(parse_trailing_commit_tag_values(text)),
     )
     return "\n".join(line.rstrip() for line in text.split("\n")).strip()
 
