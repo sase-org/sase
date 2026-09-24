@@ -58,28 +58,6 @@ def _get_git_root(directory: Path) -> Path | None:
     return Path(result.stdout.strip())
 
 
-def _find_target_dirs(root: Path) -> list[Path]:
-    """Find all scripts/ and tools/ directories under root."""
-    result: list[Path] = []
-    for dirpath, dirnames, _ in os.walk(root):
-        current_dir = Path(dirpath)
-        dirnames[:] = [
-            d
-            for d in dirnames
-            if d not in _EXCLUDE_DIRS
-            and not (current_dir / d / ".git").exists()
-        ]
-        for d in list(dirnames):
-            if d in _DIR_NAMES:
-                result.append(Path(dirpath) / d)
-    return result
-
-
-def _is_python_package(directory: Path) -> bool:
-    """Check if a directory is a Python package (contains __init__.py)."""
-    return (directory / "__init__.py").exists()
-
-
 _SKIP_EXTENSIONS = frozenset({".md"})
 _EXTERNAL_REF_IGNORE_DIRS = frozenset({"sdd"})
 
@@ -106,6 +84,30 @@ def _collect_scripts(script_dir: Path) -> list[Path]:
                 continue
             scripts.append(Path(dirpath) / f)
     return scripts
+
+
+def _find_target_dirs(root: Path) -> list[Path]:
+    """Find all scripts/ and tools/ directories under root."""
+    result: list[Path] = []
+    for dirpath, dirnames, _ in os.walk(root):
+        current_dir = Path(dirpath)
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d not in _EXCLUDE_DIRS
+            and not (current_dir / d / ".git").exists()
+        ]
+        for d in list(dirnames):
+            if d in _DIR_NAMES:
+                candidate = Path(dirpath) / d
+                if _collect_scripts(candidate):
+                    result.append(candidate)
+    return result
+
+
+def _is_python_package(directory: Path) -> bool:
+    """Check if a directory is a Python package (contains __init__.py)."""
+    return (directory / "__init__.py").exists()
 
 
 def _git_grep(
@@ -215,7 +217,9 @@ def _validate(repo_root: Path, *, verbose: bool = False) -> list[_Violation]:
     git_root = _get_git_root(repo_root)
     target_dirs = _find_target_dirs(repo_root)
     placement_target_dirs = {
-        d for d in target_dirs if not _is_python_package(d)
+        d
+        for d in target_dirs
+        if not _is_python_package(d) and bool(_collect_scripts(d))
     }
     violations: list[_Violation] = []
 
