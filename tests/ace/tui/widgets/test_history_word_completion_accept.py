@@ -117,7 +117,7 @@ async def test_history_navigation_ctrl_e_accept_preserves_suffix() -> None:
         ta.load_text("revZZZ")
         ta.cursor_location = (0, len("rev"))
 
-        await pilot.press("ctrl+t", "down", "ctrl+e")
+        await pilot.press("ctrl+t", "down", "ctrl+f")
 
         assert ta.text == "revise ZZZ"
         assert ta.cursor_location == (0, len("revise"))

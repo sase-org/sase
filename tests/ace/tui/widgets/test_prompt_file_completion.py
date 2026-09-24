@@ -298,7 +298,7 @@ class TestPromptFileCompletion:
                 assert "foo.py" in names
                 assert "bar.py" in names
 
-    async def test_ctrl_e_accepts_completion_instead_of_submitting(
+    async def test_ctrl_f_accepts_completion_instead_of_submitting(
         self,
         tmp_path: Path,
         monkeypatch: MonkeyPatch,
@@ -326,7 +326,7 @@ class TestPromptFileCompletion:
                 await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 first = ta._file_completion_candidates[0].insertion
-                await pilot.press("ctrl+e")
+                await pilot.press("ctrl+f")
             assert ta.text == first
             assert ta._file_completion_active is False
             assert submitted is False
@@ -334,7 +334,7 @@ class TestPromptFileCompletion:
             await pilot.press("ctrl+g")
             assert ta._insert_g_prefix_pending is True
 
-    async def test_ctrl_e_accepts_navigated_completion_row(
+    async def test_ctrl_f_accepts_navigated_completion_row(
         self,
         tmp_path: Path,
         monkeypatch: MonkeyPatch,
@@ -365,25 +365,25 @@ class TestPromptFileCompletion:
                 selected = ta._file_completion_candidates[
                     ta._file_completion_index
                 ].insertion
-                await pilot.press("ctrl+e")
+                await pilot.press("ctrl+f")
             assert ta.text == selected
             assert ta._file_completion_active is False
             assert submitted is False
             assert ta._insert_g_prefix_pending is False
 
-    async def test_ctrl_e_moves_to_line_end_when_completion_is_closed(self) -> None:
+    async def test_ctrl_f_moves_one_character_when_completion_is_closed(self) -> None:
         app = CompletionTestApp()
         async with app.run_test() as pilot:
             ta = app.query_one(PromptTextArea)
             ta.load_text("hello world")
             ta.cursor_location = (0, 0)
-            await pilot.press("ctrl+e")
+            await pilot.press("ctrl+f")
             assert ta.text == "hello world"
-            assert ta.cursor_location == (0, len("hello world"))
+            assert ta.cursor_location == (0, 1)
             assert ta._file_completion_active is False
             assert ta._insert_g_prefix_pending is False
 
-    async def test_ctrl_e_accepts_without_jumping_to_line_end(
+    async def test_ctrl_f_accepts_without_jumping_to_line_end(
         self,
         tmp_path: Path,
         monkeypatch: MonkeyPatch,
@@ -402,12 +402,49 @@ class TestPromptFileCompletion:
                 await pilot.press("ctrl+t")
                 assert ta._file_completion_active is True
                 first = ta._file_completion_candidates[0].insertion
-                await pilot.press("ctrl+e")
+                await pilot.press("ctrl+f")
             assert ta.text.startswith(first)
             assert ta.text.endswith(" extra")
             assert ta.cursor_location == (0, len(first))
             assert ta.cursor_location[1] < len(ta.text)
             assert ta._file_completion_active is False
+            assert ta._insert_g_prefix_pending is False
+
+    async def test_ctrl_e_moves_to_line_end_while_completion_remains_open(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        (tmp_path / "aaa.txt").write_text("x", encoding="utf-8")
+        (tmp_path / "bbb.txt").write_text("x", encoding="utf-8")
+        app = CompletionTestApp()
+        submitted = False
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            original_submit = ta.action_submit_prompt
+
+            def _track_submit() -> None:
+                nonlocal submitted
+                submitted = True
+                original_submit()
+
+            ta.action_submit_prompt = _track_submit  # type: ignore[assignment]
+            ta.load_text("~/ extra")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+                assert ta._file_completion_active is True
+                first = ta._file_completion_candidates[0].insertion
+                await pilot.press("ctrl+e")
+
+            assert ta.text == "~/ extra"
+            assert ta.cursor_location == (0, len(ta.text))
+            assert ta._file_completion_active is True
+            assert ta._file_completion_candidates[0].insertion == first
+            assert submitted is False
             assert ta._insert_g_prefix_pending is False
 
     async def test_ctrl_g_starts_prefix_while_completion_is_open(

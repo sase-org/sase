@@ -326,10 +326,11 @@ class PromptTextAreaKeyHandlingMixin(
                 event.prevent_default()
                 self._move_file_completion(-1)
                 return
-            # ``Ctrl+E`` accepts only while a menu is open so the readline
-            # end-of-line binding still fires when no menu is active. ``Ctrl+L``
-            # remains the compatibility alias for an open manual menu.
-            if event.key in ("ctrl+e", "ctrl+l"):
+            # ``Ctrl+F`` accepts only while a menu is open; otherwise its
+            # readline forward-motion binding still fires. ``Ctrl+E`` always
+            # falls through to readline end-of-line, and ``Ctrl+L`` remains
+            # the compatibility alias for an open manual menu.
+            if event.key in ("ctrl+f", "ctrl+l"):
                 event.stop()
                 event.prevent_default()
                 self._accept_file_completion()

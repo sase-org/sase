@@ -158,6 +158,10 @@ async def test_soft_wrap_preserves_single_logical_line_editing_contract() -> Non
         await page.press("ctrl+e")
         assert page.cursor == (0, len(_LONG_VALUE))
 
+        await page.press("ctrl+a")
+        await page.press("ctrl+f")
+        assert page.cursor == (0, 1)
+
         await page.press("escape", "0")
         assert page.cursor == (0, 0)
         await page.press("$")

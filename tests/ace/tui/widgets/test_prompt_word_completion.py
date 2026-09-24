@@ -362,7 +362,7 @@ async def test_prompt_word_menu_ctrl_e_accept_preserves_suffix() -> None:
         ta.load_text("alpha alpine alpZZZ")
         ta.cursor_location = (0, ta.text.rindex("alpZZZ") + len("alp"))
 
-        await pilot.press("ctrl+t", "down", "ctrl+e")
+        await pilot.press("ctrl+t", "down", "ctrl+f")
 
         assert ta.text == "alpha alpine alpha ZZZ"
         assert ta.cursor_location == (0, len("alpha alpine alpha"))
@@ -397,7 +397,7 @@ async def test_ctrl_t_narrowing_preserves_suffix_without_space_until_commit() ->
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == ["bob-mac-camera", "bob-mac-capture"]
 
-        await pilot.press("ctrl+e")
+        await pilot.press("ctrl+f")
 
         assert ta.text == "bob-mac-capture bob-mac-camera bob-mac-camera ZZZ"
         assert ta.cursor_location == (
@@ -441,7 +441,7 @@ async def test_prompt_word_navigation_and_ctrl_e_acceptance() -> None:
         ta.load_text("alpha alpine al")
         ta.cursor_location = (0, len(ta.text))
 
-        await pilot.press("ctrl+t", "down", "ctrl+e")
+        await pilot.press("ctrl+t", "down", "ctrl+f")
 
         assert ta.text == "alpha alpine alpha"
         assert ta._file_completion_active is False
@@ -532,7 +532,7 @@ async def test_stale_short_candidate_cannot_be_accepted() -> None:
         assert ta._file_completion_candidates[0].insertion == "alpha"
 
         app.settings = PromptCompletionSettings(word_min_length=6)
-        await pilot.press("ctrl+e")
+        await pilot.press("ctrl+f")
 
         assert ta.text == "alpine alpha alp"
         assert ta._file_completion_active is False

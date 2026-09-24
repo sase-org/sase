@@ -95,6 +95,12 @@ async def test_readline_ctrl_a_ctrl_e_line_hops_in_insert() -> None:
         assert page.cursor == (0, 5)
 
 
+async def test_readline_ctrl_f_moves_one_character_forward_in_insert() -> None:
+    async with VimEditorPage("hello", cursor=(0, 2), mode="insert") as page:
+        await page.press("ctrl+f")
+        assert page.cursor == (0, 3)
+
+
 async def test_normal_mode_join_keeps_bullet_marker_in_generic_host() -> None:
     async with VimEditorPage("- one\n- two", cursor=(0, 0)) as page:
         await page.press("J")

@@ -6143,7 +6143,8 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                                       |
 | `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                                   |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                                  |
-| `Ctrl+E`                     | With a completion menu open, accept the highlighted candidate; otherwise move to end of line (jumps to next line end if already at end)                   |
+| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                                            |
+| `Ctrl+F`                     | With a completion menu open, accept the highlighted candidate; otherwise move one character forward                                                       |
 | `Ctrl+G`                     | Start the prompt-local prefix (`g` or `Ctrl+G` again opens `$EDITOR`)                                                                                     |
 | `Ctrl+G Enter`               | Submit only the selected pane                                                                                                                             |
 | `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                                   |
@@ -6608,7 +6609,7 @@ token under the cursor:
   open it with the first / last keyword highlighted. Accepting a keyword immediately
   opens its value menu when the input has one (bool values, agent targets, or paths).
   `Enter` always submits the prompt as typed, even on an automatically opened first-row
-  menu; `Ctrl+E` accepts the highlighted row without requiring `Ctrl+N`, `Down`, or
+  menu; `Ctrl+F` accepts the highlighted row without requiring `Ctrl+N`, `Down`, or
   another ownership signal. Agent inputs such as `#fork` offer agent, proc/monitor,
   family, clan, and `@tribe` targets with kind and member context. A proc or monitor row
   inserts its exact durable proc ID while displaying the friendly, reusable shell name.
@@ -6647,7 +6648,7 @@ token under the cursor:
   that provider. The second equals sign switches an open alias shortcut panel into the
   explicit model panel. If the token already has a following ASCII space, sase's TUI
   reuses it and leaves the cursor after that space; before a tab it inserts no extra
-  space; before a newline or prompt end it appends one ASCII space. `Ctrl+E` and
+  space; before a newline or prompt end it appends one ASCII space. `Ctrl+F` and
   `Ctrl+L` accept the highlighted row; `Enter` submits the prompt as typed and dismisses
   the menu instead of expanding the shortcut. No matches dismiss the panel and leave the
   literal query text intact, so unknown equals tokens submit as ordinary prose. These
@@ -6703,7 +6704,7 @@ token under the cursor:
   `ref_sync_gesture` to fall back to a literal second colon with no sync ever triggered.
   Payload acceptance replaces the complete `@kind:payload` context, including when the
   cursor is in the middle of it. On an un-narrowed bare-`@` menu, `Enter` submits the
-  unexpanded `@` and dismisses the menu; `Ctrl+E` accepts the highlighted row even when
+  unexpanded `@` and dismisses the menu; `Ctrl+F` accepts the highlighted row even when
   it is the untouched first row, and `Ctrl+L` remains a manual-menu alias. Payload rows
   are rendered path-first — the source badge, then the reference path with dim
   directories and a bright basename, then a dim `title · detail · age` tail truncated to
@@ -6827,7 +6828,7 @@ token under the cursor:
 | `Ctrl+T`            | Start completion or insert shared prefix                             |
 | `Ctrl+N` / `Down`   | Next candidate                                                       |
 | `Ctrl+P` / `Up`     | Previous candidate                                                   |
-| `Ctrl+E` / `Ctrl+L` | Accept highlighted candidate (`Ctrl+L` is the retained alias)        |
+| `Ctrl+F` / `Ctrl+L` | Accept highlighted candidate (`Ctrl+L` is the retained alias)        |
 | `Enter`             | Submit the prompt as typed; never accept a candidate                 |
 | `Ctrl+D`            | Delete a highlighted recent file, saved placeholder, or history word |
 | `Escape`            | Cancel completion                                                    |
@@ -7184,7 +7185,7 @@ automatic menu ever auto-accepts a single match. The grouped `@` reference menu 
 from a bare `@`, narrowed artifact/file queries such as `@pl` or `@src/`, and
 syntactically valid `@kind:` payload contexts; disable automatic opening with
 `ace.prompt_completion.auto_artifact_menu: false`. On an un-narrowed bare-`@` menu,
-`Enter` submits the prompt as typed and `Ctrl+E` accepts the highlighted first row. The
+`Enter` submits the prompt as typed and `Ctrl+F` accepts the highlighted first row. The
 project/Patch picker opens when `+` completes a token at the start of the prompt or
 directly after whitespace, `{`, or `|`, and is also available through manual `Ctrl+T`.
 The VCS ref-root menu opens when `:` or `(` completes a known workflow ref trigger such

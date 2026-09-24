@@ -125,7 +125,7 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
         assert ta._try_auto_xprompt_arg_completion() is True
-        await pilot.press("ctrl+e")
+        await pilot.press("ctrl+f")
         assert submitted == 1
         assert ta.text == "#review(path="
         assert ta._insert_g_prefix_pending is False
@@ -133,7 +133,7 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
         assert ta._try_auto_xprompt_arg_completion() is True
-        await pilot.press("e", "ctrl+e")
+        await pilot.press("e", "ctrl+f")
 
     assert submitted == 1
     assert ta.text == "#review(enabled="
@@ -142,7 +142,7 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
     assert ta._xprompt_arg_completion_trigger == "manual"
 
 
-async def test_keyword_arg_selection_movement_hands_ctrl_e_to_menu() -> None:
+async def test_keyword_arg_selection_movement_hands_ctrl_f_to_menu() -> None:
     app = CompletionTestApp()
     submitted = 0
     async with app.run_test() as pilot:
@@ -158,7 +158,7 @@ async def test_keyword_arg_selection_movement_hands_ctrl_e_to_menu() -> None:
         ta.cursor_location = (0, len("#review("))
         assert ta._try_auto_xprompt_arg_completion() is True
 
-        await pilot.press("ctrl+n", "ctrl+e", "ctrl+e")
+        await pilot.press("ctrl+n", "ctrl+f", "ctrl+f")
 
     assert submitted == 0
     assert ta.text == "#review(enabled=true"
