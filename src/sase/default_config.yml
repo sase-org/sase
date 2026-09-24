@@ -618,10 +618,8 @@ ace:
       scroll_detail_up: "ctrl+u"
       scroll_prompt_down: "ctrl+f"
       scroll_prompt_up: "ctrl+b"
-      next_agent_metadata_section: "ctrl+j"
-      prev_agent_metadata_section: "ctrl+k"
-      next_agent_file: "ctrl+n"
-      prev_agent_file: "ctrl+p"
+      next_chop_run: "ctrl+n"
+      prev_chop_run: "ctrl+p"
       next_deck_card: "ctrl+j"
       prev_deck_card: "ctrl+k"
       next_deck: "ctrl+n"
@@ -749,14 +747,13 @@ ace:
       # ,H opens the same collapse hints from any row (selected tribe) and,
       # from a selected panel, across every tribe panel.
       # l expands or enters a selected panel; L hints the selected tribe's
-      # folds, and one key toggles one fold. Z zooms agent detail or
+      # folds, and one key toggles one fold. Z toggles in-place deck zoom or
       # isolates/restores a selected panel. Other tabs retain their fold
       # behavior.)
       hooks_or_collapse: "h"
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"
       expand_all_folds: "L"
-      choose_agent_view: "p"
       # Marking
       toggle_mark: "m"
       clear_marks: "u"

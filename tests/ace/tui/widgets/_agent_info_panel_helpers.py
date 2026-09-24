@@ -12,7 +12,6 @@ from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 DEFAULT_GROUPING_KEY = key_display_name(
     load_keymap_registry({}).app.choose_agent_grouping
 )
-DEFAULT_VIEW_KEY = key_display_name(load_keymap_registry({}).app.choose_agent_view)
 
 
 def collect_text(panel: AgentInfoPanel) -> str:
@@ -77,7 +76,6 @@ def stable_state_kwargs(**overrides: object) -> dict[str, object]:
         "starting": 0,
         "countdown": 5,
         "interval": 5,
-        "view_mode": "",
         "grouping_mode": "by project",
         "search_query": "",
         "runner_queue_count": 0,

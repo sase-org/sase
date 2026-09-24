@@ -7,10 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from textual.app import App, ComposeResult
-from textual.containers import VerticalScroll
-
 from sase.ace.tui._app_action_availability import check_app_action
-from sase.ace.tui.widgets._agent_detail_panels import DetailLayoutMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.agent_header_panel import AgentHeaderPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -181,17 +178,19 @@ async def test_secondary_only_keeps_header_visible_and_toggleable() -> None:
 
 
 async def test_search_overlay_keeps_header_visible() -> None:
+    from sase.ace.tui.widgets.decks.model import DeckId
+
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await _show_agent(detail, _solo(), pilot)
-        prompt_scroll = detail.query_one("#agent-prompt-scroll", VerticalScroll)
-        search_scroll = detail.query_one("#agent-search-scroll", VerticalScroll)
-        detail._show_active_metadata_scroll(search_scroll)  # noqa: SLF001
+        detail.show_deck(0, DeckId.TOOLS)
+        await pilot.pause()
         panel = _header_panel(detail)
         assert not panel.has_class("hidden")
         assert detail.header_toggle_available() is True
-        detail._show_active_metadata_scroll(prompt_scroll)  # noqa: SLF001
+        detail.show_deck(0, DeckId.MAIN)
+        await pilot.pause()
         assert not panel.has_class("hidden")
 
 
@@ -243,11 +242,6 @@ async def test_empty_state_hides_header() -> None:
         panel = _header_panel(detail)
         assert panel.has_class("hidden")
         assert detail.header_toggle_available() is False
-        detail._has_file_content = True  # noqa: SLF001
-        detail.set_detail_layout(DetailLayoutMode.SECONDARY_ONLY)
-        detail.show_empty()
-        await pilot.pause()
-        assert panel.has_class("hidden")
 
 
 def _fallback(_action: str, _parameters: tuple[object, ...]) -> bool:

@@ -9,12 +9,13 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.zoom_panel_rendering import renderable_to_text
+from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_associated_plan import (
     BeadSummary,
     _AgentPlanEnrichment,
 )
+from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     should_refresh_detail_header_summary,
@@ -494,8 +495,9 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
             lambda _state: "Phase plan" in (renderable_to_text(panel.content) or "")
         )
         await page.press("Z")
-        await page.expect_modal("ZoomPanelModal")
-        panel = page.app.screen.query_one("#zoom-metadata-panel", AgentPromptPanel)
+        await page.expect_no_modal()
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        assert detail.is_deck_zoomed is True
         await wait_for_state(
             page,
             lambda: (

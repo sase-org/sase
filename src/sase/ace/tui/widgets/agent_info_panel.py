@@ -41,8 +41,6 @@ class AgentInfoPanel(Static):
         self._runner_queue_count = 0
         self._countdown = 0
         self._interval = 0
-        self._view_mode: str = ""
-        self._view_picker_available: bool = False
         self._nodes_collapsed: bool = False
         self._nodes_zoomed: bool = False
         self._grouping_mode: str = ""
@@ -156,17 +154,6 @@ class AgentInfoPanel(Static):
         self._runner_queue_count = queue_count
         self._update_display()
 
-    def update_view_mode(self, mode: str) -> None:
-        """Update the panel view mode indicator.
-
-        Args:
-            mode: The current view mode label (``"file"``, ``"tools"``,
-                ``"none"``, or ``"summary"``). Empty string hides the
-                indicator.
-        """
-        self._view_mode = mode
-        self._update_display()
-
     def update_grouping_mode(self, label: str) -> None:
         """Update the active grouping-strategy label.
 
@@ -226,10 +213,8 @@ class AgentInfoPanel(Static):
         proc_shell_count: int = 0,
         countdown: int,
         interval: int,
-        view_mode: str,
         grouping_mode: str,
         search_query: str,
-        view_picker_available: bool = False,
         search_query_seeded: bool = False,
         search_query_rich: Text | None = None,
         search_query_match_count: tuple[int, int] | None = None,
@@ -258,8 +243,6 @@ class AgentInfoPanel(Static):
             sase_agent_count,
             proc_shell_count,
             runner_queue_count,
-            view_mode,
-            view_picker_available,
             grouping_mode,
             search_query,
             search_query_seeded,
@@ -282,8 +265,6 @@ class AgentInfoPanel(Static):
             self._sase_agent_count,
             self._proc_shell_count,
             self._runner_queue_count,
-            self._view_mode,
-            self._view_picker_available,
             self._grouping_mode,
             self._search_query,
             self._search_query_seeded,
@@ -315,8 +296,6 @@ class AgentInfoPanel(Static):
             self._sase_agent_count,
             self._proc_shell_count,
             self._runner_queue_count,
-            self._view_mode,
-            self._view_picker_available,
             self._grouping_mode,
             self._search_query,
             self._search_query_seeded,
@@ -360,13 +339,6 @@ class AgentInfoPanel(Static):
             self.update(text, layout=False)
         except TypeError:
             self.update(text)
-
-    _VIEW_MODE_STYLES: dict[str, str] = {
-        "file": "bold green",
-        "tools": "bold #87D7FF",
-        "none": "dim italic",
-        "summary": "bold #FFD75F",
-    }
 
     _GROUPING_MODE_STYLES: dict[str, str] = {
         "by project": "bold #5FAFFF",
@@ -478,15 +450,6 @@ class AgentInfoPanel(Static):
                 "  filtered on recent history; loading full history...",
                 style="dim italic",
             )
-        if self._view_mode:
-            self._append_separator(text)
-            text.append("view: ", style="dim")
-            style = self._VIEW_MODE_STYLES.get(self._view_mode, "dim")
-            text.append(self._view_mode, style=style)
-            view_key = self._registry.app.choose_agent_view
-            if self._view_picker_available and not is_unbound_key(view_key):
-                key = key_display_name(view_key)
-                text.append(f" ({key})", style="dim")
         if self._nodes_collapsed:
             self._append_separator(text)
             if self._nodes_zoomed:

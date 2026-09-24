@@ -21,12 +21,9 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.llm_calls import cache as tools_cache_module
 from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_module
-from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
+from sase.ace.tui.widgets.decks.model import DeckId
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
-from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
-    choose_agent_secondary_larger_layout,
-)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     mark_current_visual_frame_converged,
@@ -344,7 +341,8 @@ async def _wait_for_llm_calls_loaded(page: AcePage) -> None:
     def _check(state: dict[str, Any]) -> bool:
         del state
         try:
-            panel = page.app.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            panel = detail.deck_area.panel(0).tools_view
         except Exception:
             return False
         entries = panel._last_entries
@@ -358,38 +356,19 @@ async def _open_llm_calls_panel(page: AcePage) -> AgentLLMCallsPanel:
     await page.press("shift+tab")
     await page.expect_state("tab", "agents")
     await page.expect_state("agent_count", 1)
-    # Wait for the debounced detail panel update so AgentDetail._current_agent
-    # is populated before the view picker applies LLM Calls.
+    # Wait for the debounced detail panel update before selecting Tools.
     await wait_for_visual_idle(page)
-    await page.press("p")
-    await page.expect_modal("AgentViewModal")
-    await page.pause()
-    await page.press("t")
-    await page.expect_no_modal()
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    detail.show_deck(0, DeckId.TOOLS)
     await wait_for_state(
         page,
-        lambda: detail.panel_mode is DetailPanelMode.LLM_CALLS,
-        description="LLM Calls panel mode",
+        lambda: detail.deck_area.panel(0).deck is DeckId.TOOLS,
+        description="Tools deck selected",
     )
     await _wait_for_llm_calls_loaded(page)
-    # LLM Calls stays hidden under the metadata-only default until a visible
-    # secondary layout is chosen explicitly, which the picker only allows once
-    # the detail panel knows the LLM Calls content exists.
-    await wait_for_state(
-        page,
-        lambda: bool(detail._has_llm_calls_content),
-        description="llm calls content available",
-    )
-    await choose_agent_secondary_larger_layout(page)
-    await wait_for_state(
-        page,
-        lambda: detail.is_llm_calls_visible(),
-        description="LLM Calls panel visible",
-    )
     page.app._refresh_agent_footer_bindings_only()
     await wait_for_visual_idle(page)
-    return page.app.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
+    return detail.deck_area.panel(0).tools_view
 
 
 async def test_agents_llm_calls_panel_populated_png_snapshot(

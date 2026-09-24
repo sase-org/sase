@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..util.trace import tui_trace
-from ._agent_detail_panels import AgentDetailPanelMixin, DetailPanelMode
 from .file_panel._messages import LinkedDeltasRefreshed
 from .llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
 
@@ -17,14 +16,13 @@ if TYPE_CHECKING:
     )
 
 
-class AgentDetailStateMixin(AgentDetailPanelMixin):
+class AgentDetailStateMixin:
     """Mixin for AgentDetail secondary states and visibility queries.
 
     Covers the empty and tribe-summary documents, file-panel navigation,
     LLM Calls detail levels, visibility predicates, editor export, and the
-    attempt-history view mode. Mixed into ``AgentDetail``. Extends
-    ``AgentDetailPanelMixin`` so layout helpers and ``update_display``
-    resolve through inheritance instead of stubs.
+    attempt-history view mode. Deck panels own their rendering and
+    availability state.
     """
 
     # ------------------------------------------------------------------
@@ -36,14 +34,6 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
     _current_attempt_number: int | None
     _attempt_view_mode: str
     _agent_detail_generation: int
-    _has_file_content: bool
-    _has_llm_calls_content: bool
-    _file_count: int
-    _file_index: int
-    _file_visible_lines: int
-    _file_total_lines: int
-    _file_content_capped: bool
-    _panel_mode: DetailPanelMode
 
     @property
     def metadata_identity(self) -> object | None:
@@ -172,14 +162,6 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         except Exception:
             return None
 
-    def is_info_mode(self) -> bool:
-        """Check if the panel is in info-only mode.
-
-        Returns:
-            True if metadata is the effective visible detail panel.
-        """
-        return not self.is_file_visible() and not self.is_llm_calls_visible()
-
     def is_file_visible(self) -> bool:
         """Check if the file panel is currently visible.
 
@@ -201,7 +183,7 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         return False
 
     def is_metadata_visible(self) -> bool:
-        """Return whether either metadata scroll variant is visible."""
+        """Return whether the Main deck is visible."""
         try:
             from .decks.model import DeckId as _DeckId
 

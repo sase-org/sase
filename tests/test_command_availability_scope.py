@@ -43,19 +43,19 @@ def test_follow_artifact_link_palette_requires_edges() -> None:
     assert is_command_available(spec, CommandContext(tab="agents"))
 
 
-def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None:
+def test_job_runs_are_services_only_and_forward_jump_is_all_tab() -> None:
     catalog = _catalog_by_id()
-    next_section = catalog["app.next_agent_metadata_section"]
-    prev_section = catalog["app.prev_agent_metadata_section"]
+    next_run = catalog["app.next_chop_run"]
+    prev_run = catalog["app.prev_chop_run"]
     jump_forward = catalog["app.jump_to_entry_forward"]
 
-    for section_command in (next_section, prev_section):
-        assert is_command_available(section_command, CommandContext(tab="agents"))
+    for run_command in (next_run, prev_run):
+        assert is_command_available(run_command, CommandContext(tab="services"))
         assert not is_command_available(
-            section_command,
+            run_command,
             CommandContext(tab="changespecs"),  # legacy tab id
         )
-        assert not is_command_available(section_command, CommandContext(tab="axe"))
+        assert not is_command_available(run_command, CommandContext(tab="agents"))
 
     load_more = catalog["app.artifacts_load_more"]
     unload = catalog["app.artifacts_unload"]

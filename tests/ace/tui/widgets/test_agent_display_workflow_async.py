@@ -17,7 +17,6 @@ from textual.worker import Worker, WorkerState
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.agent_detail import AgentDetail
-from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.prompt_panel._workflow_display import (
     WorkflowDisplayMixin,
     _build_workflow_detail_renderable,
@@ -333,64 +332,27 @@ class _FakePromptPanel:
         self.workflow_render_calls.append({"agent": agent, **kwargs})
 
 
-class _FakeFilePanel:
-    def __init__(self) -> None:
-        self.update_display_calls: list[Agent] = []
-        self.file_lists: list[list[str]] = []
-
-    def update_display(self, agent: Agent, **_kwargs: Any) -> None:
-        self.update_display_calls.append(agent)
-
-    def set_file_list(self, files: list[str], *, start_index: int = 0) -> None:
-        self.file_lists.append(files)
-
-
-class _FakeToolsPanel:
-    def __init__(self) -> None:
-        self.update_display_calls: list[Agent] = []
-
-    def update_display(self, agent: Agent, **_kwargs: Any) -> None:
-        self.update_display_calls.append(agent)
-
-
-class _FakeScroll:
-    def add_class(self, _class_name: str) -> None:
-        pass
-
-
 def test_agent_detail_starts_background_workflow_render_in_debounced_path() -> None:
     prompt_panel = _FakePromptPanel()
-    file_panel = _FakeFilePanel()
-    llm_calls_panel = _FakeToolsPanel()
-    scroll = _FakeScroll()
     detail = AgentDetail.__new__(AgentDetail)
     detail._current_agent = None
     detail._current_attempt_number = None
     detail._attempt_view_mode = "merged"
     detail._agent_detail_generation = 10
-    detail._panel_mode = DetailPanelMode.AUTO
-    detail._update_panel_indicators = lambda: None  # type: ignore[method-assign]
-    expanded: list[bool] = []
-    detail._expand_prompt_only = lambda: expanded.append(True)  # type: ignore[method-assign]
 
-    def query_one(_selector: str, cls: object) -> object:
-        if cls.__name__ == "AgentPromptPanel":
+    def query_one(selector: str, _cls: object) -> object:
+        if selector == "#agent-prompt-panel":
             return prompt_panel
-        if cls.__name__ == "AgentFilePanel":
-            return file_panel
-        if cls.__name__ == "AgentLLMCallsPanel":
-            return llm_calls_panel
-        return scroll
+        raise AssertionError(f"unexpected selector: {selector}")
 
     detail.query_one = query_one  # type: ignore[method-assign]
 
     agent = _make_agent()
-    detail._update_display_impl(agent)
+    detail._current_agent = agent
+    detail._update_main_source(agent, None)  # noqa: SLF001
 
     assert prompt_panel.update_display_calls == []
     assert len(prompt_panel.workflow_render_calls) == 1
-    assert llm_calls_panel.update_display_calls == []
-    assert expanded == [True]
 
     call = prompt_panel.workflow_render_calls[0]
     is_current = call["is_current"]

@@ -157,8 +157,8 @@ def test_artifacts_paging_chords_resolve_only_on_artifacts() -> None:
     assert _available_for_key(artifacts, "ctrl+k") == ("artifacts_unload",)
     assert _available_for_key(patches, "ctrl+j") == ("artifacts_load_more",)
     assert _available_for_key(patches, "ctrl+k") == ("artifacts_unload",)
-    assert _available_for_key(agents, "ctrl+j") == ("next_agent_metadata_section",)
-    assert _available_for_key(agents, "ctrl+k") == ("prev_agent_metadata_section",)
+    assert _available_for_key(agents, "ctrl+j") == ("next_deck_card",)
+    assert _available_for_key(agents, "ctrl+k") == ("prev_deck_card",)
 
 
 def test_toggle_relation_panel_is_artifacts_only() -> None:

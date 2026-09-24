@@ -23,10 +23,8 @@ class AppKeymaps:
     scroll_detail_up: str
     scroll_prompt_down: str
     scroll_prompt_up: str
-    next_agent_metadata_section: str
-    prev_agent_metadata_section: str
-    next_agent_file: str
-    prev_agent_file: str
+    next_chop_run: str
+    prev_chop_run: str
     next_deck_card: str
     prev_deck_card: str
     next_deck: str
@@ -141,7 +139,6 @@ class AppKeymaps:
     hooks_or_collapse_all: str
     expand_or_layout: str
     expand_all_folds: str
-    choose_agent_view: str
     # Marking
     toggle_mark: str
     clear_marks: str

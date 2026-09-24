@@ -81,11 +81,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ("0-9", "Jump numbered member/neighbor"),
                 ("Esc", "Enter selected panel / cancel member jump"),
                 (
-                    f"{d(a.next_agent_metadata_section)} / "
-                    f"{d(a.prev_agent_metadata_section)}",
-                    "Cycle metadata through top",
-                ),
-                (
                     f"{d(a.next_deck_card)} / {d(a.prev_deck_card)}",
                     "Cycle deck card (decks)",
                 ),
@@ -116,10 +111,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
                     "Scroll file panel down / up",
-                ),
-                (
-                    f"{d(a.scroll_prompt_down)} / {d(a.scroll_prompt_up)}",
-                    "Scroll prompt panel down / up",
                 ),
                 *link_follow_row,
             ],
@@ -165,13 +156,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.view_files), "Hint files/tool calls/commits/clans"),
                 (d(a.view_agent_metadata), "Page metadata, prompts & reply"),
                 ("p (commit view)", "Toggle attached local plan / commit"),
-                (d(a.choose_agent_view), "Choose file/LLM Calls/detail layout"),
-                (f"{d(a.choose_agent_view)}[", "Metadata only"),
-                (f"{d(a.choose_agent_view)}]", "File/LLM Calls only"),
-                (f"{d(a.choose_agent_view)}p", "Next split layout"),
-                (f"{d(a.choose_agent_view)}P", "Previous split layout"),
-                (d(a.zoom_panel), "Zoom agent/tribe detail"),
-                (f"{d(a.zoom_panel)}", "Zoom deck panel in place (decks)"),
+                (d(a.zoom_panel), "Zoom deck panel in place"),
                 (
                     d(a.isolate_panels),
                     "Only panel ⇄ restore panels",
@@ -181,10 +166,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_agent_header), "Expand / collapse agent header"),
                 (d(a.toggle_agent_jump_panel), "Expand / collapse jump panel"),
                 (d(a.toggle_hide_non_run_agents), "Show/hide non-run agents"),
-                (
-                    f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
-                    "Next / prev commit/link/file",
-                ),
                 (d(a.start_tmux_mode), "Tmux chooser (mark many)"),
                 (d(a.edit_agent_tribe), "Edit tribe (or marked set)"),
                 (d(a.open_tmux), "Tmux in primary workspace"),

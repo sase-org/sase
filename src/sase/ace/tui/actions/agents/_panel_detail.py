@@ -137,18 +137,14 @@ class AgentPanelDetailMixin:
         ):
             subprocess.run([editor, *chat_paths], check=False)
 
-    def action_next_agent_file(self) -> None:
-        """Cycle to the next file / next (older) chop run."""
-        if self.current_tab == "agents":
-            return
-        elif self.current_tab == "services":
+    def action_next_chop_run(self) -> None:
+        """Select the next (older) Services job run."""
+        if self.current_tab == "services":
             self._axe_step_chop_run(direction=1)  # type: ignore[attr-defined]
 
-    def action_prev_agent_file(self) -> None:
-        """Cycle to the previous file / previous (newer) chop run."""
-        if self.current_tab == "agents":
-            return
-        elif self.current_tab == "services":
+    def action_prev_chop_run(self) -> None:
+        """Select the previous (newer) Services job run."""
+        if self.current_tab == "services":
             self._axe_step_chop_run(direction=-1)  # type: ignore[attr-defined]
 
     def action_next_deck_card(self) -> None:
@@ -186,12 +182,6 @@ class AgentPanelDetailMixin:
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         agent_detail.cycle_focused_deck(-1)
-
-    def action_toggle_layout(self) -> None:
-        """Retired app action; open the Agent view picker instead."""
-        chooser = getattr(self, "action_choose_agent_view", None)
-        if callable(chooser):
-            chooser()
 
     def action_zoom_panel(self) -> None:
         """Zoom the active agent or tribe detail panel."""
@@ -324,15 +314,3 @@ class AgentPanelDetailMixin:
         toggle = getattr(agent_detail, "toggle_jump_panel_expanded", None)
         if callable(toggle):
             toggle()
-
-    def action_toggle_thinking(self) -> None:
-        """Retired app action; open the Agent view picker instead."""
-        chooser = getattr(self, "action_choose_agent_view", None)
-        if callable(chooser):
-            chooser()
-
-    def action_toggle_thinking_reverse(self) -> None:
-        """Retired app action; open the Agent view picker instead."""
-        chooser = getattr(self, "action_choose_agent_view", None)
-        if callable(chooser):
-            chooser()

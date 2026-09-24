@@ -56,6 +56,9 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset(
         "toggle_layout",
         "toggle_thinking",
         "toggle_thinking_reverse",
+        "choose_agent_view",
+        "next_agent_metadata_section",
+        "prev_agent_metadata_section",
     }
 )
 
@@ -82,6 +85,8 @@ LEGACY_APP_KEY_ALIASES: dict[str, str] = {
     "stitches_copy_sha": "artifacts_copy_reference",  # legacy compatibility alias (sase-m6.9 keymap unification)
     "beads_copy_bug": "artifacts_copy_reference",  # legacy compatibility alias (sase-m6.9 keymap unification)
     "files_copy_reference": "artifacts_copy_reference",  # legacy compatibility alias (sase-m6.9 keymap unification)
+    "next_agent_file": "next_chop_run",  # sase-17d legacy Agents detail deletion
+    "prev_agent_file": "prev_chop_run",  # sase-17d legacy Agents detail deletion
 }
 
 
@@ -125,20 +130,15 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # forward/reverse grouping cycles.
         frozenset({"choose_agent_grouping", "cycle_grouping_mode"}),
         frozenset({"choose_agent_grouping", "cycle_grouping_mode_reverse"}),
-        # Tab-disjoint: Agents view picker vs Artifacts project scope.
-        frozenset({"choose_agent_view", "pick_artifacts_project"}),
         # Tab-disjoint: Agents vs Services panel jumps share J/K.
         frozenset({"focus_next_agent_panel", "focus_next_service_panel"}),
         frozenset({"focus_prev_agent_panel", "focus_prev_service_panel"}),
         # Tab-disjoint: Agents deck keys vs Artifacts paging share Ctrl+J/K.
         frozenset({"next_deck_card", "artifacts_load_more"}),
         frozenset({"prev_deck_card", "artifacts_unload"}),
-        # The legacy ids are now dead Agents bindings awaiting retirement in
-        # `legacy-ui-deletion`.
-        frozenset({"next_deck_card", "next_agent_metadata_section"}),
-        frozenset({"prev_deck_card", "prev_agent_metadata_section"}),
-        frozenset({"next_deck", "next_agent_file"}),
-        frozenset({"prev_deck", "prev_agent_file"}),
+        # Tab-disjoint: Agents deck selection vs Services job-run selection.
+        frozenset({"next_deck", "next_chop_run"}),
+        frozenset({"prev_deck", "prev_chop_run"}),
         # Tab-disjoint: Agents vs Services/Artifacts.
         frozenset({"toggle_deck_focus", "scroll_prompt_down"}),
         # Tab-disjoint: Agents deck ratio vs Artifacts split cycling.

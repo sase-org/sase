@@ -64,9 +64,8 @@ class PagerBodyMixin:
     def action_next_section(self: Any) -> None:
         """Scroll so the next section's rule sits at row 0 (design doc D5).
 
-        This is a scroll, not a screen swap - deliberately unlike
-        ``ZoomPanelModal``'s ``ctrl+n``, because the pager is one continuous
-        document rather than independently-loaded panels.
+        This is a scroll, not a screen swap, because the pager is one
+        continuous document rather than independently-loaded panels.
         """
         self._goto_section(1)
 

@@ -71,18 +71,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),
     Binding("ctrl+f", "toggle_deck_focus", "Focus Other Deck Panel", show=False),
     Binding("ctrl+b", "scroll_prompt_up", "Scroll Prompt Up", show=False),
-    Binding(
-        "ctrl+j",
-        "next_agent_metadata_section",
-        "Next Metadata Section",
-        show=False,
-    ),
-    Binding(
-        "ctrl+k",
-        "prev_agent_metadata_section",
-        "Previous Metadata Section",
-        show=False,
-    ),
     Binding("ctrl+j", "artifacts_load_more", "Load More", show=False),
     Binding("ctrl+k", "artifacts_unload", "Unload", show=False),
     # Tab switching
@@ -227,7 +215,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("x", "kill_agent", "Kill", show=False),
     Binding("l", "expand_or_layout", "Expand / Enter Panel", show=False),
     Binding("L", "expand_all_folds", "Toggle Tribe Fold / Expand All", show=False),
-    Binding("p", "choose_agent_view", "Agent View", show=False),
     Binding("a", "open_artifact_files", "Artifact Files", show=False),
     Binding("D", "toggle_attempt_view", "Attempt View", show=False),
     Binding("d", "toggle_agent_header", "Toggle Agent Header", show=False),
@@ -271,9 +258,9 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("x", "toggle_hide_submitted", "Toggle Submitted", show=False),
     # Leader mode (for quick shortcuts)
     Binding("comma", "start_leader_mode", "Leader", show=False),
-    # File cycling (agents tab)
-    Binding("ctrl+n", "next_agent_file", "Next File", show=False),
-    Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
+    # Job-run cycling (Services tab)
+    Binding("ctrl+n", "next_chop_run", "Next Job Run", show=False),
+    Binding("ctrl+p", "prev_chop_run", "Previous Job Run", show=False),
     # Deck navigation (agents tab)
     Binding("ctrl+j", "next_deck_card", "Next Deck Card", show=False),
     Binding("ctrl+k", "prev_deck_card", "Previous Deck Card", show=False),

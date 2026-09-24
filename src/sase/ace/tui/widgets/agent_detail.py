@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from textual.app import ComposeResult
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Static
 
@@ -15,11 +15,6 @@ from ._agent_detail_decks import AgentDetailDeckMixin
 from ._agent_detail_display import AgentDetailDisplayMixin
 from ._agent_detail_helpers import agent_prompt_panel_type
 from ._agent_detail_jump import AgentDetailJumpMixin
-from ._agent_detail_panels import (
-    AgentDetailPanelMixin,
-    DetailLayoutMode,
-    DetailPanelMode,
-)
 from ._agent_detail_state import AgentDetailStateMixin
 
 if TYPE_CHECKING:
@@ -41,7 +36,6 @@ class AgentDetail(
     AgentDetailDeckMixin,
     AgentDetailDisplayMixin,
     AgentDetailStateMixin,
-    AgentDetailPanelMixin,
     AgentDetailJumpMixin,
     Static,
 ):
@@ -50,17 +44,8 @@ class AgentDetail(
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the agent detail view."""
         super().__init__(**kwargs)
-        self._detail_layout_mode: DetailLayoutMode = DetailLayoutMode.METADATA_ONLY
-        self._panel_mode: DetailPanelMode = DetailPanelMode.AUTO
         self._current_agent: Agent | None = None
         self._current_tribe_identity: TribePanelIdentity | None = None
-        self._has_file_content: bool = False
-        self._has_llm_calls_content: bool = False
-        self._file_count: int = 0
-        self._file_index: int = 0
-        self._file_visible_lines: int = 0
-        self._file_total_lines: int = 0
-        self._file_content_capped: bool = False
         self._attempt_view_mode: str = "merged"
         self._current_attempt_number: int | None = None
         # Two-phase update guard. ``update_display_immediate`` and
@@ -81,14 +66,8 @@ class AgentDetail(
         AgentPromptPanel = agent_prompt_panel_type()
         with Vertical(id="agent-detail-layout"):
             yield AgentHeaderPanel(id="agent-header-panel", classes="hidden")
-            with Vertical(id="agent-deck-source-host"):
-                with VerticalScroll(id="agent-prompt-scroll"):
-                    yield AgentPromptPanel(
-                        id="agent-prompt-panel", classes="-deck-source"
-                    )
-                with VerticalScroll(id="agent-search-scroll", classes="hidden"):
-                    yield Static(id="agent-search-panel")
-                yield Static(id="agent-search-command", classes="hidden")
+            with Vertical(id="agent-deck-main-source"):
+                yield AgentPromptPanel(id="agent-prompt-panel", classes="-deck-source")
             yield DeckArea(id="agent-deck-area", classes="-single")
             yield AgentJumpPanel(id="agent-jump-panel", classes="hidden")
 
@@ -200,13 +179,6 @@ class AgentDetail(
                 pass
         self._reset_jump_panel_scroll()
 
-    def _active_metadata_scroll(self) -> VerticalScroll:
-        """Return the search overlay or the native prompt scroll."""
-        search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
-        if not search_scroll.has_class("hidden"):
-            return search_scroll
-        return self.query_one("#agent-prompt-scroll", VerticalScroll)
-
     def _publish_metadata_identity_change(self, previous: object | None) -> None:
         current = self.metadata_identity
         if current != previous:
@@ -218,7 +190,3 @@ class AgentDetail(
                     pass
             self._reset_jump_panel_scroll()
             self.post_message(AgentMetadataIdentityChanged(current))
-
-    def toggle_layout(self) -> None:
-        """Cycle to the next saved detail layout."""
-        super().toggle_layout()

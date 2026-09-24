@@ -121,7 +121,6 @@ def resolve_slow_tool_overflow_keys(
         for attr, name in (
             ("next_deck", "next_deck"),
             ("prev_deck", "prev_deck"),
-            ("choose_agent_view", "view_picker"),
         ):
             try:
                 out[name] = _display(str(getattr(app_keys, attr)))

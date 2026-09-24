@@ -11,7 +11,6 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from ._agent_info_panel_helpers import (
     DEFAULT_GROUPING_KEY,
     DEFAULT_REFRESH_KEY,
-    DEFAULT_VIEW_KEY,
     AgentInfoPanel,
     collect_rich_text,
     collect_text,
@@ -29,8 +28,6 @@ def _representative_panel() -> AgentInfoPanel:
                 running=4,
                 runner_queue_count=1,
                 read=3,
-                view_mode="none",
-                view_picker_available=True,
                 grouping_mode="by status",
                 countdown=7,
                 interval=10,
@@ -43,16 +40,13 @@ def test_full_row_uses_dot_grammar_without_bracketed_badges() -> None:
     panel = _representative_panel()
     plain = collect_text(panel)
 
-    assert f"view: none ({DEFAULT_VIEW_KEY})" in plain
     assert f"group: by status ({DEFAULT_GROUPING_KEY})" in plain
     assert f"refresh: 7s ({DEFAULT_REFRESH_KEY})" in plain
     assert (
-        f"view: none ({DEFAULT_VIEW_KEY}) · group: by status ({DEFAULT_GROUPING_KEY}) "
-        f"· refresh: 7s ({DEFAULT_REFRESH_KEY})"
+        f"group: by status ({DEFAULT_GROUPING_KEY}) · refresh: 7s ({DEFAULT_REFRESH_KEY})"
     ) in plain
     assert "   " not in plain
     assert "[group" not in plain
-    assert "[view" not in plain
     assert plain.count("[") == 1
     assert plain.count("]") == 1
 
@@ -70,7 +64,7 @@ def test_separators_are_dim() -> None:
         found += 1
         assert style_at_plain_index(text, at + 1) == "dim"
         index = at + 3
-    assert found >= 3
+    assert found >= 2
 
 
 def test_filter_and_partial_history_join_with_dot_and_keep_click_span() -> None:

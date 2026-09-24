@@ -11,7 +11,7 @@ import pytest
 
 from sase.ace.testing import DEFAULT_PATCHES, AcePage, make_patch
 from sase.ace.tui.widgets import ArtifactsView
-from tests.ace.tui._agents_zoom_panel_helpers import _make_agent
+from tests.ace.tui.widgets._agent_display_helpers import make_agent as _make_agent
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,

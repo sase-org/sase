@@ -5,13 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
-from textual.containers import VerticalScroll
 from textual.events import Key
-from textual.widgets import Static
 
 from ...keymaps import key_display_name, split_key_alternatives
 from ...widgets.agent_detail import AgentDetail, AgentMetadataIdentityChanged
-from ...widgets.renderable_text import renderable_to_text
 from ...widgets.vim_search_controller import (
     SearchViewport,
     VimSearchController,
@@ -23,15 +20,6 @@ if TYPE_CHECKING:
     from textual.widget import Widget
 
     from ...widgets.prompt_panel import AgentPromptPanel
-
-
-_METADATA_LAYOUT_CLASSES = ("expanded", "layout-priority", "layout-equal")
-
-
-def _agent_prompt_panel_type() -> type[AgentPromptPanel]:
-    from ...widgets.prompt_panel import AgentPromptPanel
-
-    return AgentPromptPanel
 
 
 class AgentMetadataSearchMixin:
@@ -234,83 +222,51 @@ class AgentMetadataSearchMixin:
 
     # VimSearchController host protocol ---------------------------------
 
-    def _deck_search_active(self) -> bool:
-        try:
-            self._agent_detail()
-            return True
-        except Exception:
-            return False
-
     def vim_search_corpus(self) -> str:
         """Capture the visible metadata renderable once per search."""
         if self._agent_metadata_search.is_active:
             return self._agent_metadata_search.corpus
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is None:
-                return ""
-            try:
-                self._agent_metadata_search_panel = panel
-            except Exception:
-                pass
-            try:
-                from ...widgets.decks.search_corpus import deck_search_corpus
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is None:
+            return ""
+        self._agent_metadata_search_panel = panel
+        try:
+            from ...widgets.decks.search_corpus import deck_search_corpus
 
-                return deck_search_corpus(panel)
-            except Exception:
-                return ""
-        panel = self._agent_detail().query_one(
-            "#agent-prompt-panel",
-            _agent_prompt_panel_type(),
-        )
-        return renderable_to_text(getattr(panel, "content", None)) or ""
+            return deck_search_corpus(panel)
+        except Exception:
+            return ""
 
     def vim_search_origin_scroll(self) -> tuple[int, int]:
         """Return the native or already-active overlay scroll position."""
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                try:
-                    if self._agent_metadata_search.is_active:
-                        scroll = panel.search_scroll()
-                    else:
-                        scroll = panel.active_scroll()
-                    return (int(scroll.scroll_x), int(scroll.scroll_y))
-                except Exception:
-                    pass
-        selector = (
-            "#agent-search-scroll"
-            if self._agent_metadata_search.is_active
-            else "#agent-prompt-scroll"
-        )
-        scroll = self._agent_detail().query_one(selector, VerticalScroll)
-        return (int(scroll.scroll_x), int(scroll.scroll_y))
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is None:
+            return (0, 0)
+        try:
+            scroll = (
+                panel.search_scroll()
+                if self._agent_metadata_search.is_active
+                else panel.active_scroll()
+            )
+            return (int(scroll.scroll_x), int(scroll.scroll_y))
+        except Exception:
+            return (0, 0)
 
     def vim_search_overlay_viewport(self) -> SearchViewport:
         """Return inline overlay scroll position and visible dimensions."""
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                try:
-                    scroll = panel.search_scroll()
-                    return SearchViewport(
-                        scroll_x=int(scroll.scroll_x),
-                        scroll_y=int(scroll.scroll_y),
-                        width=scroll.scrollable_content_region.width,
-                        height=scroll.scrollable_content_region.height,
-                    )
-                except Exception:
-                    pass
-        scroll = self._agent_detail().query_one(
-            "#agent-search-scroll",
-            VerticalScroll,
-        )
-        return SearchViewport(
-            scroll_x=int(scroll.scroll_x),
-            scroll_y=int(scroll.scroll_y),
-            width=scroll.scrollable_content_region.width,
-            height=scroll.scrollable_content_region.height,
-        )
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is None:
+            return SearchViewport(scroll_x=0, scroll_y=0, width=0, height=0)
+        try:
+            scroll = panel.search_scroll()
+            return SearchViewport(
+                scroll_x=int(scroll.scroll_x),
+                scroll_y=int(scroll.scroll_y),
+                width=scroll.scrollable_content_region.width,
+                height=scroll.scrollable_content_region.height,
+            )
+        except Exception:
+            return SearchViewport(scroll_x=0, scroll_y=0, width=0, height=0)
 
     def vim_search_started(self) -> None:
         """Remember the frozen document identity and prior keyboard focus."""
@@ -335,73 +291,36 @@ class AgentMetadataSearchMixin:
         self._agent_metadata_search_panel = None
 
     def vim_search_show_overlay(self) -> None:
-        """Swap the native metadata scroll for its frozen search overlay."""
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                try:
-                    self._agent_metadata_search_panel = panel
-                except Exception:
-                    pass
-                panel.show_search_overlay()
-                return
-        detail = self._agent_detail()
-        native = detail.query_one("#agent-prompt-scroll", VerticalScroll)
-        search_scroll = detail.query_one("#agent-search-scroll", VerticalScroll)
-        for class_name in _METADATA_LAYOUT_CLASSES:
-            search_scroll.set_class(native.has_class(class_name), class_name)
-        search_scroll.border_subtitle = native.border_subtitle
-        native.add_class("hidden")
-        search_scroll.remove_class("hidden")
-        detail.query_one("#agent-search-command", Static).remove_class("hidden")
-        detail._apply_detail_layout_classes()
+        """Show the frozen search overlay for the focused deck panel."""
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is not None:
+            self._agent_metadata_search_panel = panel
+            panel.show_search_overlay()
 
     def vim_search_hide_overlay(self) -> None:
-        """Reveal the refreshed native panel and clear the frozen widgets."""
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                panel.hide_search_overlay()
-                return
-        detail = self._agent_detail()
-        native = detail.query_one("#agent-prompt-scroll", VerticalScroll)
-        search_scroll = detail.query_one("#agent-search-scroll", VerticalScroll)
-        for class_name in _METADATA_LAYOUT_CLASSES:
-            native.set_class(search_scroll.has_class(class_name), class_name)
-        native.border_subtitle = search_scroll.border_subtitle
-        detail.query_one("#agent-search-panel", Static).update("")
-        search_scroll.add_class("hidden")
-        native.remove_class("hidden")
-        command = detail.query_one("#agent-search-command", Static)
-        command.update("")
-        command.border_title = ""
-        command.border_subtitle = ""
-        command.add_class("hidden")
-        detail._apply_detail_layout_classes()
+        """Reveal the focused deck panel and clear its frozen overlay."""
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is not None:
+            panel.hide_search_overlay()
 
     def vim_search_paint_overlay(self, content: Text) -> None:
         """Render highlighted corpus text in the frozen inline overlay."""
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                try:
-                    panel.search_panel().update(content)
-                    return
-                except Exception:
-                    pass
-        self._agent_detail().query_one("#agent-search-panel", Static).update(content)
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is not None:
+            try:
+                panel.search_panel().update(content)
+            except Exception:
+                pass
 
     def vim_search_command_width(self) -> int:
         """Return usable width inside the inline search command border."""
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                try:
-                    return max(0, int(panel.search_command().size.width) - 4)
-                except Exception:
-                    pass
-        command = self._agent_detail().query_one("#agent-search-command", Static)
-        return max(0, int(command.size.width) - 4)
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is None:
+            return 0
+        try:
+            return max(0, int(panel.search_command().size.width) - 4)
+        except Exception:
+            return 0
 
     def vim_search_paint_command_line(
         self,
@@ -409,22 +328,13 @@ class AgentMetadataSearchMixin:
         mode: VimSearchMode,
     ) -> None:
         """Render the command line and mode-specific inline help."""
-        command: Static
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                try:
-                    command = panel.search_command()
-                except Exception:
-                    command = self._agent_detail().query_one(
-                        "#agent-search-command", Static
-                    )
-            else:
-                command = self._agent_detail().query_one(
-                    "#agent-search-command", Static
-                )
-        else:
-            command = self._agent_detail().query_one("#agent-search-command", Static)
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is None:
+            return
+        try:
+            command = panel.search_command()
+        except Exception:
+            return
         command.border_title = "search"
         reverse_key = key_display_name(
             self._keymap_registry.app.search_reverse  # type: ignore[attr-defined]
@@ -445,43 +355,25 @@ class AgentMetadataSearchMixin:
 
     def vim_search_scroll_overlay(self, *, x: int, y: int) -> None:
         """Scroll the frozen metadata overlay immediately."""
-        if self._deck_search_active():
-            panel = self._agent_metadata_search_deck_panel()
-            if panel is not None:
-                try:
-                    panel.search_scroll().scroll_to(
-                        x=x, y=y, animate=False, immediate=True
-                    )
-                    return
-                except Exception:
-                    pass
-        self._agent_detail().query_one(
-            "#agent-search-scroll",
-            VerticalScroll,
-        ).scroll_to(x=x, y=y, animate=False, immediate=True)
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is not None:
+            try:
+                panel.search_scroll().scroll_to(x=x, y=y, animate=False, immediate=True)
+            except Exception:
+                pass
 
     def vim_search_restore_scroll(self, *, x: int, y: int) -> None:
         """Restore the native metadata scroll after the overlay disappears."""
 
         def restore() -> None:
-            if self._deck_search_active():
+            panel = self._agent_metadata_search_deck_panel()
+            if panel is not None:
                 try:
-                    from ._deck_search_host import deck_search_panel
-
-                    panel = deck_search_panel(self)
-                    if panel is not None:
-                        panel.active_scroll().scroll_to(
-                            x=x, y=y, animate=False, immediate=True
-                        )
-                        self._restore_agent_metadata_search_focus()
-                        return
+                    panel.active_scroll().scroll_to(
+                        x=x, y=y, animate=False, immediate=True
+                    )
                 except Exception:
                     pass
-            scroll = self._agent_detail().query_one(
-                "#agent-prompt-scroll",
-                VerticalScroll,
-            )
-            scroll.scroll_to(x=x, y=y, animate=False, immediate=True)
             self._restore_agent_metadata_search_focus()
 
         self.call_after_refresh(restore)  # type: ignore[attr-defined]
@@ -503,21 +395,12 @@ class AgentMetadataSearchMixin:
         self.notify(message, severity="information")  # type: ignore[attr-defined]
 
     def _focus_agent_metadata_search_overlay(self) -> None:
-        if self._deck_search_active():
+        panel = self._agent_metadata_search_deck_panel()
+        if panel is not None:
             try:
-                panel = self._agent_metadata_search_deck_panel()
-                if panel is not None:
-                    panel.search_scroll().focus()
-                    return
+                panel.search_scroll().focus()
             except Exception:
                 pass
-        try:
-            self._agent_detail().query_one(
-                "#agent-search-scroll",
-                VerticalScroll,
-            ).focus()
-        except Exception:
-            pass
 
     def _restore_agent_metadata_search_focus(self) -> None:
         widget = self._agent_metadata_search_restore_focus

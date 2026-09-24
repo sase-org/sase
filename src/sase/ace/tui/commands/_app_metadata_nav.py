@@ -6,9 +6,9 @@ Split out of ``_app_metadata.py`` to keep each module under the 500-line cap.
 from __future__ import annotations
 
 from sase.ace.tui.commands._tabs import (
-    AGENTS_AXE,
     AGENTS_ONLY,
     ALL_TABS,
+    AXE_ONLY,
     CL_ONLY,
 )
 from sase.ace.tui.commands.types import AppCommandMeta
@@ -23,22 +23,8 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("scroll_detail_up", "Scroll detail up", "Navigation", ALL_TABS, ()),
     ("scroll_prompt_down", "Scroll prompt down", "Navigation", AGENTS_ONLY, ()),
     ("scroll_prompt_up", "Scroll prompt up", "Navigation", AGENTS_ONLY, ()),
-    (
-        "next_agent_metadata_section",
-        "Next metadata section",
-        "Navigation",
-        AGENTS_ONLY,
-        ("section", "heading", "ctrl+j"),
-    ),
-    (
-        "prev_agent_metadata_section",
-        "Previous metadata section",
-        "Navigation",
-        AGENTS_ONLY,
-        ("section", "heading", "ctrl+k"),
-    ),
-    ("next_agent_file", "Next file / job run", "Navigation", AGENTS_AXE, ()),
-    ("prev_agent_file", "Previous file / job run", "Navigation", AGENTS_AXE, ()),
+    ("next_chop_run", "Next job run", "Navigation", AXE_ONLY, ()),
+    ("prev_chop_run", "Previous job run", "Navigation", AXE_ONLY, ()),
     (
         "next_deck_card",
         "Next deck card",

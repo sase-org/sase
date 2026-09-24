@@ -10,7 +10,6 @@ from rich.segment import Segment
 from rich.style import Style as RichStyle
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.binding import Binding
 from textual.css.styles import RulesMap
 from textual.strip import Strip
 from textual.style import Style
@@ -45,30 +44,12 @@ def fold_anchor_section(label: str, body: str, *, section_id: str) -> Text:
 
 class _MetadataNavigationApp(BasicNavigationMixin, App[None]):
     current_tab = "agents"
-    BINDINGS = [
-        Binding("ctrl+j", "next_agent_metadata_section", "Next section"),
-        Binding("ctrl+k", "prev_agent_metadata_section", "Previous section"),
-        Binding("ctrl+d", "scroll_detail_down", "Detail down"),
-        Binding("ctrl+u", "scroll_detail_up", "Detail up"),
-        Binding("ctrl+f", "scroll_prompt_down", "Prompt down"),
-        Binding("ctrl+b", "scroll_prompt_up", "Prompt up"),
-        Binding("g", "scroll_to_top", "Top"),
-        Binding("G", "scroll_to_bottom", "Bottom"),
-    ]
     CSS = """
     Screen, #agent-detail-panel, #agent-detail-layout {
         height: 100%;
     }
-    #agent-prompt-scroll {
+    #agent-deck-area {
         height: 100%;
-        padding: 1 2;
-        overflow-y: auto;
-    }
-    #agent-file-scroll, #agent-llm-calls-scroll {
-        display: none;
-    }
-    #agent-prompt-panel {
-        height: auto;
     }
     """
 

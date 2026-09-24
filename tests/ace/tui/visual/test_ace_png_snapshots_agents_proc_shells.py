@@ -139,11 +139,12 @@ async def test_agents_proc_shell_detail_png_snapshot(
         assert rendered.index("COMMAND") < rendered.index("PROC DETAILS")
         assert "just check" in rendered
 
-        # Zoom the summary panel so the golden shows the whole proc-shell
-        # detail composition instead of the collapsed side strip.
+        # Zoom the focused deck in place so the golden shows the complete
+        # proc-shell detail composition.
         await page.press("Z")
-        await page.expect_modal("ZoomPanelModal")
+        await page.expect_no_modal()
         await wait_for_visual_idle(page)
+        assert detail.is_deck_zoomed is True
         assert_page_svg_contains(page, "PROC SHELL")
 
         ace_png_visual.assert_page_png(

@@ -295,19 +295,19 @@ def test_both_overrides_duplicate_revert_both() -> None:
     assert reg.app.prev_patch == "k"  # default
 
 
-def test_jump_forward_and_metadata_section_remain_independently_configurable() -> None:
+def test_jump_forward_and_job_run_remain_independently_configurable() -> None:
     reg = load_keymap_registry(
         {
             "keymaps": {
                 "app": {
-                    "prev_agent_metadata_section": "ctrl+x",
+                    "prev_chop_run": "ctrl+x",
                     "jump_to_entry_forward": "ctrl+y",
                 }
             }
         }
     )
 
-    assert reg.app.prev_agent_metadata_section == "ctrl+x"
+    assert reg.app.prev_chop_run == "ctrl+x"
     assert reg.app.jump_to_entry_forward == "ctrl+y"
 
 

@@ -15,9 +15,6 @@ from .agent_cleanup_modal import AgentCleanupPanelState as AgentCleanupPanelStat
 from .agent_cleanup_modal import AgentCleanupResult as AgentCleanupResult
 from .agent_cleanup_modal import AgentCleanupTribeModal as AgentCleanupTribeModal
 from .agent_cleanup_modal import AgentCleanupTribeResult as AgentCleanupTribeResult
-from .agent_view_modal import AgentViewChoice as AgentViewChoice
-from .agent_view_modal import AgentViewModal as AgentViewModal
-from .agent_view_modal import AgentViewResult as AgentViewResult
 from .agent_name_modal import AgentNameModal as AgentNameModal
 from .agent_run_log_modal import AgentRunLogModal as AgentRunLogModal
 from .agent_tribe_modal import AgentTribeModal as AgentTribeModal
@@ -312,9 +309,6 @@ from .xprompt_select_modal import XPromptSelection as XPromptSelection
 from .xprompt_write_conflict_modal import (
     XPromptWriteConflictModal as XPromptWriteConflictModal,
 )
-from .zoom_panel_modal import ZoomPanelModal as ZoomPanelModal
-from .zoom_panel_modal import ZoomPanelSeed as ZoomPanelSeed
-from .zoom_panel_modal import ZoomPanelTarget as ZoomPanelTarget
 from .axe_entry_editor_modal import axe_entry_schema as axe_entry_schema
 from .agent_workspace_tmux_modal import (
     build_agent_workspace_tmux_choices as build_agent_workspace_tmux_choices,

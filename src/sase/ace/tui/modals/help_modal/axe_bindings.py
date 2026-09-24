@@ -45,7 +45,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
-                    f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
+                    f"{d(a.next_chop_run)} / {d(a.prev_chop_run)}",
                     "Next / previous job run",
                 ),
                 (d(a.scroll_to_top), "Scroll to top"),

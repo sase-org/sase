@@ -19,7 +19,6 @@ from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.nav_gate import NavigationGate
-from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import AgentHintRender
 
@@ -120,39 +119,18 @@ class _GenerationPromptPanel:
         return AgentHintRender(file_hints={}, tool_call_reports={})
 
 
-class _SecondaryPanel:
-    def update_display(self, *_args: Any, **_kwargs: Any) -> None:
-        return
-
-
-class _Scroll:
-    def add_class(self, _name: str) -> None:
-        return
-
-
 def _detail_with_generation_context() -> tuple[AgentDetail, _GenerationPromptPanel]:
     detail = AgentDetail.__new__(AgentDetail)
     detail._current_agent = None
     detail._current_attempt_number = None
     detail._attempt_view_mode = "merged"
     detail._agent_detail_generation = 7
-    detail._panel_mode = DetailPanelMode.AUTO
-    detail._has_file_content = False
-    detail._has_llm_calls_content = False
-    detail._update_panel_indicators = lambda: None  # type: ignore[method-assign]
     prompt_panel = _GenerationPromptPanel(detail)
-    file_panel = _SecondaryPanel()
-    llm_calls_panel = _SecondaryPanel()
-    scroll = _Scroll()
 
     def query_one(selector: str, _type: object) -> object:
         if selector == "#agent-prompt-panel":
             return prompt_panel
-        if selector == "#agent-file-panel":
-            return file_panel
-        if selector == "#agent-llm-calls-panel":
-            return llm_calls_panel
-        return scroll
+        raise AssertionError(f"unexpected selector: {selector}")
 
     detail.query_one = query_one  # type: ignore[method-assign]
     return detail, prompt_panel
@@ -389,7 +367,8 @@ def test_generation_token_increments_per_phase() -> None:
 def test_hint_render_advances_generation_and_rejects_prior_render_context() -> None:
     detail, prompt_panel = _detail_with_generation_context()
     agent = _make_agent("agent_0")
-    detail._update_display_impl(agent)
+    detail._current_agent = agent
+    detail._update_main_source(agent, None)  # noqa: SLF001
     is_current = prompt_panel.render_context["is_current"]
 
     assert is_current(agent.identity, 7, "merged", None)

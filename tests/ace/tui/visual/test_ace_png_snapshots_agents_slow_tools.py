@@ -325,12 +325,6 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             lambda: _slow_tool_section_ready(panel),
             description="active slow-tool section",
         )
-        detail = page.query_one_widget("#agent-detail-panel", AgentDetail)
-        await wait_for_state(
-            page,
-            lambda: detail._has_llm_calls_content and _rendered_llm_calls_footer(page),
-            description="llm calls footer",
-        )
         await _settle_slow_tool_snapshot(page, panel)
 
         assert page.app.panel_fold_level is FoldLevel.COLLAPSED

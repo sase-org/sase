@@ -10,7 +10,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
 )
-from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
@@ -50,7 +49,6 @@ async def test_tribe_document_invalidates_agent_render_and_uses_prompt_scroll() 
 
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        detail._panel_mode = DetailPanelMode.INFO
         detail._current_agent = agent
         prior_generation = detail._agent_detail_generation
 

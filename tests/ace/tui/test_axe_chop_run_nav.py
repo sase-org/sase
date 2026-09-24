@@ -139,7 +139,7 @@ def test_only_active_selected_chop_runs_allow_auto_scroll() -> None:
 
 def test_ctrl_n_advances_to_next_older_run() -> None:
     app = _Fake(_make_runs("r3", "r2", "r1"))
-    app.action_next_agent_file()
+    app.action_next_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 1
     assert app._axe_resolve_chop_run_offset(("hooks", "fast")) == 1
     assert app.refresh_calls == 1
@@ -147,17 +147,17 @@ def test_ctrl_n_advances_to_next_older_run() -> None:
 
 def test_ctrl_p_walks_back_toward_newest() -> None:
     app = _Fake(_make_runs("r3", "r2", "r1"))
-    app.action_next_agent_file()
-    app.action_next_agent_file()
+    app.action_next_chop_run()
+    app.action_next_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 2
-    app.action_prev_agent_file()
+    app.action_prev_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 1
 
 
 def test_ctrl_p_at_newest_drops_pin() -> None:
     app = _Fake(_make_runs("r3", "r2", "r1"))
-    app.action_next_agent_file()
-    app.action_prev_agent_file()
+    app.action_next_chop_run()
+    app.action_prev_chop_run()
     # Stepping back to offset 0 removes the pin so future newer runs auto-track.
     assert ("hooks", "fast") not in app._axe_chop_run_offsets
 
@@ -166,7 +166,7 @@ def test_offset_clamps_to_history_length() -> None:
     app = _Fake(_make_runs("r2", "r1"))
     # Press Ctrl+N way past the end → clamps at 1, no further movement.
     for _ in range(10):
-        app.action_next_agent_file()
+        app.action_next_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 1
 
 
@@ -174,22 +174,22 @@ def test_max_history_cap_clamps_offset() -> None:
     # 12 runs on disk → cap at MAX_CHOP_RUN_HISTORY (10) → max offset is 9.
     app = _Fake(_make_runs(*[f"r{i}" for i in range(12)]))
     for _ in range(20):
-        app.action_next_agent_file()
+        app.action_next_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 9
 
 
 def test_no_runs_is_a_noop() -> None:
     app = _Fake(_make_runs())
-    app.action_next_agent_file()
-    app.action_prev_agent_file()
+    app.action_next_chop_run()
+    app.action_prev_chop_run()
     assert ("hooks", "fast") not in app._axe_chop_run_offsets
     assert app.refresh_calls == 0
 
 
 def test_single_run_is_a_noop() -> None:
     app = _Fake(_make_runs("r1"))
-    app.action_next_agent_file()
-    app.action_prev_agent_file()
+    app.action_next_chop_run()
+    app.action_prev_chop_run()
     assert ("hooks", "fast") not in app._axe_chop_run_offsets
     assert app.refresh_calls == 0
 
@@ -207,14 +207,14 @@ def test_per_chop_offset_isolation() -> None:
     app._axe_items.insert(2, ChopItem(lumberjack_name="hooks", chop_name="slow"))
 
     # Step the fast chop twice.
-    app.action_next_agent_file()
-    app.action_next_agent_file()
+    app.action_next_chop_run()
+    app.action_next_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 2
 
     # Switch selection to the slow chop and step once.
     app.current_idx = 2
     app._axe_chop_selection = ("hooks", "slow")
-    app.action_next_agent_file()
+    app.action_next_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "slow")] == 1
     # Fast chop's offset is untouched.
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 2
@@ -224,7 +224,7 @@ def test_lumberjack_row_ignores_ctrl_n() -> None:
     app = _Fake(_make_runs("r2", "r1"))
     app.current_idx = 0
     app._axe_chop_selection = None
-    app.action_next_agent_file()
+    app.action_next_chop_run()
     assert app._axe_chop_run_offsets == {}
     assert app.refresh_calls == 0
 
@@ -233,7 +233,7 @@ def test_bgcmd_row_ignores_ctrl_n() -> None:
     app = _Fake(_make_runs("r2", "r1"))
     app.current_idx = 2  # BgCmdItem
     app._axe_chop_selection = None
-    app.action_next_agent_file()
+    app.action_next_chop_run()
     assert app._axe_chop_run_offsets == {}
     assert app.refresh_calls == 0
 
@@ -262,9 +262,9 @@ def test_navigation_does_not_read_disk() -> None:
             _boom,
         ),
     ):
-        app.action_next_agent_file()
-        app.action_next_agent_file()
-        app.action_prev_agent_file()
+        app.action_next_chop_run()
+        app.action_next_chop_run()
+        app.action_prev_chop_run()
 
 
 def test_footer_surfaces_chop_run_keys_when_multiple_runs() -> None:
@@ -325,7 +325,7 @@ def test_resolve_after_history_shrinks() -> None:
     app = _Fake(_make_runs("r5", "r4", "r3", "r2", "r1"))
     # Pin to offset 4.
     for _ in range(4):
-        app.action_next_agent_file()
+        app.action_next_chop_run()
     assert app._axe_chop_run_offsets[("hooks", "fast")] == 4
 
     # History shrinks to 2 entries (pruning, config change, etc.).

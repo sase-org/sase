@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import AgentDetail
+from sase.ace.tui.widgets.decks.model import DeckId
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_state,
     wait_for_visual_idle,
@@ -16,49 +17,22 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 
 
 async def choose_agent_metadata_view(page: AcePage) -> None:
-    """Choose the metadata-only Agents detail view through the current picker.
-
-    The picker opens on `p`. Metadata-only is the `[` layout choice; `0`/`n`
-    are contained without selecting and leave the modal open.
-    """
-    await page.press("p")
-    await page.expect_modal("AgentViewModal")
-    await page.press("[")
-    await page.expect_no_modal()
-    await wait_for_visual_idle(page)
-
-
-async def choose_agent_secondary_larger_layout(page: AcePage) -> None:
-    """Choose the visible Secondary-larger layout through the current picker."""
-    await page.press("p")
-    await page.expect_modal("AgentViewModal")
-    await page.pause()
-    await page.press("2")
-    await page.expect_no_modal()
+    """Show the Main deck, which replaces the legacy metadata-only view."""
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    detail.show_deck(0, DeckId.MAIN)
     await wait_for_visual_idle(page)
 
 
 async def reveal_agent_file_view(page: AcePage) -> None:
-    """Wait for File content, then show File via the File-larger layout.
-
-    Fresh Agents detail stays metadata-only (`view: none`) until a non-metadata
-    layout is chosen. Linked/external diff goldens assert the file-panel banner,
-    which is not in the metadata summary. Choosing File mode alone leaves the
-    saved metadata-only layout in place, so this uses the same File-larger
-    path as the other Agents PNG helpers.
-    """
+    """Wait for File content, then show it in the focused deck panel."""
     await reveal_agent_file_larger_layout(page)
 
 
 async def reveal_agent_file_larger_layout(page: AcePage) -> None:
-    """Wait for File content, then choose File-larger through the picker."""
+    """Wait for File content, then select the Files deck."""
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-    await wait_for_state(
-        page,
-        lambda: bool(detail._has_file_content),
-        description="file content available",
-    )
-    await choose_agent_secondary_larger_layout(page)
+    detail.show_deck(0, DeckId.FILES)
+    await wait_for_state(page, detail.is_file_visible, description="Files deck visible")
 
 
 def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:

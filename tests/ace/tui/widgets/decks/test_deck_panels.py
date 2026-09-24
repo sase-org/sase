@@ -155,13 +155,11 @@ async def test_messages_do_not_reach_legacy_handlers() -> None:
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         detail = app.query_one("#agent-detail-panel", AgentDetail)
-        before = detail._file_count
         panel = detail.deck_area.panel(0)
         from sase.ace.tui.widgets.file_panel import FileListChanged
 
         panel.post_message(FileListChanged(file_count=3, file_index=1))
         await pilot.pause()
-        assert detail._file_count == before
         assert panel._file_count == 3
 
 
@@ -174,7 +172,6 @@ async def test_accessors_do_not_raise() -> None:
         assert detail.is_file_visible() is False
         assert detail.is_llm_calls_visible() is False
         assert detail.is_metadata_visible() is True
-        assert detail.panel_mode_label == ""
         assert detail.effective_detail_scroll_id().startswith("#agent-deck-panel-0")
         assert detail.get_editor_file_info() == (None, None, "")
         assert detail.get_current_image_path() is None
@@ -188,22 +185,10 @@ async def test_gates_with_decks_on_and_off() -> None:
     class _Spec:
         id = "app.zoom_panel"
 
-    class _ChooseSpec:
-        id = "app.choose_agent_view"
-
     app = _DetailApp()
     pin_paged(app)
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
-        detail = app.query_one("#agent-detail-panel", AgentDetail)
-        assert detail.panel_mode_label == ""
-        assert (
-            agents_available(
-                _ChooseSpec(),  # type: ignore[arg-type]
-                CommandContext(tab="agents"),
-            )
-            is False
-        )
         # node-panel-collapse-zoom restores Z as the in-place zoom.
         assert (
             agents_available(
@@ -324,13 +309,6 @@ async def test_deck_palette_availability_gates() -> None:
     for spec_id in (
         "app.scroll_prompt_down",
         "app.scroll_prompt_up",
-    ):
-        assert agents_available(_Spec(spec_id), on) is False  # type: ignore[arg-type]
-    for spec_id in (
-        "app.next_agent_metadata_section",
-        "app.prev_agent_metadata_section",
-        "app.next_agent_file",
-        "app.prev_agent_file",
     ):
         assert agents_available(_Spec(spec_id), on) is False  # type: ignore[arg-type]
 

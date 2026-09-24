@@ -16,7 +16,6 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
-    wait_for_zoom_content,
     waiting_tribe_agents,
     waiting_unknown_agents,
 )
@@ -111,7 +110,7 @@ def _single_bead_wait_agents() -> list[Agent]:
     ]
 
 
-async def _wait_for_zoom_wait_bead_statuses(page: AcePage) -> None:
+async def _wait_for_wait_bead_statuses(page: AcePage) -> None:
     def has_status_badges() -> bool:
         try:
             assert_page_svg_styled_text_contains(
@@ -125,7 +124,7 @@ async def _wait_for_zoom_wait_bead_statuses(page: AcePage) -> None:
     await wait_for_state(
         page,
         has_status_badges,
-        description="zoom wait bead status badges",
+        description="wait bead status badges",
     )
     await wait_for_visual_idle(page)
 
@@ -312,13 +311,9 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
             await wait_for_visual_idle(page)
             await choose_agent_metadata_view(page)
             await page.press("Z")
-            await page.expect_modal("ZoomPanelModal")
-            await wait_for_zoom_content(
-                page,
-                "ghost",
-                scroll_selector="#zoom-metadata-scroll",
-            )
-            await _wait_for_zoom_wait_bead_statuses(page)
+            await page.expect_no_modal()
+            await wait_for_svg_contains(page, "ghost")
+            await _wait_for_wait_bead_statuses(page)
 
             assert_page_svg_contains(page, "Wait:")
             assert_page_svg_contains(page, "coder")

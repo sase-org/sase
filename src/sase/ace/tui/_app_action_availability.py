@@ -96,14 +96,6 @@ _DECK_SPLIT_ONLY_ACTIONS = frozenset(
         "shrink_deck_panel",
     }
 )
-_LEGACY_DECK_KEY_ACTIONS = frozenset(
-    {
-        "next_agent_metadata_section",
-        "prev_agent_metadata_section",
-        "next_agent_file",
-        "prev_agent_file",
-    }
-)
 
 
 def _deck_split_active(app: Any) -> bool:
@@ -154,8 +146,8 @@ def check_app_action(
     if action in {"scroll_prompt_down", "scroll_prompt_up"}:
         if app.current_tab == "agents":
             return False
-    if action in _LEGACY_DECK_KEY_ACTIONS and app.current_tab == "agents":
-        return False
+    if action in {"next_chop_run", "prev_chop_run"}:
+        return app.current_tab == "services"
     if action in _AGENT_FLEET_ACTIONS:
         if app.current_tab != "agents":
             return False
@@ -198,13 +190,6 @@ def check_app_action(
 
         if isinstance(getattr(app, "screen", None), ModalScreen):
             return False
-    if action == "choose_agent_view":
-        checker = getattr(app, "_can_open_agent_view_picker", None)
-        if callable(checker):
-            return bool(checker())
-        return app.current_tab == "agents" and not _prompt_input_owns_keys(app)
-    if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:
-        return False
     if action in {"cycle_grouping_mode", "cycle_grouping_mode_reverse"}:
         if app.current_tab == "agents":
             return False
@@ -457,12 +442,6 @@ def check_app_action(
             or contract is None
             or not contract.has(PaneCapability.PROJECT_SCOPE)
         ):
-            return False
-    if action in {
-        "next_agent_metadata_section",
-        "prev_agent_metadata_section",
-    }:
-        if app.current_tab != "agents":
             return False
     if action in {"artifacts_load_more", "artifacts_unload"}:
         if app.current_tab != ARTIFACTS_TAB:

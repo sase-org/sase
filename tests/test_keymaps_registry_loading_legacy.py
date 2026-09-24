@@ -7,6 +7,40 @@ import pytest
 from sase.ace.tui.keymaps import load_keymap_registry
 
 
+def test_legacy_agent_file_keys_migrate_to_services_job_run_keys() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "next_agent_file": "f9",
+                    "prev_agent_file": "f10",
+                }
+            }
+        }
+    )
+
+    assert reg.app.next_chop_run == "f9"
+    assert reg.app.prev_chop_run == "f10"
+
+
+def test_retired_agents_detail_key_overrides_are_dropped() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "choose_agent_view": "p",
+                    "next_agent_metadata_section": "ctrl+j",
+                    "prev_agent_metadata_section": "ctrl+k",
+                }
+            }
+        }
+    )
+
+    assert not hasattr(reg.app, "choose_agent_view")
+    assert not hasattr(reg.app, "next_agent_metadata_section")
+    assert not hasattr(reg.app, "prev_agent_metadata_section")
+
+
 def test_retired_selected_panel_toggle_leader_override_is_filtered() -> None:
     reg = load_keymap_registry(
         {

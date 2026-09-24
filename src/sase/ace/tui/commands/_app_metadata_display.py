@@ -44,27 +44,6 @@ DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         (),
     ),
-    (
-        "choose_agent_view",
-        "Choose agent view and layout",
-        "Display",
-        AGENTS_ONLY,
-        (
-            "panels",
-            "file",
-            "tools",
-            "metadata",
-            "metadata only",
-            "file only",
-            "llm calls only",
-            "layout",
-            "equal",
-            "next layout",
-            "previous layout",
-            "fullscreen",
-            "view",
-        ),
-    ),
     # Queries
     (
         "edit_query",

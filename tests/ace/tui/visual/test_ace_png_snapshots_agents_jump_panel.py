@@ -14,14 +14,13 @@ from sase.ace.tui.llm_calls import cache as tools_cache_module
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail, AgentJumpPanel
 from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_module
-from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
+from sase.ace.tui.widgets.decks.model import DeckId
 from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_family_fixtures import (
     family_and_lone_planner_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
-    choose_agent_secondary_larger_layout,
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -274,32 +273,22 @@ async def test_jump_panel_llm_calls_layout_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         detail = await _open_agents_on_jump_roster(page)
-        await page.press("p")
-        await page.expect_modal("AgentViewModal")
-        await page.pause()
-        await page.press("t")
-        await page.expect_no_modal()
+        detail.show_deck(0, DeckId.TOOLS)
         await wait_for_state(
             page,
-            lambda: detail.panel_mode is DetailPanelMode.LLM_CALLS,
-            description="LLM Calls panel mode",
+            lambda: detail.deck_area.panel(0).deck is DeckId.TOOLS,
+            description="Tools deck selected",
         )
         await wait_for_state(
             page,
-            lambda: bool(detail._has_llm_calls_content),
-            description="llm calls content available",
-        )
-        await choose_agent_secondary_larger_layout(page)
-        await wait_for_state(
-            page,
-            lambda: detail.is_llm_calls_visible(),
-            description="LLM Calls panel visible",
+            lambda: bool(detail.deck_area.panel(0).tools_view._last_entries),
+            description="Tools deck content available",
         )
         page.app._refresh_agent_footer_bindings_only()
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "JUMP")
         assert_page_svg_contains(page, "FAMILY SHELLS")
-        panel = page.app.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
+        panel = detail.deck_area.panel(0).tools_view
         assert panel._last_entries
 
         ace_png_visual.assert_page_png(

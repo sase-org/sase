@@ -232,7 +232,6 @@ class AgentInfoDisplayMixin:
             starting_count,
             proc_shell_count,
         ) = self._agent_info_metrics()
-        view_mode = ""
         from ._grouping import _MODE_LABELS
 
         grouping_mode = _MODE_LABELS.get(
@@ -255,10 +254,6 @@ class AgentInfoDisplayMixin:
         display_query, query_rich, match_count = self._agents_info_panel_query_display()
         load_state = getattr(self, "_agent_load_state", None)
         query_partial_history = bool(getattr(load_state, "query_incomplete", False))
-        view_picker_checker = getattr(self, "_can_open_agent_view_picker", None)
-        view_picker_available = (
-            bool(view_picker_checker()) if callable(view_picker_checker) else False
-        )
         nodes_collapsed = False
         nodes_zoomed = False
         try:
@@ -298,8 +293,6 @@ class AgentInfoDisplayMixin:
                 search_query_match_count=match_count,
                 search_query_partial_history=query_partial_history,
                 grouping_mode=grouping_mode,
-                view_mode=view_mode,
-                view_picker_available=view_picker_available,
                 runner_queue_count=runner_capacity.queued_count,
                 nodes_collapsed=nodes_collapsed,
                 nodes_zoomed=nodes_zoomed,
@@ -337,4 +330,3 @@ class AgentInfoDisplayMixin:
             partial_history=query_partial_history,
         )
         agent_info_panel.update_grouping_mode(grouping_mode)
-        agent_info_panel.update_view_mode(view_mode)

@@ -218,8 +218,8 @@ def test_lowercase_a_binds_agent_artifacts_and_capital_a_accepts() -> None:
     ]
 
 
-def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
-    """Jump-stack navigation is distinct from Agents metadata navigation."""
+def test_default_jump_and_deck_navigation_keys_are_unique() -> None:
+    """Jump-stack navigation is distinct from deck and Services navigation."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
     fallback_by_action = {b.action: b for b in DEFAULT_BINDINGS}
@@ -233,21 +233,19 @@ def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
         "jump_to_entry_forward"
     ]
     assert [b.action for b in bindings if b.key == "ctrl+k"] == [
-        "prev_agent_metadata_section",
         "artifacts_unload",
         "prev_deck_card",
     ]
     assert [b.action for b in bindings if b.key == "ctrl+j"] == [
-        "next_agent_metadata_section",
         "artifacts_load_more",
         "next_deck_card",
     ]
     assert [b.action for b in bindings if b.key == "ctrl+n"] == [
-        "next_agent_file",
+        "next_chop_run",
         "next_deck",
     ]
     assert [b.action for b in bindings if b.key == "ctrl+p"] == [
-        "prev_agent_file",
+        "prev_chop_run",
         "prev_deck",
     ]
     assert [b.action for b in bindings if b.key == "ctrl+f"] == [
@@ -262,7 +260,8 @@ def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
         "cycle_artifacts_split_reverse",
         "shrink_deck_panel",
     ]
-    assert by_action["next_agent_metadata_section"].key == "ctrl+j"
+    assert by_action["next_chop_run"].key == "ctrl+n"
+    assert by_action["prev_chop_run"].key == "ctrl+p"
     assert by_action["artifacts_load_more"].key == "ctrl+j"
     assert by_action["artifacts_unload"].key == "ctrl+k"
     assert by_action["next_deck_card"].key == "ctrl+j"
@@ -276,7 +275,8 @@ def test_default_jump_and_metadata_navigation_keys_are_unique() -> None:
     assert by_action["toggle_deck_split_right"].key == "vertical_line"
     assert fallback_by_action["jump_to_entry_fast"].key == "ctrl+o"
     assert fallback_by_action["jump_to_entry_forward"].key == "ctrl+shift+o"
-    assert fallback_by_action["prev_agent_metadata_section"].key == "ctrl+k"
+    assert fallback_by_action["next_chop_run"].key == "ctrl+n"
+    assert fallback_by_action["prev_chop_run"].key == "ctrl+p"
     assert fallback_by_action["artifacts_load_more"].key == "ctrl+j"
     assert fallback_by_action["artifacts_unload"].key == "ctrl+k"
     assert fallback_by_action["next_deck_card"].key == "ctrl+j"

@@ -79,7 +79,7 @@ class AxeBindingsMixin:
         if axe_current_view == "axe" and chop_run_total >= 2:
             bindings.append(
                 (
-                    f"{self._kd('next_agent_file')}/{self._kd('prev_agent_file')}",
+                    f"{self._kd('next_chop_run')}/{self._kd('prev_chop_run')}",
                     "job run",
                 )
             )

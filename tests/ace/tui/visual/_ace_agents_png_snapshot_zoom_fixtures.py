@@ -6,23 +6,12 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-from textual.containers import VerticalScroll
-
-from sase.ace.testing import AcePage
-from sase.ace.tui.modals.zoom_panel_rendering import renderable_to_text
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
-from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
-from tests.ace.tui.visual._ace_png_snapshot_helpers import (
-    wait_for_state,
-    wait_for_svg_contains,
-    wait_for_visual_idle,
-)
 
 
 def zoom_agent(
@@ -307,62 +296,3 @@ def context_opened_workspaces() -> list[OpenedWorkspaceDisplayEvent]:
             opened_at="2026-06-14T14:24:08+00:00",
         )
     ]
-
-
-def pin_zoom_file_header(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin the zoom modal's file-header path so it is host-independent.
-
-    The static-diff header renders the file's expanded path, which for this
-    test is a per-run pytest ``tmp_path`` (``pytest-<N>/popen-gwK/...``). Only
-    the displayed ``expanded_path`` is rewritten (the stale-read check compares
-    ``path``, and file visibility is unconditional for static diffs) so the
-    real file is still read but the PNG golden stays deterministic.
-    """
-    from sase.ace.tui.widgets.file_panel import _display
-    from sase.ace.tui.widgets.file_panel._static_read import StaticReadResult
-
-    original_read = _display._read_static_file
-
-    def _fixed_read(request_id: int, path: str, mode: str) -> StaticReadResult:
-        result = original_read(request_id, path, mode)
-        result.expanded_path = "/workspace/sase/visual_zoom.diff"
-        return result
-
-    monkeypatch.setattr(_display, "_read_static_file", _fixed_read)
-
-
-async def wait_for_zoom_content(
-    page: AcePage,
-    sentinel: str,
-    *,
-    scroll_selector: str,
-) -> None:
-    """Wait for zoom content and its scheduled focus transfer to land."""
-    await wait_for_svg_contains(page, sentinel)
-    scroll = page.app.screen.query_one(scroll_selector, VerticalScroll)
-    await wait_for_state(
-        page,
-        lambda: scroll.has_focus,
-        description=f"zoom scroll focus on {scroll_selector}",
-    )
-    await wait_for_visual_idle(page)
-
-
-async def wait_for_metadata_zoom_resolved(page: AcePage) -> None:
-    """Wait until the async metadata sections have finished resolving."""
-
-    def metadata_ready() -> bool:
-        panel = page.app.screen.query_one("#zoom-metadata-panel", AgentPromptPanel)
-        metadata = renderable_to_text(panel.content) or ""
-        return (
-            "Xprompts:" in metadata
-            and "ARTIFACTS · 1 file" in metadata
-            and "resolving..." not in metadata
-        )
-
-    await wait_for_state(
-        page,
-        metadata_ready,
-        description="resolved agent metadata zoom context",
-    )
-    await wait_for_visual_idle(page)

@@ -7,11 +7,6 @@ from typing import TYPE_CHECKING, Any
 from ..models.agent import AgentType
 from ..util.trace import tui_trace
 from ._agent_detail_helpers import agent_prompt_panel_type
-from ._agent_detail_panels import (
-    AgentDetailPanelMixin,
-    DetailLayoutMode,
-    DetailPanelMode,
-)
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -19,13 +14,11 @@ if TYPE_CHECKING:
     from .prompt_panel._agent_display_state import AgentHintRender
 
 
-class AgentDetailDisplayMixin(AgentDetailPanelMixin):
+class AgentDetailDisplayMixin:
     """Mixin providing AgentDetail display-update entry points.
 
-    Mixed into ``AgentDetail``. Extends ``AgentDetailPanelMixin`` so panel
-    layout and indicator helpers resolve through inheritance instead of
-    stubs; ``metadata_identity`` and the header-sync helpers below are
-    provided by ``AgentDetail`` itself.
+    ``metadata_identity`` and the header-sync helpers below are provided by
+    ``AgentDetail`` itself.
     """
 
     # ------------------------------------------------------------------
@@ -37,15 +30,6 @@ class AgentDetailDisplayMixin(AgentDetailPanelMixin):
     _current_attempt_number: int | None
     _attempt_view_mode: str
     _agent_detail_generation: int
-    _has_file_content: bool
-    _has_llm_calls_content: bool
-    _file_count: int
-    _file_index: int
-    _file_visible_lines: int
-    _file_total_lines: int
-    _file_content_capped: bool
-    _panel_mode: DetailPanelMode
-    _detail_layout_mode: DetailLayoutMode
 
     @property
     def metadata_identity(self) -> object | None:

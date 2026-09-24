@@ -29,7 +29,6 @@ if TYPE_CHECKING:
     from .schema_object_form import SchemaFieldDiagnostic as SchemaFieldDiagnostic
     from .snippets_panel import SnippetsPanel as SnippetsPanel
     from .xprompt_item_modal import XPromptItemModal as XPromptItemModal
-    from .zoom_panel_modal import ZoomPanelModal as ZoomPanelModal
 
 __all__ = [
     "BeadCloseModal",
@@ -116,9 +115,6 @@ __all__ = [
     "AgentCleanupTribeModal",
     "AgentCleanupTribeResult",
     "AgentGroupingModal",
-    "AgentViewChoice",
-    "AgentViewModal",
-    "AgentViewResult",
     "AgentRunLogModal",
     "AgentTribeModal",
     "AgentTribeModalResult",
@@ -287,9 +283,6 @@ __all__ = [
     "GateBranchData",
     "WorkflowSelectModal",
     "WorkspaceInputModal",
-    "ZoomPanelModal",
-    "ZoomPanelSeed",
-    "ZoomPanelTarget",
 ]
 
 

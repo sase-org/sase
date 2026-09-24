@@ -44,10 +44,6 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
 _COLLAPSED_PANEL_HIDDEN_AGENT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.edit_panel",
-        "app.next_agent_file",
-        "app.prev_agent_file",
-        "app.next_agent_metadata_section",
-        "app.prev_agent_metadata_section",
         "app.open_artifact_files",
         "app.open_tmux",
         "app.start_tmux_mode",
@@ -166,8 +162,6 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     ):
         return False
 
-    if spec.id == "app.choose_agent_view":
-        return False
     if spec.id in {
         "app.next_deck_card",
         "app.prev_deck_card",
@@ -190,13 +184,6 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id in {
         "app.scroll_prompt_down",
         "app.scroll_prompt_up",
-    }:
-        return False
-    if spec.id in {
-        "app.next_agent_metadata_section",
-        "app.prev_agent_metadata_section",
-        "app.next_agent_file",
-        "app.prev_agent_file",
     }:
         return False
     if spec.id == "app.zoom_panel":
