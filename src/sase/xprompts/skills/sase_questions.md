@@ -49,7 +49,9 @@ sase questions '[{"question": "Approach?", "header": "Approach", "options": [{"l
 Run `sase questions` in the foreground and wait for the process to exit on its own.
 Never invoke it with a yield window, a background flag, or any early-return timeout: an
 early return means you stopped watching before the CLI wrote its handoff marker, not
-that the handoff happened.
+that the handoff happened. If a tool yields a live session anyway, keep polling that
+same session until it reports an exit code; never end your turn while it is still
+running.
 
 On success, `sase questions` writes a durable handoff marker and sends `SIGTERM` to the
 current agent runner process group. The runner recognizes the marker as an intentional

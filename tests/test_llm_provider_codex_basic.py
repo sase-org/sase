@@ -219,6 +219,11 @@ def test_codex_provider_normal_mode_command_construction(
     assert "--color" in cmd
     assert "never" in cmd
     assert "--skip-git-repo-check" in cmd
+    developer_instruction = next(
+        arg for arg in cmd if arg.startswith("developer_instructions=")
+    )
+    assert "yield_time_ms" in developer_instruction
+    assert "write_stdin" in developer_instruction
     assert "-" in cmd
 
 

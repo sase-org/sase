@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -22,8 +23,10 @@ from ._subprocess import (
     start_interrupt_monitor,
     stream_and_parse_codex_json_output,
 )
+from ._subprocess_codex import CodexStreamResult, CodexStrandedCommand
+from ._wait_guard import log_wait_guard as _log_wait_guard
 from .base import LLMProvider
-from .types import InvokeResult, LLMInvocationOptions, ModelTier
+from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -45,6 +48,62 @@ _EFFORT_CLI_ARGS: dict[str, list[str]] = {
 }
 _DISABLE_SHADOW_HOME_ENV = "SASE_CODEX_DISABLE_SHADOW_HOME"
 _CODEX_PATH_ENV = "SASE_CODEX_PATH"
+_CODEX_MAX_WAIT_CONTINUATIONS_ENV = "SASE_CODEX_MAX_WAIT_CONTINUATIONS"
+_DEFAULT_CODEX_MAX_WAIT_CONTINUATIONS = 2
+
+
+def _codex_single_turn_directive() -> str:
+    """Return the Codex developer instruction for unified-exec handoffs."""
+    return (
+        "SASE single-turn instructions for Codex: this session is exactly one turn, "
+        "and nothing can wake you after you end it. `exec_command` returns control "
+        "after its `yield_time_ms` even while the command keeps running. An empty or "
+        "partial yielded result means the command is still running, not done. Anything "
+        "still running when your turn ends is killed, so its intended effects never "
+        "happen. Handoff commands such as `sase monitor start`, `sase plan propose`, "
+        "`sase pipe`, and `sase questions` can take up to a minute before they hand off. "
+        "Wait for the handoff command itself to exit: if a yielded exec session remains "
+        "running, repeatedly call `write_stdin` with empty input until it reports an "
+        "exit code. Never end your turn while one is running. The monitored command is "
+        "different: let SASE monitor that command after `sase monitor start` exits."
+    )
+
+
+def _codex_max_wait_continuations() -> int:
+    """Return the bounded stranded-handoff continuation budget."""
+    raw_value = os.environ.get(_CODEX_MAX_WAIT_CONTINUATIONS_ENV)
+    if raw_value is None:
+        return _DEFAULT_CODEX_MAX_WAIT_CONTINUATIONS
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return _DEFAULT_CODEX_MAX_WAIT_CONTINUATIONS
+
+
+def _stranded_handoff_continuation_nudge(
+    commands: tuple[CodexStrandedCommand, ...],
+) -> str:
+    """Tell a fresh Codex invocation how to recover the killed handoff."""
+    command = next((fact.command for fact in commands if fact.command), None)
+    command_label = command or commands[0].command_id
+    return (
+        "Your previous Codex turn ended while this SASE handoff command was still "
+        f"running: `{command_label}`. It was killed when the turn ended, and no monitor "
+        "or handoff took effect. Re-run the identical command so fingerprint replay can "
+        "adopt any partially started monitor. Keep waiting on the same exec session: if "
+        "the tool yields before an exit code, repeatedly call `write_stdin` with empty "
+        "input until the command exits. Do not end the turn while it is running."
+    )
+
+
+def _coerce_codex_stream_result(
+    value: CodexStreamResult | tuple[str, str, int],
+) -> CodexStreamResult:
+    """Preserve test and plugin compatibility with legacy parser triples."""
+    if isinstance(value, CodexStreamResult):
+        return value
+    content, stderr_content, return_code = value
+    return CodexStreamResult(content, stderr_content, return_code)
 
 
 def resolve_codex_executable() -> str:
@@ -434,6 +493,8 @@ class CodexProvider(LLMProvider):
             "--color",
             "never",
             "--skip-git-repo-check",
+            "-c",
+            f"developer_instructions={json.dumps(_codex_single_turn_directive())}",
             "-",
         ]
 
@@ -460,17 +521,22 @@ class CodexProvider(LLMProvider):
         current_prompt = prompt
         accumulated_response = ""
         cycle = 0
+        wait_continuations = 0
+        max_wait_continuations = _codex_max_wait_continuations()
         while True:
             if timer_context:
                 with timer_context:
-                    response_content, stderr_content, return_code = (
+                    stream_result = _coerce_codex_stream_result(
                         self._run_subprocess(base_args, current_prompt, suppress_output)
                     )
                     print()
             else:
-                response_content, stderr_content, return_code = self._run_subprocess(
-                    base_args, current_prompt, suppress_output
+                stream_result = _coerce_codex_stream_result(
+                    self._run_subprocess(base_args, current_prompt, suppress_output)
                 )
+            response_content = stream_result.content
+            stderr_content = stream_result.stderr_content
+            return_code = stream_result.return_code
 
             # Check for user interrupt before error handling
             if self._pending_interrupt_message is not None:
@@ -501,6 +567,46 @@ class CodexProvider(LLMProvider):
             accumulated_response = (
                 accumulated_response + "\n\n" + response_content.strip()
             ).strip()
+            stranded_handoff_commands = tuple(
+                command
+                for command in stream_result.stranded_commands
+                if command.is_handoff
+            )
+            if stranded_handoff_commands:
+                guard_cycle = wait_continuations + 1
+                _log_wait_guard("stranded_handoff_command", guard_cycle)
+                command_label = (
+                    next(
+                        (
+                            command.command
+                            for command in stranded_handoff_commands
+                            if command.command
+                        ),
+                        None,
+                    )
+                    or stranded_handoff_commands[0].command_id
+                )
+                if wait_continuations >= max_wait_continuations:
+                    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+                    artifact_hint = (
+                        f" Artifacts: {artifacts_dir}." if artifacts_dir else ""
+                    )
+                    raise LLMInvocationError(
+                        "Codex stranded a SASE handoff command after "
+                        f"{wait_continuations} continuation(s); refusing to report "
+                        "it as success. Reason: stranded_handoff_command. "
+                        f"Command: {command_label}.{artifact_hint}"
+                    )
+                wait_continuations += 1
+                current_prompt = (
+                    f"{prompt}\n\n"
+                    f"--- Work So Far ---\n{accumulated_response}\n\n"
+                    "--- Required Continuation ---\n"
+                    f"{_stranded_handoff_continuation_nudge(stranded_handoff_commands)}"
+                )
+                continue
+            if stream_result.integrity_error:
+                raise LLMInvocationError(stream_result.integrity_error)
             return InvokeResult(content=accumulated_response)
 
     # ------------------------------------------------------------------
@@ -512,7 +618,7 @@ class CodexProvider(LLMProvider):
         args: list[str],
         prompt: str,
         suppress_output: bool,
-    ) -> tuple[str, str, int]:
+    ) -> CodexStreamResult:
         """Run the Codex CLI subprocess.
 
         Args:
@@ -521,7 +627,7 @@ class CodexProvider(LLMProvider):
             suppress_output: If True, suppress output.
 
         Returns:
-            Tuple of (stdout_content, stderr_content, return_code).
+            Parsed output and any stranded-command facts.
         """
         with _codex_subprocess_env() as env:
             try:

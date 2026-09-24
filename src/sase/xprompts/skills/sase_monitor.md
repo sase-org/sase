@@ -14,11 +14,15 @@ agent turn, or when you need a timed sleep/wait before more work can happen.
 
 ## Core Rule
 
-`sase monitor start` hands the command to a detached monitor supervisor and then kills
-the current agent. The current provider turn will not return normally. Do not poll,
-sleep, or wait for the monitored command yourself after starting it; put any
-continuation work in `--next` so a follow-up agent can resume from the same workspace
-and conversation.
+Never wait for the **monitored command** yourself. Put any continuation work in `--next`
+so a follow-up agent can resume from the same workspace and conversation.
+
+The `sase monitor start` command itself must run to completion. It may take up to a
+minute to create and acknowledge the detached supervisor, then writes its handoff marker
+and kills the current agent. If your command tool yields or backgrounds that start
+command before it exits, keep waiting on the same session until it reports an exit code.
+Never end your turn while `sase monitor start` is still running; an early or empty
+result means only that you stopped observing before the handoff happened.
 
 Provider-native monitor, background-execution, and scheduled wake-up tools do not work
 in SASE's single-turn agent model. Use `sase monitor start` instead.
@@ -97,8 +101,10 @@ the row color, so reusing one pair across related monitors makes them read as on
   `--next '#commit ...'` or `--next '%model:opus ...'` will not route or expand
   anything, but writing `#412` or a directive name in prose is safe. Use `-m/--model` to
   select the follow-up agent's model; `%model` text inside `--next` stays literal.
-- Do not poll, sleep, or wait after `sase monitor start`; the starting agent is handed
-  off and killed when running inside an agent.
+- Do not poll, sleep, or wait for the monitored command after `sase monitor start`
+  exits; the starting agent is then handed off and killed when running inside an agent.
+  Until the start command exits, keep polling that same command session if your tool
+  yielded it.
 
 ## Sleep Or Wait
 

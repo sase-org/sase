@@ -1,37 +1,33 @@
 """Tests for Codex turn-integrity enforcement on empty/unmatched final turns."""
 
-import pytest
-
 from sase.llm_provider._subprocess import (
     CODEX_TURN_INTEGRITY_ERROR_PREFIX,
     stream_and_parse_codex_json_output,
 )
-from sase.llm_provider.types import LLMInvocationError
-
 from tests._llm_provider_codex_parser_helpers import (
     _load_fixture_events,
     _start_fixture_codex_process,
 )
 
 
-def test_codex_parser_raises_on_aborted_empty_final_fixture() -> None:
-    """The Sep 2026 empty-final/killed-command shape is provider failure."""
+def test_codex_parser_reports_aborted_handoff_fixture() -> None:
+    """The parser returns the Sep 2026 handoff evidence for provider recovery."""
     process = _start_fixture_codex_process(
         _load_fixture_events("codex-cli-aborted-empty-final.jsonl")
     )
 
-    with pytest.raises(LLMInvocationError) as exc_info:
-        stream_and_parse_codex_json_output(process, suppress_output=True)
+    result = stream_and_parse_codex_json_output(process, suppress_output=True)
 
-    message = str(exc_info.value)
-    assert CODEX_TURN_INTEGRITY_ERROR_PREFIX in message
-    assert "no final agent message" in message
-    assert "exit_code -1" in message
-    assert "exec-sudo-request" in message
+    assert result.integrity_error is None
+    assert len(result.stranded_commands) == 1
+    command = result.stranded_commands[0]
+    assert command.command_id == "exec-sudo-request"
+    assert command.is_handoff is True
+    assert command.reason == "killed_at_teardown"
 
 
-def test_codex_parser_raises_on_empty_final_with_unmatched_tool_use() -> None:
-    """A started command with no result is the same turn-integrity failure."""
+def test_codex_parser_reports_empty_final_with_unmatched_tool_use() -> None:
+    """A started non-handoff command with no result remains an integrity failure."""
     events = [
         {"type": "thread.started", "thread_id": "thread_unmatched_tool"},
         {"type": "turn.started"},
@@ -50,12 +46,12 @@ def test_codex_parser_raises_on_empty_final_with_unmatched_tool_use() -> None:
     ]
     process = _start_fixture_codex_process(events)
 
-    with pytest.raises(LLMInvocationError) as exc_info:
-        stream_and_parse_codex_json_output(process, suppress_output=True)
+    result = stream_and_parse_codex_json_output(process, suppress_output=True)
 
-    assert CODEX_TURN_INTEGRITY_ERROR_PREFIX in str(exc_info.value)
-    assert "started without a result" in str(exc_info.value)
-    assert "cmd_still_running" in str(exc_info.value)
+    assert result.integrity_error is not None
+    assert CODEX_TURN_INTEGRITY_ERROR_PREFIX in result.integrity_error
+    assert "started without a result" in result.integrity_error
+    assert "cmd_still_running" in result.integrity_error
 
 
 def test_codex_parser_allows_killed_command_with_nonempty_final() -> None:
@@ -79,6 +75,7 @@ def test_codex_parser_allows_killed_command_with_nonempty_final() -> None:
             "item": {
                 "id": "msg_1",
                 "type": "agent_message",
+                "phase": "final_answer",
                 "text": "The command was interrupted; reporting that result.",
             },
         },

@@ -1,0 +1,3 @@
+{"type":"event_msg","payload":{"type":"item_completed","item":{"id":"commentary_1","type":"AgentMessage","phase":"commentary","text":"I will start the verification monitor now."}}}
+{"type":"event_msg","payload":{"type":"item_started","item":{"id":"exec-monitor-start","type":"CommandExecution","command":["/bin/zsh","-lc","sase monitor start --profile verify --timeout 45m --next 'close sase-18e.1' -- sase tool run check"],"status":"in_progress"}}}
+{"type":"event_msg","payload":{"type":"task_complete","turn_id":"turn_stranded_monitor","last_agent_message":""}}

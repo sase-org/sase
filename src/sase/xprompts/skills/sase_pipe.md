@@ -14,9 +14,12 @@ log_skill_use: false
 ## Core Rule
 
 Use this skill only when the user explicitly asks you to pipe or hand off work to
-another agent. `sase pipe` kills the calling agent once it starts the hand-off, so this
-turn will not return normally. Write everything the successor needs inside the piped
-prompt itself, not in a reply you plan to send afterward — there is no afterward.
+another agent. `sase pipe` kills the calling agent only after it writes its handoff
+marker, so run the pipe command in the foreground until it exits. If your tool yields or
+backgrounds its session, keep polling that same session; never end your turn while it is
+still running. Write everything the successor needs inside the piped prompt itself, not
+in a reply you plan to send afterward — after a successful handoff, there is no
+afterward.
 
 ## Canonical Invocation
 
@@ -60,4 +63,5 @@ Do not pipe for:
   continue or retry, not assume a successor exists.
 - Chains are bounded by the `max_agent_pipe_chain` config field; a piped successor that
   pipes again can eventually be refused once the bound is reached.
-- Do not keep working, poll, or wait after running this command.
+- After a successful handoff, do not keep working, poll, or wait. If your tool yielded
+  before that handoff completed, follow the Core Rule and keep polling the same session.

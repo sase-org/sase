@@ -2,8 +2,9 @@
 
 import json
 import os
+import shlex
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import IO, Any
@@ -17,15 +18,44 @@ from ._subprocess_artifacts import (
 from ._subprocess_diagnostics import record_stdout_json_decode_diagnostic
 from ._subprocess_stream import append_error_events, stream_json_lines
 from ._tool_calls import append_codex_tool_call_event
-from .types import LLMInvocationError
 
 CODEX_TURN_INTEGRITY_ERROR_PREFIX = "Codex turn integrity failure"
+
+
+@dataclass(frozen=True)
+class CodexStrandedCommand:
+    """One command still running when Codex reported task completion."""
+
+    command_id: str
+    command: str | None
+    reason: str
+    is_handoff: bool
+
+
+@dataclass(frozen=True)
+class CodexStreamResult:
+    """Parsed Codex output plus facts the provider must resolve before success.
+
+    Iteration preserves the historical three-value unpacking contract for parser
+    callers while exposing stranded-command facts to :class:`CodexProvider`.
+    """
+
+    content: str
+    stderr_content: str
+    return_code: int
+    stranded_commands: tuple[CodexStrandedCommand, ...] = ()
+    integrity_error: str | None = None
+
+    def __iter__(self) -> Iterator[str | int]:
+        yield self.content
+        yield self.stderr_content
+        yield self.return_code
 
 
 @dataclass
 class _CodexTurnIntegrityState:
     saw_task_complete: bool = False
-    has_nonempty_agent_message: bool = False
+    has_nonempty_final_answer: bool = False
     pending_commands: dict[str, str | None] = field(default_factory=dict)
     killed_commands: dict[str, str | None] = field(default_factory=dict)
 
@@ -36,7 +66,7 @@ class _CodexTurnIntegrityState:
         if event_type in {"turn.completed", "turn_completed", "task_complete"}:
             self.saw_task_complete = True
             if _has_nonempty_message(payload.get("last_agent_message")):
-                self.has_nonempty_agent_message = True
+                self.has_nonempty_final_answer = True
 
         if event_type not in {
             "item.started",
@@ -52,8 +82,10 @@ class _CodexTurnIntegrityState:
 
         item_type = _normalized_item_type(item.get("type"))
         if item_type == "agentmessage":
-            if _has_nonempty_message(item.get("text")):
-                self.has_nonempty_agent_message = True
+            if _is_final_answer_message(payload, item) and _has_nonempty_message(
+                item.get("text")
+            ):
+                self.has_nonempty_final_answer = True
             return
         if item_type != "commandexecution":
             return
@@ -68,18 +100,58 @@ class _CodexTurnIntegrityState:
         if _is_killed_teardown_command(item):
             self.killed_commands[command_id] = command
 
-    def integrity_error(self) -> str | None:
-        if not self.saw_task_complete or self.has_nonempty_agent_message:
+    def stranded_commands(self) -> tuple[CodexStrandedCommand, ...]:
+        """Return commands that need a provider-level recovery decision."""
+        if not self.saw_task_complete:
+            return ()
+        return tuple(
+            [
+                CodexStrandedCommand(
+                    command_id=command_id,
+                    command=command,
+                    reason="killed_at_teardown",
+                    is_handoff=is_sase_handoff_command(command),
+                )
+                for command_id, command in self.killed_commands.items()
+            ]
+            + [
+                CodexStrandedCommand(
+                    command_id=command_id,
+                    command=command,
+                    reason="started_without_result",
+                    is_handoff=is_sase_handoff_command(command),
+                )
+                for command_id, command in self.pending_commands.items()
+            ]
+        )
+
+    def integrity_error(
+        self, stranded_commands: Sequence[CodexStrandedCommand]
+    ) -> str | None:
+        if not self.saw_task_complete or self.has_nonempty_final_answer:
             return None
-        if self.killed_commands:
-            details = _format_command_refs(self.killed_commands)
+        non_handoff_commands = tuple(
+            command for command in stranded_commands if not command.is_handoff
+        )
+        killed_commands = tuple(
+            command
+            for command in non_handoff_commands
+            if command.reason == "killed_at_teardown"
+        )
+        if killed_commands:
+            details = _format_stranded_command_refs(killed_commands)
             return (
                 f"{CODEX_TURN_INTEGRITY_ERROR_PREFIX}: task completed with no "
                 "final agent message and command execution was killed at teardown "
                 f"(exit_code -1): {details}"
             )
-        if self.pending_commands:
-            details = _format_command_refs(self.pending_commands)
+        pending_commands = tuple(
+            command
+            for command in non_handoff_commands
+            if command.reason == "started_without_result"
+        )
+        if pending_commands:
+            details = _format_stranded_command_refs(pending_commands)
             return (
                 f"{CODEX_TURN_INTEGRITY_ERROR_PREFIX}: task completed with no "
                 "final agent message and command execution started without a "
@@ -104,6 +176,17 @@ def _normalized_item_type(value: object) -> str:
     return raw.replace("_", "").lower()
 
 
+def _is_final_answer_message(
+    payload: Mapping[str, Any], item: Mapping[str, Any]
+) -> bool:
+    """Return whether an agent message belongs to Codex's final-answer phase."""
+    for source in (item, payload):
+        phase = source.get("phase")
+        if isinstance(phase, str) and phase.replace("-", "_").lower() == "final_answer":
+            return True
+    return False
+
+
 def _has_nonempty_message(value: object) -> bool:
     if isinstance(value, str):
         return bool(value.strip())
@@ -125,7 +208,7 @@ def _command_item_id(item: Mapping[str, Any]) -> str:
 def _command_item_text(item: Mapping[str, Any]) -> str | None:
     command = item.get("command")
     if isinstance(command, list):
-        return " ".join(str(part) for part in command)
+        return shlex.join(str(part) for part in command)
     if isinstance(command, str):
         return command
     return None
@@ -147,9 +230,11 @@ def _is_killed_teardown_command(item: Mapping[str, Any]) -> bool:
     }
 
 
-def _format_command_refs(commands: Mapping[str, str | None]) -> str:
+def _format_stranded_command_refs(commands: Sequence[CodexStrandedCommand]) -> str:
     refs: list[str] = []
-    for command_id, command in list(commands.items())[:3]:
+    for stranded in commands[:3]:
+        command_id = stranded.command_id
+        command = stranded.command
         if command:
             one_line = " ".join(command.split())
             if len(one_line) > 80:
@@ -162,10 +247,73 @@ def _format_command_refs(commands: Mapping[str, str | None]) -> str:
     return ", ".join(refs)
 
 
+# These prefixes are the direct CLI handoff entry points. Their corresponding
+# paths call ``write_pending_handoff_marker`` (or the shared gate helper) before
+# ``kill_agent_runner_group``: monitor/start, plan/propose, pipe, questions,
+# gate/create, sudo/request, launch/request, and run.
+_SASE_HANDOFF_COMMAND_PREFIXES = (
+    ("monitor", "start"),
+    ("plan", "propose"),
+    ("pipe",),
+    ("questions",),
+    ("gate", "create"),
+    ("sudo", "request"),
+    ("launch", "request"),
+    ("run",),
+)
+
+
+def is_sase_handoff_command(command: str | None) -> bool:
+    """Return whether *command* is a SASE CLI command that hands off a turn."""
+    if not command:
+        return False
+    argv = _handoff_command_argv(command)
+    if not argv:
+        return False
+    return any(
+        tuple(argv[: len(prefix)]) == prefix
+        for prefix in _SASE_HANDOFF_COMMAND_PREFIXES
+    )
+
+
+def _handoff_command_argv(command: str) -> list[str]:
+    """Extract a SASE command argv, including the usual ``zsh -lc`` wrapper."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return []
+    if not tokens:
+        return []
+
+    shell_command = _shell_command_text(tokens)
+    if shell_command is not None:
+        return _handoff_command_argv(shell_command)
+
+    index = 0
+    while index < len(tokens) and ("=" in tokens[index] or tokens[index] == "env"):
+        index += 1
+    if index < len(tokens) and tokens[index] == "exec":
+        index += 1
+    if index >= len(tokens) or os.path.basename(tokens[index]) != "sase":
+        return []
+    return tokens[index + 1 :]
+
+
+def _shell_command_text(tokens: Sequence[str]) -> str | None:
+    """Return the script supplied to a shell ``-c`` invocation, if present."""
+    shell_names = {"sh", "bash", "zsh", "fish"}
+    if os.path.basename(tokens[0]) not in shell_names:
+        return None
+    for index, token in enumerate(tokens[:-1]):
+        if token == "-c" or (token.startswith("-") and "c" in token[1:]):
+            return tokens[index + 1]
+    return None
+
+
 def stream_and_parse_codex_json_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
-) -> tuple[str, str, int]:
+) -> CodexStreamResult:
     """Stream stdout as NDJSON events and extract assistant text from Codex."""
     assistant_texts: list[str] = []
     error_events: list[str] = []
@@ -205,10 +353,17 @@ def stream_and_parse_codex_json_output(
 
     combined_text = "\n\n".join(assistant_texts)
     stderr_content = append_error_events(stderr_content, return_code, error_events)
-    if return_code == 0 and (integrity_error := turn_integrity.integrity_error()):
-        raise LLMInvocationError(integrity_error)
-
-    return combined_text, stderr_content, return_code
+    stranded_commands = turn_integrity.stranded_commands()
+    integrity_error = (
+        turn_integrity.integrity_error(stranded_commands) if return_code == 0 else None
+    )
+    return CodexStreamResult(
+        content=combined_text,
+        stderr_content=stderr_content,
+        return_code=return_code,
+        stranded_commands=stranded_commands,
+        integrity_error=integrity_error,
+    )
 
 
 def _process_codex_json_line(

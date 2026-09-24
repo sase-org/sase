@@ -29,6 +29,7 @@ from ._subprocess import (
     start_interrupt_monitor,
     stream_and_parse_muse_json_output,
 )
+from ._wait_guard import log_wait_guard as _log_wait_guard
 from ._wait_signals import ends_with_wait_claim
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
@@ -258,23 +259,6 @@ def _log_interrupt(message: str | None, cycle: int) -> None:
         with open(log_path, "a", encoding="utf-8") as f:
             json.dump(
                 {"message": message, "timestamp": time.time(), "cycle": cycle},
-                f,
-            )
-            f.write("\n")
-    except OSError:
-        pass
-
-
-def _log_wait_guard(reason: str, cycle: int) -> None:
-    """Append a stranded-wait guard firing to the artifacts directory."""
-    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
-    if not artifacts_dir:
-        return
-    log_path = Path(artifacts_dir) / "wait_guard_log.jsonl"
-    try:
-        with open(log_path, "a", encoding="utf-8") as f:
-            json.dump(
-                {"reason": reason, "timestamp": time.time(), "cycle": cycle},
                 f,
             )
             f.write("\n")
