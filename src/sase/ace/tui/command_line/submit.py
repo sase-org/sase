@@ -31,10 +31,20 @@ class PreparedSubmit:
     line: str
 
 
-def prepare_submit(session: CommandLineSession, line: str) -> PreparedSubmit | None:
-    """Validate a line for submission; ``None`` means drop it silently."""
-    tokens = tokenize_command_line(line)
-    if tokens is None:
+def prepare_submit(
+    session: CommandLineSession,
+    line: str,
+    *,
+    tokens: list[str] | None = None,
+) -> PreparedSubmit | None:
+    """Validate a line for submission; ``None`` means drop it silently.
+
+    The completion-popup phase passes the resolver's ``LineContext.argv``
+    as *tokens* so submission runs what the grammar saw; otherwise the
+    line is tokenized with ``shlex`` as before.
+    """
+    resolved = tokens if tokens is not None else tokenize_command_line(line)
+    if not resolved:
         return None
     now = time.monotonic()
     if (
@@ -44,7 +54,7 @@ def prepare_submit(session: CommandLineSession, line: str) -> PreparedSubmit | N
         return None
     session.last_submit_at = now
     session.last_submit_line = line.strip()
-    return PreparedSubmit(tokens=tokens, line=line.strip())
+    return PreparedSubmit(tokens=list(resolved), line=line.strip())
 
 
 def submit_in_worker(
