@@ -168,6 +168,13 @@ class AgentPanelDetailMixin:
         """Zoom the active agent or tribe detail panel."""
         if self.current_tab != "agents":
             return
+        try:
+            from ...widgets.decks.flag import agent_decks_active
+
+            if bool(agent_decks_active(self)):
+                return
+        except Exception:
+            pass
 
         from ...modals import ZoomPanelModal, ZoomPanelTarget
         from ...widgets import AgentDetail

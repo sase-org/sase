@@ -236,6 +236,9 @@ class AgentLLMCallsPanel(Static):
 
     def _get_scroll_container(self) -> VerticalScroll | None:
         try:
+            parent = self.parent
+            if isinstance(parent, VerticalScroll):
+                return parent
             return self.app.query_one("#agent-llm-calls-scroll", VerticalScroll)
         except Exception:
             return None

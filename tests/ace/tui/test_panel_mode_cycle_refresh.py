@@ -131,6 +131,12 @@ def test_auto_branch_invalidates_file_panel_state_before_refresh() -> None:
     file_panel._current_agent = agent_a
     file_panel._file_list = ["/tmp/a.diff"]
 
+    def _invalidate() -> None:
+        file_panel._current_agent = None
+        file_panel._file_list = []
+
+    file_panel.invalidate_subject.side_effect = _invalidate
+
     captured: dict[str, Any] = {}
 
     def _record_update_display(agent: Agent, *_args: Any, **_kwargs: Any) -> None:

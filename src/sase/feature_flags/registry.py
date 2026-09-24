@@ -23,6 +23,7 @@ class FeatureFlag(StrEnum):
 
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
+    agent_decks = "agent_decks"
     axe_routine_job_contract = "axe_routine_job_contract"
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
@@ -175,6 +176,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
+    ),
+    FeatureFlag.agent_decks: FeatureFlagDefinition(
+        key=FeatureFlag.agent_decks,
+        kind="beta",
+        description=(
+            "The Agents tab shows one or two deck panels of agent data "
+            "decks (Main, Files, Tools) and cards instead of the metadata "
+            "panel plus one Files or LLM Calls panel."
+        ),
+        bead="sase-17k",
     ),
 }
 

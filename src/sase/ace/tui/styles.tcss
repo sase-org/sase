@@ -3990,6 +3990,59 @@ HintInputBar #hint-escape-hint {
     height: 3fr;
 }
 
+#agent-deck-source-host {
+    display: none;
+}
+
+#agent-deck-area {
+    height: 1fr;
+}
+
+#agent-deck-area .deck-panel {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0;
+    border-title-align: left;
+    border-subtitle-align: right;
+}
+
+.deck-panel.hidden {
+    display: none;
+}
+
+.deck-panel.-deck-main {
+    border: solid $secondary;
+}
+
+.deck-panel.-deck-files {
+    border: solid green;
+}
+
+.deck-panel.-deck-tools {
+    border: solid #87D7FF;
+}
+
+.deck-scroll {
+    height: 1fr;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+    display: none;
+}
+
+.deck-scroll.-shown {
+    display: block;
+}
+
+.deck-empty-state {
+    height: 1fr;
+    content-align: center middle;
+    display: none;
+}
+
+.deck-empty-state.-shown {
+    display: block;
+}
+
 /* Agent list styling */
 AgentList {
     scrollbar-gutter: stable;

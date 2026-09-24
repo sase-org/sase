@@ -458,6 +458,14 @@ def check_app_action(
     if action == "save_marked_agents":
         if app.current_tab != "agents":
             return False
+    if action == "zoom_panel":
+        try:
+            from sase.ace.tui.widgets.decks.flag import agent_decks_active
+
+            if bool(agent_decks_active(app)):
+                return False
+        except Exception:
+            pass
     if (
         action
         in {

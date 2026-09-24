@@ -19,7 +19,7 @@ from textual.visual import RenderOptions, RichVisual, Visual
 from ...util.renderable_digest import renderable_content_digest
 
 if TYPE_CHECKING:
-    from . import AgentPromptPanel
+    from ._section_view import SectionViewMixin
 
 
 SECTION_MARKER_META_KEY = "sase_prompt_panel_section"
@@ -126,7 +126,7 @@ class SectionTrackingVisual(Visual):
     def __init__(
         self,
         visual: Visual,
-        owner: AgentPromptPanel,
+        owner: SectionViewMixin,
         generation: int,
         *,
         content_digest: str | None = None,

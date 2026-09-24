@@ -242,6 +242,7 @@ class CommandContext:
     file_panel_visible: bool = False
     has_artifact_files: bool = False
     agents_metadata_search_active: bool = False
+    agent_decks_active: bool = False
     fleet_enabled: bool = False
     selected_agent_remote: bool = False
     # Axe tab state

@@ -36,6 +36,42 @@ WORKSPACE_GLYPH = "▣"
 EXTERNAL_REPO_GLYPH = "◆"
 
 
+def desired_file_pages(agent: Agent) -> tuple[list[str], str | None]:
+    """Return the canonical file-panel page list and default page."""
+    from ..prompt_panel._agent_commits import agent_commit_diffs
+
+    pages: list[str] = []
+
+    commit_diffs = agent_commit_diffs(agent)
+    pages.extend(commit_slot_id(index) for index, _ in enumerate(commit_diffs))
+
+    cache_entry = file_cache.get(get_cache_key(agent))
+    suppress_live_diff = bool(commit_diffs) and _is_terminal_agent(agent)
+    if (
+        cache_entry is not None
+        and bool(cache_entry.diff_output)
+        and not suppress_live_diff
+    ):
+        pages.append(_LIVE_DIFF_SENTINEL)
+
+    linked_groups = get_cached_linked_delta_groups(agent)
+    pages.extend(
+        linked_slot_id(group.repo_name) for group in linked_groups if group.entries
+    )
+
+    extra_files = list(agent.extra_files)
+    pages.extend(extra_files)
+
+    default_value = pages[0] if pages else None
+    if (
+        extra_files
+        and canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
+        and not agent.diff_path
+    ):
+        default_value = extra_files[0]
+    return pages, default_value
+
+
 @dataclass(frozen=True)
 class FileSourceLabel:
     """Display label metadata for one file-panel page slot."""
@@ -187,38 +223,7 @@ class FilePanelFileListMixin:
 
     def _desired_file_list(self, agent: Agent) -> tuple[list[str], str | None]:
         """Return the current canonical file-panel page list and default page."""
-        from ..prompt_panel._agent_commits import agent_commit_diffs
-
-        pages: list[str] = []
-
-        commit_diffs = agent_commit_diffs(agent)
-        pages.extend(commit_slot_id(index) for index, _ in enumerate(commit_diffs))
-
-        cache_entry = file_cache.get(get_cache_key(agent))
-        suppress_live_diff = bool(commit_diffs) and _is_terminal_agent(agent)
-        if (
-            cache_entry is not None
-            and bool(cache_entry.diff_output)
-            and not suppress_live_diff
-        ):
-            pages.append(_LIVE_DIFF_SENTINEL)
-
-        linked_groups = get_cached_linked_delta_groups(agent)
-        pages.extend(
-            linked_slot_id(group.repo_name) for group in linked_groups if group.entries
-        )
-
-        extra_files = list(agent.extra_files)
-        pages.extend(extra_files)
-
-        default_value = pages[0] if pages else None
-        if (
-            extra_files
-            and canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
-            and not agent.diff_path
-        ):
-            default_value = extra_files[0]
-        return pages, default_value
+        return desired_file_pages(agent)
 
     def _select_file_index(
         self,

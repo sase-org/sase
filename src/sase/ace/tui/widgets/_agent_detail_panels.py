@@ -114,6 +114,8 @@ class AgentDetailPanelMixin(Static):
 
     def _expand_prompt_only(self) -> None:
         """Hide the file panel and expand the prompt panel to fill the space."""
+        if bool(getattr(self, "decks_enabled", False)):
+            return
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         prompt_scroll = self._active_metadata_scroll()
@@ -131,6 +133,8 @@ class AgentDetailPanelMixin(Static):
         Returns:
             ``"file"``, ``"llm calls"``, or ``"none"``.
         """
+        if bool(getattr(self, "decks_enabled", False)):
+            return ""
         if self.is_info_mode():
             return _MODE_LABELS[DetailPanelMode.INFO]
         if self.is_llm_calls_visible():
@@ -154,6 +158,8 @@ class AgentDetailPanelMixin(Static):
 
         Returns True when the saved preference changed.
         """
+        if bool(getattr(self, "decks_enabled", False)):
+            return False
         old = self.detail_layout_mode
         self._detail_layout_mode = layout
         self._apply_detail_layout_classes()
@@ -161,12 +167,16 @@ class AgentDetailPanelMixin(Static):
 
     def cycle_detail_layout(self, *, direction: int = 1) -> bool:
         """Cycle the saved layout in the canonical order."""
+        if bool(getattr(self, "decks_enabled", False)):
+            return False
         return self.set_detail_layout(
             next_detail_layout_mode(self._detail_layout_mode, direction=direction)
         )
 
     def toggle_layout(self) -> None:
         """Retained compatibility alias for cycling to the next layout."""
+        if bool(getattr(self, "decks_enabled", False)):
+            return
         self.cycle_detail_layout(direction=1)
 
     def _clear_detail_layout_classes(self) -> None:
@@ -227,6 +237,8 @@ class AgentDetailPanelMixin(Static):
 
     def _apply_detail_layout_classes(self) -> None:
         """Apply the saved layout to the selected secondary panel."""
+        if bool(getattr(self, "decks_enabled", False)):
+            return
         prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
@@ -271,6 +283,8 @@ class AgentDetailPanelMixin(Static):
         Same-mode selections are a no-op only when the rendered detail already
         belongs to the selected row and attempt.
         """
+        if bool(getattr(self, "decks_enabled", False)):
+            return False
         if (
             mode is not DetailPanelMode.INFO
             and mode is self._panel_mode
@@ -316,8 +330,7 @@ class AgentDetailPanelMixin(Static):
             # panel may have been hidden across a navigation that bypassed it,
             # leaving its visible content out of sync with the new agent.
             file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-            file_panel._current_agent = None
-            file_panel._file_list = []
+            file_panel.invalidate_subject()
             self.update_display(agent)
 
             # If file panel has no content, expand prompt instead of
@@ -438,6 +451,8 @@ class AgentDetailPanelMixin(Static):
 
     def _update_panel_indicators(self) -> None:
         """Update the border subtitle on the prompt panel to show panel state."""
+        if bool(getattr(self, "decks_enabled", False)):
+            return
         try:
             prompt_scroll = self._active_metadata_scroll()
         except Exception:

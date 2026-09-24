@@ -191,8 +191,16 @@ class AgentInfoDisplayMixin:
         ) = self._agent_info_metrics()
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         view_mode = ""
-        if self._focused_tribe_panel_context() is not None:  # type: ignore[attr-defined]
-            view_mode = "tribe"
+        try:
+            from ...widgets.decks.flag import agent_decks_active
+
+            _decks_active = bool(agent_decks_active(self))
+        except Exception:
+            _decks_active = False
+        if _decks_active:
+            view_mode = ""
+        elif self._focused_tribe_panel_context() is not None:  # type: ignore[attr-defined]
+            view_mode = "tribe" if not _decks_active else ""
         elif current_agent is not None:
             try:
                 agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]

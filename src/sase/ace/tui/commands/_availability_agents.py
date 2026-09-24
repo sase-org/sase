@@ -162,7 +162,11 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     ):
         return False
 
+    if spec.id == "app.choose_agent_view":
+        return False if ctx.agent_decks_active else True
     if spec.id == "app.zoom_panel":
+        if ctx.agent_decks_active:
+            return False
         return panel_focused or agent is not None
 
     if spec.id == "app.isolate_panels":

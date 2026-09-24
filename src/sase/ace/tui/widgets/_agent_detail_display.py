@@ -124,6 +124,13 @@ class AgentDetailDisplayMixin(AgentDetailPanelMixin):
         stale_threshold_seconds: int = 10,
         attempt_number: int | None = None,
     ) -> None:
+        if bool(getattr(self, "decks_enabled", False)):
+            self._deck_update_display_impl(  # type: ignore[attr-defined]
+                agent,
+                stale_threshold_seconds=stale_threshold_seconds,
+                attempt_number=attempt_number,
+            )
+            return
         PromptPanel = agent_prompt_panel_type()
         prompt_panel = self.query_one("#agent-prompt-panel", PromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
@@ -243,32 +250,12 @@ class AgentDetailDisplayMixin(AgentDetailPanelMixin):
             self._expand_prompt_only()
             return
 
-        if agent.status in _ACTIVE_STATUSES:
-            # Show auto-refreshing file panel for active agents
-            # Don't change visibility here - let update_display() handle it
-            # via FileVisibilityChanged message after fetching/validating the file
-            file_panel.update_display(
-                agent, stale_threshold_seconds=stale_threshold_seconds
-            )
-        else:
-            # DONE, FAILED, etc.
-            from .prompt_panel._agent_commits import agent_commit_diffs
+        from ._agent_detail_files import dispatch_file_view
 
-            if agent_commit_diffs(agent):
-                file_panel.update_display(
-                    agent, stale_threshold_seconds=stale_threshold_seconds
-                )
-            elif files := agent.all_files:
-                file_panel.set_file_list(files, start_index=0)
-            elif agent.workspace_num is not None and not agent.fleet_origin_alias:
-                # No saved diff file — try fetching committed diff from
-                # workspace. Remote rows report a workspace number for
-                # presentation only; there is no local workspace to probe.
-                file_panel.update_display(
-                    agent, stale_threshold_seconds=stale_threshold_seconds
-                )
-            else:
-                self._expand_prompt_only()
+        if not dispatch_file_view(
+            file_panel, agent, stale_threshold_seconds=stale_threshold_seconds
+        ):
+            self._expand_prompt_only()
 
     def _should_render_workflow_detail_async(
         self, agent: Agent, attempt_number: int | None

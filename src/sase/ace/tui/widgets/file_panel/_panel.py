@@ -89,6 +89,15 @@ class AgentFilePanel(
         with tui_trace("widget.file_panel.update_display"):
             self._update_display_body(agent, stale_threshold_seconds)
 
+    def invalidate_subject(self) -> None:
+        """Clear the current subject so the next dispatch starts fresh."""
+        self._current_agent = None
+        self._file_list = []
+
+    def reconcile_linked_pages(self, agent: Agent) -> None:
+        """Reconcile linked pages for ``agent`` after a deltas refresh."""
+        self._reconcile_file_list(agent, allow_initial_display=True)
+
     def _update_display_body(self, agent: Agent, stale_threshold_seconds: int) -> None:
         same_agent = (
             self._current_agent is not None

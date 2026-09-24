@@ -9,6 +9,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.message import Message
 from textual.widgets import Static
 
+from ._agent_detail_decks import AgentDetailDeckMixin
 from ._agent_detail_display import AgentDetailDisplayMixin
 from ._agent_detail_helpers import agent_prompt_panel_type
 from ._agent_detail_jump import AgentDetailJumpMixin
@@ -35,6 +36,7 @@ class AgentMetadataIdentityChanged(Message):
 
 
 class AgentDetail(
+    AgentDetailDeckMixin,
     AgentDetailDisplayMixin,
     AgentDetailStateMixin,
     AgentDetailPanelMixin,
@@ -64,15 +66,39 @@ class AgentDetail(
         # capture the value at start and discard their result if the
         # generation has advanced before they complete.
         self._agent_detail_generation: int = 0
+        self._decks_enabled = False
+        from .decks.main_document import EMPTY_MAIN_DOCUMENT
+
+        self._main_deck_document = EMPTY_MAIN_DOCUMENT
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
         from .agent_header_panel import AgentHeaderPanel
         from .agent_jump_panel import AgentJumpPanel
+        from .decks.area import DeckArea
 
         AgentPromptPanel = agent_prompt_panel_type()
+        try:
+            from .decks.flag import agent_decks_enabled
+
+            decks_enabled = bool(agent_decks_enabled())
+        except Exception:
+            decks_enabled = False
+        self._decks_enabled = decks_enabled
         with Vertical(id="agent-detail-layout"):
             yield AgentHeaderPanel(id="agent-header-panel", classes="hidden")
+            if decks_enabled:
+                with Vertical(id="agent-deck-source-host"):
+                    with VerticalScroll(id="agent-prompt-scroll"):
+                        yield AgentPromptPanel(
+                            id="agent-prompt-panel", classes="-deck-source"
+                        )
+                    with VerticalScroll(id="agent-search-scroll", classes="hidden"):
+                        yield Static(id="agent-search-panel")
+                    yield Static(id="agent-search-command", classes="hidden")
+                yield DeckArea(id="agent-deck-area", classes="-single")
+                yield AgentJumpPanel(id="agent-jump-panel", classes="hidden")
+                return
             with VerticalScroll(id="agent-prompt-scroll", classes="expanded"):
                 yield AgentPromptPanel(id="agent-prompt-panel")
             with VerticalScroll(id="agent-search-scroll", classes="hidden"):
@@ -111,6 +137,11 @@ class AgentDetail(
             prompt_panel.attach_identity_header_sink(self._on_identity_header)
         except Exception:
             pass
+        if self.decks_enabled:
+            try:
+                prompt_panel.attach_main_document_sink(self._on_main_document)
+            except Exception:
+                pass
         self._sync_header_visibility()
         self._attach_jump_panel_sink()
 
@@ -171,6 +202,20 @@ class AgentDetail(
         except Exception:
             return False
         try:
+            if self.decks_enabled:
+                area = self.deck_area
+                for deck_panel in area.visible_panels():
+                    try:
+                        main_view = deck_panel.main_view
+                    except Exception:
+                        continue
+                    if bool(getattr(main_view, "is_pinned_to_bottom", False)):
+                        reschedule = getattr(
+                            main_view, "_schedule_bottom_pin_reapply", None
+                        )
+                        if callable(reschedule):
+                            reschedule()
+                return expanded
             prompt_panel = self.query_one(
                 "#agent-prompt-panel", agent_prompt_panel_type()
             )

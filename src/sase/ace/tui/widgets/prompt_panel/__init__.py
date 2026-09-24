@@ -3,11 +3,6 @@
 from typing import Any
 
 from rich.console import Group
-from textual import events
-from textual.containers import ScrollableContainer
-from textual.geometry import Size
-from textual.timer import Timer
-from textual.widgets import Static
 
 from ...models.agent import Agent
 from ...llm_calls import supports_slow_tool_sources
@@ -30,49 +25,29 @@ from ._identity_header import (
 )
 from ...util.renderable_digest import renderable_content_digest
 from ..decks.card_part import flatten_card_document
-from ._section_navigation import (
-    PromptPanelSectionAnchor,
-    PromptPanelSectionRole,
-    PromptPanelSectionTarget,
-    PromptPanelSectionTargetKind,
-    SectionTrackingVisual,
-)
+from ._section_view import SectionViewMixin
 from ._workflow_display import WorkflowDisplayMixin
 
 _SLOW_TOOL_RENDER_TICK_SECONDS = 5.0
 
 
 class AgentPromptPanel(
-    AgentDisplayMixin, AgentHintsDisplayMixin, WorkflowDisplayMixin, Static
+    SectionViewMixin, AgentDisplayMixin, AgentHintsDisplayMixin, WorkflowDisplayMixin
 ):
     """Top panel showing agent details and the input prompt."""
 
-    _slow_tool_render_timer: Timer | None = None
-    _slow_tool_tick_agent: Agent | None = None
-    _section_generation: int = 0
-    _section_anchor_generation: int = -1
-    _section_anchor_width: int = -1
-    _section_anchors: tuple[PromptPanelSectionAnchor, ...] = ()
-    _active_section_identity: str | None = None
-    _pending_section_direction: int | None = None
-    _section_document_identity: object
-    _section_real_content_height: int = 0
-    _section_layout_reserve: int = 0
-    _section_layout_reserve_enabled: bool = False
-    _section_tracking_visual: SectionTrackingVisual | None = None
-    _section_tracking_visual_generation: int = -1
-    _section_content_digest: str | None = None
-    _preserve_missing_section_next_update: bool = False
-    _preserve_missing_section_generation: int = -1
-    _pinned_to_bottom: bool = False
-    _bottom_pin_reapply_scheduled: bool = False
-    _bottom_pin_last_y: int = -1
+    def _section_view_features_enabled(self) -> bool:
+        """Zoom modal panels keep today's behavior; only the main panel gates."""
+        return getattr(self, "id", None) == "agent-prompt-panel"
+
     _identity_header_sink: IdentityHeaderSink | None = None
     _identity_last_published: IdentityHeader | None = None
     _identity_last_content: Any = ""
     _member_jump_map_sink: MemberJumpMapSink | None = None
     _jump_map_last_published: Any = None
     _member_roster_last_published: Any = None
+    _main_document_sink: Any | None = None
+    _main_document_partial: bool = False
 
     def attach_identity_header_sink(self, sink: IdentityHeaderSink | None) -> None:
         """Publish detached identity headers to ``sink`` on each update."""
@@ -118,37 +93,26 @@ class AgentPromptPanel(
             return Group(identity.inline_renderable(), combined_body)  # type: ignore[arg-type]
         return Group(identity.inline_renderable(), content, Text("\n"), roster)  # type: ignore[arg-type]
 
-    def prepare_section_document(self, identity: object) -> None:
-        """Set the logical metadata-document identity for cursor reconciliation."""
-        previous = getattr(self, "_section_document_identity", _UNSET)
-        if previous != identity:
-            self._active_section_identity = None
-            self._pending_section_direction = None
-            self._section_layout_reserve_enabled = False
-            self.release_bottom_pin()
-        self._section_document_identity = identity
-
     def prepare_section_document_for_agent(self, agent: Agent) -> None:
         """Select the regular or attempt-pinned document for ``agent``."""
         self.prepare_section_document(
             (agent.identity, getattr(self, "attempt_pinned_number", None))
         )
 
-    def reset_section_document(self) -> None:
-        """Reset section state for an empty metadata panel."""
-        self.prepare_section_document((_EMPTY_DOCUMENT, id(self)))
+    def attach_main_document_sink(self, sink: Any | None) -> None:
+        """Attach the deck-mode Main document sink."""
+        self._main_document_sink = sink
 
-    def preserve_missing_section_on_next_update(self) -> None:
-        """Keep the cursor through one deliberately incomplete cheap paint."""
-        self._preserve_missing_section_next_update = True
+    def update_header_only(self, agent: Agent) -> None:
+        """Render only the header, marking the Main document partial."""
+        self._main_document_partial = True
+        try:
+            super().update_header_only(agent)
+        finally:
+            self._main_document_partial = False
 
     def update(self, content: Any = "", *, layout: bool = True) -> None:
-        """Update content while invalidating only the cached rendered anchors.
-
-        Equivalent documents (same content hash) skip generation bumps, visual
-        rebuilds, and layout invalidation so idle refreshes of an unchanged
-        prompt panel do not re-render.
-        """
+        """Update content while invalidating only the cached rendered anchors."""
         sink = getattr(self, "_identity_header_sink", None)
         if sink is not None:
             self._identity_last_published = find_identity_header(content)
@@ -167,268 +131,20 @@ class AgentPromptPanel(
             digest = renderable_content_digest(content)
         except Exception:
             digest = None
-        previous = getattr(self, "_section_content_digest", None)
-        if (
-            digest is not None
-            and digest == previous
-            and getattr(self, "_section_generation", 0) > 0
-        ):
-            self._preserve_missing_section_next_update = False
-            return
-        self._section_content_digest = digest
-        self._section_generation = getattr(self, "_section_generation", 0) + 1
-        self._preserve_missing_section_generation = (
-            self._section_generation
-            if self._preserve_missing_section_next_update
-            else -1
+        applied = self._apply_section_content(
+            flatten_card_document(content), digest, layout=layout
         )
-        self._preserve_missing_section_next_update = False
-        self._section_anchor_generation = -1
-        self._section_anchor_width = -1
-        self._section_anchors = ()
-        super().update(flatten_card_document(content), layout=layout)  # type: ignore[arg-type]
-        self._schedule_bottom_pin_reapply()
-
-    @property
-    def is_pinned_to_bottom(self) -> bool:
-        """Whether this metadata panel is following the real document bottom."""
-        return getattr(self, "_pinned_to_bottom", False)
-
-    def pin_to_bottom(self) -> None:
-        """Keep the metadata viewport pinned to the real document bottom."""
-        if getattr(self, "id", None) != "agent-prompt-panel":
-            return
-        scroll = self._bottom_pin_container()
-        self._pinned_to_bottom = True
-        self._bottom_pin_last_y = int(scroll.scroll_y) if scroll is not None else -1
-        self._schedule_bottom_pin_reapply()
-
-    def release_bottom_pin(self) -> None:
-        """Stop following the metadata document bottom."""
-        self._pinned_to_bottom = False
-        self._bottom_pin_last_y = -1
-
-    def bottom_scroll_target(self, scroll: ScrollableContainer) -> int:
-        """Return the real document bottom, excluding section-navigation reserve."""
-        return max(0, int(scroll.max_scroll_y) - self.section_layout_reserve)
-
-    def _bottom_pin_container(self) -> ScrollableContainer | None:
-        parent = self.parent
-        return parent if isinstance(parent, ScrollableContainer) else None
-
-    def _schedule_bottom_pin_reapply(self) -> None:
-        if not self.is_pinned_to_bottom or getattr(
-            self, "_bottom_pin_reapply_scheduled", False
-        ):
-            return
-        self._bottom_pin_reapply_scheduled = True
-        try:
-            self.call_after_refresh(self._reapply_bottom_pin)
-        except Exception:
-            self._bottom_pin_reapply_scheduled = False
-
-    def _reapply_bottom_pin(self) -> None:
-        self._bottom_pin_reapply_scheduled = False
-        if not self.is_pinned_to_bottom:
-            return
-        scroll = self._bottom_pin_container()
-        if scroll is None:
-            return
-
-        last_y = getattr(self, "_bottom_pin_last_y", -1)
-        if (
-            last_y >= 0
-            and int(scroll.scroll_y) != last_y
-            and int(scroll.max_scroll_y) >= last_y
-        ):
-            self.release_bottom_pin()
-            return
-
-        target = self.bottom_scroll_target(scroll)
-        scroll.scroll_to(y=target, animate=False, immediate=True)
-        self._bottom_pin_last_y = target
-
-    def on_resize(self, event: events.Resize) -> None:
-        """Re-apply the bottom pin when layout geometry changes."""
-        handler = getattr(super(), "on_resize", None)
-        if callable(handler):
-            handler(event)
-        self._schedule_bottom_pin_reapply()
-
-    def render(self) -> SectionTrackingVisual:
-        """Render original content through the lightweight section tracker."""
-        generation = getattr(self, "_section_generation", 0)
-        tracking_visual = getattr(self, "_section_tracking_visual", None)
-        if (
-            tracking_visual is None
-            or getattr(self, "_section_tracking_visual_generation", -1) != generation
-        ):
-            tracking_visual = SectionTrackingVisual(
-                self.visual,
-                self,
-                generation,
-                content_digest=getattr(self, "_section_content_digest", None),
-            )
-            self._section_tracking_visual = tracking_visual
-            self._section_tracking_visual_generation = generation
-        return tracking_visual
-
-    def get_content_height(self, container: Size, viewport: Size, width: int) -> int:
-        """Reserve enough non-document layout to top-align the final title."""
-        real_height = super().get_content_height(container, viewport, width)
-        self._section_real_content_height = real_height
-        anchors = (
-            self._section_anchors
-            if self._section_anchor_generation == self._section_generation
-            and self._section_anchor_width == width
-            else ()
-        )
-        reserve = 0
-        title_anchors = [
-            anchor for anchor in anchors if anchor.role is PromptPanelSectionRole.TITLE
-        ]
-        if (
-            getattr(self, "_section_layout_reserve_enabled", False)
-            and getattr(self, "id", None) == "agent-prompt-panel"
-            and title_anchors
-        ):
-            reserve = max(0, title_anchors[-1].row + container.height - real_height)
-        self._section_layout_reserve = reserve
-        return real_height + reserve
-
-    def enable_section_layout_reserve(self) -> bool:
-        """Enable final-title alignment extent on the first navigation request."""
-        if getattr(self, "id", None) != "agent-prompt-panel" or getattr(
-            self, "_section_layout_reserve_enabled", False
-        ):
-            return False
-        self._section_layout_reserve_enabled = True
-        self.refresh(layout=True)
-        return True
-
-    def _publish_section_layout(
-        self,
-        *,
-        generation: int,
-        width: int,
-        anchors: tuple[PromptPanelSectionAnchor, ...],
-    ) -> None:
-        """Publish anchors produced by the current content generation."""
-        if generation != getattr(self, "_section_generation", 0):
-            return
-        self._section_anchor_generation = generation
-        self._section_anchor_width = width
-        self._section_anchors = anchors
-        active = getattr(self, "_active_section_identity", None)
-        if (
-            active is not None
-            and generation != self._preserve_missing_section_generation
-            and all(
-                anchor.identity != active
-                for anchor in anchors
-                if anchor.role is PromptPanelSectionRole.TITLE
-            )
-        ):
-            self._active_section_identity = None
-
-    def resolve_section_target(
-        self,
-        direction: int,
-        *,
-        width: int,
-    ) -> PromptPanelSectionTarget:
-        """Resolve an initial or adjacent section from the current render cache.
-
-        The result distinguishes a rendered anchor, the document-top waypoint,
-        a valid zero-section document, and the brief invalidation window before
-        the refreshed Rich render publishes its anchors.
-        """
-        generation = getattr(self, "_section_generation", 0)
-        ready = (
-            getattr(self, "_section_anchor_generation", -1) == generation
-            and getattr(self, "_section_anchor_width", -1) == width
-        )
-        if not ready:
-            return PromptPanelSectionTarget(PromptPanelSectionTargetKind.NOT_READY)
-
-        all_anchors: tuple[PromptPanelSectionAnchor, ...] = getattr(
-            self, "_section_anchors", ()
-        )
-        anchors = tuple(
-            anchor
-            for anchor in all_anchors
-            if anchor.role is PromptPanelSectionRole.TITLE
-        )
-        if not anchors:
-            return PromptPanelSectionTarget(PromptPanelSectionTargetKind.EMPTY)
-
-        active = getattr(self, "_active_section_identity", None)
-        if active is None:
-            index = 0 if direction > 0 else len(anchors) - 1
-        else:
-            index_by_identity = {
-                anchor.identity: index for index, anchor in enumerate(anchors)
-            }
-            current_index = index_by_identity.get(active)
-            if current_index is None:
-                index = 0 if direction > 0 else len(anchors) - 1
-            elif (direction > 0 and current_index == len(anchors) - 1) or (
-                direction < 0 and current_index == 0
-            ):
-                self._active_section_identity = None
-                return PromptPanelSectionTarget(PromptPanelSectionTargetKind.TOP)
-            else:
-                index = (current_index + direction) % len(anchors)
-
-        target = anchors[index]
-        self._active_section_identity = target.identity
-        return PromptPanelSectionTarget(
-            PromptPanelSectionTargetKind.ANCHOR,
-            target,
-        )
-
-    def resolve_section_at_row(self, row: int, *, width: int) -> str | None:
-        """Resolve the section occupying ``row`` from the current anchor cache.
-
-        ``None`` means either that the current render has not published its
-        anchors yet or that the row is above the first marked section.  Fold
-        actions use this distinction to no-op during layout invalidation rather
-        than applying an override to a stale section.
-        """
-        generation = getattr(self, "_section_generation", 0)
-        ready = (
-            getattr(self, "_section_anchor_generation", -1) == generation
-            and getattr(self, "_section_anchor_width", -1) == width
-        )
-        if not ready:
-            return None
-
-        current: str | None = None
-        for anchor in getattr(self, "_section_anchors", ()):
-            if anchor.row > row:
-                break
-            current = anchor.identity
-        return current
-
-    def queue_section_retry(self, direction: int) -> None:
-        """Retain one direction while refreshed anchors await first paint."""
-        self._pending_section_direction = direction
-
-    def consume_section_retry(self) -> int | None:
-        """Return and clear the retained navigation direction."""
-        direction = getattr(self, "_pending_section_direction", None)
-        self._pending_section_direction = None
-        return direction
-
-    @property
-    def active_section_identity(self) -> str | None:
-        """Semantic identity selected by the section-navigation shortcuts."""
-        return getattr(self, "_active_section_identity", None)
-
-    @property
-    def section_layout_reserve(self) -> int:
-        """Current non-document trailing layout extent."""
-        return getattr(self, "_section_layout_reserve", 0)
+        if applied:
+            main_sink = getattr(self, "_main_document_sink", None)
+            if callable(main_sink):
+                try:
+                    main_sink(
+                        content,
+                        bool(getattr(self, "_main_document_partial", False)),
+                        digest,
+                    )
+                except Exception:
+                    pass
 
     def _configure_slow_tool_render_tick(self, agent: Agent) -> None:
         if getattr(self, "_agent_hint_mode_rendered", False):
@@ -503,10 +219,6 @@ class AgentPromptPanel(
 
     def on_unmount(self) -> None:
         self._cancel_slow_tool_render_tick()
-
-
-_UNSET = object()
-_EMPTY_DOCUMENT = object()
 
 
 __all__ = [

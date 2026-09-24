@@ -65,6 +65,9 @@ class AgentMetadataSearchMixin:
             detail = self._agent_detail()
         except Exception:
             return False
+        # Deck-action-retarget replaces this with the per-panel overlay.
+        if bool(getattr(detail, "decks_enabled", False)):
+            return False
         return detail.is_metadata_visible()
 
     def action_search_forward(self) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sase.ace.tui.llm_calls import build_cached_slow_tool_sources
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.llm_calls.cache import (
     invalidate_cached_tool_calls,
@@ -11,6 +12,24 @@ from sase.ace.tui.llm_calls.cache import (
     peek_tool_calls_cache_entry,
     should_throttle_tool_call_fetch,
 )
+
+
+def cached_tool_call_count(agent: Agent) -> int | None:
+    """Return the cached tool-call count without I/O, or None when cold."""
+    from sase.ace.tui.llm_calls import supports_slow_tool_sources
+
+    if supports_slow_tool_sources(agent):
+        sources = build_cached_slow_tool_sources(agent)
+        if sources is None:
+            return None
+        return sum(len(source.entries) for source in sources)
+    entry = peek_tool_calls_cache_entry(agent)
+    if entry is None:
+        return None
+    entries = entry.entries
+    if entries is None:
+        return 0
+    return len(entries)
 
 
 def latest_cached_fetch_time(agent: Agent) -> datetime | None:

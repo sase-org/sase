@@ -59,6 +59,12 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
 
     def show_empty(self) -> None:
         """Show empty state for all panels."""
+        if bool(getattr(self, "decks_enabled", False)):
+            previous_identity = self.metadata_identity
+            self._deck_show_empty()  # type: ignore[attr-defined]
+            self._publish_metadata_identity_change(previous_identity)
+            self._sync_header_visibility()
+            return
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_agent = None
@@ -101,6 +107,12 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         cheap: bool = False,
     ) -> None:
         """Show a tribe document on the regular fold-aware prompt surface."""
+        if bool(getattr(self, "decks_enabled", False)):
+            previous_identity = self.metadata_identity
+            self._deck_show_tribe_summary(snapshot, cheap=cheap)  # type: ignore[attr-defined]
+            self._publish_metadata_identity_change(previous_identity)
+            self._sync_header_visibility()
+            return
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_agent = None
@@ -128,16 +140,35 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
             agent: The Agent to refresh file for.
         """
         with tui_trace("agent_detail.refresh_current_file"):
+            if bool(getattr(self, "decks_enabled", False)):
+                try:
+                    panel = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+                    panel.file_view.refresh_file(agent)
+                except Exception:
+                    pass
+                return
             file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
             file_panel.refresh_file(agent)
 
     def cycle_next_file(self) -> None:
         """Cycle to the next file in the file panel."""
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                self.deck_area.focused_panel().file_view.next_file()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         file_panel.next_file()
 
     def cycle_prev_file(self) -> None:
         """Cycle to the previous file in the file panel."""
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                self.deck_area.focused_panel().file_view.prev_file()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         file_panel.prev_file()
 
@@ -148,11 +179,18 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
             or self._current_agent.identity != message.agent_identity
         ):
             return
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                from .decks.model import DeckId as _DeckId
+
+                for panel in self.deck_area.panels_showing(_DeckId.FILES):  # type: ignore[attr-defined]
+                    panel.file_view.reconcile_linked_pages(self._current_agent)
+            except Exception:
+                pass
+            message.stop()
+            return
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel._reconcile_file_list(
-            self._current_agent,
-            allow_initial_display=True,
-        )
+        file_panel.reconcile_linked_pages(self._current_agent)
         message.stop()
 
     def is_llm_calls_visible(self) -> bool:
@@ -161,6 +199,20 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         Returns:
             True if the LLM Calls panel is visible, False otherwise.
         """
+        if bool(getattr(self, "decks_enabled", False)):
+            if self._current_agent is None:
+                return False
+            try:
+                from .decks.model import DeckId as _DeckId
+
+                for panel in self.deck_area.visible_panels():  # type: ignore[attr-defined]
+                    if panel.deck is _DeckId.TOOLS and not panel._deck_is_empty(
+                        _DeckId.TOOLS
+                    ):
+                        return True
+            except Exception:
+                return False
+            return False
         if self._current_agent is None or self._panel_mode != DetailPanelMode.LLM_CALLS:
             return False
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
@@ -196,6 +248,19 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         )
 
     def _llm_calls_panel_or_none(self) -> AgentLLMCallsPanel | None:
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                from .decks.model import DeckId as _DeckId
+
+                focused = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+                if focused.deck is _DeckId.TOOLS:
+                    return focused.tools_view
+                for panel in self.deck_area.visible_panels():  # type: ignore[attr-defined]
+                    if panel.deck is _DeckId.TOOLS:
+                        return panel.tools_view
+            except Exception:
+                return None
+            return None
         try:
             return self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
         except NoMatches:
@@ -215,6 +280,20 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         Returns:
             True if the file panel is visible, False otherwise.
         """
+        if bool(getattr(self, "decks_enabled", False)):
+            if self._current_agent is None:
+                return False
+            try:
+                from .decks.model import DeckId as _DeckId
+
+                for panel in self.deck_area.visible_panels():  # type: ignore[attr-defined]
+                    if panel.deck is _DeckId.FILES and not panel._deck_is_empty(
+                        _DeckId.FILES
+                    ):
+                        return True
+            except Exception:
+                return False
+            return False
         if self._current_agent is None:
             return False
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
@@ -222,6 +301,16 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
 
     def is_metadata_visible(self) -> bool:
         """Return whether either metadata scroll variant is visible."""
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                from .decks.model import DeckId as _DeckId
+
+                return any(
+                    panel.deck is _DeckId.MAIN
+                    for panel in self.deck_area.visible_panels()  # type: ignore[attr-defined]
+                )
+            except Exception:
+                return False
         prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
         search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
         return not (
@@ -230,6 +319,12 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
 
     def effective_detail_scroll_id(self) -> str:
         """Return the scroll container that currently owns detail navigation."""
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                panel = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+                return f"#{panel.active_scroll().id}"
+            except Exception:
+                return "#agent-deck-area"
         if self.is_llm_calls_visible():
             return "#agent-llm-calls-scroll"
         if self.is_file_visible():
@@ -248,6 +343,23 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
             - content is set if a temp file should be created
             - suffix is the file extension for the temp file
         """
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                from .decks.model import DeckId as _DeckId
+
+                panel = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+                if panel.deck is _DeckId.FILES:
+                    view = panel.file_view
+                    return (
+                        view.get_current_file_path(),
+                        view.get_current_content(),
+                        ".diff",
+                    )
+                if panel.deck is _DeckId.TOOLS:
+                    return (None, panel.tools_view.get_llm_calls_text(), ".md")
+            except Exception:
+                pass
+            return (None, None, "")
         if self.is_file_visible():
             file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
             return (
@@ -264,6 +376,16 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
 
     def get_current_image_path(self) -> str | None:
         """Return the currently visible image path, or None."""
+        if bool(getattr(self, "decks_enabled", False)):
+            try:
+                from .decks.model import DeckId as _DeckId
+
+                panel = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+                if panel.deck is not _DeckId.FILES:
+                    return None
+                return panel.file_view.get_current_image_path()
+            except Exception:
+                return None
         if not self.is_file_visible():
             return None
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)

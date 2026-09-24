@@ -357,6 +357,12 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         chop_run_total = 0
         chop_enabled, chop_running = (False, False)
 
+    try:
+        from sase.ace.tui.widgets.decks.flag import agent_decks_active as _decks_active
+
+        decks_active = bool(_decks_active(app))
+    except Exception:
+        decks_active = False
     return CommandContext(
         tab=tab,
         artifacts_subtab=getattr(app, "current_artifacts_pane_key", "patches"),
@@ -383,6 +389,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         file_panel_visible=file_panel,
         has_artifact_files=has_artifact_files,
         agents_metadata_search_active=metadata_search_active,
+        agent_decks_active=decks_active,
         fleet_enabled=bool(fleet_available()) if callable(fleet_available) else False,
         selected_agent_remote=selected_remote,
         link_edges_present=link_edges_present,
