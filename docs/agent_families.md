@@ -443,9 +443,8 @@ descendant and `fam.helper` lists `fam` back as its ancestor. Both rosters draw 
 digits from one continuous ladder, so family members are numbered first and neighbors
 after, with a single shared number width. Family members already shown under
 `FAMILY SHELLS` are never repeated in `NEIGHBORS`; they are reported as a dim
-`… +N also listed under FAMILY SHELLS` tail. The family's two-level scale drives the
-section too: level 1 shows the first three neighbors plus a hidden-count tail, and level
-2 shows all of them. See
+`… +N also listed under FAMILY SHELLS` tail. Every neighbor is always listed and
+numbered after the family members, whatever the fold level. See
 [Sase Agent Neighbors Section](ace.md#sase-agent-neighbors-section) for the full
 behavior, which single agents share through their own three-level scale.
 

@@ -24,8 +24,8 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header
 from sase.ace.tui.widgets.prompt_panel._agent_display_neighbors import (
     _neighbor_roster_entries,
     append_lane_neighbors_section,
-    neighbor_entry_limit,
 )
+from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpNumbering
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     DetailHeaderSummary,
 )
@@ -84,24 +84,6 @@ def _projection(
     )
 
 
-@pytest.mark.parametrize(
-    ("level", "scale", "expected"),
-    [
-        (FoldLevel.COLLAPSED, AGENT_FOLD_SCALE, 3),
-        (FoldLevel.EXPANDED, AGENT_FOLD_SCALE, 10),
-        (FoldLevel.FULLY_EXPANDED, AGENT_FOLD_SCALE, None),
-        (FoldLevel.EXPANDED, FAMILY_FOLD_SCALE, 3),
-        (FoldLevel.FULLY_EXPANDED, FAMILY_FOLD_SCALE, None),
-    ],
-)
-def test_neighbor_entry_limit_uses_lane_scale_position(
-    level: FoldLevel,
-    scale: tuple[FoldLevel, ...],
-    expected: int | None,
-) -> None:
-    assert neighbor_entry_limit(level, scale) == expected
-
-
 def test_neighbor_entries_share_labels_annotations_and_target_roles() -> None:
     prospective = _agent("lane.code")
     dismissed = _agent("lane.scratch")
@@ -135,19 +117,18 @@ def test_neighbor_entries_share_labels_annotations_and_target_roles() -> None:
 
 
 @pytest.mark.parametrize(
-    ("level", "scale", "shown"),
+    ("level", "scale"),
     [
-        (FoldLevel.COLLAPSED, AGENT_FOLD_SCALE, 3),
-        (FoldLevel.EXPANDED, AGENT_FOLD_SCALE, 10),
-        (FoldLevel.FULLY_EXPANDED, AGENT_FOLD_SCALE, 12),
-        (FoldLevel.EXPANDED, FAMILY_FOLD_SCALE, 3),
-        (FoldLevel.FULLY_EXPANDED, FAMILY_FOLD_SCALE, 12),
+        (FoldLevel.COLLAPSED, AGENT_FOLD_SCALE),
+        (FoldLevel.EXPANDED, AGENT_FOLD_SCALE),
+        (FoldLevel.FULLY_EXPANDED, AGENT_FOLD_SCALE),
+        (FoldLevel.EXPANDED, FAMILY_FOLD_SCALE),
+        (FoldLevel.FULLY_EXPANDED, FAMILY_FOLD_SCALE),
     ],
 )
-def test_neighbors_section_renders_fold_ladder_and_truthful_count(
+def test_neighbors_section_renders_every_neighbor_at_every_fold_level(
     level: FoldLevel,
     scale: tuple[FoldLevel, ...],
-    shown: int,
 ) -> None:
     lane = _agent("lane")
     rows = tuple(_row(_agent(f"lane.child{index}")) for index in range(12))
@@ -162,13 +143,31 @@ def test_neighbors_section_renders_fold_ladder_and_truthful_count(
     )
 
     assert jump_map is not None
-    assert len(jump_map.targets) == shown
+    assert len(jump_map.targets) == 12
     assert "NEIGHBORS · 12" in text.plain
-    assert text.plain.count(" · agent · ") == shown
-    if shown < 12:
-        assert f"… +{12 - shown} more neighbors (zz to show more)" in text.plain
-    else:
-        assert "more neighbors" not in text.plain
+    assert text.plain.count(" · agent · ") == 12
+    assert "more neighbors" not in text.plain
+    assert "zz" not in text.plain
+
+
+def test_neighbors_section_capacity_tail_never_mentions_fold() -> None:
+    lane = _agent("lane")
+    rows = tuple(_row(_agent(f"lane.child{index}")) for index in range(12))
+    text = Text()
+
+    jump_map = append_lane_neighbors_section(
+        text,
+        projection=_projection(lane, rows),
+        panel_level=FoldLevel.COLLAPSED,
+        scale=AGENT_FOLD_SCALE,
+        numbering=MemberJumpNumbering(total=12, capacity=5),
+        now=_NOW,
+    )
+
+    assert jump_map is not None
+    assert len(jump_map.targets) == 5
+    assert "… +7 more neighbors (not numbered)" in text.plain
+    assert "zz" not in text.plain
 
 
 def test_neighbors_section_marks_dismissed_targets_and_suppression_tail() -> None:

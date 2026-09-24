@@ -476,7 +476,8 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     assert isinstance(collapsed_doc, AgentHeaderRenderable)
     collapsed_roster = find_member_roster(collapsed_doc)
     assert collapsed_roster is not None
-    assert "zz to show more" in collapsed_roster.plain
+    assert "zz to show more" not in collapsed_roster.plain
+    assert "more neighbors" not in collapsed_roster.plain
 
     # Clan.
     members = [

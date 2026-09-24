@@ -37,11 +37,7 @@ from ._agent_display_family import (
     family_roster_entries,
     family_roster_heading_suffix,
 )
-from ._agent_display_neighbors import (
-    NEIGHBORS_SECTION_ID,
-    append_lane_neighbors_section,
-    neighbor_entry_limit,
-)
+from ._agent_display_neighbors import append_lane_neighbors_section
 from ._agent_display_header_metadata import (
     _UNASSIGNED_AGENT_NAME_DISPLAY,
     append_agent_metadata_fields,
@@ -138,20 +134,7 @@ def build_header_text(
     family_fold_enabled = agent.is_family_container_row and lane_fold_level is not None
     roster_container = family_roster_container(agent)
     lane_neighbors = lane_neighbors if agent_owns_sase_agent(agent) else None
-    neighbors_level = effective_fold_level(
-        lane_overrides.get(NEIGHBORS_SECTION_ID, resolved_lane_fold_level),
-        lane_scale,
-    )
-    neighbors_limit = neighbor_entry_limit(neighbors_level, lane_scale)
-    shown_neighbor_count = (
-        0
-        if lane_neighbors is None
-        else (
-            len(lane_neighbors.rows)
-            if neighbors_limit is None
-            else min(len(lane_neighbors.rows), neighbors_limit)
-        )
-    )
+    shown_neighbor_count = 0 if lane_neighbors is None else len(lane_neighbors.rows)
     family_heading_suffix: Text | None = None
     if family_fold_enabled:
         family_entries = family_roster_entries(agent)

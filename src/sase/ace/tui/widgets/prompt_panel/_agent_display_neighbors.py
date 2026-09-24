@@ -1,4 +1,4 @@
-"""Fold-aware lane-neighbor rendering for agent prompt panels."""
+"""Lane-neighbor rendering for agent prompt panels."""
 
 from __future__ import annotations
 
@@ -15,11 +15,7 @@ from ...models.sase_agent_neighbors import (
     SaseAgentNeighborProjection,
     LaneNeighborRow,
 )
-from ...models.fold_scale import (
-    FoldScale,
-    effective_fold_level,
-    fold_scale_position,
-)
+from ...models.fold_scale import FoldScale
 from ...models.fold_state import FoldLevel
 from ._agent_display_content import get_phase_label
 from ._member_roster import (
@@ -33,18 +29,6 @@ from ._member_roster_digest import agent_roster_digest, agent_roster_duration
 NEIGHBORS_SECTION_ID = "neighbors"
 NEIGHBORS_IDENTITY_COLOR = "#00D7AF"
 NEIGHBORS_ROSTER_TITLE = "NEIGHBORS"
-NEIGHBORS_FIRST_LEVEL_LIMIT = 3
-NEIGHBORS_MID_LEVEL_LIMIT = 10
-
-
-def neighbor_entry_limit(level: FoldLevel, scale: FoldScale) -> int | None:
-    """Return the positional lane-neighbor row limit at ``level``."""
-    position, size = fold_scale_position(level, scale)
-    if position == 1:
-        return NEIGHBORS_FIRST_LEVEL_LIMIT
-    if position == size:
-        return None
-    return NEIGHBORS_MID_LEVEL_LIMIT
 
 
 def _neighbor_roster_entries(
@@ -106,11 +90,6 @@ def append_lane_neighbors_section(
         return None
 
     overrides = section_fold_overrides or {}
-    neighbors_level = effective_fold_level(
-        overrides.get(NEIGHBORS_SECTION_ID, panel_level),
-        scale,
-    )
-    entry_limit = neighbor_entry_limit(neighbors_level, scale)
     entries = _neighbor_roster_entries(
         projection.rows,
         unread_agent_ids=unread_agent_ids,
@@ -118,10 +97,7 @@ def append_lane_neighbors_section(
         now=now,
     )
     if numbering is None:
-        shown_count = (
-            len(entries) if entry_limit is None else min(len(entries), entry_limit)
-        )
-        numbering = MemberJumpNumbering(total=shown_count)
+        numbering = MemberJumpNumbering(total=len(entries))
     suppressed_count = projection.suppressed_lane_member_count
     return append_member_roster(
         text,
@@ -135,9 +111,7 @@ def append_lane_neighbors_section(
         section_id=NEIGHBORS_SECTION_ID,
         member_anchor_prefix="neighbor:",
         numbering=numbering,
-        entry_limit=entry_limit,
         hidden_tail_label="neighbors",
-        hidden_tail_hint="zz to show more",
         extra_tail=(
             f"… +{suppressed_count} also listed under FAMILY SHELLS"
             if suppressed_count
@@ -163,11 +137,8 @@ def _neighbor_label(row: LaneNeighborRow) -> str:
 
 
 __all__ = [
-    "NEIGHBORS_FIRST_LEVEL_LIMIT",
     "NEIGHBORS_IDENTITY_COLOR",
-    "NEIGHBORS_MID_LEVEL_LIMIT",
     "NEIGHBORS_ROSTER_TITLE",
     "NEIGHBORS_SECTION_ID",
     "append_lane_neighbors_section",
-    "neighbor_entry_limit",
 ]

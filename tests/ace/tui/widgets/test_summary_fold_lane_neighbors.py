@@ -23,9 +23,6 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import (
     build_header_text,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_display_neighbors import (
-    neighbor_entry_limit,
-)
 from sase.ace.tui.widgets.prompt_panel._fold_language import FOLD_CHARS
 from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpMap
 from tests.ace.tui.widgets._summary_fold_contract_helpers import (
@@ -151,8 +148,7 @@ def lane_neighbor_case(
 
 
 def _shown_neighbor_count(case: _LaneNeighborContractCase, level: FoldLevel) -> int:
-    limit = neighbor_entry_limit(level, case.scale)
-    return _LANE_NEIGHBOR_TOTAL if limit is None else min(_LANE_NEIGHBOR_TOTAL, limit)
+    return _LANE_NEIGHBOR_TOTAL
 
 
 def test_lane_neighbor_glyph_tracks_the_lane_fold_level(
@@ -170,22 +166,17 @@ def test_lane_neighbor_glyph_tracks_the_lane_fold_level(
         )
 
 
-def test_lane_neighbor_rows_follow_the_positional_ladder(
+def test_lane_neighbor_rows_always_render_every_numbered_row(
     lane_neighbor_case: _LaneNeighborContractCase,
 ) -> None:
     for level in lane_neighbor_case.scale:
         rendered = lane_neighbor_case.rendered[level].plain
         body = section_body(rendered, "NEIGHBORS")
-        shown = _shown_neighbor_count(lane_neighbor_case, level)
-        assert len(_NUMBERED_ROW.findall(body)) == shown, (
+        assert len(_NUMBERED_ROW.findall(body)) == _LANE_NEIGHBOR_TOTAL, (
             lane_neighbor_case.kind,
             level,
         )
-        hidden = _LANE_NEIGHBOR_TOTAL - shown
-        if hidden:
-            assert f"… +{hidden} more neighbors" in body
-        else:
-            assert "more neighbors" not in body
+        assert "more neighbors" not in body
 
 
 def test_lane_neighbor_heading_always_counts_every_neighbor(
@@ -205,18 +196,23 @@ def test_lane_neighbor_heading_always_counts_every_neighbor(
 def test_lane_document_digits_match_the_published_jump_map(
     lane_neighbor_case: _LaneNeighborContractCase,
 ) -> None:
+    expected_total = lane_neighbor_case.leading_member_count + _LANE_NEIGHBOR_TOTAL
+    assert expected_total > 10
+    expected_numbers = [f"{index:02d}" for index in range(expected_total)]
+    seen: list[list[str]] = []
     for level in lane_neighbor_case.scale:
         rendered = lane_neighbor_case.rendered[level]
-        expected_total = lane_neighbor_case.leading_member_count
-        expected_total += _shown_neighbor_count(lane_neighbor_case, level)
         numbers = [target.number for target in rendered.jump_map.targets]
         assert numbers == _NUMBERED_ROW.findall(rendered.plain), (
             lane_neighbor_case.kind,
             level,
         )
-        assert len(numbers) == expected_total
-        width = 1 if expected_total <= 10 else 2
-        assert numbers == [f"{index:0{width}d}" for index in range(expected_total)]
+        assert numbers == expected_numbers, (
+            lane_neighbor_case.kind,
+            level,
+        )
+        seen.append(numbers)
+    assert all(entry == seen[0] for entry in seen)
 
 
 def test_lane_neighbor_target_roles_stay_neighbor_at_every_level(

@@ -16,6 +16,7 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets import AgentDetail, AgentList
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_absent,
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -268,6 +269,7 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    """Folding changes neighbor annotation detail, never which rows render."""
     pin_agents_visual_now(monkeypatch, _LANE_NOW)
     patch_startup_loaders(monkeypatch, agents=_single_lane_neighbor_agents(tmp_path))
 
@@ -302,11 +304,11 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
 
         assert page.app._agents[page.app.current_idx].identity == lane_identity
         jump_map = page.app._member_jump_maps[lane.identity]
-        assert [target.number for target in jump_map.targets] == ["0", "1", "2"]
+        assert [target.number for target in jump_map.targets] == list("01234")
         assert {target.role for target in jump_map.targets} == {"neighbor"}
         assert_page_svg_contains(page, "NEIGHBORS")
         assert_page_svg_contains(page, "visual.lane hood")
-        assert_page_svg_contains(page, "more neighbors")
+        assert_page_svg_styled_text_absent(page, "more neighbors")
         await wait_for_svg_contains(page, "Review visual lane neighbor ordering.")
         await wait_for_svg_contains(page, "acknowledged")
         await wait_for_visual_idle(page)
@@ -314,7 +316,7 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
         ace_png_visual.assert_page_png(
             page,
             "agents_lane_neighbors_section_first_level_160x50",
-            title="ACE lane neighbors section first fold level",
+            title="ACE lane neighbors detail folding at first level",
         )
 
         await page.press("z", "z")
@@ -324,6 +326,9 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
 
         expanded_map = page.app._member_jump_maps[lane.identity]
         assert [target.number for target in expanded_map.targets] == list("01234")
+        assert [target.number for target in expanded_map.targets] == [
+            target.number for target in jump_map.targets
+        ]
         assert_page_svg_contains(page, ".bench")
         await wait_for_svg_contains(page, "Review visual lane neighbor ordering.")
         await wait_for_svg_contains(page, "AGENT REPLY")
@@ -332,7 +337,7 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
         ace_png_visual.assert_page_png(
             page,
             "agents_lane_neighbors_section_expanded_160x50",
-            title="ACE lane neighbors section expanded",
+            title="ACE lane neighbors detail folding expanded",
         )
 
         await page.press("4")

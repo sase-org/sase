@@ -1727,15 +1727,15 @@ reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed
 jump panel the section sits after `FAMILY SHELLS` when both exist, so a sase agent's
 numbered neighbors stay reachable without scrolling the metadata body.
 
-The row count follows the sase agent's fold scale by position, not by level name: the
-first position shows 3 rows, the last position shows all of them, and any middle
-position shows 10. A family therefore shows 3 rows at level 1 and every row at level 2,
-while a single sase agent shows 3 / 10 / all across its three levels. The heading count
-is always the sase agent's total neighbor count, and a dim
-`… +N more neighbors (zz to show more)` tail reports what is hidden. Only visible rows
-get digits. On a family, siblings that already appear under `FAMILY SHELLS` are not
-repeated; they are reported by a dim `… +N also listed under FAMILY SHELLS` tail
-instead. The heading count still includes the suppressed rows.
+Every neighbor always renders and gets a digit whatever the fold level. The fold level
+only changes the heading glyph and each row's annotation detail. Numbering is stable
+across fold levels and JUMP-panel toggles: the collapsed legend, the expanded roster,
+and the published jump map all share one continuous ladder. The heading count is always
+the sase agent's total neighbor count. The only hidden-row tail is the shared 100-slot
+numbering capacity, which reports `… +N more neighbors (not numbered)`. On a family,
+siblings that already appear under `FAMILY SHELLS` are not repeated; they are reported
+by a dim `… +N also listed under FAMILY SHELLS` tail instead. The heading count still
+includes the suppressed rows.
 
 ### Opened Repository Context
 
