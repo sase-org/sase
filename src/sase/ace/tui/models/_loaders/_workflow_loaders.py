@@ -11,6 +11,7 @@ from sase.agent.status_buckets import (
     PENDING_PLAN_REVIEW_STATUSES,
 )
 from sase.core.paths import sase_projects_dir
+from sase.plan_chain import agent_session_role_value
 
 from ....hooks.processes import is_process_running
 from .._timestamps import parse_timestamp_14_digit
@@ -58,7 +59,7 @@ def family_shell_member_from_meta(
 def _mapping_is_family_shell_member(data: object) -> bool:
     if not isinstance(data, dict):
         return False
-    role = data.get("agent_family_role")
+    role = agent_session_role_value(data)
     suffix = data.get("role_suffix")
     gate_id = data.get("gate_id")
     return family_shell_member_from_meta(

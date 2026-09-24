@@ -13,6 +13,11 @@ from sase.core.agent_scan_wire import (
     WorkflowStateWire,
     family_shell_from_mapping,
 )
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_role_value,
+    agent_session_value,
+)
 
 
 def artifact(tmp_path: Path, name: str, pid: int, **extra_meta: object) -> Path:
@@ -48,9 +53,9 @@ def record(
                 if isinstance(meta.get("process_identity"), str)
                 else None
             ),
-            agent_family=meta.get("agent_family"),
-            agent_family_role=meta.get("agent_family_role"),
-            agent_family_parallel=bool(meta.get("agent_family_parallel", False)),
+            agent_family=agent_session_value(meta),
+            agent_family_role=agent_session_role_value(meta),
+            agent_family_parallel=bool(agent_session_parallel_value(meta)),
             parent_timestamp=meta.get("parent_timestamp"),
             runner_claim_owner_key=(
                 meta["runner_claim_owner_key"]

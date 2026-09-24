@@ -26,7 +26,10 @@ from sase.core.agent_identity_facade import (
     parse_agent_session_name,
 )
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
-from sase.plan_chain import AGENT_FAMILY_FIELD
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_value,
+)
 
 
 def _self_parallel_family_root(
@@ -40,11 +43,11 @@ def _self_parallel_family_root(
     meta = read_json_dict(artifacts_dir / "agent_meta.json")
     if meta is None:
         return False, None
-    if meta.get("agent_family_parallel") is not True:
+    if agent_session_parallel_value(meta) is not True:
         return False, None
     from sase.core.agent_identity_facade import current_owner_agent_name_key
 
-    family_name = meta.get(AGENT_FAMILY_FIELD)
+    family_name = agent_session_value(meta)
     if not isinstance(family_name, str) or current_owner_agent_name_key(
         family_name
     ) != current_owner_agent_name_key(base_name):

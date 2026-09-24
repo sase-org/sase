@@ -42,12 +42,12 @@ def resolve_family_member_shell(
     """
     meta = read_json_dict(member.artifacts_dir / "agent_meta.json") or {}
     if is_real_monitor_member(
-        json_string(meta, "agent_family_role"),
+        json_string(meta, "agent_session_role"),
         json_string(meta, "monitor_id"),
     ):
         return _resolve_monitor_family_member_shell(member)
     if is_real_gate_member(
-        json_string(meta, "agent_family_role"),
+        json_string(meta, "agent_session_role"),
         json_string(meta, "gate_id"),
     ):
         return _resolve_gate_shell_family_member_shell(member, meta)

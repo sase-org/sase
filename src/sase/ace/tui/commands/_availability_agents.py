@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_value,
+)
+
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.ace.tui.agent_completion import agent_prompt_name
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
@@ -263,7 +267,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return agent_prompt_name(agent) is not None
         if agent.status not in DISMISSABLE_STATUSES:
             return bool(getattr(agent, "agent_name", None)) or bool(
-                getattr(agent, "agent_family", None)
+                agent_session_value(agent)
             )
         return is_resumable_done_status(agent.status) and bool(
             getattr(agent, "response_path", None)

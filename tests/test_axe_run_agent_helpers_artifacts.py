@@ -78,8 +78,8 @@ def test_promote_to_workflow_renames_plan_root_to_first_member(tmp_path) -> None
     assert meta["name"] == "a--plan"
     assert meta["workflow_name"] == "a"
     assert meta["plan_chain_root"] is True
-    assert meta["agent_family"] == "a"
-    assert meta["agent_family_role"] == "root"
+    assert meta["agent_session"] == "a"
+    assert meta["agent_session_role"] == "root"
     assert meta["role_suffix"] == "--plan"
     assert meta["pid"] == 123
 
@@ -107,7 +107,7 @@ def test_promote_to_workflow_ignores_preexisting_hood_neighbor_prefix(
 
         meta = json.loads((root_dir / "agent_meta.json").read_text(encoding="utf-8"))
         assert meta["name"] == "sq--plan"
-        assert meta["agent_family"] == "sq"
+        assert meta["agent_session"] == "sq"
         assert lookup_registered_name("sq")["container_kind"] == "family"
 
 
@@ -120,8 +120,8 @@ def test_promote_to_workflow_renames_generic_root_to_zero_member(tmp_path) -> No
     meta = json.loads(meta_path.read_text())
     assert meta["name"] == "a--0"
     assert meta["workflow_name"] == "a"
-    assert meta["agent_family"] == "a"
-    assert meta["agent_family_role"] == "root"
+    assert meta["agent_session"] == "a"
+    assert meta["agent_session_role"] == "root"
     assert meta["role_suffix"] == "--0"
 
 
@@ -160,8 +160,8 @@ def test_create_followup_with_name_override(tmp_path) -> None:
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
     assert meta["name"] == "a--code"
     assert meta["workflow_name"] == "a"
-    assert meta["agent_family"] == "a"
-    assert meta["agent_family_role"] == "code"
+    assert meta["agent_session"] == "a"
+    assert meta["agent_session_role"] == "code"
     assert meta["role_suffix"] == "--code"
     assert meta["parent_timestamp"] == "20260326120000"
     assert meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] == "20260326120000"
@@ -188,8 +188,8 @@ def test_create_followup_persists_custom_role_override(tmp_path) -> None:
 
     meta = json.loads((tmp_path / "new" / "agent_meta.json").read_text())
     assert meta["name"] == "a--2"
-    assert meta["agent_family"] == "a"
-    assert meta["agent_family_role"] == "reviewer"
+    assert meta["agent_session"] == "a"
+    assert meta["agent_session_role"] == "reviewer"
     assert meta["role_suffix"] == "--2"
 
 

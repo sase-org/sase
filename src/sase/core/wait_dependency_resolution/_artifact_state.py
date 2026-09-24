@@ -16,9 +16,9 @@ from sase.core.dismissed_agent_completion import (
 from sase.gate_shell.state import TERMINAL_GATE_STATES, is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
-    AGENT_FAMILY_FIELD,
-    AGENT_FAMILY_ROLE_FIELD,
     agent_family_base,
+    agent_session_role_value,
+    agent_session_value,
     is_plan_chain_artifact_meta,
 )
 
@@ -179,14 +179,14 @@ def artifact_is_resolved(
 
 def _is_family_shell_member_meta(meta: Mapping[str, Any]) -> bool:
     return _is_monitor_member_meta(meta) or is_real_gate_member(
-        _str_or_none(meta.get(AGENT_FAMILY_ROLE_FIELD)),
+        _str_or_none(agent_session_role_value(meta)),
         _str_or_none(meta.get("gate_id")),
     )
 
 
 def _is_monitor_member_meta(meta: Mapping[str, Any]) -> bool:
     return is_monitor_member_role(
-        _str_or_none(meta.get(AGENT_FAMILY_ROLE_FIELD)),
+        _str_or_none(agent_session_role_value(meta)),
         _str_or_none(meta.get("role_suffix")),
     )
 
@@ -208,7 +208,7 @@ def shell_member_kind_for_meta(meta: Mapping[str, Any]) -> str | None:
     gate_id = _str_or_none(meta.get("gate_id")) or _str_or_none(
         _family_shell_field(meta, kind="gate", field="id")
     )
-    if is_real_gate_member(_str_or_none(meta.get(AGENT_FAMILY_ROLE_FIELD)), gate_id):
+    if is_real_gate_member(_str_or_none(agent_session_role_value(meta)), gate_id):
         return "gate"
     return None
 
@@ -256,7 +256,7 @@ def _has_blocking_prompt_step_marker(artifact_dir: Path) -> bool:
 
 
 def family_base_from_meta(meta: dict[str, Any]) -> str | None:
-    family = meta.get(AGENT_FAMILY_FIELD)
+    family = agent_session_value(meta)
     if isinstance(family, str) and family:
         return family
 

@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import (
+    agent_family_base,
+    agent_session_value,
+)
 from sase.workspace_provider import resolve_workspace_owner_for_path
 from sase.workspace_provider.utils import parse_workspace_dir
 
@@ -83,7 +86,7 @@ def resolve_lane_start(
     selected = lane_ctx.record
     raw_meta = read_start_meta(selected.artifact_dir)
 
-    durable_lane = str(raw_meta.get("agent_family") or "").strip()
+    durable_lane = str(agent_session_value(raw_meta) or "").strip()
     if not durable_lane:
         from sase.agent._family_promotion import promote_agent_to_family
 

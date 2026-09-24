@@ -13,7 +13,11 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
-from sase.plan_chain import AGENT_FAMILY_SEPARATOR, agent_family_base
+from sase.plan_chain import (
+    AGENT_FAMILY_SEPARATOR,
+    agent_family_base,
+    agent_session_value,
+)
 
 from ._types import (
     WaitCaller,
@@ -57,7 +61,7 @@ def load_wait_caller_from_env(
         return WaitCaller(artifact_dir=str(artifact_dir))
     name = _string_value(data.get("name"))
     workflow_name = _string_value(data.get("workflow_name"))
-    family_name = _string_value(data.get("agent_family")) or _family_from_name(name)
+    family_name = _string_value(agent_session_value(data)) or _family_from_name(name)
     clan_name = _string_value(data.get("agent_clan"))
     return WaitCaller(
         artifact_dir=str(artifact_dir),

@@ -9,6 +9,8 @@ from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_phase_name,
     agent_family_role_for_suffix,
+    agent_session_role_value,
+    agent_session_value,
     canonical_plan_chain_suffix,
 )
 
@@ -153,12 +155,12 @@ def _root_family_name_from_meta(data: dict[str, object]) -> str | None:
     role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
     is_root = (
         data.get("plan_chain_root")
-        or data.get("agent_family_role") == "root"
+        or agent_session_role_value(data) == "root"
         or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
     )
     if not is_root:
         return None
-    family = data.get("agent_family")
+    family = agent_session_value(data)
     if isinstance(family, str) and family:
         return family
     name = data.get("name")

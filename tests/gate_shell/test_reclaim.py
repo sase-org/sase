@@ -32,7 +32,7 @@ from sase.notification_gates.executor import cancel_gate as real_cancel_gate
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.paths import CANCELLATION_FILENAME
 from sase.notification_gates.service import create_gate
-from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
+from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX, agent_session_value
 from tests._notification_gates_fixtures import gate_spec
 from tests.gate_shell._cli_fixtures import (
     gate_shell_home,
@@ -438,7 +438,7 @@ def _stub_decisions(
         **_kwargs: object,
     ) -> dict[str, Any]:
         on_classify()
-        evidence[str(meta["agent_family"])] = dict(successor_evidence)
+        evidence[str(agent_session_value(meta))] = dict(successor_evidence)
         return {}
 
     monkeypatch.setattr(reclaim_mod, "classify_gate_handoff", classify)

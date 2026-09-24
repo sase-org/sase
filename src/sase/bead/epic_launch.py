@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import (
+    agent_family_base,
+    agent_session_parallel_value,
+    agent_session_value,
+)
 
 
 if TYPE_CHECKING:
@@ -272,7 +276,7 @@ def _epic_launch_lane(
     exact_name = _optional_text(meta.get("name"))
     if _uses_exact_agent_lane(meta):
         return exact_name or _optional_text(host_action_data.get("agent_name"))
-    raw_family = _optional_text(meta.get("agent_family"))
+    raw_family = _optional_text(agent_session_value(meta))
     if raw_family:
         return raw_family
     if exact_name:
@@ -288,7 +292,7 @@ def _uses_exact_agent_lane(meta: dict[str, Any]) -> bool:
     """Return whether clan (or legacy parallel-family) metadata pins the lane."""
     if _optional_text(meta.get("agent_clan")):
         return True
-    return meta.get("agent_family_parallel") is True
+    return agent_session_parallel_value(meta) is True
 
 
 def _optional_text(value: object) -> str | None:

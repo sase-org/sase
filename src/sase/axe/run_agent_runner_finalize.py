@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 from typing import Any
 
+
 from sase.axe.image_attachments import (
     MAX_COMPLETION_IMAGE_ATTACHMENTS,
     append_unique_paths,
@@ -30,6 +31,10 @@ from sase.telemetry.metrics import (
     AGENT_RUN_DURATION,
     AGENT_RUNS,
 )
+from sase.plan_chain import (
+    agent_session_value,
+)
+
 
 _COMPLETION_NOTIFICATION_SUPPRESSED_OUTCOMES = (
     frozenset({"plan_rejected"}) | SHELL_HANDOFF_OUTCOMES
@@ -279,7 +284,7 @@ def _completion_notification_agent_name(
             meta = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return agent_name
-    family = meta.get("agent_family") if isinstance(meta, dict) else None
+    family = agent_session_value(meta) if isinstance(meta, dict) else None
     if isinstance(family, str):
         family = family.strip()
         if family:

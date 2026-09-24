@@ -72,8 +72,10 @@ def test_create_family_shell_member_layers_kind_role_and_metadata() -> None:
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["name"] == "acme--gate"
     assert meta["workflow_name"] == "acme"
-    assert meta["agent_family"] == "acme"
-    assert meta["agent_family_role"] == "gate"
+    assert meta["agent_session"] == "acme"
+    assert meta["agent_session_role"] == "gate"
+    assert "agent_family" not in meta
+    assert "agent_family_role" not in meta
     assert meta["role_suffix"] == "--gate"
     assert meta["parent_timestamp"] == "20260812120000"
     assert meta["workspace_num"] == 3

@@ -97,11 +97,11 @@ def test_implicit_start_pins_numeric_phase_caller_not_sibling_or_land(
     assert meta["workspace_num"] == 12
     assert meta["workspace_dir"] == str(caller_ws)
     assert meta["model"] == "caller-model"
-    assert meta["agent_family"] == "sase-m6.6.1.5"
+    assert meta["agent_session"] == "sase-m6.6.1.5"
 
     caller_meta = json.loads((Path(caller_dir) / "agent_meta.json").read_text())
     assert caller_meta["name"] == "sase-m6.6.1.5--0"
-    assert caller_meta["agent_family"] == "sase-m6.6.1.5"
+    assert caller_meta["agent_session"] == "sase-m6.6.1.5"
     sibling_meta = json.loads((Path(sibling_dir) / "agent_meta.json").read_text())
     land_meta = json.loads((Path(land_dir) / "agent_meta.json").read_text())
     assert sibling_meta["name"] == "sase-m6.6.1"
@@ -171,12 +171,12 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
     assert meta["workspace_num"] == 12
     assert meta["workspace_dir"] == str(caller_ws)
     assert meta["model"] == "caller-model"
-    assert meta["agent_family"] == "02i"
+    assert meta["agent_session"] == "02i"
 
     caller_meta = json.loads((Path(caller_dir) / "agent_meta.json").read_text())
     settled_meta = json.loads((Path(settled_dir) / "agent_meta.json").read_text())
     assert caller_meta["name"] == "02i--code"
-    assert caller_meta["agent_family"] == "02i"
+    assert caller_meta["agent_family"] == "02i"  # legacy fixture input
     assert settled_meta["name"] == "02i--mon-6"
     assert settled_meta["workspace_num"] == 0
 
@@ -257,12 +257,12 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
     assert meta["workspace_num"] == 12
     assert meta["workspace_dir"] == str(caller_ws)
     assert meta["model"] == "caller-model"
-    assert meta["agent_family"] == "046"
+    assert meta["agent_session"] == "046"
 
     code_meta = json.loads((Path(code_dir) / "agent_meta.json").read_text())
     settled_meta = json.loads((Path(settled_dir) / "agent_meta.json").read_text())
     assert code_meta["name"] == "046--code"
-    assert code_meta["agent_family"] == "046"
+    assert code_meta["agent_family"] == "046"  # legacy fixture input
     assert settled_meta["name"] == "046--mon-6"
     assert settled_meta["workspace_num"] == 0
 

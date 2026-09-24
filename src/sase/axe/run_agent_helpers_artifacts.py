@@ -16,13 +16,13 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 from sase.core.process_identity import process_identity_token
 from sase.plan_chain import (
-    AGENT_FAMILY_FIELD,
-    AGENT_FAMILY_ROLE_FIELD,
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
     agent_family_base,
     agent_family_role_for_suffix,
+    agent_session_value,
     canonical_plan_chain_suffix,
     is_plan_chain_artifact_meta,
+    set_agent_session_fields,
 )
 
 
@@ -200,20 +200,18 @@ def create_followup_artifacts(
     if workflow_name is not None:
         followup_meta["workflow_name"] = workflow_name
     followup_meta["role_suffix"] = canonical_suffix
+    base_session = agent_session_value(base_meta)
     family_name = (
         workflow_name
-        or (
-            str(base_meta[AGENT_FAMILY_FIELD])
-            if base_meta.get(AGENT_FAMILY_FIELD)
-            else None
-        )
+        or (str(base_session) if base_session else None)
         or agent_family_base(agent_name_override)
     )
-    if family_name:
-        followup_meta[AGENT_FAMILY_FIELD] = family_name
     family_role = agent_family_role or agent_family_role_for_suffix(canonical_suffix)
-    if family_role:
-        followup_meta[AGENT_FAMILY_ROLE_FIELD] = family_role
+    set_agent_session_fields(
+        followup_meta,
+        session=family_name if family_name else None,
+        role=family_role if family_role else None,
+    )
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp
     if is_plan_chain_artifact_meta(followup_meta):
         followup_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = prev_artifacts_timestamp

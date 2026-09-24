@@ -267,6 +267,42 @@ def _dataclass_field_names(cls: type[Any]) -> frozenset[str]:
     return names
 
 
+def with_legacy_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Backfill legacy agent-family wire keys from new agent-session spellings.
+
+    Temporary wire-cutover bridge: Python writers already emit only the
+    ``agent_session*`` keys, but ``AgentMetaWire`` / ``DoneMarkerWire`` still
+    declare the legacy field names until the wire-mirrors phase renames them.
+    A present legacy spelling stays authoritative for those fields; new
+    spellings backfill only absent legacy keys, and pre-rename files pass
+    through unchanged. Wire-mirrors removes this helper when the fields rename.
+    """
+    from sase.plan_chain import (
+        AGENT_SESSION_KEY,
+        AGENT_SESSION_PARALLEL_KEY,
+        AGENT_SESSION_ROLE_KEY,
+        AGENT_SESSION_SHELL_KEY,
+        LEGACY_AGENT_FAMILY_KEY,
+        LEGACY_AGENT_FAMILY_PARALLEL_KEY,
+        LEGACY_AGENT_FAMILY_ROLE_KEY,
+        LEGACY_AGENT_FAMILY_SHELL_KEY,
+    )
+
+    pairs = (
+        (AGENT_SESSION_KEY, LEGACY_AGENT_FAMILY_KEY),
+        (AGENT_SESSION_ROLE_KEY, LEGACY_AGENT_FAMILY_ROLE_KEY),
+        (AGENT_SESSION_PARALLEL_KEY, LEGACY_AGENT_FAMILY_PARALLEL_KEY),
+        (AGENT_SESSION_SHELL_KEY, LEGACY_AGENT_FAMILY_SHELL_KEY),
+    )
+    if not any(key in data for key, _ in pairs):
+        return dict(data)
+    bridged = dict(data)
+    for new_key, legacy_key in pairs:
+        if legacy_key not in bridged and bridged.get(new_key) is not None:
+            bridged[legacy_key] = bridged[new_key]
+    return bridged
+
+
 def known_field_kwargs(cls: type[Any], data: Mapping[str, Any]) -> dict[str, Any]:
     """Project *data* onto the dataclass fields of *cls*.
 

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_value,
+)
+
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -64,7 +68,7 @@ def launch_or_record_followup(
     followup_requested = bool(policy is not None and meta.get("gate_next_action"))
     evidence = collect_successor_evidence(
         project_name=project_name,
-        family=str(meta.get("agent_family") or ""),
+        family=str(agent_session_value(meta) or ""),
         expected_suffix=(policy.suffix if policy is not None else None),
         recorded_agent=str(meta.get("gate_followup_agent") or "") or None,
     )

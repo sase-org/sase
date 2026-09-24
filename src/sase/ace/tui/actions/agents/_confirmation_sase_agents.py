@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_role_value,
+    agent_session_value,
+)
+
 from collections.abc import Hashable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -234,9 +240,9 @@ def _is_child_row(agent: Agent) -> bool:
 
 def _sequential_family_name(agent: Agent) -> str | None:
     """Return a model-derived family reference for a serial family row."""
-    if getattr(agent, "agent_family_parallel", False):
+    if agent_session_parallel_value(agent):
         return None
-    family = getattr(agent, "agent_family", None)
+    family = agent_session_value(agent)
     if family:
         return str(family)
 
@@ -245,15 +251,12 @@ def _sequential_family_name(agent: Agent) -> str | None:
     # example ``step.2``) but remain part of their owning workflow sase agent.
     is_family_root = bool(
         getattr(agent, "plan_chain_root", False)
-        or getattr(agent, "agent_family_role", None) == "root"
+        or agent_session_role_value(agent) == "root"
     )
     is_family_child = bool(
         getattr(agent, "parent_timestamp", None)
         and not getattr(agent, "parent_workflow", None)
-        and (
-            getattr(agent, "role_suffix", None)
-            or getattr(agent, "agent_family_role", None)
-        )
+        and (getattr(agent, "role_suffix", None) or agent_session_role_value(agent))
     )
     if not is_family_root and not is_family_child:
         return None

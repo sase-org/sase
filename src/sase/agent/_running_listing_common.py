@@ -15,6 +15,7 @@ from sase.core.runner_slots import (
 )
 from sase.core.time import get_timezone
 from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
+from sase.plan_chain import agent_session_role_value, agent_session_shell_value
 from sase.monitor_status import (
     DEFAULT_MONITOR_START_STATUS,
     DEFAULT_MONITOR_STOP_STATUS,
@@ -146,7 +147,7 @@ def is_monitor_member_meta(meta: object | None) -> bool:
     return bool(
         meta is not None
         and is_monitor_member_role(
-            getattr(meta, "agent_family_role", None),
+            agent_session_role_value(meta),
             getattr(meta, "role_suffix", None),
         )
     )
@@ -154,7 +155,7 @@ def is_monitor_member_meta(meta: object | None) -> bool:
 
 def monitor_shell_field(source: object | None, field: str) -> Any:
     """Read a shared ``family_shell`` field, only when *source* is a monitor shell."""
-    shell = getattr(source, "family_shell", None)
+    shell = agent_session_shell_value(source)
     if shell is not None and getattr(shell, "kind", None) == "monitor":
         return getattr(shell, field, None)
     return None
@@ -162,7 +163,7 @@ def monitor_shell_field(source: object | None, field: str) -> Any:
 
 def monitor_sub_field(source: object | None, field: str) -> Any:
     """Read a monitor-only ``family_shell.monitor`` field."""
-    shell = getattr(source, "family_shell", None)
+    shell = agent_session_shell_value(source)
     if shell is not None and getattr(shell, "kind", None) == "monitor":
         monitor = getattr(shell, "monitor", None)
         if monitor is not None:

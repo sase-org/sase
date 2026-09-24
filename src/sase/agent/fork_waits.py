@@ -7,6 +7,7 @@ from pathlib import Path
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.agent.names._lookup_artifacts import read_json_dict
 from sase.monitor_state import is_real_monitor_member
+from sase.plan_chain import agent_session_role_value
 
 
 def fork_wait_dependency(name: str) -> dict[str, str]:
@@ -38,7 +39,7 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
         meta = read_json_dict(Path(agent.artifacts_dir) / "agent_meta.json") or {}
         monitor_id = _json_string(meta, "monitor_id")
         if monitor_id is not None and is_real_monitor_member(
-            _json_string(meta, "agent_family_role"),
+            _json_session_role(meta),
             monitor_id,
         ):
             return {
@@ -85,6 +86,12 @@ def _project_name_for_artifact_dir(artifact_dir: Path) -> str:
 def _json_string(data: dict[str, object], field: str) -> str | None:
     value = data.get(field)
     return value if isinstance(value, str) and value else None
+
+
+def _json_session_role(data: dict[str, object]) -> str | None:
+    """Return the agent-session role, reading the legacy key as fallback."""
+    role = agent_session_role_value(data)
+    return role if isinstance(role, str) and role else None
 
 
 def _resolved_proc_id(name: str) -> str | None:

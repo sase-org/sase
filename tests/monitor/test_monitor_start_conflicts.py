@@ -18,6 +18,7 @@ from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorRecord
 from sase.monitor.request import monitor_request_fingerprint
+from sase.plan_chain import agent_session_role_value
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from tests.monitor._fixtures import (
     make_starter_agent,
@@ -432,7 +433,7 @@ def test_start_monitor_serializes_concurrent_starts_in_one_lane(
         for p in (sase_projects_dir() / "proj" / "artifacts" / "ace-run").glob(
             "*/*/*/agent_meta.json"
         )
-        if json.loads(p.read_text()).get("agent_family_role") == "monitor"
+        if agent_session_role_value(json.loads(p.read_text())) == "monitor"
     ]
     assert len(monitor_meta_paths) == 1
     wait_for_done(records[0].artifacts_dir)

@@ -34,8 +34,9 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.patch_metadata import canonicalize_patch_metadata
-from sase.sdd.plan_tiers import cached_plan_tier
 from sase.core.time import get_timezone
+from sase.core.wire import with_legacy_agent_session_keys
+from sase.sdd.plan_tiers import cached_plan_tier
 from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
 from sase.monitor_status import (
     DEFAULT_MONITOR_START_STATUS,
@@ -560,7 +561,10 @@ def _read_meta(artifacts_dir: str | None) -> AgentMetaWire | None:
         canonicalize_patch_metadata(data)
         data = canonicalize_agent_tribe_metadata(dict(data))
         data["family_shell"] = family_shell_from_mapping(data)
-    return _wire_from_dict(AgentMetaWire, data)
+    return _wire_from_dict(
+        AgentMetaWire,
+        with_legacy_agent_session_keys(data) if data is not None else None,
+    )
 
 
 def _read_waiting(artifacts_dir: str | None) -> WaitingMarkerWire | None:
@@ -580,7 +584,10 @@ def _read_done(artifacts_dir: str | None) -> DoneMarkerWire | None:
     if data is not None:
         canonicalize_patch_metadata(data)
         data["family_shell"] = family_shell_from_mapping(data)
-    return _wire_from_dict(DoneMarkerWire, data)
+    return _wire_from_dict(
+        DoneMarkerWire,
+        with_legacy_agent_session_keys(data) if data is not None else None,
+    )
 
 
 def _read_json_dict(artifacts_dir: str | None, filename: str) -> dict[str, Any] | None:

@@ -77,6 +77,9 @@ from sase.core.runner_slots import (
     runner_slot_candidate_record,
     runner_slot_state_token,
 )
+from sase.plan_chain import AGENT_SESSION_KEY, LEGACY_AGENT_FAMILY_KEY
+
+_META_KEY_FALLBACKS = {AGENT_SESSION_KEY: LEGACY_AGENT_FAMILY_KEY}
 
 _RUNNER_SLOT_POLL_INTERVAL = 2
 _DEFAULT_QUEUE_WEIGHT = 1.0
@@ -149,6 +152,9 @@ def _agent_meta_str(agent_meta: dict[str, Any] | None, key: str) -> str | None:
     if not isinstance(agent_meta, dict):
         return None
     value = agent_meta.get(key)
+    if value is None and key in _META_KEY_FALLBACKS:
+        # legacy agent-family spelling: pre-rename agent_meta.json files.
+        value = agent_meta.get(_META_KEY_FALLBACKS[key])
     return value if isinstance(value, str) and value else None
 
 
@@ -243,7 +249,7 @@ def _try_claim_runner_slot(
             workflow=_agent_meta_str(agent_meta, "workflow_name"),
             clan=_agent_meta_str(agent_meta, "agent_clan"),
             tribe=_agent_meta_str(agent_meta, "tribe"),
-            agent_family=_agent_meta_str(agent_meta, "agent_family"),
+            agent_family=_agent_meta_str(agent_meta, "agent_session"),
             created_at=candidate_created_at_from_timestamp(timestamp),
             cl_name=cl_name or _agent_meta_str(agent_meta, "cl_name"),
             clan_generation=_agent_meta_str(agent_meta, "agent_clan_generation"),

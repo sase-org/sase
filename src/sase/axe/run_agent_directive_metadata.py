@@ -10,6 +10,15 @@ import os
 from typing import Any, TYPE_CHECKING
 
 from sase.core.process_identity import process_identity_token
+from sase.plan_chain import (
+    AGENT_SESSION_KEY,
+    AGENT_SESSION_PARALLEL_KEY,
+    AGENT_SESSION_ROLE_KEY,
+    agent_session_parallel_value,
+    agent_session_role_value,
+    agent_session_value,
+    set_agent_session_fields,
+)
 from sase.bead.work import (
     SASE_EPIC_BEAD_ID_ENV,
     SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
@@ -132,16 +141,24 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
             preserved[key] = value
-    if existing_meta.get("agent_family_parallel") is True:
+    if agent_session_parallel_value(existing_meta) is True:
         for key in (
-            "agent_family",
-            "agent_family_role",
+            AGENT_SESSION_KEY,
+            AGENT_SESSION_ROLE_KEY,
             "parent_timestamp",
         ):
-            value = existing_meta.get(key)
+            value = (
+                agent_session_value(existing_meta)
+                if key == AGENT_SESSION_KEY
+                else (
+                    agent_session_role_value(existing_meta)
+                    if key == AGENT_SESSION_ROLE_KEY
+                    else existing_meta.get(key)
+                )
+            )
             if isinstance(value, str) and value:
                 preserved[key] = value
-        preserved["agent_family_parallel"] = True
+        preserved[AGENT_SESSION_PARALLEL_KEY] = True
     return preserved
 
 
@@ -381,7 +398,7 @@ def _qualify_agent_identity_metadata(agent_meta: dict[str, Any]) -> None:
     )
 
     identity = AgentIdentitySnapshot.current()
-    for key in ("name", "workflow_name", "agent_family", "agent_clan"):
+    for key in ("name", "workflow_name", AGENT_SESSION_KEY, "agent_clan"):
         value = agent_meta.get(key)
         if isinstance(value, str) and value:
             agent_meta[key] = normalize_owned_agent_name(value, identity)
@@ -400,11 +417,7 @@ def _add_family_metadata(
     family_attach_plan: FamilyAttachLaunchPlan,
 ) -> None:
     from sase.agent.family_attach import promote_family_parent_for_attach
-    from sase.plan_chain import (
-        AGENT_FAMILY_FIELD,
-        AGENT_FAMILY_ROLE_FIELD,
-        PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
-    )
+    from sase.plan_chain import PLAN_CHAIN_PARENT_TIMESTAMP_FIELD
 
     promote_family_parent_for_attach(family_attach_plan)
     agent_meta["name"] = family_attach_plan.agent_name
@@ -412,8 +425,11 @@ def _add_family_metadata(
     agent_meta["role_suffix"] = family_attach_plan.role_suffix
     agent_meta["parent_timestamp"] = family_attach_plan.parent_timestamp
     agent_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = family_attach_plan.parent_timestamp
-    agent_meta[AGENT_FAMILY_FIELD] = family_attach_plan.parent_base
-    agent_meta[AGENT_FAMILY_ROLE_FIELD] = family_attach_plan.agent_family_role
+    set_agent_session_fields(
+        agent_meta,
+        session=family_attach_plan.parent_base,
+        role=family_attach_plan.agent_family_role,
+    )
     claimed_workspace_num = agent_meta.get("workspace_num")
     run_has_claimed_workspace = (
         isinstance(claimed_workspace_num, int) and claimed_workspace_num > 0

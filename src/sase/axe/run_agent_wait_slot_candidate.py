@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+
 from sase.axe.run_agent_wait_markers import (
     queue_capacity_marker_fields,
     remove_waiting_marker,
@@ -24,6 +25,9 @@ from sase.axe.run_agent_wait_slot_state import (
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
 from sase.core.runner_slots import notify_runner_slot_state_changed
+from sase.plan_chain import (
+    agent_session_value,
+)
 
 
 def abandon_unclaimed_attempt(artifacts_dir: str) -> tuple[None, bool]:
@@ -186,7 +190,7 @@ def _hold_deadlock_candidate_wire(
         for value in (meta.tribe, meta.clan_tribe):
             if isinstance(value, str) and value and value not in tribe_values:
                 tribe_values.append(value)
-    family = payload.get("agent_family")
+    family = agent_session_value(payload)
     if not isinstance(family, str) or not family:
         family = payload.get("family")
     if not isinstance(family, str) or not family:

@@ -41,7 +41,7 @@ from sase.core.agent_scan_wire_records import (
     AgentClanContextWire,
 )
 from sase.core.patch_metadata import canonicalize_patch_metadata
-from sase.core.wire import known_field_kwargs
+from sase.core.wire import known_field_kwargs, with_legacy_agent_session_keys
 
 
 def _record_shape_from_value(value: object) -> AgentArtifactRecordShape:
@@ -384,7 +384,9 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
-    payload = _queue_capacity_alias_payload(_dual_patch_name_payload(data))
+    payload = _queue_capacity_alias_payload(
+        _dual_patch_name_payload(with_legacy_agent_session_keys(data))
+    )
     if "tag" in payload or isinstance(payload.get("tribe"), str):
         payload = canonicalize_agent_tribe_metadata(dict(payload))
     kwargs = _non_default_field_kwargs(AgentMetaWire, payload)
@@ -402,7 +404,7 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
 
 
 def _done_marker_from_dict(data: dict[str, Any]) -> DoneMarkerWire:
-    payload = _dual_patch_name_payload(data)
+    payload = _dual_patch_name_payload(with_legacy_agent_session_keys(data))
     kwargs = _non_default_field_kwargs(DoneMarkerWire, payload)
     family_shell = family_shell_from_mapping(payload)
     if family_shell is not None:

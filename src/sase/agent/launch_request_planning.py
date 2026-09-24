@@ -12,6 +12,7 @@ from sase.agent.launch_request_types import (
     LAUNCH_REQUEST_SCHEMA_VERSION,
     LaunchRequestError,
 )
+from sase.plan_chain import agent_session_role_value, agent_session_value
 
 
 def normalize_request_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -301,8 +302,6 @@ def _agent_meta_requester_context(artifacts_dir: str | None) -> dict[str, str]:
         return {}
     selected = (
         "name",
-        "agent_family",
-        "agent_family_role",
         "agent_clan",
         "workspace_dir",
         "workspace_num",
@@ -318,4 +317,10 @@ def _agent_meta_requester_context(artifacts_dir: str | None) -> dict[str, str]:
             context[f"agent_meta.{key}"] = value.strip()
         elif isinstance(value, int) and not isinstance(value, bool):
             context[f"agent_meta.{key}"] = str(value)
+    for meta_key, context_key in (
+        (agent_session_value(raw), "agent_meta.agent_session"),
+        (agent_session_role_value(raw), "agent_meta.agent_session_role"),
+    ):
+        if isinstance(meta_key, str) and meta_key.strip():
+            context[context_key] = meta_key.strip()
     return context

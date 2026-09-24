@@ -25,6 +25,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from sase.plan_chain import agent_session_role_value, agent_session_shell_value
+
 #: Role recorded in ``agent_meta.json::agent_family_role`` for a monitor
 #: family member. Mirrors ``sase.monitor_state.MONITOR_FAMILY_ROLE``; not
 #: imported directly to avoid a dependency cycle with this low-level module.
@@ -229,7 +231,7 @@ def _family_shell_from_flat_keys(data: Mapping[str, Any]) -> FamilyShellWire | N
         # different launch mechanisms; this branch should be unreachable
         # in practice. Fall back to the recorded role rather than silently
         # dropping one side.
-        has_monitor = data.get("agent_family_role") != _GATE_FAMILY_ROLE
+        has_monitor = agent_session_role_value(data) != _GATE_FAMILY_ROLE
         has_gate = not has_monitor
     if has_monitor:
         return FamilyShellWire(
@@ -290,7 +292,7 @@ def family_shell_from_mapping(data: Mapping[str, Any]) -> FamilyShellWire | None
     by the Rust scanner), or the flat legacy ``monitor_*`` / ``gate_*`` keys
     still written to ``agent_meta.json`` / ``done.json`` on disk.
     """
-    nested = data.get("family_shell")
+    nested = agent_session_shell_value(data)
     if isinstance(nested, dict):
         return _family_shell_from_nested_dict(nested)
     return _family_shell_from_flat_keys(data)

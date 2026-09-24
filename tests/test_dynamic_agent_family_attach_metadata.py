@@ -21,8 +21,8 @@ from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.axe.run_agent_directives import extract_directives_and_write_meta
 from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.plan_chain import (
-    AGENT_FAMILY_FIELD,
-    AGENT_FAMILY_ROLE_FIELD,
+    AGENT_SESSION_KEY,
+    AGENT_SESSION_ROLE_KEY,
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
 )
 from tests._dynamic_agent_family_attach_helpers import (
@@ -139,8 +139,10 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
     assert promoted_parent_meta["name"] == "foo--plan"
     assert promoted_parent_meta["workflow_name"] == "foo"
     assert promoted_parent_meta["role_suffix"] == "--plan"
-    assert promoted_parent_meta[AGENT_FAMILY_FIELD] == "foo"
-    assert promoted_parent_meta[AGENT_FAMILY_ROLE_FIELD] == "root"
+    assert promoted_parent_meta[AGENT_SESSION_KEY] == "foo"
+    assert "agent_family" not in promoted_parent_meta
+    assert promoted_parent_meta[AGENT_SESSION_ROLE_KEY] == "root"
+    assert "agent_family_role" not in promoted_parent_meta
 
     followup_dir = tmp_path / "followup"
     followup_dir.mkdir()
@@ -170,8 +172,8 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
         "role_suffix",
         "parent_timestamp",
         PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
-        AGENT_FAMILY_FIELD,
-        AGENT_FAMILY_ROLE_FIELD,
+        AGENT_SESSION_KEY,
+        AGENT_SESSION_ROLE_KEY,
         "workspace_dir",
         "workspace_num",
         "changespec_name",
@@ -201,8 +203,8 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
         parent_timestamp=str(member_meta["parent_timestamp"]),
         role_suffix=str(member_meta["role_suffix"]),
         agent_name=str(member_meta["name"]),
-        agent_family=str(member_meta[AGENT_FAMILY_FIELD]),
-        agent_family_role=str(member_meta[AGENT_FAMILY_ROLE_FIELD]),
+        agent_family=str(member_meta[AGENT_SESSION_KEY]),
+        agent_family_role=str(member_meta[AGENT_SESSION_ROLE_KEY]),
     )
     assert tui_agent.is_family_member_child is True
 
@@ -533,4 +535,6 @@ def test_family_promotion_qualifies_legacy_parent_once(
     assert first == second == "foo--plan"
     assert meta["name"] == "foo--plan"
     assert meta["workflow_name"] == "foo"
-    assert meta["agent_family"] == "foo"
+    assert meta["agent_session"] == "foo"
+    assert "agent_family" not in meta
+    assert "agent_family_role" not in meta

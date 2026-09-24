@@ -9,6 +9,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+
 from sase.agent.names import NamedAgent, find_named_agent, is_process_alive
 from sase.agent.running_listing import (
     _DONE_AGENTS_CAP_PER_PROJECT as _DONE_AGENTS_CAP_PER_PROJECT,
@@ -21,6 +22,9 @@ from sase.agent.user_kill import request_user_kill
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
+)
+from sase.plan_chain import (
+    agent_session_role_value,
 )
 
 
@@ -291,7 +295,7 @@ def _named_agent_is_live_monitor_member(
     meta = _read_agent_meta(Path(artifacts_dir)) or {}
     from sase.monitor_state import is_real_monitor_member
 
-    role = meta.get("agent_family_role")
+    role = agent_session_role_value(meta)
     monitor_id = meta.get("monitor_id")
     return is_real_monitor_member(
         role if isinstance(role, str) else None,

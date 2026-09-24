@@ -10,6 +10,10 @@ family, and role when it starts -- exactly as it would for an interactive
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_value,
+)
+
 from collections.abc import Mapping
 from dataclasses import replace
 import os
@@ -138,7 +142,7 @@ def launch_followup_agent(
     next_action = _next_action_from_intent(intent) or str(
         meta.get("monitor_next_action") or ""
     )
-    lane = str(meta.get("agent_family") or "")
+    lane = str(agent_session_value(meta) or "")
     if not next_action or not lane:
         return FollowupLaunchResult(launched=False)
 

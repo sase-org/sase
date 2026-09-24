@@ -31,6 +31,10 @@ from sase.core.dismissed_agent_completion import (
 )
 from sase.core.time import format_local
 from sase.history.chat_resume import sanitize_resume_prompt
+from sase.plan_chain import (
+    AGENT_SESSION_ROLE_KEY,
+    LEGACY_AGENT_FAMILY_ROLE_KEY,
+)
 from sase.plan_chain import agent_family_base
 
 _MAX_LAUNCH_PROMPT_CHARS = 2000
@@ -181,6 +185,9 @@ def read_json_string_field(path: Path, field: str) -> str | None:
 
 def json_string(data: dict[str, Any], field: str) -> str | None:
     value = data.get(field)
+    if value is None and field == AGENT_SESSION_ROLE_KEY:
+        # legacy agent-family spelling: pre-rename agent_meta.json files.
+        value = data.get(LEGACY_AGENT_FAMILY_ROLE_KEY)
     return value if isinstance(value, str) and value else None
 
 

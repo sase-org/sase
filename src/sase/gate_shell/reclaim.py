@@ -458,7 +458,7 @@ def _diagnose_one(
             "gate_state": live.gate_state,
             "gate_request_fingerprint": live.request_fingerprint,
             "name": live.member_agent_name,
-            "agent_family": live.lane,
+            "agent_session": live.lane,
             "gate_followup_outcome": live.followup_outcome,
             "gate_followup_agent": live.followup_agent,
             "gate_followup_error": live.followup_error,

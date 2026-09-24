@@ -5,19 +5,34 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
-AGENT_FAMILY_SEPARATOR = "--"
-PLAN_CHAIN_PLAN_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}plan"
-PLAN_CHAIN_CODER_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}code"
-PLAN_CHAIN_EPIC_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}epic"
-PLAN_CHAIN_COMMIT_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}commit"
-PLAN_CHAIN_MONITOR_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}mon"
-PLAN_CHAIN_GATE_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}gate"
+AGENT_SESSION_KEY = "agent_session"
+AGENT_SESSION_ROLE_KEY = "agent_session_role"
+AGENT_SESSION_PARALLEL_KEY = "agent_session_parallel"
+AGENT_SESSION_SHELL_KEY = "agent_session_shell"
+AGENT_SESSION_SEPARATOR = "--"
+# legacy agent-family spelling: pre-rename agent_meta.json / done.json files
+# still carry these keys. They are named only here and read only through the
+# agent_session_*_value accessors below.
+LEGACY_AGENT_FAMILY_KEY = "agent_family"
+LEGACY_AGENT_FAMILY_ROLE_KEY = "agent_family_role"
+LEGACY_AGENT_FAMILY_PARALLEL_KEY = "agent_family_parallel"
+LEGACY_AGENT_FAMILY_SHELL_KEY = "family_shell"
+# Deprecated aliases for the replaced AGENT_FAMILY_* names. New code uses the
+# AGENT_SESSION_* / LEGACY_AGENT_FAMILY_* constants above.
+AGENT_FAMILY_FIELD = LEGACY_AGENT_FAMILY_KEY
+AGENT_FAMILY_ROLE_FIELD = LEGACY_AGENT_FAMILY_ROLE_KEY
+AGENT_FAMILY_PARALLEL_FIELD = LEGACY_AGENT_FAMILY_PARALLEL_KEY
+AGENT_FAMILY_SEPARATOR = AGENT_SESSION_SEPARATOR
+PLAN_CHAIN_PLAN_SUFFIX = f"{AGENT_SESSION_SEPARATOR}plan"
+PLAN_CHAIN_CODER_SUFFIX = f"{AGENT_SESSION_SEPARATOR}code"
+PLAN_CHAIN_EPIC_SUFFIX = f"{AGENT_SESSION_SEPARATOR}epic"
+PLAN_CHAIN_COMMIT_SUFFIX = f"{AGENT_SESSION_SEPARATOR}commit"
+PLAN_CHAIN_MONITOR_SUFFIX = f"{AGENT_SESSION_SEPARATOR}mon"
+PLAN_CHAIN_GATE_SUFFIX = f"{AGENT_SESSION_SEPARATOR}gate"
 PLAN_CHAIN_PARENT_TIMESTAMP_FIELD = "plan_chain_parent_timestamp"
 PLAN_CHAIN_ROOT_FIELD = "plan_chain_root"
-AGENT_FAMILY_FIELD = "agent_family"
-AGENT_FAMILY_ROLE_FIELD = "agent_family_role"
-AGENT_FAMILY_PARALLEL_FIELD = "agent_family_parallel"
 
 _FEEDBACK_SUFFIX_RE = re.compile(r"^(?:--|[-.])(\d+)$")
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
@@ -54,7 +69,7 @@ _PHASE_SUFFIX_ROLES = {
     PLAN_CHAIN_MONITOR_SUFFIX: "monitor",
     PLAN_CHAIN_GATE_SUFFIX: "gate",
 }
-_EXPLICIT_FAMILY_ROLES = {
+_EXPLICIT_SESSION_ROLES = {
     "plan",
     "code",
     "epic",
@@ -63,6 +78,114 @@ _EXPLICIT_FAMILY_ROLES = {
     "monitor",
     "gate",
 }
+# Deprecated alias for the replaced private role set.
+_EXPLICIT_FAMILY_ROLES = _EXPLICIT_SESSION_ROLES
+
+
+def _agent_session_field(source: object, new_key: str, legacy_key: str) -> Any:
+    """Read *new_key*, falling back to *legacy_key*, from *source*.
+
+    *source* is usually an ``agent_meta.json`` / ``done.json`` mapping, but
+    plain objects with attributes are also accepted so Agent-shaped rows keep
+    resolving through renames. A present new spelling always wins, so a mixed
+    file holding both spellings resolves to the new value.
+    """
+    if isinstance(source, Mapping):
+        value = source.get(new_key)
+        if value is None:
+            value = source.get(legacy_key)
+        return value
+    for key in (new_key, legacy_key):
+        try:
+            value = getattr(source, key)
+        except AttributeError:
+            continue
+        if value is not None:
+            return value
+    return None
+
+
+def agent_session_value(meta: object) -> Any:
+    """Return the canonical agent-session name for artifact metadata."""
+    # legacy agent-family spelling
+    return _agent_session_field(meta, AGENT_SESSION_KEY, LEGACY_AGENT_FAMILY_KEY)
+
+
+def agent_session_role_value(meta: object) -> Any:
+    """Return the canonical agent-session role for artifact metadata."""
+    # legacy agent-family spelling
+    return _agent_session_field(
+        meta, AGENT_SESSION_ROLE_KEY, LEGACY_AGENT_FAMILY_ROLE_KEY
+    )
+
+
+def agent_session_parallel_value(meta: object) -> Any:
+    """Return the canonical agent-session parallel marker for metadata."""
+    # legacy agent-family spelling
+    return _agent_session_field(
+        meta, AGENT_SESSION_PARALLEL_KEY, LEGACY_AGENT_FAMILY_PARALLEL_KEY
+    )
+
+
+def agent_session_shell_value(meta: object) -> Any:
+    """Return the canonical nested agent-session shell object for metadata."""
+    # legacy agent-family spelling
+    return _agent_session_field(
+        meta, AGENT_SESSION_SHELL_KEY, LEGACY_AGENT_FAMILY_SHELL_KEY
+    )
+
+
+def strip_legacy_agent_family_keys(meta: dict[str, object]) -> dict[str, object]:
+    """Remove pre-rename agent-family keys from *meta* and return it."""
+    # legacy agent-family spelling
+    for key in (
+        LEGACY_AGENT_FAMILY_KEY,
+        LEGACY_AGENT_FAMILY_ROLE_KEY,
+        LEGACY_AGENT_FAMILY_PARALLEL_KEY,
+        LEGACY_AGENT_FAMILY_SHELL_KEY,
+    ):
+        meta.pop(key, None)
+    return meta
+
+
+_UNSET: object = object()
+
+
+def set_agent_session_fields(
+    meta: dict[str, object],
+    *,
+    session: object = _UNSET,
+    role: object = _UNSET,
+    parallel: object = _UNSET,
+    shell: object = _UNSET,
+) -> dict[str, object]:
+    """Write agent-session fields onto *meta* using only new spellings.
+
+    Provided values are stored under the canonical keys; a ``None`` value
+    clears its key. Legacy agent-family keys are always removed, so a
+    read-modify-write drops the old spelling.
+    """
+    if session is not _UNSET:
+        if session is None:
+            meta.pop(AGENT_SESSION_KEY, None)
+        else:
+            meta[AGENT_SESSION_KEY] = session
+    if role is not _UNSET:
+        if role is None:
+            meta.pop(AGENT_SESSION_ROLE_KEY, None)
+        else:
+            meta[AGENT_SESSION_ROLE_KEY] = role
+    if parallel is not _UNSET:
+        if parallel is None:
+            meta.pop(AGENT_SESSION_PARALLEL_KEY, None)
+        else:
+            meta[AGENT_SESSION_PARALLEL_KEY] = parallel
+    if shell is not _UNSET:
+        if shell is None:
+            meta.pop(AGENT_SESSION_SHELL_KEY, None)
+        else:
+            meta[AGENT_SESSION_SHELL_KEY] = shell
+    return strip_legacy_agent_family_keys(meta)
 
 
 @dataclass(frozen=True)
@@ -84,13 +207,13 @@ def _plan_chain_feedback_suffix(feedback_round: int) -> str:
     """Return the visible suffix for a one-based feedback round."""
     if feedback_round < 1:
         raise ValueError("feedback_round must be one-based")
-    return f"{AGENT_FAMILY_SEPARATOR}{feedback_round + 1}"
+    return f"{AGENT_SESSION_SEPARATOR}{feedback_round + 1}"
 
 
-def _stored_family_role(role: object) -> str | None:
+def _stored_session_role(role: object) -> str | None:
     if not isinstance(role, str):
         return None
-    if role in _EXPLICIT_FAMILY_ROLES:
+    if role in _EXPLICIT_SESSION_ROLES:
         return role
     return role if _TOKEN_RE.match(role) else None
 
@@ -144,7 +267,7 @@ def _parse_plan_chain_suffix(
     if not isinstance(suffix, str):
         return None
 
-    stored_role = _stored_family_role(agent_family_role)
+    stored_role = _stored_session_role(agent_family_role)
     legacy_suffix = suffix in _LEGACY_SUFFIX_MAP
     if legacy_suffix:
         suffix = _LEGACY_SUFFIX_MAP[suffix]
@@ -239,7 +362,7 @@ def plan_chain_feedback_round(
         return None
 
 
-def agent_family_phase_name(base_name: str, suffix: str) -> str:
+def agent_session_phase_name(base_name: str, suffix: str) -> str:
     """Return the visible agent-family phase name for *base_name* and *suffix*."""
     canonical = canonical_plan_chain_suffix(suffix)
     if canonical is None:
@@ -249,7 +372,7 @@ def agent_family_phase_name(base_name: str, suffix: str) -> str:
 
 def plan_chain_agent_name(base_name: str, suffix: str) -> str:
     """Return the visible agent name for *base_name* and a plan-chain suffix."""
-    return agent_family_phase_name(base_name, suffix)
+    return agent_session_phase_name(base_name, suffix)
 
 
 def planner_row_name(name: object, *, include_legacy_dash: bool = False) -> str | None:
@@ -261,21 +384,21 @@ def planner_row_name(name: object, *, include_legacy_dash: bool = False) -> str 
     the same canonical planner-row name, so a ``%wait`` on either form resolves
     to the canonical planner row.
     """
-    split = _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
+    split = _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
     if split is None:
         return None
     base, suffix = split
     if suffix != PLAN_CHAIN_PLAN_SUFFIX:
         return None
-    return agent_family_phase_name(base, PLAN_CHAIN_PLAN_SUFFIX)
+    return agent_session_phase_name(base, PLAN_CHAIN_PLAN_SUFFIX)
 
 
-def _split_agent_family_name(
+def _split_agent_session_name(
     name: object, *, include_legacy_dash: bool = False
 ) -> tuple[str, str] | None:
     if not isinstance(name, str) or not name:
         return None
-    separators = [AGENT_FAMILY_SEPARATOR, "."]
+    separators = [AGENT_SESSION_SEPARATOR, "."]
     if include_legacy_dash:
         separators.append("-")
     for separator in separators:
@@ -283,47 +406,49 @@ def _split_agent_family_name(
         if not sep or not head or not tail:
             continue
         suffix = canonical_plan_chain_suffix(f"{sep}{tail}")
-        if suffix is None and separator == AGENT_FAMILY_SEPARATOR:
+        if suffix is None and separator == AGENT_SESSION_SEPARATOR:
             suffix = f"{separator}{tail}" if _TOKEN_RE.match(tail) else None
         if suffix is not None:
             return head, suffix
     return None
 
 
-def agent_family_base(name: object, *, include_legacy_dash: bool = False) -> str | None:
+def agent_session_base(
+    name: object, *, include_legacy_dash: bool = False
+) -> str | None:
     """Return the base family name for a known family member name."""
-    split = _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
+    split = _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
     return split[0] if split is not None else None
 
 
-def _agent_family_suffix(
+def _agent_session_suffix(
     name: object, *, include_legacy_dash: bool = False
 ) -> str | None:
     """Return the canonical suffix for a known family member name."""
-    split = _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
+    split = _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
     return split[1] if split is not None else None
 
 
-def agent_family_suffix_token(suffix: object) -> str | None:
+def agent_session_suffix_token(suffix: object) -> str | None:
     """Return the bare token from an agent-family suffix."""
     if not isinstance(suffix, str):
         return None
-    for separator in (AGENT_FAMILY_SEPARATOR, ".", "-"):
+    for separator in (AGENT_SESSION_SEPARATOR, ".", "-"):
         if suffix.startswith(separator):
             token = suffix[len(separator) :]
             return token or None
     return None
 
 
-def is_agent_family_member(name: object, *, include_legacy_dash: bool = False) -> bool:
+def is_agent_session_member(name: object, *, include_legacy_dash: bool = False) -> bool:
     """Return whether *name* has a known agent-family suffix."""
     return (
-        _split_agent_family_name(name, include_legacy_dash=include_legacy_dash)
+        _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
         is not None
     )
 
 
-def agent_family_role_for_suffix(
+def agent_session_role_for_suffix(
     suffix: object,
     *,
     agent_family_role: object = None,
@@ -343,7 +468,7 @@ def is_plan_feedback_suffix(
     return bool(info and info.is_feedback)
 
 
-def _reserved_agent_family_names(
+def _reserved_agent_session_names(
     base_name: str,
     *,
     extra_suffixes: list[str] | tuple[str, ...] = (),
@@ -352,7 +477,7 @@ def _reserved_agent_family_names(
 
     reserved = get_reserved_agent_names()
     reserved.add(base_name)
-    for suffix in (PLAN_CHAIN_PLAN_SUFFIX, f"{AGENT_FAMILY_SEPARATOR}0"):
+    for suffix in (PLAN_CHAIN_PLAN_SUFFIX, f"{AGENT_SESSION_SEPARATOR}0"):
         reserved.add(f"{base_name}{suffix}")
     for suffix in extra_suffixes:
         canonical = canonical_plan_chain_suffix(suffix) or suffix
@@ -360,7 +485,7 @@ def _reserved_agent_family_names(
     return reserved
 
 
-def _allocate_agent_family_child_name(
+def _allocate_agent_session_child_name(
     base_name: str,
     suffix_template: str,
     *,
@@ -373,7 +498,7 @@ def _allocate_agent_family_child_name(
         raise ValueError("suffix_template must contain '@'")
     from sase.agent.names import allocate_agent_name_template
 
-    reserved = _reserved_agent_family_names(
+    reserved = _reserved_agent_session_names(
         base_name,
         extra_suffixes=extra_reserved_suffixes,
     )
@@ -382,14 +507,14 @@ def _allocate_agent_family_child_name(
     )
 
 
-def allocate_agent_family_child_suffix(
+def allocate_agent_session_child_suffix(
     base_name: str,
     suffix_template: str,
     *,
     extra_reserved_suffixes: list[str] | tuple[str, ...] = (),
 ) -> str:
     """Allocate and return only the suffix portion for a family child name."""
-    name = _allocate_agent_family_child_name(
+    name = _allocate_agent_session_child_name(
         base_name,
         suffix_template,
         extra_reserved_suffixes=extra_reserved_suffixes,
@@ -422,7 +547,7 @@ def _plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
         for candidate in (*_KNOWN_SUFFIXES, *_LEGACY_DOTTED_SUFFIX_MAP):
             if name.endswith(candidate):
                 return canonical_plan_chain_suffix(candidate)
-        suffix = _agent_family_suffix(name)
+        suffix = _agent_session_suffix(name)
         if suffix is not None:
             return suffix
 
@@ -432,3 +557,86 @@ def _plan_chain_suffix_from_meta(meta: Mapping[str, object]) -> str | None:
 def is_plan_chain_artifact_meta(meta: Mapping[str, object]) -> bool:
     """Return whether artifact metadata describes a plan-chain phase."""
     return _plan_chain_suffix_from_meta(meta) is not None
+
+
+# Deprecated wrappers for the renamed agent-family helpers. New code uses the
+# agent_session_* names above; these stay until runtime-cutover renames the
+# remaining family-concept identifiers.
+def _stored_family_role(role: object) -> str | None:
+    return _stored_session_role(role)
+
+
+def agent_family_phase_name(base_name: str, suffix: str) -> str:
+    """Return the visible agent-family phase name (deprecated alias)."""
+    return agent_session_phase_name(base_name, suffix)
+
+
+def _split_agent_family_name(
+    name: object, *, include_legacy_dash: bool = False
+) -> tuple[str, str] | None:
+    return _split_agent_session_name(name, include_legacy_dash=include_legacy_dash)
+
+
+def agent_family_base(name: object, *, include_legacy_dash: bool = False) -> str | None:
+    """Return the base family name (deprecated alias)."""
+    return agent_session_base(name, include_legacy_dash=include_legacy_dash)
+
+
+def _agent_family_suffix(
+    name: object, *, include_legacy_dash: bool = False
+) -> str | None:
+    return _agent_session_suffix(name, include_legacy_dash=include_legacy_dash)
+
+
+def agent_family_suffix_token(suffix: object) -> str | None:
+    """Return the bare token from an agent-family suffix (deprecated alias)."""
+    return agent_session_suffix_token(suffix)
+
+
+def is_agent_family_member(name: object, *, include_legacy_dash: bool = False) -> bool:
+    """Return whether *name* has a known agent-family suffix (deprecated alias)."""
+    return is_agent_session_member(name, include_legacy_dash=include_legacy_dash)
+
+
+def agent_family_role_for_suffix(
+    suffix: object,
+    *,
+    agent_family_role: object = None,
+) -> str | None:
+    """Return the metadata role for a suffix (deprecated alias)."""
+    return agent_session_role_for_suffix(suffix, agent_family_role=agent_family_role)
+
+
+def _reserved_agent_family_names(
+    base_name: str,
+    *,
+    extra_suffixes: list[str] | tuple[str, ...] = (),
+) -> set[str]:
+    return _reserved_agent_session_names(base_name, extra_suffixes=extra_suffixes)
+
+
+def _allocate_agent_family_child_name(
+    base_name: str,
+    suffix_template: str,
+    *,
+    extra_reserved_suffixes: list[str] | tuple[str, ...] = (),
+) -> str:
+    return _allocate_agent_session_child_name(
+        base_name,
+        suffix_template,
+        extra_reserved_suffixes=extra_reserved_suffixes,
+    )
+
+
+def allocate_agent_family_child_suffix(
+    base_name: str,
+    suffix_template: str,
+    *,
+    extra_reserved_suffixes: list[str] | tuple[str, ...] = (),
+) -> str:
+    """Allocate only the suffix portion for a family child (deprecated alias)."""
+    return allocate_agent_session_child_suffix(
+        base_name,
+        suffix_template,
+        extra_reserved_suffixes=extra_reserved_suffixes,
+    )

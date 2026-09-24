@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_value,
+)
+
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -280,9 +285,9 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         )
         clan_name = meta.get("agent_clan")
         if not isinstance(clan_name, str) or not clan_name:
-            legacy_family = meta.get("agent_family")
+            legacy_family = agent_session_value(meta)
             if (
-                meta.get("agent_family_parallel") is True
+                agent_session_parallel_value(meta) is True
                 and isinstance(legacy_family, str)
                 and legacy_family
             ):

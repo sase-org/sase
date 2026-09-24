@@ -32,6 +32,8 @@ from sase.plan_chain import (
     agent_family_base,
     agent_family_role_for_suffix,
     agent_family_suffix_token,
+    agent_session_role_value,
+    agent_session_value,
     canonical_plan_chain_suffix,
 )
 
@@ -62,7 +64,7 @@ def _interrupted_phase_meta(
 
 
 def _meta_family_role(meta: dict[str, Any]) -> str | None:
-    role = meta.get("agent_family_role")
+    role = agent_session_role_value(meta)
     return role if isinstance(role, str) and role else None
 
 
@@ -138,7 +140,7 @@ def handle_questions_marker(
         if isinstance(meta_name, str) and meta_name
         else (ctx.agent_name or "")
     )
-    meta_family = base_meta.get("agent_family")
+    meta_family = agent_session_value(base_meta)
     lane = (
         meta_family
         if isinstance(meta_family, str) and meta_family

@@ -176,7 +176,8 @@ def test_repeated_default_pipe_transitions_reserve_unique_artifacts(
     assert first_meta["name"] == "test_agent--1"
     assert first_meta["piped_from"] == "test_agent"
     assert first_meta["pipe_depth"] == 1
-    assert first_meta["agent_family"] == "test_agent"
+    assert first_meta["agent_session"] == "test_agent"
+    assert "agent_family" not in first_meta
     assert first_meta["workspace_dir"] == str(tmp_path)
     assert first_meta["workspace_num"] == 1
     assert first_prompt.startswith("#fork:test_agent\n")
@@ -185,7 +186,8 @@ def test_repeated_default_pipe_transitions_reserve_unique_artifacts(
     assert second_meta["name"] == "test_agent--2"
     assert second_meta["piped_from"] == "test_agent--1"
     assert second_meta["pipe_depth"] == 2
-    assert second_meta["agent_family"] == "test_agent"
+    assert second_meta["agent_session"] == "test_agent"
+    assert "agent_family" not in second_meta
     assert second_meta["workspace_dir"] == str(tmp_path)
     assert second_meta["workspace_num"] == 1
     assert second_prompt.startswith("#fork:test_agent--1\n")

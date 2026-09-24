@@ -16,6 +16,7 @@ from sase.core.dismissed_agent_completion import (
     WAIT_SUCCESS_OUTCOMES,
     effective_done_outcome,
 )
+from sase.plan_chain import AGENT_SESSION_SHELL_KEY
 
 from ._resolve import LivenessChecker, record_is_live, record_name, target_records
 from ._types import (
@@ -210,7 +211,7 @@ def _record_done_outcome(record: AgentArtifactRecordWire) -> str | None:
         return None
     done_data: dict[str, object] = {"outcome": record.done.outcome}
     if record.done.family_shell is not None:
-        done_data["family_shell"] = asdict(record.done.family_shell)
+        done_data[AGENT_SESSION_SHELL_KEY] = asdict(record.done.family_shell)
     return effective_done_outcome(done_data)
 
 

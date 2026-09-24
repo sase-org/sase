@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_role_value,
+)
+
 import json
 import math
 import os
@@ -147,7 +151,7 @@ def _gate_shell_queue_weight(meta: dict[str, Any]) -> float:
 
 def _is_real_pending_gate_shell(meta: dict[str, Any]) -> bool:
     return (
-        meta.get("agent_family_role") == "gate"
+        agent_session_role_value(meta) == "gate"
         and isinstance(meta.get("gate_id"), str)
         and bool(str(meta.get("gate_id") or "").strip())
         and meta.get("gate_state") == "pending"

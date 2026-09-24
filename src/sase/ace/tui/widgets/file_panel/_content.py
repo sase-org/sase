@@ -129,7 +129,7 @@ class FilePanelContentMixin:
     def _get_scroll_container(self) -> VerticalScroll | None:
         """Return the file panel's parent scroll container, when mounted."""
         try:
-            parent = self.parent
+            parent = self.parent  # type: ignore[attr-defined]
             if isinstance(parent, VerticalScroll):
                 return parent
             return self.app.query_one("#agent-file-scroll", VerticalScroll)  # type: ignore[attr-defined]

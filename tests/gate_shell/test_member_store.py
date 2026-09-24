@@ -68,7 +68,8 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["name"] == "lane--gate"
     assert meta["shell_kind"] == "gate"
-    assert meta["agent_family_role"] == "gate"
+    assert meta["agent_session_role"] == "gate"
+    assert "agent_family_role" not in meta
     assert meta["gate_id"] == "gate-1"
     assert meta["gate_state"] == "pending"
     assert meta["gate_start_status"] == "WAIT"

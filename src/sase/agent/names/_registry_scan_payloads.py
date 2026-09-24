@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_value,
+)
+
 import json
 from pathlib import Path
 from typing import Any
@@ -14,9 +19,9 @@ def clan_from_payload(payload: dict[str, Any] | None) -> tuple[str, str] | None:
         return None
     clan = payload.get("agent_clan")
     if not isinstance(clan, str) or not clan:
-        family = payload.get("agent_family")
+        family = agent_session_value(payload)
         if (
-            payload.get("agent_family_parallel") is not True
+            agent_session_parallel_value(payload) is not True
             or not isinstance(family, str)
             or not family
         ):
@@ -30,9 +35,9 @@ def clan_from_payload(payload: dict[str, Any] | None) -> tuple[str, str] | None:
 
 
 def family_from_payload(payload: dict[str, Any] | None) -> str | None:
-    if not isinstance(payload, dict) or payload.get("agent_family_parallel") is True:
+    if not isinstance(payload, dict) or agent_session_parallel_value(payload) is True:
         return None
-    family = payload.get("agent_family")
+    family = agent_session_value(payload)
     return family if isinstance(family, str) and family else None
 
 

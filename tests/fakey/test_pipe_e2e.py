@@ -202,7 +202,8 @@ def test_default_pipe_creates_family_member_with_fork_and_shared_workspace(
     assert successor_meta["name"] == "fakey-e2e--1"
     assert successor_meta["piped_from"] == "fakey-e2e"
     assert successor_meta["pipe_depth"] == 1
-    assert successor_meta["agent_family"] == "fakey-e2e"
+    assert successor_meta["agent_session"] == "fakey-e2e"
+    assert "agent_family" not in successor_meta
     assert successor_meta["workspace_dir"] == parent_meta["workspace_dir"]
     assert successor_meta["workspace_num"] == parent_meta["workspace_num"] == 1
     assert successor_meta["llm_provider"] == "fakey"
@@ -263,7 +264,8 @@ def test_fresh_named_model_pipe_skips_fork_and_records_model(
     prompt = (successor_dir / "followup_prompt.md").read_text(encoding="utf-8")
 
     assert successor_meta["name"] == "fakey-e2e--review"
-    assert successor_meta["agent_family_role"] == "review"
+    assert successor_meta["agent_session_role"] == "review"
+    assert "agent_family_role" not in successor_meta
     assert successor_meta["model"] == "fakey-small"
     assert successor_meta["pipe_reason"] == "different model and clean context"
     assert "#fork:" not in prompt

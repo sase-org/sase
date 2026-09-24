@@ -24,8 +24,9 @@ from sase.core.agent_identity_facade import (
     parse_agent_session_name,
 )
 from sase.plan_chain import (
-    AGENT_FAMILY_FIELD,
     agent_family_base,
+    agent_session_parallel_value,
+    agent_session_value,
     is_agent_family_member,
     is_plan_chain_artifact_meta,
 )
@@ -104,7 +105,7 @@ class AgentClan:
 
 
 def _family_base_from_meta(meta: dict[str, Any]) -> str | None:
-    family = meta.get(AGENT_FAMILY_FIELD)
+    family = agent_session_value(meta)
     if isinstance(family, str) and family:
         return family
 
@@ -189,9 +190,9 @@ def _clan_identity_from_meta(
     meta: dict[str, Any], artifact_dir: Path
 ) -> tuple[str, str] | None:
     clan = meta.get("agent_clan")
-    legacy_parallel = meta.get("agent_family_parallel") is True
+    legacy_parallel = agent_session_parallel_value(meta) is True
     if not isinstance(clan, str) or not clan:
-        legacy_family = meta.get(AGENT_FAMILY_FIELD)
+        legacy_family = agent_session_value(meta)
         if (
             not legacy_parallel
             or not isinstance(legacy_family, str)

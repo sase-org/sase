@@ -35,7 +35,10 @@ from sase.logs._bounded import log_file_lock
 from sase.notification_gates.model_request import GateSpec
 from sase.notification_gates.model_results import GateCreationResult
 from sase.notification_gates.service import create_gate
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import (
+    agent_family_base,
+    agent_session_value,
+)
 from sase.workflows.utils import get_project_file_path
 
 _FINALIZER_OWNED_TURN_ENV = "SASE_FINALIZER_OWNED_TURN"
@@ -349,7 +352,7 @@ def _resolve_creator(project_name: str) -> _CreatorContext:
         raise GateShellLaneError(str(exc)) from exc
 
     raw_meta = _read_meta(ctx.record.artifact_dir)
-    durable_lane = str(raw_meta.get("agent_family") or "").strip()
+    durable_lane = str(agent_session_value(raw_meta) or "").strip()
     target_name = str(raw_meta.get("name") or caller)
     if not durable_lane:
         promoted_name = promote_agent_to_family(ctx.record.artifact_dir, target_name)

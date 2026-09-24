@@ -8,6 +8,11 @@ from pathlib import Path
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.output_variable_values import coerce_var_map
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_role_value,
+    agent_session_value,
+)
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.monitor_state import is_monitor_member_role
 from sase.gate_shell.state import is_real_gate_member
@@ -199,18 +204,20 @@ def enrich_agent_from_meta(
         agent.hidden = True
     if not workflow_child and data.get("role_suffix"):
         agent.role_suffix = data["role_suffix"]
-    if not workflow_child and data.get("agent_family"):
-        agent.agent_family = data["agent_family"]
-    if not workflow_child and data.get("agent_family_role"):
-        agent.agent_family_role = data["agent_family_role"]
+    session_name = agent_session_value(data)
+    if not workflow_child and session_name:
+        agent.agent_family = session_name
+    session_role = agent_session_role_value(data)
+    if not workflow_child and session_role:
+        agent.agent_family_role = session_role
     if not workflow_child:
         apply_imported_source_owner(agent, data.get("imported_source_owner"))
         apply_archive_source_machine(agent, data.get("source_machine"))
     if not workflow_child:
-        agent.agent_family_parallel = bool(data.get("agent_family_parallel", False))
+        agent.agent_family_parallel = bool(agent_session_parallel_value(data))
         raw_clan = data.get("agent_clan")
         if not isinstance(raw_clan, str) or not raw_clan:
-            legacy_family = data.get("agent_family")
+            legacy_family = agent_session_value(data)
             if agent.agent_family_parallel and isinstance(legacy_family, str):
                 raw_clan = legacy_family
         if isinstance(raw_clan, str) and raw_clan:

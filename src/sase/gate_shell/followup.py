@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_value,
+)
+
 import time
 from pathlib import Path
 from typing import Any
@@ -63,7 +67,7 @@ def launch_gate_followup_agent(
     recorded on the gate shell member's own metadata; the caller is
     responsible for releasing the workspace claim and notifying.
     """
-    lane = str(meta.get("agent_family") or "")
+    lane = str(agent_session_value(meta) or "")
     if not lane:
         return FollowupLaunchResult(launched=False)
 

@@ -19,6 +19,12 @@ from sase.core.output_variable_values import (
     normalize_var_value,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity, validate_agent_owner
+from sase.plan_chain import (
+    AGENT_SESSION_KEY,
+    AGENT_SESSION_ROLE_KEY,
+    LEGACY_AGENT_FAMILY_KEY,
+    LEGACY_AGENT_FAMILY_ROLE_KEY,
+)
 
 MAX_JSON_BYTES = 4 * 1024 * 1024
 MAX_TEXT_BYTES = 16 * 1024 * 1024
@@ -44,8 +50,11 @@ V2_METADATA_FIELDS = frozenset(
     {
         "agent_clan",
         "agent_clan_generation",
-        "agent_family",
-        "agent_family_role",
+        AGENT_SESSION_KEY,
+        AGENT_SESSION_ROLE_KEY,
+        # legacy agent-family spelling: pre-rename manifests still validate.
+        LEGACY_AGENT_FAMILY_KEY,
+        LEGACY_AGENT_FAMILY_ROLE_KEY,
         "approve",
         "bead_id",
         "patch_name",

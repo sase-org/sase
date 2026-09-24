@@ -12,15 +12,15 @@ from typing import Any
 
 from sase.agent._family_attach_types import FamilyAttachError
 from sase.plan_chain import (
-    AGENT_FAMILY_FIELD,
-    AGENT_FAMILY_ROLE_FIELD,
-    AGENT_FAMILY_SEPARATOR,
+    AGENT_SESSION_SEPARATOR,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_ROOT_FIELD,
+    agent_session_value,
     canonical_plan_chain_suffix,
+    set_agent_session_fields,
 )
 
-_GENERIC_ROOT_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}0"
+_GENERIC_ROOT_SUFFIX = f"{AGENT_SESSION_SEPARATOR}0"
 _PLAN_ROOT_SUFFIX = PLAN_CHAIN_PLAN_SUFFIX
 
 
@@ -103,9 +103,9 @@ def promote_agent_to_family(
                 "does not contain a name."
             )
 
-        existing_family = meta.get(AGENT_FAMILY_FIELD)
-        family_prefix = f"{durable_base}{AGENT_FAMILY_SEPARATOR}"
-        legacy_family_prefix = f"{base_name}{AGENT_FAMILY_SEPARATOR}"
+        existing_family = agent_session_value(meta)
+        family_prefix = f"{durable_base}{AGENT_SESSION_SEPARATOR}"
+        legacy_family_prefix = f"{base_name}{AGENT_SESSION_SEPARATOR}"
         if current_name.startswith((family_prefix, legacy_family_prefix)):
             if not isinstance(existing_family, str) or (
                 current_owner_agent_name_key(existing_family, identity)
@@ -149,8 +149,7 @@ def promote_agent_to_family(
         promoted["name"] = member_name
         promoted["workflow_name"] = durable_base
         promoted["role_suffix"] = suffix
-        promoted[AGENT_FAMILY_FIELD] = durable_base
-        promoted[AGENT_FAMILY_ROLE_FIELD] = "root"
+        set_agent_session_fields(promoted, session=durable_base, role="root")
         if suffix == _PLAN_ROOT_SUFFIX:
             promoted[PLAN_CHAIN_ROOT_FIELD] = True
         else:

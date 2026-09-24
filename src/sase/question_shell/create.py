@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_value,
+)
+
 import json
 import os
 from collections.abc import Mapping
@@ -148,7 +152,7 @@ def resolve_question_chain_parent(
         hint_meta = _read_meta(hint)
         if (
             hint_meta.get("gate_kind") == "question"
-            and hint_meta.get("agent_family") == lane
+            and agent_session_value(hint_meta) == lane
         ):
             return hint
 

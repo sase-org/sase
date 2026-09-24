@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_parallel_value,
+)
+
 from collections.abc import Iterable
 from typing import Any
 
@@ -55,7 +59,7 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
         start_time=_iso_or_none(agent.start_time),
         stop_time=_iso_or_none(agent.stop_time),
         is_workflow_child=agent.is_workflow_child,
-        agent_family_parallel=bool(getattr(agent, "agent_family_parallel", False)),
+        agent_family_parallel=bool(agent_session_parallel_value(agent)),
         appears_as_agent=agent.appears_as_agent,
         step_type=agent.step_type,
         monitor_id=getattr(agent, "monitor_id", None),

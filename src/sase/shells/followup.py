@@ -17,7 +17,11 @@ from sase.agent.detached_child import (
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.core.artifact_file_facade import store_explicit_artifact_file
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import (
+    AGENT_SESSION_ROLE_KEY,
+    LEGACY_AGENT_FAMILY_ROLE_KEY,
+    agent_family_base,
+)
 from sase.running_field import (
     WorkspaceClaim,
     WorkspaceClaimError,
@@ -491,7 +495,7 @@ def starter_identity(
         return None, None
     return (
         _read_meta_str(starter_dir, "name"),
-        _read_meta_str(starter_dir, "agent_family_role"),
+        _read_meta_str(starter_dir, AGENT_SESSION_ROLE_KEY),
     )
 
 
@@ -584,6 +588,9 @@ def _read_meta_str(artifacts_dir: str, key: str) -> str | None:
     except (FileNotFoundError, OSError, ValueError):
         return None
     value = data.get(key) if isinstance(data, dict) else None
+    if value is None and key == AGENT_SESSION_ROLE_KEY and isinstance(data, dict):
+        # legacy agent-family spelling: pre-rename agent_meta.json files.
+        value = data.get(LEGACY_AGENT_FAMILY_ROLE_KEY)
     return value if isinstance(value, str) and value else None
 
 

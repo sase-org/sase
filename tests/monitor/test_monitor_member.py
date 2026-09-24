@@ -57,8 +57,10 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
 
     assert meta["name"] == "acme--mon"
     assert meta["workflow_name"] == "acme"
-    assert meta["agent_family"] == "acme"
-    assert meta["agent_family_role"] == "monitor"
+    assert meta["agent_session"] == "acme"
+    assert meta["agent_session_role"] == "monitor"
+    assert "agent_family" not in meta
+    assert "agent_family_role" not in meta
     assert meta["agent_clan"] == "acme-clan"
     assert meta["agent_clan_generation"] == "20260812115000"
     assert meta["role_suffix"] == "--mon"

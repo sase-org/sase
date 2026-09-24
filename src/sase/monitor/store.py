@@ -28,7 +28,7 @@ from sase.core.agent_scan_wire import (
 from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
-from sase.core.wire import known_field_kwargs
+from sase.core.wire import known_field_kwargs, with_legacy_agent_session_keys
 from sase.procs.models import ProcStoreSnapshot
 
 from .identity import supervisor_is_alive
@@ -116,11 +116,15 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
         return None
     raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
 
-    meta_kwargs = known_field_kwargs(AgentMetaWire, raw_meta)
+    meta_kwargs = known_field_kwargs(
+        AgentMetaWire, with_legacy_agent_session_keys(raw_meta)
+    )
     meta_kwargs["family_shell"] = family_shell_from_mapping(raw_meta)
     done_kwargs = None
     if raw_done is not None:
-        done_kwargs = known_field_kwargs(DoneMarkerWire, raw_done)
+        done_kwargs = known_field_kwargs(
+            DoneMarkerWire, with_legacy_agent_session_keys(raw_done)
+        )
         done_kwargs["family_shell"] = family_shell_from_mapping(raw_done)
     record = AgentArtifactRecordWire(
         project_name=project_name,

@@ -288,7 +288,7 @@ def _resolve_agent_fork_source(name: str) -> ForkSource:
     if family_member is not None:
         meta = read_json_dict(family_member.artifacts_dir / "agent_meta.json") or {}
         if is_real_monitor_member(
-            json_string(meta, "agent_family_role"),
+            json_string(meta, "agent_session_role"),
             json_string(meta, "monitor_id"),
         ):
             return resolve_monitor_fork_source(name, family_member.artifacts_dir)
@@ -308,7 +308,7 @@ def _resolve_agent_fork_source(name: str) -> ForkSource:
         artifact_dir = Path(agent.artifacts_dir)
         meta = read_json_dict(artifact_dir / "agent_meta.json") or {}
         if is_real_monitor_member(
-            json_string(meta, "agent_family_role"),
+            json_string(meta, "agent_session_role"),
             json_string(meta, "monitor_id"),
         ):
             return resolve_monitor_fork_source(agent.name, artifact_dir)

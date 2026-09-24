@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_value,
+)
+
 from dataclasses import replace
 from pathlib import Path
 from typing import cast
@@ -191,7 +195,7 @@ def _build_containers(
         family = (
             parsed.agent_session_name
             if parsed.kind is AgentSessionNameKind.MEMBER
-            else _text(metadata.get("agent_family"))
+            else _text(agent_session_value(metadata))
         )
         if family:
             families.setdefault(family, set()).add(run.source_run_id)

@@ -38,6 +38,12 @@ from sase.core.agent_identity_facade import (
     globalize_agent_name,
     parse_agent_session_name,
 )
+from sase.plan_chain import (
+    AGENT_SESSION_KEY,
+    AGENT_SESSION_ROLE_KEY,
+    set_agent_session_fields,
+    strip_legacy_agent_family_keys,
+)
 
 # Preserve existing private test/support imports and monkeypatch points while
 # keeping each implementation in its focused module.
@@ -237,13 +243,17 @@ def _normalize_historical_family_metadata(
     )
     metadata = dict(run.metadata)
     if canonical_family is None:
-        metadata.pop("agent_family", None)
-        metadata.pop("agent_family_role", None)
+        strip_legacy_agent_family_keys(metadata)
         metadata.pop("role_suffix", None)
+        metadata.pop(AGENT_SESSION_KEY, None)
+        metadata.pop(AGENT_SESSION_ROLE_KEY, None)
     else:
-        metadata["agent_family"] = canonical_family
+        set_agent_session_fields(
+            metadata,
+            session=canonical_family,
+            role=parsed.member_role if parsed.member_role is not None else None,
+        )
         if parsed.member_role is not None:
-            metadata["agent_family_role"] = parsed.member_role
             metadata["role_suffix"] = parsed.member_role
     if raw_family is not None and raw_family != canonical_family:
         source = run.source_label or run.source_run_id

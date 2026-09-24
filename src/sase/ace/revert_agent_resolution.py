@@ -12,7 +12,10 @@ from sase.ace.patch.project_spec_path import project_spec_basename
 from sase.ace.revert_agent_models import BulkRevertIntent, RevertIntent, RevertRepo
 from sase.ace.tui.models._projected_record import resolve_linked_repos
 from sase.linked_repos import opened_external_repo_records
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import (
+    agent_family_base,
+    agent_session_value,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence as _Sequence
@@ -370,7 +373,7 @@ def resolve_revert_family_base(agent: Agent, agent_name: str | None) -> str | No
     inferred from a family-suffixed name. ``None`` means exact selected-agent
     scope.
     """
-    family = getattr(agent, "agent_family", None)
+    family = agent_session_value(agent)
     if isinstance(family, str) and family.strip():
         return family.strip()
     if agent_name:

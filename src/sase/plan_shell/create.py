@@ -15,6 +15,7 @@ from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
+    agent_session_value,
 )
 
 if TYPE_CHECKING:
@@ -176,7 +177,7 @@ def _resolve_plan_shell_parent(
         hint_meta = _read_meta(hint)
         if (
             hint_meta.get("gate_kind") in {"plan", "epic_plan"}
-            and hint_meta.get("agent_family") == lane
+            and agent_session_value(hint_meta) == lane
         ):
             return hint
 
@@ -328,7 +329,7 @@ def _plan_lane(
     source_plan_agent_name: str | None,
     agent_name: str | None,
 ) -> str:
-    raw_family = source_meta.get("agent_family")
+    raw_family = agent_session_value(source_meta)
     if isinstance(raw_family, str) and raw_family:
         return raw_family
     for candidate in (source_plan_agent_name, agent_name):

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
+from sase.plan_chain import agent_session_parallel_value, agent_session_value
 from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
 from ._entry_name_prompts import (
@@ -40,12 +41,10 @@ def prepare_kill_edit_agent_prompt(
 
     is_family_root = bool(getattr(agent, "is_family_root_entry", False))
     family_name: str | None = None
-    agent_family = getattr(agent, "agent_family", None)
+    agent_family = agent_session_value(agent)
     role_suffix = getattr(agent, "role_suffix", None)
     serial_family_member = bool(
-        agent_family
-        and not getattr(agent, "agent_family_parallel", False)
-        and role_suffix
+        agent_family and not agent_session_parallel_value(agent) and role_suffix
     )
     if serial_family_member or is_family_root:
         family_name = _kill_edit_family_reference_name(agent, agent_family)

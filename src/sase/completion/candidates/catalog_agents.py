@@ -7,6 +7,11 @@ indexes, never by scanning live agent directories; see
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_role_value,
+    agent_session_shell_value,
+)
+
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -129,13 +134,13 @@ def monitor_candidates(project: str | None) -> list[Candidate]:
         meta = record.get("agent_meta")
         if not isinstance(meta, Mapping):
             continue
-        shell = meta.get("family_shell")
+        shell = agent_session_shell_value(meta)
         monitor_shell = (
             shell
             if isinstance(shell, Mapping) and shell.get("kind") == "monitor"
             else None
         )
-        if meta.get("agent_family_role") != "monitor" or monitor_shell is None:
+        if agent_session_role_value(meta) != "monitor" or monitor_shell is None:
             continue
         monitor_id = str(monitor_shell.get("id") or "")
         if not monitor_id:

@@ -7,6 +7,12 @@ kills the old row.
 
 from __future__ import annotations
 
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_role_value,
+    agent_session_value,
+)
+
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -207,12 +213,12 @@ def _rewrite_prompt_identity(
 def _family_rewrite_args(
     meta: dict[str, Any],
 ) -> tuple[str | None, str | None, bool]:
-    agent_family = optional_str(meta.get("agent_family"))
+    agent_family = optional_str(agent_session_value(meta))
     role_suffix = optional_str(meta.get("role_suffix"))
     is_family_root = (
-        meta.get("plan_chain_root") is True or meta.get("agent_family_role") == "root"
+        meta.get("plan_chain_root") is True or agent_session_role_value(meta) == "root"
     )
-    if agent_family and meta.get("agent_family_parallel") is not True and role_suffix:
+    if agent_family and agent_session_parallel_value(meta) is not True and role_suffix:
         return agent_family, role_suffix, is_family_root
     if is_family_root:
         return agent_family, role_suffix, True
