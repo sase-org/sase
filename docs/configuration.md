@@ -435,9 +435,10 @@ SASE/plugin results and vice versa.
 The persistent `updates:` top-bar group is the top bar's only dark chip (a deep moss
 surface), so it never blends with its neighbors: lime `⬆ N` for SASE/plugin updates,
 with a bright lime `core` tag when `sase-core-rs` requires a Rust rebuild, and a sage
-`CLI ⬆ N` segment for supported agent CLIs. Mixed states join the SASE and CLI segments,
-and the tooltip spells out both counts plus any manual-only CLI updates. Clicking the
-badge opens this tab without mutating anything.
+`CLI ⬆ N` segment for supported agent CLIs. While SASE is updating, a green `⚙` gear
+inset leads the badge. Mixed states join the SASE and CLI segments, and the tooltip
+spells out both counts plus any manual-only CLI updates. Clicking the badge opens this
+tab without mutating anything, or the Procs tab on the running update while one runs.
 
 The global `,U` action opens the **Update panel** from already-fetched SASE and provider
 snapshots (no Admin Center, no live inventory load). The providers row lists each

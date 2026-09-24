@@ -18,11 +18,16 @@ from sase.monitor_status import (
     monitor_status_style,
 )
 
-from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
+from .._proc_observer_models import proc_gear_lane
+from ..proc_gear_chips import (
+    MONITOR_GEAR_HUE,
+    PROC_GEAR_HUE,
+    UPDATE_GEAR_HUE,
+    gear_chip,
+)
 from ..proc_observer import (
     ObservedProc,
     ProcProjection,
-    is_gear_eligible_row,
     is_monitor_shell_row,
     monitor_row_agent_name,
 )
@@ -468,19 +473,30 @@ class ProcsPaneSelectionMixin(_MixinBase):
     def _title_text(self) -> Text:
         running = sum(1 for task in self._tasks if is_active(task))
         monitor_running = sum(
-            1 for task in self._tasks if is_active(task) and is_monitor_shell_row(task)
+            1
+            for task in self._tasks
+            if is_active(task) and proc_gear_lane(task) == "monitor"
         )
         # The blue chip claims to be the session proc count, so it counts exactly
-        # what the top-bar gear counts (no monitor shells, no service rows); the
-        # bracketed inventory below still covers every listed row.
+        # what the top-bar blue gear counts (proc lane only: no monitors, no
+        # update rows, no service rows); the bracketed inventory below still
+        # covers every listed row.
         proc_running = sum(
-            1 for task in self._tasks if is_active(task) and is_gear_eligible_row(task)
+            1
+            for task in self._tasks
+            if is_active(task) and proc_gear_lane(task) == "proc"
+        )
+        update_running = sum(
+            1
+            for task in self._tasks
+            if is_active(task) and proc_gear_lane(task) == "update"
         )
         done = len(self._tasks) - running
         scope = "all sessions" if self._all_sessions else "this session"
         text = Text(f"Procs · {scope}  ")
         text.append(gear_chip(proc_running, PROC_GEAR_HUE, hide_at_zero=False))
         text.append(gear_chip(monitor_running, MONITOR_GEAR_HUE, hide_at_zero=False))
+        text.append(gear_chip(update_running, UPDATE_GEAR_HUE))
         text.append(f"  [{running} running · {done} done]")
         if self._display_filter_query().strip():
             text.append(f"  · {len(self._tasks)}/{self._filter_scoped_total} shown")

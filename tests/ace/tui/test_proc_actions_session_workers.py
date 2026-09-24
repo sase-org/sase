@@ -518,3 +518,68 @@ def test_update_proc_indicator_missing_proc_indicator_is_noop() -> None:
     )
 
     host._update_proc_indicator()
+
+
+class _FakeUpdatesIndicator:
+    def __init__(self) -> None:
+        self.labels: list[tuple[str, ...]] = []
+
+    def set_running(self, labels: object) -> None:
+        self.labels.append(tuple(labels))  # type: ignore[arg-type]
+
+
+def _update_row(proc_id: str) -> ObservedProc:
+    return ObservedProc(
+        proc_id=proc_id,
+        proc_type="sase-update",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="running",
+        started_at=local_now(),
+        display_name="sase update",
+    )
+
+
+def _sync_row(proc_id: str) -> ObservedProc:
+    return ObservedProc(
+        proc_id=proc_id,
+        proc_type="sync",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="running",
+        started_at=local_now(),
+        display_name="sync",
+    )
+
+
+def test_update_proc_indicator_moves_update_lane_to_green_gear() -> None:
+    proc_indicator = _FakeIndicator()
+    updates_indicator = _FakeUpdatesIndicator()
+    host = _IndicatorHost(
+        ProcProjection(rows=(_update_row("update-1"),)),
+        widgets={
+            "#proc-indicator": proc_indicator,
+            "#updates-indicator": updates_indicator,
+        },
+    )
+
+    host._update_proc_indicator()
+
+    assert proc_indicator.counts == [(0, 0)]
+    assert updates_indicator.labels == [("sase update",)]
+
+    host._proc_projection = ProcProjection(
+        rows=(_update_row("update-1"), _sync_row("sync-1")),
+    )
+    host._update_proc_indicator()
+
+    assert proc_indicator.counts[-1] == (1, 0)
+    assert updates_indicator.labels[-1] == ("sase update",)
+
+    host._proc_projection = ProcProjection(rows=(_sync_row("sync-1"),))
+    host._update_proc_indicator()
+
+    assert proc_indicator.counts[-1] == (1, 0)
+    assert updates_indicator.labels[-1] == ()

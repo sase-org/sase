@@ -4778,20 +4778,23 @@ for monitor shells), `⬆` for updates, `≡` for the stash, `★` for priority 
 mode (labels dropped together when the full cluster does not fit in the cells left over
 after the tab strip and a 2-cell minimum gap; separators kept) still identifies each
 group; widening restores full labels without oscillation. Every group is clickable:
-procs opens the Admin Center Procs tab, updates opens the Updates tab, overrides,
-priority, and disabled open Launch settings, stash opens the prompt stash picker, and
-inbox opens the notification modal.
+procs opens the Admin Center Procs tab, updates opens the Updates tab (or the Procs tab
+on the running update while SASE is updating, when the badge shows its green gear
+inset), overrides, priority, and disabled open Launch settings, stash opens the prompt
+stash picker, and inbox opens the notification modal. While SASE is updating itself, the
+`updates` group shows a green `⚙` gear inset at its left edge.
 
 ### Proc Indicator
 
 The `procs:` group shows a filled blue `⚙ N` chip while sase's TUI own procs are running
 (e.g., sync, mail, accept, and notification-gate operations) and an orange `⚙ N` chip
 for running monitor shells (`sase monitor start` supervised commands) — the same pair
-the Procs tab header shows. Monitors are counted separately because a monitor is a
-detached supervisor that survives TUI exit and never blocks TUI procs. Either chip hides
-at zero, and the group hides only when both counts are zero. The group excludes
-service-host rows — service procs and oneshots — which the Services tab reports instead.
-Hover for the counts; click to open the Procs tab.
+the Procs tab header shows. Procs that are updating SASE move to the green `⚙` gear in
+`updates:` and no longer count in the blue chip. Monitors are counted separately because
+a monitor is a detached supervisor that survives TUI exit and never blocks TUI procs.
+Either chip hides at zero, and the group hides only when both counts are zero. The group
+excludes service-host rows — service procs and oneshots — which the Services tab reports
+instead. Hover for the counts; click to open the Procs tab.
 
 ### Current Project Indicator
 
@@ -7589,16 +7592,18 @@ shows up on the tab.
 
 The pane defaults to **this session** plus unattributed procs; press `a` to widen it to
 every session. Historical `detached` rows remain visible in both modes. The pane title
-names the active scope and the two running-lane counts, e.g.
+names the active scope and the running-lane counts, e.g.
 `Procs · this session   ⚙ 2  ⚙ 1   [3 running · 5 done]`. The blue gear is running plain
-procs (excluding monitors); the orange gear is running monitors. Both counts follow the
-tab's current scope, so `a` moves them with the list. A zero lane still renders as a dim
-`⚙ 0` so a missing chip cannot be read as "unknown". The bracketed totals keep their
-current meaning: blue plus orange equals the running count. Rows read from the store
-carry a colored session chip (`ace·sase#14 4f2a`) that matches the one `sase proc list`
-prints; a session that has since exited renders dim with a `†`. An ordinary unattributed
-proc renders a dim `—`; a historical detached proc carries a cyan `◆ detached` marker
-that makes the legacy row kind explicit.
+procs (excluding monitors and update rows); the orange gear is running monitors. A green
+`⚙ N` chip appears after the orange chip only while update procs run, and update rows
+carry a green `⚙` marker. All counts follow the tab's current scope, so `a` moves them
+with the list. A zero blue/orange lane still renders as a dim `⚙ 0` so a missing chip
+cannot be read as "unknown". The bracketed totals keep their current meaning: blue plus
+green plus orange equals the running count. Rows read from the store carry a colored
+session chip (`ace·sase#14 4f2a`) that matches the one `sase proc list` prints; a
+session that has since exited renders dim with a `†`. An ordinary unattributed proc
+renders a dim `—`; a historical detached proc carries a cyan `◆ detached` marker that
+makes the legacy row kind explicit.
 
 Store reads happen on a worker thread and are revalidated by store mtime about once a
 second, so the tab never stats, reads, or locks the store from a render or keystroke
@@ -7867,7 +7872,8 @@ ticks only revalidate cached SASE/plugin rows and provider names already known o
 full discovery waits for the longer configured recompute cadence, and provider registry
 lookups retain their own cache. The top bar renders the `updates:` group as its only
 dark chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts, plus a lime
-`core` tag for a sase-core rebuild).
+`core` tag for a sase-core rebuild, plus a green `⚙` gear inset at the left edge while
+SASE is updating).
 
 For editable host, core, and plugin checkouts, the running TUI also remembers the Git
 HEAD imported by the process and cheaply checks whether the checkout has moved on disk.

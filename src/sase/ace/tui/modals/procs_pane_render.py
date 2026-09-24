@@ -18,6 +18,8 @@ from sase.sessions import session_chip
 from sase.core.time import local_now
 from sase.procs import ACTIVE_PROC_STATUSES, DETACHED_PROC_KIND
 
+from .._proc_observer_models import proc_gear_lane
+from ..proc_gear_chips import UPDATE_GEAR_HUE
 from ..proc_observer import (
     DETAIL_LOG_LINES,
     ObservedProc,
@@ -41,6 +43,7 @@ _MAX_RENDERED_LOG_LINES = 1_200
 _RULE = "─" * 60
 _DETACHED_MARKER = "◆ detached"
 _MONITOR_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
+_UPDATE_GLYPH_STYLE = f"bold {UPDATE_GEAR_HUE}"
 _TAIL_CAP_NOTICE = f"… showing the last {DETAIL_LOG_LINES} lines …"
 
 # Rendered body cache: task id -> (log version, static text, rendered body).
@@ -140,6 +143,18 @@ def _append_monitor_marker(
         text.append(f"{prefix}{MONITOR_GLYPH}{suffix}", style=_MONITOR_GLYPH_STYLE)
 
 
+def _append_update_marker(
+    text: Text,
+    task: ObservedProc,
+    *,
+    prefix: str = "",
+    suffix: str = "",
+) -> None:
+    """Mark an update-lane row with the green update gear."""
+    if proc_gear_lane(task) == "update":
+        text.append(f"{prefix}{MONITOR_GLYPH}{suffix}", style=_UPDATE_GLYPH_STYLE)
+
+
 def _resolved_agent_name(
     task: ObservedProc, agent_names: Mapping[str, str] | None
 ) -> str | None:
@@ -192,6 +207,7 @@ def task_row_label(
     text.append(f"{icon} ", style=icon_style)
     _append_detached_marker(text, task, prefix="", suffix=" ")
     _append_monitor_marker(text, task, prefix="", suffix=" ")
+    _append_update_marker(text, task, prefix="", suffix=" ")
     text.append(task.label, style="bold")
     time_ref = task.finished_at or task.started_at
     text.append(f"  {_relative_time(time_ref)}", style="dim")
@@ -226,6 +242,7 @@ def output_header(
     out = Text()
     icon, style = _task_status_token(task, spinner_index=spinner_index)
     _append_monitor_marker(out, task, suffix=" ")
+    _append_update_marker(out, task, suffix=" ")
     out.append(task.label, style="bold")
     _append_detached_marker(out, task)
     out.append("  ")

@@ -206,6 +206,18 @@ def test_stash_chip_text_meets_aa_contrast() -> None:
         )
 
 
+def test_update_gear_inset_meets_aa_contrast() -> None:
+    badge = UpdatesAvailableIndicator._build_content(3, running=True)
+    pairs = _foreground_background_pairs(badge)
+    assert pairs, "updating badge has no foreground/background pairs to check"
+    for fg, bg in pairs:
+        ratio = _contrast_ratio(fg, bg)
+        assert ratio >= _MIN_TEXT_CONTRAST, (
+            f"updating badge text {fg} on {bg} is {ratio:.2f}:1 "
+            f"(need >= {_MIN_TEXT_CONTRAST}:1)"
+        )
+
+
 def test_full_density_chip_text_is_not_dimmed() -> None:
     """A labeled group must not dim its chip body.
 
@@ -225,6 +237,7 @@ def test_full_density_chip_text_is_not_dimmed() -> None:
     console = Console(color_system="truecolor", width=120)
     bodies = dict(_neighbors())
     bodies["stashed prompts count"] = StashedPromptsIndicator._build_content(4)
+    bodies["updating badge"] = UpdatesAvailableIndicator._build_content(3, running=True)
     assert bodies
     for name, body in bodies.items():
         probe = _LabeledProbe()

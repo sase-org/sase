@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.ops import DurableOperationResult
@@ -160,10 +160,107 @@ def is_gear_eligible_row(row: ObservedProc) -> bool:
     return not is_monitor_shell_row(row) and not is_service_row(row)
 
 
+# Proc types that plan or apply a change to the installed SASE stack
+# (as opposed to sync/mail-style work). Session-worker types cover live
+# workers; ``plugin.update`` is the durable operation name reused as the
+# pending-placeholder proc type before its ``plugin-update:`` scope lands.
+UPDATE_PROC_TYPES = frozenset(
+    {
+        "update-preview",
+        "comprehensive-update",
+        "sase-update",
+        "dev-update",
+        "agent-cli-update",
+        "mode-switch",
+        "plugin.update",
+    }
+)
+# Durable concurrency keys marking the same lane. Session proc types cover
+# live workers; scopes cover durable store rows (notably plugin updates,
+# whose store rows carry a generic kind) and pending placeholders.
+UPDATE_EXCLUSIVE_SCOPES = frozenset({"sase-update", "agent-cli-update"})
+PLUGIN_UPDATE_SCOPE_PREFIX = "plugin-update:"
+
+GearLane = Literal["proc", "update", "monitor"]
+
+
+def is_update_row(row: ObservedProc) -> bool:
+    """Return whether a gear-eligible row is in the SASE-update lane.
+
+    Callers still gate on the row being active.
+    """
+    if not is_gear_eligible_row(row):
+        return False
+    if row.proc_type in UPDATE_PROC_TYPES:
+        return True
+    return any(
+        scope in UPDATE_EXCLUSIVE_SCOPES or scope.startswith(PLUGIN_UPDATE_SCOPE_PREFIX)
+        for scope in row.exclusive_scopes
+    )
+
+
+def proc_gear_lane(row: ObservedProc) -> GearLane | None:
+    """Return the gear lane for one row.
+
+    Monitor shells read as ``"monitor"``, service rows read as ``None``,
+    update-lane rows read as ``"update"``, and everything else reads as
+    ``"proc"``. Callers still gate on the row being active.
+    """
+    if is_monitor_shell_row(row):
+        return "monitor"
+    if is_service_row(row):
+        return None
+    if is_update_row(row):
+        return "update"
+    return "proc"
+
+
+@dataclass(frozen=True)
+class ProcGearLanes:
+    """Split of active gear-eligible rows into top-bar lanes."""
+
+    procs: int = 0
+    monitors: int = 0
+    update_rows: tuple[ObservedProc, ...] = ()
+
+    @property
+    def updates(self) -> int:
+        """Number of active update-lane rows."""
+        return len(self.update_rows)
+
+    @property
+    def update_labels(self) -> tuple[str, ...]:
+        """User-facing labels for active update rows, oldest first."""
+        return tuple(row.label for row in self.update_rows)
+
+
+def proc_gear_lanes(
+    projection: ProcProjection, *, all_sessions: bool = False
+) -> ProcGearLanes:
+    """Split active rows into proc/monitor/update lanes in one pass."""
+    procs = 0
+    monitors = 0
+    update_rows: list[ObservedProc] = []
+    for row in projection.active_rows(all_sessions=all_sessions):
+        lane = proc_gear_lane(row)
+        if lane == "monitor":
+            monitors += 1
+        elif lane == "update":
+            update_rows.append(row)
+        elif lane == "proc":
+            procs += 1
+    update_rows.sort(key=lambda item: item.started_at)
+    return ProcGearLanes(procs=procs, monitors=monitors, update_rows=tuple(update_rows))
+
+
 def gear_eligible_count(
     projection: ProcProjection, *, all_sessions: bool = False
 ) -> int:
-    """Count active rows that belong in the session proc gear."""
+    """Count active rows that belong in the session proc gear.
+
+    This still includes update-lane rows; the top bar splits them out with
+    :func:`proc_gear_lanes`.
+    """
     return sum(
         1
         for row in projection.active_rows(all_sessions=all_sessions)
@@ -303,16 +400,24 @@ class ProcObserverSnapshot:
 
 
 __all__ = [
+    "GearLane",
     "ObservedProc",
+    "PLUGIN_UPDATE_SCOPE_PREFIX",
     "ProcCompletionRecord",
+    "ProcGearLanes",
     "ProcObserverSnapshot",
     "ProcProjection",
+    "UPDATE_EXCLUSIVE_SCOPES",
+    "UPDATE_PROC_TYPES",
     "compose_proc_projection",
     "is_gear_eligible_row",
     "is_monitor_shell_row",
     "is_service_daemon_row",
     "is_service_row",
+    "is_update_row",
     "monitor_row_agent_name",
+    "proc_gear_lane",
+    "proc_gear_lanes",
     "proc_projection_for",
     "proc_status_is_active",
     "recount_projection",

@@ -200,6 +200,32 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         """Open the SASE Admin Center on the Updates tab."""
         self._open_config_center("updates")
 
+    def action_open_update_procs(self) -> None:
+        """Open the Admin Center Procs tab on the oldest running update."""
+        from .._proc_observer_models import proc_gear_lanes
+        from ..modals.config_center_session import (
+            AdminCenterSessionState,
+            SelectionBookmark,
+        )
+
+        try:
+            projection_fn = getattr(self, "_effective_proc_projection", None)
+            lanes = (
+                proc_gear_lanes(projection_fn()) if callable(projection_fn) else None
+            )
+        except Exception:
+            lanes = None
+        if lanes is not None and lanes.update_rows:
+            row = lanes.update_rows[0]
+            session_state = getattr(self, "_admin_center_session_state", None)
+            if not isinstance(session_state, AdminCenterSessionState):
+                session_state = AdminCenterSessionState()
+                self._admin_center_session_state = session_state
+            session_state.procs.task = SelectionBookmark(
+                identity=row.durable_proc_id or row.proc_id
+            )
+        self._open_config_center("procs")
+
     def _submit_scoped_update_request(
         self,
         *,

@@ -1,9 +1,8 @@
 """Shared gear-chip rendering for proc and monitor counts.
 
-The blue/orange gear chip is the canonical proc-vs-monitor lane marker for
-the Procs tab header and the top bar's single ``procs:`` group
-(``ProcIndicator``), which share this chip by construction so a count reads
-as the same lane in both places.
+The gear chip now has three lanes. Blue is the session proc lane, orange
+is monitors, and green (the update identity accent) is procs that are
+updating SASE.
 """
 
 from __future__ import annotations
@@ -11,12 +10,15 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.widgets.top_bar_group import icon_count_chip
+from sase.ace.tui.widgets.update_accents import UPDATES_ACCENT
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
 PROC_GEAR_HUE = "#48CAE4"
 MONITOR_GEAR_HUE = MONITOR_GLYPH_COLOR
+UPDATE_GEAR_HUE = UPDATES_ACCENT
 
 _GEAR = MONITOR_GLYPH
+_DARK_INK = "#1a1a1a"
 
 
 def gear_chip(count: int, hue: str, *, hide_at_zero: bool = True) -> Text:
@@ -34,4 +36,17 @@ def gear_chip(count: int, hue: str, *, hide_at_zero: bool = True) -> Text:
     return icon_count_chip(_GEAR, count, hue)
 
 
-__all__ = ["MONITOR_GEAR_HUE", "PROC_GEAR_HUE", "gear_chip"]
+def update_gear_chip(active: bool) -> Text:
+    """Build the green update-lane gear inset for the updates badge."""
+    if not active:
+        return Text("")
+    return Text(f" {_GEAR} ", style=f"bold {_DARK_INK} on {UPDATE_GEAR_HUE}")
+
+
+__all__ = [
+    "MONITOR_GEAR_HUE",
+    "PROC_GEAR_HUE",
+    "UPDATE_GEAR_HUE",
+    "gear_chip",
+    "update_gear_chip",
+]

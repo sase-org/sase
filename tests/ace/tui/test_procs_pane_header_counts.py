@@ -1,11 +1,15 @@
-"""Tests for the Procs tab header's blue/orange gear counts."""
+"""Tests for the Procs tab header's blue/orange/green gear counts."""
 
 from __future__ import annotations
 
 import pytest
 
 from sase.ace.tui._proc_observer_models import gear_eligible_count
-from sase.ace.tui.proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE
+from sase.ace.tui.proc_gear_chips import (
+    MONITOR_GEAR_HUE,
+    PROC_GEAR_HUE,
+    UPDATE_GEAR_HUE,
+)
 from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.procs.service_meta import (
     SERVICE_HOST_ORIGIN,
@@ -181,3 +185,56 @@ async def test_header_blue_chip_matches_top_bar_gear_count(
         assert title.plain == (
             f"Procs · this session   ⚙ {gear_count}  ⚙ 1   [5 running · 1 done]"
         )
+
+
+async def test_header_excludes_update_rows_from_blue_and_shows_green_chip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_store_loader(monkeypatch, [])
+    plain = task("plain", label="sync", status="running", age_seconds=1)
+    update = task(
+        "update", label="sase-update working", status="running", age_seconds=2
+    )
+    monitor = _monitor_task("mon", label="just check", status="running", age_seconds=3)
+
+    async with ProcsTestApp(queue(plain, update, monitor)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        await pilot.pause()
+
+        title = pane._title_text()
+        assert title.plain == (
+            "Procs · this session   ⚙ 1  ⚙ 1  ⚙ 1   [3 running · 0 done]"
+        )
+        styles = [span.style for span in title.spans]
+        assert f"bold #1a1a1a on {PROC_GEAR_HUE}" in styles
+        assert f"bold #1a1a1a on {MONITOR_GEAR_HUE}" in styles
+        assert f"bold #1a1a1a on {UPDATE_GEAR_HUE}" in styles
+
+
+async def test_header_hides_green_chip_with_no_update_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_store_loader(monkeypatch, [])
+    plain = task("plain", label="sync", status="running", age_seconds=1)
+
+    async with ProcsTestApp(queue(plain)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        await pilot.pause()
+
+        title = pane._title_text()
+        assert title.plain == "Procs · this session   ⚙ 1  ⚙ 0   [1 running · 0 done]"
+        assert f"on {UPDATE_GEAR_HUE}" not in [span.style for span in title.spans]
+
+
+def test_update_row_carries_green_marker() -> None:
+    from sase.ace.tui.modals.procs_pane_render import task_row_label
+
+    update = task(
+        "update", label="sase-update working", status="running", age_seconds=2
+    )
+    label = task_row_label(update)
+    assert "⚙" in label.plain
+    assert f"bold {UPDATE_GEAR_HUE}" in [span.style for span in label.spans]
+
+    plain = task("plain", label="sync", status="running", age_seconds=1)
+    assert "⚙" not in task_row_label(plain).plain

@@ -8,9 +8,11 @@ hue, and stays distinct in every color-vision condition.
 Hue is identity; state lives inside the chip. The badge never changes
 hue. A pending sase-core Rust rebuild adds a bright lime inset ``core``
 tag (dark ink on lime, the identity accent filled in) following the top
-bar's existing two-part pill grammar. Agent CLIs share the same moss
-surface with sage ink, differing by label and ink tone, not by borrowing
-another hue.
+bar's existing two-part pill grammar. While SASE is updating, a green
+gear inset (the same lime fill with dark ink) leads the badge so the
+running update reads as the updates lane's proc gear against the deep
+moss chip. Agent CLIs share the same moss surface with sage ink,
+differing by label and ink tone, not by borrowing another hue.
 
 The glyph is ``⬆`` (U+2B06): a solid pictogram matching the row's ``⚙ ≡ ★``
 neighbors instead of punctuation, keeps the "up = upgrade" direction, is in

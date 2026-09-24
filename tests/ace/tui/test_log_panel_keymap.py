@@ -340,3 +340,49 @@ def test_footer_omits_task_queue_on_all_tabs() -> None:
     for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         assert "task queue" not in _last_labels(captured)
+
+
+def test_open_update_procs_seeds_bookmark_and_opens_procs() -> None:
+    from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
+    from sase.core.time import local_now
+
+    app = _ActionApp()
+    row = ObservedProc(
+        proc_id="session-update",
+        proc_type="sase-update",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="running",
+        started_at=local_now(),
+        display_name="sase update",
+        durable_proc_id="durable-1",
+    )
+    app._effective_proc_projection = (  # type: ignore[attr-defined]
+        lambda: ProcProjection(rows=(row,))
+    )
+
+    app.action_open_update_procs()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._initial_tab == "procs"
+    state = app._admin_center_session_state
+    assert state.procs.task.identity == "durable-1"
+
+
+def test_open_update_procs_without_update_still_opens_procs() -> None:
+    from sase.ace.tui.proc_observer import ProcProjection
+
+    app = _ActionApp()
+    app._effective_proc_projection = (  # type: ignore[attr-defined]
+        lambda: ProcProjection(rows=())
+    )
+
+    app.action_open_update_procs()
+
+    assert len(app.pushed_modals) == 1
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, ConfigCenterModal)
+    assert modal._initial_tab == "procs"

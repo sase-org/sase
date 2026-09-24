@@ -189,6 +189,75 @@ async def test_updates_indicator_mixed_core_rebuild_png_snapshot(
         )
 
 
+async def test_updates_indicator_updating_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A running update leads the badge with the green gear inset."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_svg_contains(page, "visual_auth")
+        indicator = page.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_available(3)
+        indicator.set_running(("comprehensive update",))
+        await wait_for_state(
+            page,
+            lambda: indicator.render().plain == "updates:  ⚙  ⬆ 3 ",
+            description="updating updates indicator",
+        )
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "updates_indicator_updating_120x40",
+            title="ACE updating updates indicator",
+        )
+
+
+async def test_updates_indicator_updating_no_counts_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A running update keeps the badge visible with only the gear."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_svg_contains(page, "visual_auth")
+        indicator = page.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_running(("comprehensive update",))
+        await wait_for_state(
+            page,
+            lambda: indicator.render().plain == "updates:  ⚙ ",
+            description="updating updates indicator without counts",
+        )
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "updates_indicator_updating_no_counts_120x40",
+            title="ACE updating updates indicator without counts",
+        )
+
+
 async def test_updates_indicator_with_neighbors_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

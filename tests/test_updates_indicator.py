@@ -198,3 +198,118 @@ async def test_click_dispatches_open_updates_panel_action() -> None:
         await pilot.click("#updates-indicator")
         await pilot.pause()
         assert calls == ["opened"]
+
+
+def test_running_only_renders_gear_and_visible_group() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_running(("comprehensive update",))
+
+    assert indicator.running_count == 1
+    assert UpdatesAvailableIndicator._build_content(0, running=True).plain == " ⚙ "
+    assert indicator.group_visible is True
+
+
+def test_running_with_counts_renders_gear_first() -> None:
+    text = UpdatesAvailableIndicator._build_content(3, running=True)
+
+    assert text.plain == " ⚙  ⬆ 3 "
+
+
+def test_running_full_combination_renders_gear_core_and_cli() -> None:
+    text = UpdatesAvailableIndicator._build_content(
+        3, core=True, agent_cli_count=2, running=True
+    )
+
+    assert text.plain == " ⚙  ⬆ 3  core  CLI ⬆ 2 "
+
+
+def test_not_running_output_is_unchanged() -> None:
+    assert UpdatesAvailableIndicator._build_content(3).plain == " ⬆ 3 "
+    assert UpdatesAvailableIndicator._build_content(0).plain == ""
+
+
+def test_set_running_noops_on_unchanged_tuple() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_running(("a",))
+    body_before = indicator._body.plain
+    tooltip_before = indicator.tooltip
+
+    indicator.set_running(("a",))
+
+    assert indicator._body.plain == body_before
+    assert indicator.tooltip == tooltip_before
+
+
+def test_set_available_and_set_running_do_not_overwrite_each_other() -> None:
+    indicator = UpdatesAvailableIndicator()
+    indicator.set_available(3)
+    indicator.set_running(("comprehensive update",))
+
+    assert "⬆ 3" in indicator._body.plain
+    assert "⚙" in indicator._body.plain
+
+    indicator.set_available(5)
+
+    assert "⬆ 5" in indicator._body.plain
+    assert "⚙" in indicator._body.plain
+    assert "comprehensive update" in str(indicator.tooltip)
+
+
+def test_updating_tooltip_single_label() -> None:
+    tooltip = UpdatesAvailableIndicator._build_tooltip(
+        3, running_labels=("comprehensive update",)
+    )
+
+    assert "Update in progress: comprehensive update" in tooltip
+    assert "Click to watch it in the Procs tab." in tooltip
+    assert "3 SASE/core/plugin updates available." in tooltip
+    assert ",U" not in tooltip
+    assert "Click to open Updates" not in tooltip
+
+
+def test_updating_tooltip_multiple_labels() -> None:
+    tooltip = UpdatesAvailableIndicator._build_tooltip(
+        0, running_labels=("alpha", "beta")
+    )
+
+    assert "2 updates in progress: alpha, beta" in tooltip
+    assert "Click to watch it in the Procs tab." in tooltip
+
+
+def test_not_updating_tooltip_is_unchanged() -> None:
+    assert UpdatesAvailableIndicator._build_tooltip(0) == "No updates available"
+    assert "Click to open Updates" in UpdatesAvailableIndicator._build_tooltip(3)
+
+
+async def test_click_while_running_dispatches_open_update_procs() -> None:
+    from textual.app import App, ComposeResult
+
+    calls: list[str] = []
+
+    class _TestApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield UpdatesAvailableIndicator(id="updates-indicator")
+
+        def action_open_updates_panel(self) -> None:
+            calls.append("updates")
+
+        def action_open_update_procs(self) -> None:
+            calls.append("procs")
+
+    app = _TestApp()
+    async with app.run_test() as pilot:
+        indicator = pilot.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_available(3)
+        indicator.set_running(("comprehensive update",))
+        await pilot.click("#updates-indicator")
+        await pilot.pause()
+        assert calls == ["procs"]
+
+        calls.clear()
+        indicator.set_running(())
+        await pilot.click("#updates-indicator")
+        await pilot.pause()
+        assert calls == ["updates"]

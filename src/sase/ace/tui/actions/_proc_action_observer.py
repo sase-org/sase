@@ -6,7 +6,7 @@ from typing import Any
 
 from textual.worker import Worker
 
-from .._proc_observer_models import gear_eligible_count
+from .._proc_observer_models import proc_gear_lanes
 from ..proc_observer import (
     ObservedProc,
     ProcObserver,
@@ -121,18 +121,29 @@ class ProcObserverActionsMixin:
         )
 
     def _update_proc_indicator(self) -> None:
-        """Update the proc indicator from the effective projection."""
+        """Update the proc and updates indicators from the effective projection."""
         try:
             projection = self._effective_proc_projection()
+        except Exception:
+            return
+        try:
+            lanes = proc_gear_lanes(projection)
         except Exception:
             return
         try:
             indicator = self.query_one(  # type: ignore[attr-defined]
                 "#proc-indicator", ProcIndicator
             )
-            indicator.set_counts(
-                gear_eligible_count(projection), projection.active_monitor_count
+            indicator.set_counts(lanes.procs, lanes.monitors)
+        except Exception:
+            pass
+        try:
+            from ..widgets.updates_indicator import UpdatesAvailableIndicator
+
+            updates = self.query_one(  # type: ignore[attr-defined]
+                "#updates-indicator", UpdatesAvailableIndicator
             )
+            updates.set_running(lanes.update_labels)
         except Exception:
             pass
 
