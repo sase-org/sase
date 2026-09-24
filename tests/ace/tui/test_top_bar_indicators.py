@@ -11,7 +11,6 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
-    MonitorIndicator,
     NotificationIndicator,
     ProcIndicator,
     ProviderDisablesIndicator,
@@ -97,8 +96,7 @@ async def _drive_busy(page: AcePage, monkeypatch: pytest.MonkeyPatch) -> None:
         "peek_provider_routing_context",
         lambda *a, **k: context,
     )
-    page.app.query_one("#proc-indicator", ProcIndicator).set_count(2)
-    page.app.query_one("#monitor-indicator", MonitorIndicator).set_count(1)
+    page.app.query_one("#proc-indicator", ProcIndicator).set_counts(2, 1)
     page.app.query_one("#updates-indicator", UpdatesAvailableIndicator).set_available(
         3, core=True, agent_cli_count=2
     )
@@ -125,7 +123,6 @@ async def test_busy_cluster_renders_all_labels_wide(
         text = _cluster_text(page)
         for label in (
             "procs:",
-            "monitors:",
             "updates:",
             "overrides:",
             "priority:",
@@ -134,6 +131,8 @@ async def test_busy_cluster_renders_all_labels_wide(
             "inbox:",
         ):
             assert label in text
+        assert "monitors:" not in text
+        assert "procs:  ⚙ 2  ⚙ 1 " in text
         assert "stash:  ≡ 4 " in text
         assert "prompts:" not in text
         assert " · " in text
@@ -218,6 +217,7 @@ async def test_busy_cluster_compacts_narrow_and_restores_wide(
         assert " · " in narrow_text
         # Icons survive compact density.
         assert "⚙" in narrow_text
+        assert "⬆" in narrow_text
         assert "≡" in narrow_text
         assert "★" in narrow_text
         # Cluster stays within the top-bar bounds.
@@ -243,14 +243,12 @@ async def test_newly_clickable_groups_run_home_actions(
             calls.append(name)
 
         monkeypatch.setattr(page.app, "run_action", _record)
-        page.app.query_one("#proc-indicator", ProcIndicator).set_count(1)
-        page.app.query_one("#monitor-indicator", MonitorIndicator).set_count(1)
+        page.app.query_one("#proc-indicator", ProcIndicator).set_counts(1, 1)
         page.app.query_one(
             "#stashed-prompts-indicator", StashedPromptsIndicator
         ).set_count(1)
         await page.pause()
         await page.app.query_one("#proc-indicator", ProcIndicator).on_click()
-        await page.app.query_one("#monitor-indicator", MonitorIndicator).on_click()
         await page.app.query_one(
             "#stashed-prompts-indicator", StashedPromptsIndicator
         ).on_click()
@@ -261,7 +259,6 @@ async def test_newly_clickable_groups_run_home_actions(
             "#provider-disables-indicator", ProviderDisablesIndicator
         ).on_click()
         assert calls == [
-            "open_tasks_panel",
             "open_tasks_panel",
             "open_prompt_stash",
             "open_models_panel",

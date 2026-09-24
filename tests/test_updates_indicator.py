@@ -30,14 +30,14 @@ def test_zero_updates_renders_hidden_badge() -> None:
 def test_positive_updates_render_updates_badge() -> None:
     text = UpdatesAvailableIndicator._build_content(3)
 
-    assert text.plain == " 3 "
+    assert text.plain == " ⬆ 3 "
     assert _IDENTITY_STYLE in _styles(text)
 
 
 def test_core_update_renders_rebuild_badge() -> None:
     text = UpdatesAvailableIndicator._build_content(3, core=True)
 
-    assert text.plain == " 3  core "
+    assert text.plain == " ⬆ 3  core "
     assert _IDENTITY_STYLE in _styles(text)
     assert str(build_core_tag().style) in _styles(text)
     assert "core" in text.plain
@@ -48,7 +48,7 @@ def test_core_tag_requires_a_sase_count() -> None:
     cli_only = UpdatesAvailableIndicator._build_content(0, core=True, agent_cli_count=2)
 
     assert "core" not in without_core.plain
-    assert cli_only.plain == " CLI 2 "
+    assert cli_only.plain == " CLI ⬆ 2 "
     assert "core" not in cli_only.plain
     assert _CLI_STYLE in _styles(cli_only)
 
@@ -56,14 +56,14 @@ def test_core_tag_requires_a_sase_count() -> None:
 def test_agent_cli_only_renders_labeled_sage_segment() -> None:
     text = UpdatesAvailableIndicator._build_content(0, agent_cli_count=2)
 
-    assert text.plain == " CLI 2 "
+    assert text.plain == " CLI ⬆ 2 "
     assert _CLI_STYLE in _styles(text)
 
 
 def test_mixed_updates_render_joined_domain_segments() -> None:
     text = UpdatesAvailableIndicator._build_content(3, agent_cli_count=2)
 
-    assert text.plain == " 3  CLI 2 "
+    assert text.plain == " ⬆ 3  CLI ⬆ 2 "
     assert _IDENTITY_STYLE in _styles(text)
     assert _CLI_STYLE in _styles(text)
 
@@ -75,7 +75,7 @@ def test_mixed_core_updates_preserve_rebuild_signal() -> None:
         agent_cli_count=2,
     )
 
-    assert text.plain == " 3  core  CLI 2 "
+    assert text.plain == " ⬆ 3  core  CLI ⬆ 2 "
     assert _IDENTITY_STYLE in _styles(text)
     assert _CLI_STYLE in _styles(text)
     assert str(build_core_tag().style) in _styles(text)
@@ -172,7 +172,7 @@ def test_render_helpers_perform_no_disk_or_subprocess_work(
         manual_agent_cli_count=1,
     )
 
-    assert text.plain == " 2  core  CLI 1 "
+    assert text.plain == " ⬆ 2  core  CLI ⬆ 1 "
     assert "manual action" in tooltip
 
 

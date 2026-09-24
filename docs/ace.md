@@ -4741,34 +4741,28 @@ cluster beneath it (`load: 5/8 · model: opus@high · project: +sase`): every gr
 renders as a `<type>: <body>` group where only the `<type>:` label is dim, so a group's
 value looks the same in full and compact modes, and visible groups are joined by a dim
 `·`. The left-to-right order runs from activity to system state to launch routing to
-personal queues: `procs`, `monitors`, `updates`, `overrides`, `priority`, `disabled`,
-`stash`, `inbox`. The always-visible `inbox` anchors the right edge directly above
-`project:`. Labels are fixed strings that never pluralize. Count chips carry their
-identity glyph inside the fill — `⚙` for procs and monitors, `≡` for the stash, `★` for
-priority — so compact mode (labels dropped together when the full cluster does not fit
-in the cells left over after the tab strip and a 2-cell minimum gap; separators kept)
-still identifies each group; widening restores full labels without oscillation. Every
-group is clickable: procs and monitors open the Admin Center Procs tab, updates opens
-the Updates tab, overrides, priority, and disabled open Launch settings, stash opens the
-prompt stash picker, and inbox opens the notification modal.
+personal queues: `procs`, `updates`, `overrides`, `priority`, `disabled`, `stash`,
+`inbox`. The always-visible `inbox` anchors the right edge directly above `project:`.
+Labels are fixed strings that never pluralize. Count chips carry their identity glyph
+inside the fill — `⚙` for procs (a blue chip for sase's TUI procs, plus an orange chip
+for monitor shells), `⬆` for updates, `≡` for the stash, `★` for priority — so compact
+mode (labels dropped together when the full cluster does not fit in the cells left over
+after the tab strip and a 2-cell minimum gap; separators kept) still identifies each
+group; widening restores full labels without oscillation. Every group is clickable:
+procs opens the Admin Center Procs tab, updates opens the Updates tab, overrides,
+priority, and disabled open Launch settings, stash opens the prompt stash picker, and
+inbox opens the notification modal.
 
 ### Proc Indicator
 
 A `procs: ⚙ N` group with a filled blue gear chip appears in the top bar when sase's TUI
-own procs are running (e.g., sync, mail, accept, and notification-gate operations). It
-is the same chip the Procs tab header shows. It excludes monitor shells (see
-[Monitor Indicator](#monitor-indicator) below) and service-host rows — service procs and
-oneshots — which the Services tab reports instead. The indicator automatically hides
-when all procs complete. Clicking opens the Procs tab.
-
-### Monitor Indicator
-
-A `monitors: ⚙ N` group with a filled amber gear chip, immediately right of the
-[Proc Indicator](#proc-indicator), shows a count of currently running monitor shells
-(`sase monitor start` supervised commands). It is the same chip the Procs tab header
-shows. It hides at zero. A monitor is a detached supervisor that survives sase's TUI
-exit, so it is counted separately from — and never blocks — sase's TUI own procs.
-Clicking opens the Procs tab.
+own procs are running (e.g., sync, mail, accept, and notification-gate operations),
+followed by an orange `⚙ N` chip for running monitor shells (`sase monitor start`
+supervised commands) — the same pair the Procs tab header shows. Monitors are counted
+separately (a detached supervisor that survives TUI exit and never blocks TUI procs) but
+live in the same group; the orange chip is the same chip the Procs tab header shows. The
+group excludes service-host rows — service procs and oneshots — which the Services tab
+reports instead. It hides only when both counts are zero. Clicking opens the Procs tab.
 
 ### Current Project Indicator
 
@@ -7572,8 +7566,8 @@ A `sase monitor start` supervisor is a durable proc like any other, but this tab
 it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
 
 - **Orange `⚙`.** Monitor rows carry the orange gear between the status icon and the
-  label (`● ⚙ just check-full`), matching the Agents tab and the top-bar monitor
-  indicator. The same mark prefixes the output header.
+  label (`● ⚙ just check-full`), matching the Agents tab and the orange chip in the top
+  bar's `procs:` group. The same mark prefixes the output header.
 - **Agent name.** Each monitor names its member agent (`acme--mon`) on the list's
   secondary line (`acme--mon · Working...`) and on an `agent` line in the output header.
 - **Status chip.** When the matching agent row is loaded, the effective status label
@@ -7797,7 +7791,7 @@ Automatic checks publish one composite snapshot after first paint. Ten-minute se
 ticks only revalidate cached SASE/plugin rows and provider names already known outdated;
 full discovery waits for the longer configured recompute cadence, and provider registry
 lookups retain their own cache. The top bar renders the `updates:` group as its only
-dark chip (lime `N` SASE and sage `CLI N` segments with separate counts, plus a lime
+dark chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts, plus a lime
 `core` tag for a sase-core rebuild).
 
 For editable host, core, and plugin checkouts, the running TUI also remembers the Git

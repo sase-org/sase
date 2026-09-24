@@ -64,7 +64,6 @@ from .launch_context_bar import LaunchContextBar as LaunchContextBar
 from .launch_context_source import LaunchContextSource as LaunchContextSource
 from .link_rail import LinkRail as LinkRail
 from .llm_override_indicator import LLMOverrideIndicator as LLMOverrideIndicator
-from .proc_indicator import MonitorIndicator as MonitorIndicator
 from .notification_indicator import NotificationIndicator as NotificationIndicator
 from .patch_detail import PatchDetail as PatchDetail
 from .artifacts.patch_filter_bar import PatchFilterBar as PatchFilterBar

@@ -38,11 +38,10 @@ EXPECTED_TOP_BAR_ORDER = [
 ]
 
 # Expected left-to-right child order inside ``#top-bar-indicators``: the
-# eight labeled groups (procs, monitors, updates, overrides, priority,
-# disabled, stash, inbox) with separators interleaved.
+# seven labeled groups (procs, updates, overrides, priority, disabled,
+# stash, inbox) with separators interleaved.
 EXPECTED_TOP_BAR_CLUSTER_ORDER = [
     "proc-indicator",
-    "monitor-indicator",
     "updates-indicator",
     "alias-overrides-indicator",
     "provider-priority-indicator",
@@ -180,7 +179,7 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
-        assert indicator.render().plain == "updates:  3  core  CLI 2 "
+        assert indicator.render().plain == "updates:  ⬆ 3  core  CLI ⬆ 2 "
         assert project_indicator.render().plain == "+sase"
         visible_regions = [
             child.region for child in top_bar.children if child.region.width > 0

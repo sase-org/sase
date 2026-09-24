@@ -12,7 +12,7 @@ from textual.widgets import Static
 
 from .alias_overrides_indicator import AliasOverridesIndicator
 from .notification_indicator import NotificationIndicator
-from .proc_indicator import MonitorIndicator, ProcIndicator
+from .proc_indicator import ProcIndicator
 from .provider_disables_indicator import ProviderDisablesIndicator
 from .provider_priority_indicator import ProviderPriorityIndicator
 from .stashed_prompts_indicator import StashedPromptsIndicator
@@ -29,7 +29,6 @@ from .updates_indicator import UpdatesAvailableIndicator
 
 _TOP_BAR_GROUP_IDS: tuple[str, ...] = (
     "proc-indicator",
-    "monitor-indicator",
     "updates-indicator",
     "alias-overrides-indicator",
     "provider-priority-indicator",
@@ -55,10 +54,9 @@ class TopBarIndicators(Horizontal):
         return self._density
 
     def compose(self) -> ComposeResult:
-        """Yield the eight groups with separators interleaved."""
+        """Yield the seven groups with separators interleaved."""
         groups: tuple[TopBarGroup, ...] = (
             ProcIndicator(id="proc-indicator"),
-            MonitorIndicator(id="monitor-indicator"),
             UpdatesAvailableIndicator(id="updates-indicator"),
             AliasOverridesIndicator(id="alias-overrides-indicator"),
             ProviderPriorityIndicator(id="provider-priority-indicator"),
@@ -76,7 +74,7 @@ class TopBarIndicators(Horizontal):
         self.sync_top_bar_groups()
 
     def groups(self) -> list[TopBarGroup]:
-        """Return the eight indicator groups in left-to-right order."""
+        """Return the seven indicator groups in left-to-right order."""
         try:
             return [
                 widget
@@ -96,7 +94,7 @@ class TopBarIndicators(Horizontal):
         return ordered
 
     def separators(self) -> list[Static]:
-        """Return the seven separator widgets in left-to-right order."""
+        """Return the six separator widgets in left-to-right order."""
         try:
             return [
                 widget

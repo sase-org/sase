@@ -7,6 +7,7 @@ from rich.text import Text
 from .top_bar_group import TopBarGroup
 from .update_accents import (
     AGENT_CLI_ACCENT as _AGENT_CLI_ACCENT,
+    UPDATE_GLYPH as _UPDATE_GLYPH,
     UPDATES_ACCENT as _UPDATES_ACCENT,
     UPDATES_SURFACE as _UPDATES_SURFACE,
     build_core_tag as _build_core_tag,
@@ -16,7 +17,7 @@ from .update_accents import (
 class UpdatesAvailableIndicator(TopBarGroup):
     """Top-bar badge showing known SASE and agent-CLI updates.
 
-    Renders as ``updates: N`` with the top bar's only deep chip (moss
+    Renders as ``updates: ⬆ N`` with the top bar's only deep chip (moss
     surface, lime ink). The SASE/plugin segment always uses the identity
     style; a pending sase-core Rust rebuild appends the inset ``core`` tag;
     the agent-CLI segment shares the moss surface with sage ink. Each
@@ -122,14 +123,14 @@ class UpdatesAvailableIndicator(TopBarGroup):
         text = Text()
         if count > 0:
             text.append(
-                f" {count} ",
+                f" {_UPDATE_GLYPH} {count} ",
                 style=f"bold {_UPDATES_ACCENT} on {_UPDATES_SURFACE}",
             )
             if core:
                 text.append_text(_build_core_tag())
         if agent_cli_count > 0:
             text.append(
-                f" CLI {agent_cli_count} ",
+                f" CLI {_UPDATE_GLYPH} {agent_cli_count} ",
                 style=f"bold {_AGENT_CLI_ACCENT} on {_UPDATES_SURFACE}",
             )
         return text

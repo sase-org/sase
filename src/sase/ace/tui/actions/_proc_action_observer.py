@@ -15,7 +15,7 @@ from ..proc_observer import (
     compose_proc_projection,
     stop_orphaned_proc_observers,
 )
-from ..widgets.proc_indicator import MonitorIndicator, ProcIndicator
+from ..widgets.proc_indicator import ProcIndicator
 from ._proc_action_types import ProcCallbackConfig
 
 PROC_RECONCILE_STARTUP_DELAY_SECONDS = 1.0
@@ -121,11 +121,7 @@ class ProcObserverActionsMixin:
         )
 
     def _update_proc_indicator(self) -> None:
-        """Update the proc and monitor indicators from the effective projection.
-
-        Each widget is looked up and updated independently so a missing
-        indicator (e.g. during widget setup/teardown) never blocks the other.
-        """
+        """Update the proc indicator from the effective projection."""
         try:
             projection = self._effective_proc_projection()
         except Exception:
@@ -134,14 +130,9 @@ class ProcObserverActionsMixin:
             indicator = self.query_one(  # type: ignore[attr-defined]
                 "#proc-indicator", ProcIndicator
             )
-            indicator.set_count(gear_eligible_count(projection))
-        except Exception:
-            pass
-        try:
-            monitor_indicator = self.query_one(  # type: ignore[attr-defined]
-                "#monitor-indicator", MonitorIndicator
+            indicator.set_counts(
+                gear_eligible_count(projection), projection.active_monitor_count
             )
-            monitor_indicator.set_count(projection.active_monitor_count)
         except Exception:
             pass
 

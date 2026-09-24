@@ -454,14 +454,14 @@ def test_session_overlay_never_registers_observer_or_writes_store(
 
 class _FakeIndicator:
     def __init__(self) -> None:
-        self.counts: list[int] = []
+        self.counts: list[tuple[int, int]] = []
 
-    def set_count(self, count: int) -> None:
-        self.counts.append(count)
+    def set_counts(self, proc_count: int, monitor_count: int) -> None:
+        self.counts.append((proc_count, monitor_count))
 
 
 class _IndicatorHost(ProcActionsMixin):
-    """Exercises the real ``_update_proc_indicator`` split logic."""
+    """Exercises the real ``_update_proc_indicator`` logic."""
 
     def __init__(
         self,
@@ -482,7 +482,6 @@ class _IndicatorHost(ProcActionsMixin):
 
 def test_update_proc_indicator_splits_ace_and_monitor_counts() -> None:
     proc_indicator = _FakeIndicator()
-    monitor_indicator = _FakeIndicator()
     host = _IndicatorHost(
         ProcProjection(
             rows=(
@@ -504,23 +503,18 @@ def test_update_proc_indicator_splits_ace_and_monitor_counts() -> None:
         ),
         widgets={
             "#proc-indicator": proc_indicator,
-            "#monitor-indicator": monitor_indicator,
         },
     )
 
     host._update_proc_indicator()
 
-    assert proc_indicator.counts == [2]
-    assert monitor_indicator.counts == [1]
+    assert proc_indicator.counts == [(2, 1)]
 
 
-def test_update_proc_indicator_missing_widget_does_not_block_the_other() -> None:
-    monitor_indicator = _FakeIndicator()
+def test_update_proc_indicator_missing_proc_indicator_is_noop() -> None:
     host = _IndicatorHost(
         ProcProjection(active_count=2, active_monitor_count=1),
-        widgets={"#monitor-indicator": monitor_indicator},
+        widgets={},
     )
 
     host._update_proc_indicator()
-
-    assert monitor_indicator.counts == [1]

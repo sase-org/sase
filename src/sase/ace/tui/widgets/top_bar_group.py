@@ -31,8 +31,9 @@ TOP_BAR_MIN_GAP = 2
 def icon_count_chip(icon: str, count: int, hue: str) -> Text:
     """Build a filled ``<icon> <count>`` chip in *hue*.
 
-    Shared body for procs, monitors, and prompts. A zero or negative count
-    renders as an empty (hidden) body so the hosting group collapses.
+    Shared body for the proc/monitor gear chips and the stash chip. A zero
+    or negative count renders as an empty (hidden) body so the hosting
+    group collapses.
     """
     if count <= 0:
         return Text("")
