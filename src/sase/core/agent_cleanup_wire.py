@@ -13,7 +13,7 @@ from typing import Any
 
 from sase.core.wire import known_field_kwargs
 
-AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 4
+AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 5
 
 CLEANUP_SCOPE_FOCUSED_PANEL = "focused_panel"
 CLEANUP_SCOPE_ALL_PANELS = "all_panels"
@@ -44,6 +44,7 @@ SKIPPED_NOT_DISMISSABLE = "not_dismissable"
 SKIPPED_NOT_KILLABLE = "not_killable"
 SKIPPED_UNKNOWN_KILL_KIND = "unknown_kill_kind"
 SKIPPED_DUPLICATE = "duplicate"
+SKIPPED_RUNNER_LIVE_DETAIL = "runner_live"
 
 DISMISSABLE_STATUSES = {
     "DONE",
@@ -95,6 +96,7 @@ class AgentCleanupTargetWire:
     step_type: str | None = None
     monitor_id: str | None = None
     is_live_monitor: bool = False
+    runner_is_live: bool = False
 
 
 @dataclass(frozen=True)
@@ -332,6 +334,7 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
             None if data.get("monitor_id") is None else str(data["monitor_id"])
         ),
         is_live_monitor=bool(data.get("is_live_monitor", False)),
+        runner_is_live=bool(data.get("runner_is_live", False)),
     )
 
 
@@ -524,6 +527,7 @@ __all__ = [
     "SKIPPED_NOT_IN_SCOPE",
     "SKIPPED_NOT_KILLABLE",
     "SKIPPED_UNKNOWN_KILL_KIND",
+    "SKIPPED_RUNNER_LIVE_DETAIL",
     "SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY",
     "AgentCleanupCountsWire",
     "AgentCleanupArtifactDeleteIntentWire",

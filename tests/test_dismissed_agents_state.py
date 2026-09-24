@@ -3,7 +3,12 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.dismissed_agents import load_dismissed_agents, save_dismissed_agents
+from sase.ace.dismissed_agents import (
+    add_dismissed_agents,
+    load_dismissed_agents,
+    remove_dismissed_agents,
+    save_dismissed_agents,
+)
 from sase.ace.tui.models.agent import AgentType
 
 
@@ -136,3 +141,35 @@ def test_live_set_save_supersedes_pending_snapshots(tmp_path: Path) -> None:
         assert save_dismissed_agents(set(live))
         assert not save_dismissed_agents(pending)
         assert load_dismissed_agents() == set()
+
+
+def test_add_dismissed_agents_merges_and_returns_result(tmp_path: Path) -> None:
+    """Additive adds compose instead of overwriting the on-disk set."""
+    test_file = tmp_path / "dismissed_agents.json"
+    with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
+        first = {(AgentType.RUNNING, "cl_a", "00000000000001")}
+        second = {(AgentType.WORKFLOW, "cl_b", "00000000000002")}
+
+        assert add_dismissed_agents(first) == first
+        assert add_dismissed_agents(second) == first | second
+        assert load_dismissed_agents() == first | second
+
+
+def test_remove_dismissed_agents_keeps_other_identities(
+    tmp_path: Path,
+) -> None:
+    """Revive-style removals drop only their own identities."""
+    test_file = tmp_path / "dismissed_agents.json"
+    with patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", test_file):
+        both = {
+            (AgentType.RUNNING, "cl_a", "00000000000001"),
+            (AgentType.RUNNING, "cl_b", "00000000000002"),
+        }
+        assert add_dismissed_agents(both) == both
+
+        remaining = {(AgentType.RUNNING, "cl_b", "00000000000002")}
+        assert (
+            remove_dismissed_agents({(AgentType.RUNNING, "cl_a", "00000000000001")})
+            == remaining
+        )
+        assert load_dismissed_agents() == remaining

@@ -11,6 +11,7 @@ from sase.core.agent_cleanup_wire import (
     AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
     CLEANUP_MODE_DISMISS_COMPLETED,
     CLEANUP_MODE_KILL_AND_DISMISS,
+    CLEANUP_SCOPE_ALL_PANELS,
     CLEANUP_SCOPE_CLAN,
     CLEANUP_SCOPE_CUSTOM_SELECTION,
     CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
@@ -49,6 +50,7 @@ def _agent(
     artifacts_dir: str | None = "/tmp/artifacts",
     start_time: datetime | None = _START,
     stop_time: datetime | None = None,
+    runner_is_live: bool = False,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -73,6 +75,7 @@ def _agent(
         monitor_id=monitor_id,
         monitor_state=monitor_state,
         artifacts_dir=artifacts_dir,
+        runner_is_live=runner_is_live,
     )
 
 
@@ -615,6 +618,57 @@ def _scenario_owner_cascades_live_monitor() -> tuple[
     )
 
 
+def _scenario_failed_live_runner_kill() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    retry = _agent(
+        cl_name="retry",
+        raw_suffix="retry-ts",
+        status="FAILED",
+        pid=77,
+        runner_is_live=True,
+    )
+    return [retry], _request(
+        scope=CLEANUP_SCOPE_ALL_PANELS,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+    )
+
+
+def _scenario_failed_live_runner_dismiss_completed() -> tuple[
+    list[Agent], AgentCleanupRequestWire
+]:
+    retry = _agent(
+        cl_name="retry",
+        raw_suffix="retry-ts",
+        status="FAILED",
+        pid=77,
+        runner_is_live=True,
+    )
+    return [retry], _request(
+        scope=CLEANUP_SCOPE_ALL_PANELS,
+        mode=CLEANUP_MODE_DISMISS_COMPLETED,
+    )
+
+
+def _scenario_done_live_runner_dismiss() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    done = _agent(
+        cl_name="done-live",
+        raw_suffix="done-live-ts",
+        status="DONE",
+        pid=78,
+        runner_is_live=True,
+    )
+    failed = _agent(
+        cl_name="failed-still",
+        raw_suffix="failed-still-ts",
+        status="FAILED",
+        pid=None,
+        runner_is_live=False,
+    )
+    return [done, failed], _request(
+        scope=CLEANUP_SCOPE_ALL_PANELS,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+    )
+
+
 _SCENARIOS = [
     pytest.param(_scenario_focused_panel_dismiss, id="focused-panel-dismiss-done"),
     pytest.param(
@@ -649,4 +703,10 @@ _SCENARIOS = [
     ),
     pytest.param(_scenario_direct_live_monitor, id="direct-live-monitor"),
     pytest.param(_scenario_owner_cascades_live_monitor, id="owner-cascade-monitor"),
+    pytest.param(_scenario_failed_live_runner_kill, id="failed-live-runner-kill"),
+    pytest.param(
+        _scenario_failed_live_runner_dismiss_completed,
+        id="failed-live-runner-dismiss-completed",
+    ),
+    pytest.param(_scenario_done_live_runner_dismiss, id="done-live-runner-dismiss"),
 ]

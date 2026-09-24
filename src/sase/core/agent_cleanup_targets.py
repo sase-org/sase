@@ -67,6 +67,7 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
             getattr(agent, "is_monitor", False)
             and getattr(agent, "monitor_state", None) == "running"
         ),
+        runner_is_live=bool(getattr(agent, "runner_is_live", False)),
     )
 
 

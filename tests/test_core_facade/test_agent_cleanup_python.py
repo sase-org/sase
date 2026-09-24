@@ -34,8 +34,11 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_clan_scope_active_parallel_family,
     _scenario_collapsed_group,
     _scenario_custom_child_running,
+    _scenario_done_live_runner_dismiss,
     _scenario_duplicate_child_inputs,
     _scenario_explicit_child_done,
+    _scenario_failed_live_runner_dismiss_completed,
+    _scenario_failed_live_runner_kill,
     _scenario_explicit_child_running,
     _scenario_focused_panel_dismiss,
     _scenario_focused_panel_kill_dismiss,
@@ -130,6 +133,27 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
             "sase-ps.plan",
             "sase-ps.plan--1",
             "sase-ps.plan--mon",
+        ]
+    elif scenario is _scenario_failed_live_runner_kill:
+        assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [
+            ("retry", KILL_KIND_RUNNING)
+        ]
+        assert plan.kill_items[0].pid == 77
+        assert plan.dismiss_items == ()
+    elif scenario is _scenario_failed_live_runner_dismiss_completed:
+        assert plan.kill_items == ()
+        assert plan.dismiss_items == ()
+        assert any(
+            item.identity.cl_name == "retry"
+            and item.reason == "not_dismissable"
+            and item.detail == "runner_live"
+            for item in plan.skipped_items
+        )
+    elif scenario is _scenario_done_live_runner_dismiss:
+        assert plan.kill_items == ()
+        assert [item.identity.cl_name for item in plan.dismiss_items] == [
+            "done-live",
+            "failed-still",
         ]
     elif scenario is _scenario_direct_live_monitor:
         assert [(item.identity.cl_name, item.kind) for item in plan.kill_items] == [

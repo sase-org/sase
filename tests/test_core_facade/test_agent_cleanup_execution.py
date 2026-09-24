@@ -30,6 +30,7 @@ from sase.core.agent_cleanup_execution import (
     mark_hook_agents_as_killed_rust,
     mark_mentor_agents_as_killed_rust,
     try_release_workspace_from_content,
+    try_update_dismissed_agents_index,
 )
 
 
@@ -91,6 +92,36 @@ def test_dismissed_index_and_bundle_layout_use_legacy_paths(
         None,
         2,
     }
+
+
+def test_update_dismissed_agents_index_merges_atomically(
+    tmp_path: Path,
+) -> None:
+    dismissed_file = tmp_path / "dismissed_agents.json"
+
+    def entry(agent_type: str, cl_name: str, raw_suffix: str | None) -> dict[str, Any]:
+        return {
+            "agent_type": agent_type,
+            "cl_name": cl_name,
+            "raw_suffix": raw_suffix,
+        }
+
+    first = try_update_dismissed_agents_index(
+        dismissed_file,
+        [entry("run", "cl_a", "00000000000001")],
+        [],
+    )
+    assert first == [entry("run", "cl_a", "00000000000001")]
+
+    merged = try_update_dismissed_agents_index(
+        dismissed_file,
+        [entry("workflow", "cl_b", "00000000000002")],
+        [entry("run", "cl_a", "00000000000001")],
+    )
+    assert merged == [entry("workflow", "cl_b", "00000000000002")]
+    assert json.loads(dismissed_file.read_text()) == [
+        ["workflow", "cl_b", "00000000000002"]
+    ]
 
 
 def test_release_workspace_content_helper_matches_running_field_semantics() -> None:

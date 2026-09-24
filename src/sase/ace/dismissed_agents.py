@@ -56,7 +56,9 @@ from .dismissed_agents_paths import (
     iter_bundle_paths as _iter_bundle_paths_impl,
 )
 from .dismissed_agents_state import (
+    add_dismissed_agents as _add_dismissed_agents_impl,
     load_dismissed_agents as _load_dismissed_agents_impl,
+    remove_dismissed_agents as _remove_dismissed_agents_impl,
     save_dismissed_agents as _save_dismissed_agents_impl,
 )
 
@@ -114,6 +116,20 @@ def has_dismissed_bundle(raw_suffix: str) -> bool:
 
 def load_dismissed_agents() -> set[tuple[AgentType, str, str | None]]:
     return _load_dismissed_agents_impl(_dismissed_agents_file())
+
+
+def add_dismissed_agents(
+    identities: Iterable[tuple[AgentType, str, str | None]],
+) -> set[tuple[AgentType, str, str | None]]:
+    """Add identities to the dismissed index, returning the resulting set."""
+    return _add_dismissed_agents_impl(_dismissed_agents_file(), identities)
+
+
+def remove_dismissed_agents(
+    identities: Iterable[tuple[AgentType, str, str | None]],
+) -> set[tuple[AgentType, str, str | None]]:
+    """Remove identities from the dismissed index, returning the resulting set."""
+    return _remove_dismissed_agents_impl(_dismissed_agents_file(), identities)
 
 
 def dismissed_agents_file_signature() -> tuple[int, int] | None:

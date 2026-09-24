@@ -34,6 +34,7 @@ from sase.core.agent_cleanup_wire import (
     SKIPPED_NOT_DISMISSABLE,
     SKIPPED_NOT_IN_SCOPE,
     SKIPPED_NOT_KILLABLE,
+    SKIPPED_RUNNER_LIVE_DETAIL,
     SKIPPED_UNKNOWN_KILL_KIND,
     SKIPPED_WORKFLOW_CHILD_CASCADE_ONLY,
     AgentCleanupCountsWire,
@@ -212,10 +213,20 @@ def _parallel_agent_session_members(
     return members_by_parent[root.raw_suffix]
 
 
+def _is_failed_live_runner(target: AgentCleanupTargetWire) -> bool:
+    """A FAILED row with a pid and a live runner is killable, not dismissable."""
+
+    return (
+        target.status == "FAILED" and target.pid is not None and target.runner_is_live
+    )
+
+
 def _target_is_dismissable(
     target: AgentCleanupTargetWire,
     request: AgentCleanupRequestWire,
 ) -> bool:
+    if _is_failed_live_runner(target):
+        return False
     return target.status in DISMISSABLE_STATUSES or (
         request.include_pidless_as_dismissable and target.pid is None
     )
@@ -425,11 +436,21 @@ def plan_agent_cleanup_python(
         dismissable = not target.is_live_monitor and _target_is_dismissable(
             target, wire_request
         )
-        killable = target.is_live_monitor or (
-            target.pid is not None and not dismissable_status
+        killable = (
+            target.is_live_monitor
+            or _is_failed_live_runner(target)
+            or (target.pid is not None and not dismissable_status)
         )
 
         if wire_request.mode == CLEANUP_MODE_DISMISS_COMPLETED:
+            if _is_failed_live_runner(target):
+                _add_skip(
+                    skipped_items,
+                    target,
+                    SKIPPED_NOT_DISMISSABLE,
+                    SKIPPED_RUNNER_LIVE_DETAIL,
+                )
+                continue
             if dismissable:
                 live_session_members = [
                     member

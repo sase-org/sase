@@ -32,6 +32,23 @@ def try_save_dismissed_agents_index(
     return True
 
 
+def try_update_dismissed_agents_index(
+    path: Path,
+    additions: list[dict[str, Any]],
+    removals: list[dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    """Merge dismissed-index additions/removals atomically under a file lock.
+
+    Returns the merged identity list written to disk, or None when the Rust
+    binding is unavailable so callers can fall back to load-modify-save.
+    """
+    try:
+        binding = require_rust_binding("update_dismissed_agents_index")
+    except (ImportError, AttributeError):
+        return None
+    return [dict(entry) for entry in binding(str(path), additions, removals)]
+
+
 def try_delete_agent_artifacts(artifacts_dir: str | None) -> bool:
     if not artifacts_dir:
         return True

@@ -33,7 +33,7 @@ from tests.test_core_facade._agent_cleanup_helpers import (
 )
 
 
-def _require_schema_4_cleanup_binding() -> None:
+def _require_schema_5_cleanup_binding() -> None:
     rust_module = pytest.importorskip(RUST_EXTENSION_MODULE_NAME)
     if not all(
         hasattr(rust_module, name)
@@ -43,13 +43,13 @@ def _require_schema_4_cleanup_binding() -> None:
     assert int(rust_module.agent_cleanup_wire_schema_version()) == (
         AGENT_CLEANUP_WIRE_SCHEMA_VERSION
     )
-    assert AGENT_CLEANUP_WIRE_SCHEMA_VERSION == 4
+    assert AGENT_CLEANUP_WIRE_SCHEMA_VERSION == 5
 
 
 def _fail_if_python_cleanup_planner_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     def _python_must_not_run(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError(
-            "schema-4 rust cleanup path fell back to the Python planner"
+            "schema-5 rust cleanup path fell back to the Python planner"
         )
 
     monkeypatch.setattr(
@@ -166,7 +166,7 @@ def test_rust_cleanup_planner_matches_python_reference(
     scenario: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _require_schema_4_cleanup_binding()
+    _require_schema_5_cleanup_binding()
     _fail_if_python_cleanup_planner_runs(monkeypatch)
 
     agents, request = scenario()
@@ -189,7 +189,7 @@ def test_rust_and_python_planners_agree_on_clan_sequential_family(
     scenario: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _require_schema_4_cleanup_binding()
+    _require_schema_5_cleanup_binding()
     _fail_if_python_cleanup_planner_runs(monkeypatch)
 
     agents, request = scenario()
