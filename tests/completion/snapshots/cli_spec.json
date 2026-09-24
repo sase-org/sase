@@ -11745,6 +11745,7 @@
                   "model",
                   "monitor",
                   "patch",
+                  "pending_plan",
                   "plan",
                   "plugin",
                   "proc",
@@ -24563,11 +24564,11 @@
                 "choices": null,
                 "dest": "selector",
                 "is_remainder": false,
-                "kind": "plan",
+                "kind": "pending_plan",
                 "metavar": "PLAN",
                 "nargs": "?",
                 "required": false,
-                "value_hint": "text"
+                "value_hint": null
               }
             ],
             "run_policy": [],
@@ -25133,11 +25134,11 @@
                 "choices": null,
                 "dest": "selector",
                 "is_remainder": false,
-                "kind": "plan",
+                "kind": "pending_plan",
                 "metavar": "PLAN",
                 "nargs": "?",
                 "required": false,
-                "value_hint": "text"
+                "value_hint": null
               }
             ],
             "run_policy": [],
@@ -34803,7 +34804,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "01676719ec9ecfa5",
+            "description_digest": "ef4df84212b40f68",
             "hidden": false,
             "mutex_groups": [
               [
@@ -34825,6 +34826,22 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "tool_show_follow",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-F",
+                  "--follow"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -34872,6 +34889,162 @@
                 "dest": "tool_show_run_id",
                 "is_remainder": false,
                 "kind": "tool_run",
+                "metavar": "RUN",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "61135cd0f3a0c36f",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "stop",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "tool_stop_json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "tool",
+              "stop"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "tool_stop_run_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "RUN",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "159f23fd2b1af894",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "wait",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "tool_wait_json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "tool_wait_tail_lines",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-T",
+                  "--tail-lines"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "tool_wait_timeout",
+                "hidden": false,
+                "kind": null,
+                "metavar": "DURATION",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "tool",
+              "wait"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "tool_wait_run_id",
+                "is_remainder": false,
+                "kind": null,
                 "metavar": "RUN",
                 "nargs": null,
                 "required": true,

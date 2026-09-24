@@ -32,6 +32,16 @@ def test_preamble_defines_sase_candidates_with_in_shell_cache() -> None:
     assert "__sase_run completion candidates $kind" in text
 
 
+def test_preamble_gives_volatile_kinds_a_shorter_window() -> None:
+    from sase.completion.kinds import VOLATILE_KIND_TTL_SECONDS
+
+    text = zsh_preamble()
+    body = _function_body(text, "__sase_cache_policy")
+    assert "local ttl=${SASE_COMPLETION_CACHE_TTL:-60}" in body
+    for kind, ttl in VOLATILE_KIND_TTL_SECONDS.items():
+        assert f"sase-{kind.value}) ttl={ttl:g} ;;" in body
+
+
 def test_run_prompt_fragment_detects_project_tag_marker() -> None:
     text = zsh_preamble()
     body = _function_body(text, "__sase_run_prompt_fragment")

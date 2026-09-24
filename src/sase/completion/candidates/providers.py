@@ -12,12 +12,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 from sase.completion.candidates.cache import (
+    DEFAULT_TTL_SECONDS,
     load_cached_candidates,
     store_cached_candidates,
 )
 from sase.completion.candidates.catalog import PROVIDERS as _CATALOG_PROVIDERS
 from sase.completion.candidates.protocol import Candidate, filter_candidates
-from sase.completion.kinds import ValueKind
+from sase.completion.kinds import VOLATILE_KIND_TTL_SECONDS, ValueKind
 
 _Fetch = Callable[[str | None], list[Candidate]]
 _SourcePath = Callable[[str | None], "Path | None"]
@@ -49,7 +50,10 @@ def candidates_for(
 
     cache_key = value_kind if project is None else f"{value_kind}__{project}"
     source_mtime = _safe_mtime(source_path(project))
-    cached = load_cached_candidates(cache_key, source_mtime=source_mtime)
+    ttl = VOLATILE_KIND_TTL_SECONDS.get(value_kind, DEFAULT_TTL_SECONDS)
+    cached = load_cached_candidates(
+        cache_key, source_mtime=source_mtime, ttl_seconds=ttl
+    )
     if cached is None:
         try:
             cached = fetch(project)

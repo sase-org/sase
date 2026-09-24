@@ -2,6 +2,26 @@
 
 from __future__ import annotations
 
+from typing import Final
+
+from sase.completion.kinds import VOLATILE_KIND_TTL_SECONDS
+
+
+def _volatile_ttl_cases() -> str:
+    """Render per-kind ``sase-<kind>) ttl=N`` policy arms from Python.
+
+    The single source is ``VOLATILE_KIND_TTL_SECONDS`` in
+    ``sase.completion.kinds``, so the zsh in-shell TTLs cannot drift from
+    the disk-cache and bash TTLs.
+    """
+    return "\n".join(
+        f"    sase-{kind.value}) ttl={ttl:g} ;;"
+        for kind, ttl in sorted(
+            VOLATILE_KIND_TTL_SECONDS.items(), key=lambda item: item[0].value
+        )
+    )
+
+
 # Double-underscore names are deliberate: every generated per-command
 # function is named `_sase_<path parts>` (see `_function_name` in
 # emit_zsh.py), and `sase run` is a real top-level command, so a
@@ -12,7 +32,7 @@ from __future__ import annotations
 # Resolves `sase` from PATH and skips ephemeral workspace venvs
 # (`…/sase_<N>/.venv/bin/sase`), which vanish when the workspace is reaped.
 # `__sase_candidates` calls this helper for every kinded slot.
-_ZSH_PREAMBLE = """\
+_ZSH_PREAMBLE_TEMPLATE: Final = """\
 __sase_run() {
   emulate -L zsh
   local -a found
@@ -30,10 +50,15 @@ __sase_run() {
 # Default in-shell freshness window for a cached kind, in seconds. A user's
 # own `zstyle ':completion:*:*:sase-<kind>:*' cache-policy …` still wins;
 # this only supplies the fallback `_retrieve_cache`/`_store_cache` consult
-# when nothing more specific is set.
+# when nothing more specific is set. Volatile kinds (see
+# VOLATILE_KIND_TTL_SECONDS) carry their own shorter window below.
 __sase_cache_policy() {
+  local ttl=${SASE_COMPLETION_CACHE_TTL:-60}
+  case $1 in
+__SASE_VOLATILE_TTL_CASES__
+  esac
   local -a stamp
-  stamp=( "$1"(Nms+${SASE_COMPLETION_CACHE_TTL:-60}) )
+  stamp=( "$1"(Nms+$ttl) )
   (( $#stamp ))
 }
 
@@ -139,6 +164,11 @@ __sase_run_prompt() {
     'files:file:_files'
 }
 """
+
+
+_ZSH_PREAMBLE: Final = _ZSH_PREAMBLE_TEMPLATE.replace(
+    "__SASE_VOLATILE_TTL_CASES__", _volatile_ttl_cases()
+)
 
 
 def zsh_preamble() -> str:

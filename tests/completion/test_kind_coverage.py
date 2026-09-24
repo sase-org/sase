@@ -73,6 +73,7 @@ def test_new_kinds_are_shipped_with_providers() -> None:
     assert "gate" in shipped
     assert "tool_run" in shipped
     assert "task_type" in shipped
+    assert "pending_plan" in shipped
 
 
 def test_task_type_candidates_list_registry_slugs() -> None:

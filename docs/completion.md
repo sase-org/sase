@@ -159,9 +159,9 @@ and answers in well under its latency budget for a warm process. `KIND` complete
 kinds this build can actually answer, so `sase completion candidates <TAB>` is the
 authoritative list; today that is `agent`, `artifact`, `artifact_ref`,
 `artifact_relation`, `bead`, `directive`, `flag`, `memory`, `model`, `monitor`, `patch`,
-`plan`, `plugin`, `proc`, `project`, `project_tag`, `provider`, `repo`, `skill`,
-`snippet`, `tag`, `workspace`, and `xprompt`. Path and directory slots are deliberately
-not kinds — the shell completes those natively.
+`pending_plan`, `plan`, `plugin`, `proc`, `project`, `project_tag`, `provider`, `repo`,
+`skill`, `snippet`, `tag`, `workspace`, and `xprompt`. Path and directory slots are
+deliberately not kinds — the shell completes those natively.
 
 Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
 (default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
@@ -177,6 +177,13 @@ names, bare web names, and `web:slug` strand references (`glossary:agent-hood`) 
 directly from the project's `sase/memory/` tree, because `sase memory read` resolves a
 `web:keyword` reference case- and separator-insensitively and a slug is the one form
 that never needs quoting on a command line.
+
+Pending plans work the same way: `sase plan approve <TAB>` and `sase plan reject <TAB>`
+offer only the names of plans actually awaiting approval (newest first, as
+`tier · title · @agent · age`), not the whole archived `plan:` catalog the `plan` kind
+covers. Freshness is a feature here — a plan you just approved must disappear, and one
+that just arrived must appear — so `pending_plan` candidates expire after 5 seconds in
+every shell (and in the on-disk cache) instead of the default 60.
 
 That fast path is still a subprocess, so every generated script caches its output rather
 than calling it on every keystroke — necessary once something like

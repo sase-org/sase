@@ -8,6 +8,7 @@ from typing import Any
 from sase.completion.kinds import (
     NAME_TABLE,
     PATH_OVERRIDES,
+    VOLATILE_KIND_TTL_SECONDS,
     ValueKind,
     resolve_value_kind,
     set_completion_kind,
@@ -79,6 +80,22 @@ def test_ambiguous_bare_names_are_not_in_name_table() -> None:
 
 def test_bead_show_id_path_override_present() -> None:
     assert PATH_OVERRIDES[(("bead", "show"), "ids")] is ValueKind.BEAD
+
+
+def test_pending_plan_path_overrides_cover_approve_and_reject() -> None:
+    assert PATH_OVERRIDES[(("plan", "approve"), "selector")] is (ValueKind.PENDING_PLAN)
+    assert PATH_OVERRIDES[(("plan", "reject"), "selector")] is (ValueKind.PENDING_PLAN)
+
+
+def test_pending_plan_override_wins_over_plan_metavar() -> None:
+    action = _positional_action("selector", metavar="PLAN")
+    assert resolve_value_kind(action, ("plan", "approve")) is ValueKind.PENDING_PLAN
+    assert resolve_value_kind(action, ("plan", "reject")) is ValueKind.PENDING_PLAN
+    assert resolve_value_kind(action, ("plan", "other")) is ValueKind.PLAN
+
+
+def test_volatile_ttl_gives_pending_plan_a_short_freshness_window() -> None:
+    assert VOLATILE_KIND_TTL_SECONDS[ValueKind.PENDING_PLAN] == 5
 
 
 def test_path_overrides_cover_shipped_catalog_slots() -> None:

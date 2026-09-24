@@ -42,6 +42,7 @@ _SHIPPED_KINDS = (
     "agent",
     "model",
     "snippet",
+    "pending_plan",
 )
 
 _PROBE_SOURCE = """

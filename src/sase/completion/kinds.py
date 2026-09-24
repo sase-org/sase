@@ -38,6 +38,7 @@ class ValueKind(StrEnum):
     GATE = "gate"
     TOOL_RUN = "tool_run"
     TASK_TYPE = "task_type"
+    PENDING_PLAN = "pending_plan"
 
 
 _KIND_ATTR: Final = "_sase_completion_kind"
@@ -199,6 +200,8 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("memory", "read"), "selectors"): ValueKind.MEMORY,
         (("memory", "show"), "selectors"): ValueKind.MEMORY,
         (("plan", "show"), "target"): ValueKind.PLAN,
+        (("plan", "approve"), "selector"): ValueKind.PENDING_PLAN,
+        (("plan", "reject"), "selector"): ValueKind.PENDING_PLAN,
         (("prompt", "export"), "out"): ValueKind.PATH,
         (("restore",), "name"): ValueKind.PATCH,
         (("revert",), "name"): ValueKind.PATCH,
@@ -221,6 +224,17 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
 PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], ValueKind]] = (
     _build_path_overrides()
 )
+
+#: Per-kind freshness windows, in seconds, for volatile candidate sets. A
+#: user approving plans back-to-back must not be offered the plan they just
+#: approved, or miss the one that just arrived, so ``pending_plan``
+#: candidates expire quickly. This one map drives the disk-cache TTL (see
+#: ``candidates_for``) and the zsh and bash in-shell cache TTLs (see the
+#: emitter preambles, which read it from Python); fish relies on the disk
+#: cache. Every other kind keeps its layer default.
+VOLATILE_KIND_TTL_SECONDS: Final[dict[ValueKind, float]] = {
+    ValueKind.PENDING_PLAN: 5,
+}
 
 # `sase run`'s PROMPT positional is not a plain kinded slot: it completes as
 # native file paths *plus* stored xprompt names, a combination the ValueKind

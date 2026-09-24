@@ -99,6 +99,16 @@ def test_candidates_helper_caches_by_kind_and_never_forwards_prefix() -> None:
     assert 'mapfile -t COMPREPLY < <(compgen -P "${prefix}"' in script
 
 
+def test_candidates_helper_gives_volatile_kinds_a_shorter_window() -> None:
+    from sase.completion.kinds import VOLATILE_KIND_TTL_SECONDS
+
+    script = emit_bash(_spec())
+    body = _fn(script, "__sase_candidates")
+    assert "local ttl=${SASE_COMPLETION_CACHE_TTL:-60}" in body
+    for kind, ttl in VOLATILE_KIND_TTL_SECONDS.items():
+        assert f"{kind.value}) ttl={ttl:g} ;;" in body
+
+
 def test_run_prompt_helper_detects_embedded_markers() -> None:
     script = emit_bash(_spec())
     assert "__sase_run_prompt_fragment()" in script

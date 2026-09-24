@@ -4,17 +4,34 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterator
+from typing import Final
 
-from sase.completion.kinds import RUN_PROMPT_SLOT, ValueKind
+from sase.completion.kinds import RUN_PROMPT_SLOT, VOLATILE_KIND_TTL_SECONDS, ValueKind
 from sase.completion.model import CommandSpec, CompletionSpec
 
 _SAFE_TOKEN = re.compile(r"[-_./A-Za-z0-9]+")
+
+
+def _volatile_ttl_cases() -> str:
+    """Render per-kind ``<kind>) ttl=N`` arms from Python.
+
+    The single source is ``VOLATILE_KIND_TTL_SECONDS`` in
+    ``sase.completion.kinds``, so the bash in-shell TTLs cannot drift from
+    the disk-cache and zsh TTLs.
+    """
+    return "\n".join(
+        f"    {kind.value}) ttl={ttl:g} ;;"
+        for kind, ttl in sorted(
+            VOLATILE_KIND_TTL_SECONDS.items(), key=lambda item: item[0].value
+        )
+    )
+
 
 # Hand-written walker. Kinded slots call ``__sase_candidates``, which caches
 # the fast path's output in a shell associative array keyed by kind so
 # retyping the same word never re-forks ``sase``. ``complete -o default``
 # covers path/dir and unknown value slots.
-_BASH_PREAMBLE = """\
+_BASH_PREAMBLE_TEMPLATE: Final = """\
 declare -gA __sase_candidates_cache
 declare -gA __sase_candidates_stamp
 
@@ -42,6 +59,9 @@ __sase_run() {
 __sase_candidates() {
   local kind=$1 cur=$2 prefix=$3
   local ttl=${SASE_COMPLETION_CACHE_TTL:-60}
+  case $kind in
+__SASE_VOLATILE_TTL_CASES__
+  esac
   # `${arr[k]+x}` tests key presence rather than value, so a fetch at
   # SECONDS==0 is never mistaken for the unpopulated default.
   if [[ -z ${__sase_candidates_stamp[${kind}]+x} ]] ||
@@ -212,6 +232,10 @@ _sase_complete_value() {
   esac
 }
 """
+
+_BASH_PREAMBLE: Final = _BASH_PREAMBLE_TEMPLATE.replace(
+    "__SASE_VOLATILE_TTL_CASES__", _volatile_ttl_cases()
+)
 
 
 def emit_bash(spec: CompletionSpec) -> str:
