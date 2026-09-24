@@ -78,10 +78,9 @@ class LaunchProviderGuardMixin:
         keep_bar: bool = False,
         extra_payload: dict[str, object] | None = None,
         owner_session_id: PromptSessionId | None = None,
-        accepted: object | None = None,
     ) -> None:
         """Implemented by :class:`AgentLaunchStartMixin`."""
-        del owner_session_id, accepted
+        del owner_session_id
         raise NotImplementedError
 
     def _preflight_provider_disables(

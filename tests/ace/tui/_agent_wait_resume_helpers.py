@@ -210,7 +210,6 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
         if session is not None and hold_launch_for_relaunch_cleanup(
             self,
             lambda: self.launch_prompts.append(prompt),
-            owner_id=session.session_id,
             operation=session.relaunch_operation,
         ):
             return

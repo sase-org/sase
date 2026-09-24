@@ -16,7 +16,9 @@ from sase.ace.tui.actions.agent_workflow._launch_records import (
     LaunchRecordContext,
     LaunchRecordState,
     MAX_SESSION_LAUNCH_RECORDS,
+    attach_launch_record_procs,
     consume_launch_record,
+    discard_launch_record,
     has_pending_launch_kill,
     latest_live_launch_record,
     push_launch_record,
@@ -255,6 +257,81 @@ def test_latest_live_launch_record_skips_consumed_and_failed_records() -> None:
     consume_launch_record(consumed)
 
     assert latest_live_launch_record(app) is live
+
+
+def test_launch_id_without_procs_pushes_a_preparing_record() -> None:
+    app = SimpleNamespace()
+
+    record = push_launch_record(
+        app,
+        proc_ids=(),
+        prompt="pending prompt",
+        context=_context("pending"),
+        launch_id="launch-1",
+    )
+
+    assert record is not None
+    assert record.state is LaunchRecordState.PREPARING
+    assert record.proc_ids == ()
+    assert record.launch_id == "launch-1"
+    assert latest_live_launch_record(app) is record
+
+
+def test_procless_record_without_launch_id_is_still_not_recorded() -> None:
+    app = SimpleNamespace()
+
+    assert push_launch_record(app, proc_ids=(), prompt="p", context=_context()) is None
+    assert latest_live_launch_record(app) is None
+
+
+def test_preparing_record_ignores_unrelated_stamps_and_becomes_in_flight_on_attach() -> (
+    None
+):
+    app = SimpleNamespace()
+    record = push_launch_record(
+        app,
+        proc_ids=(),
+        prompt="pending prompt",
+        context=_context("pending"),
+        launch_id="launch-1",
+    )
+    assert record is not None
+
+    assert stamp_launch_record_results(app, "elsewhere", (_result("x"),)) is None
+    assert record.state is LaunchRecordState.PREPARING
+
+    attach_launch_record_procs(
+        record,
+        proc_ids=("proc-1", "proc-1", "proc-2"),
+        submitted_prompts={"proc-1": "one", "proc-2": "two"},
+    )
+
+    assert record.state is LaunchRecordState.IN_FLIGHT
+    assert record.proc_ids == ("proc-1", "proc-2")
+    assert record.submitted_prompts == {"proc-1": "one", "proc-2": "two"}
+    assert record.launch_id is None
+    stamp_launch_record_results(app, "proc-1", (_result("one"),))
+    stamp_launch_record_results(app, "proc-2", (_result("two"),))
+    assert record.state is LaunchRecordState.RESOLVED
+
+
+def test_discard_launch_record_removes_only_that_record() -> None:
+    app = SimpleNamespace()
+    kept = push_launch_record(app, proc_ids=("kept",), prompt="p", context=_context())
+    dropped = push_launch_record(
+        app,
+        proc_ids=(),
+        prompt="p",
+        context=_context("dropped"),
+        launch_id="launch-1",
+    )
+    assert kept is not None
+    assert dropped is not None
+
+    discard_launch_record(app, dropped)
+
+    assert app._session_launch_records == [kept]
+    assert latest_live_launch_record(app) is kept
 
 
 def test_kill_pending_survives_result_stamp() -> None:

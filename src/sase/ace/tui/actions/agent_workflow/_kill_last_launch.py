@@ -30,8 +30,14 @@ from ._launch_records import (
     LaunchRecordState,
     begin_resolved_launch_action,
     consume_launch_record,
+    discard_launch_record,
     latest_live_launch_record,
     release_resolved_launch_action,
+)
+from ._pending_launch import (
+    cancel_pending_launch,
+    pending_launch_for_record,
+    restore_pending_launch_prompt,
 )
 from ._types import RelaunchOperation, current_prompt_session
 from ..navigation._agent_reveal import (
@@ -73,11 +79,18 @@ class KillAndEditLastLaunchMixin:
         Marks are ignored by design: ``,X`` always targets the most recently
         accepted launch, never the focused or marked row(s). A record whose
         rows were already killed/dismissed by hand is skipped in favor of the
-        next live record. An in-flight launch restores the prompt immediately
-        and kills the concrete results from the launch-completion callback.
+        next live record. A launch still preparing (accepted but not yet
+        submitted) is cancelled and its prompt restored. An in-flight launch
+        restores the prompt immediately and kills the concrete results from
+        the launch-completion callback.
         """
         record = latest_live_launch_record(self)
         while record is not None:
+            if record.state is LaunchRecordState.PREPARING:
+                if self._cancel_preparing_launch(record):
+                    return
+                record = latest_live_launch_record(self)
+                continue
             if record.state is LaunchRecordState.KILL_PENDING:
                 self._refocus_kill_pending_launch_prompt(record)
                 return
@@ -151,6 +164,28 @@ class KillAndEditLastLaunchMixin:
         self.notify(  # type: ignore[attr-defined]
             "No recent launch to kill and edit", severity="warning"
         )
+
+    def _cancel_preparing_launch(self, record: LaunchRecord) -> bool:
+        """Undo a launch that was accepted but never submitted: nothing to kill.
+
+        Cancels the pending launch (dropping any parked barrier waiter and its
+        proc row) and restores the prompt into a bar, exactly like the
+        in-flight ``,X`` path but without a deferred kill. Returns ``False``
+        when the record's pending launch is already gone, so the caller can
+        move on to the next record.
+        """
+        launch = pending_launch_for_record(self, record)
+        if launch is None:
+            discard_launch_record(self, record)
+            return False
+        cancel_pending_launch(self, launch)
+        restore_pending_launch_prompt(
+            self,
+            launch,
+            reason=f'Cancelled launch of "{record.display_name}"',
+            explicit=True,
+        )
+        return True
 
     def _begin_inflight_deferred_kill(self, record: LaunchRecord) -> None:
         """Restore the prompt now and kill the launch when its proc completes."""

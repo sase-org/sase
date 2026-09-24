@@ -2866,6 +2866,18 @@ pending re-focuses the restored prompt and does not walk back to an earlier laun
 Restarting sase's TUI mid-flight drops the pending kill: the launch completes, the row
 appears, and ordinary `,x` applies.
 
+Submitting a prompt returns immediately: `<enter>` removes the prompt bar on the next
+repaint, even when the launch still has to wait, and the launch carries on as a pending
+launch. The launch shows as a `launch <name>` row in the proc indicator and the Procs
+tab from the moment you press `<enter>`; its message names what it is waiting for (for
+example "waiting for kill/dismiss cleanup" while a `,x` or `,X` cleanup settles), and
+the durable `sase run` row takes over when it is submitted. A launch that has not been
+submitted yet has nothing to kill, so `,X` on it simply cancels the launch and reopens
+its prompt in a bar (still marked for forced name reuse, so a re-submit stays behind the
+same cleanup). A cancelled bulk-Patch launch restores its shared prompt; the Patch marks
+are not restored. Quitting sase's TUI while a launch is still pending stashes its prompt
+so `@` can restore it.
+
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent
 before creating git revert commits. For plan/follow-up families, sase's TUI reverts the
 family scope when the row carries family metadata; otherwise it reverts the focused

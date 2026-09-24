@@ -442,7 +442,13 @@ app pushes `current_tab` and `current_idx` automatically).
 
 Point-in-time records emitted by `trace_event(...)` contain `event` instead of
 `span`/`duration_ms`. They are used for selection and highlight watcher transitions
-where there is no timed block to measure.
+where there is no timed block to measure, and for the prompt-submit pipeline:
+`launch.accepted` fires in the handler that unmounts the prompt bar, and
+`launch.submitted` fires when the durable `sase run` proc takes over, carrying
+`accept_to_submit_ms` and the pending-launch `stages` it waited in. Pair them by
+`launch_id`
+(`jq -c 'select(.event|startswith("launch."))' ~/.sase/perf/tui_trace.jsonl`) to measure
+how long a submit stayed pending after the bar disappeared.
 
 Timed spans for the main Patch, agents, and AXE hot paths (by file, relative to
 `src/sase/ace/tui/`; run `rg 'tui_trace\(' src/sase` for the complete set, which also

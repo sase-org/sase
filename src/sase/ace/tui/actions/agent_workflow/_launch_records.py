@@ -19,6 +19,7 @@ MAX_SESSION_LAUNCH_RECORDS = 8
 class LaunchRecordState(StrEnum):
     """Lifecycle state for an accepted launch recorded by this ACE session."""
 
+    PREPARING = "preparing"
     IN_FLIGHT = "in_flight"
     RESOLVED = "resolved"
     RESOLVED_ACTION_PENDING = "resolved_action_pending"
@@ -52,6 +53,10 @@ class LaunchRecord:
     kill_failed_result_keys: set[str] = field(default_factory=set)
     kill_in_progress_result_keys: set[str] = field(default_factory=set)
     state: LaunchRecordState = LaunchRecordState.IN_FLIGHT
+    # Set while the launch is still a pending launch (``PREPARING``): ties the
+    # record to its ``PendingLaunch`` so ``,X`` can cancel it before any proc
+    # exists.
+    launch_id: str | None = None
 
     @property
     def display_name(self) -> str:
@@ -66,22 +71,55 @@ def push_launch_record(
     prompt: str,
     context: LaunchRecordContext,
     submitted_prompts: Mapping[str, str] | None = None,
+    launch_id: str | None = None,
 ) -> LaunchRecord | None:
-    """Append one accepted launch to *app*'s bounded session stack."""
+    """Append one launch to *app*'s bounded session stack.
+
+    A record with a *launch_id* and no proc ids yet is a ``PREPARING`` record:
+    it stands for an accepted prompt that has not been submitted, and gets its
+    procs from :func:`attach_launch_record_procs` at submit. Without a
+    *launch_id*, a launch with no proc ids records nothing.
+    """
     normalized_proc_ids = _unique_nonempty_proc_ids(proc_ids)
-    if not normalized_proc_ids:
+    preparing = launch_id is not None and not normalized_proc_ids
+    if not normalized_proc_ids and not preparing:
         return None
     record = LaunchRecord(
         proc_ids=normalized_proc_ids,
         prompt=prompt,
         context=context,
         submitted_prompts=dict(submitted_prompts or {}),
+        state=(
+            LaunchRecordState.PREPARING if preparing else LaunchRecordState.IN_FLIGHT
+        ),
+        launch_id=launch_id if preparing else None,
     )
     stack = _launch_record_stack(app)
     stack.append(record)
     if len(stack) > MAX_SESSION_LAUNCH_RECORDS:
         del stack[: len(stack) - MAX_SESSION_LAUNCH_RECORDS]
     return record
+
+
+def attach_launch_record_procs(
+    record: LaunchRecord,
+    *,
+    proc_ids: Sequence[str],
+    submitted_prompts: Mapping[str, str],
+) -> LaunchRecord:
+    """Hand a ``PREPARING`` record its submitted procs; it becomes ``IN_FLIGHT``."""
+    record.proc_ids = _unique_nonempty_proc_ids(proc_ids)
+    record.submitted_prompts = dict(submitted_prompts)
+    record.launch_id = None
+    if record.state is LaunchRecordState.PREPARING:
+        record.state = LaunchRecordState.IN_FLIGHT
+    return record
+
+
+def discard_launch_record(app: object, record: LaunchRecord) -> None:
+    """Drop *record* from the stack, e.g. a ``PREPARING`` launch that never submitted."""
+    stack = _launch_record_stack(app)
+    stack[:] = [candidate for candidate in stack if candidate is not record]
 
 
 def stamp_launch_record_results(
@@ -219,6 +257,7 @@ def _launch_record_stack(app: object) -> list[LaunchRecord]:
 
 def _refresh_launch_record_state(record: LaunchRecord) -> None:
     if record.state in (
+        LaunchRecordState.PREPARING,
         LaunchRecordState.KILL_PENDING,
         LaunchRecordState.RESOLVED_ACTION_PENDING,
         LaunchRecordState.CONSUMED,
@@ -265,8 +304,10 @@ __all__ = [
     "LaunchRecordContext",
     "LaunchRecordState",
     "MAX_SESSION_LAUNCH_RECORDS",
+    "attach_launch_record_procs",
     "begin_resolved_launch_action",
     "consume_launch_record",
+    "discard_launch_record",
     "has_pending_launch_kill",
     "latest_live_launch_record",
     "launch_record_for_proc_id",

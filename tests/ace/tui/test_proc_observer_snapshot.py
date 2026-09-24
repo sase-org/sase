@@ -233,3 +233,35 @@ def test_observer_delivers_terminal_completion_once(
     assert second is not None
     assert second.completions == ()
     assert len(snapshots) == 1
+
+
+def test_pending_placeholder_message_can_be_retitled_and_removed(monkeypatch) -> None:
+    monkeypatch.setattr(
+        po,
+        "load_observer_context",
+        lambda: po.ObserverContext("session-a", None, None, None, "/tmp"),
+    )
+    monkeypatch.setattr(po, "live_session_ids", lambda: frozenset({"session-a"}))
+    monkeypatch.setattr(po, "read_procs", lambda: [])
+    observer = ProcObserver(on_snapshot=lambda _snapshot: None)
+
+    pending = observer.register_pending(
+        proc_type="launch",
+        cl_name="demo",
+        project_file="project.sase",
+        display_name="launch demo",
+        message="submitting",
+    )
+
+    def messages() -> list[str]:
+        return [row.message for row in observer._build_snapshot().projection.rows]
+
+    assert messages() == ["submitting"]
+
+    observer.update_pending(pending.proc_id, message="checking providers")
+    assert messages() == ["checking providers"]
+
+    # A vanished placeholder is ignored rather than resurrected.
+    observer.remove_pending(pending.proc_id)
+    observer.update_pending(pending.proc_id, message="too late")
+    assert messages() == []

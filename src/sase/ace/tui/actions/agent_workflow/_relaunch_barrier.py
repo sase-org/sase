@@ -19,7 +19,12 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ._types import PromptSessionId, RelaunchOperation, prompt_session_is_live
+from ._pending_launch import (
+    PendingLaunchStage,
+    pending_launch_is_live,
+    set_pending_launch_stage,
+)
+from ._types import RelaunchOperation
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +47,7 @@ class _RelaunchParkedLaunch:
     """One accepted launch parked behind its owning relaunch cleanup."""
 
     resume: Callable[[], None]
-    owner_id: PromptSessionId | None = None
+    launch_id: str | None = None
     operation: RelaunchOperation | None = None
     replayed: bool = False
 
@@ -123,16 +128,18 @@ def hold_launch_for_relaunch_cleanup(
     app: object,
     resume: Callable[[], None],
     *,
-    owner_id: PromptSessionId | None = None,
+    launch_id: str | None = None,
     operation: RelaunchOperation | None = None,
 ) -> bool:
     """Park *resume* until every pending relaunch cleanup barrier settles.
 
-    Returns ``True`` when the launch was held (nothing else to do here) or
-    ``False`` when nothing was pending and the caller should proceed with the
-    launch immediately.
+    *launch_id* names the pending launch being parked: its stage row shows the
+    wait, and cancelling it (``,X``) drops the waiter so a later settle replays
+    nothing. Returns ``True`` when the launch was held (nothing else to do
+    here) or ``False`` when nothing was pending and the caller should proceed
+    with the launch immediately.
     """
-    legacy_global = owner_id is None and operation is None
+    legacy_global = launch_id is None and operation is None
     if not _relaunch_cleanup_is_pending(
         app, operation=operation, legacy_global=legacy_global
     ):
@@ -145,18 +152,37 @@ def hold_launch_for_relaunch_cleanup(
     waiters.append(
         _RelaunchParkedLaunch(
             resume=resume,
-            owner_id=owner_id,
+            launch_id=launch_id,
             operation=operation,
         )
     )
 
+    if _barriers_pending_for_operation(app, operation, legacy_global=legacy_global):
+        stage = PendingLaunchStage.WAITING_CLEANUP
+        message = "Waiting for kill/dismiss cleanup to finish before launching..."
+    else:
+        stage = PendingLaunchStage.WAITING_LAST_LAUNCH
+        message = "Waiting for the last launch to finish so it can be killed..."
+    if launch_id is not None:
+        set_pending_launch_stage(app, launch_id, stage)
     notify = getattr(app, "notify", None)
     if callable(notify):
-        if _barriers_pending_for_operation(app, operation, legacy_global=legacy_global):
-            notify("Waiting for kill/dismiss cleanup to finish before launching...")
-        else:
-            notify("Waiting for the last launch to finish so it can be killed...")
+        notify(message)
     return True
+
+
+def drop_relaunch_cleanup_launch_waiters(app: object, launch_id: str) -> None:
+    """Forget any parked replay for the cancelled pending launch *launch_id*."""
+    waiters = getattr(app, "_relaunch_cleanup_launch_waiters", None)
+    if not waiters:
+        return
+    app._relaunch_cleanup_launch_waiters = [  # type: ignore[attr-defined]
+        waiter
+        for waiter in waiters
+        if not (
+            isinstance(waiter, _RelaunchParkedLaunch) and waiter.launch_id == launch_id
+        )
+    ]
 
 
 def release_relaunch_holds_if_idle(
@@ -191,7 +217,7 @@ def _drain_relaunch_cleanup_launch_waiters(
                 kept.append(_RelaunchParkedLaunch(resume=waiter))
             continue
         if waiter.operation is not operation and operation is not None:
-            if waiter.owner_id is None and waiter.operation is None:
+            if waiter.launch_id is None and waiter.operation is None:
                 if _relaunch_cleanup_is_pending(app, legacy_global=True):
                     kept.append(waiter)
                     continue
@@ -200,16 +226,18 @@ def _drain_relaunch_cleanup_launch_waiters(
                 continue
         if waiter.replayed:
             continue
-        # The prompt bar was cancelled or replaced while the launch was held.
-        # Requiring the original owner prevents an old callback from borrowing
-        # a later prompt context.
-        if not prompt_session_is_live(app, waiter.owner_id):
-            log.debug("Dropping parked relaunch: prompt owner was retired")
+        # ``,X`` cancelled the pending launch while it was held. The waiter
+        # replays from the launch's own snapshot, so nothing else ties it to
+        # a prompt bar that is long gone.
+        if waiter.launch_id is not None and not pending_launch_is_live(
+            app, waiter.launch_id
+        ):
+            log.debug("Dropping parked relaunch: pending launch was cancelled")
             continue
         if _relaunch_cleanup_is_pending(
             app,
             operation=waiter.operation,
-            legacy_global=waiter.owner_id is None and waiter.operation is None,
+            legacy_global=waiter.launch_id is None and waiter.operation is None,
         ):
             kept.append(waiter)
             continue

@@ -413,6 +413,10 @@ def init_agent_state(self: Any) -> None:
     self._relaunch_cleanup_barriers = []
     self._relaunch_cleanup_launch_waiters = []
 
+    # Accepted prompt submissions that have not reached the durable proc yet,
+    # keyed by launch id; see agent_workflow/_pending_launch.py.
+    self._pending_launches = {}
+
     # Plan feedback context (set when user presses 'f' in plan approval modal)
     from .agents._types import PlanFeedbackContext
 

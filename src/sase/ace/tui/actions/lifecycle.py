@@ -250,6 +250,11 @@ class LifecycleMixin:
             flush_agents_query = getattr(self, "_flush_agents_query_state", None)
             if callable(flush_agents_query):
                 flushes.append(flush_agents_query())
+            flush_pending_launches = getattr(
+                self, "_flush_pending_launch_stashes", None
+            )
+            if callable(flush_pending_launches):
+                flushes.append(flush_pending_launches())
             if flushes:
                 await asyncio.gather(*flushes, return_exceptions=True)
         except Exception:
@@ -279,6 +284,7 @@ class LifecycleMixin:
                 "_flush_agents_deck_state",
                 "_flush_admin_center_tab_state",
                 "_flush_agents_query_state",
+                "_flush_pending_launch_stashes",
             )
         ):
             self._do_quit()

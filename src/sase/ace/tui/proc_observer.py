@@ -149,6 +149,7 @@ class ProcObserver:
         display_name: str,
         exclusive_scopes: Collection[str] = (),
         command: Sequence[str] = (),
+        message: str | None = None,
     ) -> ObservedProc:
         """Add a short-lived local placeholder before the supervisor returns an id."""
         placeholder = ObservedProc(
@@ -157,7 +158,7 @@ class ProcObserver:
             cl_name=cl_name,
             project_file=project_file,
             status="pending",
-            message=f"{display_name} submitted",
+            message=message or f"{display_name} submitted",
             started_at=local_now(),
             display_name=display_name,
             dedup_key=":".join(sorted(exclusive_scopes)) or None,
@@ -193,6 +194,15 @@ class ProcObserver:
                 result_path=result_path,
                 placeholder_id=placeholder_id,
             )
+        self.request_poll()
+
+    def update_pending(self, placeholder_id: str, *, message: str) -> None:
+        """Retitle a placeholder row's message, e.g. to name the stage it waits in."""
+        with self._lock:
+            pending = self._pending.get(placeholder_id)
+            if pending is None or pending.message == message:
+                return
+            self._pending[placeholder_id] = replace(pending, message=message)
         self.request_poll()
 
     def remove_pending(self, placeholder_id: str) -> None:

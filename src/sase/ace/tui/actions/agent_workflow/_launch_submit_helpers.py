@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 
+from ...util.pump_tasks import spawn_pump_free_task
 from ._launch_records import LaunchRecordContext
 from ._types import PromptContext
 
@@ -90,6 +93,32 @@ def record_submit_time_vcs_replay(prompt: str) -> None:
         log.debug("Failed to refresh Space replay target", exc_info=True)
 
 
+def schedule_submit_time_vcs_replay(app: object, prompts: Sequence[str]) -> None:
+    """Refresh the Space MRU for submitted *prompts* off the UI thread.
+
+    Working out each prompt's VCS prefix can load the project-tag catalog and
+    recording it writes the MRU file, so neither belongs in the submit handler
+    that must return before the prompt bar's removal is painted.
+    """
+
+    def record_all() -> None:
+        for prompt in prompts:
+            record_submit_time_vcs_replay(prompt)
+
+    async def record_off_thread() -> None:
+        await asyncio.to_thread(record_all)
+
+    task = spawn_pump_free_task(
+        app,
+        record_off_thread(),
+        name="launch-vcs-replay",
+        registry_attr="_launch_vcs_replay_tasks",
+    )
+    if task is None:
+        # No running event loop means no UI to keep responsive.
+        record_all()
+
+
 def dispatch_payload_from_prompt_context(ctx: PromptContext) -> dict[str, object]:
     """Return launch payload fields that identify portable dispatch source."""
     project_name = Path(ctx.project_file).expanduser().parent.name or ctx.project_name
@@ -145,6 +174,7 @@ __all__ = [
     "launch_record_context_from_prompt_context",
     "launch_toast_label",
     "record_submit_time_vcs_replay",
+    "schedule_submit_time_vcs_replay",
     "submitted_vcs_xprompt_prefix",
     "vcs_workflow_type_from_tag",
 ]

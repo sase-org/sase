@@ -27,6 +27,9 @@ from textual.widgets import Static
 from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agent_workflow import _relaunch_barrier
 from sase.ace.tui.actions.agent_workflow._entry_relaunch import EntryRelaunchMixin
+from sase.ace.tui.actions.agent_workflow._kill_last_launch import (
+    KillAndEditLastLaunchMixin,
+)
 from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
 from sase.ace.tui.actions.agent_workflow._launch_start import AgentLaunchStartMixin
 from sase.ace.tui.actions.agent_workflow._prompt_bar_mount import PromptBarMountMixin
@@ -45,6 +48,7 @@ from tests._agent_cleanup_proc_helpers import TrackedProcRecorderMixin
 
 class _LaunchBarrierApp(
     TrackedProcRecorderMixin,
+    KillAndEditLastLaunchMixin,
     EntryRelaunchMixin,
     AgentsMixin,
     AgentLaunchStartMixin,
@@ -124,6 +128,8 @@ class _LaunchBarrierApp(
 
 class _PromptLifecycleApp(
     TrackedProcRecorderMixin,
+    KillAndEditLastLaunchMixin,
+    EntryRelaunchMixin,
     PromptBarMountMixin,
     PromptBarSubmitMixin,
     AgentLaunchStartMixin,
@@ -181,6 +187,33 @@ class _PromptLifecycleApp(
         )
         self.timers.append(timer)
         return timer
+
+    def _mounted_prompt_bar(self) -> PromptInputBar | None:
+        try:
+            return self.query_one("#prompt-input-bar", PromptInputBar)
+        except Exception:
+            return None
+
+
+class _RealBarLaunchApp(PromptBarMountMixin, _LaunchBarrierApp):
+    """:class:`_LaunchBarrierApp` with the real prompt-bar unmount.
+
+    A submitted or cancelled prompt really removes its bar, so a restored
+    prompt can mount a fresh one. History writes stay in memory.
+    """
+
+    def __init__(self, agents: list[Agent], selected: Agent | None = None) -> None:
+        super().__init__(agents, selected)
+        self.saved_cancelled: list[str] = []
+
+    def _save_text_as_cancelled(
+        self, text: str, *, record_segments: bool = True
+    ) -> str:
+        del record_segments
+        text = text.strip()
+        if text:
+            self.saved_cancelled.append(text)
+        return text
 
     def _mounted_prompt_bar(self) -> PromptInputBar | None:
         try:
@@ -494,11 +527,12 @@ async def test_submit_resolved_launch_without_pending_barrier_submits_immediatel
         assert not _waiting_notified(app)
 
 
-async def test_cancelling_prompt_bar_during_hold_drops_parked_launch(
+async def test_kill_last_launch_during_hold_drops_parked_launch(
     tmp_path: Path,
 ) -> None:
+    """``,X`` is the only way to cancel a held launch: the bar is already gone."""
     agent = _done_agent(tmp_path, "feature", "20260801190600", "%id:foo\nDo work")
-    app = _LaunchBarrierApp([agent], selected=agent)
+    app = _RealBarLaunchApp([agent], selected=agent)
 
     async with app.run_test(size=(100, 35)) as pilot:
         app._kill_and_edit_agent()
@@ -508,10 +542,16 @@ async def test_cancelling_prompt_bar_during_hold_drops_parked_launch(
         cleanup_task = app.tracked_procs[-1]
         _submit_launch(app, "%id:!foo\nDo work edited")
         assert _launch_procs(app) == []
+        await pilot.pause()
+        assert not app.query(PromptInputBar)
 
-        # The user cancelled the prompt bar while the launch was held; the
-        # cancel path already saved the text to prompt history.
-        app._prompt_context = None
+        # The held launch is cancelled with ``,X``, which hands the prompt
+        # back in a bar rather than leaving a parked waiter behind.
+        app._kill_and_edit_last_launch()
+        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        assert app.query_one(PromptInputBar).all_prompt_texts() == [
+            "%id:!foo\nDo work edited"
+        ]
 
         cleanup_task["proc_callable"]()
         await pilot.pause()
@@ -520,46 +560,51 @@ async def test_cancelling_prompt_bar_during_hold_drops_parked_launch(
         assert _launch_procs(app) == []
 
 
-def test_cancelled_hold_drops_old_submit_and_new_prompt_launches() -> None:
+async def test_cancelled_hold_drops_old_submit_and_new_prompt_launches() -> None:
     app = _PromptLifecycleApp()
     operation = RelaunchOperation("old kill-and-edit")
 
-    barrier = _relaunch_barrier.open_relaunch_cleanup_barrier(
-        app,
-        "old cleanup",
-        operation=operation,
-    )
-    begin_prompt_session(
-        app,
-        _home_prompt_context("old"),
-        relaunch_operation=operation,
-    )
-
-    _submit_launch(app, "%id:!old\nold edited")
-    assert _launch_procs(app) == []
-
-    app.on_prompt_input_bar_cancelled(
-        PromptInputBar.Cancelled(
-            "%id:!old\nold",
-            "prompt",
-            record_segments=False,
+    async with app.run_test(size=(100, 35)) as pilot:
+        barrier = _relaunch_barrier.open_relaunch_cleanup_barrier(
+            app,
+            "old cleanup",
+            operation=operation,
         )
-    )
-    assert app._prompt_context is None
-    assert app.saved_cancelled == ["%id:!old\nold"]
+        begin_prompt_session(
+            app,
+            _home_prompt_context("old"),
+            relaunch_operation=operation,
+        )
 
-    begin_prompt_session(app, _home_prompt_context("new"))
-    _submit_launch(app, "%id:new\nnew")
+        _submit_launch(app, "%id:!old\nold edited")
+        assert _launch_procs(app) == []
 
-    launched = _launch_procs(app)
-    assert len(launched) == 1
-    assert launched[0]["request"]["prompt"] == "%id:new\nnew"
+        # ``,X`` cancels the held launch and restores its prompt into a bar;
+        # cancelling that bar leaves the old edit in prompt history only.
+        app._kill_and_edit_last_launch()
+        await wait_for(pilot, lambda: _prompt_bar_ready(app))
+        app.on_prompt_input_bar_cancelled(
+            PromptInputBar.Cancelled(
+                "%id:!old\nold edited",
+                "prompt",
+                record_segments=False,
+            )
+        )
+        assert app._prompt_context is None
+        assert app.saved_cancelled == ["%id:!old\nold edited"]
 
-    _relaunch_barrier.settle_relaunch_cleanup_barrier(app, barrier)
+        begin_prompt_session(app, _home_prompt_context("new"))
+        _submit_launch(app, "%id:new\nnew")
 
-    launched = _launch_procs(app)
-    assert len(launched) == 1
-    assert launched[0]["request"]["prompt"] == "%id:new\nnew"
+        launched = _launch_procs(app)
+        assert len(launched) == 1
+        assert launched[0]["request"]["prompt"] == "%id:new\nnew"
+
+        _relaunch_barrier.settle_relaunch_cleanup_barrier(app, barrier)
+
+        launched = _launch_procs(app)
+        assert len(launched) == 1
+        assert launched[0]["request"]["prompt"] == "%id:new\nnew"
 
 
 def test_repeated_whole_bar_submit_while_held_replays_once() -> None:

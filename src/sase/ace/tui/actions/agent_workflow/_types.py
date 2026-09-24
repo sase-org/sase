@@ -45,7 +45,6 @@ class _PromptSession:
     session_id: PromptSessionId
     context: PromptContext
     relaunch_operation: RelaunchOperation | None = None
-    accepted_whole_bar_submit: bool = False
 
 
 def begin_prompt_session(
