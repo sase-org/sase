@@ -50,3 +50,28 @@ def test_resolve_named_tool_rejects_denied_extra_args(
     clear_config_cache()
     with pytest.raises(ToolRunUsageError, match="does not allow extra arguments"):
         resolve_run_argv(["check", "nope"])
+
+
+def test_resolve_run_argv_with_cwd_resolves_other_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    other = tmp_path / "other"
+    (other / "sase").mkdir(parents=True)
+    (other / "sase" / "sase.yml").write_text(
+        yaml.dump({"tools": {"othertool": {"argv": ["printf", "hi"], "args": "deny"}}}),
+        encoding="utf-8",
+    )
+    here = tmp_path / "here"
+    here.mkdir()
+    monkeypatch.chdir(here)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    clear_config_cache()
+    with pytest.raises(ToolRunUsageError, match="unknown tool"):
+        resolve_run_argv(["othertool"])
+    resolved = resolve_run_argv(["othertool"], cwd=other)
+    assert resolved.tool_name == "othertool"
+    assert resolved.argv == ("printf", "hi")
+    adhoc = resolve_run_argv(["--", "printf", "hi"], cwd=other)
+    assert adhoc.cwd == str(other)
+    assert adhoc.adhoc is True

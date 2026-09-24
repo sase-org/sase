@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -72,11 +73,34 @@ class ToolRunCliRequest:
     verbose: bool
     tail_lines: int
     words: tuple[str, ...]
+    hand_off: bool = False
+    tail_lines_explicit: bool = False
+
+
+@dataclass(frozen=True)
+class RecordedRunContext:
+    """Shared post-begin state for foreground and adopted runs."""
+
+    run_id: str
+    recorded: bool
+    resolved: ResolvedToolArgv
+    has_owner: bool
+    owns_output: bool
+    compact: bool
+    tail_lines: int
+    events_path: Path | None
+    stdout_path: Path | None
+    stderr_path: Path | None
+    stop_recorded: Callable[[], bool] | None = None
 
 
 def execute_tool_run(request: ToolRunCliRequest) -> int:
     """Run one named or ad-hoc command and return the child-or-signal exit."""
 
+    if request.hand_off:
+        from sase.tool.handoff_launch import execute_handoff
+
+        return execute_handoff(request)
     if request.quiet and request.verbose:
         print(
             "-q/--quiet and -v/--verbose cannot be used together",
@@ -158,10 +182,8 @@ def _execute_resolved(
         stdout_path=stdout_path,
         stderr_path=stderr_path,
     )
-    durable_id = run_id if recorded else None
     if not recorded:
         warn_once(_WARN_NOT_RECORDED)
-        durable_id = None
         events_path = None
         stdout_path = None
         stderr_path = None
@@ -170,38 +192,90 @@ def _execute_resolved(
     else:
         inc_tool_metric(TOOL_RUN_ATTEMPTS, result="recorded")
 
+    ctx = RecordedRunContext(
+        run_id=run_id,
+        recorded=recorded,
+        resolved=resolved,
+        has_owner=ownership.owner_kind is not None,
+        owns_output=ownership.owns_output,
+        compact=compact,
+        tail_lines=request.tail_lines,
+        events_path=events_path,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+    )
+    return run_recorded_body(ctx, signals)
+
+
+def _stop_requested(ctx: RecordedRunContext) -> bool:
+    if ctx.stop_recorded is None:
+        return False
+    try:
+        return bool(ctx.stop_recorded())
+    except Exception:  # noqa: BLE001 - a stop probe must not break execution.
+        return False
+
+
+def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
+    """Run the shared post-begin body for foreground and adopted runs."""
+
+    run_id = ctx.run_id
+    recorded = ctx.recorded
+    resolved = ctx.resolved
+    durable_id = run_id if recorded else None
+
     fingerprint_before: dict[str, Any] | None = None
     if recorded:
         fingerprint_before = observe_fingerprint(resolved)
 
-    if signals.sigint or signals.sigterm:
+    if signals.sigint or signals.sigterm or _stop_requested(ctx):
+        stop = _stop_requested(ctx)
         if recorded:
+            if stop:
+                state = "signaled"
+                exit_code = None
+                sig = None
+                reason = "wrapper SIGTERM"
+                cause = "stop_requested"
+            elif signals.sigint:
+                state = "interrupted"
+                exit_code = 130
+                sig = signal.SIGINT
+                reason = "wrapper SIGINT"
+                cause = "interrupt"
+            else:
+                state = "signaled"
+                exit_code = 143
+                sig = signal.SIGTERM
+                reason = "wrapper SIGTERM"
+                cause = "signal"
             finish_tool_run(
                 run_id,
-                state="interrupted" if signals.sigint else "signaled",
-                exit_code=130 if signals.sigint else 143,
-                signal_num=signal.SIGINT if signals.sigint else signal.SIGTERM,
-                interruption_reason=(
-                    "wrapper SIGINT" if signals.sigint else "wrapper SIGTERM"
-                ),
+                state=state,
+                exit_code=exit_code,
+                signal_num=sig,
+                interruption_reason=reason,
                 duration_ms=0,
                 fingerprint_before=fingerprint_before,
                 fingerprint_after=observe_fingerprint(resolved) if recorded else None,
+                terminal_cause=cause,
             )
             inc_tool_metric(
                 TOOL_RUN_SETTLEMENTS,
-                state="interrupted" if signals.sigint else "signaled",
+                state=state,
             )
-        return 130 if signals.sigint else 143
+        if signals.sigint and not stop:
+            return 130
+        return 143 if (signals.sigterm or stop) else 130
 
     child_env_map = child_env(
         recorded=recorded,
         run_id=durable_id,
-        events_path=events_path,
+        events_path=ctx.events_path,
         resolved=resolved,
     )
-    has_owner = ownership.owner_kind is not None
-    merged = should_merge_streams(owns_output=ownership.owns_output, compact=compact)
+    has_owner = ctx.has_owner
+    merged = should_merge_streams(owns_output=ctx.owns_output, compact=ctx.compact)
     started = time.monotonic()
     try:
         proc = spawn_child(
@@ -218,6 +292,11 @@ def _execute_resolved(
             write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
         print(diagnostic, file=sys.stderr)
         if recorded:
+            # Core rejects an exit code alongside launch_failed, and the
+            # existing ledger contract records 127/126 for spawn failures,
+            # so a spawn failure settles failed/exited (the CLI still
+            # returns 127/126). Launch_failed stays for hand-off runs whose
+            # command was never started (no exit code).
             finish_tool_run(
                 run_id,
                 state="failed",
@@ -226,6 +305,7 @@ def _execute_resolved(
                 duration_ms=duration_ms_since(started),
                 fingerprint_before=fingerprint_before,
                 fingerprint_after=observe_fingerprint(resolved),
+                terminal_cause="exited",
             )
             inc_tool_metric(TOOL_RUN_SETTLEMENTS, state="failed")
         return exit_code
@@ -242,23 +322,23 @@ def _execute_resolved(
     policy = log_policy()
     budget = RunLogBudget(int(policy.get("run_log_max_bytes") or 0))
     stdout_sink = (
-        BoundedLogSink(stdout_path, budget, tail_lines=request.tail_lines)
-        if stdout_path is not None
+        BoundedLogSink(ctx.stdout_path, budget, tail_lines=ctx.tail_lines)
+        if ctx.stdout_path is not None
         else None
     )
     stderr_sink = (
-        BoundedLogSink(stderr_path, budget, tail_lines=request.tail_lines)
-        if stderr_path is not None
+        BoundedLogSink(ctx.stderr_path, budget, tail_lines=ctx.tail_lines)
+        if ctx.stderr_path is not None
         else None
     )
     log_failed = False
     ingestor: StageIngestor | None = None
     sampler: LoadSampler | None = None
-    if recorded and events_path is not None:
+    if recorded and ctx.events_path is not None:
         ingestor = StageIngestor(
-            path=events_path,
+            path=ctx.events_path,
             run_id=run_id,
-            compact=compact,
+            compact=ctx.compact,
             event_max_bytes=int(policy.get("event_max_bytes") or 0),
         )
     if recorded:
@@ -273,7 +353,7 @@ def _execute_resolved(
             stdout_sink.write(chunk)
             if stdout_sink.failed:
                 log_failed = True
-        if not compact:
+        if not ctx.compact:
             write_display(sys.stdout, chunk)
 
     def on_stderr(chunk: bytes) -> None:
@@ -282,7 +362,7 @@ def _execute_resolved(
             stderr_sink.write(chunk)
             if stderr_sink.failed:
                 log_failed = True
-        if not compact:
+        if not ctx.compact:
             write_display(sys.stderr, chunk)
 
     def on_merged(chunk: bytes) -> None:
@@ -295,7 +375,7 @@ def _execute_resolved(
             stdout_sink.write(chunk)
             if stdout_sink.failed:
                 log_failed = True
-        if not compact:
+        if not ctx.compact:
             write_display(sys.stdout, chunk)
 
     if durable_id:
@@ -337,11 +417,17 @@ def _execute_resolved(
     truncation = truncation_diagnostics(stdout_sink, stderr_sink, budget)
     log_write_facts = log_write_diagnostics(stdout_sink, stderr_sink)
     if recorded:
-        record_truncation(events_path, run_id, truncation)
+        record_truncation(ctx.events_path, run_id, truncation)
     if log_failed and recorded:
         warn_once(_WARN_INCOMPLETE)
 
     state, exit_code, signal_num, interruption = settle_wait_code(wait_code, signals)
+    if state == "interrupted":
+        cause = "interrupt"
+    elif state == "signaled":
+        cause = "signal"
+    else:
+        cause = "exited"
     if recorded:
         fingerprint_after = observe_fingerprint(resolved)
         finished = finish_tool_run(
@@ -356,6 +442,7 @@ def _execute_resolved(
             diagnostics=[*ingest_diagnostics, *truncation, *log_write_facts] or None,
             fingerprint_before=fingerprint_before,
             fingerprint_after=fingerprint_after,
+            terminal_cause=cause,
         )
         if not finished:
             warn_once(_WARN_INCOMPLETE)
@@ -366,8 +453,8 @@ def _execute_resolved(
             state=state,
             exit_code=exit_code,
             duration_ms=duration_ms,
-            compact=compact,
-            tail_lines=request.tail_lines,
+            compact=ctx.compact,
+            tail_lines=ctx.tail_lines,
             stdout_sink=stdout_sink,
             stderr_sink=stderr_sink,
             stages=list(ingestor.stages.values()) if ingestor is not None else (),
@@ -404,4 +491,9 @@ def _observe_spawned_child(run_id: str, *, child_pid: int, child_pgid: int) -> N
         inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="observe")
 
 
-__all__ = ["ToolRunCliRequest", "execute_tool_run"]
+__all__ = [
+    "RecordedRunContext",
+    "ToolRunCliRequest",
+    "execute_tool_run",
+    "run_recorded_body",
+]

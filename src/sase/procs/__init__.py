@@ -1,5 +1,6 @@
 """Durable proc models, ids, logs, paths, and store facade."""
 
+from .attribution import infer_proc_attribution
 from .ids import ProcRefError, new_proc_id, resolve_proc_ref, short_proc_id
 from .names import (
     ProcShellNameError,
@@ -125,6 +126,7 @@ __all__ = [
     "filter_procs",
     "finish_proc",
     "get_proc",
+    "infer_proc_attribution",
     "is_proc_shell_row",
     "kill_proc",
     "matching_procs_by_shell_name",

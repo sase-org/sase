@@ -360,14 +360,12 @@ _lint-patch-stitch-terminology: _setup
     {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root . --allow-missing-linked-repos
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping).
-# Phase sase-17p.2 (standalone-handoff) consumes tool_run_claim, and phase
-# sase-17p.4 (lifecycle-controls) consumes tool_run_request_stop; each removes
-# its entry.
+# Phase sase-17p.4 (lifecycle-controls) consumes tool_run_request_stop and
+# removes its entry.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-17p(tool_run_claim)' \
         --epic-symbol 'sase-17p(tool_run_request_stop)' \
         {{ args }}
 

@@ -7,7 +7,14 @@ from dataclasses import dataclass
 import re
 from typing import Any
 
-from sase.config.tools import ToolCatalog, ToolCatalogError, load_project_tool_catalog
+from pathlib import Path
+
+from sase.config.tools import (
+    ToolCatalog,
+    ToolCatalogError,
+    load_project_tool_catalog,
+    load_project_tool_catalog_at,
+)
 from sase.content_layout import discover_project_root
 
 
@@ -98,7 +105,9 @@ def _redact_display_argv(argv: Sequence[str]) -> list[str]:
     return out
 
 
-def resolve_run_argv(words: Sequence[str]) -> ResolvedToolArgv:
+def resolve_run_argv(
+    words: Sequence[str], *, cwd: str | Path | None = None
+) -> ResolvedToolArgv:
     """Resolve catalog or ad-hoc argv without expanding shell syntax."""
 
     adhoc, tool_name, payload = _parse_run_words(words)
@@ -106,6 +115,10 @@ def resolve_run_argv(words: Sequence[str]) -> ResolvedToolArgv:
         argv = tuple(payload)
         display = tuple(_redact_display_argv(argv))
         private = argv if display != argv else None
+        if cwd is None:
+            cwd_value: str | None = None
+        else:
+            cwd_value = str(Path(cwd).expanduser())
         return ResolvedToolArgv(
             tool_name=None,
             argv=argv,
@@ -114,12 +127,15 @@ def resolve_run_argv(words: Sequence[str]) -> ResolvedToolArgv:
             private_argv=private,
             definition=_adhoc_definition(argv),
             digest=None,
-            cwd=None,
+            cwd=cwd_value,
             adhoc=True,
         )
 
     try:
-        catalog = load_project_tool_catalog()
+        if cwd is None:
+            catalog = load_project_tool_catalog()
+        else:
+            catalog = load_project_tool_catalog_at(cwd)
     except ToolCatalogError as exc:
         raise ToolRunUsageError(str(exc)) from exc
     entry = _entry_by_name(catalog, str(tool_name))
@@ -132,7 +148,10 @@ def resolve_run_argv(words: Sequence[str]) -> ResolvedToolArgv:
     argv = tuple(str(part) for part in entry.definition.get("argv") or ()) + extra
     display = tuple(_redact_display_argv(argv))
     private = argv if display != argv else None
-    root = discover_project_root()
+    if cwd is None:
+        root = discover_project_root()
+    else:
+        root = discover_project_root(cwd)
     return ResolvedToolArgv(
         tool_name=entry.name,
         argv=argv,

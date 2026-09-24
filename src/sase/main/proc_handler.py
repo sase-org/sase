@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +26,7 @@ from sase.procs import (
     ProcShellNameError,
     ProcSubmitError,
     get_proc,
+    infer_proc_attribution,
     kill_proc,
     proc_shell_name_keys,
     read_proc_log_tail,
@@ -175,7 +175,7 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
         print(f"sase proc run: {exc}", file=sys.stderr)
         return 2
 
-    project, workspace_num = _infer_attribution(cwd, getattr(args, "project", None))
+    project, workspace_num = infer_proc_attribution(cwd, getattr(args, "project", None))
     try:
         submit_kwargs: dict[str, Any] = {
             "label": getattr(args, "label", None) or _derived_label(command),
@@ -540,18 +540,8 @@ def _derived_label(command: list[str]) -> str:
 
 def _infer_attribution(cwd: Path, project: str | None) -> tuple[str | None, int | None]:
     """Return the project and workspace number a proc should be attributed to."""
-    name = project
-    if not name:
-        try:
-            from sase.bead.project_name import infer_project_name_from_cwd
 
-            name = infer_project_name_from_cwd(str(cwd))
-        except Exception:
-            name = None
-    if not name:
-        return None, None
-    match = re.search(rf"(?:^|/){re.escape(name)}_(\d+)(?:/|$)", str(cwd))
-    return name, int(match.group(1)) if match else None
+    return infer_proc_attribution(cwd, project)
 
 
 def _live_session_ids() -> set[str]:

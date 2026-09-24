@@ -17,6 +17,7 @@ from sase.tool.stage_protocol import ingest_event_file
 
 
 _LOST_REASON = "runner exited without settling"
+_LAUNCHER_EXIT_REASON = "launcher exit is not proof of launch failure"
 _UNSETTLED_STATES = ("created", "running")
 _RECONCILE_LIMIT = 1000
 _REAP_TERM_GRACE_SECONDS = 2.0
@@ -35,6 +36,13 @@ def current_boot_id() -> str:
         return token.partition(":")[0]
 
 
+def _is_created_handoff(run: dict[str, Any]) -> bool:
+    return (
+        str(run.get("state") or "") == "created"
+        and str(run.get("launch_mode") or "") == "handoff"
+    )
+
+
 def _observe_wrapper(run: dict[str, Any]) -> dict[str, Any]:
     """Return a core liveness fact for one unsettled wrapper."""
 
@@ -49,6 +57,8 @@ def _observe_wrapper(run: dict[str, Any]) -> dict[str, Any]:
         "process_start_identity": recorded,
     }
     if pid_raw is None:
+        # A created hand-off stores its launcher apart from the wrapper pid;
+        # a missing wrapper pid is already unknown, never proof of failure.
         fact["observation"] = "unknown"
         fact["reason"] = "wrapper pid was not recorded"
         return fact
@@ -62,20 +72,14 @@ def _observe_wrapper(run: dict[str, Any]) -> dict[str, Any]:
     if recorded_boot:
         boot = current_boot_id()
         if boot and recorded_boot != boot:
-            fact["observation"] = "dead"
-            fact["reason"] = _LOST_REASON
-            return fact
+            return _dead_or_launcher_unknown(run, fact)
     if identity_from_previous_boot(recorded):
-        fact["observation"] = "dead"
-        fact["reason"] = _LOST_REASON
-        return fact
+        return _dead_or_launcher_unknown(run, fact)
 
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
-        fact["observation"] = "dead"
-        fact["reason"] = _LOST_REASON
-        return fact
+        return _dead_or_launcher_unknown(run, fact)
     except PermissionError:
         fact["observation"] = "unknown"
         fact["reason"] = "wrapper liveness is permission-denied"
@@ -87,14 +91,26 @@ def _observe_wrapper(run: dict[str, Any]) -> dict[str, Any]:
 
     current = process_identity_token(pid)
     if isinstance(recorded, str) and recorded and current and current != recorded:
-        fact["observation"] = "dead"
-        fact["reason"] = _LOST_REASON
-        return fact
+        return _dead_or_launcher_unknown(run, fact)
     if isinstance(recorded, str) and recorded and not current:
         fact["observation"] = "unknown"
         fact["reason"] = "wrapper identity is unreadable"
         return fact
     fact["observation"] = "alive"
+    return fact
+
+
+def _dead_or_launcher_unknown(
+    run: dict[str, Any], fact: dict[str, Any]
+) -> dict[str, Any]:
+    """Downgrade a dead launcher observation for a created hand-off."""
+
+    if _is_created_handoff(run):
+        fact["observation"] = "unknown"
+        fact["reason"] = _LAUNCHER_EXIT_REASON
+        return fact
+    fact["observation"] = "dead"
+    fact["reason"] = _LOST_REASON
     return fact
 
 

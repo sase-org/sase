@@ -437,3 +437,101 @@ def test_finish_diagnostics_persist_spawn_and_truncation(
     assert any(
         "retained output truncated" in item for item in shown["run"]["diagnostics"]
     )
+
+
+def test_foreground_records_terminal_cause_exited(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _home(monkeypatch, tmp_path)
+    assert _run("--", "sh", "-c", "exit 0") == 0
+    capsys.readouterr()
+    assert _run("--", "sh", "-c", "exit 3") == 3
+    capsys.readouterr()
+    runs = tool_run_list({"schema_version": 1, "limit": 10})["runs"]
+    assert len(runs) >= 2
+    for run in runs[:2]:
+        shown = tool_run_show(run["run_id"])
+        assert shown["run"]["terminal_cause"] == "exited"
+
+
+def test_foreground_spawn_failure_records_exited_with_code(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Core rejects an exit code alongside launch_failed, so a spawn failure
+    # (127/126) settles failed/exited; launch_failed stays for hand-off runs
+    # whose command was never started.
+    _home(monkeypatch, tmp_path)
+    assert _run("--", str(tmp_path / "missing-cmd")) == 127
+    capsys.readouterr()
+    run = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
+    shown = tool_run_show(run["run_id"])
+    assert shown["run"]["terminal_cause"] == "exited"
+    assert shown["run"]["exit_code"] == 127
+
+
+def test_foreground_prespawn_interrupt_records_interrupt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.tool.argv import resolve_run_argv
+    from sase.tool.executor import RecordedRunContext, run_recorded_body
+    from sase.tool.executor_signals import SignalState
+
+    _home(monkeypatch, tmp_path)
+    resolved = resolve_run_argv(["--", "printf", "hi"])
+    signals = SignalState()
+    signals.sigint = True
+    ctx = RecordedRunContext(
+        run_id="0" * 32,
+        recorded=True,
+        resolved=resolved,
+        has_owner=False,
+        owns_output=True,
+        compact=False,
+        tail_lines=200,
+        events_path=None,
+        stdout_path=None,
+        stderr_path=None,
+    )
+    # Begin a real run so finish has a row to settle.
+    from sase.tool.executor_recording import begin_tool_run
+    from sase.tool.ownership import ToolRunOwnership
+
+    ownership = ToolRunOwnership(
+        owner_kind=None,
+        owner_id=None,
+        parent_run_id=None,
+        other_owner_kind=None,
+        other_owner_id=None,
+        owns_output=True,
+        enclosing_label=None,
+    )
+    from sase.tool.logs import prepare_run_paths
+
+    events, _, _ = prepare_run_paths(ctx.run_id, owns_output=True)
+    assert begin_tool_run(
+        ctx.run_id,
+        resolved=resolved,
+        ownership=ownership,
+        events_path=events,
+        stdout_path=None,
+        stderr_path=None,
+    )
+    ctx = RecordedRunContext(
+        run_id=ctx.run_id,
+        recorded=True,
+        resolved=resolved,
+        has_owner=False,
+        owns_output=True,
+        compact=False,
+        tail_lines=200,
+        events_path=events,
+        stdout_path=None,
+        stderr_path=None,
+    )
+    assert run_recorded_body(ctx, signals) == 130
+    shown = tool_run_show(ctx.run_id)
+    assert shown["run"]["terminal_cause"] == "interrupt"

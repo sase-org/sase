@@ -87,3 +87,39 @@ def test_alive_wrapper_is_not_lost(tmp_path: Path, monkeypatch) -> None:
     assert run_id not in result.get("marked_lost", [])
     shown = tool_run_show(run_id, store_path=store)
     assert shown["run"]["state"] == "running"
+
+
+def test_created_handoff_dead_launcher_is_unknown() -> None:
+    import subprocess
+
+    finished = subprocess.Popen(["true"])
+    finished.wait()
+    run = {
+        "run_id": "handoff-1",
+        "state": "created",
+        "launch_mode": "handoff",
+        "wrapper_pid": finished.pid,
+        "boot_id": current_boot_id(),
+        "process_start_identity": f"{current_boot_id()}:1",
+    }
+    fact = _observe_wrapper(run)
+    assert fact["observation"] == "unknown"
+    assert fact["reason"] == "launcher exit is not proof of launch failure"
+    assert fact["run_id"] == "handoff-1"
+
+
+def test_running_handoff_dead_wrapper_stays_dead() -> None:
+    import subprocess
+
+    finished = subprocess.Popen(["true"])
+    finished.wait()
+    run = {
+        "run_id": "handoff-2",
+        "state": "running",
+        "launch_mode": "handoff",
+        "wrapper_pid": finished.pid,
+        "boot_id": current_boot_id(),
+        "process_start_identity": f"{current_boot_id()}:1",
+    }
+    fact = _observe_wrapper(run)
+    assert fact["observation"] == "dead"

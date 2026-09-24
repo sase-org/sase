@@ -36,17 +36,24 @@ def handle_tool_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "tool_subcommand", None)
     if subcommand == "list":
         sys.exit(_handle_list(args))
+    if subcommand == "_adopt":
+        from sase.tool.adopt import execute_adopted_run
+
+        sys.exit(execute_adopted_run(str(getattr(args, "adopt_run_id", "") or "")))
     if subcommand == "run":
+        tail_raw = getattr(args, "tail_lines", None)
         sys.exit(
             execute_tool_run(
                 ToolRunCliRequest(
                     quiet=bool(getattr(args, "quiet", False)),
                     verbose=bool(getattr(args, "verbose", False)),
-                    tail_lines=int(getattr(args, "tail_lines", 200)),
+                    tail_lines=int(tail_raw) if tail_raw is not None else 200,
                     words=tuple(
                         str(part)
                         for part in (getattr(args, "tool_run_words", None) or ())
                     ),
+                    hand_off=bool(getattr(args, "hand_off", False)),
+                    tail_lines_explicit=tail_raw is not None,
                 )
             )
         )

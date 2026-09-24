@@ -62,18 +62,24 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "`--`, and record a ToolRun. Named tools run at the project root; "
             "ad-hoc commands use the invocation cwd. Extra arguments append "
             "only when the definition allows them. Tokens after `--` are "
-            "preserved verbatim, including leading dashes.\n\n"
+            "preserved verbatim, including leading dashes. Options must "
+            "precede TOOL or `--`.\n\n"
             "Humans default to exact stdout/stderr passthrough. Direct agent "
             "execution (SASE_AGENT_NAME) defaults to compact output. `-q` "
             "forces compact; `-v` forces streaming. Wrapper metadata goes to "
-            "stderr. The child has no output TTY; stdin is inherited."
+            "stderr. The child has no output TTY; stdin is inherited.\n\n"
+            "`-H` hands the run off to a durable proc and returns at once "
+            "with the run id. With `-H`, `-q` prints only the run id, while "
+            "`-v` and `-T` are usage errors. Exit codes: 0 accepted, "
+            "1 not started, 2 usage or refusal."
         ),
         epilog=(
             "examples:\n"
             "  sase tool run check\n"
             "  sase tool run test -- tests/test_tool_handler.py\n"
             "  sase tool run -- printf out\n"
-            "  sase tool run -q -T 5 -- false"
+            "  sase tool run -q -T 5 -- false\n"
+            "  sase tool run -H check"
         ),
     )
     output_mode = run_parser.add_mutually_exclusive_group()
@@ -87,7 +93,7 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         "-T",
         "--tail-lines",
         type=int,
-        default=200,
+        default=None,
         metavar="N",
         help="Retained failure lines shown in compact mode (default: 200)",
     )
@@ -98,10 +104,28 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Force streaming passthrough of child stdout and stderr",
     )
     run_parser.add_argument(
+        "-H",
+        "--hand-off",
+        action="store_true",
+        dest="hand_off",
+        help="Hand the run off to a durable proc and return at once",
+    )
+    run_parser.add_argument(
         "tool_run_words",
         nargs=argparse.REMAINDER,
         metavar="TOOL | -- ARGV...",
         help="Named tool with optional extra args, or -- followed by argv",
+    )
+
+    adopt_parser = tool_subparsers.add_parser(
+        "_adopt",
+        help=argparse.SUPPRESS,
+        description="Claim and run a reserved hand-off ToolRun (internal).",
+    )
+    adopt_parser.add_argument(
+        "adopt_run_id",
+        metavar="RUN",
+        help=argparse.SUPPRESS,
     )
 
     runs_parser = tool_subparsers.add_parser(
