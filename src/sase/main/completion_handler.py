@@ -212,9 +212,14 @@ def _handle_completion_loader(args: argparse.Namespace) -> int:
 
 def _handle_completion_spec(args: argparse.Namespace) -> int:
     """Run ``sase completion spec``."""
+    from sase.completion.build import build_spec
     from sase.completion.snapshot import current_structural_view
 
-    text = json.dumps(current_structural_view(), indent=2, sort_keys=True)
+    if bool(getattr(args, "descriptions", False)):
+        document = build_spec().to_json()
+    else:
+        document = current_structural_view()
+    text = json.dumps(document, indent=2, sort_keys=True)
     return _write_output(getattr(args, "output", None), text)
 
 

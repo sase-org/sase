@@ -35,6 +35,43 @@ def _digest(*parts: str) -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class RunPolicyRule:
+    """One run-policy rule for a command: policy, condition, and note."""
+
+    policy: str
+    when: dict[str, Any] | None
+    note: str | None
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "policy": self.policy,
+            "when": None if self.when is None else dict(self.when),
+            "note": self.note,
+        }
+
+    @classmethod
+    def from_json(cls, data: dict[str, Any]) -> RunPolicyRule:
+        when = data.get("when")
+        return cls(
+            policy=str(data["policy"]),
+            when=None if when is None else dict(when),  # type: ignore[arg-type]
+            note=data.get("note"),
+        )
+
+
+def _run_policy_to_json(
+    rules: tuple[RunPolicyRule, ...],
+) -> list[dict[str, Any]]:
+    return [rule.to_json() for rule in rules]
+
+
+def _run_policy_from_json(value: Any) -> tuple[RunPolicyRule, ...]:
+    if value is None:
+        return ()
+    return tuple(RunPolicyRule.from_json(item) for item in value)
+
+
+@dataclass(frozen=True, slots=True)
 class OptionSpec:
     """A single completable option (``-x``/``--xyz``) on a command."""
 
@@ -46,6 +83,10 @@ class OptionSpec:
     choices: tuple[str, ...] | None
     kind: ValueKind | None
     hidden: bool
+    required: bool = False
+    metavar: str | None = None
+    default: str | None = None
+    value_hint: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -57,6 +98,10 @@ class OptionSpec:
             "choices": _choices_to_json(self.choices),
             "kind": _kind_to_json(self.kind),
             "hidden": self.hidden,
+            "required": self.required,
+            "metavar": self.metavar,
+            "default": self.default,
+            "value_hint": self.value_hint,
         }
 
     @classmethod
@@ -70,6 +115,10 @@ class OptionSpec:
             choices=_choices_from_json(data.get("choices")),
             kind=_kind_from_json(data.get("kind")),
             hidden=data["hidden"],
+            required=bool(data.get("required", False)),
+            metavar=data.get("metavar"),
+            default=data.get("default"),
+            value_hint=data.get("value_hint"),
         )
 
 
@@ -84,6 +133,8 @@ class PositionalSpec:
     choices: tuple[str, ...] | None
     kind: ValueKind | None
     is_remainder: bool
+    required: bool = True
+    value_hint: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -94,6 +145,8 @@ class PositionalSpec:
             "choices": _choices_to_json(self.choices),
             "kind": _kind_to_json(self.kind),
             "is_remainder": self.is_remainder,
+            "required": self.required,
+            "value_hint": self.value_hint,
         }
 
     @classmethod
@@ -106,6 +159,8 @@ class PositionalSpec:
             choices=_choices_from_json(data.get("choices")),
             kind=_kind_from_json(data.get("kind")),
             is_remainder=data["is_remainder"],
+            required=bool(data.get("required", True)),
+            value_hint=data.get("value_hint"),
         )
 
 
@@ -123,6 +178,9 @@ class CommandSpec:
     subcommands: tuple[CommandSpec, ...]
     default_child: str | None
     mutex_groups: tuple[tuple[str, ...], ...]
+    run_policy: tuple[RunPolicyRule, ...] = ()
+    writes: bool = False
+    stdin: bool = False
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -136,6 +194,9 @@ class CommandSpec:
             "subcommands": [child.to_json() for child in self.subcommands],
             "default_child": self.default_child,
             "mutex_groups": [list(group) for group in self.mutex_groups],
+            "run_policy": _run_policy_to_json(self.run_policy),
+            "writes": self.writes,
+            "stdin": self.stdin,
         }
 
     @classmethod
@@ -153,6 +214,9 @@ class CommandSpec:
             subcommands=tuple(cls.from_json(item) for item in data["subcommands"]),
             default_child=data["default_child"],
             mutex_groups=tuple(tuple(group) for group in data["mutex_groups"]),
+            run_policy=_run_policy_from_json(data.get("run_policy")),
+            writes=bool(data.get("writes", False)),
+            stdin=bool(data.get("stdin", False)),
         )
 
     def description_digest(self) -> str:
@@ -190,6 +254,10 @@ class CommandSpec:
                     "choices": _choices_to_json(option.choices),
                     "kind": _kind_to_json(option.kind),
                     "hidden": option.hidden,
+                    "required": option.required,
+                    "metavar": option.metavar,
+                    "default": option.default,
+                    "value_hint": option.value_hint,
                 }
                 for option in self.options
             ],
@@ -201,12 +269,17 @@ class CommandSpec:
                     "choices": _choices_to_json(positional.choices),
                     "kind": _kind_to_json(positional.kind),
                     "is_remainder": positional.is_remainder,
+                    "required": positional.required,
+                    "value_hint": positional.value_hint,
                 }
                 for positional in self.positionals
             ],
             "subcommands": [child.structural_view() for child in self.subcommands],
             "default_child": self.default_child,
             "mutex_groups": [list(group) for group in self.mutex_groups],
+            "run_policy": _run_policy_to_json(self.run_policy),
+            "writes": self.writes,
+            "stdin": self.stdin,
         }
 
 
@@ -254,4 +327,5 @@ __all__ = [
     "CompletionSpec",
     "OptionSpec",
     "PositionalSpec",
+    "RunPolicyRule",
 ]

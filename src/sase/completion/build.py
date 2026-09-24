@@ -10,7 +10,7 @@ from sase.completion.compat import (
     get_completion_compat_choices,
     get_completion_compat_option_strings,
 )
-from sase.completion.kinds import resolve_value_kind
+from sase.completion.kinds import ValueKind, resolve_value_kind
 from sase.completion.model import (
     CommandSpec,
     CompletionSpec,
@@ -77,6 +77,9 @@ def _build_command(
         if group._group_actions
     )
 
+    # Imported here to avoid a module cycle (run_policy imports model only).
+    from sase.completion.run_policy import run_policy_for, stdin_for, writes_for
+
     return CommandSpec(
         name=name,
         path=path,
@@ -88,6 +91,9 @@ def _build_command(
         subcommands=subcommands,
         default_child=default_child,
         mutex_groups=mutex_groups,
+        run_policy=run_policy_for(path),
+        writes=writes_for(path),
+        stdin=stdin_for(path),
     )
 
 
@@ -161,6 +167,7 @@ def _build_option(
     )
     if not strings:
         return None
+    kind = None if choices is not None else resolve_value_kind(action, command_path)
     return OptionSpec(
         strings=strings,
         dest=action.dest,
@@ -168,8 +175,12 @@ def _build_option(
         takes_value=action.nargs != 0,
         repeatable=isinstance(action, _REPEATABLE_ACTION_TYPES),
         choices=choices,
-        kind=None if choices is not None else resolve_value_kind(action, command_path),
+        kind=kind,
         hidden=hidden,
+        required=bool(getattr(action, "required", False)),
+        metavar=_option_metavar(action),
+        default=_display_default(action),
+        value_hint=_value_hint_for(action, kind),
     )
 
 
@@ -178,15 +189,70 @@ def _build_positional(
 ) -> PositionalSpec:
     choices = _resolved_choices(action)
     metavar = action.metavar if action.metavar is not None else action.dest
+    kind = None if choices is not None else resolve_value_kind(action, command_path)
     return PositionalSpec(
         metavar=str(metavar),
         dest=action.dest,
         summary=_action_summary(action),
         nargs=action.nargs,
         choices=choices,
-        kind=None if choices is not None else resolve_value_kind(action, command_path),
+        kind=kind,
         is_remainder=action.nargs in _REMAINDER_NARGS,
+        required=_positional_required(action),
+        value_hint=_value_hint_for(action, kind),
     )
+
+
+def _option_metavar(action: argparse.Action) -> str | None:
+    """Return the display metavar for *action*, or None when not a plain string."""
+    metavar = action.metavar
+    return metavar if isinstance(metavar, str) else None
+
+
+def _display_default(action: argparse.Action) -> str | None:
+    """Return a display-safe default string, or None when not displayable.
+
+    Only scalar str/int/float/bool defaults of at most 40 characters qualify;
+    SUPPRESS and every composite default collapse to None.
+    """
+    default = action.default
+    if default is None or default is argparse.SUPPRESS:
+        return None
+    if isinstance(default, bool):
+        text = str(default)
+    elif isinstance(default, (str, int, float)):
+        text = str(default)
+    else:
+        return None
+    return text if len(text) <= 40 else None
+
+
+def _positional_required(action: argparse.Action) -> bool:
+    """Derive required-ness for a positional from its nargs shape."""
+    nargs = action.nargs
+    if nargs is None:
+        return True
+    if isinstance(nargs, int):
+        return nargs > 0
+    if nargs in ("?", "*", argparse.REMAINDER, "...", argparse.PARSER):
+        return False
+    if nargs == "+":
+        return True
+    if nargs is argparse.SUPPRESS:
+        return False
+    return bool(getattr(action, "required", True))
+
+
+def _value_hint_for(_action: argparse.Action, kind: ValueKind | None) -> str | None:
+    """Return the free-form value hint for *action*, if any.
+
+    Path-like kinds already carry a kind, but the resolver also wants a
+    coarse "path" hint; every other slot is None until the kind-coverage
+    phase lands its declarative hint table.
+    """
+    if kind in (ValueKind.PATH, ValueKind.DIR):
+        return "path"
+    return None
 
 
 def _resolved_choices(action: argparse.Action) -> tuple[str, ...] | None:

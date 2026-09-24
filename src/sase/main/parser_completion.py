@@ -383,18 +383,28 @@ def _register_spec_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Print the structural completion spec as JSON",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Print the structural completion spec — the same JSON artifact "
-            "the checked-in snapshot gate compares against. Descriptions "
-            "are replaced by per-command digests so wording churn is a "
-            "one-line diff. Use this as a stable integration point for "
+            "Print the completion spec as JSON. By default this is the "
+            "structural view — the same JSON artifact the checked-in "
+            "snapshot gate compares against, with descriptions replaced by "
+            "per-command digests so wording churn is a one-line diff. Pass "
+            "-d to keep the real command, option, and positional summaries "
+            "instead of digests; the Command Line spec cache builds from "
+            "that full view. Use this as a stable integration point for "
             "other tools."
         ),
         epilog=(
             "examples:\n"
-            "  sase completion spec\n"
-            "  sase completion spec --json\n"
-            "  sase completion spec -o cli_spec.json"
+            "  sase completion spec                       # structural JSON\n"
+            "  sase completion spec -d                    # full summaries\n"
+            "  sase completion spec -d -j -o spec.json    # Command Line cache input\n"
+            "  sase completion spec -o cli_spec.json      # write the snapshot artifact"
         ),
+    )
+    spec_parser.add_argument(
+        "-d",
+        "--descriptions",
+        action="store_true",
+        help="Keep real summaries instead of per-command digests",
     )
     spec_parser.add_argument(
         "-j",
