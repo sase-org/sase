@@ -154,7 +154,7 @@ def test_facade_does_not_expose_import_planner_identity_api() -> None:
         assert not hasattr(facade, name), name
 
 
-def test_owner_family_integration() -> None:
+def test_owner_agent_session_integration() -> None:
     target = facade.AgentOwnerIdentity("alice", "athena")
     identity = facade.AgentIdentitySnapshot(target)
     assert (

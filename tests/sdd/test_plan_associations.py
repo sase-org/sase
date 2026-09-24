@@ -259,18 +259,18 @@ def test_agent_registry_snapshot_failure_is_diagnostic(tmp_path: Path) -> None:
     )
 
 
-def test_family_members_collapse_to_one_lane_with_member_link_hint(
+def test_agent_session_members_collapse_to_one_lane_with_member_link_hint(
     tmp_path: Path,
 ) -> None:
     plans = tmp_path / "plans"
     store = _store(plans)
-    plan = _plan(plans, "202607/family.md", tier="tale")
+    plan = _plan(plans, "202607/agent_session.md", tier="tale")
     history = _history_entry(
         "a" * 40,
         10,
-        "family work",
-        "family work\n\n"
-        "SASE_PLAN=202607/family.md\n"
+        "agent-session work",
+        "agent-session work\n\n"
+        "SASE_PLAN=202607/agent_session.md\n"
         "SASE_AGENT=[alice.athena.pc][agent]\n\n"
         "[agent]: https://agents.example/families/alice.athena.pc.md",
     )
@@ -287,7 +287,7 @@ def test_family_members_collapse_to_one_lane_with_member_link_hint(
         identity=_identity(),
     )
 
-    agent_rows = index.for_plan("plan:202607/family.md").agents
+    agent_rows = index.for_plan("plan:202607/agent_session.md").agents
     assert len(agent_rows) == 1
     row = agent_rows[0]
     assert row.label == "alice.athena.pc"

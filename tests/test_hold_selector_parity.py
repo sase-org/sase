@@ -37,7 +37,9 @@ def _cli_armer(**overrides: object) -> dict[str, object]:
     return armer
 
 
-def test_cli_and_directive_family_selectors_both_block_role_suffixed_names() -> None:
+def test_cli_and_directive_agent_session_selectors_both_block_role_suffixed_names() -> (
+    None
+):
     cli = arm_agent_hold(
         armer=_cli_armer(key="cli:family"),
         names=["team"],

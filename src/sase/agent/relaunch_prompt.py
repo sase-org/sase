@@ -226,7 +226,7 @@ def _rewrite_agent_session_member_or_preserve_clan(
     facing_agent: str | None,
     agent_name: str | None,
 ) -> str:
-    from sase.xprompt.directive_edit import rewrite_prompt_family_member_name
+    from sase.xprompt.directive_edit import rewrite_prompt_agent_session_member_name
 
     if not facing_agent_session:
         raise KillAndEditPromptError(
@@ -235,7 +235,7 @@ def _rewrite_agent_session_member_or_preserve_clan(
             produced=raw_prompt,
         )
     try:
-        rewritten = rewrite_prompt_family_member_name(
+        rewritten = rewrite_prompt_agent_session_member_name(
             raw_prompt,
             facing_agent_session,
             role_suffix,

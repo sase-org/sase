@@ -33,7 +33,7 @@ class _HydratedNode:
 
 
 class ContinuationNodeIndex:
-    """Resolve exact continuation nodes without rediscovering family aliases."""
+    """Resolve exact continuation nodes without rediscovering agent-session aliases."""
 
     def __init__(self) -> None:
         self._by_id: dict[str, _HydratedNode] = {}

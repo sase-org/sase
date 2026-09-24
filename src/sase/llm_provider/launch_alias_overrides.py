@@ -1,4 +1,4 @@
-"""Launch-family-scoped model alias override environment handling."""
+"""Agent-session-scoped model alias override environment handling."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def encode_launch_alias_overrides(overrides: Mapping[str, str]) -> str:
 
 
 def export_launch_alias_overrides(overrides: Mapping[str, str]) -> None:
-    """Export non-empty overrides for in-process family follow-ups."""
+    """Export non-empty overrides for in-process agent-session follow-ups."""
     cleaned = _clean_mapping(overrides)
     if cleaned:
         os.environ[SASE_MODEL_ALIAS_OVERRIDES_ENV] = json.dumps(

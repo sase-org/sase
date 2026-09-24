@@ -1,7 +1,7 @@
 """Proc and monitor shell projections for the ``#fork`` source resolver.
 
 Builds the typed execution-record metadata for a stand-alone proc shell or a
-monitor family member from the durable proc store / monitor markers, kept
+monitor agent-session member from the durable proc store / monitor markers, kept
 separate from :mod:`sase.scripts.agent_chat_from_name` so that module stays
 focused on source *resolution* rather than proc/monitor field mapping.
 """

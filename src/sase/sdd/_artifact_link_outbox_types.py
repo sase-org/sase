@@ -25,7 +25,7 @@ class ArtifactLinkOutboxEntry:
 
     ``run_id`` binds this entry to the specific run that recorded it (see
     ``sase.sdd.artifact_link_release_evidence``): a different run of the same
-    agent, or another agent in the same family, must not be able to release
+    agent, or another agent in the same agent session, must not be able to release
     it merely by publishing something of its own.
 
     Schema-v2 entries store the canonical event payload. The one-time

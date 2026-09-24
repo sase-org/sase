@@ -37,7 +37,7 @@ def confirm_dependency_resolution(
     """Confirm a resolved wait against membership read after its marker view.
 
     A shell successor is created before its predecessor writes the terminal marker
-    that can make a family resolve.  The first index has already read those markers;
+    that can make an agent session resolve.  The first index has already read those markers;
     therefore a membership listing built afterwards must contain that successor.  A
     release is safe only if a fresh resolving view introduces no candidate absent from
     the view that resolved.  Repeating once absorbs a member that appeared during the

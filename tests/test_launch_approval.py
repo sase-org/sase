@@ -206,7 +206,7 @@ def test_agent_launch_request_rejects_competing_family_successor(
     monkeypatch.setenv("SASE_AGENT_NAME", "requester--0")
     monkeypatch.chdir(tmp_path)
 
-    with pytest.raises(LaunchRequestError, match="requester's family lane"):
+    with pytest.raises(LaunchRequestError, match="requester's agent-session lane"):
         create_launch_approval_request(
             {
                 "schema_version": 1,

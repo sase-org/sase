@@ -247,7 +247,7 @@ def require_plan_approval_choice(choice: str) -> _PlanApprovalChoiceRecord:
             consequence_text=(
                 "Commit to sdd/plans (tier: epic); launch beads via "
                 "`sase monitor` (track it in `sase monitor list` or the "
-                "planner's family row)"
+                "planner's agent-session row)"
             ),
             archive_side_effect=False,
             cli_kind_name="epic",

@@ -1,4 +1,4 @@
-"""Tests for agent-family chat resolution."""
+"""Tests for agent-session chat resolution."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 
 from sase.history.chat import build_fork_injected_history
 from sase.scripts.agent_chat_from_name import (
-    _ForkFamilyMemberSource,
+    _ForkAgentSessionMemberSource,
     _resolve_agent_chat_path,
     _resolve_agent_chat_sources,
 )
@@ -20,7 +20,7 @@ from tests._dismissed_completion_helpers import (
 )
 
 
-def test_family_name_and_explicit_children_use_member_owned_transcripts(
+def test_agent_session_name_and_explicit_children_use_member_owned_transcripts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -58,7 +58,7 @@ def test_family_name_and_explicit_children_use_member_owned_transcripts(
     assert _resolve_agent_chat_path("cx--code") == str(coder_chat)
 
 
-def test_family_source_reads_dismissed_member_transcript_from_bundle(
+def test_agent_session_source_reads_dismissed_member_transcript_from_bundle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -102,7 +102,7 @@ def test_family_source_reads_dismissed_member_transcript_from_bundle(
     assert source.excluded == ()
 
 
-def test_family_source_includes_completed_members_in_chain_order(
+def test_agent_session_source_includes_completed_members_in_chain_order(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -126,11 +126,11 @@ def test_family_source_includes_completed_members_in_chain_order(
     source = _resolve_agent_chat_sources(["cx"])[0]
     explicit_member = _resolve_agent_chat_sources(["cx--plan"])[0]
 
-    assert source.kind == "family"
+    assert source.kind == "session"
     assert source.name == "cx"
     assert source.path == str(coder_chat)
     assert source.to_json_data() == {
-        "kind": "family",
+        "kind": "session",
         "name": "cx",
         "members": [
             {
@@ -154,7 +154,7 @@ def test_family_source_includes_completed_members_in_chain_order(
     assert explicit_member.path == str(planner_chat)
 
 
-def test_dotted_numeric_family_root_resolves_as_family_not_legacy_child(
+def test_dotted_numeric_agent_session_root_resolves_as_agent_session_not_legacy_child(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -179,7 +179,7 @@ def test_dotted_numeric_family_root_resolves_as_family_not_legacy_child(
     source = _resolve_agent_chat_sources([base_name])[0]
 
     assert _resolve_agent_chat_path(base_name) == str(coder_chat)
-    assert source.kind == "family"
+    assert source.kind == "session"
     assert source.name == base_name
     assert [member.name for member in source.members] == [
         f"{base_name}--plan",
@@ -187,7 +187,7 @@ def test_dotted_numeric_family_root_resolves_as_family_not_legacy_child(
     ]
 
 
-def test_family_source_includes_intermediate_handoff_without_done_marker(
+def test_agent_session_source_includes_intermediate_handoff_without_done_marker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -221,7 +221,7 @@ def test_family_source_includes_intermediate_handoff_without_done_marker(
     assert source.excluded == ()
 
 
-def test_family_source_reports_running_tip_as_excluded(
+def test_agent_session_source_reports_running_tip_as_excluded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -253,7 +253,7 @@ def test_family_source_reports_running_tip_as_excluded(
     assert "**Not shown:** `cx--code` (running)" in rendered
 
 
-def test_family_source_omits_current_member_from_own_family_history(
+def test_agent_session_source_omits_current_member_from_own_agent_session_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -276,7 +276,7 @@ def test_family_source_omits_current_member_from_own_family_history(
     source = _resolve_agent_chat_sources(["cx"])[0]
 
     assert source.to_json_data() == {
-        "kind": "family",
+        "kind": "session",
         "name": "cx",
         "members": [
             {
@@ -295,7 +295,7 @@ def test_family_source_omits_current_member_from_own_family_history(
     assert "`cx--code`" not in rendered
 
 
-def test_family_source_includes_failed_member_excludes_unavailable_transcripts(
+def test_agent_session_source_includes_failed_member_excludes_unavailable_transcripts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A terminal failed member is included with failure context, not dropped.
@@ -339,7 +339,7 @@ def test_family_source_includes_failed_member_excludes_unavailable_transcripts(
 
     assert [member.name for member in source.members] == ["cx--plan", "cx--test"]
     failed_member = source.members[1]
-    assert isinstance(failed_member, _ForkFamilyMemberSource)
+    assert isinstance(failed_member, _ForkAgentSessionMemberSource)
     assert failed_member.kind == "agent"
     assert failed_member.outcome == "failed"
     assert failed_member.failure is not None
@@ -350,7 +350,7 @@ def test_family_source_includes_failed_member_excludes_unavailable_transcripts(
     ]
 
 
-def test_family_source_requires_at_least_one_completed_transcript(
+def test_agent_session_source_requires_at_least_one_completed_transcript(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -365,7 +365,7 @@ def test_family_source_requires_at_least_one_completed_transcript(
         _resolve_agent_chat_sources(["cx"])
 
 
-def test_family_and_explicit_member_duplicate_transcript_are_coalesced(
+def test_agent_session_and_explicit_member_duplicate_transcript_are_coalesced(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -395,7 +395,7 @@ def test_family_and_explicit_member_duplicate_transcript_are_coalesced(
     ]
 
 
-def test_agent_then_overlapping_family_keeps_unique_later_member(
+def test_agent_then_overlapping_agent_session_keeps_unique_later_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -420,13 +420,13 @@ def test_agent_then_overlapping_family_keeps_unique_later_member(
 
     assert [(source.kind, source.name) for source in sources] == [
         ("agent", "cx--code"),
-        ("family", "cx"),
+        ("session", "cx"),
     ]
     assert [member.name for member in sources[1].members] == ["cx--plan"]
     assert sources[1].path == str(planner_chat)
 
 
-def test_legacy_rootless_family_source_includes_all_completed_members(
+def test_legacy_rootless_agent_session_source_includes_all_completed_members(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -449,6 +449,6 @@ def test_legacy_rootless_family_source_includes_all_completed_members(
 
     source = _resolve_agent_chat_sources(["cx"])[0]
 
-    assert source.kind == "family"
+    assert source.kind == "session"
     assert [member.name for member in source.members] == ["cx--plan", "cx--code"]
     assert source.path == str(coder_chat)

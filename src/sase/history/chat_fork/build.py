@@ -24,7 +24,7 @@ from .failure import (
     format_failed_agent_body,
     format_failed_agent_section,
 )
-from .family import format_family_fork_source
+from .agent_session import format_agent_session_fork_source
 from .proc import PROC_UNTRUSTED_GUIDANCE, format_proc_body, format_proc_source
 
 
@@ -136,7 +136,7 @@ def build_fork_injected_history(
     ]
     if any(fork_source_kind(source) == "session" for source in sources):
         guidance_parts.append(
-            "Members inside an agent family section are sequential: each member "
+            "Members inside an agent session section are sequential: each member "
             "continued the previous member's work."
         )
     if any(fork_source_has_proc_content(source) for source in sources):
@@ -206,7 +206,7 @@ def _format_fork_source(
     if kind == "proc":
         return format_proc_source(source, index=index, count=count)
     if kind == "session":
-        return format_family_fork_source(
+        return format_agent_session_fork_source(
             source,
             index=index,
             count=count,

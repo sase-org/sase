@@ -299,7 +299,7 @@ def test_legacy_none_policy_reports_conflict_for_raw_monitor_logs(
     log_path = tmp_path / "monitor.log"
     log_path.write_text("SECRET_MONITOR_TAIL\n# New Query\n", encoding="utf-8")
     source = {
-        "kind": "family",
+        "kind": "session",
         "name": "acme",
         "members": [
             {
@@ -464,7 +464,7 @@ def test_delayed_starter_settlement_hydrates_from_starter_dir(
     assert published.node_id
 
 
-def test_alias_reuse_does_not_rediscover_a_newer_family_member(
+def test_alias_reuse_does_not_rediscover_a_newer_agent_session_member(
     tmp_path: Path,
 ) -> None:
     artifacts = tmp_path / "artifacts"
@@ -575,14 +575,14 @@ def test_shared_ancestry_hydrates_once_for_manual_multi_parent(
     assert "RIGHT_REPLY" in rendered
 
 
-def test_historical_family_monitor_records_prefix_reset(tmp_path: Path) -> None:
+def test_historical_agent_session_monitor_records_prefix_reset(tmp_path: Path) -> None:
     artifacts = tmp_path / "artifacts"
     older = artifacts / "20260911010101"
     newer = artifacts / "20260911010202"
     _write_monitor_result_node(older, next_output="tail")
     _write_monitor_result_node(newer, next_output="tail")
     source = {
-        "kind": "family",
+        "kind": "session",
         "name": "acme",
         "members": [
             _monitor_member(older, name="acme--old"),

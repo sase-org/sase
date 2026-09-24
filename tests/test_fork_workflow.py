@@ -505,7 +505,7 @@ def test_deferred_launch_ignores_bare_fork_prose_inside_disabled_region(
     assert expanded.endswith("Continue the work")
 
 
-def test_embedded_family_fork_injects_each_completed_member_reply_once(
+def test_embedded_agent_session_fork_injects_each_completed_member_reply_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -564,7 +564,7 @@ def test_embedded_family_fork_injects_each_completed_member_reply_once(
             "#fork:cx\nContinue"
         )
 
-    assert "agent family `cx`" in expanded_prompt
+    assert "agent session `cx`" in expanded_prompt
     assert "sequential chain" in expanded_prompt
     assert expanded_prompt.index("cx--plan") < expanded_prompt.index("cx--code")
     assert expanded_prompt.count("PLANNER_REPLY") == 1

@@ -57,7 +57,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
         PathPassingReview(
             exemption=(
                 "Read-only workflow enrichment: agent_meta.json is read to skip "
-                "dead-pid FAILED derivation for family-shell members and to "
+                "dead-pid FAILED derivation for agent-session-shell members and to "
                 "locate the runner output log for the TUI fallback."
             ),
         )
@@ -74,7 +74,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
         "_has_monitored_done_marker"
     ): PathPassingReview(
         exemption=(
-            "Read-only settled family-shell check: done.json is inspected only "
+            "Read-only settled agent-session-shell check: done.json is inspected only "
             "to test whether its outcome is 'monitored' or 'gated' so the "
             "workflow-state projection can skip the vestigial launch-scaffolding "
             "row."
@@ -92,9 +92,9 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "are inspected only to report member model and outcome metadata."
         ),
     ),
-    "src/sase/history/chat_fork/family.py:_format_family_member": PathPassingReview(
+    "src/sase/history/chat_fork/agent_session.py:_format_agent_session_member": PathPassingReview(
         exemption=(
-            "Read-only family fork context assembly: agent_meta.json and done.json "
+            "Read-only agent-session fork context assembly: agent_meta.json and done.json "
             "are inspected only to report member model and outcome metadata."
         ),
     ),
@@ -155,11 +155,11 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
         )
     ),
     (
-        "src/sase/scripts/_agent_chat_from_name_family.py:"
-        "_resolve_agent_family_member_shell"
+        "src/sase/scripts/_agent_chat_from_name_agent_session.py:"
+        "_resolve_agent_session_member_shell"
     ): PathPassingReview(
         exemption=(
-            "Read-only family fork classification: agent_meta.json and done.json "
+            "Read-only agent-session fork classification: agent_meta.json and done.json "
             "are inspected only to choose the member-owned transcript, failure "
             "record, or exclusion reason."
         ),
@@ -176,10 +176,10 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
     ),
     (
         "src/sase/scripts/_agent_chat_from_name_resume.py:"
-        "_resolve_family_member_resume_transcript"
+        "_resolve_agent_session_member_resume_transcript"
     ): PathPassingReview(
         exemption=(
-            "Read-only family-member resume lookup: agent_meta.json and done.json "
+            "Read-only agent-session-member resume lookup: agent_meta.json and done.json "
             "are inspected only to resolve the member-owned transcript path, "
             "with archived completion metadata as a read-only fallback."
         ),
@@ -242,7 +242,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
     "src/sase/core/agent_hold_facade.py:agent_armer_wire_for_artifacts": PathPassingReview(
         exemption=(
             "Read-only hold-armer identity lookup: agent_meta.json is read to "
-            "recover the arming agent's name/pid/family/clan, and done.json's "
+            "recover the arming agent's name/pid/agent-session/clan, and done.json's "
             "path is only recorded on the wire record for a later existence "
             "check by the liveness prober; no marker is written here."
         ),

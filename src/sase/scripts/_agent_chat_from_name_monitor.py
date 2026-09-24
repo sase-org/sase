@@ -12,8 +12,8 @@ from sase.scripts._fork_proc_sources import proc_info_from_monitor
 
 
 def resolve_monitor_fork_source(name: str, artifacts_dir: Path) -> ForkSource:
-    """Resolve one explicitly named monitor family member as a proc source."""
-    record = read_family_monitor_marker(artifacts_dir)
+    """Resolve one explicitly named monitor agent-session member as a proc source."""
+    record = read_agent_session_monitor_marker(artifacts_dir)
     if record is None:
         raise RuntimeError(
             f"Monitor record for agent '{name}' is not readable: {artifacts_dir}"
@@ -27,7 +27,7 @@ def resolve_monitor_fork_source(name: str, artifacts_dir: Path) -> ForkSource:
     )
 
 
-def read_family_monitor_marker(artifacts_dir: Path) -> MonitorRecord | None:
+def read_agent_session_monitor_marker(artifacts_dir: Path) -> MonitorRecord | None:
     project_name = _project_name_for_artifact_dir(artifacts_dir)
     return read_monitor_marker(project_name, str(artifacts_dir))
 

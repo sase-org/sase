@@ -216,8 +216,8 @@ def _fresh_cleanup_target(
         record = _scan_cleanup_target_artifact(target.artifacts_dir)
         if record is None:
             return None
-        membership: Literal["registry", "family"] = (
-            "family" if slot.owner_name != target.name else "registry"
+        membership: Literal["registry", "session"] = (
+            "session" if slot.owner_name != target.name else "registry"
         )
         try:
             return classify_artifact_record(

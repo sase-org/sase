@@ -10,7 +10,7 @@ Example::
     Review this code...
 
 The ``%model`` directive overrides the LLM model used for that prompt. Its
-parenthesized form also accepts launch-family alias overrides, for example
+parenthesized form also accepts agent-session-scoped alias overrides, for example
 ``%model(opus, coder=sonnet)``.
 
 The implementation is split across a few private sibling modules:

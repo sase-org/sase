@@ -39,8 +39,8 @@ class ForkClanMemberSource:
 
 
 @dataclass(frozen=True)
-class ForkFamilyMemberSource:
-    """One included family member: an agent shell or a proc/monitor shell."""
+class ForkAgentSessionMemberSource:
+    """One included agent-session member: an agent shell or a proc/monitor shell."""
 
     name: str
     artifact_dir: str
@@ -67,8 +67,8 @@ class ForkFamilyMemberSource:
 
 
 @dataclass(frozen=True)
-class ForkExcludedFamilyMember:
-    """One family member omitted from a family fork source."""
+class ForkExcludedAgentSessionMember:
+    """One agent-session member omitted from an agent-session fork source."""
 
     name: str
     status: str
@@ -76,7 +76,7 @@ class ForkExcludedFamilyMember:
 
 @dataclass(frozen=True)
 class ForkSource:
-    """One agent conversation, proc shell, family, or completed clan."""
+    """One agent conversation, proc shell, agent session, or completed clan."""
 
     kind: str
     name: str
@@ -84,8 +84,8 @@ class ForkSource:
     artifact_dir: str | None = None
     generation: str | None = None
     tribe: str | None = None
-    members: tuple[ForkClanMemberSource | ForkFamilyMemberSource, ...] = ()
-    excluded: tuple[ForkExcludedFamilyMember, ...] = ()
+    members: tuple[ForkClanMemberSource | ForkAgentSessionMemberSource, ...] = ()
+    excluded: tuple[ForkExcludedAgentSessionMember, ...] = ()
     failure: ForkFailure | None = None
     proc: ForkProcInfo | None = None
 
@@ -112,14 +112,14 @@ class ForkSource:
             if self.proc is not None:
                 data["proc"] = self.proc.to_json_data()
             return data
-        if self.kind == "family":
+        if self.kind == "session":
             return {
                 "kind": self.kind,
                 "name": self.name,
                 "members": [
                     member.to_json_data()
                     for member in self.members
-                    if isinstance(member, ForkFamilyMemberSource)
+                    if isinstance(member, ForkAgentSessionMemberSource)
                 ],
                 "excluded": [
                     {"name": member.name, "status": member.status}

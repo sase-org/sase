@@ -12,7 +12,7 @@ from sase.core.wait_dependency_resolution import (
 )
 from tests._agent_names_fixtures import make_agent
 from tests._gate_wait_dependency_helpers import (
-    _gate_handoff_family,
+    _gate_handoff_agent_session,
     _identity_dep,
     _write_gate_done,
 )
@@ -27,7 +27,7 @@ def test_gate_handoff_resolves_after_successful_successor(
     gate_state: str,
     followup_outcome: str,
 ) -> None:
-    root_dir, gate_dir, _successor_dir = _gate_handoff_family(
+    root_dir, gate_dir, _successor_dir = _gate_handoff_agent_session(
         tmp_path,
         gate_state=gate_state,
         followup_outcome=followup_outcome,
@@ -44,11 +44,11 @@ def test_gate_handoff_resolves_after_successful_successor(
         [],
         [_identity_dep(root_dir, name="gate-lane")],
     ).resolved
-    family = index.agent_session_candidate("gate-lane")
-    assert family is not None
-    assert family.is_resolved
-    assert family.is_done
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("gate-lane")
+    assert agent_session is not None
+    assert agent_session.is_resolved
+    assert agent_session.is_done
+    assert not agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == ()
 
     gate_candidate = index.artifacts_by_dir[str(gate_dir)]
@@ -62,7 +62,7 @@ def test_gate_handoff_resolves_after_successful_successor(
 
 
 def test_gate_handoff_waits_for_missing_successor(tmp_path: Path) -> None:
-    _root_dir, gate_dir, _successor_dir = _gate_handoff_family(
+    _root_dir, gate_dir, _successor_dir = _gate_handoff_agent_session(
         tmp_path,
         gate_state="answered",
         successor_outcome=None,
@@ -73,10 +73,10 @@ def test_gate_handoff_waits_for_missing_successor(tmp_path: Path) -> None:
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.agent_session_candidate("gate-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("gate-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert not agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == ()
     assert index.artifacts_by_dir[str(gate_dir)].outcome == "completed"
 
@@ -84,7 +84,7 @@ def test_gate_handoff_waits_for_missing_successor(tmp_path: Path) -> None:
 def test_gate_handoff_reports_failed_successor_not_gate(
     tmp_path: Path,
 ) -> None:
-    _root_dir, _gate_dir, successor_dir = _gate_handoff_family(
+    _root_dir, _gate_dir, successor_dir = _gate_handoff_agent_session(
         tmp_path,
         gate_state="timeout",
         successor_outcome="failed",
@@ -96,22 +96,22 @@ def test_gate_handoff_reports_failed_successor_not_gate(
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.agent_session_candidate("gate-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert family.is_failed
+    agent_session = index.agent_session_candidate("gate-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == (
         index.artifacts_by_dir[str(successor_dir)],
     )
 
 
-def test_start_failed_gate_superseded_by_retry_resolves_family(
+def test_start_failed_gate_superseded_by_retry_resolves_agent_session(
     tmp_path: Path,
 ) -> None:
     """Gate symmetry for the wait-supersession fix.
 
     A start-failed gate member with no follow-up must stop blocking the
-    family once a later gate retry in the same generation hands off to a
+    agent session once a later gate retry in the same generation hands off to a
     completed successor -- the same recovery the monitor case exercises.
     """
     root_dir = make_agent(
@@ -186,10 +186,10 @@ def test_start_failed_gate_superseded_by_retry_resolves_family(
     assert gate_candidate.shell_member_kind == "gate"
     assert gate_candidate.outcome == "failed"
 
-    family = index.agent_session_candidate("gate-lane")
-    assert family is not None
-    assert family.is_resolved
-    assert family.is_done
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("gate-lane")
+    assert agent_session is not None
+    assert agent_session.is_resolved
+    assert agent_session.is_done
+    assert not agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == ()
     assert index.artifacts_by_dir[str(successor_dir)].is_resolved

@@ -158,7 +158,7 @@ def test_released_serial_successor_and_parallel_member_join_fifo_queue() -> None
     ]
 
 
-def test_serial_child_reuses_active_family_claim_without_queue_entry() -> None:
+def test_serial_child_reuses_active_agent_session_claim_without_queue_entry() -> None:
     records = [
         _record(
             "/parent",

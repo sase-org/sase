@@ -94,7 +94,7 @@ def check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
                     "token": token,
                     "message": (
                         f"{name} -> %model({alias}={token}) does not resolve "
-                        "to a provider; the family override will fall back to "
+                        "to a provider; the agent-session override will fall back to "
                         "the default provider"
                     ),
                 }

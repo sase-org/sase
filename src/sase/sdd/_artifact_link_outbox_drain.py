@@ -268,7 +268,7 @@ def _entry_is_eligible(entry: _ArtifactLinkOutboxEntry) -> bool:
     """Return whether *entry*'s own recording run earned release evidence.
 
     Eligibility is bound to the exact ``(run_id, agent_name)`` that recorded
-    this entry -- an agent name or family publication elsewhere is not
+    this entry -- an agent name or agent-session publication elsewhere is not
     sufficient, so a read-only neighbor's queued rows never ride along on a
     sibling run's real commit.
     """

@@ -186,7 +186,7 @@ def _record_real_change_release_evidence(cp: CommitCheckpoint) -> None:
     finalizer's reconciliation pass already sweeps any dirt that is only
     artifact-link bookkeeping before a repository ever reaches stitch
     dispatch, so a repository that got here necessarily had a qualifying,
-    non-bookkeeping change. Publication of some other agent or family
+    non-bookkeeping change. Publication of some other agent or agent-session
     member is not evidence for this run, so evidence is bound to this run's
     own ``SASE_AGENT_TIMESTAMP``/``publication_agent`` identity.
     """

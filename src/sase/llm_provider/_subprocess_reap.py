@@ -236,7 +236,7 @@ def _registered_live_pids() -> frozenset[int] | None:
     """Return the pids SASE itself tracks as live, or ``None`` if unreadable.
 
     Agents and monitors come from the same listing ``sase agent list`` reads
-    (monitor members are agent-family rows); procs come from the durable proc
+    (monitor members are agent-session rows); procs come from the durable proc
     store. Imports are deferred because this only runs when a stall fires.
     """
     try:

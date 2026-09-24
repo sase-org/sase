@@ -239,7 +239,9 @@ def _json_bytes(payload: Mapping[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def test_versioned_family_replay_deduplicates_shared_parent(tmp_path: Path) -> None:
+def test_versioned_agent_session_replay_deduplicates_shared_parent(
+    tmp_path: Path,
+) -> None:
     base = tmp_path / "artifacts" / "20260911010101"
     child = tmp_path / "artifacts" / "20260911010202"
     _write_agent_node(
@@ -258,7 +260,7 @@ def test_versioned_family_replay_deduplicates_shared_parent(tmp_path: Path) -> N
         response="CHILD_REPLY",
     )
     source = {
-        "kind": "family",
+        "kind": "session",
         "name": "acme",
         "members": [
             _agent_member(tmp_path, "20260911010101", "acme--0"),
@@ -292,7 +294,7 @@ def test_versioned_replay_keeps_hundred_turn_chain_linear(tmp_path: Path) -> Non
         )
         members.append(_agent_member(tmp_path, suffix, f"chain--{index}"))
         parent = node_id
-    source = {"kind": "family", "name": "chain", "members": members, "excluded": []}
+    source = {"kind": "session", "name": "chain", "members": members, "excluded": []}
 
     rendered = build_fork_injected_history([source])
     replayed = build_fork_injected_history([source])
@@ -327,7 +329,7 @@ def test_versioned_monitor_result_does_not_reinject_raw_tail(tmp_path: Path) -> 
         monitor, next_output="none", status="completed", exit_code=0
     )
     source = {
-        "kind": "family",
+        "kind": "session",
         "name": "acme",
         "members": [
             _agent_member(tmp_path, "20260911010101", "acme--0"),
@@ -369,8 +371,8 @@ def test_versioned_monitor_result_tail_policy_uses_frozen_node_once(
     proc = direct["proc"]
     assert isinstance(proc, dict)
     proc["command"] = "echo MUTATED_COMMAND"
-    family = {
-        "kind": "family",
+    agent_session = {
+        "kind": "session",
         "name": "acme",
         "members": [
             _agent_member(tmp_path, "20260911010101", "acme--0"),
@@ -379,7 +381,7 @@ def test_versioned_monitor_result_tail_policy_uses_frozen_node_once(
         "excluded": [],
     }
 
-    rendered = build_fork_injected_history([direct, family])
+    rendered = build_fork_injected_history([direct, agent_session])
 
     assert "STARTER_REPLY" in rendered
     assert rendered.count("SECRET_MONITOR_TAIL") == 1
@@ -424,7 +426,7 @@ def test_versioned_replay_keeps_uncertain_legacy_as_opaque_boundary(
         response="CURRENT_REPLY",
     )
     source = {
-        "kind": "family",
+        "kind": "session",
         "name": "acme",
         "members": [
             {

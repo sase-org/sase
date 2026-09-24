@@ -55,7 +55,7 @@ _MODEL_WITHOUT_NEXT = (
 
 
 def handle_monitor_start(args: argparse.Namespace) -> int:
-    """Start a command as a monitor family member."""
+    """Start a command as a monitor agent-session member."""
     command = start_command(args)
     if not command:
         print(

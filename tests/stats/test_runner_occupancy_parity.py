@@ -39,7 +39,7 @@ class _Shell:
     created: int
     start: int | None
     end: int
-    family: str | None = None
+    agent_session: str | None = None
     parent: str | None = None
     parallel: bool = False
     role: str | None = None
@@ -59,7 +59,7 @@ def _write_shell(projects: Path, shell: _Shell) -> None:
     meta: dict[str, object] = {
         "name": shell.name,
         "pid": shell.pid,
-        "agent_session": shell.family,
+        "agent_session": shell.agent_session,
         "agent_session_role": shell.role,
         # legacy agent-family spelling: the core artifact-index scanner has
         # no ``agent_session_parallel`` alias yet; the stats occupancy path
@@ -122,7 +122,7 @@ def _record_as_of(shell: _Shell, instant: int) -> AgentArtifactRecordWire:
         agent_meta=AgentMetaWire(
             pid=shell.pid,
             parent_timestamp=shell.parent,
-            agent_session=shell.family,
+            agent_session=shell.agent_session,
             agent_session_role=shell.role,
             agent_session_parallel=shell.parallel,
             agent_session_shell=(
@@ -192,17 +192,17 @@ def test_standalone_agent_matches_python_occupancy(tmp_path: Path) -> None:
     )
 
 
-def test_overlapping_serial_family_does_not_double_count(tmp_path: Path) -> None:
+def test_overlapping_serial_agent_session_does_not_double_count(tmp_path: Path) -> None:
     _assert_parity(
         tmp_path,
         (
-            _Shell(name="root", created=0, start=0, end=50, family="fam"),
+            _Shell(name="root", created=0, start=0, end=50, agent_session="fam"),
             _Shell(
                 name="serial",
                 created=20,
                 start=20,
                 end=60,
-                family="fam",
+                agent_session="fam",
                 parent="root",
             ),
         ),
@@ -213,13 +213,13 @@ def test_monitor_handoff_gap_stays_occupied(tmp_path: Path) -> None:
     _assert_parity(
         tmp_path,
         (
-            _Shell(name="starter", created=0, start=0, end=20, family="fam"),
+            _Shell(name="starter", created=0, start=0, end=20, agent_session="fam"),
             _Shell(
                 name="monitor",
                 created=15,
                 start=30,
                 end=80,
-                family="fam",
+                agent_session="fam",
                 role="monitor",
                 monitor_id="mon-1",
             ),
@@ -228,7 +228,7 @@ def test_monitor_handoff_gap_stays_occupied(tmp_path: Path) -> None:
                 created=80,
                 start=80,
                 end=100,
-                family="fam",
+                agent_session="fam",
                 parent=_compact(0),
             ),
         ),
@@ -239,13 +239,13 @@ def test_parallel_members_add_their_own_slots(tmp_path: Path) -> None:
     _assert_parity(
         tmp_path,
         (
-            _Shell(name="root", created=0, start=0, end=10, family="fam"),
+            _Shell(name="root", created=0, start=0, end=10, agent_session="fam"),
             _Shell(
                 name="p1",
                 created=10,
                 start=10,
                 end=80,
-                family="fam",
+                agent_session="fam",
                 parent=_compact(0),
                 parallel=True,
             ),
@@ -254,7 +254,7 @@ def test_parallel_members_add_their_own_slots(tmp_path: Path) -> None:
                 created=20,
                 start=20,
                 end=90,
-                family="fam",
+                agent_session="fam",
                 parent=_compact(0),
                 parallel=True,
             ),
@@ -279,7 +279,9 @@ def test_inherited_monitor_id_matches_ordinary_start_semantics(tmp_path: Path) -
     )
 
 
-def test_shared_family_name_across_projects_counts_separately(tmp_path: Path) -> None:
+def test_shared_agent_session_name_across_projects_counts_separately(
+    tmp_path: Path,
+) -> None:
     _assert_parity(
         tmp_path,
         (
@@ -288,7 +290,7 @@ def test_shared_family_name_across_projects_counts_separately(tmp_path: Path) ->
                 created=0,
                 start=0,
                 end=50,
-                family="fam",
+                agent_session="fam",
                 project="proj-a",
             ),
             _Shell(
@@ -296,7 +298,7 @@ def test_shared_family_name_across_projects_counts_separately(tmp_path: Path) ->
                 created=0,
                 start=0,
                 end=50,
-                family="fam",
+                agent_session="fam",
                 project="proj-b",
             ),
         ),

@@ -77,7 +77,7 @@ def release_vcs_workspace(
             cl_name=cl_name,
             caller_tag=caller_tag,
             claim_pid=runner_pid,
-            error="workspace handed off; family still holds the checkout",
+            error="workspace handed off; agent session still holds the checkout",
         )
         return VcsReleaseResult(
             released=False,

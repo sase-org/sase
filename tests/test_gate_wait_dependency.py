@@ -1,4 +1,4 @@
-"""Wait-dependency semantics for a single gate family/clan member."""
+"""Wait-dependency semantics for a single gate agent session/clan member."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from tests._gate_wait_dependency_helpers import (
 
 
 @pytest.mark.parametrize("gate_state", ["answered", "completed", "stopped"])
-def test_successful_gate_resolves_family_and_clan(
+def test_successful_gate_resolves_agent_session_and_clan(
     tmp_path: Path,
     gate_state: str,
 ) -> None:
@@ -34,9 +34,13 @@ def test_successful_gate_resolves_family_and_clan(
     )
 
     assert index.is_resolved("gate-lane")
-    family = index.agent_session_candidate("gate-lane")
+    agent_session = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
-    assert family is not None and family.is_resolved and family.is_done
+    assert (
+        agent_session is not None
+        and agent_session.is_resolved
+        and agent_session.is_done
+    )
     assert clan is not None and clan.is_resolved and clan.is_done
     assert index.artifacts_by_dir[str(artifact_dir)].outcome == "completed"
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == ()
@@ -59,9 +63,9 @@ def test_unsuccessful_gate_blocks_and_is_reported_as_terminal(
     )
 
     assert not index.is_resolved("gate-lane")
-    family = index.agent_session_candidate("gate-lane")
+    agent_session = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
-    assert family is not None and family.is_failed
+    assert agent_session is not None and agent_session.is_failed
     assert clan is not None and clan.is_failed
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == (
         index.artifacts_by_dir[str(artifact_dir)],
@@ -69,7 +73,7 @@ def test_unsuccessful_gate_blocks_and_is_reported_as_terminal(
     assert index.artifacts_by_dir[str(artifact_dir)].outcome == "failed"
 
 
-def test_settled_gate_members_resolve_interleaved_family_and_clan(
+def test_settled_gate_members_resolve_interleaved_agent_session_and_clan(
     tmp_path: Path,
 ) -> None:
     root_dir = make_agent(
@@ -167,9 +171,13 @@ def test_settled_gate_members_resolve_interleaved_family_and_clan(
         [],
         [_identity_dep(root_dir, name="gate-lane")],
     ).resolved
-    family = index.agent_session_candidate("gate-lane")
+    agent_session = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
-    assert family is not None and family.is_resolved and family.is_done
+    assert (
+        agent_session is not None
+        and agent_session.is_resolved
+        and agent_session.is_done
+    )
     assert clan is not None and clan.is_resolved and clan.is_done
 
 
@@ -216,8 +224,12 @@ def test_pending_gate_member_does_not_resolve_from_workflow_state_fallback(
     assert not gate_candidate.is_resolved
     assert not index.is_resolved(gate_candidate.name)
 
-    family = index.agent_session_candidate("gate-lane")
+    agent_session = index.agent_session_candidate("gate-lane")
     clan = index.clan_candidate("gate-clan")
-    assert family is not None and not family.is_resolved and family.is_done
+    assert (
+        agent_session is not None
+        and not agent_session.is_resolved
+        and agent_session.is_done
+    )
     assert clan is not None and not clan.is_resolved and not clan.is_failed
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == ()

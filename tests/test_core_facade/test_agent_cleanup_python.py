@@ -31,7 +31,7 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _request,
     _SCENARIOS,
     _scenario_clan_scope,
-    _scenario_clan_scope_active_parallel_family,
+    _scenario_clan_scope_active_parallel_agent_session,
     _scenario_collapsed_group,
     _scenario_custom_child_running,
     _scenario_done_live_runner_dismiss,
@@ -44,10 +44,10 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_focused_panel_kill_dismiss,
     _scenario_marked_set,
     _scenario_pidless_dismiss_fallback,
-    _scenario_parallel_family_root,
-    _scenario_clan_sequential_family_dismiss,
+    _scenario_parallel_agent_session_root,
+    _scenario_clan_sequential_agent_session_dismiss,
     _scenario_direct_live_monitor,
-    _scenario_explicit_clan_sequential_family_dismiss,
+    _scenario_explicit_clan_sequential_agent_session_dismiss,
     _scenario_owner_cascades_live_monitor,
     _scenario_tribe_scope,
     _scenario_workflow_parent_with_children,
@@ -83,7 +83,7 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
         assert [item.cl_name for item in plan.cascaded_workflow_children] == [
             "release-step"
         ]
-    elif scenario is _scenario_clan_scope_active_parallel_family:
+    elif scenario is _scenario_clan_scope_active_parallel_agent_session:
         assert plan.kill_items == ()
         assert plan.dismiss_items == ()
         assert any(
@@ -119,14 +119,14 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
             ("child", KILL_KIND_RUNNING)
         ]
         assert plan.dismiss_items == ()
-    elif scenario is _scenario_parallel_family_root:
+    elif scenario is _scenario_parallel_agent_session_root:
         assert [item.identity.cl_name for item in plan.kill_items] == [
             "sase-6g",
             "sase-6g.1",
         ]
     elif scenario in {
-        _scenario_clan_sequential_family_dismiss,
-        _scenario_explicit_clan_sequential_family_dismiss,
+        _scenario_clan_sequential_agent_session_dismiss,
+        _scenario_explicit_clan_sequential_agent_session_dismiss,
     }:
         assert plan.kill_items == ()
         assert [item.identity.cl_name for item in plan.dismiss_items] == [
@@ -312,7 +312,7 @@ def _broad_scope_kill_requests() -> tuple[Any, ...]:
     )
 
 
-def test_python_cleanup_planner_broad_scopes_act_on_family_member_rows() -> None:
+def test_python_cleanup_planner_broad_scopes_act_on_agent_session_member_rows() -> None:
     child = _agent(
         cl_name="child",
         raw_suffix="child-ts",
@@ -356,7 +356,7 @@ def test_python_cleanup_planner_broad_scopes_keep_workflow_step_children_cascade
         ]
 
 
-def _assert_clan_sequential_family_dismissed(plan: Any) -> None:
+def _assert_clan_sequential_agent_session_dismissed(plan: Any) -> None:
     assert [item.identity.cl_name for item in plan.dismiss_items] == [
         "sase-ps.plan",
         "sase-ps.plan--1",
@@ -372,18 +372,20 @@ def _assert_clan_sequential_family_dismissed(plan: Any) -> None:
     ]
 
 
-def test_python_cleanup_planner_clan_scope_dismisses_sequential_family_and_monitor() -> (
+def test_python_cleanup_planner_clan_scope_dismisses_sequential_agent_session_and_monitor() -> (
     None
 ):
-    agents, request = _scenario_clan_sequential_family_dismiss()
+    agents, request = _scenario_clan_sequential_agent_session_dismiss()
     plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
-    _assert_clan_sequential_family_dismissed(plan)
+    _assert_clan_sequential_agent_session_dismissed(plan)
 
 
-def test_python_cleanup_planner_explicit_identities_dismiss_sequential_family() -> None:
-    agents, request = _scenario_explicit_clan_sequential_family_dismiss()
+def test_python_cleanup_planner_explicit_identities_dismiss_sequential_agent_session() -> (
+    None
+):
+    agents, request = _scenario_explicit_clan_sequential_agent_session_dismiss()
     plan = _plan_agent_cleanup_python(agents_to_cleanup_targets(agents), request)
-    _assert_clan_sequential_family_dismissed(plan)
+    _assert_clan_sequential_agent_session_dismissed(plan)
 
 
 def test_python_cleanup_planner_clan_scope_without_generation_selects_all() -> None:

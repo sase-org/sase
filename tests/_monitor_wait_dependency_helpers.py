@@ -17,8 +17,8 @@ def _identity_dep(artifact_dir: Path, *, name: str) -> dict[str, str]:
     }
 
 
-def _family_fork_source(root_dir: Path, *, name: str) -> dict[str, str]:
-    return {**_identity_dep(root_dir, name=name), "kind": "family"}
+def _agent_session_fork_source(root_dir: Path, *, name: str) -> dict[str, str]:
+    return {**_identity_dep(root_dir, name=name), "kind": "session"}
 
 
 def _monitor_member(
@@ -115,7 +115,7 @@ def _write_completed_workflow_state(artifact_dir: Path) -> None:
     )
 
 
-def _monitor_handoff_family(
+def _monitor_handoff_agent_session(
     tmp_path: Path,
     *,
     monitor_state: str = "timeout",

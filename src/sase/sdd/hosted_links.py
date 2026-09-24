@@ -105,7 +105,7 @@ class HostedLinkResolver:
         self._reserved_agent_session_names: frozenset[str] | None = None
 
     def snapshot_agent_name_registry(self) -> None:
-        """Refresh family-name state once for a batch of agent-link lookups.
+        """Refresh agent-session name state once for a batch of agent-link lookups.
 
         This is a rendering read: the answer only shapes a URL, so it takes
         the display-tier registry load. The reservation-tier load would force
@@ -187,7 +187,7 @@ class HostedLinkResolver:
                 path = sase_agent_page_path(agent_ref, owner, snapshot)
                 family_path = f"families/{agent_ref.global_name}.md"
                 if (
-                    not agent_ref.is_family
+                    not agent_ref.is_agent_session
                     and self._agents_sidecar_path is not None
                     and (self._agents_sidecar_path / family_path).is_file()
                 ):

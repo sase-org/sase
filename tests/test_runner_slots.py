@@ -26,7 +26,7 @@ def _candidate_record(artifacts_dir: str) -> dict[str, object]:
     )
 
 
-def test_running_agent_slot_count_uses_live_started_family_occupancy() -> None:
+def test_running_agent_slot_count_uses_live_started_agent_session_occupancy() -> None:
     records = [
         _record("/a", pid=1, run_started=True),
         _record("/starting", pid=2),
@@ -35,14 +35,14 @@ def test_running_agent_slot_count_uses_live_started_family_occupancy() -> None:
             pid=3,
             run_started=True,
             parent_timestamp="parent",
-            agent_session="family-b",
+            agent_session="session-b",
         ),
         _record(
             "/parallel-child",
             pid=7,
             run_started=True,
             parent_timestamp="parent",
-            agent_session="family-b",
+            agent_session="session-b",
             agent_session_parallel=True,
         ),
         _record("/step", pid=4, run_started=True, appears_as_agent=False),
@@ -50,9 +50,9 @@ def test_running_agent_slot_count_uses_live_started_family_occupancy() -> None:
         _record("/dead", pid=6, run_started=True),
     ]
 
-    # /a is its own family (1). family-b's live serial child holds the
-    # family's one slot (1) and its live parallel sibling holds its own slot
-    # on top of that (1). /starting (not started), /step (not an agent),
+    # /a is its own agent session (1). session-b's live serial child holds the
+    # agent session's one slot (1) and its live parallel sibling holds its own
+    # slot on top of that (1). /starting (not started), /step (not an agent),
     # /done, and /dead (not live) contribute nothing.
     assert (
         running_agent_slot_count(records, lambda record: record.agent_meta.pid != 6)
@@ -210,7 +210,7 @@ def test_stopped_monitor_before_followup_start_documents_old_gap() -> None:
     assert running_agent_slot_count(records, _live_unless_stopped) == 0
 
 
-def test_two_independent_families_occupy_two_slots() -> None:
+def test_two_independent_agent_sessions_occupy_two_slots() -> None:
     records = [
         _record("/a", agent_session="fam-a", run_started=True),
         _record("/b", agent_session="fam-b", run_started=True),
@@ -228,7 +228,7 @@ def test_clan_members_launched_independently_count_individually() -> None:
     assert running_agent_slot_count(records, _always_live) == 2
 
 
-def test_live_parallel_family_members_count_individually() -> None:
+def test_live_parallel_agent_session_members_count_individually() -> None:
     records = [
         _record("/root", agent_session="fam", run_started=True, done=True),
         _record(
@@ -250,7 +250,7 @@ def test_live_parallel_family_members_count_individually() -> None:
     assert running_agent_slot_count(records, _always_live) == 2
 
 
-def test_pending_question_on_familys_only_live_shell_frees_its_slot() -> None:
+def test_pending_question_on_agent_sessions_only_live_shell_frees_its_slot() -> None:
     records = [
         _record(
             "/root",
@@ -296,7 +296,9 @@ def test_non_agent_workflow_step_record_does_not_occupy() -> None:
     assert running_agent_slot_count(records, _always_live) == 0
 
 
-def test_records_from_two_projects_sharing_a_family_name_count_separately() -> None:
+def test_records_from_two_projects_sharing_an_agent_session_name_count_separately() -> (
+    None
+):
     records = [
         _record("/a", project_name="proj-a", agent_session="fam", run_started=True),
         _record("/b", project_name="proj-b", agent_session="fam", run_started=True),

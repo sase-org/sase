@@ -202,7 +202,7 @@ def test_prompt_url_resolves_agents_sidecar_reference(
     assert resolver.prompt_url("202608/prompts/approved.md") is None
 
 
-def test_agent_url_links_family_member_without_anchor(
+def test_agent_url_links_agent_session_member_without_anchor(
     tmp_path: Path, monkeypatch
 ) -> None:
     primary = tmp_path / "primary"
@@ -235,7 +235,9 @@ def test_agent_url_links_family_member_without_anchor(
     )
 
 
-def test_agent_url_links_registered_family_lane(tmp_path: Path, monkeypatch) -> None:
+def test_agent_url_links_registered_agent_session_lane(
+    tmp_path: Path, monkeypatch
+) -> None:
     primary = tmp_path / "primary"
     primary.mkdir()
     sidecar = tmp_path / "agents"
@@ -287,13 +289,13 @@ def test_agent_url_reuses_and_refreshes_agent_name_registry_snapshot(
             lambda _cls: AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"))
         ),
     )
-    family_names = {"foo"}
+    agent_session_names = {"foo"}
     registry_reads = 0
 
     def reserved_agent_session_names() -> set[str]:
         nonlocal registry_reads
         registry_reads += 1
-        return set(family_names)
+        return set(agent_session_names)
 
     monkeypatch.setattr(
         "sase.agent.names.get_reserved_agent_session_names_for_display",
@@ -312,14 +314,14 @@ def test_agent_url_reuses_and_refreshes_agent_name_registry_snapshot(
     assert "/agents/alice.athena.bar/README.md" in (resolver.agent_url("bar") or "")
     assert registry_reads == 1
 
-    family_names.add("bar")
+    agent_session_names.add("bar")
     resolver.snapshot_agent_name_registry()
 
     assert "/families/alice.athena.bar.md" in (resolver.agent_url("bar") or "")
     assert registry_reads == 2
 
 
-def test_agent_url_finds_family_lane_page_in_local_sidecar(
+def test_agent_url_finds_agent_session_lane_page_in_local_sidecar(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -327,9 +329,9 @@ def test_agent_url_finds_family_lane_page_in_local_sidecar(
     primary.mkdir()
     sidecar = tmp_path / "agents"
     target = _agents_target(primary, sidecar, _GITHUB_AGENTS_REMOTE)
-    family_page = sidecar / "families" / "alice.athena.foo.bar.md"
-    family_page.parent.mkdir()
-    family_page.touch()
+    agent_session_page = sidecar / "families" / "alice.athena.foo.bar.md"
+    agent_session_page.parent.mkdir()
+    agent_session_page.touch()
     monkeypatch.setattr(
         "sase.agents_sync.targets.resolve_sync_targets",
         lambda _projects: TargetSelection((target,), ()),

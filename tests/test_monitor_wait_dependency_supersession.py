@@ -16,13 +16,13 @@ from tests._agent_names_fixtures import make_agent
 from tests._monitor_wait_dependency_helpers import _update_meta, _write_monitor_done
 
 
-def test_start_failed_monitor_superseded_by_retry_resolves_family(
+def test_start_failed_monitor_superseded_by_retry_resolves_agent_session(
     tmp_path: Path,
 ) -> None:
     """Reproduces the sase-zt.6.5.3 incident.
 
     A ``--mon`` that failed at start (teardown shape: ``monitor_state:
-    "failed"``, no follow-up fields) must stop blocking the family once a
+    "failed"``, no follow-up fields) must stop blocking the agent session once a
     later ``--mon-0`` retry in the same generation recovers the lane and
     hands off to a completed successor.
     """
@@ -106,11 +106,11 @@ def test_start_failed_monitor_superseded_by_retry_resolves_family(
     assert mon_candidate.outcome == "failed"
 
     assert dependency_resolution_status(index, ["sase-zt.6.5.3"]).resolved
-    family = index.agent_session_candidate("sase-zt.6.5.3")
-    assert family is not None
-    assert family.is_resolved
-    assert family.is_done
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("sase-zt.6.5.3")
+    assert agent_session is not None
+    assert agent_session.is_resolved
+    assert agent_session.is_done
+    assert not agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("sase-zt.6.5.3") == ()
     assert index.artifacts_by_dir[str(successor_dir)].is_resolved
 
@@ -178,10 +178,10 @@ def test_failed_monitor_not_superseded_by_newer_different_kind_shell_member(
     gate_candidate = index.artifacts_by_dir[str(gate_dir)]
     assert gate_candidate.shell_member_kind == "gate"
 
-    family = index.agent_session_candidate("monitor-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert family.is_failed
+    agent_session = index.agent_session_candidate("monitor-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == (
         mon_candidate,
     )

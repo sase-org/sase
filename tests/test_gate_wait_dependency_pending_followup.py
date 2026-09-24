@@ -9,7 +9,10 @@ from sase.core.wait_dependency_resolution import (
     dependency_resolution_status,
 )
 from tests._agent_names_fixtures import make_agent
-from tests._gate_wait_dependency_helpers import _family_fork_source, _write_gate_done
+from tests._gate_wait_dependency_helpers import (
+    _agent_session_fork_source,
+    _write_gate_done,
+)
 
 
 def test_gate_next_action_without_followup_disposition_blocks_handoff_window(
@@ -49,14 +52,14 @@ def test_gate_next_action_without_followup_disposition_blocks_handoff_window(
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.agent_session_candidate("gate-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("gate-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert not agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("gate-lane") == ()
 
 
-def test_gate_pending_followup_blocks_in_family_waiter(
+def test_gate_pending_followup_blocks_in_agent_session_waiter(
     tmp_path: Path,
 ) -> None:
     root_dir = make_agent(
@@ -107,7 +110,7 @@ def test_gate_pending_followup_blocks_in_family_waiter(
         index,
         [],
         wait_fork_sources=[
-            _family_fork_source(root_dir, name="gate-lane"),
+            _agent_session_fork_source(root_dir, name="gate-lane"),
         ],
         self_artifact_dir=waiter_dir,
     ).resolved

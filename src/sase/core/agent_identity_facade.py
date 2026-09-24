@@ -81,7 +81,7 @@ class _ParsedAgentSessionName:
 class _AgentLinkTargetKind(StrEnum):
     AGENT = "agent"
     # legacy agent-family spelling; core still emits "family" until core-contract
-    FAMILY = "family"
+    LEGACY_AGENT_FAMILY = "family"
     SESSION = "session"
 
 

@@ -77,11 +77,11 @@ class _ReplayBuilder:
     def add_source(self, source: Mapping[str, object]) -> None:
         kind = fork_source_kind(source)
         if kind == "session":
-            self._add_family(source)
+            self._add_agent_session(source)
             return
         self._add_one(source, label=f"{kind} `{fork_source_string(source, 'name')}`")
 
-    def _add_family(self, source: Mapping[str, object]) -> None:
+    def _add_agent_session(self, source: Mapping[str, object]) -> None:
         name = fork_source_string(source, "name")
         raw_members = source.get("members")
         if not isinstance(raw_members, list):
@@ -92,7 +92,7 @@ class _ReplayBuilder:
         for index, member in enumerate(members):
             self._add_one(
                 member,
-                label=f"family `{name}` member `{fork_source_string(member, 'name')}`",
+                label=f"agent session `{name}` member `{fork_source_string(member, 'name')}`",
                 historical_result=(
                     newest_monitor_index is not None and index != newest_monitor_index
                 ),
@@ -339,7 +339,7 @@ def replay_versioned_continuation_history(
         return None
 
     prefix_reset_reason = (
-        "historical evidence projection for older family monitor results"
+        "historical evidence projection for older agent-session monitor results"
         if builder.has_historical_result
         else None
     )

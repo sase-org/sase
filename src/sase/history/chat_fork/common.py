@@ -42,7 +42,7 @@ GATE_FAILURE_OUTCOMES = frozenset({"failed", "timeout", "lost"})
 
 
 def _fork_member_is_failed(member: Mapping[str, object]) -> bool:
-    """Return whether one family member (agent, proc, or gate kind) is failed."""
+    """Return whether one agent-session member (agent, proc, or gate kind) failed."""
     if fork_source_failure(member) is not None:
         return True
     kind = member.get("kind")

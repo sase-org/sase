@@ -12,9 +12,9 @@ from sase.core.wait_dependency_resolution import (
 )
 from tests._agent_names_fixtures import make_agent
 from tests._monitor_wait_dependency_helpers import (
-    _family_fork_source,
+    _agent_session_fork_source,
     _identity_dep,
-    _monitor_handoff_family,
+    _monitor_handoff_agent_session,
 )
 
 
@@ -23,7 +23,7 @@ def test_failed_monitor_handoff_resolves_after_successful_successor(
     tmp_path: Path,
     followup_outcome: str,
 ) -> None:
-    root_dir, monitor_dir, _successor_dir = _monitor_handoff_family(
+    root_dir, monitor_dir, _successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         followup_outcome=followup_outcome,
     )
@@ -39,11 +39,11 @@ def test_failed_monitor_handoff_resolves_after_successful_successor(
         [],
         [_identity_dep(root_dir, name="monitor-lane")],
     ).resolved
-    family = index.agent_session_candidate("monitor-lane")
-    assert family is not None
-    assert family.is_resolved
-    assert family.is_done
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("monitor-lane")
+    assert agent_session is not None
+    assert agent_session.is_resolved
+    assert agent_session.is_done
+    assert not agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
 
     monitor_candidate = index.artifacts_by_dir[str(monitor_dir)]
@@ -55,7 +55,7 @@ def test_failed_monitor_handoff_resolves_after_successful_successor(
 
 
 def test_failed_monitor_handoff_waits_for_missing_successor(tmp_path: Path) -> None:
-    _root_dir, monitor_dir, _successor_dir = _monitor_handoff_family(
+    _root_dir, monitor_dir, _successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         successor_outcome=None,
     )
@@ -65,17 +65,17 @@ def test_failed_monitor_handoff_waits_for_missing_successor(tmp_path: Path) -> N
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.agent_session_candidate("monitor-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert family.is_failed
+    agent_session = index.agent_session_candidate("monitor-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == (
         index.artifacts_by_dir[str(monitor_dir)],
     )
 
 
 def test_failed_monitor_handoff_waits_for_running_successor(tmp_path: Path) -> None:
-    _root_dir, _monitor_dir, _successor_dir = _monitor_handoff_family(
+    _root_dir, _monitor_dir, _successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         successor_outcome=False,
     )
@@ -85,17 +85,17 @@ def test_failed_monitor_handoff_waits_for_running_successor(tmp_path: Path) -> N
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.agent_session_candidate("monitor-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("monitor-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert not agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
 
 
-def test_monitor_handoff_successor_does_not_wait_on_its_own_family(
+def test_monitor_handoff_successor_does_not_wait_on_its_own_agent_session(
     tmp_path: Path,
 ) -> None:
-    root_dir, _monitor_dir, successor_dir = _monitor_handoff_family(
+    root_dir, _monitor_dir, successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         successor_outcome=False,
     )
@@ -110,7 +110,7 @@ def test_monitor_handoff_successor_does_not_wait_on_its_own_family(
         index,
         [],
         wait_fork_sources=[
-            _family_fork_source(root_dir, name="monitor-lane"),
+            _agent_session_fork_source(root_dir, name="monitor-lane"),
         ],
         self_artifact_dir=successor_dir,
     ).resolved
@@ -119,7 +119,7 @@ def test_monitor_handoff_successor_does_not_wait_on_its_own_family(
 def test_external_waiter_still_blocks_on_a_live_handoff_successor(
     tmp_path: Path,
 ) -> None:
-    root_dir, _monitor_dir, _successor_dir = _monitor_handoff_family(
+    root_dir, _monitor_dir, _successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         successor_outcome=False,
     )
@@ -139,16 +139,16 @@ def test_external_waiter_still_blocks_on_a_live_handoff_successor(
         index,
         [],
         wait_fork_sources=[
-            _family_fork_source(root_dir, name="monitor-lane"),
+            _agent_session_fork_source(root_dir, name="monitor-lane"),
         ],
         self_artifact_dir=waiter_dir,
     ).resolved
 
 
-def test_family_member_waiting_on_own_family_blocks_on_a_live_sibling(
+def test_agent_session_member_waiting_on_own_agent_session_blocks_on_a_live_sibling(
     tmp_path: Path,
 ) -> None:
-    root_dir, _monitor_dir, successor_dir = _monitor_handoff_family(
+    root_dir, _monitor_dir, successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         successor_outcome=False,
     )
@@ -173,7 +173,7 @@ def test_family_member_waiting_on_own_family_blocks_on_a_live_sibling(
         index,
         [],
         wait_fork_sources=[
-            _family_fork_source(root_dir, name="monitor-lane"),
+            _agent_session_fork_source(root_dir, name="monitor-lane"),
         ],
         self_artifact_dir=successor_dir,
     ).resolved
@@ -182,7 +182,7 @@ def test_family_member_waiting_on_own_family_blocks_on_a_live_sibling(
 def test_failed_monitor_handoff_reports_failed_successor_not_monitor(
     tmp_path: Path,
 ) -> None:
-    _root_dir, _monitor_dir, successor_dir = _monitor_handoff_family(
+    _root_dir, _monitor_dir, successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         successor_outcome="failed",
     )
@@ -193,10 +193,10 @@ def test_failed_monitor_handoff_reports_failed_successor_not_monitor(
         projects_root=tmp_path / ".sase/projects",
     )
 
-    family = index.agent_session_candidate("monitor-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert family.is_failed
+    agent_session = index.agent_session_candidate("monitor-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert agent_session.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == (
         index.artifacts_by_dir[str(successor_dir)],
     )
@@ -215,7 +215,7 @@ def test_unsuccessful_monitor_handoff_remains_terminal_blocker(
     followup_outcome: str | None,
     followup_agent: str | None,
 ) -> None:
-    _root_dir, monitor_dir, _successor_dir = _monitor_handoff_family(
+    _root_dir, monitor_dir, _successor_dir = _monitor_handoff_agent_session(
         tmp_path,
         followup_outcome=followup_outcome,
         followup_agent=followup_agent,

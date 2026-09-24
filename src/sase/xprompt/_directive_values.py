@@ -223,7 +223,7 @@ def resolve_model_alias_overrides(
     *,
     process_references: ProcessReferences,
 ) -> dict[str, str]:
-    """Expand and validate launch-family model alias overrides."""
+    """Expand and validate agent-session-scoped model alias overrides."""
     if not raw_overrides:
         return {}
 

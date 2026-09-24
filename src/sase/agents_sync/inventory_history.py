@@ -139,7 +139,7 @@ def _sase_agent_footer_is_family(
 
     if isinstance(value, LinkedCommitTagValue):
         return _destination_is_family_page(value.destination)
-    return agent_ref.is_family
+    return agent_ref.is_agent_session
 
 
 def primary_remote_url(

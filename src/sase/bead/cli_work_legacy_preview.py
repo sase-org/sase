@@ -67,7 +67,7 @@ def preview_legacy_bead_work_force_reuse(
                         name=name,
                         action="RELEASE",
                         current_state="stale",
-                        detail="orphaned family reservation",
+                        detail="orphaned agent-session reservation",
                     )
                 )
                 continue

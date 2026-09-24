@@ -119,7 +119,7 @@ class PromptDirectives:
         model: Model override string, or None to use the default.
         model_alias: Bare model alias name when the ``%model`` argument was
             written with the ``@`` alias prefix, and None otherwise.
-        model_alias_overrides: Launch-family-scoped model alias targets from
+        model_alias_overrides: Agent-session-scoped model alias targets from
             keyword arguments on the ``%model`` directive.
         reasoning_effort: Reasoning-effort level requested via the ``%effort``
             directive or a ``%model:<model>@<effort>`` suffix, or None when

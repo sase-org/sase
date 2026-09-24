@@ -19,7 +19,7 @@ from ..monitor_render import (
 
 
 def handle_monitor_list(args: argparse.Namespace) -> int:
-    """Render monitor family members as a table, markdown, or JSON."""
+    """Render monitor agent-session members as a table, markdown, or JSON."""
     project = getattr(args, "project", None)
     agent = getattr(args, "agent", None)
     statuses = set(getattr(args, "status", None) or ())

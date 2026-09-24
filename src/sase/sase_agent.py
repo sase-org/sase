@@ -1,14 +1,14 @@
 """Shared sase-agent vocabulary for provenance-carrying callers.
 
-A *sase agent* is either an agent family or a single agent that does not
-belong to a family.  A *concrete agent shell* is one LLM/provider run; family
+A *sase agent* is either an agent session or a single agent that does not
+belong to a session.  A *concrete agent shell* is one LLM/provider run; session
 members spell that shell with a ``--<role>`` suffix.  Commit provenance,
 sidecar publication requests, and plan/bead associations are all anchored on
 the sase agent rather than on the concrete shell that happened to make the
 commit, so they all need one agreed projection from a shell name to its sase
 agent.
 
-``SASE_AGENT_NAME`` identifies the concrete agent shell.  The family
+``SASE_AGENT_NAME`` identifies the concrete agent shell.  The agent-session
 projection and the ``SASE_AGENT=`` commit footer identify the sase agent.
 
 This module is a thin projection over the naming primitives the Rust core
@@ -44,8 +44,8 @@ class SaseAgentRef:
     global_name: str
     """Globally unique sase-agent provenance (``bbugyi200.athena.pc``)."""
 
-    is_family: bool
-    """Whether the sase agent is a family/container rather than a solo agent."""
+    is_agent_session: bool
+    """Whether the sase agent is an agent session rather than a solo agent."""
 
     member_local_name: str | None
     """Bare local concrete-shell name (``pc--code``) when the caller knew one."""
@@ -58,8 +58,8 @@ def sase_agent_ref_for_shell(
     """Return the sase agent of the concrete agent-shell *name*.
 
     This is the write-time path: a caller that starts from a real agent-shell
-    name knows whether the sase agent is a family for free, because a
-    ``--<role>`` suffix is exactly what makes the sase agent a family
+    name knows whether the sase agent is an agent session for free, because a
+    ``--<role>`` suffix is exactly what makes the sase agent an agent-session
     container.  A solo agent shell maps to itself.
     """
     snapshot = identity or AgentIdentitySnapshot.current()
@@ -69,7 +69,7 @@ def sase_agent_ref_for_shell(
     return SaseAgentRef(
         local_name=parsed.agent_session_name,
         global_name=globalize_owned_agent_name(parsed.agent_session_name, snapshot),
-        is_family=is_member,
+        is_agent_session=is_member,
         member_local_name=local_name if is_member else None,
     )
 
@@ -84,8 +84,8 @@ def sase_agent_ref_for_name(
 
     This is the read-time path, for callers that recovered a sase-agent label
     from a commit footer and have no concrete shell to work from.  ``foo`` is
-    lexically ambiguous -- a family container and a solo agent are the same
-    string -- so family-ness is resolved through the supplied reservation
+    lexically ambiguous -- an agent-session container and a solo agent are the same
+    string -- so session-ness is resolved through the supplied reservation
     snapshot or the local reservation registry, degrading to a solo sase agent
     when the registry is unavailable or does not know the name.  A member
     spelling is still accepted and projected to its sase agent.
@@ -98,10 +98,10 @@ def sase_agent_ref_for_name(
     return SaseAgentRef(
         local_name=local_name,
         global_name=globalize_owned_agent_name(local_name, snapshot),
-        is_family=(
+        is_agent_session=(
             local_name in reserved_agent_session_names
             if reserved_agent_session_names is not None
-            else _is_reserved_family_name(local_name)
+            else _is_reserved_agent_session_name(local_name)
         ),
         member_local_name=None,
     )
@@ -116,12 +116,12 @@ def sase_agent_page_path(
 
     A known concrete shell is preferred as the input to
     :func:`agent_link_target` so the sidecar layout stays owned by one core
-    function; the family page path is only spelled out here when the sase
-    agent is known to be a family and no shell is available.
+    function; the agent-session page path is only spelled out here when the sase
+    agent is known to be an agent session and no shell is available.
     """
     if ref.member_local_name is not None:
         return agent_link_target(ref.member_local_name, owner, identity).path
-    if ref.is_family:
+    if ref.is_agent_session:
         return f"families/{ref.global_name}.md"
     return agent_link_target(ref.local_name, owner, identity).path
 
@@ -137,8 +137,8 @@ def sase_agent_name(name: str) -> str:
     return parse_agent_session_name(name).agent_session_name
 
 
-def _is_reserved_family_name(local_name: str) -> bool:
-    """Return whether *local_name* is a registered family container.
+def _is_reserved_agent_session_name(local_name: str) -> bool:
+    """Return whether *local_name* is a registered agent-session container.
 
     Registry access is best-effort: every caller of this module is a
     provenance boundary that must not fail because the local reservation index

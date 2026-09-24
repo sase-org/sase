@@ -421,7 +421,7 @@ class WaitDependencyIndexQueries(
         This deliberately precedes the aggregate entities' handoff and queued-member
         filtering.  Release confirmation needs to notice a newly-created successor
         even when the resolving view would filter its predecessor out of the final
-        family aggregate.
+        agent-session aggregate.
         """
         resolved_items = tuple(resolved_deps)
         excluded_key = (

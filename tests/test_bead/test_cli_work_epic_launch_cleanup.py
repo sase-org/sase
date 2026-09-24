@@ -357,7 +357,7 @@ def test_work_beadless_agent_session_members_do_not_wedge_retry(
     assert set(wiped) == members
     assert len(launched) == 1
     assert agent_session_name in launched[0]
-    assert "no bead metadata; matched by family membership" in err
+    assert "no bead metadata; matched by agent session membership" in err
     for member in members:
         assert member in err
 

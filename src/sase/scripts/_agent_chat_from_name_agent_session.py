@@ -1,4 +1,4 @@
-"""Family-member source classification for named-agent fork sources."""
+"""Agent-session member source classification for named-agent fork sources."""
 
 from __future__ import annotations
 
@@ -17,20 +17,20 @@ from sase.scripts._agent_chat_from_name_common import (
     validate_readable_transcript,
 )
 from sase.scripts._agent_chat_from_name_failure import (
-    failed_agent_family_member_shell,
+    failed_agent_session_member_shell,
 )
 from sase.scripts._agent_chat_from_name_models import (
-    ForkExcludedFamilyMember,
-    ForkFamilyMemberSource,
+    ForkExcludedAgentSessionMember,
+    ForkAgentSessionMemberSource,
 )
-from sase.scripts._agent_chat_from_name_monitor import read_family_monitor_marker
+from sase.scripts._agent_chat_from_name_monitor import read_agent_session_monitor_marker
 from sase.scripts._fork_proc_sources import proc_info_from_monitor
 
 
-def resolve_family_member_shell(
+def resolve_agent_session_member_shell(
     member: AgentSessionMember,
-) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
-    """Classify and resolve one sequential family member's concrete shell.
+) -> ForkAgentSessionMemberSource | ForkExcludedAgentSessionMember:
+    """Classify and resolve one sequential agent-session member's concrete shell.
 
     A monitor member is a proc shell, never a chat transcript: its
     ``agent_session_role``/``monitor_id`` markers route it to the durable
@@ -45,19 +45,19 @@ def resolve_family_member_shell(
         json_string(meta, "agent_session_role"),
         json_string(meta, "monitor_id"),
     ):
-        return _resolve_monitor_family_member_shell(member)
+        return _resolve_monitor_agent_session_member_shell(member)
     if is_real_gate_member(
         json_string(meta, "agent_session_role"),
         json_string(meta, "gate_id"),
     ):
-        return _resolve_gate_shell_family_member_shell(member, meta)
-    return _resolve_agent_family_member_shell(member)
+        return _resolve_gate_shell_agent_session_member_shell(member, meta)
+    return _resolve_agent_session_member_shell(member)
 
 
-def _resolve_gate_shell_family_member_shell(
+def _resolve_gate_shell_agent_session_member_shell(
     member: AgentSessionMember,
     meta: dict[str, object],
-) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
+) -> ForkAgentSessionMemberSource | ForkExcludedAgentSessionMember:
     """Resolve a gate-shell member from its settle-time chat file.
 
     A pending gate shell is processless and has no chat file yet, so it is
@@ -66,17 +66,19 @@ def _resolve_gate_shell_family_member_shell(
     """
     gate_state = json_string(meta, "gate_state")
     if not gate_state_is_terminal(gate_state):
-        return ForkExcludedFamilyMember(name=member.name, status="running")
+        return ForkExcludedAgentSessionMember(name=member.name, status="running")
     meta_path = json_string(meta, "chat_path")
     if meta_path is None:
-        return ForkExcludedFamilyMember(name=member.name, status="missing transcript")
+        return ForkExcludedAgentSessionMember(
+            name=member.name, status="missing transcript"
+        )
     try:
         validate_readable_transcript(member.name, meta_path)
     except OSError:
-        return ForkExcludedFamilyMember(
+        return ForkExcludedAgentSessionMember(
             name=member.name, status="unreadable transcript"
         )
-    return ForkFamilyMemberSource(
+    return ForkAgentSessionMemberSource(
         name=member.name,
         artifact_dir=str(member.artifacts_dir),
         outcome=gate_state or "unknown",
@@ -85,17 +87,17 @@ def _resolve_gate_shell_family_member_shell(
     )
 
 
-def _resolve_monitor_family_member_shell(
+def _resolve_monitor_agent_session_member_shell(
     member: AgentSessionMember,
-) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
-    record = read_family_monitor_marker(member.artifacts_dir)
+) -> ForkAgentSessionMemberSource | ForkExcludedAgentSessionMember:
+    record = read_agent_session_monitor_marker(member.artifacts_dir)
     if record is None:
-        return ForkExcludedFamilyMember(
+        return ForkExcludedAgentSessionMember(
             name=member.name, status="unreadable monitor record"
         )
     if not monitor_state_is_terminal(record.monitor_state):
-        return ForkExcludedFamilyMember(name=member.name, status="running")
-    return ForkFamilyMemberSource(
+        return ForkExcludedAgentSessionMember(name=member.name, status="running")
+    return ForkAgentSessionMemberSource(
         name=member.name,
         artifact_dir=str(member.artifacts_dir),
         outcome=record.monitor_state,
@@ -104,9 +106,9 @@ def _resolve_monitor_family_member_shell(
     )
 
 
-def _resolve_agent_family_member_shell(
+def _resolve_agent_session_member_shell(
     member: AgentSessionMember,
-) -> ForkFamilyMemberSource | ForkExcludedFamilyMember:
+) -> ForkAgentSessionMemberSource | ForkExcludedAgentSessionMember:
     """Resolve one sequential agent member's owned transcript or failure record.
 
     A metadata chat path is written only after a phase saves its handoff, so it
@@ -123,10 +125,10 @@ def _resolve_agent_family_member_shell(
         try:
             validate_readable_transcript(member.name, meta_path)
         except OSError:
-            return ForkExcludedFamilyMember(
+            return ForkExcludedAgentSessionMember(
                 name=member.name, status="unreadable transcript"
             )
-        return ForkFamilyMemberSource(
+        return ForkAgentSessionMemberSource(
             name=member.name,
             artifact_dir=str(member.artifacts_dir),
             outcome=SUCCESS_OUTCOME,
@@ -135,14 +137,14 @@ def _resolve_agent_family_member_shell(
         )
 
     if member.outcome is None:
-        return ForkExcludedFamilyMember(name=member.name, status="running")
+        return ForkExcludedAgentSessionMember(name=member.name, status="running")
 
     if member.outcome in FAILURE_OUTCOMES:
         done = read_json_dict(member.artifacts_dir / "done.json") or {}
-        return failed_agent_family_member_shell(member, done, member.outcome)
+        return failed_agent_session_member_shell(member, done, member.outcome)
 
     if not is_success_outcome(member.outcome):
-        return ForkExcludedFamilyMember(
+        return ForkExcludedAgentSessionMember(
             name=member.name, status=member.outcome or "running"
         )
 
@@ -152,14 +154,16 @@ def _resolve_agent_family_member_shell(
     if done_path is None and member.archived_completion is not None:
         done_path = archived_response_path(member.archived_completion)
     if done_path is None:
-        return ForkExcludedFamilyMember(name=member.name, status="missing transcript")
+        return ForkExcludedAgentSessionMember(
+            name=member.name, status="missing transcript"
+        )
     try:
         validate_readable_transcript(member.name, done_path)
     except OSError:
-        return ForkExcludedFamilyMember(
+        return ForkExcludedAgentSessionMember(
             name=member.name, status="unreadable transcript"
         )
-    return ForkFamilyMemberSource(
+    return ForkAgentSessionMemberSource(
         name=member.name,
         artifact_dir=str(member.artifacts_dir),
         outcome=SUCCESS_OUTCOME,

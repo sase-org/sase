@@ -1,4 +1,4 @@
-"""Identity, clan, family, and tribe prompt directive edits."""
+"""Identity, clan, agent-session, and tribe prompt directive edits."""
 
 from __future__ import annotations
 
@@ -137,18 +137,18 @@ def rewrite_prompt_clan_member_name(
     return set_prompt_directive(rewritten, {"id"}, replacement)
 
 
-def rewrite_prompt_family_member_name(
+def rewrite_prompt_agent_session_member_name(
     prompt: str,
-    family_name: str,
+    agent_session_name: str,
     role_suffix: str,
     *,
     force_reuse: bool = False,
     bead_id: str | None = None,
 ) -> str:
-    """Rewrite a prompt as an exact serial-family attachment.
+    """Rewrite a prompt as an exact serial agent-session attachment.
 
     Existing ``bead=`` metadata wins over *bead_id*. Clan/tribe membership
-    syntax is intentionally dropped: the family resolver restores inherited
+    syntax is intentionally dropped: the agent-session resolver restores inherited
     clan and tribe context from the authoritative parent.
     """
     from sase.plan_chain import agent_session_suffix_token, canonical_plan_chain_suffix
@@ -156,15 +156,17 @@ def rewrite_prompt_family_member_name(
 
     canonical_suffix = canonical_plan_chain_suffix(role_suffix)
     suffix = agent_session_suffix_token(canonical_suffix or role_suffix)
-    if not family_name or not suffix:
-        raise ValueError("Cannot rewrite a family member without a family and suffix.")
+    if not agent_session_name or not suffix:
+        raise ValueError(
+            "Cannot rewrite an agent-session member without an agent session and suffix."
+        )
 
     _, directives = extract_prompt_directives(prompt)
     effective_bead = directives.bead_id or bead_id
     member_id = f"!{suffix}" if force_reuse else suffix
     replacement_parts = [
         format_directive_arg(member_id),
-        f"family={format_directive_arg(family_name)}",
+        f"family={format_directive_arg(agent_session_name)}",
     ]
     if effective_bead:
         replacement_parts.append(f"bead={format_directive_arg(effective_bead)}")

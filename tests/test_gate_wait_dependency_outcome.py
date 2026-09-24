@@ -43,12 +43,22 @@ def test_effective_gate_outcome_fails_closed(
     )
 
 
-def test_effective_gate_outcome_reads_nested_family_shell() -> None:
+@pytest.mark.parametrize(
+    "shell_key",
+    [
+        "agent_session_shell",
+        # legacy agent-family spelling: pre-rename done.json files.
+        pytest.param("family_shell", id="legacy-family-shell"),
+    ],
+)
+def test_effective_gate_outcome_reads_nested_agent_session_shell(
+    shell_key: str,
+) -> None:
     assert (
         effective_done_outcome(
             {
                 "outcome": "gated",
-                "family_shell": {"kind": "gate", "state": "answered"},
+                shell_key: {"kind": "gate", "state": "answered"},
             }
         )
         == "completed"
@@ -57,7 +67,7 @@ def test_effective_gate_outcome_reads_nested_family_shell() -> None:
         effective_done_outcome(
             {
                 "outcome": "gated",
-                "family_shell": {"kind": "monitor", "state": "completed"},
+                shell_key: {"kind": "monitor", "state": "completed"},
             }
         )
         == "failed"

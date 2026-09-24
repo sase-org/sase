@@ -18,7 +18,7 @@ from sase.monitor_state import is_real_monitor_member
 from sase.procs import ProcRefError, read_procs, resolve_proc_ref
 from sase.scripts._agent_chat_from_name_common import (
     completed_response_path,
-    find_family_member,
+    find_agent_session_member,
     json_string,
     normalize_name,
     read_json_dict,
@@ -27,11 +27,13 @@ from sase.scripts._agent_chat_from_name_common import (
     validate_readable_transcript,
 )
 from sase.scripts._agent_chat_from_name_failure import failed_agent_fork_source
-from sase.scripts._agent_chat_from_name_family import resolve_family_member_shell
+from sase.scripts._agent_chat_from_name_agent_session import (
+    resolve_agent_session_member_shell,
+)
 from sase.scripts._agent_chat_from_name_models import (
     ForkClanMemberSource,
-    ForkExcludedFamilyMember,
-    ForkFamilyMemberSource,
+    ForkExcludedAgentSessionMember,
+    ForkAgentSessionMemberSource,
     ForkSource,
 )
 from sase.scripts._agent_chat_from_name_monitor import resolve_monitor_fork_source
@@ -102,7 +104,7 @@ def _coalesce_fork_sources(sources: Sequence[ForkSource]) -> list[ForkSource]:
             coalesced.append(source)
             continue
 
-        unique_members: list[ForkClanMemberSource | ForkFamilyMemberSource] = []
+        unique_members: list[ForkClanMemberSource | ForkAgentSessionMemberSource] = []
         for member in source.members:
             if not claim(_member_identity(member)):
                 continue
@@ -132,9 +134,9 @@ def _source_identity(source: ForkSource) -> tuple[str, str] | None:
 
 
 def _member_identity(
-    member: ForkClanMemberSource | ForkFamilyMemberSource,
+    member: ForkClanMemberSource | ForkAgentSessionMemberSource,
 ) -> tuple[str, str] | None:
-    if isinstance(member, ForkFamilyMemberSource) and member.kind == "proc":
+    if isinstance(member, ForkAgentSessionMemberSource) and member.kind == "proc":
         if member.proc is None:
             return None
         return ("proc", member.proc.proc_id)
@@ -148,7 +150,7 @@ def _canonical_transcript_path(path: str) -> Path:
 
 
 def _resolve_fork_source(name: str) -> ForkSource:
-    """Resolve *name* to an agent, family, or complete clan source.
+    """Resolve *name* to an agent, agent session, or complete clan source.
 
     Tribe-reference recognition stays syntactic here (``@`` prefix only): the
     identity a public ``@job`` spelling maps to requires the stored-tribe
@@ -208,28 +210,28 @@ def _resolve_fork_source(name: str) -> ForkSource:
             members=tuple(clan_members),
         )
 
-    family = find_agent_session(name)
-    if family is not None:
+    agent_session = find_agent_session(name)
+    if agent_session is not None:
         current = _current_artifacts_dir()
-        family_members: list[ForkFamilyMemberSource] = []
-        excluded: list[ForkExcludedFamilyMember] = []
-        for family_member in family.members:
-            if _same_artifacts_dir(family_member.artifacts_dir, current):
+        agent_session_members: list[ForkAgentSessionMemberSource] = []
+        excluded: list[ForkExcludedAgentSessionMember] = []
+        for agent_session_member in agent_session.members:
+            if _same_artifacts_dir(agent_session_member.artifacts_dir, current):
                 continue
-            resolved = resolve_family_member_shell(family_member)
-            if isinstance(resolved, ForkExcludedFamilyMember):
+            resolved = resolve_agent_session_member_shell(agent_session_member)
+            if isinstance(resolved, ForkExcludedAgentSessionMember):
                 excluded.append(resolved)
             else:
-                family_members.append(resolved)
+                agent_session_members.append(resolved)
 
-        if not family_members:
+        if not agent_session_members:
             raise RuntimeError(f"No agent with chat history found for: {name}")
 
         return ForkSource(
-            kind="family",
-            name=family.base_name,
-            path=family_members[-1].path,
-            members=tuple(family_members),
+            kind="session",
+            name=agent_session.base_name,
+            path=agent_session_members[-1].path,
+            members=tuple(agent_session_members),
             excluded=tuple(excluded),
         )
 
@@ -284,21 +286,23 @@ def _try_resolve_standalone_proc_fork_source(name: str) -> ForkSource | None:
 
 def _resolve_agent_fork_source(name: str) -> ForkSource:
     """Resolve one named agent, including terminal failure context."""
-    family_member = find_family_member(name)
-    if family_member is not None:
-        meta = read_json_dict(family_member.artifacts_dir / "agent_meta.json") or {}
+    agent_session_member = find_agent_session_member(name)
+    if agent_session_member is not None:
+        meta = (
+            read_json_dict(agent_session_member.artifacts_dir / "agent_meta.json") or {}
+        )
         if is_real_monitor_member(
             json_string(meta, "agent_session_role"),
             json_string(meta, "monitor_id"),
         ):
-            return resolve_monitor_fork_source(name, family_member.artifacts_dir)
+            return resolve_monitor_fork_source(name, agent_session_member.artifacts_dir)
 
-        done = read_json_dict(family_member.artifacts_dir / "done.json") or {}
-        outcome = json_string(done, "outcome") or family_member.outcome
+        done = read_json_dict(agent_session_member.artifacts_dir / "done.json") or {}
+        outcome = json_string(done, "outcome") or agent_session_member.outcome
         if outcome in FAILURE_OUTCOMES:
             return failed_agent_fork_source(
                 name,
-                family_member.artifacts_dir,
+                agent_session_member.artifacts_dir,
                 done,
                 outcome,
             )

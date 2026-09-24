@@ -14,6 +14,7 @@ RuntimeGroupBy = Literal[
     "tribe",
     "clan",
     "session",
+    # legacy agent-family spelling: see ``LEGACY_RUNTIME_GROUP_BY``.
     "family",
     "agent",
     "provider",

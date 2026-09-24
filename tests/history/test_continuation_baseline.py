@@ -102,12 +102,14 @@ def test_fork_render_shadow_measurement_appends_to_artifacts(
     assert record["node_counts"]["unique_node_count"] == 1
 
 
-def test_node_counts_surface_duplicate_known_family_members(tmp_path: Path) -> None:
+def test_node_counts_surface_duplicate_known_agent_session_members(
+    tmp_path: Path,
+) -> None:
     chat = tmp_path / "same.md"
     _write_chat(chat, "Same parent.", "Same reply.")
     sources = [
         {
-            "kind": "family",
+            "kind": "session",
             "name": "repeat",
             "members": [
                 {

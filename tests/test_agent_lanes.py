@@ -36,7 +36,7 @@ def test_solo_agent_shell_projects_to_itself() -> None:
     assert ref == SaseAgentRef(
         local_name="pc",
         global_name="alice.athena.pc",
-        is_family=False,
+        is_agent_session=False,
         member_local_name=None,
     )
     assert sase_agent_page_path(ref, _OWNER) == "agents/alice.athena.pc/README.md"
@@ -44,13 +44,13 @@ def test_solo_agent_shell_projects_to_itself() -> None:
     assert lane_page_path(ref, _OWNER) == "agents/alice.athena.pc/README.md"
 
 
-def test_family_member_shell_projects_to_its_family_container() -> None:
+def test_agent_session_member_shell_projects_to_its_agent_session_container() -> None:
     ref = sase_agent_ref_for_shell("pc--code", _IDENTITY)
 
     assert ref == SaseAgentRef(
         local_name="pc",
         global_name="alice.athena.pc",
-        is_family=True,
+        is_agent_session=True,
         member_local_name="pc--code",
     )
     assert sase_agent_page_path(ref, _OWNER) == "families/alice.athena.pc.md"
@@ -58,19 +58,19 @@ def test_family_member_shell_projects_to_its_family_container() -> None:
         AgentLaneRef(
             local_name="pc",
             global_name="alice.athena.pc",
-            is_family=True,
+            is_agent_session=True,
             member_local_name="pc--code",
         )
         == ref
     )
 
 
-def test_nested_family_member_keeps_its_dotted_family_name() -> None:
+def test_nested_agent_session_member_keeps_its_dotted_agent_session_name() -> None:
     ref = sase_agent_ref_for_shell("foo.bar--code", _IDENTITY)
 
     assert ref.local_name == "foo.bar"
     assert ref.global_name == "alice.athena.foo.bar"
-    assert ref.is_family
+    assert ref.is_agent_session
     assert sase_agent_page_path(ref, _OWNER) == "families/alice.athena.foo.bar.md"
 
 
@@ -80,7 +80,7 @@ def test_legacy_machine_qualified_member_normalizes_to_the_bare_sase_agent() -> 
     assert ref == SaseAgentRef(
         local_name="sase-7r.land",
         global_name="alice.athena.sase-7r.land",
-        is_family=True,
+        is_agent_session=True,
         member_local_name="sase-7r.land--code",
     )
 
@@ -92,7 +92,7 @@ def test_globally_qualified_member_normalizes_to_the_bare_sase_agent() -> None:
     assert ref.member_local_name == "pc--code"
 
 
-def test_reserved_family_container_name_is_a_family(monkeypatch) -> None:
+def test_reserved_agent_session_container_name_is_a_agent_session(monkeypatch) -> None:
     monkeypatch.setattr(
         "sase.agent.names.get_reserved_agent_session_names_for_display",
         lambda: {"pc"},
@@ -103,7 +103,7 @@ def test_reserved_family_container_name_is_a_family(monkeypatch) -> None:
     assert ref == SaseAgentRef(
         local_name="pc",
         global_name="alice.athena.pc",
-        is_family=True,
+        is_agent_session=True,
         member_local_name=None,
     )
     assert sase_agent_page_path(ref, _OWNER) == "families/alice.athena.pc.md"
@@ -118,7 +118,7 @@ def test_already_projected_solo_name_stays_solo(monkeypatch) -> None:
 
     ref = sase_agent_ref_for_name("pc", _IDENTITY)
 
-    assert not ref.is_family
+    assert not ref.is_agent_session
     assert sase_agent_page_path(ref, _OWNER) == "agents/alice.athena.pc/README.md"
 
 
@@ -132,8 +132,8 @@ def test_name_lookup_degrades_to_solo_when_the_registry_fails(
         "sase.agent.names.get_reserved_agent_session_names_for_display", _explode
     )
 
-    assert not sase_agent_ref_for_name("pc", _IDENTITY).is_family
-    assert not lane_ref_for_lane_name("pc", _IDENTITY).is_family
+    assert not sase_agent_ref_for_name("pc", _IDENTITY).is_agent_session
+    assert not lane_ref_for_lane_name("pc", _IDENTITY).is_agent_session
 
 
 def test_name_lookup_accepts_a_member_spelling(monkeypatch) -> None:
@@ -146,7 +146,7 @@ def test_name_lookup_accepts_a_member_spelling(monkeypatch) -> None:
     assert ref == SaseAgentRef(
         local_name="pc",
         global_name="alice.athena.pc",
-        is_family=True,
+        is_agent_session=True,
         member_local_name="pc--code",
     )
 
@@ -161,7 +161,7 @@ def test_legacy_machine_qualified_sase_agent_name_normalizes(monkeypatch) -> Non
 
     assert ref.local_name == "sase-7r.land"
     assert ref.global_name == "alice.athena.sase-7r.land"
-    assert ref.is_family
+    assert ref.is_agent_session
 
 
 @pytest.mark.parametrize(

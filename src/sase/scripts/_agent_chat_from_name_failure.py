@@ -16,7 +16,7 @@ from sase.scripts._agent_chat_from_name_common import (
 )
 from sase.scripts._agent_chat_from_name_models import (
     ForkFailure,
-    ForkFamilyMemberSource,
+    ForkAgentSessionMemberSource,
     ForkSource,
 )
 
@@ -48,11 +48,11 @@ def failed_agent_fork_source(
     )
 
 
-def failed_agent_family_member_shell(
+def failed_agent_session_member_shell(
     member: AgentSessionMember,
     done: dict[str, Any],
     outcome: str,
-) -> ForkFamilyMemberSource:
+) -> ForkAgentSessionMemberSource:
     transcript_path = _resolve_failed_agent_transcript(
         member.name, member.artifacts_dir, done
     )
@@ -69,7 +69,7 @@ def failed_agent_family_member_shell(
             else read_sanitized_launch_prompt(member.artifacts_dir)
         ),
     )
-    return ForkFamilyMemberSource(
+    return ForkAgentSessionMemberSource(
         name=member.name,
         artifact_dir=str(member.artifacts_dir),
         outcome=outcome,

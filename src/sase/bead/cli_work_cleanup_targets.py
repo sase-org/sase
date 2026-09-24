@@ -19,15 +19,12 @@ if TYPE_CHECKING:
     from sase.core.agent_identity_facade import AgentIdentitySnapshot
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
-type _OwnerMembership = Literal["registry", "family", "clan"]
+type _OwnerMembership = Literal["registry", "session", "clan"]
 
 
 def _is_agent_session_membership(membership: _OwnerMembership) -> bool:
-    """Return whether *membership* names agent-session ownership.
-
-    # legacy agent-family spelling: pre-rename registries store "family".
-    """
-    return membership == "family"
+    """Return whether *membership* names agent-session ownership."""
+    return membership == "session"
 
 
 class _OwnerRecordLookup(Protocol):
@@ -309,7 +306,7 @@ def _classify_agent_session_owner(
                 name=slot.owner_name,
                 action="RELEASE",
                 current_state="stale",
-                detail=f"orphaned family reservation for bead {slot.expected_bead_id}",
+                detail=f"orphaned agent-session reservation for bead {slot.expected_bead_id}",
                 expected_bead_id=slot.expected_bead_id,
                 slot_id=slot.slot_id,
             ),
@@ -325,7 +322,7 @@ def _classify_agent_session_owner(
                     member,
                     owner_name=owner_name,
                     bead_assignees=bead_assignees,
-                    membership="family",
+                    membership="session",
                     view=view,
                 )
             )
@@ -349,7 +346,7 @@ def _classify_agent_session_owner(
                 name=slot.owner_name,
                 action="PRESERVE",
                 current_state=preserved.current_state,
-                detail=f"family member {preserved.name} {preserved.detail}",
+                detail=f"agent-session member {preserved.name} {preserved.detail}",
                 expected_bead_id=slot.expected_bead_id,
                 slot_id=slot.slot_id,
                 artifacts_dir=preserved.artifacts_dir,
@@ -423,8 +420,10 @@ def classify_artifact_record(
         ) from None
     detail = f"for bead {slot.expected_bead_id} at {record.artifact_dir}"
     if not _record_bead_ids(record):
-        if _is_agent_session_membership(membership) or membership == "clan":
-            detail += f" (no bead metadata; matched by {membership} membership)"
+        if _is_agent_session_membership(membership):
+            detail += " (no bead metadata; matched by agent session membership)"
+        elif membership == "clan":
+            detail += " (no bead metadata; matched by clan membership)"
         else:
             detail += " (no bead metadata; matched by registry owner name)"
     generation = str(getattr(record, "timestamp", ""))
@@ -515,7 +514,7 @@ def _bead_ids_related(left: str, right: str) -> bool:
 
 def _membership_via(membership: _OwnerMembership, slot: BeadWorkSlot) -> str:
     if _is_agent_session_membership(membership):
-        return f"family {slot.owner_name}"
+        return f"agent session {slot.owner_name}"
     if membership == "clan":
         return f"clan {slot.owner_name}"
     return f"registry owner {slot.owner_name}"

@@ -1,4 +1,4 @@
-"""Wait-dependency semantics for a single monitor family/clan member."""
+"""Wait-dependency semantics for a single monitor agent session/clan member."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from tests._monitor_wait_dependency_helpers import (
 
 
 @pytest.mark.parametrize("monitor_state", ["completed", "stopped"])
-def test_successful_monitor_resolves_family_and_clan(
+def test_successful_monitor_resolves_agent_session_and_clan(
     tmp_path: Path,
     monitor_state: str,
 ) -> None:
@@ -27,9 +27,13 @@ def test_successful_monitor_resolves_family_and_clan(
     )
 
     assert index.is_resolved("monitor-lane")
-    family = index.agent_session_candidate("monitor-lane")
+    agent_session = index.agent_session_candidate("monitor-lane")
     clan = index.clan_candidate("monitor-clan")
-    assert family is not None and family.is_resolved and family.is_done
+    assert (
+        agent_session is not None
+        and agent_session.is_resolved
+        and agent_session.is_done
+    )
     assert clan is not None and clan.is_resolved and clan.is_done
     assert index.artifacts_by_dir[str(artifact_dir)].outcome == "completed"
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
@@ -50,9 +54,9 @@ def test_unsuccessful_monitor_blocks_and_is_reported_as_terminal(
     )
 
     assert not index.is_resolved("monitor-lane")
-    family = index.agent_session_candidate("monitor-lane")
+    agent_session = index.agent_session_candidate("monitor-lane")
     clan = index.clan_candidate("monitor-clan")
-    assert family is not None and family.is_failed
+    assert agent_session is not None and agent_session.is_failed
     assert clan is not None and clan.is_failed
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == (
         index.artifacts_by_dir[str(artifact_dir)],
@@ -131,11 +135,11 @@ def test_settled_monitor_without_terminal_outcome_waits_for_handoff_successor(
     assert not monitor_candidate.is_resolved
     assert not index.is_resolved(monitor_candidate.name)
 
-    family = index.agent_session_candidate("monitor-lane")
-    assert family is not None
-    assert not family.is_resolved
-    assert family.is_done
-    assert not family.is_failed
+    agent_session = index.agent_session_candidate("monitor-lane")
+    assert agent_session is not None
+    assert not agent_session.is_resolved
+    assert agent_session.is_done
+    assert not agent_session.is_failed
     assert not index.is_resolved("monitor-lane")
 
     clan = index.clan_candidate("monitor-clan")

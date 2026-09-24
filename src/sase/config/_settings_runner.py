@@ -42,7 +42,7 @@ def get_configured_max_running_agents() -> int:
 
 
 def get_max_agent_pipe_chain() -> int:
-    """Return the configured ``sase pipe`` family-chain bound.
+    """Return the configured ``sase pipe`` agent-session-chain bound.
 
     The original agent is depth 0. A pipe is refused when the next link
     would exceed this value. Malformed configuration falls back to the

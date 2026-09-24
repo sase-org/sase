@@ -135,9 +135,9 @@ def validate_readable_transcript(name: str, transcript_path: str) -> None:
         ) from exc
 
 
-def find_family_member(name: str) -> AgentSessionMember | None:
-    """Return the exact member represented by a recognized family-child name."""
-    base_name = _canonical_family_member_base(name)
+def find_agent_session_member(name: str) -> AgentSessionMember | None:
+    """Return the exact member represented by a recognized agent-session child name."""
+    base_name = _canonical_agent_session_member_base(name)
     if base_name is None:
         base_name = agent_session_base(name, include_legacy_dash=True)
         if base_name is None or find_agent_session(name) is not None:
@@ -150,7 +150,7 @@ def find_family_member(name: str) -> AgentSessionMember | None:
     )
 
 
-def _canonical_family_member_base(name: str) -> str | None:
+def _canonical_agent_session_member_base(name: str) -> str | None:
     try:
         parsed = parse_agent_session_name(name)
     except (RuntimeError, ValueError):

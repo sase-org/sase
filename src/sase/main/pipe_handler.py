@@ -217,7 +217,7 @@ def handle_pipe_command(
     name: str | None = None,
     reason: str | None = None,
 ) -> NoReturn:
-    """Hand this agent's turn to the next family member.
+    """Hand this agent's turn to the next agent-session member.
 
     1. Guard: only inside a sase agent, and only one hand-off per turn
     2. Reject an empty prompt, a reserved ``--name``, or a chain past the bound

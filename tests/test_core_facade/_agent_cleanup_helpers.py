@@ -268,7 +268,7 @@ def _scenario_clan_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
     )
 
 
-def _scenario_clan_scope_active_parallel_family() -> tuple[
+def _scenario_clan_scope_active_parallel_agent_session() -> tuple[
     list[Agent], AgentCleanupRequestWire
 ]:
     root = _agent(
@@ -446,7 +446,9 @@ def _scenario_custom_child_running() -> tuple[list[Agent], AgentCleanupRequestWi
     )
 
 
-def _scenario_parallel_family_root() -> tuple[list[Agent], AgentCleanupRequestWire]:
+def _scenario_parallel_agent_session_root() -> tuple[
+    list[Agent], AgentCleanupRequestWire
+]:
     root = _agent(
         cl_name="sase-6g",
         raw_suffix="root-ts",
@@ -473,7 +475,7 @@ def _scenario_parallel_family_root() -> tuple[list[Agent], AgentCleanupRequestWi
     )
 
 
-def _clan_sequential_family_agents() -> list[Agent]:
+def _clan_sequential_agent_session_agents() -> list[Agent]:
     plan_root = _agent(
         cl_name="sase-ps.plan",
         raw_suffix="20260818102050",
@@ -484,7 +486,7 @@ def _clan_sequential_family_agents() -> list[Agent]:
         agent_session_parallel=False,
         stop_time=_STOP,
     )
-    family_root = _agent(
+    agent_session_root = _agent(
         cl_name="sase-ps.plan--1",
         raw_suffix="20260818114621",
         status="DONE",
@@ -506,13 +508,13 @@ def _clan_sequential_family_agents() -> list[Agent]:
         agent_session_parallel=False,
         stop_time=_STOP,
     )
-    return [plan_root, family_root, monitor]
+    return [plan_root, agent_session_root, monitor]
 
 
-def _scenario_clan_sequential_family_dismiss() -> tuple[
+def _scenario_clan_sequential_agent_session_dismiss() -> tuple[
     list[Agent], AgentCleanupRequestWire
 ]:
-    agents = _clan_sequential_family_agents()
+    agents = _clan_sequential_agent_session_agents()
     return agents, _request(
         scope=CLEANUP_SCOPE_CLAN,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
@@ -522,10 +524,10 @@ def _scenario_clan_sequential_family_dismiss() -> tuple[
     )
 
 
-def _scenario_explicit_clan_sequential_family_dismiss() -> tuple[
+def _scenario_explicit_clan_sequential_agent_session_dismiss() -> tuple[
     list[Agent], AgentCleanupRequestWire
 ]:
-    agents = _clan_sequential_family_agents()
+    agents = _clan_sequential_agent_session_agents()
     return agents, _request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
@@ -591,7 +593,7 @@ def _scenario_owner_cascades_live_monitor() -> tuple[
         pid=None,
         stop_time=_STOP,
     )
-    family = _agent(
+    agent_session = _agent(
         cl_name="sase-ru.6--1",
         raw_suffix="family-ts",
         parent_timestamp="owner-ts",
@@ -611,7 +613,7 @@ def _scenario_owner_cascades_live_monitor() -> tuple[
         parent_timestamp="sib-ts",
         monitor_id="unrelatedmon1",
     )
-    return [owner, family, monitor, sibling], _request(
+    return [owner, agent_session, monitor, sibling], _request(
         scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
         mode=CLEANUP_MODE_KILL_AND_DISMISS,
         identities=(_id(owner),),
@@ -680,8 +682,8 @@ _SCENARIOS = [
     pytest.param(_scenario_tribe_scope, id="tribe-scope"),
     pytest.param(_scenario_clan_scope, id="clan-scope"),
     pytest.param(
-        _scenario_clan_scope_active_parallel_family,
-        id="clan-scope-active-parallel-family",
+        _scenario_clan_scope_active_parallel_agent_session,
+        id="clan-scope-active-parallel-agent-session",
     ),
     pytest.param(
         _scenario_workflow_parent_with_children,
@@ -692,14 +694,16 @@ _SCENARIOS = [
     pytest.param(_scenario_explicit_child_running, id="explicit-child-running"),
     pytest.param(_scenario_explicit_child_done, id="explicit-child-done"),
     pytest.param(_scenario_custom_child_running, id="custom-child-running"),
-    pytest.param(_scenario_parallel_family_root, id="parallel-family-root"),
     pytest.param(
-        _scenario_clan_sequential_family_dismiss,
-        id="clan-sequential-family-dismiss",
+        _scenario_parallel_agent_session_root, id="parallel-agent-session-root"
     ),
     pytest.param(
-        _scenario_explicit_clan_sequential_family_dismiss,
-        id="explicit-clan-sequential-family-dismiss",
+        _scenario_clan_sequential_agent_session_dismiss,
+        id="clan-sequential-agent-session-dismiss",
+    ),
+    pytest.param(
+        _scenario_explicit_clan_sequential_agent_session_dismiss,
+        id="explicit-clan-sequential-agent-session-dismiss",
     ),
     pytest.param(_scenario_direct_live_monitor, id="direct-live-monitor"),
     pytest.param(_scenario_owner_cascades_live_monitor, id="owner-cascade-monitor"),

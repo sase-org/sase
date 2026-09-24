@@ -293,7 +293,7 @@ def test_fallback_to_previous_conversations_recovers_plural_envelope_once() -> N
     assert [prompt for prompt, _ in turns] == ["Old plan", "Old code", "New prompt"]
 
 
-def test_resume_agent_family_resolves_to_latest_completed_member_chat(
+def test_resume_agent_agent_session_resolves_to_latest_completed_member_chat(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -308,9 +308,9 @@ def test_resume_agent_family_resolves_to_latest_completed_member_chat(
         tmp_path,
         "proj",
         "20260506010101",
-        "family",
-        workflow_name="family",
-        agent_session="family",
+        "cx",
+        workflow_name="cx",
+        agent_session="cx",
         role_suffix="-plan",
         done=True,
         outcome="completed",
@@ -320,9 +320,9 @@ def test_resume_agent_family_resolves_to_latest_completed_member_chat(
         tmp_path,
         "proj",
         "20260506010202",
-        "family-code",
-        workflow_name="family",
-        agent_session="family",
+        "cx-code",
+        workflow_name="cx",
+        agent_session="cx",
         role_suffix="-code",
         parent_timestamp="20260506010101",
         done=True,
@@ -330,7 +330,7 @@ def test_resume_agent_family_resolves_to_latest_completed_member_chat(
         response_path=str(coder_chat),
     )
 
-    assert _resolve_resume_to_chat_path("fork", "family") == str(coder_chat)
+    assert _resolve_resume_to_chat_path("fork", "cx") == str(coder_chat)
 
 
 def test_template_resume_ref_resolves_latest_concrete_agent_chat(

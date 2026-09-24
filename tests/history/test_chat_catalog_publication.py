@@ -121,7 +121,7 @@ def test_retired_publication_is_neither_pending_nor_quarantined(
     assert entry.publication_last_error == reason
 
 
-def test_family_member_chat_finds_its_lane_publication_request(
+def test_agent_session_member_chat_finds_its_lane_publication_request(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -19,8 +19,8 @@ def _identity_dep(artifact_dir: Path, *, name: str) -> dict[str, str]:
     }
 
 
-def _family_fork_source(root_dir: Path, *, name: str) -> dict[str, str]:
-    return {**_identity_dep(root_dir, name=name), "kind": "family"}
+def _agent_session_fork_source(root_dir: Path, *, name: str) -> dict[str, str]:
+    return {**_identity_dep(root_dir, name=name), "kind": "session"}
 
 
 def _update_meta(artifact_dir: Path, **updates: object) -> None:
@@ -107,7 +107,7 @@ def _write_completed_workflow_state(artifact_dir: Path) -> None:
     )
 
 
-def _gate_handoff_family(
+def _gate_handoff_agent_session(
     tmp_path: Path,
     *,
     gate_state: str = "timeout",

@@ -26,10 +26,10 @@ from tests._rust_extension_module_helpers import (
 
 from tests.test_core_facade._agent_cleanup_helpers import (
     _SCENARIOS,
-    _scenario_clan_sequential_family_dismiss,
-    _scenario_explicit_clan_sequential_family_dismiss,
+    _scenario_clan_sequential_agent_session_dismiss,
+    _scenario_explicit_clan_sequential_agent_session_dismiss,
     _scenario_marked_set,
-    _scenario_parallel_family_root,
+    _scenario_parallel_agent_session_root,
 )
 
 
@@ -97,7 +97,7 @@ def test_plan_agent_cleanup_uses_rust_binding_when_available(
 def test_plan_agent_cleanup_sends_legacy_parallel_key_to_rust_binding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    agents, request = _scenario_parallel_family_root()
+    agents, request = _scenario_parallel_agent_session_root()
     targets = agents_to_cleanup_targets(agents)
     assert any(target.agent_session_parallel for target in targets)
     captured: list[list[dict[str, Any]]] = []
@@ -181,11 +181,11 @@ def test_rust_cleanup_planner_matches_python_reference(
 @pytest.mark.parametrize(
     "scenario",
     (
-        _scenario_clan_sequential_family_dismiss,
-        _scenario_explicit_clan_sequential_family_dismiss,
+        _scenario_clan_sequential_agent_session_dismiss,
+        _scenario_explicit_clan_sequential_agent_session_dismiss,
     ),
 )
-def test_rust_and_python_planners_agree_on_clan_sequential_family(
+def test_rust_and_python_planners_agree_on_clan_sequential_agent_session(
     scenario: Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

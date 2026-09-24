@@ -97,7 +97,7 @@ def _format_proc_metadata_rows(proc: Mapping[str, object]) -> list[str]:
     if is_monitor:
         lane = fork_source_optional_string(proc, "monitor_lane")
         if lane:
-            rows.append(f"- **Family lane:** `{lane}`")
+            rows.append(f"- **Session lane:** `{lane}`")
         reason = fork_source_optional_string(proc, "monitor_reason")
         if reason:
             rows.append(f"- **Reason:** {reason}")

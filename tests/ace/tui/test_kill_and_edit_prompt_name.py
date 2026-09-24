@@ -114,10 +114,10 @@ def test_prepare_kill_and_edit_prompt_family_root_keeps_clan() -> None:
     rewritten = prepare_kill_and_edit_prompt(
         _EPIC_ROOT_PROMPT,
         "sase-pw.1--plan",
-        family_name="sase-pw.1",
+        agent_session_name="sase-pw.1",
         role_suffix="--plan",
         phase_bead_id="sase-pw.1",
-        is_family_root=True,
+        is_agent_session_root=True,
     )
     assert rewritten == _EPIC_ROOT_RELAUNCH
     assert "family=" not in rewritten
@@ -128,7 +128,7 @@ def test_prepare_kill_and_edit_epic_root_without_flag_still_keeps_clan() -> None
     rewritten = prepare_kill_and_edit_prompt(
         _EPIC_ROOT_PROMPT,
         "sase-pw.1--plan",
-        family_name="sase-pw.1",
+        agent_session_name="sase-pw.1",
         role_suffix="--plan",
         phase_bead_id="sase-pw.1",
     )
@@ -139,9 +139,9 @@ def test_prepare_kill_and_edit_prompt_plain_family_root_keeps_prompt() -> None:
     rewritten = prepare_kill_and_edit_prompt(
         "#gh:gh_sase-org__sase #plan",
         "06d--plan",
-        family_name="06d",
+        agent_session_name="06d",
         role_suffix="--plan",
-        is_family_root=True,
+        is_agent_session_root=True,
     )
     assert rewritten == "#gh:gh_sase-org__sase #plan"
     assert "family=" not in rewritten
@@ -156,7 +156,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
         prepare_kill_and_edit_prompt(
             "Do work",
             "sase-pw.1",
-            family_name="sase-pw.1",
+            agent_session_name="sase-pw.1",
             role_suffix="--code",
         )
 
@@ -168,7 +168,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
             "%id:sase-8u.4.2\n%auto\nDo work",
             {
                 "agent_name": "sase-8u.4.2--code",
-                "family_name": "sase-8u.4.2",
+                "agent_session_name": "sase-8u.4.2",
                 "role_suffix": "--code",
             },
             "%id(!code, family=sase-8u.4.2)\n%auto\nDo work",
@@ -177,7 +177,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
             "Do work",
             {
                 "agent_name": "sase-8u.4.2--code",
-                "family_name": "sase-8u.4.2",
+                "agent_session_name": "sase-8u.4.2",
                 "role_suffix": "--code",
                 "phase_bead_id": "sase-8u.4.2",
             },
@@ -187,7 +187,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
             "%id(worker, clan=research, bead=kept)\nDo work",
             {
                 "agent_name": "athena.research.worker--reviewer",
-                "family_name": "athena.research.worker",
+                "agent_session_name": "athena.research.worker",
                 "role_suffix": "--reviewer",
                 "phase_bead_id": "ignored",
             },
@@ -197,7 +197,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
             "%clan(research, tribe=review)\n%id:research.worker\nDo work",
             {
                 "agent_name": "research.worker--commit",
-                "family_name": "research.worker",
+                "agent_session_name": "research.worker",
                 "role_suffix": "--commit",
             },
             "%id(!commit, family=research.worker)\nDo work",

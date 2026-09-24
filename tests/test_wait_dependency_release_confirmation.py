@@ -32,7 +32,7 @@ def _index(*artifact_dirs: Path) -> WaitDependencyIndex:
     return index
 
 
-def _stale_handoff_family(tmp_path: Path) -> tuple[Path, list[Path]]:
+def _stale_handoff_agent_session(tmp_path: Path) -> tuple[Path, list[Path]]:
     root_dir = make_agent(
         tmp_path,
         "proj",
@@ -108,10 +108,10 @@ def _stale_handoff_family(tmp_path: Path) -> tuple[Path, list[Path]]:
     ]
 
 
-def test_stale_family_membership_defers_release_against_live_successor(
+def test_stale_agent_session_membership_defers_release_against_live_successor(
     tmp_path: Path,
 ) -> None:
-    _root_dir, artifacts = _stale_handoff_family(tmp_path)
+    _root_dir, artifacts = _stale_handoff_agent_session(tmp_path)
     stale = _index(*artifacts[:-1])
     fresh = _index(*artifacts)
 
@@ -122,8 +122,10 @@ def test_stale_family_membership_defers_release_against_live_successor(
     assert confirmation.status.blocked_on == ("lane",)
 
 
-def test_completed_family_is_confirmed_with_one_fresh_build(tmp_path: Path) -> None:
-    _root_dir, artifacts = _stale_handoff_family(tmp_path)
+def test_completed_agent_session_is_confirmed_with_one_fresh_build(
+    tmp_path: Path,
+) -> None:
+    _root_dir, artifacts = _stale_handoff_agent_session(tmp_path)
     (artifacts[-1] / "done.json").write_text(
         json.dumps({"outcome": "monitored", "monitor_state": "completed"}),
         encoding="utf-8",
@@ -242,7 +244,7 @@ def test_bead_and_time_only_waits_skip_the_fresh_factory() -> None:
 
 
 def test_identity_and_hood_waits_defer_on_stale_membership(tmp_path: Path) -> None:
-    root_dir, artifacts = _stale_handoff_family(tmp_path)
+    root_dir, artifacts = _stale_handoff_agent_session(tmp_path)
     stale = _index(*artifacts[:-1])
     fresh = _index(*artifacts)
 

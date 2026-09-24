@@ -6,7 +6,7 @@ from sase.agent.names import AgentSessionMember
 from sase.agent.names._lookup_artifacts import is_success_outcome
 from sase.core.dismissed_agent_completion import archived_response_path
 from sase.scripts._agent_chat_from_name_common import (
-    find_family_member,
+    find_agent_session_member,
     normalize_name,
     read_json_string_field,
     resolve_default_agent_name,
@@ -19,7 +19,7 @@ from sase.scripts._agent_chat_from_name_common import (
 def resolve_agent_chat_path(name: str | None = None) -> str:
     """Return the chat path for an explicit or default resume target.
 
-    Explicit family members use their member-owned ``agent_meta.json`` chat
+    Explicit agent-session members use their member-owned ``agent_meta.json`` chat
     before a successful ``done.json`` fallback. Other explicit names preserve
     the legacy done-before-meta lookup order. An omitted name resolves to the
     most recently launched named agent, excluding ``SASE_ARTIFACTS_DIR`` so an
@@ -29,9 +29,9 @@ def resolve_agent_chat_path(name: str | None = None) -> str:
     if resolved_name is None:
         resolved_name = resolve_default_agent_name()
 
-    family_member = find_family_member(resolved_name)
-    if family_member is not None:
-        path = _resolve_family_member_resume_transcript(family_member)
+    agent_session_member = find_agent_session_member(resolved_name)
+    if agent_session_member is not None:
+        path = _resolve_agent_session_member_resume_transcript(agent_session_member)
         if path:
             return path
         raise RuntimeError(f"No agent with chat history found for: {resolved_name}")
@@ -47,7 +47,7 @@ def resolve_agent_chat_path(name: str | None = None) -> str:
     raise RuntimeError(f"No agent with chat history found for: {resolved_name}")
 
 
-def _resolve_family_member_resume_transcript(
+def _resolve_agent_session_member_resume_transcript(
     member: AgentSessionMember,
 ) -> str | None:
     """Resolve one sequential member's owned transcript for plain resume.

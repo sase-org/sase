@@ -19,7 +19,7 @@ from sase.axe.run_agent_wait_deps import (
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, write_workflow_state
 from tests._monitor_wait_dependency_helpers import (
-    _monitor_handoff_family,
+    _monitor_handoff_agent_session,
     _write_completed_workflow_state,
 )
 from tests.test_bead.resolution_test_helpers import bead_store_snapshot
@@ -160,13 +160,13 @@ def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
     )
 
 
-def test_runner_confirmation_rejects_stale_family_then_accepts_complete_family(
+def test_runner_confirmation_rejects_stale_agent_session_then_accepts_complete_agent_session(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     waiter_dir = make_waiting_agent(tmp_path, "monitor-lane")
-    root_dir, monitor_dir, handoff_dir = _monitor_handoff_family(
+    root_dir, monitor_dir, handoff_dir = _monitor_handoff_agent_session(
         tmp_path,
         successor_outcome=False,
     )
@@ -428,9 +428,18 @@ def test_fork_source_wait_binds_exact_agent_not_newer_namesake(
     )
 
 
-def test_fork_source_wait_releases_failed_family_generation(
+@pytest.mark.parametrize(
+    "fork_source_kind",
+    [
+        "session",
+        # legacy agent-family spelling: pre-rename stored fork sources.
+        pytest.param("family", id="legacy-family"),
+    ],
+)
+def test_fork_source_wait_releases_failed_agent_session_generation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    fork_source_kind: str,
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     waiter_dir = make_waiting_agent(tmp_path, "planfam")
@@ -468,7 +477,7 @@ def test_fork_source_wait_releases_failed_family_generation(
         ["planfam"],
         [],
         wait_fork_sources=[
-            _artifact_fork_source(root_dir, kind="family", name="planfam")
+            _artifact_fork_source(root_dir, kind=fork_source_kind, name="planfam")
         ],
         project_name="proj",
         artifacts_dir=str(waiter_dir),

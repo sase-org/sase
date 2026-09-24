@@ -46,7 +46,7 @@ def test_hold_selectors_wire_normalizes_tribes_and_defaults() -> None:
     assert selectors["future"] is True
 
 
-def test_hold_selectors_wire_expands_family_names() -> None:
+def test_hold_selectors_wire_expands_agent_session_names() -> None:
     selectors = _hold_selectors_wire(names=["team"])
     assert selectors["names"] == ["team"]
     assert selectors["families"] == ["team"]

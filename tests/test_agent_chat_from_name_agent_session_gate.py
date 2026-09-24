@@ -1,4 +1,4 @@
-"""Tests for gate-shell family members as typed ``#fork`` sources."""
+"""Tests for gate-shell agent-session members as typed ``#fork`` sources."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.scripts.agent_chat_from_name import (
-    _ForkFamilyMemberSource,
+    _ForkAgentSessionMemberSource,
     _resolve_agent_chat_sources,
 )
 from tests._agent_chat_from_name_helpers import write_agent
@@ -50,7 +50,7 @@ def _write_planner(tmp_path: Path) -> None:
     (tmp_path / "planner.md").write_text("hi", encoding="utf-8")
 
 
-def test_family_source_includes_settled_gate_shell_as_gate_kind(
+def test_agent_session_source_includes_settled_gate_shell_as_gate_kind(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -69,14 +69,14 @@ def test_family_source_includes_settled_gate_shell_as_gate_kind(
 
     assert [member.name for member in source.members] == ["cx--plan", "cx--gate"]
     gate_member = source.members[1]
-    assert isinstance(gate_member, _ForkFamilyMemberSource)
+    assert isinstance(gate_member, _ForkAgentSessionMemberSource)
     assert gate_member.kind == "gate"
     assert gate_member.outcome == "answered"
     assert gate_member.path == str(chat_path)
     assert source.excluded == ()
 
 
-def test_family_source_excludes_pending_gate_shell_as_running(
+def test_agent_session_source_excludes_pending_gate_shell_as_running(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -97,7 +97,7 @@ def test_family_source_excludes_pending_gate_shell_as_running(
     ]
 
 
-def test_family_fork_history_labels_gate_shell_member(
+def test_agent_session_fork_history_labels_gate_shell_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))

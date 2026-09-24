@@ -1,4 +1,4 @@
-"""Tests for monitor family members as typed proc-shell ``#fork`` sources."""
+"""Tests for monitor agent-session members as typed proc-shell ``#fork`` sources."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 
 import sase.scripts._agent_chat_from_name_monitor as monitor_source
 from sase.scripts.agent_chat_from_name import (
-    _ForkFamilyMemberSource,
+    _ForkAgentSessionMemberSource,
     _resolve_agent_chat_sources,
 )
 from tests._agent_chat_from_name_helpers import write_agent
@@ -42,7 +42,7 @@ def _write_monitor_member(
     return write_agent(tmp_path, suffix, name, done=done, meta=meta)
 
 
-def test_family_source_includes_terminal_completed_monitor_as_proc_kind(
+def test_agent_session_source_includes_terminal_completed_monitor_as_proc_kind(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -73,7 +73,7 @@ def test_family_source_includes_terminal_completed_monitor_as_proc_kind(
 
     assert [member.name for member in source.members] == ["cx--plan", "cx--mon"]
     monitor_member = source.members[1]
-    assert isinstance(monitor_member, _ForkFamilyMemberSource)
+    assert isinstance(monitor_member, _ForkAgentSessionMemberSource)
     assert monitor_member.kind == "proc"
     assert monitor_member.outcome == "completed"
     assert monitor_member.proc is not None
@@ -86,7 +86,7 @@ def test_family_source_includes_terminal_completed_monitor_as_proc_kind(
     assert source.excluded == ()
 
 
-def test_family_source_includes_terminal_failed_monitor_with_failed_flag(
+def test_agent_session_source_includes_terminal_failed_monitor_with_failed_flag(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -113,7 +113,7 @@ def test_family_source_includes_terminal_failed_monitor_with_failed_flag(
     source = _resolve_agent_chat_sources(["cx"])[0]
 
     monitor_member = source.members[1]
-    assert isinstance(monitor_member, _ForkFamilyMemberSource)
+    assert isinstance(monitor_member, _ForkAgentSessionMemberSource)
     assert monitor_member.kind == "proc"
     assert monitor_member.outcome == "timeout"
     assert monitor_member.proc is not None
@@ -121,7 +121,7 @@ def test_family_source_includes_terminal_failed_monitor_with_failed_flag(
     assert monitor_member.proc.failed is True
 
 
-def test_family_source_excludes_still_running_monitor(
+def test_agent_session_source_excludes_still_running_monitor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))

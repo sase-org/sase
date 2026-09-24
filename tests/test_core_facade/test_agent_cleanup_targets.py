@@ -68,7 +68,7 @@ def test_agent_to_cleanup_target_marks_live_monitors() -> None:
     assert target.monitor_id == "monid123456"
 
 
-def test_workflow_step_child_excludes_family_members_and_monitors() -> None:
+def test_workflow_step_child_excludes_agent_session_members_and_monitors() -> None:
     family_member = agent_to_cleanup_target(
         _agent(cl_name="family", parent_timestamp="root-ts")
     )

@@ -64,7 +64,7 @@ def test_epic_choice_delegates_archive_and_launch_to_monitor() -> None:
     assert record.archive_side_effect is False
     assert "`sase monitor`" in record.consequence_text
     assert "`sase monitor list`" in record.consequence_text
-    assert "planner's family row" in record.consequence_text
+    assert "planner's agent-session row" in record.consequence_text
 
 
 def test_selected_option_sets_drive_protocol_fields() -> None:

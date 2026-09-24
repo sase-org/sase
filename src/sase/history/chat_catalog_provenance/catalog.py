@@ -223,7 +223,7 @@ def _publication_status(
 ) -> PublicationBacklogItem | None:
     if link is None:
         return None
-    # A publication request records the committing sase agent, so a family
+    # A publication request records the committing sase agent, so an agent-session
     # member's own name only matches legacy member-anchored requests; its
     # sase-agent projection is what current requests carry.
     candidates: list[str] = []

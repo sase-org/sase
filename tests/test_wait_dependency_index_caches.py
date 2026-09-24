@@ -19,13 +19,13 @@ def _completed_done() -> dict[str, str]:
 def _meta(
     name: str,
     *,
-    family: str | None = None,
+    agent_session: str | None = None,
     tribe: str | None = None,
 ) -> dict[str, object]:
     data: dict[str, object] = {"name": name}
-    if family is not None:
-        data["workflow_name"] = family
-        data["agent_session"] = family
+    if agent_session is not None:
+        data["workflow_name"] = agent_session
+        data["agent_session"] = agent_session
     if tribe is not None:
         data["tribe"] = tribe
     return data
@@ -36,14 +36,14 @@ def _write_agent(
     timestamp: str,
     name: str,
     *,
-    family: str | None = None,
+    agent_session: str | None = None,
     tribe: str | None = None,
     done: bool = True,
 ) -> Path:
     artifact_dir = root / timestamp
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "agent_meta.json").write_text(
-        json.dumps(_meta(name, family=family, tribe=tribe)),
+        json.dumps(_meta(name, agent_session=agent_session, tribe=tribe)),
         encoding="utf-8",
     )
     if done:
@@ -134,7 +134,7 @@ def test_dir_key_resolution_does_not_scale_with_waiters_times_artifacts(
         dependency_dirs.append(artifact_dir)
         index.add_scan_record(
             artifact_dir,
-            _meta(f"target-{number}", family="target"),
+            _meta(f"target-{number}", agent_session="target"),
             project_name="proj",
             done_data=_completed_done(),
         )
