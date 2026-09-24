@@ -152,15 +152,29 @@ class _DescriptionDashboardProbe:
     def update_bgcmd_display(self, *_args: Any, **_kwargs: Any) -> None:
         self.banner = None
 
+    def update_service_proc_display(self, **_kwargs: Any) -> None:
+        proc = _kwargs.get("proc")
+        if proc is None:
+            self.banner = None
+        else:
+            self.banner = proc.description or "No description configured"
+
 
 class _ToggleProbe:
     """Minimal action host proving the toggle stays cache-only."""
 
     def __init__(self, tab: str = "services") -> None:
+        from sase.ace.tui.widgets.bgcmd_list import LumberjackItem
+
         self.current_tab = tab
         self.axe_description_expanded = True
         self.dashboard = MagicMock()
         self.refreshes = 0
+        self._axe_items = [LumberjackItem(name="hooks")]
+        self.current_idx = 0
+
+    def _axe_description_row_selected(self) -> bool:
+        return AxeMixin._axe_description_row_selected(self)  # type: ignore[arg-type]
 
     def query_one(self, *_args: Any, **_kwargs: Any) -> Any:
         return self.dashboard
@@ -342,5 +356,96 @@ def test_banner_follows_lumberjack_chop_generated_and_bgcmd_selection() -> None:
         assert dashboard.banner == "Refresh generated documentation  · sase"
 
         app.current_idx = 4
+        app._refresh_axe_display()
+        assert dashboard.banner is None
+
+
+def test_description_toggle_gating_by_row_kind() -> None:
+    from sase.ace.tui.widgets.bgcmd_list import (
+        BgCmdItem,
+        ChopItem,
+        LumberjackItem,
+        ServiceProcItem,
+    )
+
+    for item, should_toggle in [
+        (ServiceProcItem(name="scheduler"), True),
+        (LumberjackItem(name="hooks"), True),
+        (ChopItem(lumberjack_name="hooks", chop_name="fast"), True),
+        (BgCmdItem(slot=1), False),
+    ]:
+        app = _ToggleProbe()
+        app._axe_items = [item]
+        app.current_idx = 0
+        AxeMixin.action_toggle_axe_description(app)  # type: ignore[arg-type]
+        assert (app.axe_description_expanded is False) is should_toggle
+        assert (app.refreshes == 1) is should_toggle
+
+    empty = _ToggleProbe()
+    empty._axe_items = []
+    empty.current_idx = 0
+    AxeMixin.action_toggle_axe_description(empty)  # type: ignore[arg-type]
+    assert empty.axe_description_expanded is True
+    assert empty.refreshes == 0
+
+
+def test_service_proc_selection_shows_and_hides_banner() -> None:
+    from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, ServiceProcItem
+    from sase.service.status import ServiceEnablement, ServiceStatusProc
+
+    def _proc(name: str, description: str | None) -> ServiceStatusProc:
+        return ServiceStatusProc(
+            name=name,
+            source="builtin",
+            declared_by="builtin",
+            mode="daemon",
+            available=True,
+            enablement=ServiceEnablement(
+                enabled=True, provenance="builtin", summary="enabled"
+            ),
+            desired="running",
+            state="running",
+            summary="running",
+            restarts=0,
+            description=description,
+        )
+
+    app = FakeAxeApp()
+    app._axe_items = [
+        ServiceProcItem(name="scheduler"),
+        BgCmdItem(slot=1),
+        ServiceProcItem(name="missing"),
+    ]
+    dashboard = _DescriptionDashboardProbe()
+
+    def _query_one(selector: str, *_args: Any, **_kwargs: Any) -> Any:
+        if selector == "#axe-dashboard":
+            return dashboard
+        return MagicMock()
+
+    app.query_one = _query_one  # type: ignore[method-assign]
+    app._service_log_tails = {}
+    from sase.service.status import ServiceStatusHost, ServiceStatusSnapshot
+
+    app._service_status = ServiceStatusSnapshot(
+        schema_version=1,
+        generated_at=0.0,
+        change_token="test",
+        host=ServiceStatusHost(state="running", summary="running"),
+        procs=(_proc("scheduler", "Run automation"),),
+        orphans=(),
+        diagnostics=(),
+    )
+
+    with patch("sase.ace.tui.modals.get_runner_count", return_value=0):
+        app.current_idx = 0
+        app._refresh_axe_display()
+        assert dashboard.banner == "Run automation"
+
+        app.current_idx = 1
+        app._refresh_axe_display()
+        assert dashboard.banner is None
+
+        app.current_idx = 2
         app._refresh_axe_display()
         assert dashboard.banner is None

@@ -76,9 +76,23 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
 
         self.action_clear_axe_output()
 
+    def _axe_description_row_selected(self) -> bool:
+        """Return whether the selected row owns a description panel."""
+        from ..widgets.bgcmd_list import ChopItem, LumberjackItem, ServiceProcItem
+
+        axe_items = getattr(self, "_axe_items", None)
+        if not axe_items:
+            return False
+        idx = getattr(self, "current_idx", 0)
+        if idx < 0 or idx >= len(axe_items):
+            return False
+        return isinstance(axe_items[idx], (ServiceProcItem, LumberjackItem, ChopItem))
+
     def action_toggle_axe_description(self) -> None:
         """Collapse or expand the selected config description for this session."""
         if self.current_tab != SERVICES_TAB:
+            return
+        if not self._axe_description_row_selected():
             return
 
         self.axe_description_expanded = not self.axe_description_expanded

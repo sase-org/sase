@@ -120,7 +120,10 @@ def test_axe_help_lists_description_toggle() -> None:
         for key, label in bindings
     }
 
-    assert ("d", "Expand / collapse description") in pairs
+    assert (
+        "d",
+        "Expand / collapse service, routine, or job description",
+    ) in pairs
 
 
 def test_admin_center_help_summary_fits_and_documents_the_opener_toggle() -> None:

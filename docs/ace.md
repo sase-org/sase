@@ -2993,7 +2993,8 @@ host or a service proc is unhealthy (see [Service Health Pill](#service-health-p
 The right-hand panel shows the selected proc's effective command, current and desired
 state, restart policy, dependencies, last exit, restart decision reason, stop
 provenance, any pending start/restart request, and output tail, plus the host config
-error when one is set.
+error when one is set. The description sits in the sticky
+[description panel](#description-panel) above it.
 
 The canonical tab id is `services` (`axe` is still accepted as a legacy alias, for
 example `sase tui -t axe`). Configuration keys such as `ace.axe_description_expanded`
@@ -3028,12 +3029,17 @@ tree reads at a glance:
 
 ### Description Panel
 
-The right-hand dashboard keeps the selected routine or job description in a dedicated
-panel between the status line and scrolling output. Every row of the panel carries a
-solid left accent gutter (`▌ `) in the row's own hue, so the block reads as a blockquote
-and stays visually distinct from the output pane below. Generated `for_each` job
-instances also show their target key on the summary row. The panel stays fixed while
-output scrolls and disappears for background-command and empty Services views.
+The right-hand dashboard keeps the selected service proc, routine, or job description in
+a dedicated panel between the status line and scrolling output. Every row of the panel
+carries a solid left accent gutter (`▌ `) in the row's own hue — service teal for
+service procs, routine gold and job copper otherwise — so the block reads as a
+blockquote and stays visually distinct from the output pane below. Generated `for_each`
+job instances also show their target key on the summary row. The panel stays fixed while
+output scrolls and disappears for background-command and empty Services views. It shares
+one session state across the Services tab: `d` on a service proc row also collapses
+routine and job panels, and the reverse is true too. A service proc with no configured
+description shows the dim-italic `No description configured` fallback, while a proc
+missing from the snapshot hides the panel entirely. Oneshot rows get no panel.
 
 The panel has two states, and `d` toggles between them for the rest of the session. The
 summary row ends with a `▸ d` / `▾ d` disclosure hint whenever there is a body to reveal
@@ -3070,8 +3076,10 @@ it never reloads config, reads disk, or writes the toggle back.
 An expanded panel never crowds out the job output it exists to explain. The dashboard
 budgets `max(3, min(16, floor(pane_height * 0.45)))` rows for the panel, falling back to
 10 rows before its height is known. If the rendered block exceeds that budget, the last
-row becomes a dim `… +N more · e` marker: nothing is silently dropped, and `e` opens the
-AXE entry editor, whose first field is the full description in a multi-line text area.
+row becomes a dim `… +N more · e` marker on routine and job rows — service proc rows
+read `… +N more` with no `· e`, because `e` does nothing there: nothing is silently
+dropped, and `e` opens the AXE entry editor, whose first field is the full description
+in a multi-line text area.
 
 Because `d` belongs to the Services tab, `show_diff` is scoped to the Patches sub-tab.
 Pressing `d` outside Patches no longer opens a diff for an unrelated Patch.
@@ -3146,7 +3154,7 @@ scrolled off screen on selection.
 | Key | Action                                                                                                                                 |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `a` | Add a routine, or add a job under the selected routine                                                                                 |
-| `d` | Expand / collapse the [description panel](#description-panel) for this session                                                         |
+| `d` | Expand / collapse the [description panel](#description-panel) for the selected service proc, routine, or job                           |
 | `e` | Edit the selected routine or job configuration                                                                                         |
 | `E` | Open the selected recorded job output in `$EDITOR`                                                                                     |
 | `+` | Run agent                                                                                                                              |

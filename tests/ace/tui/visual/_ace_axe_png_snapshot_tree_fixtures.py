@@ -181,6 +181,7 @@ def _services_panels_proc(
     enablement_summary: str = "enabled",
     summary: str = "",
     restarts: int = 0,
+    description: str | None = None,
 ) -> ServiceStatusProc:
     return ServiceStatusProc(
         name=name,
@@ -195,6 +196,7 @@ def _services_panels_proc(
         state=state,
         summary=summary or state,
         restarts=restarts,
+        description=description,
     )
 
 
@@ -207,8 +209,23 @@ def _services_panels_status(
         change_token="visual-services-panels",
         host=ServiceStatusHost(state="running", summary="running"),
         procs=(
-            _services_panels_proc("scheduler", scheduler_state),
-            _services_panels_proc("telegram", "running"),
+            _services_panels_proc(
+                "scheduler",
+                scheduler_state,
+                description=(
+                    "Run SASE's background automation: routines and their scheduled jobs\n"
+                    "\n"
+                    "Runs the scheduler orchestrator for the visual snapshot.\n"
+                    "\n"
+                    "- Stopping it pauses scheduled automation.\n"
+                    "- Configure the work under axe.routines."
+                ),
+            ),
+            _services_panels_proc(
+                "telegram",
+                "running",
+                description="Receive Telegram updates for remote agent dispatch.",
+            ),
             _services_panels_proc(
                 "agents_sync",
                 "crash_loop",

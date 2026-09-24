@@ -120,10 +120,26 @@ service:
   procs:
     scheduler:
       builtin: scheduler
-      description: "SASE's background automation: routines and their jobs."
+      description: |-
+        Run SASE's background automation: routines and their scheduled jobs
+
+        Runs the scheduler orchestrator, which starts every configured routine and runs each routine's
+        jobs on its own interval. Routines, jobs, and their recorded runs appear in the Scheduled
+        Routines panel.
+
+        - Stopping it pauses all scheduled automation on this machine; `sase scheduler start` resumes it.
+        - Configure the work it does under `axe.routines`, not here.
     gateway:
       builtin: gateway
-      description: "Mobile gateway HTTP API for remote agent dispatch."
+      description: |-
+        Serve the mobile gateway HTTP API for remote agent dispatch
+
+        Serves the HTTP API that paired mobile clients call to list, launch, and manage agents and to
+        receive notification events. It exposes fixed product operations only, never a generic file,
+        shell, or RPC surface.
+
+        - Disabled by default; enable it on this machine with `sase service proc enable gateway`.
+        - Pair a phone with `sase mobile gateway pair` once it is running.
       # A default-on loopback HTTP API on machines that never pair a phone is
       # wrong; machine overlays enable this where the gateway is wanted.
       enabled: false

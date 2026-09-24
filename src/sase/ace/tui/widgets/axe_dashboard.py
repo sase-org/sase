@@ -89,6 +89,18 @@ class AxeDashboard(Static):
         except Exception:
             return True
 
+    def _description_keys(self) -> tuple[str, str]:
+        """Return the configured display keys for toggle and edit actions."""
+        try:
+            from ..keymaps.display import key_display_name
+
+            registry = self.app._keymap_registry  # type: ignore[attr-defined]
+            toggle = key_display_name(registry.app.toggle_axe_description)
+            edit = key_display_name(registry.app.edit_spec)
+            return (toggle or "d", edit or "e")
+        except Exception:
+            return ("d", "e")
+
     def refresh_description_banner(self, expanded: bool) -> None:
         """Repaint only the cached description panel for the ``d`` action."""
         banner = self._description_banner()
@@ -211,7 +223,19 @@ class AxeDashboard(Static):
         status_section = self.query_one("#axe-status-section", _AxeStatusSection)
         output_section = self.query_one("#axe-output-section", _AxeOutputSection)
 
-        self._hide_description_banner()
+        description_banner = self._description_banner()
+        if proc is None:
+            if description_banner is not None:
+                description_banner.hide()
+        elif description_banner is not None:
+            from sase.service.description import split_service_description
+
+            toggle_key, edit_key = self._description_keys()
+            description_banner.set_keys(toggle_key=toggle_key, edit_key=edit_key)
+            description_banner.set_expanded(self._description_expanded())
+            description_banner.set_max_lines(self._description_max_lines())
+            summary, body = split_service_description(proc.description)
+            description_banner.show_service_proc(name, summary, body)
         status_section.update_service_proc_display(
             host=None if snapshot is None else snapshot.host,
             proc=proc,
@@ -284,6 +308,8 @@ class AxeDashboard(Static):
 
             description_banner = self._description_banner()
             if description_banner is not None:
+                toggle_key, edit_key = self._description_keys()
+                description_banner.set_keys(toggle_key=toggle_key, edit_key=edit_key)
                 description_banner.set_expanded(self._description_expanded())
                 description_banner.set_max_lines(self._description_max_lines())
                 description_banner.show_lumberjack(
@@ -333,6 +359,8 @@ class AxeDashboard(Static):
 
             description_banner = self._description_banner()
             if description_banner is not None:
+                toggle_key, edit_key = self._description_keys()
+                description_banner.set_keys(toggle_key=toggle_key, edit_key=edit_key)
                 description_banner.set_expanded(self._description_expanded())
                 description_banner.set_max_lines(self._description_max_lines())
                 description_banner.show_chop(

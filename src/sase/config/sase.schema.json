@@ -1287,7 +1287,7 @@
       "properties": {
         "description": {
           "type": "string",
-          "description": "Human-readable summary shown in the Services tab and `sase service proc show`."
+          "description": "Summary line, then a blank line and an optional body. Shown in the Services tab description panel (`d` expands or collapses it) and `sase service proc show`."
         },
         "enabled": {
           "type": "boolean",
@@ -1580,7 +1580,7 @@
         },
         "axe_description_expanded": {
           "type": "boolean",
-          "description": "Whether AXE descriptions start expanded; the configured toggle key changes this only for the current sase's TUI session.",
+          "description": "Whether the Services-tab description panel for service procs, routines, and jobs starts expanded; the configured toggle key changes this only for the current sase's TUI session.",
           "default": true
         },
         "page_size": {

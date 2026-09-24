@@ -396,3 +396,22 @@ def test_compute_axe_bindings_done_bgcmd_wins_over_chop_label() -> None:
     # Only one r-binding is surfaced; chop flags don't double up.
     r_count = sum(1 for k, _ in bindings if k == "r")
     assert r_count == 1
+
+
+def test_compute_axe_bindings_service_selected_shows_desc_without_edit() -> None:
+    """A service proc selection shows ``d`` but not ``e edit config``."""
+    footer = KeybindingFooter()
+    expanded = footer._compute_axe_bindings(
+        "axe",
+        service_selected=True,
+        description_expanded=True,
+    )
+    collapsed = footer._compute_axe_bindings(
+        "axe",
+        service_selected=True,
+        description_expanded=False,
+    )
+    assert ("d", "collapse desc") in expanded
+    assert ("d", "expand desc") in collapsed
+    assert not any(label == "edit config" for _, label in expanded)
+    assert not any(label == "edit config" for _, label in collapsed)

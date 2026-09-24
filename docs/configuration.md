@@ -825,28 +825,28 @@ ace:
             shell: "just test"
 ```
 
-| Field                               | Type         | Default   | Description                                                                                                                                                |
-| ----------------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `artifact_file_viewer`              | dict         | see below | mpv-backed terminal video playback settings for the external artifact-file viewer.                                                                         |
-| `artifacts`                         | dict         | see below | Per-pane settings for sase's TUI Artifacts tab.                                                                                                            |
-| `axe_description_expanded`          | bool         | `true`    | State the Services-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                     |
-| `current_project`                   | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
-| `keymaps`                           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
-| `notification_indicator_max_counts` | int          | `4`       | Per-tab counts shown in the top-bar notification indicator before the rest collapse into `+N`.                                                             |
-| `notification_rules`                | list         | `[]`      | Ordered rules for whether a notification toasts and what sound it plays; see [Delivery Rules](notifications.md#delivery-rules).                            |
-| `notification_tabs`                 | dict         | see below | Per-tab colors, icons, priorities, and grouping for notification tabs.                                                                                     |
-| `page_size`                         | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.          |
-| `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                 |
-| `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
-| `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                         |
-| `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab (only when agent decks are enabled).                                             |
-| `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                  |
-| `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
-| `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                              |
-| `snippets`                          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
-| `tool_calls`                        | dict         | see below | Tool-call presentation settings for sase's TUI Agents tab.                                                                                                 |
-| `tribes`                            | dict         | see below | Per-tribe sase's TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                   |
-| `updates`                           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
+| Field                               | Type         | Default   | Description                                                                                                                                                  |
+| ----------------------------------- | ------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `artifact_file_viewer`              | dict         | see below | mpv-backed terminal video playback settings for the external artifact-file viewer.                                                                           |
+| `artifacts`                         | dict         | see below | Per-pane settings for sase's TUI Artifacts tab.                                                                                                              |
+| `axe_description_expanded`          | bool         | `true`    | State the Services-tab [description panel](ace.md#description-panel) for service procs, routines, and jobs starts each session in; `d` toggles it in memory. |
+| `current_project`                   | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                             |
+| `keymaps`                           | dict         | -         | Configurable keybindings (see below).                                                                                                                        |
+| `notification_indicator_max_counts` | int          | `4`       | Per-tab counts shown in the top-bar notification indicator before the rest collapse into `+N`.                                                               |
+| `notification_rules`                | list         | `[]`      | Ordered rules for whether a notification toasts and what sound it plays; see [Delivery Rules](notifications.md#delivery-rules).                              |
+| `notification_tabs`                 | dict         | see below | Per-tab colors, icons, priorities, and grouping for notification tabs.                                                                                       |
+| `page_size`                         | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.            |
+| `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                   |
+| `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                   |
+| `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                           |
+| `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab (only when agent decks are enabled).                                               |
+| `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                    |
+| `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`).   |
+| `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                                |
+| `snippets`                          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                         |
+| `tool_calls`                        | dict         | see below | Tool-call presentation settings for sase's TUI Agents tab.                                                                                                   |
+| `tribes`                            | dict         | see below | Per-tribe sase's TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                     |
+| `updates`                           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                    |
 
 #### `ace.artifact_file_viewer`
 
@@ -915,11 +915,12 @@ independent of the `sase stitch list` CLI's sidecar opt-in and limit contract.
 
 #### `ace.axe_description_expanded`
 
-Sets whether the Services-tab description panel starts expanded (`true`, the default) or
-collapsed to its summary line in each `sase tui` session. The `toggle_axe_description`
-keymap action — `d` by default, configurable under `ace.keymaps.app` — flips the state
-in memory for the rest of the session; it never writes the toggle back to configuration,
-so this key is the only durable setting. Descriptions themselves follow the
+Sets whether the Services-tab description panel for service procs, routines, and jobs
+starts expanded (`true`, the default) or collapsed to its summary line in each
+`sase tui` session. The `toggle_axe_description` keymap action — `d` by default,
+configurable under `ace.keymaps.app` — flips the state in memory for the rest of the
+session; it never writes the toggle back to configuration, so this key is the only
+durable setting. Descriptions themselves follow the
 [AXE description grammar](axe.md#description-grammar), and the panel's layout, height
 budget, and overflow row are described in
 [sase's TUI — Description Panel](ace.md#description-panel).
@@ -4122,21 +4123,21 @@ wanted. Builtin launchers must use the entry's own reserved name. A custom entry
 supplies exactly one `command`: a string runs through `sh -c`, while a string array runs
 directly as argv.
 
-| Field                                     | Type                               | Default      | Description                                                                                                                  |
-| ----------------------------------------- | ---------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `service.procs.<name>.description`        | string                             | -            | Human summary shown by the Services tab and `sase service proc show`.                                                        |
-| `service.procs.<name>.enabled`            | bool                               | `true`       | Desired machine state. Plugin entries and the builtin `gateway` default to `false`; a saved machine override can replace it. |
-| `service.procs.<name>.mode`               | `daemon`                           | `daemon`     | Config entries are daemons. Oneshots are transient submissions from `sase service proc run`.                                 |
-| `service.procs.<name>.command`            | string or non-empty string array   | -            | Shell command or exact argv. Mutually exclusive with `builtin`.                                                              |
-| `service.procs.<name>.builtin`            | `scheduler` or `gateway`           | -            | Reserved packaged launcher. Mutually exclusive with `command` and must equal the entry name.                                 |
-| `service.procs.<name>.cwd`                | string                             | inherited    | Working directory for the child.                                                                                             |
-| `service.procs.<name>.env`                | string map                         | `{}`         | Extra environment. `${NAME}` expands a captured variable at launch; `$$` is a literal dollar sign.                           |
-| `service.procs.<name>.restart`            | `always`, `on-failure`, or `never` | `on-failure` | Restart policy.                                                                                                              |
-| `service.procs.<name>.success_exit_codes` | integer array                      | `[]`         | Additional `0`-`255` exit codes treated as clean; zero is always clean.                                                      |
-| `service.procs.<name>.stop_signal`        | common signal name                 | `SIGTERM`    | Graceful stop signal, with or without the `SIG` prefix.                                                                      |
-| `service.procs.<name>.stop_timeout`       | seconds, `> 0` and `<= 3600`       | `10`         | Grace period before SIGKILL.                                                                                                 |
-| `service.procs.<name>.after`              | name array                         | `[]`         | Start ordering only. Unknown names warn and are dropped; a cycle makes every entry in it unavailable.                        |
-| `service.procs.<name>.log_max_bytes`      | integer, at least `4096`           | `2097152`    | Maximum retained bytes in the rotated proc output log.                                                                       |
+| Field                                     | Type                               | Default      | Description                                                                                                                                                                                                                                |
+| ----------------------------------------- | ---------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `service.procs.<name>.description`        | string                             | -            | Summary line, then a blank line and an optional body ([grammar](axe.md#description-grammar)); shown in the Services-tab description panel and `sase service proc show`. A missing blank separator is tolerated: the body starts at line 2. |
+| `service.procs.<name>.enabled`            | bool                               | `true`       | Desired machine state. Plugin entries and the builtin `gateway` default to `false`; a saved machine override can replace it.                                                                                                               |
+| `service.procs.<name>.mode`               | `daemon`                           | `daemon`     | Config entries are daemons. Oneshots are transient submissions from `sase service proc run`.                                                                                                                                               |
+| `service.procs.<name>.command`            | string or non-empty string array   | -            | Shell command or exact argv. Mutually exclusive with `builtin`.                                                                                                                                                                            |
+| `service.procs.<name>.builtin`            | `scheduler` or `gateway`           | -            | Reserved packaged launcher. Mutually exclusive with `command` and must equal the entry name.                                                                                                                                               |
+| `service.procs.<name>.cwd`                | string                             | inherited    | Working directory for the child.                                                                                                                                                                                                           |
+| `service.procs.<name>.env`                | string map                         | `{}`         | Extra environment. `${NAME}` expands a captured variable at launch; `$$` is a literal dollar sign.                                                                                                                                         |
+| `service.procs.<name>.restart`            | `always`, `on-failure`, or `never` | `on-failure` | Restart policy.                                                                                                                                                                                                                            |
+| `service.procs.<name>.success_exit_codes` | integer array                      | `[]`         | Additional `0`-`255` exit codes treated as clean; zero is always clean.                                                                                                                                                                    |
+| `service.procs.<name>.stop_signal`        | common signal name                 | `SIGTERM`    | Graceful stop signal, with or without the `SIG` prefix.                                                                                                                                                                                    |
+| `service.procs.<name>.stop_timeout`       | seconds, `> 0` and `<= 3600`       | `10`         | Grace period before SIGKILL.                                                                                                                                                                                                               |
+| `service.procs.<name>.after`              | name array                         | `[]`         | Start ordering only. Unknown names warn and are dropped; a cycle makes every entry in it unavailable.                                                                                                                                      |
+| `service.procs.<name>.log_max_bytes`      | integer, at least `4096`           | `2097152`    | Maximum retained bytes in the rotated proc output log.                                                                                                                                                                                     |
 
 A bare `command` array's first element (for example `sase_job_tg_inbound`) is looked up
 on `PATH` first and then in the bin directory of the interpreter running the host. The

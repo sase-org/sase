@@ -791,6 +791,9 @@ borrowed from the shape of a Git commit message:
 - The whole description is at most 2000 characters.
 - A single-line description is still completely valid and simply has an empty body.
 
+Service proc descriptions use the same grammar for display, are not shape-validated, and
+have their body start at line 2 when the blank separator is missing.
+
 The split is owned by the shared Rust config authority (`split_axe_description`), so the
 sase's TUI Services tab, both CLI listings, and the entry editor always agree on where
 the summary ends. It is computed once per entity when the config is parsed, never on a

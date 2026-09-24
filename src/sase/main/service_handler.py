@@ -277,8 +277,7 @@ def handle_service_proc_show(args: argparse.Namespace) -> int:
     console.print(f"  enabled: {proc.enablement.summary}")
     console.print(f"  desired: {proc.desired}")
     console.print(_proc_state_line(proc))
-    if proc.description:
-        console.print(f"  description: {proc.description}")
+    _print_service_description(console, proc.description)
     if proc.started_at is not None:
         console.print(
             f"  uptime: {_format_duration(time.time() - proc.started_at)}"
@@ -329,6 +328,22 @@ def _proc_state_line(proc: Any) -> Text:
     line = Text("  state: ")
     line.append_text(_proc_state_text(proc))
     return line
+
+
+def _print_service_description(console: Console, description: str | None) -> None:
+    """Print a service proc description as summary plus indented body."""
+    if not description or not description.strip():
+        return
+    from sase.service.description import split_service_description
+
+    summary, body = split_service_description(description)
+    if not summary:
+        return
+    console.print(Text(f"  description: {summary}"))
+    if body:
+        console.print(Text("  details:"))
+        for body_line in body.splitlines():
+            console.print(Text(f"    {body_line}" if body_line else ""))
 
 
 def _last_exit_cell(proc: Any) -> str:

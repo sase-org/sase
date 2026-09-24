@@ -58,7 +58,7 @@ def axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return _is_lumberjack(item) or _is_chop(item)
 
     if spec.id == "app.toggle_axe_description":
-        return _is_lumberjack(item) or _is_chop(item)
+        return _is_lumberjack(item) or _is_chop(item) or _is_service_proc(item)
 
     if spec.id == "app.edit_panel":
         return _is_chop(item) and ctx.selected_axe_chop_run_total > 0

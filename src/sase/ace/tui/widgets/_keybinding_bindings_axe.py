@@ -40,6 +40,8 @@ class AxeBindingsMixin:
         overlapping launch, so the affordance reflects that).
         ``e`` edits lumberjack/base-chop configuration. ``E`` opens recorded
         chop output and is shown only when that output exists.
+        ``d`` expands or collapses the description panel on service proc,
+        routine, and job rows.
         Ctrl+N / Ctrl+P surface only on chop rows with at least two recorded
         runs, since with zero or one run the keys cannot do anything useful.
         """
@@ -65,6 +67,7 @@ class AxeBindingsMixin:
             bindings.append((self._kd("run_workflow"), label))
         if config_row_selected:
             bindings.append((self._kd("edit_spec"), "edit config"))
+        if config_row_selected or service_selected:
             bindings.append(
                 (
                     self._kd("toggle_axe_description"),

@@ -328,8 +328,6 @@ class AxeOutputSection(Static):
         text.append("  " + "─" * 68 + "\n", style="dim")
         text.append("  ")
         text.append(label, style="bold #00D7AF")
-        if proc is not None and proc.description:
-            text.append(f" — {proc.description}", style="dim")
         text.append("\n\n")
 
         if snapshot is not None:

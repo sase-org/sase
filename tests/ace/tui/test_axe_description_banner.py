@@ -153,3 +153,97 @@ def test_hide_removes_banner_from_layout() -> None:
     banner.hide()
 
     assert banner.display is False
+
+
+def test_service_proc_renders_teal_gutter_and_reflowed_body() -> None:
+    banner = AxeDescriptionBanner()
+    banner.show_service_proc(
+        "scheduler",
+        "Run automation",
+        "- First bullet\n- Second bullet",
+    )
+
+    lines = _rendered_lines(banner, width=32)
+    assert lines[0].startswith("▌ Run automation")
+    assert lines[0].endswith("▾ d")
+    assert "▌ • First bullet" in lines
+    assert "▌ • Second bullet" in lines
+    block = banner.render()
+    assert block.theme.accent == "bold #00D7AF"
+
+
+def test_service_collapsed_is_one_line_with_hint() -> None:
+    banner = AxeDescriptionBanner()
+    banner.set_expanded(False)
+    banner.show_service_proc("scheduler", "Run automation", "Some body.")
+
+    assert _rendered_lines(banner, width=44) == [
+        "▌ Run automation                         ▸ d"
+    ]
+
+
+def test_service_overflow_has_no_edit_suffix() -> None:
+    banner = AxeDescriptionBanner()
+    banner.set_max_lines(4)
+    banner.show_service_proc(
+        "scheduler",
+        "Run checks",
+        "\n\n".join(f"Paragraph {index}." for index in range(1, 5)),
+    )
+    lines = _rendered_lines(banner, width=32)
+    assert lines[-1] == "▌ … +6 more"
+    assert "· e" not in lines[-1]
+
+
+def test_chop_overflow_keeps_edit_suffix() -> None:
+    banner = AxeDescriptionBanner()
+    banner.set_max_lines(4)
+    banner.show_chop(
+        "checks",
+        "Run checks",
+        "\n\n".join(f"Paragraph {index}." for index in range(1, 5)),
+    )
+    assert _rendered_lines(banner, width=32)[-1] == "▌ … +6 more · e"
+
+
+def test_set_keys_changes_hint_and_overflow_suffix() -> None:
+    banner = AxeDescriptionBanner()
+    banner.set_max_lines(4)
+    banner.set_keys(toggle_key="D", edit_key="E")
+    banner.show_chop(
+        "checks",
+        "Run checks",
+        "\n\n".join(f"Paragraph {index}." for index in range(1, 5)),
+    )
+    lines = _rendered_lines(banner, width=32)
+    assert lines[0].endswith("▾ D")
+    assert lines[-1].endswith("· E")
+
+
+def test_service_fallback_text_appears_for_blank_summary() -> None:
+    banner = AxeDescriptionBanner()
+    banner.show_service_proc("web", "  ", "")
+
+    assert banner.display is True
+    assert _rendered_lines(banner, width=32) == ["▌ No description configured"]
+
+
+def test_identical_second_show_does_not_rerender() -> None:
+    banner = AxeDescriptionBanner()
+    banner.show_lumberjack("hooks", "Summary", "Body")
+    calls = 0
+    original = banner._rerender
+
+    def _counting() -> None:
+        nonlocal calls
+        calls += 1
+        original()
+
+    banner._rerender = _counting  # type: ignore[method-assign]
+    try:
+        banner.show_lumberjack("hooks", "Summary", "Body")
+        assert calls == 0
+        banner.show_lumberjack("hooks", "Other", "Body")
+        assert calls == 1
+    finally:
+        banner._rerender = original  # type: ignore[method-assign]

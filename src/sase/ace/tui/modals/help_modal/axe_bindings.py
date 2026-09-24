@@ -69,7 +69,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.add_axe_item), "Add routine or job"),
                 (d(a.run_workflow), "Run job, or re-run done bgcmd"),
                 (d(a.edit_spec), "Edit routine or job config"),
-                (d(a.toggle_axe_description), "Expand / collapse description"),
+                (
+                    d(a.toggle_axe_description),
+                    "Expand / collapse service, routine, or job description",
+                ),
                 (d(a.edit_panel), "Edit recorded job output"),
             ],
         ),

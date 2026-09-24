@@ -53,6 +53,8 @@ def test_axe_config_edit_and_output_edit_have_distinct_availability() -> None:
 
 
 def test_axe_description_toggle_requires_config_row() -> None:
+    from sase.ace.tui.widgets.bgcmd_list import ServiceProcItem
+
     spec = _catalog_by_id()["app.toggle_axe_description"]
 
     assert is_command_available(
@@ -65,6 +67,10 @@ def test_axe_description_toggle_requires_config_row() -> None:
             tab="axe",
             axe_item=ChopItem(lumberjack_name="hooks", chop_name="fast"),
         ),
+    )
+    assert is_command_available(
+        spec,
+        CommandContext(tab="axe", axe_item=ServiceProcItem(name="scheduler")),
     )
     assert not is_command_available(
         spec,
