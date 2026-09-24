@@ -106,6 +106,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Shrink/grow deck panel (decks)",
                 ),
                 (
+                    f"{d(a.toggle_node_panel)}",
+                    "Collapse/expand node panel",
+                ),
+                (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
                     "Scroll detail top / bottom; metadata follows",
                 ),
@@ -167,6 +171,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(a.choose_agent_view)}p", "Next split layout"),
                 (f"{d(a.choose_agent_view)}P", "Previous split layout"),
                 (d(a.zoom_panel), "Zoom agent/tribe detail"),
+                (f"{d(a.zoom_panel)}", "Zoom deck panel in place (decks)"),
                 (
                     d(a.isolate_panels),
                     "Only panel ⇄ restore panels",

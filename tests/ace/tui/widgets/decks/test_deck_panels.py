@@ -218,12 +218,13 @@ async def test_gates_with_decks_on_and_off() -> None:
                 )
                 is False
             )
+            # node-panel-collapse-zoom restores Z as the in-place zoom.
             assert (
                 agents_available(
                     _Spec(),  # type: ignore[arg-type]
                     CommandContext(tab="agents", agent_decks_active=True),
                 )
-                is False
+                is True
             )
     with override_flags(agent_decks=False):
         assert (

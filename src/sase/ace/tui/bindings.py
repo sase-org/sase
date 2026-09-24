@@ -281,6 +281,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+p", "prev_deck", "Previous Deck", show=False),
     Binding("backslash", "toggle_deck_split_below", "Split Deck Below", show=False),
     Binding("vertical_line", "toggle_deck_split_right", "Split Deck Right", show=False),
+    Binding("ctrl+s", "toggle_node_panel", "Collapse/Expand Node Panel", show=False),
     Binding("E", "edit_panel", "Edit Panel / Job Output", show=False),
     # Context-aware Enter: review gate, jump to Patch, or choose (agents tab)
     Binding("enter", "act_on_agent", "Act on agent", show=False),

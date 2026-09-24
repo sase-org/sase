@@ -39,6 +39,49 @@ class AgentInfoDisplayMixin:
         with tui_trace("agents.update_info_panel", agents=len(self._agents)):
             self._update_agents_info_panel_impl()
 
+    def _node_spine_selection(self) -> tuple[int, int] | None:
+        """Return the ``(index, total)`` stop selection for the node spine.
+
+        The index is the selected node's position among the visible
+        navigation stops (a tribe panel's index under whole-panel focus).
+        """
+        try:
+            stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        if not stops:
+            return None
+        total = len(stops)
+        group_key = self._current_group_key
+        if group_key is not None:
+            for pos, (kind, payload) in enumerate(stops):
+                if kind == "banner" and payload == group_key:
+                    return (pos, total)
+        try:
+            current = self.current_idx
+        except Exception:
+            return (0, total)
+        for pos, (kind, payload) in enumerate(stops):
+            if kind == "agent" and payload == current:
+                return (pos, total)
+        return (0, total)
+
+    def _refresh_node_spine(self) -> None:
+        """Push the current stop selection to the collapsed node spine."""
+        try:
+            from ...widgets.decks.node_spine import NodeSpine
+
+            spine = self.query_one("#agent-node-spine", NodeSpine)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        selection = self._node_spine_selection()
+        if selection is None:
+            return
+        try:
+            spine.update_position(*selection)
+        except Exception:
+            pass
+
     def _agent_info_metrics(self) -> tuple[int, int, int, int, int, int, int, int, int]:
         """Return cached sase-agent status and headline counts."""
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
@@ -236,6 +279,22 @@ class AgentInfoDisplayMixin:
         view_picker_available = (
             bool(view_picker_checker()) if callable(view_picker_checker) else False
         )
+        nodes_collapsed = False
+        nodes_zoomed = False
+        if _decks_active:
+            try:
+                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            except NoMatches:
+                agent_detail = None
+            if agent_detail is not None:
+                try:
+                    nodes_collapsed = bool(agent_detail.is_nodes_collapsed)  # type: ignore[attr-defined]
+                except Exception:
+                    nodes_collapsed = False
+                try:
+                    nodes_zoomed = bool(agent_detail.is_deck_zoomed)  # type: ignore[attr-defined]
+                except Exception:
+                    nodes_zoomed = False
         update_state = getattr(agent_info_panel, "update_state", None)
         if callable(update_state):
             update_state(
@@ -263,7 +322,10 @@ class AgentInfoDisplayMixin:
                 view_mode=view_mode,
                 view_picker_available=view_picker_available,
                 runner_queue_count=runner_capacity.queued_count,
+                nodes_collapsed=nodes_collapsed,
+                nodes_zoomed=nodes_zoomed,
             )
+            self._refresh_node_spine()
             return
 
         agent_info_panel.update_position(position, selectable_total)

@@ -7,7 +7,7 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.containers import Vertical
 
-from .layout import toggle_focus
+from .layout import is_zoomed, toggle_focus
 from .model import (
     DeckAreaState,
     DeckId,
@@ -72,6 +72,21 @@ class DeckArea(Vertical):
             panel1 = self.panel(1)
         except Exception:
             panel1 = None
+        if is_zoomed(new_state):
+            # The zoomed panel keeps its widget, card and scroll; the
+            # other widget hides while the snapshot is held.
+            for index, panel in ((0, panel0), (1, panel1)):
+                if panel is None:
+                    continue
+                try:
+                    if index == new_state.focused:
+                        panel.remove_class("hidden")
+                    else:
+                        panel.add_class("hidden")
+                    panel.set_focused(index == new_state.focused)
+                except Exception:
+                    pass
+            return
         if layout is DeckLayout.SINGLE:
             if panel1 is not None:
                 panel1.add_class("hidden")
@@ -95,6 +110,11 @@ class DeckArea(Vertical):
 
     def visible_panels(self) -> tuple[DeckPanel, ...]:
         """Return the visible panels for the current layout."""
+        if is_zoomed(self._state):
+            try:
+                return (self.panel(self._state.focused),)
+            except Exception:
+                return ()
         try:
             panel0 = self.panel(0)
         except Exception:
@@ -109,7 +129,7 @@ class DeckArea(Vertical):
 
     def focused_panel(self) -> DeckPanel:
         """Return the focused panel."""
-        if self._state.layout is DeckLayout.SINGLE:
+        if self._state.layout is DeckLayout.SINGLE and not is_zoomed(self._state):
             return self.panel(0)
         return self.panel(self._state.focused)
 

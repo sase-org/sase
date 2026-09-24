@@ -3730,6 +3730,25 @@ HintInputBar #hint-escape-hint {
     display: none;
 }
 
+#agents-content.-nodes-collapsed #agent-list-container {
+    display: none;
+}
+
+#agent-node-spine {
+    width: 2;
+    min-width: 2;
+    max-width: 2;
+    height: 100%;
+    background: $surface;
+    color: $text-muted;
+}
+
+/* Onboarding and the artifact-file viewer own the left edge while active. */
+#agents-view.-onboarding-active #agent-node-spine,
+#agents-content.-artifact-file-viewer-active #agent-node-spine {
+    display: none;
+}
+
 #agent-info-row {
     height: 1;
     background: $surface;

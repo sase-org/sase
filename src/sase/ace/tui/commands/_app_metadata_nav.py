@@ -102,6 +102,13 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("shrink", "deck", "panel", "ratio"),
     ),
+    (
+        "toggle_node_panel",
+        "Collapse/expand node panel",
+        "Navigation",
+        AGENTS_ONLY,
+        ("collapse", "node", "panel", "ctrl+s"),
+    ),
     ("jump_to_entry", "Jump to entry", "Navigation", ALL_TABS, ("hint",)),
     (
         "jump_to_entry_fast",

@@ -55,6 +55,13 @@ def choose_new_panel(
     return DeckPanelState(current_deck, preferred)
 
 
+def _zoom_ended(state: DeckAreaState) -> DeckAreaState:
+    """Return ``state`` with any zoom snapshot dropped (zoom ends, no restore)."""
+    if state.zoom_snapshot is None:
+        return state
+    return dataclasses.replace(state, zoom_snapshot=None)
+
+
 def toggle_split(
     state: DeckAreaState,
     target: DeckLayout,
@@ -65,13 +72,21 @@ def toggle_split(
     From SINGLE open ``new_panel`` as panel 1 with focus and 50/50 ratio.
     Pressing the same layout key again unsplits back to panel 0. Pressing
     the other layout key rotates, keeping decks, cards, focus and ratio.
+    A layout key while zoomed ends the zoom: the snapshot is dropped and
+    the toggle applies to the current (zoomed) state.
     """
+    state = _zoom_ended(state)
     if state.layout is DeckLayout.SINGLE:
+        try:
+            current = state.panels[state.focused]
+        except IndexError:
+            current = state.panels[0]
         return DeckAreaState(
-            panels=(state.panels[0], new_panel),
+            panels=(current, new_panel),
             focused=1,
             layout=target,
             ratio=50,
+            nodes_collapsed=state.nodes_collapsed,
         )
     if state.layout is target:
         return DeckAreaState(
@@ -79,8 +94,61 @@ def toggle_split(
             focused=0,
             layout=DeckLayout.SINGLE,
             ratio=50,
+            nodes_collapsed=state.nodes_collapsed,
         )
     return dataclasses.replace(state, layout=target)
+
+
+def toggle_nodes_collapsed(state: DeckAreaState) -> DeckAreaState:
+    """Collapse or expand the node panel without unmounting it.
+
+    While zoomed, Ctrl+S ends the zoom (the snapshot is dropped) and then
+    toggles the collapse on the current state.
+    """
+    state = _zoom_ended(state)
+    return dataclasses.replace(state, nodes_collapsed=not state.nodes_collapsed)
+
+
+def is_zoomed(state: DeckAreaState) -> bool:
+    """Return whether ``state`` is a zoomed snapshot view."""
+    return state.zoom_snapshot is not None
+
+
+def enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
+    """Zoom the focused panel in place, collapsing the node panel.
+
+    Snapshots the deck-area state (layout, panels, focus, ratio, collapse)
+    and shows only the focused panel as SINGLE. A second ``Z`` restores the
+    snapshot exactly via :func:`exit_zoom`.
+    """
+    if state.zoom_snapshot is not None:
+        return state
+    snapshot = dataclasses.replace(state, zoom_snapshot=None)
+    index = snapshot.focused if focused is None else focused
+    if index < 0 or index >= len(snapshot.panels):
+        index = snapshot.focused
+    return dataclasses.replace(
+        snapshot,
+        panels=snapshot.panels,
+        focused=index,
+        layout=DeckLayout.SINGLE,
+        nodes_collapsed=True,
+        zoom_snapshot=snapshot,
+    )
+
+
+def exit_zoom(state: DeckAreaState) -> DeckAreaState:
+    """Restore the snapshot taken by :func:`enter_zoom`."""
+    if state.zoom_snapshot is None:
+        return state
+    return state.zoom_snapshot
+
+
+def toggle_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
+    """Enter the zoom, or restore the snapshot when already zoomed."""
+    if state.zoom_snapshot is not None:
+        return exit_zoom(state)
+    return enter_zoom(state, focused)
 
 
 def toggle_focus(state: DeckAreaState) -> DeckAreaState:

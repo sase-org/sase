@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from .decks.layout import choose_new_panel, step_ratio, toggle_focus, toggle_split
+from .decks.layout import (
+    choose_new_panel,
+    is_zoomed,
+    step_ratio,
+    toggle_focus,
+    toggle_nodes_collapsed,
+    toggle_split,
+    toggle_zoom,
+)
 from .decks.model import DeckId, DeckLayout
 
 
@@ -33,16 +41,20 @@ class AgentDetailDeckLayoutMixin:
         was_single = state.layout is DeckLayout.SINGLE
         if was_single:
             try:
-                panel0 = area.panel(0)
-                current_deck = panel0.deck
+                was_zoomed_from = state.focused if is_zoomed(state) else None
+            except Exception:
+                was_zoomed_from = None
+            try:
+                current_panel = area.focused_panel()
+                current_deck = current_panel.deck
             except Exception:
                 return
             try:
                 if current_deck is DeckId.MAIN:
                     try:
-                        active = panel0.main_view.active_card_id
+                        active = current_panel.main_view.active_card_id
                     except Exception:
-                        active = getattr(panel0, "_main_active_card", None)
+                        active = getattr(current_panel, "_main_active_card", None)
                     try:
                         card_ids = tuple(self._main_deck_document.card_ids)
                     except Exception:
@@ -58,7 +70,7 @@ class AgentDetailDeckLayoutMixin:
             except Exception:
                 shown = {current_deck}
             try:
-                raw_avail = dict(getattr(panel0, "_availability", {}))
+                raw_avail = dict(getattr(current_panel, "_availability", {}))
                 has_content = {
                     deck: (raw_avail[deck].has_content if deck in raw_avail else None)
                     for deck in (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
@@ -78,6 +90,13 @@ class AgentDetailDeckLayoutMixin:
                 area.apply_state(toggle_split(state, target, new_panel))
             except Exception:
                 return
+            if was_zoomed_from == 1:
+                # Ending the zoom through a split: the zoomed panel's deck
+                # now lives at logical index 0, so widget 0 must show it.
+                try:
+                    self.show_deck(0, area.state.panels[0].deck)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             try:
                 self.show_deck(1, new_panel.deck)  # type: ignore[attr-defined]
             except Exception:
@@ -115,6 +134,128 @@ class AgentDetailDeckLayoutMixin:
             area.apply_state(step_ratio(area.state, grow))
         except Exception:
             return
+
+    @property
+    def is_nodes_collapsed(self) -> bool:
+        """Return whether the node panel is collapsed in deck mode."""
+        try:
+            return bool(self.deck_area.state.nodes_collapsed)  # type: ignore[attr-defined]
+        except Exception:
+            return False
+
+    @property
+    def is_deck_zoomed(self) -> bool:
+        """Return whether a deck panel is zoomed in place."""
+        try:
+            return is_zoomed(self.deck_area.state)  # type: ignore[attr-defined]
+        except Exception:
+            return False
+
+    def toggle_node_panel(self) -> None:
+        """Collapse or expand the node panel without unmounting it."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            area.apply_state(toggle_nodes_collapsed(area.state))
+        except Exception:
+            return
+        self._sync_nodes_collapsed_chrome()
+
+    def toggle_deck_zoom(self) -> None:
+        """Zoom the focused deck panel in place, or restore the snapshot."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            area.apply_state(toggle_zoom(area.state))
+        except Exception:
+            return
+        self._sync_nodes_collapsed_chrome()
+        try:
+            area.focused_panel().refresh_chrome()
+        except Exception:
+            pass
+
+    def _sync_nodes_collapsed_chrome(self) -> None:
+        """Sync the agents-content collapse class, spine and focus safety."""
+        try:
+            area = self.deck_area  # type: ignore[attr-defined]
+            collapsed = bool(area.state.nodes_collapsed)
+        except Exception:
+            return
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            return
+        try:
+            content = app.query_one("#agents-content")
+        except Exception:
+            content = None
+        if content is not None:
+            try:
+                if collapsed:
+                    content.add_class("-nodes-collapsed")
+                else:
+                    content.remove_class("-nodes-collapsed")
+            except Exception:
+                pass
+        try:
+            from .decks.node_spine import NodeSpine
+
+            spine = app.query_one("#agent-node-spine", NodeSpine)
+        except Exception:
+            spine = None
+        if spine is not None:
+            try:
+                if collapsed:
+                    spine.remove_class("hidden")
+                else:
+                    spine.add_class("hidden")
+            except Exception:
+                pass
+        if collapsed:
+            self._move_focus_off_hidden_list()
+        try:
+            info = getattr(app, "_update_agents_info_panel", None)
+            if callable(info):
+                info()
+            else:
+                footer = getattr(app, "_refresh_agent_footer_bindings_only", None)
+                if callable(footer):
+                    footer()
+        except Exception:
+            pass
+
+    def _move_focus_off_hidden_list(self) -> None:
+        """Move Textual focus off the hidden node list when it holds it."""
+        try:
+            app = self.app  # type: ignore[attr-defined]
+            focused = app.focused
+            container = app.query_one("#agent-list-container")
+        except Exception:
+            return
+        if focused is None:
+            return
+        node: Any = focused
+        inside = False
+        while node is not None:
+            if node is container:
+                inside = True
+                break
+            node = getattr(node, "parent", None)
+        if not inside:
+            return
+        try:
+            from textual.containers import VerticalScroll
+
+            area = self.deck_area  # type: ignore[attr-defined]
+            scrolls = area.focused_panel().query(VerticalScroll)
+            for scroll in scrolls:
+                try:
+                    if scroll.has_class("-shown"):
+                        scroll.focus()
+                        return
+                except Exception:
+                    continue
+        except Exception:
+            pass
 
     def _reload_duplicate_deck_from_cache(
         self, deck: DeckId, exclude_panel_index: int | None = None

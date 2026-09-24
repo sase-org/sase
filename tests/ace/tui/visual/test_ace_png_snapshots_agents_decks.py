@@ -206,3 +206,68 @@ async def test_agents_decks_context_reply_no_files_png_snapshot(
                 "agents_decks_context_reply_no_files_120x40",
                 title="ACE agents decks context reply no files",
             )
+
+
+async def test_agents_decks_collapsed_single_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(agent_decks=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            assert detail.is_nodes_collapsed is True
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_collapsed_single_120x40",
+                title="ACE agents decks collapsed node panel single",
+            )
+
+
+async def test_agents_decks_collapsed_split_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(agent_decks=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("vertical_line")
+            await wait_for_visual_idle(page)
+            await page.press("ctrl+s")
+            await wait_for_visual_idle(page)
+            assert detail.is_nodes_collapsed is True
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_collapsed_split_120x40",
+                title="ACE agents decks collapsed node panel split",
+            )
+
+
+async def test_agents_decks_zoomed_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_deck_agent()])
+    with override_flags(agent_decks=True):
+        async with AcePage(query='"visual"', patches=patches()) as page:
+            await _goto_agents(page, 1)
+            detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+            await page.press("vertical_line")
+            await wait_for_visual_idle(page)
+            # Focus back to the Main panel so the zoom shows deck content.
+            await page.press("ctrl+f")
+            await wait_for_visual_idle(page)
+            assert detail.deck_area.focused_panel().deck is DeckId.MAIN
+            await page.press("Z")
+            await wait_for_visual_idle(page)
+            assert detail.is_deck_zoomed is True
+            ace_png_visual.assert_page_png(
+                page,
+                "agents_decks_zoomed_120x40",
+                title="ACE agents decks zoomed focused panel",
+            )

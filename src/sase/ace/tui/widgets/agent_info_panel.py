@@ -43,6 +43,8 @@ class AgentInfoPanel(Static):
         self._interval = 0
         self._view_mode: str = ""
         self._view_picker_available: bool = False
+        self._nodes_collapsed: bool = False
+        self._nodes_zoomed: bool = False
         self._grouping_mode: str = ""
         self._search_query: str = ""
         self._search_query_seeded: bool = False
@@ -233,6 +235,8 @@ class AgentInfoPanel(Static):
         search_query_match_count: tuple[int, int] | None = None,
         search_query_partial_history: bool = False,
         runner_queue_count: int = 0,
+        nodes_collapsed: bool = False,
+        nodes_zoomed: bool = False,
     ) -> None:
         """Batch all logical info-panel state into one render.
 
@@ -262,6 +266,8 @@ class AgentInfoPanel(Static):
             search_query_rich.plain if search_query_rich is not None else None,
             search_query_match_count,
             search_query_partial_history,
+            nodes_collapsed,
+            nodes_zoomed,
         )
         old_stable = (
             self._position,
@@ -288,6 +294,8 @@ class AgentInfoPanel(Static):
             ),
             self._search_query_match_count,
             self._search_query_partial_history,
+            self._nodes_collapsed,
+            self._nodes_zoomed,
         )
         if new_stable == old_stable:
             self.update_countdown_only(countdown, interval)
@@ -315,6 +323,8 @@ class AgentInfoPanel(Static):
             _,
             _,
             self._search_query_partial_history,
+            self._nodes_collapsed,
+            self._nodes_zoomed,
         ) = new_stable
         self._countdown = countdown
         self._interval = interval
@@ -477,6 +487,23 @@ class AgentInfoPanel(Static):
             if self._view_picker_available and not is_unbound_key(view_key):
                 key = key_display_name(view_key)
                 text.append(f" ({key})", style="dim")
+        if self._nodes_collapsed:
+            self._append_separator(text)
+            if self._nodes_zoomed:
+                zoom_key = self._registry.app.zoom_panel
+                text.append("zoom", style="bold #FFD700")
+                if not is_unbound_key(zoom_key):
+                    text.append(_ELEMENT_SEPARATOR, style="dim")
+                    text.append(key_display_name(zoom_key), style="dim")
+                text.append(_ELEMENT_SEPARATOR, style="dim")
+            text.append("nodes ", style="dim")
+            text.append(
+                f"{self._position}/{self._total}", style=self._TOTAL_COUNT_STYLE
+            )
+            collapse_key = self._registry.app.toggle_node_panel
+            if not is_unbound_key(collapse_key):
+                text.append(_ELEMENT_SEPARATOR, style="dim")
+                text.append(key_display_name(collapse_key), style="dim")
         grouping_label = self._grouping_mode or "by project"
         self._append_separator(text)
         text.append("group: ", style="dim")

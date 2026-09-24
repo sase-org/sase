@@ -178,6 +178,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id in {
         "app.toggle_deck_split_below",
         "app.toggle_deck_split_right",
+        "app.toggle_node_panel",
     }:
         return bool(ctx.agent_decks_active)
     if spec.id in {
@@ -202,7 +203,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return False
     if spec.id == "app.zoom_panel":
         if ctx.agent_decks_active:
-            return False
+            return True
         return panel_focused or agent is not None
 
     if spec.id == "app.isolate_panels":

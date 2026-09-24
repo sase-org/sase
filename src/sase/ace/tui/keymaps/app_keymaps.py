@@ -36,6 +36,7 @@ class AppKeymaps:
     toggle_deck_focus: str
     grow_deck_panel: str
     shrink_deck_panel: str
+    toggle_node_panel: str
     # Tab switching
     next_tab: str
     prev_tab: str

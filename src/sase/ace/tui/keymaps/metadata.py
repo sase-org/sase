@@ -161,6 +161,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("toggle_deck_focus", "Focus Other Deck Panel", False),
     ("grow_deck_panel", "Grow Deck Panel", False),
     ("shrink_deck_panel", "Shrink Deck Panel", False),
+    ("toggle_node_panel", "Collapse/expand node panel", False),
     ("edit_panel", "Edit Panel", False),
     ("act_on_agent", "Act on agent", False),
     ("jump_to_agent_patch", "Go to Patch", False),

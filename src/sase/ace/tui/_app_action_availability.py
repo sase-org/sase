@@ -86,6 +86,7 @@ _DECK_LAYOUT_ACTIONS = frozenset(
         "toggle_deck_focus",
         "grow_deck_panel",
         "shrink_deck_panel",
+        "toggle_node_panel",
     }
 )
 _DECK_SPLIT_ONLY_ACTIONS = frozenset(
@@ -543,14 +544,10 @@ def check_app_action(
     if action == "save_marked_agents":
         if app.current_tab != "agents":
             return False
-    if action == "zoom_panel":
-        try:
-            from sase.ace.tui.widgets.decks.flag import agent_decks_active
-
-            if bool(agent_decks_active(app)):
-                return False
-        except Exception:
-            pass
+    # NOTE: zoom_panel stays dispatch-available in both flag states: with
+    # decks on, Z is the in-place zoom; with the flag off it opens the
+    # legacy modal. (Do not gate it with `return None`; dispatch treats
+    # None as disabled and the action would never fire.)
     if (
         action
         in {

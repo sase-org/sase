@@ -72,6 +72,8 @@ class DeckAreaState:
     focused: int = 0
     layout: DeckLayout = DeckLayout.SINGLE
     ratio: int = 50
+    nodes_collapsed: bool = False
+    zoom_snapshot: DeckAreaState | None = None
 
 
 SINGLE: DeckAreaState = DeckAreaState()

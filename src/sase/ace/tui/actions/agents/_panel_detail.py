@@ -220,10 +220,21 @@ class AgentPanelDetailMixin:
         try:
             from ...widgets.decks.flag import agent_decks_active
 
-            if bool(agent_decks_active(self)):
-                return
+            decks_active = bool(agent_decks_active(self))
         except Exception:
-            pass
+            decks_active = False
+        if decks_active:
+            from ...widgets import AgentDetail as _DeckAgentDetail
+
+            detail = self.query_one("#agent-detail-panel", _DeckAgentDetail)  # type: ignore[attr-defined]
+            detail.toggle_deck_zoom()  # type: ignore[attr-defined]
+            try:
+                refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+                if callable(refresh):
+                    refresh()
+            except Exception:
+                pass
+            return
 
         from ...modals import ZoomPanelModal, ZoomPanelTarget
         from ...widgets import AgentDetail

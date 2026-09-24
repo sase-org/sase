@@ -118,3 +118,31 @@ class AgentDeckLayoutActionsMixin:
         except Exception:
             return
         self._refresh_deck_footer()
+
+    def action_toggle_node_panel(self) -> None:
+        """Collapse or expand the node panel without unmounting it."""
+        if not self._decks_layout_active():
+            return
+        try:
+            detail = self._deck_layout_detail()
+            if detail is None:
+                return
+            detail.toggle_node_panel()  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._refresh_deck_footer()
+
+    def on_node_spine_expand_requested(self, _message: object) -> None:
+        """Expand the node panel when the collapsed spine is clicked."""
+        if not self._decks_layout_active():
+            return
+        try:
+            detail = self._deck_layout_detail()
+            if detail is None:
+                return
+            if not detail.is_nodes_collapsed:  # type: ignore[attr-defined]
+                return
+            detail.toggle_node_panel()  # type: ignore[attr-defined]
+        except Exception:
+            return
+        self._refresh_deck_footer()

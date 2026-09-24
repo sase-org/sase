@@ -599,6 +599,7 @@ ace:
       toggle_deck_focus: "ctrl+f"
       grow_deck_panel: "right_curly_bracket"
       shrink_deck_panel: "left_curly_bracket"
+      toggle_node_panel: "ctrl+s"
       # Tab switching
       next_tab: "tab"
       prev_tab: "shift+tab"
