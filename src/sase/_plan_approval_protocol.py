@@ -47,6 +47,9 @@ class PlanApprovalActionResult:
     message: str
     epic_launch_monitor_id: str | None = None
     epic_launch_task_id: str | None = None
+    coder_agent: str | None = None
+    coder_error: str | None = None
+    gate_shell_member: str | None = None
 
 
 class PlanApprovalActionError(RuntimeError):

@@ -342,6 +342,21 @@ def _apply_host_plan_archive_fields(
         response_json["plan_archive_ref"] = archive_ref.strip()
 
 
+def record_plan_approval_metadata(
+    context: PlanApprovalActionContext,
+    action: str,
+    *,
+    plan_committed: bool | None = None,
+) -> None:
+    """Record approval metadata on the planner's agent metadata file.
+
+    Thin wrapper over :func:`_write_plan_action_metadata` for direct-route
+    callers that resolve their own artifacts dir through the context's
+    action data.
+    """
+    _write_plan_action_metadata(context, action, plan_committed=plan_committed)
+
+
 def _persist_plan_approved_metadata(
     notification: PlanApprovalActionContext,
     response_json: dict[str, Any],

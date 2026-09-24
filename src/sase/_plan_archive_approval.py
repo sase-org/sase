@@ -66,12 +66,32 @@ class _PlanArchiveProjectError(Exception):
     """Raised when action data does not identify an archivable project."""
 
 
+class PlanAlreadyArchivedError(Exception):
+    """Raised when the archive destination already holds a committed plan.
+
+    Carries the stable ``already_committed`` code plus ``path`` and
+    ``plan_archive_ref``. It is translated to a
+    :class:`sase._plan_approval_protocol.PlanApprovalActionError` at the
+    direct-route boundary; staying a plain ``Exception`` here keeps this
+    module import-light (the protocol imports plan-validation helpers).
+    """
+
+    code = "already_committed"
+
+    def __init__(self, path: Path, plan_archive_ref: str) -> None:
+        super().__init__(f"plan is already committed as {plan_archive_ref}")
+        self.path = path
+        self.plan_archive_ref = plan_archive_ref
+
+
 def archive_approved_plan(
     action_data: Mapping[str, str],
     src_plan: Path,
     *,
     tier: Literal["tale", "epic"],
     push_after_commit: bool | Literal["async"] | None = None,
+    project_name: str | None = None,
+    if_exists: Literal["replace", "refuse"] = "replace",
 ) -> _ApprovedPlanArchive:
     """Archive ``src_plan`` into its project's plan store and return its identity.
 
@@ -85,7 +105,9 @@ def archive_approved_plan(
     the durable workspace-independent identity.
 
     Raises:
-        _PlanArchiveProjectError: If ``action_data`` names no resolvable project.
+        _PlanArchiveProjectError: If no project can be resolved.
+        PlanAlreadyArchivedError: With ``if_exists="refuse"``, when the
+            source is already under the plans root or the destination exists.
     """
     from sase._plan_approval_artifacts import (
         resolve_plan_action_project_name,
@@ -97,19 +119,20 @@ def archive_approved_plan(
         commit_sdd_store_files,
         ensure_bare_git_sdd_initialized,
     )
-    from sase.sdd.plan_archive import archive_plan_file
+    from sase.sdd.plan_archive import archive_plan_file, plan_archive_destination
     from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
     from sase.sdd.store import materialize_sdd_store
     from sase.workspace_provider.lease import operational_workspace_lease
     from sase.workspace_provider.ownership import MutationOrigin
     from sase.workspace_provider.reset_replay import ReplayConflict, ResetReplayError
 
-    project_name = resolve_plan_action_project_name(action_data)
-    if not project_name:
+    resolved_project = project_name or resolve_plan_action_project_name(action_data)
+    if not resolved_project:
         raise _PlanArchiveProjectError(
             "no project could be resolved for the approved plan from action data"
             f" keys {sorted(action_data)}"
         )
+    project_name = resolved_project
 
     # An explicit "async" or `False` keeps the caller's choice (the TUI
     # background worker deliberately never blocks on a push). Unset defaults
@@ -136,14 +159,24 @@ def archive_approved_plan(
         if archive_repo is not None and _store_has_unpublished_head(archive_repo):
             lease.reset_to_upstream(repo_root=archive_repo)
 
+        if if_exists == "refuse":
+            _raise_if_already_committed(src_plan, sdd_store)
+
+        preserve_existing = if_exists == "refuse"
+
         def _archive_and_publish() -> _ApprovedPlanArchive:
             archived = archive_plan_file(
                 src_plan,
                 sdd_store,
                 tier=tier,
-                preserve_existing=False,
+                preserve_existing=preserve_existing,
                 expect_prompt_snapshot=(tier == "epic"),
             )
+            if if_exists == "refuse" and not archived.written:
+                raise PlanAlreadyArchivedError(
+                    archived.path,
+                    _canonical_ref_for(sdd_store, archived.path),
+                )
             if not sdd_store.is_in_tree:
                 commit_result = commit_sdd_store_files(
                     sdd_store,
@@ -201,6 +234,40 @@ def archive_approved_plan(
                 recovery_ref=recovery_ref,
             ) from exc
         return result.value
+
+
+def _canonical_ref_for(sdd_store: object, path: Path) -> str:
+    from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
+
+    roots = (sdd_store.kind_root("plans"),)  # type: ignore[attr-defined]
+    ref = canonicalize_plan_reference_from_roots(path, roots=roots)
+    return ref or path.name
+
+
+def _raise_if_already_committed(src_plan: Path, sdd_store: object) -> None:
+    """Raise when *src_plan* is already committed under the plans root."""
+    from sase.sdd.plan_archive import plan_archive_destination as _destination
+
+    try:
+        destination = _destination(src_plan, sdd_store)  # type: ignore[arg-type]
+    except ValueError:
+        return
+    resolved_src = src_plan.expanduser().resolve(strict=False)
+    plans_root = sdd_store.kind_root("plans").expanduser().resolve(strict=False)  # type: ignore[attr-defined]
+    try:
+        resolved_src.relative_to(plans_root)
+    except ValueError:
+        pass
+    else:
+        raise PlanAlreadyArchivedError(
+            resolved_src,
+            _canonical_ref_for(sdd_store, resolved_src),  # type: ignore[arg-type]
+        )
+    if destination.is_file():
+        raise PlanAlreadyArchivedError(
+            destination,
+            _canonical_ref_for(sdd_store, destination),  # type: ignore[arg-type]
+        )
 
 
 def _store_has_unpublished_head(repo_root: Path) -> bool:

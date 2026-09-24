@@ -193,6 +193,58 @@ def _approved_plan_from_meta(
     )
 
 
+def collect_direct_approval_plans(
+    *,
+    display_roots: DisplayPathRoots,
+) -> tuple[ApprovedPlan, ...]:
+    """Collect approved plans from direct-approval receipts."""
+    try:
+        from sase.plan_approval_receipts import iter_direct_approval_receipts
+    except Exception:
+        return ()
+    try:
+        receipts = iter_direct_approval_receipts()
+    except Exception:
+        return ()
+    rows: list[ApprovedPlan] = []
+    for receipt in receipts:
+        plan_path = normalize_plan_inventory_path(receipt.plan_path)
+        key_source = plan_path or receipt.plan_path
+        plan_metadata = plan_metadata_for_path(key_source)
+        try:
+            from sase.plan_approval_receipts import receipt_path_for
+
+            meta_path = str(receipt_path_for(receipt.plan_path))
+        except Exception:
+            meta_path = "-"
+        rows.append(
+            ApprovedPlan(
+                _plan_key=path_key(key_source),
+                timestamp=receipt.approved_at,
+                age=_receipt_age(receipt.approved_at),
+                action=receipt.action or "tale",
+                agent=receipt.coder_agent or "-",
+                project=receipt.project or "-",
+                provider_model="-",
+                plan_path=display_path(key_source, display_roots=display_roots),
+                title=plan_metadata.title,
+                tier=plan_metadata.tier,
+                meta_path=display_path(meta_path, display_roots=display_roots),
+            )
+        )
+    return tuple(rows)
+
+
+def _receipt_age(approved_at: str) -> str:
+    try:
+        timestamp = _parse_datetime(approved_at)
+    except Exception:
+        return "-"
+    if timestamp is None:
+        return "-"
+    return format_relative_time(timestamp.isoformat())
+
+
 def collect_rejected_plans(
     archived_paths: tuple[Path, ...],
     *,

@@ -120,21 +120,18 @@ def mark_auto_approved_plan_handled(
         pass
 
 
-def move_plan_to_sase(plan_file: str) -> Path:
-    """Move a plan file into a sharded ``~/.sase/plans/YYYYMM/`` location.
-
-    The submitted scratch file is consumed: on a same-filesystem move this is a
-    rename, and a cross-filesystem move copies then unlinks the source. The
-    ``sase_plan_`` prefix is stripped from the archived name, and the existing
-    dedup counter keeps distinct copies when the target basename already exists.
-    """
-    from sase.core.paths import find_sharded_file, sharded_path
-
-    src = Path(plan_file)
-    # Strip "sase_plan_" prefix if present
-    name = src.name
+def _stripped_plan_name(plan_file: str | Path) -> str:
+    """Return the sharded proposal name for *plan_file*."""
+    name = Path(plan_file).name
     if name.startswith("sase_plan_"):
         name = name[len("sase_plan_") :]
+    return name
+
+
+def _fresh_proposal_destination(name: str) -> Path:
+    """Return a non-colliding sharded destination for *name*."""
+    from sase.core.paths import find_sharded_file, sharded_path
+
     # Plan filenames carry no embedded timestamp; shard by now() at write time.
     dest = Path(sharded_path("plans", name))
     if dest.exists() or find_sharded_file("plans", name) is not None:
@@ -152,7 +149,71 @@ def move_plan_to_sase(plan_file: str) -> Path:
                 dest = candidate
                 break
             counter += 1
+    return dest
+
+
+def _existing_identical_proposal(name: str, digest: bytes) -> Path | None:
+    """Return an existing local copy of *name* with identical content."""
+    from sase.core.paths import find_sharded_file, sase_subdir
+
+    base = sase_subdir("plans")
+    if not base.is_dir():
+        return None
+    stem = Path(name).stem
+    suffix = Path(name).suffix
+    candidates = [name]
+    counter = 1
+    while True:
+        candidate_name = f"{stem}_{counter}{suffix}"
+        if find_sharded_file("plans", candidate_name) is None:
+            break
+        candidates.append(candidate_name)
+        counter += 1
+        if counter > 1000:
+            break
+    for candidate_name in candidates:
+        found = find_sharded_file("plans", candidate_name)
+        if found is None:
+            continue
+        try:
+            if Path(found).read_bytes() == digest:
+                return Path(found)
+        except OSError:
+            continue
+    return None
+
+
+def move_plan_to_sase(plan_file: str) -> Path:
+    """Move a plan file into a sharded ``~/.sase/plans/YYYYMM/`` location.
+
+    The submitted scratch file is consumed: on a same-filesystem move this is a
+    rename, and a cross-filesystem move copies then unlinks the source. The
+    ``sase_plan_`` prefix is stripped from the archived name, and the existing
+    dedup counter keeps distinct copies when the target basename already exists.
+    """
+    src = Path(plan_file)
+    name = _stripped_plan_name(src)
+    dest = _fresh_proposal_destination(name)
     shutil.move(str(src), str(dest))
+    return dest
+
+
+def adopt_plan_into_sase(plan_file: str | Path) -> Path:
+    """Copy a scratch plan into ``~/.sase/plans/YYYYMM/`` without consuming it.
+
+    Reuses any existing local copy with byte-identical content so re-running
+    on the same scratch maps to the same local plan. The ``sase_plan_``
+    prefix is stripped and the dedup counter matches :func:`move_plan_to_sase`.
+    The caller's file is never touched.
+    """
+    src = Path(plan_file).expanduser()
+    name = _stripped_plan_name(src)
+    digest = src.read_bytes()
+    existing = _existing_identical_proposal(name, digest)
+    if existing is not None:
+        return existing
+    dest = _fresh_proposal_destination(name)
+    shutil.copy2(str(src), str(dest))
     return dest
 
 

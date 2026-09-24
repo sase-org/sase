@@ -139,7 +139,7 @@ def _collect_approved_plans(
     display_roots: DisplayPathRoots,
     tiers: set[str],
 ) -> tuple[tuple[ApprovedPlan, ...], bool]:
-    return collect_approved_plans(
+    rows, truncated = collect_approved_plans(
         limit=limit,
         display_roots=display_roots,
         tiers=tiers,
@@ -147,6 +147,27 @@ def _collect_approved_plans(
         candidate_limit=_approved_candidate_limit(limit),
         read_meta=read_json_object,
     )
+    from sase.main.plan_inventory_collectors import collect_direct_approval_plans
+
+    try:
+        receipt_rows = collect_direct_approval_plans(display_roots=display_roots)
+    except Exception:
+        receipt_rows = ()
+    if tiers:
+        receipt_rows = tuple(row for row in receipt_rows if row.tier in tiers)
+    # Dedup against planner-meta rows by plan key; meta rows win on collision.
+    seen = {row._plan_key for row in rows if row._plan_key}
+    merged = list(rows)
+    for row in receipt_rows:
+        if row._plan_key and row._plan_key in seen:
+            continue
+        merged.append(row)
+        if row._plan_key:
+            seen.add(row._plan_key)
+    merged.sort(key=lambda row: row.timestamp, reverse=True)
+    if limit > 0:
+        merged = merged[:limit]
+    return tuple(merged), truncated
 
 
 def _normalize_statuses(statuses: tuple[str, ...]) -> tuple[str, ...]:

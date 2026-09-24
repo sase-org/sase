@@ -171,6 +171,9 @@ def execute_neutral_plan_approval_response(
     message = plan_approval_response_message_for_selection(
         selected_option_ids, tier=tier
     )
+    coder_agent, coder_error, gate_shell_member = _gate_shell_followup_fields(
+        gate_shell
+    )
     return PlanApprovalActionResult(
         notification_id=notification.id,
         response_file=RESPONSE_FILENAME,
@@ -187,7 +190,48 @@ def execute_neutral_plan_approval_response(
             if execution.response.get("epic_launch_task_id")
             else None
         ),
+        coder_agent=coder_agent,
+        coder_error=coder_error,
+        gate_shell_member=gate_shell_member,
     )
+
+
+def _gate_shell_followup_fields(
+    gate_shell: object | None,
+) -> tuple[str | None, str | None, str | None]:
+    """Read coder follow-up fields from a settled gate-shell member.
+
+    Best-effort; never raises. ``gate_followup_agent`` becomes
+    ``coder_agent``, ``gate_followup_error`` becomes ``coder_error``, and
+    the record's ``member_agent_name`` becomes ``gate_shell_member``.
+    """
+    if gate_shell is None:
+        return None, None, None
+    try:
+        from sase.gate_shell.store import find_gate_shell_by_gate_id
+
+        gate_id = getattr(gate_shell, "gate_id", None)
+        record = (
+            find_gate_shell_by_gate_id(None, str(gate_id)) if gate_id else gate_shell
+        )
+        if record is None:
+            record = gate_shell
+        coder_agent = getattr(record, "followup_agent", None)
+        coder_error = getattr(record, "followup_error", None)
+        member = getattr(record, "member_agent_name", None)
+        return (
+            str(coder_agent).strip() or None
+            if isinstance(coder_agent, str)
+            else (coder_agent if coder_agent is None else str(coder_agent)),
+            str(coder_error).strip() or None
+            if isinstance(coder_error, str)
+            else (coder_error if coder_error is None else str(coder_error)),
+            str(member).strip() or None
+            if isinstance(member, str)
+            else (member if member is None else str(member)),
+        )
+    except Exception:
+        return None, None, None
 
 
 def parse_plan_approval_wait(wait: str | None) -> PromptWaitDirective | None:
