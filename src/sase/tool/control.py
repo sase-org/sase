@@ -577,7 +577,7 @@ def output_paths_for_run(run: dict[str, Any]) -> list[Path]:
         if proc is not None and proc.log_path:
             return [Path(proc.log_path)]
     if kind == "monitor" and owner_id:
-        path = _monitor_output_path(run, owner_id)
+        path = monitor_output_path(run, owner_id)
         if path is not None:
             return [path]
     paths: list[Path] = []
@@ -588,7 +588,7 @@ def output_paths_for_run(run: dict[str, Any]) -> list[Path]:
     return paths
 
 
-def _monitor_output_path(run: dict[str, Any], monitor_id: str) -> Path | None:
+def monitor_output_path(run: dict[str, Any], monitor_id: str) -> Path | None:
     try:
         from sase.monitor.logs import monitor_log_path
         from sase.monitor.store import list_monitors, resolve_monitor_ref
@@ -670,6 +670,7 @@ __all__ = [
     "ToolWaitCliRequest",
     "handle_stop",
     "handle_wait",
+    "monitor_output_path",
     "output_paths_for_run",
     "wait_for_settlement",
 ]

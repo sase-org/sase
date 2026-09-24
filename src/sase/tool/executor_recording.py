@@ -11,7 +11,7 @@ from typing import Any
 
 from sase.config.tools import tool_project_identity
 from sase.core.process_identity import process_identity_token
-from sase.core.tool_run import tool_run_begin, tool_run_finish
+from sase.core.tool_run import tool_run_begin, tool_run_finish, tool_run_show
 from sase.tool.argv import ResolvedToolArgv
 from sase.tool.liveness import current_boot_id
 from sase.tool.observe import fingerprints_mutated, inc_tool_metric
@@ -154,8 +154,25 @@ def finish_tool_run(
     try:
         tool_run_finish(payload)
     except Exception:  # noqa: BLE001 - never change the child result.
-        return False
+        return _already_settled(run_id)
     return True
+
+
+def _already_settled(run_id: str) -> bool:
+    """Report whether reconcile or another settler already finished the run.
+
+    A finish that loses that race is not an incomplete recording: the ledger
+    holds an authoritative outcome, so "already settled" counts as success.
+    """
+
+    try:
+        run = tool_run_show(run_id).get("run")
+    except Exception:  # noqa: BLE001 - an unreadable store is not settled.
+        return False
+    if not isinstance(run, dict):
+        return False
+    state = str(run.get("state") or "")
+    return bool(state) and state not in {"created", "running"}
 
 
 def _current_project_identity() -> str:

@@ -447,12 +447,26 @@ def _settle_followup(state: dict[str, Any]) -> None:
     if not isinstance(policy, dict) or not policy:
         state["followup_outcome"] = None
         return
+    if policy.get("kind") == "tool-run":
+        _settle_tool_run_followup(state)
+        return
     if state.get("termination_reason") in {"stop", "reboot", "supervisor-loss"}:
         state["followup_outcome"] = "suppressed"
         return
     if state.get("followup_outcome") == "launched":
         return
     state["followup_outcome"] = "pending"
+
+
+def _settle_tool_run_followup(state: dict[str, Any]) -> None:
+    """Settle a hand-off ToolRun from its proc owner; must never wedge settlement."""
+    try:
+        from sase.tool.settlement import settle_tool_run_followup
+
+        settle_tool_run_followup(state)
+    except Exception as exc:  # noqa: BLE001 - a ToolRun error must not block the proc
+        state["followup_outcome"] = "tool-run-error"
+        state["followup_error"] = str(exc) or type(exc).__name__
 
 
 def _looks_like_monitor_settlement(state: dict[str, Any]) -> bool:

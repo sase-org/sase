@@ -24,6 +24,8 @@ _REQUEST_SIDECAR_NAME = "request.json"
 _SETTLEMENT_SIDECAR_NAME = "settlement.json"
 _OPERATION_REQUEST_NAME = "operation-request.json"
 _OPERATION_RESULT_NAME = "operation-result.json"
+_TERMINATION_INTENT_NAME = "termination-intent.json"
+_TERMINATION_INTENTS = frozenset({"stop", "total-timeout", "idle-timeout"})
 
 _LAUNCH_BARRIER_TIMEOUT_SECONDS = 30.0
 _START_ACK_TIMEOUT_SECONDS = 20.0
@@ -230,6 +232,40 @@ def proc_operation_result_path(proc_id: str) -> Path:
     return proc_runtime_dir(proc_id) / _OPERATION_RESULT_NAME
 
 
+def _termination_intent_path(proc_id: str) -> Path:
+    return proc_runtime_dir(proc_id) / _TERMINATION_INTENT_NAME
+
+
+def write_termination_intent(proc_id: str, intent: str) -> None:
+    """Record why the supervisor is about to signal the command; first write wins.
+
+    The intent lets a worker that only sees a SIGTERM tell a requested stop
+    from a timeout. It must never break the signal path, so every filesystem
+    error is swallowed.
+    """
+    if intent not in _TERMINATION_INTENTS:
+        return
+    try:
+        path = _termination_intent_path(proc_id)
+        if path.exists():
+            return
+        write_json_atomic(path, {"intent": intent, "timestamp": time.time()})
+    except OSError:
+        pass
+
+
+def read_termination_intent(proc_id: str) -> str | None:
+    """Return the recorded termination intent, or ``None`` when absent."""
+    try:
+        payload = read_json_object(_termination_intent_path(proc_id))
+    except OSError:
+        return None
+    intent = payload.get("intent")
+    if isinstance(intent, str) and intent in _TERMINATION_INTENTS:
+        return intent
+    return None
+
+
 def launch_barrier_timeout_seconds() -> float:
     return _env_seconds(_LAUNCH_BARRIER_TIMEOUT_ENV, _LAUNCH_BARRIER_TIMEOUT_SECONDS)
 
@@ -287,7 +323,9 @@ __all__ = [
     "proc_settlement_sidecar_path",
     "proc_started_path",
     "read_json_object",
+    "read_termination_intent",
     "start_ack_timeout_seconds",
     "sweep_orphan_proc_runtime_dirs",
     "write_json_atomic",
+    "write_termination_intent",
 ]

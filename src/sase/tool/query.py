@@ -18,6 +18,7 @@ from sase.config.tools import DEFAULT_TOOL_RUNS_DETAIL_DAYS, tool_project_identi
 from sase.core.tool_run import tool_run_list, tool_run_show
 from sase.tool.liveness import reconcile_unsettled_tool_runs
 from sase.tool.logs import log_policy, read_truncation_messages, replay_retained_bytes
+from sase.tool.owner import owner_retention
 from sase.tool.render import (
     EMPTY,
     format_argv,
@@ -137,6 +138,7 @@ def handle_show(request: ToolShowCliRequest) -> int:
     attach_timeline(envelope)
     envelope["output_truncation"] = _output_truncation(run)
     envelope["detail_retention"] = _detail_retention(run)
+    envelope["owner_retention"] = owner_retention(run)
     if request.json:
         print(json.dumps(envelope, indent=2, sort_keys=True))
         return 0
@@ -174,8 +176,10 @@ def _handle_follow(request: ToolShowCliRequest, run_id: str) -> int:
         print(diagnostic or f"tool run {run_id} was not found", file=sys.stderr)
         return 2
     offsets: dict[str, int] = {}
+    notified: list[bool] = []
     ingestor = _follow_ingestor(first.get("run"))
     _stream_output_paths(first.get("run"), offsets)
+    _notice_unretained_output(first["run"], notified)
     if ingestor is not None:
         for line in ingestor.tick():
             print(line, file=sys.stderr)
@@ -214,9 +218,11 @@ def _handle_follow(request: ToolShowCliRequest, run_id: str) -> int:
     if ingestor is not None:
         for line in ingestor.tick():
             print(line, file=sys.stderr)
+    _notice_unretained_output(run, notified)
     attach_timeline(final)
     final["output_truncation"] = _output_truncation(run)
     final["detail_retention"] = _detail_retention(run)
+    final["owner_retention"] = owner_retention(run)
     if request.json:
         print(json.dumps(final, indent=2, sort_keys=True))
         return 0
@@ -224,6 +230,39 @@ def _handle_follow(request: ToolShowCliRequest, run_id: str) -> int:
     for diagnostic in final.get("diagnostics") or ():
         print(str(diagnostic), file=sys.stderr)
     return 0
+
+
+def _notice_unretained_output(run: dict[str, Any], notified: list[bool]) -> None:
+    """Say once that an owner-bound run has no output of record to stream.
+
+    A run still starting can lack its log for a moment, so the notice waits
+    for a settled run or a pruned owner; the final call covers the rest.
+    """
+
+    if notified:
+        return
+    retention = owner_retention(run)
+    if retention["owner"] == "none" or retention["log"] == "retained":
+        return
+    settled = str(run.get("state") or "") not in {"created", "running"}
+    if not (settled or retention["owner"] == "pruned"):
+        return
+    notified.append(True)
+    print(_unretained_message(run, retention), file=sys.stderr)
+
+
+def _unretained_message(run: dict[str, Any], retention: dict[str, Any]) -> str:
+    kind = str(run.get("owner_kind") or "owner")
+    owner_id = str(run.get("owner_id") or "")
+    path = retention.get("log_path")
+    if retention["owner"] == "pruned":
+        detail = (
+            f"; its log {path} is missing" if path else "; its log was not recorded"
+        )
+        return f"sase: {kind} owner {owner_id} is no longer retained (pruned){detail}"
+    if path:
+        return f"sase: {kind} owner {owner_id} log {path} is missing or expired"
+    return f"sase: {kind} owner {owner_id} did not record an output log"
 
 
 def _follow_ingestor(run: object):  # type: ignore[no-untyped-def]
@@ -343,12 +382,12 @@ def _replay_owner_logs(run: dict[str, Any]) -> int:
         return 0
     if kind == "proc" and owner_id:
         if not _replay_proc_log(owner_id):
-            print(f"sase: proc owner {owner_id} was not found", file=sys.stderr)
+            _replay_pruned_owner_log(run)
         return 0
     if kind == "monitor" and owner_id:
         if _replay_proc_log(owner_id):
             return 0
-        return _replay_monitor_log(owner_id, str(run.get("project") or ""))
+        return _replay_monitor_log(owner_id, str(run.get("project") or ""), run)
     print(
         "sase: retained stdout/stderr logs were not created for this run "
         "(enclosed or nested output is owned elsewhere)",
@@ -381,7 +420,35 @@ def _replay_proc_log(proc_id: str) -> bool:
     return True
 
 
-def _replay_monitor_log(monitor_id: str, project: str) -> int:
+def _replay_pruned_owner_log(run: dict[str, Any]) -> None:
+    """Replay the recorded owner log of a pruned owner, or say it is gone."""
+
+    kind = str(run.get("owner_kind") or "owner")
+    owner_id = str(run.get("owner_id") or "")
+    recorded = _logs_map(run).get("owner_log_path")
+    if not recorded:
+        print(
+            f"sase: {kind} owner {owner_id} is no longer retained (pruned); "
+            "its log was not recorded",
+            file=sys.stderr,
+        )
+        return
+    path = Path(str(recorded))
+    if not path.is_file():
+        print(
+            f"sase: {kind} owner {owner_id} is no longer retained (pruned); "
+            f"its log {path} is missing",
+            file=sys.stderr,
+        )
+        return
+    print(
+        "sase: owner log is combined stdout/stderr; no total stream order",
+        file=sys.stderr,
+    )
+    replay_retained_bytes(path, lambda chunk: _write_bytes(sys.stdout, chunk))
+
+
+def _replay_monitor_log(monitor_id: str, project: str, run: dict[str, Any]) -> int:
     try:
         from sase.monitor.logs import monitor_log_path
         from sase.monitor.store import list_monitors, resolve_monitor_ref
@@ -391,8 +458,8 @@ def _replay_monitor_log(monitor_id: str, project: str) -> int:
     try:
         records = list_monitors(project=project or None)
         record = resolve_monitor_ref(monitor_id, records)
-    except Exception as exc:  # noqa: BLE001 - expired owners are diagnostics.
-        print(f"sase: monitor owner {monitor_id} was not found: {exc}", file=sys.stderr)
+    except Exception:  # noqa: BLE001 - expired owners fall back to the recorded log.
+        _replay_pruned_owner_log(run)
         return 0
     path = Path(record.output_path or monitor_log_path(record.artifacts_dir))
     if not path.is_file():
@@ -454,6 +521,7 @@ def _print_show(envelope: dict[str, Any]) -> None:
     if not isinstance(run, dict):
         return
     logs = _logs_map(run)
+    retention_line = _format_owner_retention(run, envelope.get("owner_retention"))
     lines = [
         f"RUN       {run.get('run_id') or EMPTY}",
         f"TOOL      {format_tool_name(run)}",
@@ -474,6 +542,7 @@ def _print_show(envelope: dict[str, Any]) -> None:
         f"STDERR    {logs.get('stderr_path') or EMPTY}",
         f"EVENTS    {logs.get('events_path') or EMPTY}",
         f"OWNERLOG  {logs.get('owner_log_path') or EMPTY}",
+        *([retention_line] if retention_line is not None else []),
         f"EVIDENCE  {_format_evidence(run)}",
         f"MUTATED   {_format_optional_bool(run.get('mutated_input'))}",
         f"DIRTY     {_dirty_count(run.get('fingerprint_before'))} -> {_dirty_count(run.get('fingerprint_after'))}",
@@ -509,6 +578,25 @@ def _print_show(envelope: dict[str, Any]) -> None:
             if not isinstance(sample, dict):
                 continue
             print(f"  {_format_sample(sample)}")
+
+
+def _format_owner_retention(run: dict[str, Any], retention: object) -> str | None:
+    """Render ``OWNERRET`` for an owner-bound run; ``None`` when unowned."""
+
+    if not isinstance(retention, dict) or retention.get("owner") in (None, "none"):
+        return None
+    owner = retention["owner"]
+    log = retention.get("log")
+    if log == "retained":
+        log_text = "log retained"
+    elif log == "missing":
+        log_text = "log not retained" if owner == "pruned" else "log missing"
+    else:
+        log_text = "log not recorded"
+    return (
+        f"OWNERRET  {run.get('owner_kind') or EMPTY} "
+        f"{run.get('owner_id') or EMPTY}: {owner}; {log_text}"
+    )
 
 
 def _format_evidence(run: dict[str, Any]) -> str:

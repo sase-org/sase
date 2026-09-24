@@ -92,6 +92,7 @@ class RecordedRunContext:
     stdout_path: Path | None
     stderr_path: Path | None
     stop_recorded: Callable[[], bool] | None = None
+    timeout_recorded: Callable[[], bool] | None = None
 
 
 def execute_tool_run(request: ToolRunCliRequest) -> int:
@@ -231,6 +232,15 @@ def _stop_requested(ctx: RecordedRunContext) -> bool:
         return False
 
 
+def _timeout_requested(ctx: RecordedRunContext) -> bool:
+    if ctx.timeout_recorded is None:
+        return False
+    try:
+        return bool(ctx.timeout_recorded())
+    except Exception:  # noqa: BLE001 - a timeout probe must not break execution.
+        return False
+
+
 def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     """Run the shared post-begin body for foreground and adopted runs."""
 
@@ -243,8 +253,14 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     if recorded:
         fingerprint_before = observe_fingerprint(resolved)
 
-    if signals.sigint or signals.sigterm or _stop_requested(ctx):
+    if (
+        signals.sigint
+        or signals.sigterm
+        or _stop_requested(ctx)
+        or _timeout_requested(ctx)
+    ):
         stop = _stop_requested(ctx)
+        timeout = not stop and _timeout_requested(ctx)
         if recorded:
             if stop:
                 state = "signaled"
@@ -252,6 +268,14 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
                 sig = None
                 reason = "wrapper SIGTERM"
                 cause = "stop_requested"
+            elif timeout:
+                # The owner's supervisor signaled for a timeout before the
+                # command started; core allows an exit code and signal here.
+                state = "signaled"
+                exit_code = 143
+                sig = signal.SIGTERM
+                reason = "wrapper SIGTERM"
+                cause = "timeout"
             elif signals.sigint:
                 state = "interrupted"
                 exit_code = 130
@@ -279,9 +303,9 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
                 TOOL_RUN_SETTLEMENTS,
                 state=state,
             )
-        if signals.sigint and not stop:
+        if signals.sigint and not (stop or timeout):
             return 130
-        return 143 if (signals.sigterm or stop) else 130
+        return 143 if (signals.sigterm or stop or timeout) else 130
 
     child_env_map = child_env(
         recorded=recorded,
@@ -444,8 +468,15 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         # request is a requested stop, not an anonymous signal. The core
         # rejects stop_requested finishes carrying an exit code or signal,
         # so a requested stop settles without either (like the pre-spawn
-        # path); the CLI still returns the signal-mapped code below.
-        cause = "stop_requested" if _stop_requested(ctx) else "signal"
+        # path); the CLI still returns the signal-mapped code below. A
+        # signal the owner sent for a timeout is a timeout, which keeps the
+        # exit code and signal.
+        if _stop_requested(ctx):
+            cause = "stop_requested"
+        elif _timeout_requested(ctx):
+            cause = "timeout"
+        else:
+            cause = "signal"
     else:
         cause = "exited"
     cli_code = exit_code

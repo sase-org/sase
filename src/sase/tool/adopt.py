@@ -10,11 +10,13 @@ from typing import Any
 
 from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import tool_run_claim, tool_run_show
+from sase.procs.runtime import read_termination_intent
 from sase.tool.executor import RecordedRunContext, run_recorded_body
 from sase.tool.executor_signals import SignalState
 from sase.tool.handoff import resolved_from_envelope
 from sase.tool.liveness import current_boot_id
-from sase.tool.ownership import ToolRunOwnership
+
+_TIMEOUT_INTENTS = frozenset({"total-timeout", "idle-timeout"})
 
 
 def execute_adopted_run(run_id: str) -> int:
@@ -51,6 +53,9 @@ def _claim_and_run(
     run_id: str, owner_kind: str, owner_id: str, signals: SignalState
 ) -> int:
     pid = os.getpid()
+    # The supervisor sets SASE_PROC_ID for monitor procs too, and a monitor's
+    # proc id is its monitor id, so the termination intent is always keyed by it.
+    proc_id = (os.environ.get("SASE_PROC_ID") or "").strip() or owner_id
     identity = process_identity_token(pid)
     boot_id, _, _ = identity.partition(":") if identity else ("", "", "")
     owner_log = (os.environ.get("SASE_PROC_LOG_PATH") or "").strip() or None
@@ -102,15 +107,6 @@ def _claim_and_run(
     events_raw = logs.get("events_path") if isinstance(logs, dict) else None
     events_path = Path(str(events_raw)) if events_raw else None
 
-    ownership = ToolRunOwnership(
-        owner_kind=owner_kind,
-        owner_id=owner_id,
-        parent_run_id=None,
-        other_owner_kind=None,
-        other_owner_id=None,
-        owns_output=False,
-        enclosing_label=f"{owner_kind} {owner_id}",
-    )
     ctx = RecordedRunContext(
         run_id=run_id,
         recorded=True,
@@ -122,18 +118,41 @@ def _claim_and_run(
         events_path=events_path,
         stdout_path=None,
         stderr_path=None,
-        stop_recorded=_stop_probe(run_id, owner_kind, owner_id),
+        stop_recorded=_stop_probe(run_id, owner_kind, owner_id, proc_id),
+        timeout_recorded=_timeout_probe(proc_id),
     )
-    # The worker owns the lifecycle of its claimed run, so it reaps
-    # identity-matched survivors the same way the foreground path does.
-    # Reaping is handled inside the shared body path via reconcile in the
-    # caller; the worker itself just runs the body.
-    _ = ownership
-    return run_recorded_body(ctx, signals)
+    code = run_recorded_body(ctx, signals)
+    if owner_kind == "proc":
+        _deliver_settlement(run_id)
+    return code
 
 
-def _stop_probe(run_id: str, owner_kind: str, owner_id: str):  # type: ignore[no-untyped-def]
+def _deliver_settlement(run_id: str) -> None:
+    """Publish the once-only settlement notification; never changes the exit."""
+
+    try:
+        from sase.tool.notify import deliver_handoff_settlement
+
+        deliver_handoff_settlement(run_id)
+    except Exception:  # noqa: BLE001 - delivery is best effort.
+        pass
+
+
+def _timeout_probe(proc_id: str):  # type: ignore[no-untyped-def]
     def _probe() -> bool:
+        return read_termination_intent(proc_id) in _TIMEOUT_INTENTS
+
+    return _probe
+
+
+def _stop_probe(run_id: str, owner_kind: str, owner_id: str, proc_id: str):  # type: ignore[no-untyped-def]
+    def _probe() -> bool:
+        intent = read_termination_intent(proc_id)
+        if intent == "stop":
+            return True
+        if intent in _TIMEOUT_INTENTS:
+            # The owner's first recorded intent wins: a timeout is not a stop.
+            return False
         try:
             shown = tool_run_show(run_id)
         except Exception:  # noqa: BLE001 - unknown stop never blocks execution.

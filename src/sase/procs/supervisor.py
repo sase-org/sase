@@ -29,6 +29,7 @@ from .runtime import (
     proc_started_path,
     read_json_object,
     write_json_atomic,
+    write_termination_intent,
 )
 from .settlement import maybe_crash, settle_proc_shell
 from .store import claim_proc_supervisor, get_proc, update_proc
@@ -41,7 +42,8 @@ _TimeoutKind = Literal["total", "idle"]
 class _Termination:
     """Forward stop/timeout signals to the command's process group."""
 
-    def __init__(self) -> None:
+    def __init__(self, proc_id: str) -> None:
+        self.proc_id = proc_id
         self.requested = False
         self.requested_signum: int | None = None
         self.child: subprocess.Popen[bytes] | None = None
@@ -51,9 +53,12 @@ class _Termination:
         self.requested = True
         if self.requested_signum is None:
             self.requested_signum = _signum
+        # The worker only observes a SIGTERM, so the reason is recorded first.
+        write_termination_intent(self.proc_id, "stop")
         self._signal_child()
 
-    def trigger_timeout(self) -> None:
+    def trigger_timeout(self, kind: _TimeoutKind) -> None:
+        write_termination_intent(self.proc_id, f"{kind}-timeout")
         self._signal_child()
 
     def attach(self, child: subprocess.Popen[bytes]) -> None:
@@ -105,7 +110,7 @@ class _OutputActivity:
 
 def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     """Own one proc-shell from claim through terminal settlement."""
-    termination = _Termination()
+    termination = _Termination(proc_id)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, termination.request)
     signal.signal(signal.SIGINT, termination.request)
@@ -357,14 +362,14 @@ def _wait_for_child(
         now = time.monotonic()
         if deadline is not None and timeout_kind is None and now >= deadline:
             timeout_kind = "total"
-            termination.trigger_timeout()
+            termination.trigger_timeout(timeout_kind)
         if (
             idle_timeout_seconds > 0
             and timeout_kind is None
             and activity.idle_seconds() >= idle_timeout_seconds
         ):
             timeout_kind = "idle"
-            termination.trigger_timeout()
+            termination.trigger_timeout(timeout_kind)
         termination.maybe_escalate()
         time.sleep(_POLL_SECONDS)
 

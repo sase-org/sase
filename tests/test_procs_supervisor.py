@@ -228,3 +228,82 @@ def _ppid(pid: int) -> int:
         if line.startswith("PPid:"):
             return int(line.split()[1])
     raise AssertionError(f"no PPid for {pid}")
+
+
+def test_termination_intent_is_written_before_signaling_and_first_wins(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    from types import SimpleNamespace
+
+    from sase.procs import supervisor
+    from sase.procs.runtime import read_termination_intent
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    seen: list[tuple[str | None, int]] = []
+    monkeypatch.setattr(
+        supervisor,
+        "_signal_group",
+        lambda _pgid, signum: seen.append((read_termination_intent("p1"), signum)),
+    )
+    termination = supervisor._Termination("p1")
+    termination.attach(SimpleNamespace(pid=4242, poll=lambda: None))  # type: ignore[arg-type]
+
+    termination.trigger_timeout("idle")
+    assert seen == [("idle-timeout", signal.SIGTERM)]
+
+    # A later stop must not rewrite the first recorded intent.
+    termination.request(signal.SIGTERM, None)
+    assert read_termination_intent("p1") == "idle-timeout"
+
+    stopped = supervisor._Termination("p2")
+    stopped.request(signal.SIGTERM, None)
+    stopped.trigger_timeout("total")
+    assert read_termination_intent("p2") == "stop"
+    assert read_termination_intent("never-written") is None
+
+
+def test_termination_intent_writer_never_breaks_the_signal_path(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    from sase.procs import runtime
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+
+    def unwritable(_path: Path, _payload: dict[str, Any]) -> None:
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(runtime, "write_json_atomic", unwritable)
+    runtime.write_termination_intent("p3", "stop")
+    assert runtime.read_termination_intent("p3") is None
+    runtime.write_termination_intent("p3", "not-an-intent")
+    assert runtime.read_termination_intent("p3") is None
+
+
+def test_real_supervisor_records_timeout_and_stop_intents(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    from sase.procs.runtime import read_termination_intent
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    slow = submit_proc(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="Total timeout",
+        cwd=tmp_path,
+        origin="test",
+        timeout_seconds=1,
+    )
+    finished = wait_for_proc(slow.proc_id, timeout=30)
+    assert isinstance(finished.result, dict)
+    assert finished.result["termination_reason"] == "total-timeout"
+    assert read_termination_intent(slow.proc_id) == "total-timeout"
+
+    victim = submit_proc(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="Stopped",
+        cwd=tmp_path,
+        origin="test",
+    )
+    _wait_for_running(victim.proc_id)
+    kill_proc(victim.proc_id)
+    wait_for_proc(victim.proc_id, timeout=30)
+    assert read_termination_intent(victim.proc_id) == "stop"

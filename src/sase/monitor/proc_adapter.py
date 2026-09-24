@@ -274,6 +274,19 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     project_name = project_name_from_artifacts_dir(artifacts_dir)
     transfer_from_pid = _transfer_pid(state)
 
+    tool_run_id = meta.get("monitor_tool_run_id")
+    if isinstance(tool_run_id, str) and tool_run_id:
+        # Reconcile before the follow-up decision so a resumed settlement
+        # also settles a hand-off run whose worker died. Never notifies and
+        # never touches the continuation.
+        from sase.tool.settlement import settle_monitor_tool_run
+
+        settle_monitor_tool_run(
+            tool_run_id,
+            str(meta.get("monitor_id") or state.get("proc_id") or ""),
+            state,
+        )
+
     if meta.get("monitor_followup_outcome"):
         state["followup_outcome"] = meta.get("monitor_followup_outcome")
     else:

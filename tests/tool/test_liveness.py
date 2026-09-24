@@ -8,6 +8,8 @@ from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import tool_run_begin, tool_run_show
 from sase.tool.liveness import (
     current_boot_id,
+    _liveness_fact,
+    _observe_launcher,
     _observe_wrapper,
     reconcile_unsettled_tool_runs,
 )
@@ -123,3 +125,83 @@ def test_running_handoff_dead_wrapper_stays_dead() -> None:
     }
     fact = _observe_wrapper(run)
     assert fact["observation"] == "dead"
+
+
+def _created_handoff(launcher: dict[str, object] | None) -> dict[str, object]:
+    return {
+        "run_id": "handoff-launcher",
+        "state": "created",
+        "launch_mode": "handoff",
+        "wrapper_pid": None,
+        "launcher": launcher,
+    }
+
+
+def _dead_launcher() -> dict[str, object]:
+    finished = subprocess.Popen(["true"])
+    finished.wait()
+    return {
+        "pid": finished.pid,
+        "boot_id": current_boot_id(),
+        "process_start_identity": f"{current_boot_id()}:1",
+    }
+
+
+def test_dead_launcher_is_proof_only_when_the_owner_is_missing_or_terminal() -> None:
+    run = _created_handoff(_dead_launcher())
+    for state in ("missing", "terminal"):
+        fact = _observe_launcher(run, {"kind": "proc", "id": "p", "state": state})
+        assert fact["observation"] == "dead", state
+        assert fact["wrapper_pid"] == run["launcher"]["pid"]  # type: ignore[index]
+    for owner in (
+        None,
+        {"kind": "proc", "id": "p", "state": "active"},
+        {"kind": "proc", "id": "p", "state": "unknown"},
+    ):
+        fact = _observe_launcher(run, owner)
+        assert fact["observation"] == "unknown"
+        assert fact["reason"] == "launcher exit is not proof of launch failure"
+
+
+def test_alive_launcher_and_boot_mismatch_are_observed_truthfully() -> None:
+    pid = os.getpid()
+    alive = _created_handoff(
+        {
+            "pid": pid,
+            "boot_id": current_boot_id(),
+            "process_start_identity": process_identity_token(pid) or None,
+        }
+    )
+    missing = {"kind": "proc", "id": "p", "state": "missing"}
+    assert _observe_launcher(alive, missing)["observation"] == "alive"
+
+    rebooted = _created_handoff(
+        {
+            "pid": pid,
+            "boot_id": "another-boot",
+            "process_start_identity": "another-boot:1",
+        }
+    )
+    assert _observe_launcher(rebooted, missing)["observation"] == "dead"
+
+
+def test_created_handoff_without_a_launcher_record_stays_unknown() -> None:
+    fact = _observe_launcher(
+        _created_handoff(None), {"kind": "proc", "id": "p", "state": "missing"}
+    )
+    assert fact["observation"] == "unknown"
+    assert "not recorded" in str(fact["reason"])
+
+
+def test_liveness_fact_attaches_owner_only_when_one_was_observed() -> None:
+    owner = {"kind": "proc", "id": "p", "state": "missing"}
+    running = {
+        "run_id": "r",
+        "state": "running",
+        "launch_mode": "handoff",
+        "wrapper_pid": os.getpid(),
+        "boot_id": current_boot_id(),
+        "process_start_identity": process_identity_token(os.getpid()) or None,
+    }
+    assert _liveness_fact(running, owner)["owner"] == owner
+    assert "owner" not in _liveness_fact(running, None)
