@@ -1398,6 +1398,25 @@ On Artifacts and Services, `r` still runs a Patch workflow or an Axe job/bgcmd, 
 still opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that
 panel is disabled). Only the Agents tab swaps those keys.
 
+#### x: how a kill is carried out
+
+`x` on a running agent hides its row at once and sends one SIGTERM from the TUI. The
+rest runs in a durable `sase agent persist-cleanup` proc, which keeps going if you quit
+the TUI. It publishes the dismissal first, then finds the agent's whole process set: the
+runner's process group and session, its `ppid` descendants, and every process that
+inherited the agent's launch scratch key (recorded as `launch_scratch_key` in
+`agent_meta.json`), including ones that started their own session. It sends SIGTERM,
+waits at least six seconds so a `sase tool run` wrapper can finish its own five-second
+escalation, sends SIGKILL to whatever remains, and verifies every process is gone. Only
+then does it release the workspace claim and delete workflow artifacts. A registered
+proc or monitor supervisor found in the set is stopped through its own stop, so its
+record settles. A dismissed row that is not success-terminal (for example a `FAILED` row
+in retry backoff) is terminated the same way when its recorded runner is still alive.
+
+If a process survives SIGKILL, the row stays dismissed, the workspace claim and
+artifacts are kept, and an error toast names the surviving PIDs. `sase agent kill NAME`
+runs the same termination in the foreground.
+
 #### Enter: act on an agent
 
 `Enter` on an Agents-tab row opens that agent node's pending gate (every gate kind,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from ._kill_persistence import KillKind
@@ -11,7 +12,12 @@ if TYPE_CHECKING:
 
 
 class AgentKillProcessMixin:
-    """Mixin for process-group signalling and kill notifications."""
+    """Mixin for immediate agent signalling and kill notifications.
+
+    The TUI only sends the immediate SIGTERM. Escalation to SIGKILL, the sweep
+    of processes that left the runner's group, and verification of death run in
+    the durable persist-cleanup proc, which survives the TUI.
+    """
 
     def _kill_process_group(
         self,
@@ -20,13 +26,14 @@ class AgentKillProcessMixin:
         artifacts_dir: str | None = None,
         reason: str | None = None,
     ) -> bool:
-        """Kill a process group by PID.
+        """Send the immediate SIGTERM to an agent and record the kill intent.
 
         Args:
-            pid: Process ID to kill.
+            pid: Process ID to signal.
 
         Returns:
-            True if kill succeeded or process was already dead, False on error.
+            True if the signal was sent or the process was already dead, False
+            on error.
         """
         from . import _killing as killing_compat
 
@@ -36,7 +43,7 @@ class AgentKillProcessMixin:
             source="ace_tui",
             reason=reason,
             wait=False,
-            background=True,
+            background=False,
             killpg=killing_compat.os.killpg,
         )
         if result.success:
@@ -63,6 +70,23 @@ class AgentKillProcessMixin:
             artifacts_dir=artifacts_dir,
             reason=agent.display_name,
         )
+
+    def _escalate_kills_without_cleanup_proc(self, agents: Iterable[Agent]) -> None:
+        """Escalate on daemon threads when no durable proc took over.
+
+        Used only when the persist-cleanup proc was rejected, so a kill never
+        ends with nothing to escalate a SIGTERM that the agent ignored. The
+        threads die with the TUI; the durable proc is the real owner.
+        """
+        from . import _killing as killing_compat
+
+        for agent in agents:
+            if agent.pid is None:
+                continue
+            killing_compat.escalate_user_kill_in_background(
+                agent.pid,
+                artifacts_dir=agent.artifacts_dir or agent.get_artifacts_dir(),
+            )
 
     def _notify_killed_agent(self, agent: Agent, kind: KillKind) -> None:
         """Emit kill notification message for an already-signaled process."""

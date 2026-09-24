@@ -4,9 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from types import ModuleType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+from ._clan_cleanup import clan_members_for_container
+from ._dismiss_cleanup import agent_identity_from_wire
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
+from ._kill_termination import (
+    live_dismissed_agents,
+    survivor_agents,
+    survivors_error,
+    terminate_agents,
+    withhold_agent_side_effects,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -20,6 +29,41 @@ def _killing_compat_module() -> ModuleType:
     return _killing
 
 
+def single_kill_targets(
+    agent: Agent,
+    kind: KillKind,
+    cleanup_plan: AgentCleanupPlanWire | None,
+    agents_with_children: list[Agent],
+) -> list[tuple[Agent, KillKind]]:
+    """Return every row one focused kill signals, with each row's kill kind.
+
+    The focused row comes first, then the plan's other kill items, or the
+    live members of a clan container when there is no plan. The optimistic
+    TUI stage and the durable persist-cleanup stage both resolve targets
+    here so they always agree on which processes a kill covers.
+    """
+    by_identity = {candidate.identity: candidate for candidate in agents_with_children}
+    kinds: dict[AgentIdentity, KillKind] = {}
+    targets = [agent]
+    if cleanup_plan is not None:
+        for item in cleanup_plan.kill_items:
+            identity = agent_identity_from_wire(item.identity)
+            kinds[identity] = cast(KillKind, item.kind)
+            candidate = by_identity.get(identity)
+            if candidate is not None:
+                targets.append(candidate)
+    else:
+        targets.extend(clan_members_for_container(agent, agents_with_children))
+    seen: set[AgentIdentity] = set()
+    resolved: list[tuple[Agent, KillKind]] = []
+    for target in targets:
+        if target.identity in seen:
+            continue
+        seen.add(target.identity)
+        resolved.append((target, kinds.get(target.identity, kind)))
+    return resolved
+
+
 def persist_single_kill_transaction(
     agent: Agent,
     kind: KillKind,
@@ -30,49 +74,56 @@ def persist_single_kill_transaction(
     *,
     register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
-    """Persist all side effects for one optimistic kill operation."""
+    """Persist all side effects for one optimistic kill operation.
+
+    Order matters. The dismissal and notification side effects go first so
+    other TUIs and restarts see the removal at once. The agent's whole process
+    set is then terminated and verified dead. Only after that are workspace
+    claims released and artifacts deleted, and never for an agent that could
+    not be verified dead; those are reported as an error once everything else
+    is persisted.
+    """
     from ....dismissed_agents import save_dismissed_agents
 
     killing_compat = _killing_compat_module()
-    if cleanup_plan is None:
-        if register_expected_deletion is None:
-            consumed_intents_result = killing_compat.persist_kill_side_effects(
-                agent,
-                kind,
-                agents_with_children_snapshot,
-            )
-        else:
-            consumed_intents_result = killing_compat.persist_kill_side_effects(
-                agent,
-                kind,
-                agents_with_children_snapshot,
-                register_expected_deletion=register_expected_deletion,
-            )
-    else:
-        if register_expected_deletion is None:
-            consumed_intents_result = killing_compat.persist_kill_side_effects(
-                agent,
-                kind,
-                agents_with_children_snapshot,
-                cleanup_plan,
-            )
-        else:
-            consumed_intents_result = killing_compat.persist_kill_side_effects(
-                agent,
-                kind,
-                agents_with_children_snapshot,
-                cleanup_plan,
-                register_expected_deletion=register_expected_deletion,
-            )
-    consumed_intents = consumed_intents_result is True
-    # Persist the dismissed-set snapshot captured on the UI thread, then
-    # rewrite the notifications file (single read+write) for this agent and
-    # any workflow-child rows hidden alongside it. The save is skipped (and
-    # the index sync with it) when a newer snapshot already reached disk.
+    # The save is skipped (and the index sync with it) when a newer snapshot
+    # already reached disk.
     if save_dismissed_agents(dismissed_snapshot):
         killing_compat.sync_dismissed_agent_artifact_index(dismissed_snapshot)
-    if not consumed_intents:
-        killing_compat.dismiss_notifications_for_agents(related_agents)
+    killing_compat.dismiss_notifications_for_agents(related_agents)
+
+    targets = single_kill_targets(
+        agent, kind, cleanup_plan, agents_with_children_snapshot
+    )
+    kill_agents = [
+        target for target, target_kind in targets if target_kind != "monitor"
+    ]
+    survivors = terminate_agents(
+        [
+            *kill_agents,
+            *live_dismissed_agents(
+                related_agents,
+                handled_pids={target.pid for target in kill_agents if target.pid},
+            ),
+        ]
+    )
+    survivor_rows = survivor_agents(survivors)
+    survivor_identities = {row.identity for row in survivor_rows}
+    if agent.identity not in survivor_identities:
+        effects_plan = withhold_agent_side_effects(
+            cleanup_plan, survivor_rows, agents_with_children_snapshot
+        )
+        args: list[object] = [agent, kind, agents_with_children_snapshot]
+        if effects_plan is not None:
+            args.append(effects_plan)
+        if register_expected_deletion is None:
+            killing_compat.persist_kill_side_effects(*args)
+        else:
+            killing_compat.persist_kill_side_effects(
+                *args, register_expected_deletion=register_expected_deletion
+            )
+    if survivors:
+        raise survivors_error(survivors)
 
 
 def persist_bulk_kill_transaction(
@@ -85,65 +136,63 @@ def persist_bulk_kill_transaction(
     *,
     register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
-    """Persist all side effects for one optimistic bulk kill/dismiss operation."""
+    """Persist all side effects for one optimistic bulk kill/dismiss operation.
+
+    Follows the same order as :func:`persist_single_kill_transaction`:
+    publish the dismissal, terminate and verify, then release workspaces and
+    delete artifacts for every agent that is verifiably dead.
+    """
+    from ....dismissed_agents import save_dismissed_agents
+
     killing_compat = _killing_compat_module()
-    if cleanup_plan is None:
-        if recent_group is None:
-            if register_expected_deletion is None:
-                killing_compat.persist_bulk_kill_side_effects(
-                    kill_items,
-                    dismissable,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                )
-            else:
-                killing_compat.persist_bulk_kill_side_effects(
-                    kill_items,
-                    dismissable,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                    register_expected_deletion=register_expected_deletion,
-                )
-        else:
-            if register_expected_deletion is None:
-                killing_compat.persist_bulk_kill_side_effects(
-                    kill_items,
-                    dismissable,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                    None,
-                    recent_group,
-                )
-            else:
-                killing_compat.persist_bulk_kill_side_effects(
-                    kill_items,
-                    dismissable,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                    None,
-                    recent_group,
-                    register_expected_deletion=register_expected_deletion,
-                )
-        return
-    if register_expected_deletion is None:
-        killing_compat.persist_bulk_kill_side_effects(
-            kill_items,
-            dismissable,
-            dismissed_snapshot,
-            agents_with_children_snapshot,
-            cleanup_plan,
-            recent_group,
+    if save_dismissed_agents(dismissed_snapshot):
+        try:
+            killing_compat.sync_dismissed_agent_artifact_index(dismissed_snapshot)
+        except Exception:
+            pass
+    dismissed_rows = [item.agent for item in kill_items] + list(dismissable)
+    if dismissed_rows:
+        killing_compat.dismiss_notifications_for_agents(dismissed_rows)
+
+    kill_agents = [item.agent for item in kill_items if item.kind != "monitor"]
+    survivors = terminate_agents(
+        [
+            *kill_agents,
+            *live_dismissed_agents(
+                dismissable,
+                handled_pids={agent.pid for agent in kill_agents if agent.pid},
+            ),
+        ]
+    )
+    survivor_rows = survivor_agents(survivors)
+    if survivor_rows:
+        survivor_identities = {row.identity for row in survivor_rows}
+        kill_items = [
+            item
+            for item in kill_items
+            if item.agent.identity not in survivor_identities
+        ]
+        dismissable = [
+            row for row in dismissable if row.identity not in survivor_identities
+        ]
+        cleanup_plan = withhold_agent_side_effects(
+            cleanup_plan, survivor_rows, agents_with_children_snapshot
         )
-    else:
-        killing_compat.persist_bulk_kill_side_effects(
-            kill_items,
-            dismissable,
-            dismissed_snapshot,
-            agents_with_children_snapshot,
-            cleanup_plan,
-            recent_group,
-            register_expected_deletion=register_expected_deletion,
-        )
+
+    args: list[object] = [
+        kill_items,
+        dismissable,
+        dismissed_snapshot,
+        agents_with_children_snapshot,
+    ]
+    if cleanup_plan is not None or recent_group is not None:
+        args.extend([cleanup_plan, recent_group])
+    kwargs: dict[str, object] = {"publish_dismissal": False}
+    if register_expected_deletion is not None:
+        kwargs["register_expected_deletion"] = register_expected_deletion
+    killing_compat.persist_bulk_kill_side_effects(*args, **kwargs)
+    if survivors:
+        raise survivors_error(survivors)
 
 
 def bulk_kill_task_display_name(killed_count: int, dismissed_count: int) -> str:

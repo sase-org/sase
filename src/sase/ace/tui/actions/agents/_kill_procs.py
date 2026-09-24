@@ -6,6 +6,8 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
+from ._kill_termination import withhold_agent_side_effects
+from ._kill_transactions import single_kill_targets
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -40,11 +42,32 @@ class AgentKillPersistenceProcMixin:
         """
         from . import _killing as killing_compat
 
+        overlap = {
+            item.agent.identity for item in kill_items
+        } & self._kill_persistence_inflight
+        if overlap:
+            # An earlier proc already persists and terminates these rows. Drop
+            # only them: the rest of the batch still needs its own proc, and
+            # dropping it would leave those processes alive.
+            overlapped = [
+                item.agent for item in kill_items if item.agent.identity in overlap
+            ]
+            kill_items = [
+                item for item in kill_items if item.agent.identity not in overlap
+            ]
+            dismissable = [
+                agent
+                for agent in dismissable
+                if agent.identity not in self._kill_persistence_inflight
+            ]
+            cleanup_plan = withhold_agent_side_effects(
+                cleanup_plan, overlapped, agents_with_children_snapshot
+            )
+            if not kill_items and not dismissable:
+                if on_settled is not None:
+                    on_settled()
+                return
         inflight = {item.agent.identity for item in kill_items}
-        if inflight & self._kill_persistence_inflight:
-            if on_settled is not None:
-                on_settled()
-            return
         self._kill_persistence_inflight.update(inflight)
 
         killed_count = len(kill_items)
@@ -101,6 +124,9 @@ class AgentKillPersistenceProcMixin:
             payload=payload,
             on_settled=_release,
         ):
+            self._escalate_kills_without_cleanup_proc(  # type: ignore[attr-defined]
+                item.agent for item in kill_items if item.kind != "monitor"
+            )
             _release()
 
     def _submit_kill_persistence_proc(
@@ -172,4 +198,11 @@ class AgentKillPersistenceProcMixin:
             payload=payload,
             on_settled=_release,
         ):
+            self._escalate_kills_without_cleanup_proc(  # type: ignore[attr-defined]
+                target
+                for target, target_kind in single_kill_targets(
+                    agent, kind, cleanup_plan, agents_with_children_snapshot
+                )
+                if target_kind != "monitor"
+            )
             _release()

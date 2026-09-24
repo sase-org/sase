@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, cast
 from ._dismiss_cleanup import agent_identity_from_wire, dismissed_identities_from_plan
 from ._clan_cleanup import clan_members_for_container
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
+from ._kill_transactions import single_kill_targets
 from ._recent_dismissal_groups import (
     agents_for_recent_group,
     build_recent_dismissed_agent_group,
@@ -68,33 +69,12 @@ class AgentKillFlowMixin:
             return False
 
         agents_with_children_snapshot = list(self._agents_with_children)
-        by_identity = {
-            candidate.identity: candidate for candidate in agents_with_children_snapshot
-        }
-        kill_targets = [agent]
-        if cleanup_plan is not None:
-            kill_targets.extend(
-                candidate
-                for item in cleanup_plan.kill_items
-                if (
-                    candidate := by_identity.get(
-                        agent_identity_from_wire(item.identity)
-                    )
-                )
-                is not None
-                and candidate.identity != agent.identity
-            )
-        else:
-            kill_targets.extend(
-                clan_members_for_container(
-                    agent,
-                    agents_with_children_snapshot,
-                )
-            )
-
+        resolved_targets = single_kill_targets(
+            agent, kind, cleanup_plan, agents_with_children_snapshot
+        )
+        kill_targets = [target for target, _ in resolved_targets]
         kill_kinds = {
-            agent_identity_from_wire(item.identity): item.kind
-            for item in (cleanup_plan.kill_items if cleanup_plan is not None else ())
+            target.identity: target_kind for target, target_kind in resolved_targets
         }
         attempted: set[AgentIdentity] = set()
         successful_targets: list[Agent] = []

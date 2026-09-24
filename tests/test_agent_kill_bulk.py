@@ -104,8 +104,8 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
         )
         for call in mock_request_user_kill.call_args_list
     ] == [
-        ("ace_tui", False, True, a1.display_name),
-        ("ace_tui", False, True, a2.display_name),
+        ("ace_tui", False, False, a1.display_name),
+        ("ace_tui", False, False, a2.display_name),
     ]
     assert app._agents == []
     assert app._agents_with_children == []
@@ -333,7 +333,9 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
         app._submit_bulk_kill_persistence_proc([item], [], dismissed_snapshot, [agent])
         run_tracked_proc(app, app.tracked_procs[0])
 
-    mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
+    mock_persist.assert_called_once_with(
+        [item], [], dismissed_snapshot, [agent], publish_dismissal=False
+    )
     assert app.refresh_schedules == 0
     assert app.async_count_refreshes == 1
     assert app._notifications == []
@@ -387,7 +389,9 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
         app._submit_bulk_kill_persistence_proc([item], [], dismissed_snapshot, [agent])
         run_tracked_proc(app, app.tracked_procs[0])
 
-    mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
+    mock_persist.assert_called_once_with(
+        [item], [], dismissed_snapshot, [agent], publish_dismissal=False
+    )
     assert app.refresh_schedules == 1
     assert app._notifications == [("Kill cleanup failed: boom", "error")]
     assert app._kill_persistence_inflight == set()
@@ -505,4 +509,6 @@ def test_single_kill_transaction_skips_artifact_index_when_save_skipped() -> Non
 
     mock_save.assert_called_once_with({agent.identity})
     mock_sync_index.assert_not_called()
-    mock_dismiss_notifications.assert_not_called()
+    # Notifications are dismissed up front, independent of the dismissal save,
+    # so other TUIs stop showing them while processes are still terminating.
+    mock_dismiss_notifications.assert_called_once_with([agent])

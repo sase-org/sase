@@ -168,6 +168,19 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
             project=project_name,
             timestamp=timestamp,
         )
+    if not kill_result.success and kill_result.status == "survivors":
+        # Termination verifies death; keep the workspace claim and state
+        # markers for a process that is still running.
+        return _KillResult(
+            False,
+            f"Could not fully stop agent '{name}' (PID {pid}): {kill_result.error}",
+            reason="survivors",
+            status="survivors",
+            pid=pid,
+            artifacts_dir=agent.artifacts_dir,
+            project=project_name,
+            timestamp=timestamp,
+        )
     status = kill_result.status
 
     # Cleanup
@@ -428,7 +441,7 @@ def _release_workspace_claim(project_file: str, timestamp: str) -> None:
 
 
 def _kill_result_confirms_dead(status: str | None) -> bool:
-    return status in {"already_stopped", "identity_mismatch", "killed"}
+    return status in {"already_stopped", "force_killed", "identity_mismatch", "killed"}
 
 
 def _remove_agent_state_markers(

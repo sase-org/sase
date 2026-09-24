@@ -10,6 +10,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.process_identity import process_identity_token
+from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
 
 
 def persist_refreshed_clan_summary(
@@ -195,6 +196,14 @@ def write_agent_meta(artifacts_dir: str, agent_meta: dict[str, Any]) -> None:
     pid = agent_meta.get("pid")
     if "process_identity" not in agent_meta and isinstance(pid, int):
         agent_meta["process_identity"] = process_identity_token(pid)
+    # The scratch key is inherited by everything this runner launches; only the
+    # runner itself may record it, never a TUI or CLI rewriting its meta.
+    if (
+        "launch_scratch_key" not in agent_meta
+        and pid == os.getpid()
+        and os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV)
+    ):
+        agent_meta["launch_scratch_key"] = os.environ[SASE_LAUNCH_SCRATCH_KEY_ENV]
     write_agent_meta_atomic(
         artifacts_dir,
         agent_meta,

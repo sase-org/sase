@@ -21,6 +21,7 @@ from tests._conftest_environment import (
 )
 from tests._conftest_runtime import (
     _clear_config_caches,
+    _confine_agent_termination_to_test_children,
     _default_test_llm_cli,
     _freeze_model_alias_defaults,
     _isolate_default_llm_effort,

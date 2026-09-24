@@ -88,8 +88,15 @@ def persist_bulk_kill_side_effects(
     recent_group: SavedAgentGroupWire | None = None,
     *,
     register_expected_deletion: Callable[[str | None], None] | None = None,
+    publish_dismissal: bool = True,
 ) -> None:
-    """Apply filesystem/project-file side effects for a bulk kill operation."""
+    """Apply filesystem/project-file side effects for a bulk kill operation.
+
+    *publish_dismissal* saves the dismissed-agents snapshot and syncs the
+    artifact index after the side effects. The bulk kill transaction publishes
+    the dismissal before terminating processes and passes False so a second,
+    later save cannot overwrite what other writers stored in between.
+    """
     from ....dismissed_agents import (
         record_recent_dismissed_agent_group,
         save_dismissed_agents,
@@ -135,7 +142,7 @@ def persist_bulk_kill_side_effects(
         )
     if recent_group is not None:
         record_recent_dismissed_agent_group(recent_group)
-    if save_dismissed_agents(dismissed_snapshot):
+    if publish_dismissal and save_dismissed_agents(dismissed_snapshot):
         try:
             sync_dismissed_agent_artifact_index(dismissed_snapshot)
         except Exception:

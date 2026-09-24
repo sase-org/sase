@@ -23,6 +23,9 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
     "src/sase/ace/tui/actions/agents/_kill_transactions.py:persist_single_kill_transaction": (
         _SYNC_DISMISSED_INDEX,
     ),
+    "src/sase/ace/tui/actions/agents/_kill_transactions.py:persist_bulk_kill_transaction": (
+        _SYNC_DISMISSED_INDEX,
+    ),
     "src/sase/ace/tui/actions/agents/_kill_persistence.py:persist_bulk_kill_side_effects": (
         _SYNC_DISMISSED_INDEX,
     ),

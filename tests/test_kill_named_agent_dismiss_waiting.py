@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.agent.names._common import NamedAgent
@@ -176,6 +177,56 @@ def test_kill_named_agent_uses_live_meta_pid_for_waiting_nonhome_agent(
         "feature_wait",
         "20260510160000",
     ) in load_dismissed_agents()
+
+
+def test_kill_named_agent_keeps_state_when_termination_leaves_survivors(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = setup_waiting_agent(
+        tmp_path,
+        project_name="home",
+        timestamp="20260510155000",
+        name="stuck_waiting",
+        pid=66666,
+        cl_name="stuck_feature",
+    )
+    found = NamedAgent(
+        name="stuck_waiting",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+    survivors = SimpleNamespace(
+        success=False,
+        status="survivors",
+        error="process(es) still running after SIGKILL: 66667",
+    )
+
+    with (
+        patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch("sase.agent.running.is_process_alive", return_value=True),
+        patch("sase.agent.running.request_user_kill", return_value=survivors),
+        patch(
+            "sase.agent.running.update_agent_artifact_index_for_marker_mutation"
+        ) as update_index,
+    ):
+        result = kill_named_agent("stuck_waiting")
+
+    assert result.success is False
+    assert result.reason == "survivors"
+    assert "66667" in result.message
+    assert (artifacts_dir / "waiting.json").exists()
+    update_index.assert_not_called()
+
+    from sase.ace.dismissed_agents import load_dismissed_agents
+    from sase.ace.tui.models.agent import AgentType
+
+    assert (
+        AgentType.RUNNING,
+        "stuck_feature",
+        "20260510155000",
+    ) not in load_dismissed_agents()
 
 
 def test_kill_named_agent_dead_meta_pid_cleans_up_stale_waiting_agent(

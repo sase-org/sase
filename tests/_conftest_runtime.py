@@ -38,6 +38,30 @@ def _default_test_llm_cli(monkeypatch: pytest.MonkeyPatch, _test_llm_bin: Path) 
 
 
 @pytest.fixture(autouse=True)
+def _confine_agent_termination_to_test_children(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never let a test signal a process it did not start.
+
+    Cleanup-transaction tests run agents with invented pids (111, 12345). The
+    durable stage terminates the pid it is given, which would signal whatever
+    real process holds that number. Only descendants of the pytest process are
+    real terminate targets; any other pid reports ``already_stopped``.
+    """
+    from sase.agent import user_kill
+    from sase.agent.process_tree import descendants_of, read_process_table
+
+    real_terminate = user_kill.terminate_agent_processes
+
+    def guarded(pid: int, **kwargs: object) -> user_kill.AgentTerminationResult:
+        if pid not in descendants_of([os.getpid()], read_process_table()):
+            return user_kill.AgentTerminationResult(True, "already_stopped", pid, pid)
+        return real_terminate(pid, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(user_kill, "terminate_agent_processes", guarded)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_default_llm_effort(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prevent ambient config/state from forcing a default effort in tests."""
     monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: None)

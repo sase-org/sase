@@ -41,6 +41,7 @@ from sase.bead.claims import (
 )
 from sase.agent.force_reuse_bead import ForceReuseBeadAssociation
 from sase.core.process_identity import process_identity_token
+from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
 from sase.telemetry import init_telemetry, register_flush_on_exit
 
 
@@ -85,6 +86,11 @@ def _write_bootstrap_agent_meta(
             "output_path": output_path,
         }
     )
+    # Every descendant inherits the launch scratch key however it detaches, so
+    # user-kill termination can find processes that left the runner's group.
+    scratch_key = os.environ.get(SASE_LAUNCH_SCRATCH_KEY_ENV)
+    if scratch_key:
+        agent_meta["launch_scratch_key"] = scratch_key
     write_agent_meta(artifacts_dir, agent_meta)
 
 

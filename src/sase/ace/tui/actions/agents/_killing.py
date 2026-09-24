@@ -53,6 +53,9 @@ from ._killing_utils import delete_agent_artifacts as delete_agent_artifacts
 from ._killing_utils import (
     dismiss_notifications_for_agents as dismiss_notifications_for_agents,
 )
+from sase.agent.user_kill import (
+    escalate_user_kill_in_background as escalate_user_kill_in_background,
+)
 from sase.agent.user_kill import request_user_kill as request_user_kill
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index as sync_dismissed_agent_artifact_index,

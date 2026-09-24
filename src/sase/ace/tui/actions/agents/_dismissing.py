@@ -34,6 +34,13 @@ from ._dismiss_persistence import (
     persist_cleanup_side_effect_intents,
     persist_dismiss_side_effects,
 )
+from ._kill_termination import (
+    live_dismissed_agents,
+    survivor_agents,
+    survivors_error,
+    terminate_agents,
+    withhold_agent_side_effects,
+)
 from ._recent_dismissal_groups import (
     agents_for_recent_group,
     build_recent_dismissed_agent_group,
@@ -229,9 +236,18 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
         """Submit a batch dismissal's persistence as a tracked proc."""
+        overlap = {a.identity for a in agents} & self._dismiss_persistence_inflight
+        if overlap:
+            # An earlier proc already persists these rows. Drop only them: the
+            # rest of the batch still needs its own proc.
+            overlapped = [a for a in agents if a.identity in overlap]
+            agents = [a for a in agents if a.identity not in overlap]
+            cleanup_plan = withhold_agent_side_effects(
+                cleanup_plan, overlapped, agents_with_children_snapshot
+            )
+            if not agents:
+                return
         identities = {a.identity for a in agents}
-        if identities & self._dismiss_persistence_inflight:
-            return
         self._dismiss_persistence_inflight.update(identities)
 
         count = len(agents)
@@ -453,12 +469,26 @@ def _persist_single_dismiss_transaction(
         save_dismissed_agents,
     )
 
+    # Safety net: a row dismissed without a kill whose runner is provably still
+    # alive (for example a FAILED row in retry backoff) must not keep running.
+    survivors = terminate_agents(
+        live_dismissed_agents(
+            agents_related_to_dismissal(agent, agents_with_children_snapshot)
+        )
+    )
+    survivor_rows = survivor_agents(survivors)
+    cleanup_plan = withhold_agent_side_effects(
+        cleanup_plan, survivor_rows, agents_with_children_snapshot
+    )
+
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
         agents_with_children_snapshot,
         register_expected_deletion=register_expected_deletion,
     ):
-        if register_expected_deletion is None:
+        if any(row.identity == agent.identity for row in survivor_rows):
+            pass  # the survivor keeps its workspace claim and artifacts
+        elif register_expected_deletion is None:
             persist_dismiss_side_effects(agent, agents_with_children_snapshot)
         else:
             persist_dismiss_side_effects(
@@ -481,6 +511,8 @@ def _persist_single_dismiss_transaction(
             log.exception("Failed to sync dismissed-agent artifact index")
             raise
         _raise_on_dismissed_agent_artifact_index_sync_failure(synced)
+    if survivors:
+        raise survivors_error(survivors)
 
 
 def _unique_related_agents_for_dismissal(
@@ -514,6 +546,20 @@ def _persist_bulk_dismiss_transaction(
         record_recent_dismissed_agent_group,
         save_dismissed_agents,
     )
+
+    # Safety net: see ``_persist_single_dismiss_transaction``.
+    survivors = terminate_agents(
+        live_dismissed_agents(
+            _unique_related_agents_for_dismissal(agents, agents_with_children_snapshot)
+        )
+    )
+    survivor_rows = survivor_agents(survivors)
+    if survivor_rows:
+        survivor_identities = {row.identity for row in survivor_rows}
+        agents = [row for row in agents if row.identity not in survivor_identities]
+        cleanup_plan = withhold_agent_side_effects(
+            cleanup_plan, survivor_rows, agents_with_children_snapshot
+        )
 
     if not persist_cleanup_side_effect_intents(
         cleanup_plan,
@@ -552,6 +598,8 @@ def _persist_bulk_dismiss_transaction(
             log.exception("Failed to sync dismissed-agent artifact index")
             raise
         _raise_on_dismissed_agent_artifact_index_sync_failure(synced)
+    if survivors:
+        raise survivors_error(survivors)
 
 
 persist_bulk_dismiss_transaction = _persist_bulk_dismiss_transaction

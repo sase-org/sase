@@ -224,7 +224,9 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
         run_tracked_proc(app, app.tracked_procs[0])
 
     mock_persist.assert_called_once_with(agent, "hook", [agent])
-    mock_save.assert_not_called()
+    # The dismissal is published before the side effects, so it survives a
+    # side-effect failure and other TUIs still see the removal.
+    mock_save.assert_called_once_with(set())
     assert app.refresh_schedules == 1
     assert app._notifications == [("Kill cleanup failed: boom", "error")]
     assert app._kill_persistence_inflight == set()
