@@ -139,6 +139,7 @@ def compose_followup_prompt(
     monitor_result: Mapping[str, Any] | None = None,
     checkpoint_ref: str | None = None,
     checkpoint_body: Mapping[str, Any] | None = None,
+    tool_run_id: str | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -251,6 +252,8 @@ def compose_followup_prompt(
             ),
         ),
     ]
+    if tool_run_id:
+        rows.append(("Tool run", f"sase tool show {tool_run_id}"))
     table = "\n".join(f"| **{label}** | {value} |" for label, value in rows)
 
     sections = [

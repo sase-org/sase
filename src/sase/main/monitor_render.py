@@ -227,6 +227,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "host_completion_status": record.host_completion_status,
         "host_completion_message": record.host_completion_message,
         "host_completion_reason": record.host_completion_reason,
+        "tool_run_id": record.tool_run_id,
         "result": _result_object(record),
         "evidence": _evidence_object(record),
         "continuation": _continuation_object(record),
@@ -434,6 +435,13 @@ def monitor_detail(record: MonitorRecord) -> Panel:
         rows.append(("Policy", Text(record.policy_digest)))
     if record.completion_ref:
         rows.append(("Completion", Text(record.completion_ref)))
+    if record.tool_run_id:
+        rows.append(
+            (
+                "Tool run",
+                Text(f"{record.tool_run_id}  (sase tool show {record.tool_run_id})"),
+            )
+        )
     if record.host_completion_status:
         rows.append(("Host completion", Text(record.host_completion_status)))
     if record.host_completion_message:

@@ -53,7 +53,11 @@ from .proc_adapter import (
     MONITOR_FOLLOWUP_KIND,
     MONITOR_PROC_ORIGIN,
 )
-from .tool_wrap import format_unwrapped_log_line, resolve_monitor_tool_wrap
+from .tool_wrap import (
+    format_unwrapped_log_line,
+    monitor_tool_run_words,
+    resolve_monitor_tool_wrap,
+)
 from .request import (
     DEFAULT_REASON,
     DEFAULT_START_STATUS,
@@ -91,6 +95,16 @@ from .transaction import (
     MONITOR_GO_MARKER,
     monitor_lane_lock_path,
 )
+
+
+def _monitor_tool_handoff_enabled() -> bool:
+    """Return whether monitor starts reserve their ToolRun hand-off."""
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    try:
+        return bool(current_flags().enabled(FeatureFlag.tool_handoff))
+    except Exception:  # noqa: BLE001 - flag lookup failure keeps E1.5 wrapping.
+        return False
 
 
 def _tool_run_agent_overlay(starter_agent: str | None) -> dict[str, str]:
@@ -321,6 +335,49 @@ def _start_monitor_locked(
         append_monitor_log_bytes(
             log_path, format_unwrapped_log_line(unwrapped_reason).encode("utf-8")
         )
+    tool_run_id: str | None = None
+    proc_tags: list[str] = []
+    proc_env_overlay: dict[str, str] = {}
+    if _monitor_tool_handoff_enabled():
+        from sase.tool.handoff import (
+            owner_tags,
+            worker_argv,
+            worker_env_overlay,
+        )
+
+        from .tool_handoff import (
+            format_reservation_fallback_line,
+            maybe_reserve_monitor_tool_run,
+        )
+
+        words = monitor_tool_run_words(
+            request.command,
+            request.execution_argv,
+            proc_argv,
+            unwrapped_reason,
+        )
+        handoff = maybe_reserve_monitor_tool_run(
+            words, cwd=request.cwd, monitor_id=monitor_id
+        )
+        if handoff.attempted:
+            reservation = handoff.reservation
+            if reservation is not None and reservation.reserved:
+                # Adopted: the proc runs the claiming worker, never the
+                # E1.5 argv, so one semantic run is never recorded twice.
+                tool_run_id = reservation.run_id
+                proc_argv = worker_argv(tool_run_id)
+                proc_tags = list(owner_tags(tool_run_id))
+                proc_env_overlay = dict(worker_env_overlay())
+                update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
+            else:
+                # Fail-open: keep the E1.5 argv and name the fallback.
+                reason = (
+                    reservation.error if reservation is not None else None
+                ) or "unknown error"
+                append_monitor_log_bytes(
+                    log_path,
+                    format_reservation_fallback_line(reason).encode("utf-8"),
+                )
     try:
         proc = submit_proc_request(
             ProcSubmitRequest(
@@ -335,6 +392,7 @@ def _start_monitor_locked(
                     MONITOR_ARTIFACTS_ENV: str(artifacts_dir),
                     "SASE_MONITOR_ID": monitor_id,
                     **_tool_run_agent_overlay(lane_start.starter_agent),
+                    **proc_env_overlay,
                 },
                 origin=MONITOR_PROC_ORIGIN,
                 proc_id=monitor_id,
@@ -343,6 +401,7 @@ def _start_monitor_locked(
                 cl_name=lane_start.cl_name,
                 shell_name=member_name,
                 shell_kind="proc",
+                tags=proc_tags,
                 request_fingerprint=request_fingerprint,
                 reserved_by=lane_start.starter_agent,
                 timeout_seconds=proc_timeout_seconds(request.timeout_seconds),
@@ -368,6 +427,12 @@ def _start_monitor_locked(
             after_ack=after_ack,
         )
     except ProcSubmitError as exc:
+        if tool_run_id is not None:
+            # The owner never started: the reserved run explains itself
+            # instead of lingering in `created`.
+            from sase.tool.handoff import settle_launch_failure
+
+            settle_launch_failure(tool_run_id, str(exc))
         claim = claim_holder.get("claim")
         claimed_supervisor_pid = claim_holder.get("pid")
         if (
@@ -420,6 +485,7 @@ def _start_monitor_locked(
         supervisor_identity=proc.supervisor_id,
         request_fingerprint=request_fingerprint,
         output_path=str(log_path),
+        tool_run_id=tool_run_id,
     )
     persist_monitor_start_intent_after_ack(
         request,

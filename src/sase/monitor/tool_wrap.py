@@ -128,6 +128,43 @@ def _same_dir(first: Path | str | None, second: Path | str | None) -> bool:
         return False
 
 
+def _tool_run_words_after(tokens: Sequence[str]) -> list[str] | None:
+    """Return the words after ``tool run`` when *tokens* hold that shape."""
+    for index in range(len(tokens) - 1):
+        if tokens[index] == "tool" and tokens[index + 1] == "run":
+            if any(Path(token).name == "sase" for token in tokens[:index]):
+                return [str(part) for part in tokens[index + 2 :]]
+    return None
+
+
+def monitor_tool_run_words(
+    command: str,
+    execution_argv: Sequence[str] | None,
+    proc_argv: Sequence[str],
+    unwrapped_reason: str | None,
+) -> list[str] | None:
+    """Return the ``tool run`` words a monitor proc will execute, if any.
+
+    Covers the three reservable rules: an agent-written single
+    ``sase tool run ...`` (rule 2), a named upgrade (rule 7), and an ad-hoc
+    ``verify`` wrap (rule 8). Returns ``None`` for a host-owned
+    ``execution_argv`` launch (rule 1, never wrapped) and whenever the proc
+    runs raw (a non-``None`` *unwrapped_reason*). Callers resolve the words
+    against the monitor cwd and reserve the hand-off run; a ``None`` here
+    keeps the E1.5 argv untouched.
+    """
+    if execution_argv is not None and len(list(execution_argv)) > 0:
+        return None
+    if unwrapped_reason is not None:
+        return None
+    parts = _split_command(command)
+    if parts is not None and _is_simple_command(parts):
+        words = _tool_run_words_after(parts)
+        if words is not None:
+            return words
+    return _tool_run_words_after([str(part) for part in proc_argv])
+
+
 def resolve_monitor_tool_wrap(
     command: str,
     execution_argv: Sequence[str] | None,
@@ -209,5 +246,6 @@ __all__ = [
     "UNWRAPPED_LOG_PREFIX",
     "VERIFY_MONITOR_PROFILE_NAME",
     "format_unwrapped_log_line",
+    "monitor_tool_run_words",
     "resolve_monitor_tool_wrap",
 ]

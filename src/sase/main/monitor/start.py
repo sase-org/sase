@@ -217,6 +217,8 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         short_id = short_monitor_id(record.monitor_id)
         print(f"Started monitor {short_id} ({record.monitor_id})")
         print(f"  member: {record.member_agent_name}")
+        if record.tool_run_id:
+            print(f"  tool run: {record.tool_run_id}")
         print(f"  timeout: {timeout_label}")
         if idle_timeout_label is not None:
             print(f"  idle timeout: {idle_timeout_label}")

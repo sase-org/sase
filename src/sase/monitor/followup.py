@@ -308,6 +308,7 @@ def launch_followup_agent(
         "monitor_result": monitor_result if loaded_monitor_result is not None else None,
         "checkpoint_ref": checkpoint_ref,
         "checkpoint_body": checkpoint_body,
+        "tool_run_id": _clean_str(meta.get("monitor_tool_run_id")),
     }
 
     def _compose(degraded_reason: str | None) -> str:

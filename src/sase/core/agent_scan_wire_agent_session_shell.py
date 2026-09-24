@@ -49,6 +49,7 @@ class AgentSessionShellMonitorWire:
     supervisor_identity: str | None = None
     settled: bool = False
     idle_timeout_seconds: float | None = None
+    tool_run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -163,6 +164,7 @@ _MONITOR_SPECIFIC_KEYS: dict[str, str] = {
     "monitor_supervisor_identity": "supervisor_identity",
     "monitor_settled": "settled",
     "monitor_idle_timeout_seconds": "idle_timeout_seconds",
+    "monitor_tool_run_id": "tool_run_id",
 }
 
 _GATE_SHARED_KEYS: dict[str, str] = {
