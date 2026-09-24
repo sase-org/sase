@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 
 from sase.core.project_lifecycle_wire import (
@@ -65,12 +64,9 @@ def among_for_records(
 
 def _color_enabled() -> bool:
     """Return whether CLI color output is enabled."""
-    try:
-        if os.environ.get("NO_COLOR") is not None:
-            return False
-        return sys.stdout.isatty()
-    except Exception:
-        return False
+    from sase.core.term_color import should_colorize
+
+    return should_colorize(sys.stdout)
 
 
 def record_to_json_dict(

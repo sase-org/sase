@@ -31,8 +31,11 @@ class _Terminated(Exception):
 
 class _HelpParser(argparse.ArgumentParser):
     def print_help(self, file: Any = None) -> None:
+        from sase.core.term_color import should_colorize
+
         output = self.format_help()
-        if "NO_COLOR" not in os.environ and os.environ.get("TERM") != "dumb":
+        target = file or sys.stdout
+        if should_colorize(target):
             output = output.replace("usage:", "\033[1;36musage:\033[0m", 1)
             for heading in ("options:",):
                 output = output.replace(heading, f"\033[1;35m{heading}\033[0m")

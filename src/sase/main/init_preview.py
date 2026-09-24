@@ -36,13 +36,15 @@ _OPERATION_PRESENTATION = {
 
 
 def preview_console(file: TextIO) -> Console:
-    """Return a Rich console with color enabled exactly when *file* is a TTY."""
-    is_tty = file.isatty()
+    """Return a Rich console honoring the shared color contract for *file*."""
+    from sase.core.term_color import should_colorize
+
+    use_color = should_colorize(file)
     return Console(
         file=file,
-        force_terminal=is_tty,
-        color_system="auto" if is_tty else None,
-        no_color=not is_tty,
+        force_terminal=use_color,
+        color_system="auto" if use_color else None,
+        no_color=not use_color,
         soft_wrap=True,
     )
 

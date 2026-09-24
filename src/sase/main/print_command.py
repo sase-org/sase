@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shlex
 import sys
 from collections.abc import Sequence
@@ -93,10 +92,9 @@ def _is_control(char: str) -> bool:
 
 
 def _stream_supports_color(stream: TextIO) -> bool:
-    if os.environ.get("NO_COLOR") is not None or os.environ.get("TERM") == "dumb":
-        return False
-    isatty = getattr(stream, "isatty", None)
-    return bool(isatty is not None and isatty())
+    from sase.core.term_color import should_colorize
+
+    return should_colorize(stream)
 
 
 def _stream_encoding(stream: TextIO) -> str:

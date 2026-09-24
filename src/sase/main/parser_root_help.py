@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from dataclasses import dataclass
 from typing import Any, TextIO
@@ -245,11 +244,9 @@ def print_compact_root_help(parser: argparse.ArgumentParser, stream: TextIO) -> 
 
 
 def stream_supports_color(stream: TextIO) -> bool:
-    if os.environ.get("NO_COLOR") is not None or os.environ.get("TERM") == "dumb":
-        return False
+    from sase.core.term_color import should_colorize
 
-    isatty = getattr(stream, "isatty", None)
-    return bool(isatty is not None and isatty())
+    return should_colorize(stream)
 
 
 def format_colored_compact_root_help(parser: argparse.ArgumentParser) -> Text:

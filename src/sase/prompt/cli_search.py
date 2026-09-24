@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -154,15 +153,11 @@ def _resolve_limit(value: object) -> int:
 
 
 def _resolve_color(args: argparse.Namespace) -> bool:
-    """Resolve ``--color`` to a boolean, honoring ``auto`` (TTY + ``NO_COLOR``)."""
+    """Resolve ``--color`` to a boolean, honoring the color contract."""
+    from sase.core.term_color import should_colorize
+
     choice = getattr(args, "color", "auto") or "auto"
-    if choice == "always":
-        return True
-    if choice == "never":
-        return False
-    if os.environ.get("NO_COLOR") is not None:
-        return False
-    return sys.stdout.isatty()
+    return should_colorize(sys.stdout, mode=choice)
 
 
 # ---------------------------------------------------------------------------

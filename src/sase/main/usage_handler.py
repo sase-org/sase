@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -451,11 +450,9 @@ def _emit_usage_error(code: str, message: str, *, json_output: bool) -> None:
 def _plain_output(args: argparse.Namespace) -> bool:
     if getattr(args, "plain", False):
         return True
-    if os.environ.get("NO_COLOR") is not None:
-        return True
-    if os.environ.get("TERM") == "dumb":
-        return True
-    return not sys.stdout.isatty()
+    from sase.core.term_color import should_colorize
+
+    return not should_colorize(sys.stdout)
 
 
 def _requested_providers(args: argparse.Namespace) -> tuple[str, ...]:
