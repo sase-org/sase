@@ -8,19 +8,6 @@ from pathlib import Path
 from typing import Any
 
 
-def payload_names(
-    payload: Mapping[str, Any] | None, *, bundle: bool = False
-) -> set[str]:
-    if not payload:
-        return set()
-    keys = (
-        ("agent_name", "workflow_name", "name") if bundle else ("name", "workflow_name")
-    )
-    return {
-        value for key in keys if isinstance((value := payload.get(key)), str) and value
-    }
-
-
 def payload_outgoing_suffixes(payload: Mapping[str, Any] | None) -> set[str]:
     if not payload:
         return set()

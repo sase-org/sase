@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.plan_chain import (
+    agent_session_base,
     agent_session_parallel_value,
     agent_session_value,
 )
@@ -41,26 +42,68 @@ def family_from_payload(payload: dict[str, Any] | None) -> str | None:
     return family if isinstance(family, str) and family else None
 
 
-def names_from_payloads(
+_NAME_KEYS = ("name", "workflow_name")
+_BUNDLE_NAME_KEYS = ("agent_name", "workflow_name", "name")
+_OWN_NAME_KEYS = ("name",)
+_BUNDLE_OWN_NAME_KEYS = ("agent_name", "name")
+
+
+def owner_identity_names(
     primary: dict[str, Any] | None,
-    secondary: dict[str, Any] | None,
+    secondary: dict[str, Any] | None = None,
     *,
-    bundle_name_keys: bool = False,
+    bundle: bool = False,
 ) -> set[str]:
-    names: set[str] = set()
-    keys = (
-        ("agent_name", "workflow_name")
-        if bundle_name_keys
-        else ("name", "workflow_name")
-    )
-    for payload in (primary, secondary):
-        if not isinstance(payload, dict):
-            continue
-        for key in keys:
-            value = payload.get(key)
-            if isinstance(value, str) and value:
-                names.add(value)
+    """Return the agent names an artifact or bundle owns.
+
+    *primary* is the ``agent_meta.json`` (or dismissed-bundle) payload and
+    *secondary* the ``done.json`` payload. Two stored names do not identify the
+    artifact itself and are dropped, so a forced-reuse wipe of one session
+    member never reaches its siblings or root through a shared name:
+
+    * the agent-session container, which every member stores as
+      ``workflow_name``; and
+    * a ``done.json`` name of a *different* member of the same session, which a
+      ``%auto`` chain copies into the root artifact dir when it continues
+      in-process into the code step.
+
+    The registry scan and the wipe pipeline both derive names here so the two
+    cannot disagree about who owns a name.
+    """
+    keys = _BUNDLE_NAME_KEYS if bundle else _NAME_KEYS
+    own_name = _first_name(primary, _BUNDLE_OWN_NAME_KEYS if bundle else _OWN_NAME_KEYS)
+    session = family_from_payload(primary)
+
+    names = _payload_names(primary, keys)
+    done_names = _payload_names(secondary, keys)
+    if session is not None and own_name is not None:
+        done_names = {
+            name
+            for name in done_names
+            if name == own_name or agent_session_base(name) != session
+        }
+    names |= done_names
+    if session is not None:
+        names.discard(session)
     return names
+
+
+def _payload_names(payload: dict[str, Any] | None, keys: tuple[str, ...]) -> set[str]:
+    if not isinstance(payload, dict):
+        return set()
+    return {
+        value for key in keys if isinstance((value := payload.get(key)), str) and value
+    }
+
+
+def _first_name(payload: dict[str, Any] | None, keys: tuple[str, ...]) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 def artifact_owner(

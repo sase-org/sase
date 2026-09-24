@@ -2832,7 +2832,9 @@ standalone `clan:` declaration is dropped in favor of the `clan=` keyword. The l
 is not a failure: a prompt that never named its agent has nothing to reuse, so it simply
 relaunches under a newly allocated name. A serial family member is the one case where a
 prompt with no `%id` is still rewritten, because its `family=` attachment comes from the
-row rather than the prompt; family roots are not treated that way.
+row rather than the prompt; family roots are not treated that way. Forced reuse of a
+family member replaces only that member and its own descendants; the family root and the
+sibling members are left untouched, so the `family=` attachment still finds its parent.
 
 sase's TUI is the surface that confirms that reuse, and it carries the authorization
 through to the launch, so no second confirmation is asked for. Forced reuse cannot be

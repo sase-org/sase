@@ -9,6 +9,7 @@ from typing import Any
 
 from sase.agent.names._registry import lookup_registered_name
 from sase.agent.names._wipe_execute import execute_wipe_plan
+from sase.agent.names._wipe_guard import session_root_removal_refusal
 from sase.agent.names._wipe_plan import WipePlan, build_wipe_plan, merge_wipe_plans
 from sase.agent.names._wipe_scan import WipeCatalog, load_wipe_catalog
 
@@ -116,7 +117,15 @@ def wipe_agent_names_for_reuse(
             plan.names.add(target.target_name)
         plans[index] = plan
 
-    if plans:
+    refusal = _session_root_refusal(resolved, plans)
+    if refusal is not None:
+        for index in plans:
+            results[index] = AgentNameWipeResult(
+                target_name=resolved[index].target_name,
+                found=True,
+                errors=(refusal,),
+            )
+    elif plans:
         execution = execute_wipe_plan(merge_wipe_plans(tuple(plans.values())))
         single_plan = len(plans) == 1
         for index, plan in plans.items():
@@ -149,6 +158,21 @@ def wipe_agent_names_for_reuse(
         else AgentNameWipeResult(target_name=target.target_name, found=False)
         for target, result in zip(resolved, results, strict=True)
     )
+
+
+def _session_root_refusal(
+    resolved: Sequence[_ResolvedWipeTarget],
+    plans: Mapping[int, WipePlan],
+) -> str | None:
+    """Return why the batch must not run: it would delete an unrequested session root."""
+    batch_names = {resolved[index].target_name for index in plans}
+    for index, plan in plans.items():
+        refusal = session_root_removal_refusal(
+            resolved[index].target_name, plan, batch_names
+        )
+        if refusal is not None:
+            return refusal
+    return None
 
 
 def _resolve_wipe_targets(

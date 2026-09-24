@@ -120,6 +120,15 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "inspected before consulting an exact dismissed-archive fallback."
         ),
     ),
+    (
+        "src/sase/agent/names/_wipe_guard.py:session_root_removal_refusal"
+    ): PathPassingReview(
+        exemption=(
+            "Read-only forced-reuse wipe guard: agent_meta.json and done.json are "
+            "inspected only to detect an agent-session root in a wipe closure "
+            "before any artifact directory is removed."
+        ),
+    ),
     "src/sase/scripts/_agent_chat_from_name_common.py:completed_response_path": (
         PathPassingReview(
             exemption=(

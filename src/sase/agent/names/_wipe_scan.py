@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sase.agent.names._registry_scan_payloads import owner_identity_names
 from sase.agent.names._wipe_payload import (
-    payload_names,
     payload_outgoing_suffixes,
     read_json_object,
 )
@@ -78,7 +78,7 @@ def _scan_artifacts() -> list[ArtifactRecord]:
                             path=artifact_dir.resolve(strict=False),
                             suffix=artifact_dir.name,
                             project_name=project_dir.name,
-                            names=payload_names(meta) | payload_names(done),
+                            names=owner_identity_names(meta, done),
                             relation_refs=_payload_relation_refs(meta)
                             | _payload_relation_refs(done),
                             outgoing_suffixes=payload_outgoing_suffixes(meta)
@@ -109,7 +109,7 @@ def _scan_bundles() -> list[BundleRecord]:
             BundleRecord(
                 path=path.resolve(strict=False),
                 raw_suffix=raw_suffix if isinstance(raw_suffix, str) else None,
-                names=payload_names(payload, bundle=True),
+                names=owner_identity_names(payload, bundle=True),
                 relation_refs=_payload_relation_refs(payload),
                 outgoing_suffixes=payload_outgoing_suffixes(payload),
             )

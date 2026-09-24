@@ -126,6 +126,25 @@ def _restore_execution_env(state: LoopState) -> None:
         os.environ["SASE_AGENT_TIMESTAMP"] = state.original_agent_timestamp
 
 
+def _root_done_marker(
+    root_artifacts_dir: str, done_marker: dict[str, Any]
+) -> dict[str, Any]:
+    """Copy the final member's done marker for the root artifact dir.
+
+    The root row mirrors the chain's outcome and response, but the marker's
+    ``name`` belongs to the final member's own artifact dir. Claiming it here
+    would map that member's name to the root in the name registry, so a forced
+    reuse of the member would wipe the root too.
+    """
+    root_marker = dict(done_marker)
+    root_name = _metadata_str(_read_transcript_agent_meta(root_artifacts_dir), "name")
+    if root_name is None:
+        root_marker.pop("name", None)
+    else:
+        root_marker["name"] = root_name
+    return root_marker
+
+
 def finalize_loop(
     ctx: AgentExecContext,
     state: LoopState,
@@ -302,7 +321,10 @@ def finalize_loop(
         print(f"Done marker written to: {done_path} (outcome: {state.loop_outcome})")
 
     if state.current_artifacts_dir != ctx.artifacts_dir:
-        write_done_marker_and_update_index(ctx.artifacts_dir, done_marker)
+        write_done_marker_and_update_index(
+            ctx.artifacts_dir,
+            _root_done_marker(ctx.artifacts_dir, done_marker),
+        )
 
     return AgentExecResult(
         success=state.loop_outcome in _SUCCESSFUL_LOOP_OUTCOMES,

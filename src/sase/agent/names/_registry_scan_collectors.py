@@ -23,7 +23,7 @@ from sase.agent.names._registry_scan_payloads import (
     clan_from_payload,
     family_from_payload,
     load_dismissed_suffixes,
-    names_from_payloads,
+    owner_identity_names,
     read_json_object,
 )
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
@@ -135,9 +135,7 @@ def _collect_workflow_artifact_entries(
         provenance_payload = meta or done or {}
         clan = clan_from_payload(meta)
         family = family_from_payload(meta)
-        names = names_from_payloads(meta, done)
-        if family is not None:
-            names.discard(family)
+        names = owner_identity_names(meta, done)
         add_owner_clan(
             entries,
             _localize_clan(clan, provenance_payload, identity),
@@ -189,9 +187,7 @@ def collect_dismissed_bundle_entries(
         owner = bundle_owner(path, bundle)
         clan = clan_from_payload(bundle)
         family = family_from_payload(bundle)
-        names = names_from_payloads(bundle, None, bundle_name_keys=True)
-        if family is not None:
-            names.discard(family)
+        names = owner_identity_names(bundle, bundle=True)
         add_owner_clan(
             entries,
             _localize_clan(clan, bundle, identity),

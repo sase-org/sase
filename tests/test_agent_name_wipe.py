@@ -25,6 +25,10 @@ from sase.agent.names import (
     wipe_agent_names_for_reuse,
     wipe_agent_name_for_reuse,
 )
+from sase.agent.names._forced_reuse import (
+    ForcedReuseCleanupError,
+    wipe_force_reuse_owners,
+)
 from sase.core.process_identity import process_identity_token
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification, load_notifications
@@ -37,6 +41,7 @@ def _artifact(
     *,
     project: str = "proj",
     done: bool = False,
+    done_name: str | None = None,
     day_sharded: bool = False,
     meta: dict[str, object] | None = None,
 ) -> Path:
@@ -51,7 +56,7 @@ def _artifact(
     (path / "agent_meta.json").write_text(json.dumps(payload), encoding="utf-8")
     if done:
         (path / "done.json").write_text(
-            json.dumps({"name": name, "outcome": "completed"}),
+            json.dumps({"name": done_name or name, "outcome": "completed"}),
             encoding="utf-8",
         )
     return path
@@ -477,43 +482,49 @@ def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
         assert "unrelated" in get_reserved_agent_names()
 
 
+def _family_meta(family_name: str, role: str) -> dict[str, object]:
+    """Meta a real agent-session member stores: ``workflow_name`` is the session."""
+    return {
+        "workflow_name": family_name,
+        "agent_session": family_name,
+        "agent_session_role": role,
+        "agent_session_parallel": False,
+    }
+
+
 def test_wipe_code_member_preserves_plan_member_and_family_container(
     tmp_path: Path,
 ) -> None:
     family_name = "epic.phase"
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
-    family_meta = {
-        "agent_session": family_name,
-        "agent_session_parallel": False,
-    }
     plan = _artifact(
         tmp_path,
         "20260723120000",
         plan_name,
         done=True,
-        meta=family_meta,
+        meta={**_family_meta(family_name, "root"), "plan_chain_root": True},
     )
     code = _artifact(
         tmp_path,
         "20260723120100",
         code_name,
         done=True,
-        meta={**family_meta, "parent_timestamp": plan.name},
+        meta={**_family_meta(family_name, "code"), "parent_timestamp": plan.name},
     )
     descendant = _bundle(
         tmp_path,
         "20260723120200",
         f"{family_name}--code-review",
         parent_timestamp=code.name,
-        **family_meta,
+        **_family_meta(family_name, "feedback"),
     )
     sibling = _artifact(
         tmp_path,
         "20260723120300",
         f"{family_name}--reviewer",
         done=True,
-        meta=family_meta,
+        meta=_family_meta(family_name, "feedback"),
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -528,6 +539,141 @@ def test_wipe_code_member_preserves_plan_member_and_family_container(
             get_reserved_agent_names()
         )
         assert code_name not in get_reserved_agent_names()
+
+
+def _auto_family(tmp_path: Path, family_name: str) -> dict[str, Path]:
+    """A ``%auto`` plan chain: the root's ``done.json`` names the code member."""
+    root = _artifact(
+        tmp_path,
+        "20260725120000",
+        f"{family_name}--plan",
+        done=True,
+        done_name=f"{family_name}--code",
+        meta={**_family_meta(family_name, "root"), "plan_chain_root": True},
+    )
+    gate = _artifact(
+        tmp_path,
+        "20260725120050",
+        f"{family_name}--gate",
+        done=True,
+        meta={**_family_meta(family_name, "gate"), "parent_timestamp": root.name},
+    )
+    code = _artifact(
+        tmp_path,
+        "20260725120100",
+        f"{family_name}--code",
+        done=True,
+        meta={**_family_meta(family_name, "code"), "parent_timestamp": root.name},
+    )
+    monitor = _artifact(
+        tmp_path,
+        "20260725120200",
+        f"{family_name}--mon",
+        done=True,
+        meta={**_family_meta(family_name, "monitor"), "parent_timestamp": code.name},
+    )
+    return {"root": root, "gate": gate, "code": code, "monitor": monitor}
+
+
+def test_wipe_auto_code_member_keeps_root_whose_done_marker_names_it(
+    tmp_path: Path,
+) -> None:
+    family_name = "epic.phase"
+    dirs = _auto_family(tmp_path, family_name)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        owner = lookup_registered_name(f"{family_name}--code")
+        assert owner is not None
+        assert Path(owner["artifacts_dir"]) == dirs["code"]
+
+        result = wipe_agent_name_for_reuse(f"{family_name}--code")
+
+        assert result.errors == ()
+        assert set(result.artifact_dirs_removed) == {
+            str(dirs["code"]),
+            str(dirs["monitor"]),
+        }
+        assert dirs["root"].exists()
+        assert dirs["gate"].exists()
+        assert {
+            family_name,
+            f"{family_name}--plan",
+            f"{family_name}--gate",
+        } <= get_reserved_agent_names()
+        assert f"{family_name}--code" not in get_reserved_agent_names()
+
+
+def test_wipe_whole_family_batch_still_removes_root_and_members(
+    tmp_path: Path,
+) -> None:
+    family_name = "epic.phase"
+    dirs = _auto_family(tmp_path, family_name)
+    members = tuple(
+        f"{family_name}--{suffix}" for suffix in ("plan", "gate", "code", "mon")
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        results = wipe_agent_names_for_reuse(members)
+
+        assert all(result.errors == () for result in results)
+        assert not any(path.exists() for path in dirs.values())
+        assert family_name not in get_reserved_agent_names()
+
+
+def _leak_root_into_plan(root: Path):  # type: ignore[no-untyped-def]
+    """Patch ``build_wipe_plan`` so every closure also holds *root*."""
+    from sase.agent.names._wipe_plan import build_wipe_plan
+
+    def leaky(owner, target_name, *, catalog=None):  # type: ignore[no-untyped-def]
+        plan = build_wipe_plan(owner, target_name, catalog=catalog)
+        plan.artifact_dirs.add(root.resolve())
+        return plan
+
+    return patch("sase.agent.names._wipe.build_wipe_plan", side_effect=leaky)
+
+
+def test_wipe_refuses_member_closure_that_reaches_session_root(
+    tmp_path: Path,
+) -> None:
+    family_name = "epic.phase"
+    dirs = _auto_family(tmp_path, family_name)
+    code_name = f"{family_name}--code"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        before = load_name_registry()
+        with _leak_root_into_plan(dirs["root"]):
+            result = wipe_agent_name_for_reuse(code_name)
+
+        assert result.found is True
+        assert result.artifact_dirs_removed == ()
+        assert len(result.errors) == 1
+        assert f"forced reuse of '{code_name}'" in result.errors[0]
+        assert f"agent-session root '{family_name}--plan'" in result.errors[0]
+        assert str(dirs["root"]) in result.errors[0]
+        assert all(path.exists() for path in dirs.values())
+        assert load_name_registry() == before
+
+
+def test_forced_reuse_owners_raise_and_delete_nothing_on_session_root_leak(
+    tmp_path: Path,
+) -> None:
+    family_name = "epic.phase"
+    dirs = _auto_family(tmp_path, family_name)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        with (
+            _leak_root_into_plan(dirs["root"]),
+            pytest.raises(ForcedReuseCleanupError, match="refusing to wipe"),
+        ):
+            wipe_force_reuse_owners(
+                (f"{family_name}--code",), allow_container_skip=False
+            )
+
+        assert all(path.exists() for path in dirs.values())
 
 
 def test_batch_wipe_shares_catalog_and_registry_rebuild(tmp_path: Path) -> None:

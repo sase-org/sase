@@ -117,6 +117,76 @@ def test_finalize_loop_prefers_latest_agent_meta_for_transcript_metadata(
     assert captured["metadata_llm_provider"] == "codex"
 
 
+def _finalize_auto_continuation(
+    tmp_path: Path, *, root_meta: dict[str, object] | None
+) -> tuple[Path, Path]:
+    """Finalize an in-process plan->code continuation; return (root, code) dirs."""
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    root = Path(ctx.artifacts_dir)
+    if root_meta is not None:
+        (root / "agent_meta.json").write_text(json.dumps(root_meta), encoding="utf-8")
+    code = tmp_path / "code"
+    code.mkdir()
+    (code / "agent_meta.json").write_text(
+        json.dumps({"name": "agent--code"}), encoding="utf-8"
+    )
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="--code",
+        current_artifacts_dir=str(code),
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="prompt",
+        agent_step=2,
+    )
+
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(tmp_path / "chat.md"),
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+    return root, code
+
+
+def test_finalize_loop_root_done_marker_keeps_root_name_after_continuation(
+    tmp_path: Path,
+) -> None:
+    root, code = _finalize_auto_continuation(
+        tmp_path, root_meta={"name": "agent--plan", "agent_session": "agent"}
+    )
+
+    root_done = json.loads((root / "done.json").read_text(encoding="utf-8"))
+    code_done = json.loads((code / "done.json").read_text(encoding="utf-8"))
+    assert root_done["name"] == "agent--plan"
+    assert code_done["name"] == "agent--code"
+    assert root_done["outcome"] == code_done["outcome"] == "completed"
+    assert root_done["response_path"] == code_done["response_path"]
+
+
+def test_finalize_loop_root_done_marker_drops_name_without_root_meta_name(
+    tmp_path: Path,
+) -> None:
+    root, code = _finalize_auto_continuation(tmp_path, root_meta=None)
+
+    root_done = json.loads((root / "done.json").read_text(encoding="utf-8"))
+    code_done = json.loads((code / "done.json").read_text(encoding="utf-8"))
+    assert "name" not in root_done
+    assert code_done["name"] == "agent--code"
+    assert root_done["outcome"] == "completed"
+
+
 def test_finalize_loop_maps_monitored_to_completed_without_resaving_chat(
     tmp_path: Path,
 ) -> None:

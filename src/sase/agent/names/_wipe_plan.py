@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sase.agent.names._registry_scan_payloads import owner_identity_names
 from sase.agent.names._wipe_payload import (
-    payload_names,
     payload_outgoing_suffixes,
     read_json_object,
 )
@@ -76,30 +76,30 @@ def _seed_owner(plan: WipePlan, owner: Mapping[str, Any]) -> None:
     if isinstance(raw_suffix, str) and raw_suffix:
         plan.suffixes.add(raw_suffix)
 
-    for key in ("name", "workflow_name", "agent_name"):
-        value = owner.get(key)
-        if isinstance(value, str) and value:
-            plan.names.add(value)
+    plan.names.update(owner_identity_names(dict(owner), bundle=True))
 
     artifacts_dir = owner.get("artifacts_dir")
     if isinstance(artifacts_dir, str) and artifacts_dir:
         path = Path(artifacts_dir).expanduser().resolve(strict=False)
         plan.artifact_dirs.add(path)
-        _seed_payload_path(plan, path / "agent_meta.json")
-        _seed_payload_path(plan, path / "done.json")
+        meta = read_json_object(path / "agent_meta.json")
+        done = read_json_object(path / "done.json")
+        plan.names.update(owner_identity_names(meta, done))
+        _seed_payload_suffixes(plan, meta)
+        _seed_payload_suffixes(plan, done)
 
     bundle_path = owner.get("bundle_path")
     if isinstance(bundle_path, str) and bundle_path:
         path = Path(bundle_path).expanduser().resolve(strict=False)
         plan.bundle_paths.add(path)
-        _seed_payload_path(plan, path, bundle=True)
+        bundle_payload = read_json_object(path)
+        plan.names.update(owner_identity_names(bundle_payload, bundle=True))
+        _seed_payload_suffixes(plan, bundle_payload)
 
 
-def _seed_payload_path(plan: WipePlan, path: Path, *, bundle: bool = False) -> None:
-    payload = read_json_object(path)
+def _seed_payload_suffixes(plan: WipePlan, payload: Mapping[str, Any] | None) -> None:
     if payload is None:
         return
-    plan.names.update(payload_names(payload, bundle=bundle))
     raw_suffix = payload.get("raw_suffix")
     if isinstance(raw_suffix, str) and raw_suffix:
         plan.suffixes.add(raw_suffix)

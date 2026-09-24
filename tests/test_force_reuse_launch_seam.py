@@ -428,6 +428,102 @@ def test_launch_query_wipes_real_family_registry_before_spawn(
     )
 
 
+def _seed_auto_family_member(
+    home: Any,
+    suffix: str,
+    name: str,
+    family_name: str,
+    role: str,
+    *,
+    done_name: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> Any:
+    """Seed one finished member of a ``%auto`` plan-chain family under *home*."""
+    import json
+
+    path = home / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / suffix
+    path.mkdir(parents=True)
+    payload = {
+        "name": name,
+        "workflow_name": family_name,
+        "agent_session": family_name,
+        "agent_session_role": role,
+        "agent_session_parallel": False,
+        **(meta or {}),
+    }
+    (path / "agent_meta.json").write_text(json.dumps(payload), encoding="utf-8")
+    (path / "done.json").write_text(
+        json.dumps({"name": done_name or name, "outcome": "completed"}),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
+    tmp_path: Any,
+) -> None:
+    """``,x`` on ``P--code`` must not wipe the ``P--plan`` root it attaches to.
+
+    A ``%auto`` chain's root ``done.json`` names the code member, and every
+    member stores the family as ``workflow_name``. Both used to pull the root
+    into the wipe of ``P--code``, so family-attach then failed with "parent
+    agent 'P' was not found" after deleting the whole family.
+    """
+    from pathlib import Path
+
+    from sase.agent._family_attach_resolution import resolve_family_attach_plan
+    from sase.agent._family_attach_types import FamilyAttachDirective
+    from sase.agent.force_reuse_launch import (
+        apply_force_reuse_launch,
+        plan_force_reuse_launch,
+    )
+    from sase.agent.names import get_reserved_agent_names, rebuild_name_registry
+
+    family_name = "sase-17m.3.1.land"
+    plan_name = f"{family_name}--plan"
+    code_name = f"{family_name}--code"
+    root = _seed_auto_family_member(
+        tmp_path,
+        "20260924115043",
+        plan_name,
+        family_name,
+        "root",
+        done_name=code_name,
+        meta={"plan_chain_root": True},
+    )
+    code = _seed_auto_family_member(
+        tmp_path,
+        "20260924115200",
+        code_name,
+        family_name,
+        "code",
+        meta={"parent_timestamp": root.name},
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        launch_plan = plan_force_reuse_launch(
+            f"%id(!code, family={family_name})\nDo work"
+        )
+        assert launch_plan is not None
+        assert launch_plan.owner_names == [code_name]
+
+        apply_force_reuse_launch(launch_plan)
+
+        assert not code.exists()
+        assert root.exists()
+        assert {family_name, plan_name} <= get_reserved_agent_names()
+
+        attach_plan = resolve_family_attach_plan(
+            FamilyAttachDirective(parent=family_name, suffix="code", force_reuse=True),
+            project_name="proj",
+        )
+
+    assert attach_plan.agent_name == code_name
+    assert attach_plan.parent_name == plan_name
+    assert Path(attach_plan.parent_artifacts_dir) == root
+
+
 def test_launch_query_real_family_cleanup_failure_prevents_spawn(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:

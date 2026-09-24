@@ -27,7 +27,7 @@ INDEX_FILENAME = "agent_name_registry.json"
 # same on-disk artifacts, so every existing registry rebuilds exactly once
 # after upgrade. This is independent of SCHEMA_VERSION, which tracks the
 # on-disk envelope's own compatibility, not the scanner's behavior.
-SCAN_VERSION = 1
+SCAN_VERSION = 2
 
 _SOURCE_SIGNATURE_SESSION: ContextVar[list[dict[str, int | str]] | None] = ContextVar(
     "agent_name_registry_source_signature_session", default=None
