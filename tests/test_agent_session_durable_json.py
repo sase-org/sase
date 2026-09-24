@@ -296,10 +296,10 @@ def test_launch_request_writer_emits_no_legacy_type() -> None:
 
 
 def test_requester_identity_prefers_session_context() -> None:
-    from sase.agent.launch_request_continuation import _requester_family_identity
+    from sase.agent.launch_request_continuation import _requester_agent_session_identity
 
     assert (
-        _requester_family_identity(
+        _requester_agent_session_identity(
             {
                 "agent_meta.agent_session": "new-base",
                 "agent_meta.agent_family": "old-base",
@@ -308,7 +308,7 @@ def test_requester_identity_prefers_session_context() -> None:
         == "new-base"
     )
     assert (
-        _requester_family_identity({"agent_meta.agent_family": "old-base"})
+        _requester_agent_session_identity({"agent_meta.agent_family": "old-base"})
         == "old-base"
     )
 

@@ -90,7 +90,7 @@ def _remove_inherited_model_alias_overrides(
     env: dict[str, str],
     extra_env: dict[str, str] | None,
 ) -> None:
-    """Keep family overrides off unrelated nested subprocess launches."""
+    """Keep agent-session overrides off unrelated nested subprocess launches."""
     from sase.llm_provider.launch_alias_overrides import (
         SASE_MODEL_ALIAS_OVERRIDES_ENV,
     )

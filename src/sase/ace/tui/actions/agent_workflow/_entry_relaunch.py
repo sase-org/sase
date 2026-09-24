@@ -51,10 +51,10 @@ def prepare_kill_edit_agent_prompt(
     return prepare_kill_and_edit_prompt(
         raw_prompt,
         agent.agent_name,
-        family_name=family_name,
+        agent_session_name=family_name,
         role_suffix=role_suffix,
         phase_bead_id=getattr(agent, "phase_bead_id", None),
-        is_family_root=is_family_root,
+        is_agent_session_root=is_family_root,
     )
 
 

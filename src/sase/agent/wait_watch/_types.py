@@ -19,7 +19,9 @@ class WaitTargetKind(StrEnum):
 
     AGENT = "agent"
     CLAN = "clan"
-    FAMILY = "family"
+    # legacy agent-family spelling: wait -j still emits "family" until
+    # query-cli-json changes its user-facing output contract.
+    AGENT_SESSION = "family"
     WORKFLOW = "workflow"
 
 
@@ -59,7 +61,7 @@ class WaitCaller:
     artifact_dir: str
     name: str | None = None
     workflow_name: str | None = None
-    family_name: str | None = None
+    agent_session_name: str | None = None
     clan_name: str | None = None
 
 
@@ -73,7 +75,7 @@ class WaitTarget:
     artifact_dir: str | None = None
     project_name: str | None = None
     workflow_dir_name: str = "ace-run"
-    family_root_timestamp: str | None = None
+    agent_session_root_timestamp: str | None = None
     clan_generation: str | None = None
 
     @property

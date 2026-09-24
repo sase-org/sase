@@ -61,13 +61,15 @@ def load_wait_caller_from_env(
         return WaitCaller(artifact_dir=str(artifact_dir))
     name = _string_value(data.get("name"))
     workflow_name = _string_value(data.get("workflow_name"))
-    family_name = _string_value(agent_session_value(data)) or _session_from_name(name)
+    agent_session_name = _string_value(agent_session_value(data)) or _session_from_name(
+        name
+    )
     clan_name = _string_value(data.get("agent_clan"))
     return WaitCaller(
         artifact_dir=str(artifact_dir),
         name=name,
         workflow_name=workflow_name,
-        family_name=family_name,
+        agent_session_name=agent_session_name,
         clan_name=clan_name,
     )
 
@@ -93,7 +95,7 @@ def resolve_wait_targets(
         _raise_for_unsupported_reference(name)
         target = (
             _resolve_clan(name, raw_name, records)
-            or _resolve_family(name, raw_name, records)
+            or _resolve_agent_session(name, raw_name, records)
             or _resolve_workflow(name, raw_name, records)
             or _resolve_agent(name, raw_name, records, liveness_checker)
         )
@@ -103,7 +105,7 @@ def resolve_wait_targets(
             )
         if caller is not None and _target_intersects_caller(target, records, caller):
             raise WaitTargetResolutionError(
-                f"refusing to wait on calling agent family via {raw_name!r}"
+                f"refusing to wait on calling agent session via {raw_name!r}"
             )
         if target.key not in seen:
             seen.add(target.key)
@@ -159,11 +161,11 @@ def target_records(
             target.name,
             target.clan_generation,
         )
-    if target.kind is WaitTargetKind.FAMILY:
-        return _family_generation_records(
+    if target.kind is WaitTargetKind.AGENT_SESSION:
+        return _agent_session_generation_records(
             ace_records,
             target.name,
-            target.family_root_timestamp,
+            target.agent_session_root_timestamp,
         )
     return _workflow_records(ace_records, target.name)
 
@@ -175,8 +177,8 @@ def _target_intersects_caller(
 ) -> bool:
     if target.kind is WaitTargetKind.AGENT:
         return _same_path(target.artifact_dir, caller.artifact_dir)
-    if caller.family_name and target.kind is WaitTargetKind.FAMILY:
-        return _same_name(target.name, caller.family_name)
+    if caller.agent_session_name and target.kind is WaitTargetKind.AGENT_SESSION:
+        return _same_name(target.name, caller.agent_session_name)
     if caller.name and _same_name(target.name, caller.name):
         return True
     if caller.workflow_name and _same_name(target.name, caller.workflow_name):
@@ -192,10 +194,10 @@ def _caller_excludes_record(
 ) -> bool:
     if _same_path(caller.artifact_dir, record.artifact_dir):
         return True
-    if caller.family_name is None:
+    if caller.agent_session_name is None:
         return False
     base = _record_session_base(record) or _session_from_name(record_name(record))
-    return base is not None and _same_name(base, caller.family_name)
+    return base is not None and _same_name(base, caller.agent_session_name)
 
 
 def record_is_live(
@@ -265,20 +267,20 @@ def _resolve_clan(
     return None
 
 
-def _resolve_family(
+def _resolve_agent_session(
     name: str,
     raw_name: str,
     records: Sequence[AgentArtifactRecordWire],
 ) -> WaitTarget | None:
     for candidate in _name_candidates(name):
-        members = _family_generation_records(records, candidate, None)
+        members = _agent_session_generation_records(records, candidate, None)
         if members:
-            root_timestamp = _family_root_timestamp(members)
+            root_timestamp = _agent_session_root_timestamp(members)
             return WaitTarget(
                 raw_name=raw_name,
                 name=candidate,
-                kind=WaitTargetKind.FAMILY,
-                family_root_timestamp=root_timestamp,
+                kind=WaitTargetKind.AGENT_SESSION,
+                agent_session_root_timestamp=root_timestamp,
             )
     return None
 
@@ -346,12 +348,12 @@ def _target_for_live_record(
             clan_generation=identity[1],
         )
     if (base := _record_session_base(record)) is not None:
-        root_timestamp = _family_root_timestamp_for_record(records, base, record)
+        root_timestamp = _agent_session_root_timestamp_for_record(records, base, record)
         return WaitTarget(
             raw_name=base,
             name=base,
-            kind=WaitTargetKind.FAMILY,
-            family_root_timestamp=root_timestamp,
+            kind=WaitTargetKind.AGENT_SESSION,
+            agent_session_root_timestamp=root_timestamp,
         )
     name = record_name(record)
     return WaitTarget(
@@ -391,22 +393,22 @@ def _clan_generation_records(
     return tuple(sorted(matches, key=lambda record: record.timestamp))
 
 
-def _family_generation_records(
+def _agent_session_generation_records(
     records: Sequence[AgentArtifactRecordWire],
-    family_name: str,
+    agent_session_name: str,
     root_timestamp: str | None,
 ) -> tuple[AgentArtifactRecordWire, ...]:
-    family_key = _name_key(family_name)
+    agent_session_key = _name_key(agent_session_name)
     members = [
         record
         for record in records
         if (base := _record_session_base(record)) is not None
-        and _name_key(base) == family_key
+        and _name_key(base) == agent_session_key
     ]
     if not members:
         return ()
     if root_timestamp is None:
-        root_timestamp = _family_root_timestamp(members)
+        root_timestamp = _agent_session_root_timestamp(members)
     if root_timestamp is None:
         return tuple(sorted(members, key=lambda record: record.timestamp))
 
@@ -447,7 +449,7 @@ def _workflow_records(
     return tuple(sorted(matches, key=lambda record: record.timestamp))
 
 
-def _family_root_timestamp(
+def _agent_session_root_timestamp(
     members: Sequence[AgentArtifactRecordWire],
 ) -> str | None:
     roots = [
@@ -460,12 +462,12 @@ def _family_root_timestamp(
     return max(roots, key=lambda record: record.timestamp).timestamp
 
 
-def _family_root_timestamp_for_record(
+def _agent_session_root_timestamp_for_record(
     records: Sequence[AgentArtifactRecordWire],
-    family_name: str,
+    agent_session_name: str,
     record: AgentArtifactRecordWire,
 ) -> str | None:
-    members = _family_generation_records(records, family_name, None)
+    members = _agent_session_generation_records(records, agent_session_name, None)
     by_timestamp = {member.timestamp: member for member in members}
     current = record
     seen: set[str] = set()

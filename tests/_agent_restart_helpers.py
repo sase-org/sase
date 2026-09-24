@@ -82,7 +82,7 @@ def dummy_preview(**overrides: Any) -> AgentRestartPreview:
         "model_alias": None,
         "started": "2m ago",
         "elapsed": "2m0s",
-        "family": None,
+        "agent_session": None,
         "bead": None,
         "prompt_excerpt": "Do the work",
         "target": "#gh:sase",

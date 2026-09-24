@@ -112,12 +112,12 @@ def runner_slot_holder_dirs(
 ) -> frozenset[str]:
     """Return the artifact_dir of each shell credited with holding a slot.
 
-    Mirrors `running_agent_slot_count`'s per-family dedup so this listing's
+    Mirrors `running_agent_slot_count`'s per-agent-session dedup so this listing's
     summed `holds_runner_slot` flags match the admission gate's occupancy
-    count for the same snapshot: a serial family holds one slot no matter
+    count for the same snapshot: a serial agent session holds one slot no matter
     how many of its shells are simultaneously live (an overlapping root and
     a successor mid-handoff, for instance), so only one representative
-    shell is credited per family. Each live parallel member still holds its
+    shell is credited per agent session. Each live parallel member still holds its
     own slot and is credited individually.
     """
     holders: set[str] = set()

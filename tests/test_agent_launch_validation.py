@@ -69,7 +69,7 @@ def test_extracts_forced_reuse_bead_association_for_clan_member() -> None:
     assert associations[0].bead_id == "sase-hq.3"
 
 
-def test_extracts_forced_reuse_bead_association_for_family_member() -> None:
+def test_extracts_forced_reuse_bead_association_for_agent_session_member() -> None:
     associations = force_reuse_bead_associations_by_prompt(
         ["%id(!reviewer, family=foo, bead=sase-1.2)\nDo work"]
     )

@@ -1,4 +1,4 @@
-"""Shared out-of-process family spawn primitive.
+"""Shared out-of-process agent-session spawn primitive.
 
 Two call sites spawn a detached child agent from inside a live process and
 move the caller's workspace claim to it: :mod:`sase.monitor.followup`
@@ -9,7 +9,7 @@ hand-roll the timestamp reservation, workflow-name derivation, and
 ``spawn_agent_subprocess`` call; :func:`spawn_detached_child` is that shared
 claim-continuity primitive.
 
-:func:`agent_session_attach_env` and :func:`spawn_family_successor` layer the
+:func:`agent_session_attach_env` and :func:`spawn_agent_session_successor` layer the
 ``%id(<suffix>, family=<parent>)`` agent-session-attach machinery
 (:mod:`sase.agent.agent_session_attach`) on top, for the monitor-follow-up spawn.
 They import the low-level ``_agent_session_attach_*`` modules directly rather than
@@ -109,7 +109,7 @@ def spawn_detached_child(
     )
 
 
-def spawn_family_successor(
+def spawn_agent_session_successor(
     directive: AgentSessionAttachDirective,
     *,
     project_name: str,
@@ -124,7 +124,7 @@ def spawn_family_successor(
     spawn_fn: SpawnFn | None = None,
     resolve_plan: ResolvePlanFn | None = None,
 ) -> AgentLaunchResult:
-    """Resolve ``directive`` and spawn the resolved family member.
+    """Resolve ``directive`` and spawn the resolved agent-session member.
 
     Applies the overrides an out-of-process starter must set on its own
     resolved plan (``parent_is_running=False``, the starter's own role, and
@@ -164,5 +164,5 @@ __all__: list[str] = [
     "SpawnFn",
     "agent_session_attach_env",
     "spawn_detached_child",
-    "spawn_family_successor",
+    "spawn_agent_session_successor",
 ]

@@ -82,11 +82,11 @@ def _clan_kill_and_edit_prompt() -> str:
     )
 
 
-def _family_kill_and_edit_prompt() -> str:
+def _agent_session_kill_and_edit_prompt() -> str:
     return prepare_kill_and_edit_prompt(
         "Do work",
         "sase-oc.4--plan",
-        family_name="sase-oc.4",
+        agent_session_name="sase-oc.4",
         role_suffix="--plan",
         phase_bead_id="sase-oc.4",
     )
@@ -116,9 +116,9 @@ def test_kill_and_edit_submission_authorizes_forced_reuse_clan_form() -> None:
     assert call["request"]["allow_force_reuse"] is True
 
 
-def test_kill_and_edit_submission_authorizes_forced_reuse_family_form() -> None:
-    """A family-phase ``,x`` relaunch prompt reaches the proc queue verbatim."""
-    prompt = _family_kill_and_edit_prompt()
+def test_kill_and_edit_submission_authorizes_forced_reuse_agent_session_form() -> None:
+    """An agent-session ``,x`` relaunch prompt reaches the proc queue verbatim."""
+    prompt = _agent_session_kill_and_edit_prompt()
 
     call = _submit_kill_and_edit(prompt)
 
@@ -216,10 +216,10 @@ def test_launch_query_consumes_authorized_payload_and_wipes_reserved_name(
     assert segment_envs[0][SASE_BEAD_ID_ENV] == "sase-op.2"
 
 
-def test_launch_query_consumes_authorized_family_form(
+def test_launch_query_consumes_authorized_agent_session_form(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    prompt = _family_kill_and_edit_prompt()
+    prompt = _agent_session_kill_and_edit_prompt()
 
     wipe_names, mock_launch, _record_failed, _emit, _exc = _run_authorized_launch_query(
         prompt, monkeypatch
@@ -337,16 +337,16 @@ def test_launch_query_wipe_failure_records_and_emits(
     assert emit_kwargs["message"] == "Agent name reuse failed: boom"
 
 
-def test_launch_query_wipes_real_family_registry_before_spawn(
+def test_launch_query_wipes_real_agent_session_registry_before_spawn(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
-    """Production-shaped family-root reuse: a real registry, unmocked wipe.
+    """Production-shaped agent-session-root reuse: a real registry, unmocked wipe.
 
-    ``sase-op.2`` is seeded as a real durable family (the representation left
+    ``sase-op.2`` is seeded as a real durable agent session (the representation left
     behind once a planning shell hands off to a coding shell), not mocked
-    away, because the family-container refusal this pins regressed exactly
+    away, because the agent-session-container refusal this pins regressed exactly
     at the real ``wipe_agent_name_for_reuse`` seam. The rewritten prompt must
-    reach ``launch_agents_from_cwd`` only after the family reservation
+    reach ``launch_agents_from_cwd`` only after the agent-session reservation
     (``sase-op.2`` and both concrete shells) is fully gone from the registry.
     """
     import json
@@ -355,10 +355,13 @@ def test_launch_query_wipes_real_family_registry_before_spawn(
     from sase.agent.names import get_reserved_agent_names, rebuild_name_registry
     from sase.main.query_handler._launch import launch_query
 
-    family_name = "sase-op.2"
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
-    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
+    agent_session_name = "sase-op.2"
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
+    agent_session_meta = {
+        "agent_session": agent_session_name,
+        "agent_session_parallel": False,
+    }
 
     def _seed_artifact(
         suffix: str,
@@ -380,11 +383,13 @@ def test_launch_query_wipes_real_family_registry_before_spawn(
             )
         return path
 
-    plan = _seed_artifact("20260801170000", plan_name, done=True, meta=family_meta)
+    plan = _seed_artifact(
+        "20260801170000", plan_name, done=True, meta=agent_session_meta
+    )
     _seed_artifact(
         "20260801170100",
         code_name,
-        meta={**family_meta, "parent_timestamp": plan.name},
+        meta={**agent_session_meta, "parent_timestamp": plan.name},
     )
 
     prompt = _clan_kill_and_edit_prompt()
@@ -414,7 +419,7 @@ def test_launch_query_wipes_real_family_registry_before_spawn(
         pytest.raises(SystemExit),
     ):
         rebuild_name_registry()
-        assert {family_name, plan_name, code_name} <= get_reserved_agent_names()
+        assert {agent_session_name, plan_name, code_name} <= get_reserved_agent_names()
         launch_query(prompt)
 
     record_failed.assert_not_called()
@@ -423,30 +428,30 @@ def test_launch_query_wipes_real_family_registry_before_spawn(
         "%id(2, clan=sase-op, bead=sase-op.2)\n#gh:gh_sase-org__sase\nDo work"
     )
     assert registry_snapshots_at_spawn
-    assert {family_name, plan_name, code_name}.isdisjoint(
+    assert {agent_session_name, plan_name, code_name}.isdisjoint(
         registry_snapshots_at_spawn[0]
     )
 
 
-def _seed_auto_family_member(
+def _seed_auto_agent_session_member(
     home: Any,
     suffix: str,
     name: str,
-    family_name: str,
+    agent_session_name: str,
     role: str,
     *,
     done_name: str | None = None,
     meta: dict[str, Any] | None = None,
 ) -> Any:
-    """Seed one finished member of a ``%auto`` plan-chain family under *home*."""
+    """Seed one finished member of a ``%auto`` plan-chain session under *home*."""
     import json
 
     path = home / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / suffix
     path.mkdir(parents=True)
     payload = {
         "name": name,
-        "workflow_name": family_name,
-        "agent_session": family_name,
+        "workflow_name": agent_session_name,
+        "agent_session": agent_session_name,
         "agent_session_role": role,
         "agent_session_parallel": False,
         **(meta or {}),
@@ -459,15 +464,15 @@ def _seed_auto_family_member(
     return path
 
 
-def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
+def test_forced_agent_session_member_relaunch_keeps_its_parent_resolvable(
     tmp_path: Any,
 ) -> None:
     """``,x`` on ``P--code`` must not wipe the ``P--plan`` root it attaches to.
 
     A ``%auto`` chain's root ``done.json`` names the code member, and every
-    member stores the family as ``workflow_name``. Both used to pull the root
-    into the wipe of ``P--code``, so family-attach then failed with "parent
-    agent 'P' was not found" after deleting the whole family.
+    member stores the agent session as ``workflow_name``. Both used to pull the root
+    into the wipe of ``P--code``, so agent-session attach then failed with "parent
+    agent 'P' was not found" after deleting the whole agent session.
     """
     from pathlib import Path
 
@@ -481,23 +486,23 @@ def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
     )
     from sase.agent.names import get_reserved_agent_names, rebuild_name_registry
 
-    family_name = "sase-17m.3.1.land"
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
-    root = _seed_auto_family_member(
+    agent_session_name = "sase-17m.3.1.land"
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
+    root = _seed_auto_agent_session_member(
         tmp_path,
         "20260924115043",
         plan_name,
-        family_name,
+        agent_session_name,
         "root",
         done_name=code_name,
         meta={"plan_chain_root": True},
     )
-    code = _seed_auto_family_member(
+    code = _seed_auto_agent_session_member(
         tmp_path,
         "20260924115200",
         code_name,
-        family_name,
+        agent_session_name,
         "code",
         meta={"parent_timestamp": root.name},
     )
@@ -505,7 +510,7 @@ def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         launch_plan = plan_force_reuse_launch(
-            f"%id(!code, family={family_name})\nDo work"
+            f"%id(!code, family={agent_session_name})\nDo work"
         )
         assert launch_plan is not None
         assert launch_plan.owner_names == [code_name]
@@ -514,11 +519,11 @@ def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
 
         assert not code.exists()
         assert root.exists()
-        assert {family_name, plan_name} <= get_reserved_agent_names()
+        assert {agent_session_name, plan_name} <= get_reserved_agent_names()
 
         attach_plan = resolve_agent_session_attach_plan(
             AgentSessionAttachDirective(
-                parent=family_name, suffix="code", force_reuse=True
+                parent=agent_session_name, suffix="code", force_reuse=True
             ),
             project_name="proj",
         )
@@ -528,13 +533,13 @@ def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
     assert Path(attach_plan.parent_artifacts_dir) == root
 
 
-def test_launch_query_real_family_cleanup_failure_prevents_spawn(
+def test_launch_query_real_agent_session_cleanup_failure_prevents_spawn(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
-    """A genuine cleanup failure for the family-shaped owner aborts spawn.
+    """A genuine cleanup failure for the agent-session-shaped owner aborts spawn.
 
     ``wipe_names_for_forced_reuse``/``wipe_force_reuse_owner`` and the real
-    registry lookup run unmocked against a seeded family registry entry for
+    registry lookup run unmocked against a seeded agent-session registry entry for
     the production-shaped owner name; only the low-level
     ``sase.agent.names.wipe_agent_name_for_reuse`` primitive is made to
     report an artifact-deletion error, the same shape of failure a real I/O
@@ -546,9 +551,12 @@ def test_launch_query_real_family_cleanup_failure_prevents_spawn(
     from sase.agent.names import AgentNameWipeResult, rebuild_name_registry
     from sase.main.query_handler._launch import launch_query
 
-    family_name = "sase-op.2"
-    plan_name = f"{family_name}--plan"
-    family_meta = {"agent_session": family_name, "agent_session_parallel": False}
+    agent_session_name = "sase-op.2"
+    plan_name = f"{agent_session_name}--plan"
+    agent_session_meta = {
+        "agent_session": agent_session_name,
+        "agent_session_parallel": False,
+    }
 
     def _seed_artifact(
         suffix: str,
@@ -570,7 +578,7 @@ def test_launch_query_real_family_cleanup_failure_prevents_spawn(
             )
         return path
 
-    _seed_artifact("20260801180000", plan_name, done=True, meta=family_meta)
+    _seed_artifact("20260801180000", plan_name, done=True, meta=agent_session_meta)
 
     prompt = _clan_kill_and_edit_prompt()
     monkeypatch.delenv("SASE_AGENT", raising=False)

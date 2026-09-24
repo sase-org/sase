@@ -4,7 +4,7 @@ The admission coordinator calls :func:`dispatch_proc_unit` only after waits
 and `%if` pass. This module reserves a `proc-shell` with origin
 `xprompt-proc`, starts the detached supervisor, and lets that supervisor
 acquire an operational lease, materialize a private 0600 script, and settle
-the lease. It never allocates an agent, runner, family, or finalizer.
+the lease. It never allocates an agent, runner, agent session, or finalizer.
 """
 
 from __future__ import annotations

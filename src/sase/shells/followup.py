@@ -12,7 +12,7 @@ from pathlib import Path
 from sase.agent.detached_child import (
     AgentSessionAttachDirective,
     SpawnFn,
-    spawn_family_successor,
+    spawn_agent_session_successor,
 )
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
@@ -393,7 +393,7 @@ def spawn_shell_family_successor(
     spawn_fn: SpawnFn | None = None,
 ) -> AgentLaunchResult:
     """Spawn the next agent member in *family* using family-attach semantics."""
-    return spawn_family_successor(
+    return spawn_agent_session_successor(
         AgentSessionAttachDirective(parent=family, suffix=suffix or "@"),
         project_name=project_name,
         prompt=prompt,

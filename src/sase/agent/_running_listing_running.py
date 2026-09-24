@@ -238,7 +238,7 @@ def is_visible_runner_slot_child(
     Visibility follows *occupancy*, not admission eligibility: a serial
     child -- a monitor member, or a post-handoff follow-up agent whose
     ``parent_timestamp`` names a dead starter -- can be the shell currently
-    holding its family's slot even though it never itself waits at the
+    holding its agent session's slot even though it never itself waits at the
     admission gate (`is_runner_slot_user_agent_record` is False for it). A
     live shell must never go missing from `sase agent list` just because it
     is not the one that happened to claim the slot. The queued branch stays

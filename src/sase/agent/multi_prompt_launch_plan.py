@@ -331,7 +331,7 @@ def prepare_clan_launches(
             raise DirectiveError(
                 f"Clan '{resolved_clan}' cannot contain "
                 f"'{AGENT_SESSION_SEPARATOR}': its members would be named "
-                f"'{resolved_clan}.<suffix>', placing the family role suffix "
+                f"'{resolved_clan}.<suffix>', placing the agent-session role suffix "
                 "outside the final name segment."
             )
         foreign_machine = foreign_agent_owner_root(

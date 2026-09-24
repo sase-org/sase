@@ -106,9 +106,9 @@ def _normalized_agent_name(agent_name: str | None) -> str | None:
     normalized = _DISMISSED_AGENT_PREFIX_RE.sub("", agent_name, count=1)
     if not normalized:
         return None
-    family_base, separator, family_suffix = normalized.rpartition("--")
-    if separator and family_base and family_suffix:
-        return family_base
+    agent_session_base, separator, agent_session_suffix = normalized.rpartition("--")
+    if separator and agent_session_base and agent_session_suffix:
+        return agent_session_base
     return normalized
 
 

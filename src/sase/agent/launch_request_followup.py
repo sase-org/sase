@@ -76,11 +76,11 @@ def _identity_lines(continuation: Mapping[str, Any]) -> list[str]:
         # ``agent_meta.agent_family*``; new writers emit only
         # ``agent_meta.agent_session*``.
         (
-            "Family",
+            "Agent session",
             _first(context, "agent_meta.agent_session", "agent_meta.agent_family"),
         ),
         (
-            "Family role",
+            "Agent-session role",
             _first(
                 context,
                 "agent_meta.agent_session_role",

@@ -42,8 +42,8 @@ def _record(
     name: str,
     pid: int | None = None,
     outcome: str | None = None,
-    done_family_shell: AgentSessionShellWire | None = None,
-    family: str | None = None,
+    done_agent_session_shell: AgentSessionShellWire | None = None,
+    agent_session: str | None = None,
     parent_timestamp: str | None = None,
     clan: str | None = None,
     clan_generation: str | None = None,
@@ -61,14 +61,16 @@ def _record(
         agent_meta=AgentMetaWire(
             name=name,
             pid=pid,
-            agent_session=family,
-            workflow_name=family,
+            agent_session=agent_session,
+            workflow_name=agent_session,
             parent_timestamp=parent_timestamp,
             agent_clan=clan,
             agent_clan_generation=clan_generation,
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
         ),
-        done=DoneMarkerWire(outcome=outcome, agent_session_shell=done_family_shell)
+        done=DoneMarkerWire(
+            outcome=outcome, agent_session_shell=done_agent_session_shell
+        )
         if outcome is not None
         else None,
         waiting=waiting,
@@ -117,7 +119,9 @@ def test_wait_watch_classifies_settled_gate_as_success() -> None:
             "20260827120000",
             name="approval--gate",
             outcome="gated",
-            done_family_shell=AgentSessionShellWire(kind="gate", state="answered"),
+            done_agent_session_shell=AgentSessionShellWire(
+                kind="gate", state="answered"
+            ),
         )
     )
 
@@ -136,9 +140,9 @@ def test_wait_watch_classifies_settled_gate_as_success() -> None:
     assert state.members[0].outcome == "completed"
 
 
-def test_wait_watch_family_target_includes_late_successor() -> None:
+def test_wait_watch_agent_session_target_includes_late_successor() -> None:
     root_running = _record(
-        "20260823120000", name="deploy--plan", pid=123, family="deploy"
+        "20260823120000", name="deploy--plan", pid=123, agent_session="deploy"
     )
     target = resolve_wait_targets(
         ["deploy"],
@@ -146,13 +150,16 @@ def test_wait_watch_family_target_includes_late_successor() -> None:
         liveness_checker=_live_if_pid,
     )[0]
     root_done = _record(
-        "20260823120000", name="deploy--plan", outcome="completed", family="deploy"
+        "20260823120000",
+        name="deploy--plan",
+        outcome="completed",
+        agent_session="deploy",
     )
     late_child = _record(
         "20260823120001",
         name="deploy--code",
         pid=456,
-        family="deploy",
+        agent_session="deploy",
         parent_timestamp="20260823120000",
     )
 

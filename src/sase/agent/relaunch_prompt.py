@@ -102,10 +102,10 @@ def prepare_kill_and_edit_prompt(
     raw_prompt: str,
     agent_name: str | None,
     *,
-    family_name: str | None = None,
+    agent_session_name: str | None = None,
     role_suffix: str | None = None,
     phase_bead_id: str | None = None,
-    is_family_root: bool = False,
+    is_agent_session_root: bool = False,
 ) -> str:
     """Return the exact editable prompt for a kill-and-edit relaunch.
 
@@ -114,13 +114,13 @@ def prepare_kill_and_edit_prompt(
     the single- and multi-pane workflows.
 
     A prompt that never declared a named ``%id``/``%i`` is returned
-    unchanged so the relaunch allocates a fresh name. Serial non-root family
+    unchanged so the relaunch allocates a fresh name. Serial non-root agent-session
     members are the exception: their ``family=`` attachment is reconstructed
-    from row metadata even when the stored prompt has no ``%id``. Family
+    from row metadata even when the stored prompt has no ``%id``. Agent-session
     roots get no such rewrite.
 
-    Family roots that declared ``%id`` are named under the family reference
-    and forced to reuse that name. Non-root serial-family members keep the
+    Agent-session roots that declared ``%id`` are named under the agent-session
+    reference and forced to reuse that name. Non-root serial agent-session members keep the
     exact-member ``family=`` rewrite. A rewrite that would drop clan
     membership without a parent to inherit from, self-attach ``family=`` to
     the relaunched agent, or omit forced name reuse raises
@@ -128,22 +128,24 @@ def prepare_kill_and_edit_prompt(
     """
     from sase.agent.retry_prompt import prompt_has_id_directive
 
-    serial_family_member = bool(family_name and role_suffix and not is_family_root)
-    if not serial_family_member and not prompt_has_id_directive(raw_prompt):
+    serial_agent_session_member = bool(
+        agent_session_name and role_suffix and not is_agent_session_root
+    )
+    if not serial_agent_session_member and not prompt_has_id_directive(raw_prompt):
         return raw_prompt
 
     facing_agent = _facing_name(agent_name)
-    facing_family = _facing_name(family_name)
-    if is_family_root:
+    facing_agent_session = _facing_name(agent_session_name)
+    if is_agent_session_root:
         rewritten = _force_named_reuse(
             raw_prompt,
-            _root_reuse_name(facing_family, facing_agent),
+            _root_reuse_name(facing_agent_session, facing_agent),
             agent_name=agent_name,
         )
-    elif family_name and role_suffix:
-        rewritten = _rewrite_family_member_or_preserve_clan(
+    elif agent_session_name and role_suffix:
+        rewritten = _rewrite_agent_session_member_or_preserve_clan(
             raw_prompt,
-            facing_family=facing_family,
+            facing_agent_session=facing_agent_session,
             role_suffix=role_suffix,
             phase_bead_id=phase_bead_id,
             facing_agent=facing_agent,
@@ -152,15 +154,15 @@ def prepare_kill_and_edit_prompt(
     else:
         rewritten = _force_named_reuse(
             raw_prompt,
-            _non_family_reuse_name(facing_agent),
+            _non_agent_session_reuse_name(facing_agent),
             agent_name=agent_name,
         )
     _verify_kill_and_edit_prompt(
         raw_prompt,
         rewritten,
         agent_name=agent_name,
-        family_name=family_name,
-        is_family_root=is_family_root,
+        agent_session_name=agent_session_name,
+        is_agent_session_root=is_agent_session_root,
     )
     return rewritten
 
@@ -173,11 +175,11 @@ def _facing_name(name: str | None) -> str | None:
 
 
 def _root_reuse_name(
-    facing_family: str | None,
+    facing_agent_session: str | None,
     facing_agent: str | None,
 ) -> str | None:
-    if facing_family:
-        return facing_family
+    if facing_agent_session:
+        return facing_agent_session
     if not facing_agent:
         return None
     from sase.plan_chain import agent_session_base
@@ -185,13 +187,13 @@ def _root_reuse_name(
     return agent_session_base(facing_agent, include_legacy_dash=True) or facing_agent
 
 
-def _non_family_reuse_name(facing_agent: str | None) -> str | None:
+def _non_agent_session_reuse_name(facing_agent: str | None) -> str | None:
     if not facing_agent:
         return None
     from sase.plan_chain import AGENT_SESSION_SEPARATOR, agent_session_base
 
-    # Legacy callers without family metadata retain the old base-name
-    # behavior. Real family rows take the explicit family branch.
+    # Legacy callers without agent-session metadata retain the old base-name
+    # behavior. Real agent-session rows take the explicit branch.
     if AGENT_SESSION_SEPARATOR in facing_agent:
         return agent_session_base(facing_agent) or facing_agent
     return facing_agent
@@ -215,10 +217,10 @@ def _force_named_reuse(
     return force_name_reuse_in_prompt(raw_prompt)
 
 
-def _rewrite_family_member_or_preserve_clan(
+def _rewrite_agent_session_member_or_preserve_clan(
     raw_prompt: str,
     *,
-    facing_family: str | None,
+    facing_agent_session: str | None,
     role_suffix: str,
     phase_bead_id: str | None,
     facing_agent: str | None,
@@ -226,7 +228,7 @@ def _rewrite_family_member_or_preserve_clan(
 ) -> str:
     from sase.xprompt.directive_edit import rewrite_prompt_family_member_name
 
-    if not facing_family:
+    if not facing_agent_session:
         raise KillAndEditPromptError(
             "cannot rewrite a family member without a family name",
             agent_name=agent_name,
@@ -235,7 +237,7 @@ def _rewrite_family_member_or_preserve_clan(
     try:
         rewritten = rewrite_prompt_family_member_name(
             raw_prompt,
-            facing_family,
+            facing_agent_session,
             role_suffix,
             force_reuse=True,
             bead_id=phase_bead_id,
@@ -246,46 +248,46 @@ def _rewrite_family_member_or_preserve_clan(
             agent_name=agent_name,
             produced=raw_prompt,
         ) from exc
-    if _family_rewrite_drops_unrecoverable_clan(
+    if _agent_session_rewrite_drops_unrecoverable_clan(
         raw_prompt,
         rewritten,
-        facing_family=facing_family,
+        facing_agent_session=facing_agent_session,
         facing_agent=facing_agent,
         role_suffix=role_suffix,
     ):
-        # The family reference is the relaunch identity; the shell suffix
+        # The agent-session reference is the relaunch identity; the shell suffix
         # (``--plan``, ``--0``) must not become the clan member name.
         return _force_named_reuse(
             raw_prompt,
-            facing_family,
+            facing_agent_session,
             agent_name=agent_name,
         )
     return rewritten
 
 
-def _family_rewrite_drops_unrecoverable_clan(
+def _agent_session_rewrite_drops_unrecoverable_clan(
     raw_prompt: str,
     rewritten: str,
     *,
-    facing_family: str,
+    facing_agent_session: str,
     facing_agent: str | None,
     role_suffix: str,
 ) -> bool:
-    """Return True when a family rewrite deleted the only copy of clan membership.
+    """Return True when an agent-session rewrite deleted the only copy of clan membership.
 
-    Genuine non-root members inherit clan context from the family parent, so
+    Genuine non-root members inherit clan context from the agent-session parent, so
     dropping ``%clan`` / ``clan=`` there is correct. A root or self-attach
-    has no such parent: refuse the family form and keep the clan path.
+    has no such parent: refuse the agent-session form and keep the clan path.
     """
     original_clan = _prompt_clan_name(raw_prompt)
     if original_clan is None or _prompt_clan_name(rewritten) is not None:
         return False
-    if facing_agent and facing_family == facing_agent:
+    if facing_agent and facing_agent_session == facing_agent:
         return True
-    return _is_family_origin_suffix(role_suffix)
+    return _is_agent_session_origin_suffix(role_suffix)
 
 
-def _is_family_origin_suffix(role_suffix: str | None) -> bool:
+def _is_agent_session_origin_suffix(role_suffix: str | None) -> bool:
     if not role_suffix:
         return False
     from sase.plan_chain import (
@@ -314,8 +316,8 @@ def _verify_kill_and_edit_prompt(
     rewritten: str,
     *,
     agent_name: str | None,
-    family_name: str | None,
-    is_family_root: bool,
+    agent_session_name: str | None,
+    is_agent_session_root: bool,
 ) -> None:
     from sase.xprompt.directives import DirectiveError, extract_prompt_directives
 
@@ -330,19 +332,19 @@ def _verify_kill_and_edit_prompt(
         return
 
     facing_agent = _facing_name(agent_name)
-    facing_family = _facing_name(family_name)
-    presented_row = facing_family if is_family_root else facing_agent
+    facing_agent_session = _facing_name(agent_session_name)
+    presented_row = facing_agent_session if is_agent_session_root else facing_agent
     agent_session_parent = _facing_name(directives.agent_session_attach_parent)
     original_clan = _prompt_clan_name(raw_prompt)
 
     if agent_session_parent:
-        _verify_family_form(
+        _verify_agent_session_form(
             rewritten,
             agent_session_parent=agent_session_parent,
-            facing_family=facing_family,
+            facing_agent_session=facing_agent_session,
             facing_agent=facing_agent,
             presented_row=presented_row,
-            is_family_root=is_family_root,
+            is_agent_session_root=is_agent_session_root,
             name_force_reuse=directives.name_force_reuse,
             agent_name=agent_name,
         )
@@ -367,7 +369,7 @@ def _verify_kill_and_edit_prompt(
     if original_clan and not directives.clan:
         if (
             agent_session_parent
-            and not is_family_root
+            and not is_agent_session_root
             and agent_session_parent != presented_row
         ):
             return
@@ -378,14 +380,14 @@ def _verify_kill_and_edit_prompt(
         )
 
 
-def _verify_family_form(
+def _verify_agent_session_form(
     rewritten: str,
     *,
     agent_session_parent: str,
-    facing_family: str | None,
+    facing_agent_session: str | None,
     facing_agent: str | None,
     presented_row: str | None,
-    is_family_root: bool,
+    is_agent_session_root: bool,
     name_force_reuse: bool,
     agent_name: str | None,
 ) -> None:
@@ -395,25 +397,27 @@ def _verify_family_form(
             agent_name=agent_name,
             produced=rewritten,
         )
-    if is_family_root or (presented_row and agent_session_parent == presented_row):
+    if is_agent_session_root or (
+        presented_row and agent_session_parent == presented_row
+    ):
         raise KillAndEditPromptError(
             f"family={agent_session_parent} attaches the agent to itself",
             agent_name=agent_name or presented_row,
             produced=rewritten,
         )
-    if facing_family and agent_session_parent != facing_family:
+    if facing_agent_session and agent_session_parent != facing_agent_session:
         raise KillAndEditPromptError(
-            f"family={agent_session_parent} does not match family {facing_family}",
+            f"family={agent_session_parent} does not match family {facing_agent_session}",
             agent_name=agent_name,
             produced=rewritten,
         )
     if facing_agent:
         from sase.plan_chain import agent_session_base
 
-        shell_family = _facing_name(
+        shell_agent_session = _facing_name(
             agent_session_base(facing_agent, include_legacy_dash=True)
         )
-        if shell_family and shell_family != agent_session_parent:
+        if shell_agent_session and shell_agent_session != agent_session_parent:
             raise KillAndEditPromptError(
                 f"family={agent_session_parent} does not match agent {facing_agent}",
                 agent_name=agent_name,

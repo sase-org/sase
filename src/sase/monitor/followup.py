@@ -26,7 +26,7 @@ from sase.agent._agent_session_attach_types import (
     AgentSessionAttachDirective,
     AgentSessionAttachError,
 )
-from sase.agent.detached_child import spawn_family_successor
+from sase.agent.detached_child import spawn_agent_session_successor
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture.rollout import (
@@ -375,7 +375,7 @@ def launch_followup_agent(
         vcs_ref: tuple[str, str] | None,
     ) -> Any:
         maybe_crash("before_spawn")
-        result = spawn_family_successor(
+        result = spawn_agent_session_successor(
             AgentSessionAttachDirective(parent=lane, suffix="@"),
             project_name=project_name,
             prompt=prompt,

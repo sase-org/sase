@@ -94,7 +94,7 @@ def list_running_agents(
 
     Consumes one :func:`sase.core.agent_scan_facade.scan_agent_artifacts`
     snapshot for ``ace-run`` records, applies the current Python filters
-    (slot-relevant family-child projection, hidden-workflow skip, PID liveness), and
+    (slot-relevant agent-session-child projection, hidden-workflow skip, PID liveness), and
     returns most-recent-first.
     """
     snapshot, state = listing_snapshot(

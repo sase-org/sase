@@ -4,7 +4,7 @@ These tests exercise the post-Phase-3E call sites in
 :mod:`sase.agent.running` against the Phase 3A golden artifact tree. They
 pin the filters that the previous direct-walk implementation enforced
 (parent-timestamp dedup, `appears_as_agent` skip) on the snapshot adapter,
-plus slot occupancy for parallel family children.
+plus slot occupancy for parallel agent-session children.
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def test_list_running_agents_skips_appears_as_agent_false(tmp_path: Path) -> Non
 def test_list_running_agents_skips_non_parallel_parent_timestamp_followups(
     tmp_path: Path,
 ) -> None:
-    """Non-slot family helpers stay folded instead of becoming CLI rows."""
+    """Non-slot agent-session helpers stay folded instead of becoming CLI rows."""
     projects_root = projects_root_for(tmp_path)
     build_fixture_tree(projects_root)
     meta_path = (

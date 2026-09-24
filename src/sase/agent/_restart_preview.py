@@ -95,7 +95,7 @@ def build_restart_preview(
         model_alias=optional_str(meta.get("model_alias")),
         started=_started_label(timestamp, meta),
         elapsed=_elapsed_label(timestamp, meta, done),
-        family=optional_str(agent_session_value(meta)),
+        agent_session=optional_str(agent_session_value(meta)),
         bead=(
             optional_str(meta.get("phase_bead_id")) or optional_str(meta.get("bead_id"))
         ),

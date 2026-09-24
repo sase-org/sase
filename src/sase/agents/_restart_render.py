@@ -52,8 +52,8 @@ def render_preview_panel(plan: AgentRestartPlan) -> Panel:
         rows.append(("Started", Text(preview.started)))
     if preview.elapsed:
         rows.append(("Elapsed", Text(preview.elapsed)))
-    if preview.family:
-        rows.append(("Family", Text(preview.family)))
+    if preview.agent_session:
+        rows.append(("Family", Text(preview.agent_session)))
     if preview.bead:
         rows.append(("Bead", Text(preview.bead)))
     rows.append(("Prompt", Text(preview.prompt_excerpt)))

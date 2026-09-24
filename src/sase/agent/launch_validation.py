@@ -508,8 +508,8 @@ def wipe_names_for_forced_reuse(names: list[str]) -> None:
     """Remove explicit force-reuse owners or fail before launch mutation.
 
     Routes through the shared agent-name forced-reuse primitive so relaunching
-    a family root (``%id(!1, clan=..., ...)`` rewritten from an epic phase
-    root) deterministically replaces the newest family generation instead of
+    an agent-session root (``%id(!1, clan=..., ...)`` rewritten from an epic phase
+    root) deterministically replaces the newest agent-session generation instead of
     refusing every populated container outright. A populated clan container
     remains refused: it is a rootless parallel group, not one replaceable
     agent, and its members keep their own explicit relaunch path.

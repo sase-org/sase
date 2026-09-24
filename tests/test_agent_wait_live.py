@@ -69,7 +69,7 @@ def _record(
     plan_path: str | None = None,
     prompt: str | None = None,
     error: str | None = None,
-    family_role: str | None = None,
+    agent_session_role: str | None = None,
     monitor_command: str | None = None,
     monitor_state: str | None = None,
     monitor_exit_code: int | None = None,
@@ -79,7 +79,7 @@ def _record(
 ) -> AgentArtifactRecordWire:
     done = None
     if outcome is not None:
-        done_family_shell = (
+        done_agent_session_shell = (
             AgentSessionShellWire(
                 kind="monitor",
                 state=monitor_state,
@@ -94,10 +94,10 @@ def _record(
             error=error,
             workspace_num=workspace_num,
             model=model,
-            agent_session_shell=done_family_shell,
+            agent_session_shell=done_agent_session_shell,
             status_label=monitor_stop_status,
         )
-    meta_family_shell = (
+    meta_agent_session_shell = (
         AgentSessionShellWire(
             kind="monitor",
             state=monitor_state,
@@ -136,8 +136,8 @@ def _record(
             workspace_num=workspace_num,
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
             wait_for=wait_for or [],
-            agent_session_role=family_role,
-            agent_session_shell=meta_family_shell,
+            agent_session_role=agent_session_role,
+            agent_session_shell=meta_agent_session_shell,
         ),
         done=done,
         waiting=waiting,
@@ -233,7 +233,7 @@ def test_why_column_for_waiting_queued_monitor_and_prompt() -> None:
             name="mon",
             pid=_live_pid(),
             outcome="monitored",
-            family_role="monitor",
+            agent_session_role="monitor",
             monitor_command="just check-full",
             monitor_state="completed",
             monitor_exit_code=0,

@@ -41,7 +41,7 @@ def _record(
     name: str,
     pid: int | None = None,
     outcome: str | None = None,
-    family: str | None = None,
+    agent_session: str | None = None,
     plan_path: str | None = None,
 ) -> AgentArtifactRecordWire:
     return AgentArtifactRecordWire(
@@ -55,8 +55,8 @@ def _record(
             name=name,
             pid=pid,
             process_identity=process_identity_token(pid) if pid is not None else None,
-            agent_session=family,
-            workflow_name=family,
+            agent_session=agent_session,
+            workflow_name=agent_session,
         ),
         done=DoneMarkerWire(outcome=outcome) if outcome is not None else None,
         plan_path=PlanPathMarkerWire(plan_path=plan_path) if plan_path else None,
@@ -167,7 +167,7 @@ def test_all_with_zero_eligible_targets_exits_success(
     assert "nothing to wait for" in capsys.readouterr().out
 
 
-def test_all_excludes_caller_and_its_family(
+def test_all_excludes_caller_and_its_agent_session(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -176,9 +176,14 @@ def test_all_excludes_caller_and_its_family(
     (caller_dir / "agent_meta.json").write_text(
         json.dumps({"name": "0bd", "agent_session": "0bd"}), encoding="utf-8"
     )
-    caller_record = _record("20260823120000", name="0bd", pid=os.getpid(), family="0bd")
+    caller_record = _record(
+        "20260823120000", name="0bd", pid=os.getpid(), agent_session="0bd"
+    )
     monitor_member = _record(
-        "20260823120001", name="0bd--mon-1", pid=os.getpid(), family="0bd"
+        "20260823120001",
+        name="0bd--mon-1",
+        pid=os.getpid(),
+        agent_session="0bd",
     )
     other_running = _record("20260823120002", name="good", pid=os.getpid())
     other_done = _record("20260823120002", name="good", outcome="completed")

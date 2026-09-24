@@ -61,7 +61,7 @@ ANSWERED_STATUS = "ANSWERED"
 #: Settled shell statuses that mean the shell handed its work to a successor
 #: agent rather than finishing it.  A shell row carrying one of these must keep
 #: the bucket its status implies (``Running``) instead of the terminal bucket
-#: its shell state implies, so approving a plan never files the family under
+#: its shell state implies, so approving a plan never files the agent session under
 #: ``Done`` while the follow-up agent is still coming up.
 HANDOFF_SETTLED_STATUSES: frozenset[str] = APPROVED_PLAN_STATUSES | frozenset(
     {EPIC_APPROVED_STATUS, ANSWERED_STATUS}

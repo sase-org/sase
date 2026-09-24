@@ -54,16 +54,16 @@ def normalize_requester_continuation(
             "requester_continuation.required",
             "resume_requester continuations must be required",
         )
-    if mode == RESUME_REQUESTER and _launch_targets_requester_family_lane(
+    if mode == RESUME_REQUESTER and _launch_targets_requester_agent_session_lane(
         prompt, context
     ):
         raise LaunchRequestError(
             "conflicting_continuation",
             "requester_continuation.mode",
-            "launch prompt targets the requester's family lane while the "
+            "launch prompt targets the requester's agent-session lane while the "
             "requester continuation would also claim that lane; set "
             "requester_continuation.mode='terminal_handoff' or target a "
-            "different family",
+            "different agent session",
         )
     if mode == TERMINAL_HANDOFF and required:
         raise LaunchRequestError(
@@ -168,7 +168,7 @@ def _clean_context(context: Mapping[str, str]) -> dict[str, str]:
     return clean
 
 
-def _launch_targets_requester_family_lane(
+def _launch_targets_requester_agent_session_lane(
     prompt: str, context: Mapping[str, str]
 ) -> bool:
     try:
@@ -183,12 +183,12 @@ def _launch_targets_requester_family_lane(
         return False
     parent = directive.parent.strip()
     if parent == "parent":
-        return bool(_requester_family_identity(context))
-    family = _requester_family_identity(context)
-    return bool(family and parent == family)
+        return bool(_requester_agent_session_identity(context))
+    agent_session = _requester_agent_session_identity(context)
+    return bool(agent_session and parent == agent_session)
 
 
-def _requester_family_identity(context: Mapping[str, str]) -> str | None:
+def _requester_agent_session_identity(context: Mapping[str, str]) -> str | None:
     # legacy agent-family spelling: pre-rename requester contexts carry
     # ``agent_meta.agent_family``; new writers emit only
     # ``agent_meta.agent_session``.

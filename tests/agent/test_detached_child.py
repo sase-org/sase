@@ -16,7 +16,7 @@ from sase.agent._agent_session_attach_types import (
 from sase.agent.detached_child import (
     agent_session_attach_env,
     spawn_detached_child,
-    spawn_family_successor,
+    spawn_agent_session_successor,
 )
 from sase.agent.agent_session_attach import load_agent_session_attach_plan_from_env
 from sase.agent.launch_types import AgentLaunchResult
@@ -197,7 +197,7 @@ class TestSpawnDetachedChild:
         assert captured["is_home_mode"] is True
 
 
-class TestSpawnFamilySuccessor:
+class TestSpawnAgentSessionSuccessor:
     def test_applies_overrides_layers_env_and_falls_back_to_the_plan_name(
         self,
     ) -> None:
@@ -215,7 +215,7 @@ class TestSpawnFamilySuccessor:
             assert project_name == "proj"
             return plan
 
-        result = spawn_family_successor(
+        result = spawn_agent_session_successor(
             AgentSessionAttachDirective(parent="acme", suffix="@"),
             project_name="proj",
             prompt="do work",
@@ -250,7 +250,7 @@ class TestSpawnFamilySuccessor:
                 timestamp=kwargs["timestamp"], cl_name=kwargs["cl_name"]
             )
 
-        result = spawn_family_successor(
+        result = spawn_agent_session_successor(
             AgentSessionAttachDirective(parent="acme", suffix="@"),
             project_name="proj",
             prompt="do work",
@@ -272,7 +272,7 @@ class TestSpawnFamilySuccessor:
             captured.update(kwargs)
             return _fake_result(timestamp=kwargs["timestamp"])
 
-        spawn_family_successor(
+        spawn_agent_session_successor(
             AgentSessionAttachDirective(parent="acme", suffix="@"),
             project_name="proj",
             prompt="#gh:sase do work",

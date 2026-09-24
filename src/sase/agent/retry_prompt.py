@@ -22,12 +22,12 @@ def rewrite_retry_prompt_name(
     # as a bare family suffix, producing an invalid directive. Drop only that
     # obsolete membership attachment; orthogonal launch metadata such as
     # bead= must survive the retry.
-    family_retry = extract_agent_session_attach_directive(raw_prompt) is not None
+    agent_session_retry = extract_agent_session_attach_directive(raw_prompt) is not None
     return set_prompt_name(
         raw_prompt,
         retry_name,
         directive_alias=directive_alias,
-        drop_kwargs=frozenset({"family"}) if family_retry else frozenset(),
+        drop_kwargs=frozenset({"family"}) if agent_session_retry else frozenset(),
     )
 
 

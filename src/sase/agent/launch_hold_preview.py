@@ -155,7 +155,7 @@ def _armer_from_typed_payload(
         return None
     from sase.core.agent_launch_wire_from_dict import agent_session_attach_value
 
-    family = agent_session_attach_value(payload, "parent")
+    agent_session = agent_session_attach_value(payload, "parent")
     clan = payload.get("clan")
     return {
         "kind": "agent",
@@ -163,7 +163,12 @@ def _armer_from_typed_payload(
         "display": identity,
         "project": project or "unknown",
         "agent_name": identity,
-        "family": family if isinstance(family, str) and family else identity,
+        # legacy agent-family spelling: core's hold preview wire still uses this key.
+        "family": (
+            agent_session
+            if isinstance(agent_session, str) and agent_session
+            else identity
+        ),
         "clan": clan if isinstance(clan, str) and clan else None,
         "pid": 1,
     }

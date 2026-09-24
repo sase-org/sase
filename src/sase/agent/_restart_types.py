@@ -46,7 +46,7 @@ class AgentRestartPreview:
     model_alias: str | None
     started: str | None
     elapsed: str | None
-    family: str | None
+    agent_session: str | None
     bead: str | None
     prompt_excerpt: str
     target: str

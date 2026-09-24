@@ -161,7 +161,7 @@ _EPIC_ROOT_PROMPT = (
 )
 
 
-def test_plan_family_root_keeps_clan_not_family(tmp_path: Path) -> None:
+def test_plan_agent_session_root_keeps_clan_not_agent_session(tmp_path: Path) -> None:
     plan, _artifacts, spies = _plan(
         tmp_path,
         name="sase-pw.1--plan",
@@ -183,7 +183,7 @@ def test_plan_family_root_keeps_clan_not_family(tmp_path: Path) -> None:
         spy.assert_not_called()
 
 
-def test_plan_refuses_self_attaching_family_identity(tmp_path: Path) -> None:
+def test_plan_refuses_self_attaching_agent_session_identity(tmp_path: Path) -> None:
     spies = mutation_spies()
     artifacts = make_restartable_agent(
         tmp_path,
@@ -210,7 +210,7 @@ def test_plan_refuses_self_attaching_family_identity(tmp_path: Path) -> None:
         spy.assert_not_called()
 
 
-def test_plan_family_member_keeps_role_and_bead(tmp_path: Path) -> None:
+def test_plan_agent_session_member_keeps_role_and_bead(tmp_path: Path) -> None:
     plan, _artifacts, spies = _plan(
         tmp_path,
         name="sase-oc.4--plan",
@@ -228,7 +228,9 @@ def test_plan_family_member_keeps_role_and_bead(tmp_path: Path) -> None:
         spy.assert_not_called()
 
 
-def test_plan_parallel_family_member_skips_family_branch(tmp_path: Path) -> None:
+def test_plan_parallel_agent_session_member_skips_agent_session_branch(
+    tmp_path: Path,
+) -> None:
     plan, _artifacts, spies = _plan(
         tmp_path,
         name="sase-oc.4--plan",
@@ -372,7 +374,7 @@ def test_plan_name_reuse_source_is_prompt_when_id_already_present(
         spy.assert_not_called()
 
 
-def test_plan_family_member_is_not_double_rewritten(tmp_path: Path) -> None:
+def test_plan_agent_session_member_is_not_double_rewritten(tmp_path: Path) -> None:
     plan, _artifacts, spies = _plan(
         tmp_path,
         name="sase-oc.4--plan",
