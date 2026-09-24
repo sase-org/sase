@@ -80,7 +80,9 @@ class PluginsBrowserLayoutMixin(_MixinBase):
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
 
-        def _start_load(self, *, force: bool) -> None: ...
+        def _start_load(self, *, force: bool, cache_only: bool = False) -> None: ...
+
+        def _apply_load_result(self, result: Any, *, restored: bool = ...) -> None: ...
 
         def _status_message(self) -> str: ...
 
@@ -123,11 +125,18 @@ class PluginsBrowserLayoutMixin(_MixinBase):
     def on_mount(self) -> None:
         from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
+        from .plugins_browser_loading import is_session_memo_usable
+
         self._detail_debouncer = DetailPanelDebouncer(self.app)
         self._sync_state_visibility()
         self._sync_header()
         if self._auto_load:
-            self._start_load(force=False)
+            memo = self._session_state.inventory
+            automatic_status = getattr(self.app, "_automatic_update_status", None)
+            if is_session_memo_usable(memo, automatic_status):
+                self._apply_load_result(memo, restored=True)
+            else:
+                self._start_load(force=False, cache_only=True)
 
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:

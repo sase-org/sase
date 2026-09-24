@@ -118,12 +118,15 @@ class AgentCliInstallActionsMixin:
     """Plan, preview, and execute agent-CLI installs from the Updates tab."""
 
     if TYPE_CHECKING:
+        from .config_center_session import UpdatesSessionState
+
         _agent_cli_install_plan_worker: Worker[Any] | None
         _agent_cli_results: dict[str, AgentCliUpdateResult]
         _agent_cli_statuses: tuple[Any, ...]
         _loading: bool
         _marked: set[str]
         _offline: bool
+        _session_state: UpdatesSessionState
         app: App[Any]
         is_mounted: bool
 
@@ -146,7 +149,7 @@ class AgentCliInstallActionsMixin:
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
 
-        def _start_load(self, *, force: bool) -> None: ...
+        def _start_load(self, *, force: bool, cache_only: bool = False) -> None: ...
 
         def _update_static(self, selector: str, content: Any) -> None: ...
 
@@ -269,6 +272,10 @@ class AgentCliInstallActionsMixin:
         completion: TrackedProcCompletion[tuple[AgentCliUpdateResult, ...]],
     ) -> None:
         """Record install results, clear install marks, and reload inventory."""
+        try:
+            self._session_state.invalidate_inventory()
+        except Exception:
+            pass
         results = completion.payload or ()
         for result in results:
             self._agent_cli_results[result.name] = result

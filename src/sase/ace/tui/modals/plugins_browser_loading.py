@@ -24,6 +24,8 @@ from sase.plugins.pypi_source import fetch_latest_version
 from sase.updates import (
     UpdateStatus,
     build_update_status,
+    make_cached_core_latest_lookup,
+    make_core_latest_fetch_fn,
     merge_update_status,
     read_update_status_snapshot,
     write_update_status_snapshot,
@@ -51,6 +53,25 @@ if TYPE_CHECKING:
 
 
 _FRESH_EDITABLE_STATES = frozenset({"current", "update_available", "dirty", "diverged"})
+
+
+def is_session_memo_usable(
+    memo: PluginsLoadResult | None,
+    automatic_status: UpdateStatus | None,
+) -> bool:
+    """Return whether a remembered inventory may paint the reopened tab.
+
+    Pure (memory only, no disk I/O): a memo exists, and either no automatic
+    status is known or the memo's network evidence is at least as new as the
+    periodic check's.
+    """
+    if memo is None:
+        return False
+    if automatic_status is None:
+        return True
+    if memo.checked_at is None:
+        return False
+    return automatic_status.checked_at <= memo.checked_at
 
 
 @dataclass(frozen=True)
@@ -81,6 +102,8 @@ class PluginsLoadResult:
     agent_cli_history: tuple[AgentCliUpdateRun, ...] = ()
     agent_cli_history_error: str | None = None
     rows: tuple[UpdateRow, ...] = ()
+    checked_at: float | None = None
+    cache_only: bool = False
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -91,13 +114,35 @@ def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
         return None
 
 
-def _collect_core_versions_for_pane(*, offline: bool = False) -> CoreVersions:
+def _collect_core_versions_for_pane(
+    *,
+    offline: bool = False,
+    cache_only: bool = False,
+    now: float | None = None,
+) -> CoreVersions:
     """Best-effort SASE core version collection for the Updates tab."""
     versions = collect_installed_core_versions()
+    if cache_only:
+        return enrich_core_versions_latest(
+            versions,
+            offline=False,
+            fetch_fn=fetch_latest_version,
+            is_newer=is_newer,
+            cached_latest_fn=make_cached_core_latest_lookup(),
+            cache_only=True,
+        )
+    if offline:
+        return enrich_core_versions_latest(
+            versions,
+            offline=offline,
+            fetch_fn=fetch_latest_version,
+            is_newer=is_newer,
+        )
+    fetch_now = time.time() if now is None else now
     return enrich_core_versions_latest(
         versions,
-        offline=offline,
-        fetch_fn=fetch_latest_version,
+        offline=False,
+        fetch_fn=make_core_latest_fetch_fn(fetch_now, force=True),
         is_newer=is_newer,
     )
 
@@ -110,6 +155,7 @@ def load_plugins_catalog_for_pane(
     incoming_commits_limit: int = 7,
     agent_cli_history_enabled: bool = True,
     now: float | None = None,
+    cache_only: bool = False,
 ) -> PluginsLoadResult:
     """Load the plugin catalog (merged with installed + latest). Off-thread safe.
 
@@ -119,14 +165,31 @@ def load_plugins_catalog_for_pane(
     state; an enrichment failure degrades to the un-enriched catalog. The
     uv-tool probe runs here too so the mutation-availability check stays off the
     event loop.
+
+    With ``cache_only=True`` (only combined with ``refresh=False`` and
+    ``offline=False``) the load is network-free and writes no cache: core and
+    agent-CLI latest versions come from local caches regardless of TTL,
+    editable checkouts classify their existing upstream refs without fetching,
+    the plugin catalog is read from its cache, and no update-status snapshot
+    is built or written.
     """
     load_now = time.time() if now is None else now
     uv_tool = probe_uv_tool()
     install_mode = _detect_install_mode(uv_tool)
     dev_root = str(config_dev_root(load_merged_config()))
+    if cache_only and not offline:
+        return _load_plugins_catalog_cache_only(
+            load_now=load_now,
+            uv_tool=uv_tool,
+            install_mode=install_mode,
+            dev_root=dev_root,
+            incoming_commits_enabled=incoming_commits_enabled,
+            incoming_commits_limit=incoming_commits_limit,
+            agent_cli_history_enabled=agent_cli_history_enabled,
+        )
     core_error: str | None = None
     try:
-        core_versions = _collect_core_versions_for_pane(offline=offline)
+        core_versions = _collect_core_versions_for_pane(offline=offline, now=load_now)
     except Exception as exc:  # noqa: BLE001 - update sources degrade independently.
         core_versions = CoreVersions(packages=())
         core_error = _error_text(exc)
@@ -195,6 +258,80 @@ def load_plugins_catalog_for_pane(
         agent_cli_colors=agent_cli_colors,
         agent_cli_history=agent_cli_history,
         agent_cli_history_error=agent_cli_history_error,
+        checked_at=load_now if not offline else None,
+        cache_only=False,
+    )
+
+
+def _load_plugins_catalog_cache_only(
+    *,
+    load_now: float,
+    uv_tool: UvToolInstall | NotUvToolInstall | None,
+    install_mode: str | None,
+    dev_root: str | None,
+    incoming_commits_enabled: bool,
+    incoming_commits_limit: int,
+    agent_cli_history_enabled: bool,
+) -> PluginsLoadResult:
+    """Build the Updates inventory without any network or cache writes."""
+    core_error: str | None = None
+    try:
+        core_versions = _collect_core_versions_for_pane(cache_only=True)
+    except Exception as exc:  # noqa: BLE001 - update sources degrade independently.
+        core_versions = CoreVersions(packages=())
+        core_error = _error_text(exc)
+    agent_cli_statuses, agent_cli_error, agent_cli_colors = (
+        _collect_agent_clis_for_pane(refresh=False, offline=False, cache_only=True)
+    )
+    agent_cli_history, agent_cli_history_error = _collect_agent_cli_history_for_pane(
+        enabled=agent_cli_history_enabled
+    )
+    core_incoming_commits = _fetch_core_incoming_commits_for_pane(
+        core_versions,
+        enabled=incoming_commits_enabled,
+        limit=incoming_commits_limit,
+        offline=False,
+        cache_only=True,
+    )
+    catalog: PluginCatalog | None = None
+    catalog_error: str | None = None
+    try:
+        catalog = load_plugin_catalog(refresh=False, offline=True, now=load_now)
+    except PluginCatalogError:
+        catalog_error = "No cached plugin catalog yet — press r to refresh."
+    except Exception as exc:  # noqa: BLE001 - update sources degrade independently.
+        catalog_error = str(exc)
+    if catalog is not None:
+        try:
+            catalog = enrich_with_latest(catalog, cache_only=True)
+        except Exception as exc:  # noqa: BLE001 - preserve prior plugin snapshot.
+            catalog_error = _error_text(exc)
+    checked_at: float | None = None
+    try:
+        snapshot = _read_update_status_snapshot()
+        if snapshot is not None:
+            checked_at = snapshot.checked_at
+    except Exception:  # noqa: BLE001 - a missing snapshot just means unknown age.
+        checked_at = None
+    return PluginsLoadResult(
+        catalog=catalog,
+        error=catalog_error,
+        now=load_now,
+        uv_tool=uv_tool,
+        core_versions=core_versions,
+        core_error=core_error,
+        core_incoming_commits=core_incoming_commits,
+        install_mode=install_mode,
+        dev_root=dev_root,
+        fresh_editable_roots=frozenset(),
+        update_status=None,
+        agent_cli_statuses=agent_cli_statuses,
+        agent_cli_error=agent_cli_error,
+        agent_cli_colors=agent_cli_colors,
+        agent_cli_history=agent_cli_history,
+        agent_cli_history_error=agent_cli_history_error,
+        checked_at=checked_at,
+        cache_only=True,
     )
 
 
@@ -219,11 +356,13 @@ def _collect_agent_cli_history_for_pane(
 
 
 def _collect_agent_clis_for_pane(
-    *, refresh: bool, offline: bool
+    *, refresh: bool, offline: bool, cache_only: bool = False
 ) -> tuple[tuple[AgentCliStatus, ...], str | None, dict[str, str]]:
     """Best-effort agent-CLI inventory collected on the pane worker thread."""
     try:
-        statuses = collect_agent_cli_statuses(refresh=refresh, offline=offline)
+        statuses = collect_agent_cli_statuses(
+            refresh=refresh, offline=offline, cache_only=cache_only
+        )
     except Exception as exc:  # noqa: BLE001 - other update surfaces still load.
         return (), str(exc), {}
     try:
@@ -284,6 +423,7 @@ def _fetch_core_incoming_commits_for_pane(
     enabled: bool,
     limit: int,
     offline: bool,
+    cache_only: bool = False,
 ) -> dict[str, IncomingCommits]:
     if not enabled:
         return {}
@@ -291,6 +431,8 @@ def _fetch_core_incoming_commits_for_pane(
     for package in core_versions.packages:
         spec = core_package_commit_spec(package)
         if spec is None:
+            continue
+        if cache_only and spec.source != "git":
             continue
         results[package.name] = fetch_incoming_commits(
             spec,

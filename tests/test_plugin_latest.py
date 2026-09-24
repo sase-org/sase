@@ -544,3 +544,71 @@ def test_enrich_entry_latest_fetches_one_uninstalled_row() -> None:
     assert calls == ["sase-telegram"]
     assert entry.latest.version == "4.1.0"
     assert entry.latest.checked is True
+
+
+def test_enrich_with_latest_cache_only_uses_stale_hits_without_fetch_or_write() -> None:
+    catalog = _catalog(
+        _entry("github", installed=True, version="1.2.0"),
+        _entry("telegram", installed=True, version="0.5.0"),
+    )
+    stale = {
+        "sase-github": CachedLatest(version="1.3.0", fetched_at=1.0),
+    }
+
+    def fail_fetch(_dist: str) -> str | None:
+        raise AssertionError("cache-only enrichment must not fetch")
+
+    def fail_write(_entries: object) -> None:
+        raise AssertionError("cache-only enrichment must not write the cache")
+
+    enriched = enrich_with_latest(
+        catalog,
+        fetch_fn=fail_fetch,
+        read_cache_fn=lambda: dict(stale),
+        write_cache_fn=fail_write,  # type: ignore[arg-type]
+        clock=lambda: 1_000_000.0,
+        version_records_fn=lambda: (),
+        cache_only=True,
+    )
+
+    by_name = {entry.name: entry for entry in enriched.entries}
+    assert by_name["github"].latest.checked is True
+    assert by_name["github"].latest.version == "1.3.0"
+    assert by_name["github"].latest.error is None
+    # A miss stays unknown so the lazy highlighted-row fetch can fill it.
+    assert by_name["telegram"].latest == LatestInfo.unknown()
+
+
+def test_enrich_with_latest_cache_only_editable_detects_without_fetch() -> None:
+    catalog = _catalog(_entry("github", installed=True, version="1.2.0"))
+    seen: list[bool] = []
+
+    def _detect(
+        record: VersionPackageRecord, *, offline: bool, fetch: bool = True
+    ) -> DevLatest:
+        seen.append(fetch)
+        return DevLatest(
+            record=record,
+            state="update_available",
+            reason="behind upstream by 1 commit(s)",
+            current_version=record.display_version,
+            latest_version="0.1.0+2.gdef456abc",
+            update_available=True,
+        )
+
+    def fail_fetch(_dist: str) -> str | None:
+        raise AssertionError("cache-only enrichment must not fetch")
+
+    enriched = enrich_with_latest(
+        catalog,
+        fetch_fn=fail_fetch,
+        read_cache_fn=lambda: {},
+        write_cache_fn=lambda _entries: None,
+        version_records_fn=lambda: (_record("sase-github"),),
+        detect_dev_latest_fn=_detect,
+        installed_source_fn=lambda _key: "index",
+        cache_only=True,
+    )
+
+    assert seen == [False]
+    assert enriched.entries[0].latest.update_available is True

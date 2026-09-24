@@ -38,7 +38,9 @@ class PluginsBrowserStatusMixin:
         _agent_cli_error: str | None
         _agent_cli_install_plan_worker: _Worker[Any] | None
         _agent_cli_statuses: tuple[AgentCliStatus, ...]
+        _cache_only: bool
         _catalog: PluginCatalog | None
+        _checked_at: float | None
         _core_error: str | None
         _core_versions: CoreVersions
         _error: str | None
@@ -154,7 +156,7 @@ class PluginsBrowserStatusMixin:
             f"{installed_agent_clis} agent "
             f"{self._plural(installed_agent_clis, 'CLI')} current"
         )
-        age = humanize_age(catalog.age_seconds(self._now)) if catalog else "unknown"
+        age = self._cache_age_label()
 
         copy = Table.grid(expand=True)
         copy.add_column()
@@ -280,6 +282,8 @@ class PluginsBrowserStatusMixin:
         return " · ".join(parts)
 
     def _cache_age_label(self) -> str:
+        if self._checked_at is not None:
+            return humanize_age(self._now - self._checked_at)
         catalog = self._catalog
         if catalog is None:
             return "unknown"
@@ -336,7 +340,10 @@ class PluginsBrowserStatusMixin:
             elif row.latest_version is None:
                 unknown_labels.append(row.label)
         if unknown_labels:
-            return self._labels_message("latest version unknown", unknown_labels)
+            message = self._labels_message("latest version unknown", unknown_labels)
+            if self._cache_only:
+                message = f"{message} — press r to check"
+            return message
         return None
 
     def _failure_message(self, prefix: str, failures: list[tuple[str, str]]) -> str:

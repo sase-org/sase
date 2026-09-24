@@ -41,7 +41,9 @@ VersionRecordsFn = Callable[[], Sequence[VersionPackageRecord]]
 
 
 class _DetectDevLatestFn(Protocol):
-    def __call__(self, record: VersionPackageRecord, *, offline: bool) -> DevLatest:
+    def __call__(
+        self, record: VersionPackageRecord, *, offline: bool, fetch: bool = True
+    ) -> DevLatest:
         """Return latest-dev metadata for one editable package."""
         ...
 
@@ -204,6 +206,7 @@ def enrich_with_latest(
     include_keys: Sequence[str] = (),
     deadline_seconds: float | None = _FETCH_DEADLINE_SECONDS,
     monotonic: ClockFn = time.monotonic,
+    cache_only: bool = False,
 ) -> PluginCatalog:
     """Return *catalog* with latest-version metadata attached to entries.
 
@@ -212,7 +215,10 @@ def enrich_with_latest(
     for a full-catalog probe. *include_keys* always join the eager set so
     ``sase plugin show`` can fetch one uninstalled plugin without a
     catalog-wide network storm. Refresh force-expires entries in that eager
-    set instead of discarding the whole cache.
+    set instead of discarding the whole cache. With ``cache_only=True`` no
+    network fetch and no cache write ever happen: eager index entries use
+    any cached entry regardless of TTL, misses stay unknown, and editable
+    entries classify the existing remote-tracking ref without fetching.
     """
     now = clock()
     installed_source_fn = (
@@ -248,6 +254,7 @@ def enrich_with_latest(
                 record=record,
                 offline=offline,
                 detect_dev_latest_fn=detect_dev_latest_fn,
+                fetch=not cache_only,
             )
             continue
         if source == "git":
@@ -263,6 +270,17 @@ def enrich_with_latest(
             continue
 
         cached_entry = cached.get(key)
+        if cache_only:
+            if cached_entry is not None:
+                resolved[key] = LatestInfo(
+                    checked=True,
+                    version=cached_entry.version,
+                    source="index",
+                    error=None if cached_entry.version else "unavailable",
+                    install_type=_install_type(record, "index"),
+                    current_version=entry.installed.version,
+                )
+            continue
         if not refresh and cached_entry is not None and is_fresh(cached_entry, now):
             resolved[key] = LatestInfo(
                 checked=True,
@@ -286,7 +304,7 @@ def enrich_with_latest(
 
         misses[key] = _dist_name(entry)
 
-    if misses:
+    if misses and not cache_only:
         fetched = _fetch_misses(
             misses,
             fetch_fn=fetch_fn,
@@ -410,6 +428,7 @@ def _editable_latest_info(
     record: VersionPackageRecord | None,
     offline: bool,
     detect_dev_latest_fn: _DetectDevLatestFn,
+    fetch: bool = True,
 ) -> LatestInfo:
     if record is None:
         return LatestInfo(
@@ -422,7 +441,10 @@ def _editable_latest_info(
             reason="editable install is missing from version inventory",
         )
     try:
-        latest = detect_dev_latest_fn(record, offline=offline)
+        if fetch:
+            latest = detect_dev_latest_fn(record, offline=offline)
+        else:
+            latest = detect_dev_latest_fn(record, offline=offline, fetch=False)
     except Exception as exc:  # noqa: BLE001 - display must never crash list/show.
         reason = f"dev version unavailable: {exc}"
         return LatestInfo(

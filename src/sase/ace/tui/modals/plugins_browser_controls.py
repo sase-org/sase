@@ -22,10 +22,13 @@ class PluginsBrowserControlsMixin:
     """User-input actions and widget lookup helpers for PluginsBrowserPane."""
 
     if TYPE_CHECKING:
+        from .config_center_session import UpdatesSessionState
+
         _filter_text: str
         _detail_debouncer: DetailPanelDebouncer | None
         _loading: bool
         _offline: bool
+        _session_state: UpdatesSessionState
         _verbose: bool
         app: App[object]
 
@@ -37,7 +40,7 @@ class PluginsBrowserControlsMixin:
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
 
-        def _start_load(self, *, force: bool) -> None: ...
+        def _start_load(self, *, force: bool, cache_only: bool = False) -> None: ...
 
         def _sync_state_visibility(self) -> None: ...
 
@@ -80,9 +83,13 @@ class PluginsBrowserControlsMixin:
             pass
 
     def action_refresh(self) -> None:
-        """Refetch the catalog and latest versions (the ``-r/--refresh`` analog)."""
+        """Refetch everything from the network (the ``-r/--refresh`` analog)."""
         if self._loading:
             return
+        try:
+            self._session_state.incoming_commit_cache.clear()
+        except Exception:
+            pass
         self._start_load(force=True)
 
     def action_toggle_offline(self) -> None:

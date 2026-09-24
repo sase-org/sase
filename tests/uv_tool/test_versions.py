@@ -147,3 +147,92 @@ def test_enrich_core_versions_latest_uses_dev_detection_for_editables() -> None:
     assert package.latest_state == "dirty"
     assert package.latest_reason == "checkout has local changes"
     assert package.update_available is False
+
+
+def test_enrich_core_versions_cache_only_never_calls_fetch_fn() -> None:
+    from sase.plugins.latest_cache import CachedLatest
+
+    base = collect_installed_core_versions(
+        version_fn=lambda name: {"sase": "0.5.0", "sase-core-rs": "1.4.2"}[name]
+    )
+
+    def fail_fetch(_name: str) -> str | None:
+        raise AssertionError("cache-only enrichment must not fetch")
+
+    result = enrich_core_versions_latest(
+        base,
+        fetch_fn=fail_fetch,
+        is_newer=lambda latest, installed: bool(
+            latest and installed and latest > installed
+        ),
+        version_records_fn=lambda: (),
+        cache_only=True,
+        cached_latest_fn=lambda _name: CachedLatest("0.4.0", 1.0),
+    )
+
+    # The stale hit is used regardless of TTL, including its update flag.
+    assert result.packages[0].latest_checked is True
+    assert result.packages[0].latest_version == "0.4.0"
+    assert result.packages[0].update_available is False
+    assert result.packages[0].latest_error is None
+
+
+def test_enrich_core_versions_cache_only_miss_stays_unchecked() -> None:
+    base = collect_installed_core_versions(
+        version_fn=lambda name: {"sase": "0.5.0", "sase-core-rs": "1.4.2"}[name]
+    )
+
+    result = enrich_core_versions_latest(
+        base,
+        fetch_fn=lambda _name: (_ for _ in ()).throw(
+            AssertionError("cache-only enrichment must not fetch")
+        ),
+        is_newer=lambda _latest, _installed: True,
+        version_records_fn=lambda: (),
+        cache_only=True,
+        cached_latest_fn=lambda _name: None,
+    )
+
+    assert result.packages[0].latest_checked is False
+    assert result.packages[0].latest_version is None
+    assert result.packages[0].update_available is False
+    assert result.packages[0].latest_error is None
+
+
+def test_enrich_core_versions_cache_only_editable_detects_without_fetch() -> None:
+    from sase.plugins.latest_cache import CachedLatest
+
+    record = _record("sase", role="host", display_version="0.5.0+1.gabc123def")
+    base = collect_installed_core_versions(
+        version_fn=lambda name: {"sase": "0.5.0", "sase-core-rs": "1.4.2"}[name]
+    )
+    seen: list[dict[str, object]] = []
+
+    def _detect(
+        package: VersionPackageRecord, *, offline: bool, fetch: bool = True
+    ) -> DevLatest:
+        seen.append({"offline": offline, "fetch": fetch})
+        return DevLatest(
+            record=package,
+            state="update_available",
+            reason="behind upstream by 2 commit(s)",
+            current_version=package.display_version,
+            latest_version="0.5.0+4.gbbbbbbbbb",
+            update_available=True,
+        )
+
+    result = enrich_core_versions_latest(
+        base,
+        fetch_fn=lambda _name: (_ for _ in ()).throw(
+            AssertionError("cache-only enrichment must not fetch")
+        ),
+        is_newer=lambda _latest, _installed: False,
+        version_records_fn=lambda: (record,),
+        detect_dev_latest_fn=_detect,
+        cache_only=True,
+        cached_latest_fn=lambda _name: CachedLatest("9.9.9", 1.0),
+    )
+
+    assert seen == [{"offline": False, "fetch": False}]
+    assert result.packages[0].latest_version == "0.5.0+4.gbbbbbbbbb"
+    assert result.packages[0].update_available is True

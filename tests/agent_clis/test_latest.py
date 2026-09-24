@@ -188,3 +188,33 @@ def test_url_fetch_failure_degrades_to_registry_unavailable() -> None:
 
     assert latest[f"url:{_CHANNEL_URL}"].version is None
     assert latest[f"url:{_CHANNEL_URL}"].error == "registry_unavailable"
+
+
+def test_cache_only_uses_stale_cache_without_fetch_write_or_error() -> None:
+    writes: list[dict[str, CachedLatest]] = []
+    cached = {
+        "npm:tool": CachedLatest("1.0.0", 0.0),
+        f"url:{_CHANNEL_URL}": CachedLatest(None, 0.0),
+    }
+
+    def fail_fetch(_query: LatestQuery) -> str | None:
+        raise AssertionError("cache-only lookup must not fetch")
+
+    latest = get_latest_versions(
+        [LatestQuery.for_url(_CHANNEL_URL), "tool", "missing"],
+        cache_only=True,
+        read_cache_fn=lambda: cached,
+        write_cache_fn=writes.append,
+        fetch_fn=fail_fetch,
+        clock=lambda: 1000.0,
+    )
+
+    assert latest["npm:tool"].version == "1.0.0"
+    assert latest["npm:tool"].cached is True
+    assert latest["npm:tool"].error is None
+    assert latest[f"url:{_CHANNEL_URL}"].version is None
+    assert latest[f"url:{_CHANNEL_URL}"].cached is True
+    assert latest[f"url:{_CHANNEL_URL}"].error is None
+    assert latest["npm:missing"].version is None
+    assert latest["npm:missing"].error is None
+    assert writes == []

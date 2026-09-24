@@ -507,3 +507,28 @@ def test_execute_record_fn_none_suppresses_journaling() -> None:
     results = execute_agent_cli_updates(plan, record_fn=None)
 
     assert results[0].status is UpdateResultStatus.ALREADY_CURRENT
+
+
+def test_collect_agent_cli_statuses_forwards_cache_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.agent_clis.operations as ops_module
+
+    seen: dict[str, object] = {}
+
+    def latest(
+        queries: tuple[object, ...], **kwargs: object
+    ) -> dict[str, LatestVersion]:
+        seen.update(kwargs)
+        return {}
+
+    monkeypatch.setattr(
+        ops_module, "detect_agent_cli_statuses", lambda *_args, **_kwargs: ()
+    )
+    ops_module.collect_agent_cli_statuses(
+        metadata_payload={"providers": {}},
+        latest_fn=latest,  # type: ignore[arg-type]
+        cache_only=True,
+    )
+
+    assert seen.get("cache_only") is True

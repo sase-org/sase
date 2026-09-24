@@ -172,3 +172,43 @@ def test_detect_dev_latest_rejects_non_editable_record() -> None:
     assert latest.state == "unavailable"
     assert latest.update_available is False
     assert "not an editable install" in latest.reason
+
+
+def test_detect_dev_latest_fetch_false_skips_fetch_and_reports_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        detect_mod, "classify_git_upstream", lambda _root: _status(behind=2)
+    )
+    monkeypatch.setattr(detect_mod, "probe_git_metadata_at_ref", _probe)
+
+    def fail_fetch(_status: GitUpstreamStatus) -> None:
+        raise AssertionError("fetch=False must not fetch")
+
+    monkeypatch.setattr(detect_mod, "fetch_git_upstream", fail_fetch)
+
+    latest = detect_dev_latest(_record(), offline=False, fetch=False)
+
+    assert latest.state == "update_available"
+    assert latest.update_available is True
+    assert latest.latest_version == "0.5.0+4.gbbbbbbbbb"
+
+
+def test_detect_dev_latest_offline_still_reports_offline_with_fetch_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        detect_mod, "classify_git_upstream", lambda _root: _status(behind=3)
+    )
+    monkeypatch.setattr(detect_mod, "probe_git_metadata_at_ref", _probe)
+    monkeypatch.setattr(
+        detect_mod,
+        "fetch_git_upstream",
+        lambda _status: (_ for _ in ()).throw(
+            AssertionError("offline detection must not fetch")
+        ),
+    )
+
+    latest = detect_dev_latest(_record(), offline=True, fetch=False)
+
+    assert latest.state == "offline"

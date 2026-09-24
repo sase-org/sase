@@ -48,6 +48,8 @@ if TYPE_CHECKING:
     from textual.app import App
     from textual.worker import Worker
 
+    from .config_center_session import UpdatesSessionState
+
 
 class PluginCombinedInstallActionsMixin:
     """Mixed agent-CLI + plugin install actions for :class:`PluginsBrowserPane`."""
@@ -56,6 +58,7 @@ class PluginCombinedInstallActionsMixin:
         _agent_cli_results: dict[str, AgentCliUpdateResult]
         _offline: bool
         _plan_worker: Worker[Any] | None
+        _session_state: UpdatesSessionState
         app: App[Any]
         is_mounted: bool
 
@@ -84,7 +87,7 @@ class PluginCombinedInstallActionsMixin:
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
 
-        def _start_load(self, *, force: bool) -> None: ...
+        def _start_load(self, *, force: bool, cache_only: bool = False) -> None: ...
 
         def _handle_code_update_completion(
             self,
@@ -341,6 +344,10 @@ class PluginCombinedInstallActionsMixin:
         """Apply CLI results, clear install marks, and finish the plugin leg."""
         from .plugins_browser_agent_clis_actions import agent_cli_install_summary
 
+        try:
+            self._session_state.invalidate_inventory()
+        except Exception:
+            pass
         outcome = completion.payload
         if outcome is None:
             return

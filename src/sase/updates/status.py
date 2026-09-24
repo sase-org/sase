@@ -318,6 +318,51 @@ def _compute_core_source(
     )
 
 
+def make_cached_core_latest_lookup() -> Callable[[str], CachedLatest | None]:
+    """Build a network-free core latest-version lookup over the shared cache.
+
+    The cache is read lazily once; the entry for a distribution is returned
+    regardless of age, and no network call or cache write ever happens.
+    """
+    cache: dict[str, CachedLatest] | None = None
+
+    def _lookup(dist_name: str) -> CachedLatest | None:
+        nonlocal cache
+        if cache is None:
+            cache = _safe_read_latest_cache()
+        return cache.get(normalize_distribution_name(dist_name))
+
+    return _lookup
+
+
+def make_core_latest_fetch_fn(
+    now: float, *, force: bool
+) -> Callable[[str], str | None]:
+    """Build a PyPI fetcher for core packages backed by the latest-version cache.
+
+    With ``force=True`` every lookup fetches from PyPI and writes the result
+    through to the shared cache. With ``force=False`` the lookup only hits
+    the network when the cached entry has lapsed the latest-version TTL.
+    """
+    cache: dict[str, CachedLatest] | None = None
+
+    def _fetch(dist_name: str) -> str | None:
+        nonlocal cache
+        if cache is None:
+            cache = _safe_read_latest_cache()
+        key = normalize_distribution_name(dist_name)
+        if not force:
+            cached = cache.get(key)
+            if cached is not None and _latest_cache_is_fresh(cached, now):
+                return cached.version
+        version = _fetch_latest_version(dist_name)
+        cache[key] = CachedLatest(version=version, fetched_at=now)
+        _safe_write_latest_cache(cache)
+        return version
+
+    return _fetch
+
+
 def _make_cached_core_fetch_fn(now: float) -> Callable[[str], str | None]:
     """Build a PyPI fetcher for core packages backed by the latest-version cache.
 
@@ -329,22 +374,7 @@ def _make_cached_core_fetch_fn(now: float) -> Callable[[str], str | None]:
     recompute stays offline. The cache is read lazily so an offline recompute,
     which never calls ``fetch_fn``, touches no disk.
     """
-    cache: dict[str, CachedLatest] | None = None
-
-    def _fetch(dist_name: str) -> str | None:
-        nonlocal cache
-        if cache is None:
-            cache = _safe_read_latest_cache()
-        key = normalize_distribution_name(dist_name)
-        cached = cache.get(key)
-        if cached is not None and _latest_cache_is_fresh(cached, now):
-            return cached.version
-        version = _fetch_latest_version(dist_name)
-        cache[key] = CachedLatest(version=version, fetched_at=now)
-        _safe_write_latest_cache(cache)
-        return version
-
-    return _fetch
+    return make_core_latest_fetch_fn(now, force=False)
 
 
 def _safe_read_latest_cache() -> dict[str, CachedLatest]:
@@ -506,5 +536,7 @@ __all__ = [
     "UpdateStatus",
     "build_update_status",
     "compute_update_status",
+    "make_cached_core_latest_lookup",
+    "make_core_latest_fetch_fn",
     "provider_update_candidates",
 ]

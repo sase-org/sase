@@ -7843,6 +7843,14 @@ an update available or a probe error), **Installed** (the default), **Available*
 not installed), or **All**; each scope label carries a live row count. `'` jumps to any
 row via adaptive hints, across every section.
 
+Opening the tab never refreshes from the network. The first open in an ACE session
+builds the inventory from local caches the automatic update check maintains (plugin
+catalog, latest-version caches, editable checkouts' last-fetched upstream refs), without
+PyPI/GitHub/npm or `git fetch`. Later opens reuse the in-memory inventory instantly;
+when the automatic check has published newer results, the open re-reads those caches
+instead. `r` refreshes everything from the network, and `checked … ago` is the age of
+the last network check.
+
 Core rows show SASE package versions and incoming commits in their own per-package
 detail. Plugin rows bring the full
 [`sase plugin`](plugins.md#plugin-catalog-sase-plugin-list-sase-plugin-show) experience:

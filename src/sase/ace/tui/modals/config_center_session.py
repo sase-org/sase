@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from .config_hub_session import ConfigHubSessionState
 
 if TYPE_CHECKING:
+    from sase.updates.incoming_commits import IncomingCommits, IncomingCommitsCacheKey
+
+    from .plugins_browser_loading import PluginsLoadResult
     from .plugins_browser_rows import UpdateScope
 
 ProjectsSubTab = Literal["projects", "repos", "workspaces"]
@@ -97,6 +101,17 @@ class UpdatesSessionState:
     scope: UpdateScope = "installed"
     rows: SelectionBookmark = field(default_factory=SelectionBookmark)
     agent_cli_history_all: bool = False
+    #: Last successfully applied online-mode inventory (rows included), shared
+    #: across Admin Center reopens so the tab paints instantly with no worker.
+    inventory: PluginsLoadResult | None = None
+    #: Session-shared incoming-commit LRU, bounded by the pane's existing cap.
+    incoming_commit_cache: OrderedDict[IncomingCommitsCacheKey, IncomingCommits] = (
+        field(default_factory=OrderedDict)
+    )
+
+    def invalidate_inventory(self) -> None:
+        """Drop the remembered inventory after a local mutation."""
+        self.inventory = None
 
 
 @dataclass

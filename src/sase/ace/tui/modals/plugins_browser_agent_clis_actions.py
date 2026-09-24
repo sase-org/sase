@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from textual.app import App
     from textual.worker import Worker
 
+    from .config_center_session import UpdatesSessionState
     from .plugins_browser_rows import UpdateRow
 
 
@@ -50,6 +51,7 @@ class AgentCliBrowserActionsMixin:
         _marked: set[str]
         _offline: bool
         _plan_worker: Worker[Any] | None
+        _session_state: UpdatesSessionState
         app: App[Any]
         is_mounted: bool
 
@@ -78,7 +80,7 @@ class AgentCliBrowserActionsMixin:
 
         def _render_detail_now(self, *, force: bool = False) -> None: ...
 
-        def _start_load(self, *, force: bool) -> None: ...
+        def _start_load(self, *, force: bool, cache_only: bool = False) -> None: ...
 
         def _update_static(self, selector: str, content: RenderableType) -> None: ...
 
@@ -317,6 +319,10 @@ class AgentCliBrowserActionsMixin:
         self,
         completion: TrackedProcCompletion[tuple[AgentCliUpdateResult, ...]],
     ) -> None:
+        try:
+            self._session_state.invalidate_inventory()
+        except Exception:
+            pass
         results = completion.payload or ()
         for result in results:
             self._agent_cli_results[result.name] = result

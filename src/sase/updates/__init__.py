@@ -29,6 +29,8 @@ from .status import (
     UpdateStatus,
     build_update_status,
     compute_update_status,
+    make_cached_core_latest_lookup,
+    make_core_latest_fetch_fn,
     provider_update_candidates,
 )
 
@@ -47,6 +49,8 @@ __all__ = [
     "build_update_status",
     "component_commit_spec",
     "compute_update_status",
+    "make_cached_core_latest_lookup",
+    "make_core_latest_fetch_fn",
     "core_package_commit_spec",
     "fetch_incoming_commits",
     "get_cached_update_status",

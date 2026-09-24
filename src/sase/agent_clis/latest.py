@@ -199,6 +199,7 @@ def get_latest_versions(
     read_cache_fn: ReadCacheFn = read_cache,
     write_cache_fn: WriteCacheFn = write_cache,
     clock: ClockFn = time.time,
+    cache_only: bool = False,
 ) -> dict[str, LatestVersion]:
     """Resolve each query from fresh cache or its remote oracle.
 
@@ -223,6 +224,17 @@ def get_latest_versions(
         cached = read_cache_fn()
     except Exception:  # noqa: BLE001 - latest hints are best effort.
         cached = {}
+    if cache_only:
+        # Network-free: any cached item regardless of TTL, misses unchecked,
+        # no fetches and no cache writes.
+        return {
+            query.key: (
+                LatestVersion(item.version, cached=True)
+                if (item := cached.get(query.key)) is not None
+                else LatestVersion(None)
+            )
+            for query in unique
+        }
     results: dict[str, LatestVersion] = {}
     updated_cache = dict(cached)
     cache_changed = False

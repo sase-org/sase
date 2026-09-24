@@ -189,6 +189,7 @@ _load_agent_cli_history_config = load_agent_cli_history_config
 _build_update_rows = build_update_rows
 
 _monotonic = time.monotonic
+_clock = time.time
 
 
 class PluginsBrowserPane(
@@ -255,7 +256,13 @@ class PluginsBrowserPane(
         self._auto_load = auto_load
         self._scope: UpdateScope = self._session_state.scope
         self._catalog: PluginCatalog | None = None
-        self._core_versions: CoreVersions = _collect_installed_core_versions()
+        seeded = self._session_state.inventory
+        if seeded is not None and seeded.core_versions is not None:
+            self._core_versions: CoreVersions = seeded.core_versions
+        else:
+            self._core_versions = _collect_installed_core_versions()
+        self._checked_at: float | None = None
+        self._cache_only = False
         self._core_error: str | None = None
         self._error: str | None = None
         self._loading = auto_load
@@ -318,11 +325,12 @@ class PluginsBrowserPane(
         self._incoming_commits_enabled = incoming_config.enabled
         self._incoming_commits_limit = incoming_config.max_per_repo
         self._incoming_commits_confirm_limit = incoming_config.confirm_max_per_repo
-        #: Bounded LRU: a long session highlighting many installed-and-
-        #: updatable rows must not grow this without limit.
+        #: Bounded LRU shared across Admin Center reopens via the session
+        #: state: a long session highlighting many installed-and-updatable
+        #: rows must not grow this without limit.
         self._incoming_commit_cache: OrderedDict[
             IncomingCommitsCacheKey, IncomingCommits
-        ] = OrderedDict()
+        ] = self._session_state.incoming_commit_cache
         self._incoming_commit_loading: set[IncomingCommitsCacheKey] = set()
         self._incoming_commit_workers: dict[int, IncomingCommitsCacheKey] = {}
         self._plugin_latest_loading: set[str] = set()

@@ -43,7 +43,10 @@ class SaseUpdateProcMixin:
     """Execute SASE updates through the shared tracked-proc system."""
 
     if TYPE_CHECKING:
+        from .config_center_session import UpdatesSessionState
+
         _loading: bool
+        _session_state: UpdatesSessionState
         _uv_tool: object | None
         app: Any
         is_mounted: bool
@@ -71,7 +74,7 @@ class SaseUpdateProcMixin:
             self, plan: DevUpdatePlan, *, run: Any = None
         ) -> DevUpdateResult: ...
 
-        def _start_load(self, *, force: bool) -> None: ...
+        def _start_load(self, *, force: bool, cache_only: bool = False) -> None: ...
 
     def _submit_sase_update_proc(self) -> None:
         """Run the self-update engine in the shared tracked-proc system."""
@@ -274,6 +277,12 @@ class SaseUpdateProcMixin:
         unchanged_severity: Literal["information", "warning", "error"] = "information",
     ) -> None:
         """Common update completion handling: restart only after real changes."""
+        # Local mutations invalidate the remembered inventory first, so a next
+        # open reflects the new installed state even if the pane is unmounted.
+        try:
+            self._session_state.invalidate_inventory()
+        except Exception:
+            pass
         if completion.success:
             if completion.payload is not None and managed_update_changed(
                 completion.payload

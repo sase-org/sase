@@ -28,6 +28,8 @@ class PluginsBrowserWorkersMixin(_MixinBase):
     if TYPE_CHECKING:
         _rows: tuple[UpdateRow, ...]
         _rows_by_key: dict[str, UpdateRow]
+        _cache_only: bool
+        _checked_at: float | None
         _agent_cli_colors: dict[str, str]
         _agent_cli_error: str | None
         _agent_cli_history: tuple[Any, ...]
@@ -106,7 +108,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
 
         def _worker_error_text(self, worker: Any, *, kind: str = ...) -> str: ...
 
-    def _start_load(self, *, force: bool) -> None:
+    def _start_load(self, *, force: bool, cache_only: bool = False) -> None:
         from . import plugins_browser_pane as pane_module
 
         prior_uv_tool = self._uv_tool
@@ -140,6 +142,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
                 incoming_commits_enabled=incoming_commits_enabled,
                 incoming_commits_limit=incoming_commits_limit,
                 agent_cli_history_enabled=agent_cli_history_enabled,
+                cache_only=cache_only,
             )
             # Building rows here (off the event loop) rather than on receipt
             # keeps construction off the UI thread; every existing loader stub
@@ -249,61 +252,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         if event.worker is not self._worker:
             return
         if event.state == WorkerState.SUCCESS:
-            result = event.worker.result
-            self._loading = False
-            self._updates_loaded_once = True
-            self._catalog = getattr(result, "catalog", None)
-            self._error = getattr(result, "error", None)
-            self._now = getattr(result, "now", self._now)
-            fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
-            self._fresh_editable_roots_evidence = None
-            if self._error is None and not self._offline and fresh_roots:
-                from . import plugins_browser_pane as pane_module
-
-                self._fresh_editable_roots_evidence = (
-                    fresh_roots,
-                    pane_module._monotonic(),
-                )
-            # Keep a previously-detected probe result if a stubbed loader (or a
-            # failed probe) returns None -- "detect once" per the epic.
-            probed = getattr(result, "uv_tool", None)
-            if probed is not None:
-                self._uv_tool = probed
-            core_versions = getattr(result, "core_versions", None)
-            if core_versions is not None:
-                self._core_versions = core_versions
-            self._core_error = getattr(result, "core_error", None)
-            install_mode = getattr(result, "install_mode", None)
-            if install_mode is not None:
-                self._install_mode = install_mode
-            dev_root = getattr(result, "dev_root", None)
-            if dev_root is not None:
-                self._dev_root = dev_root
-            self._core_incoming_commits = dict(
-                getattr(result, "core_incoming_commits", {}) or {}
-            )
-            self._agent_cli_statuses = tuple(
-                getattr(result, "agent_cli_statuses", ()) or ()
-            )
-            self._agent_cli_error = getattr(result, "agent_cli_error", None)
-            self._agent_cli_colors = dict(getattr(result, "agent_cli_colors", {}) or {})
-            self._agent_cli_history = tuple(
-                getattr(result, "agent_cli_history", ()) or ()
-            )
-            self._agent_cli_history_error = getattr(
-                result, "agent_cli_history_error", None
-            )
-            self._rows = tuple(getattr(result, "rows", ()))
-            self._rows_by_key = {row.key: row for row in self._rows}
-            self._render_all()
-            update_status = getattr(result, "update_status", None)
-            refresh_indicator = getattr(
-                self.app,
-                "_schedule_updates_indicator_revalidation",
-                None,
-            )
-            if update_status is not None and callable(refresh_indicator):
-                refresh_indicator(update_status)
+            self._apply_load_result(event.worker.result)
         elif event.state == WorkerState.ERROR:
             self._loading = False
             self._fresh_editable_roots_evidence = None
@@ -313,6 +262,79 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             )
             self._core_incoming_commits = {}
             self._render_all()
+
+    def _apply_load_result(self, result: Any, *, restored: bool = False) -> None:
+        """Apply one load outcome; the worker and the session memo share it.
+
+        With ``restored=True`` the memo paints synchronously: ages measure
+        against the current wall clock, nothing is pushed to the updates
+        indicator, and no fresh-editable evidence is established.
+        """
+        from . import plugins_browser_pane as pane_module
+
+        self._loading = False
+        self._updates_loaded_once = True
+        self._catalog = getattr(result, "catalog", None)
+        self._error = getattr(result, "error", None)
+        if restored:
+            self._now = pane_module._clock()
+        else:
+            self._now = getattr(result, "now", self._now)
+        self._checked_at = getattr(result, "checked_at", None)
+        self._cache_only = bool(getattr(result, "cache_only", False))
+        fresh_roots = frozenset(getattr(result, "fresh_editable_roots", ()))
+        self._fresh_editable_roots_evidence = None
+        if (
+            not restored
+            and self._error is None
+            and not self._offline
+            and not self._cache_only
+            and fresh_roots
+        ):
+            self._fresh_editable_roots_evidence = (
+                fresh_roots,
+                pane_module._monotonic(),
+            )
+        # Keep a previously-detected probe result if a stubbed loader (or a
+        # failed probe) returns None -- "detect once" per the epic.
+        probed = getattr(result, "uv_tool", None)
+        if probed is not None:
+            self._uv_tool = probed
+        core_versions = getattr(result, "core_versions", None)
+        if core_versions is not None:
+            self._core_versions = core_versions
+        self._core_error = getattr(result, "core_error", None)
+        install_mode = getattr(result, "install_mode", None)
+        if install_mode is not None:
+            self._install_mode = install_mode
+        dev_root = getattr(result, "dev_root", None)
+        if dev_root is not None:
+            self._dev_root = dev_root
+        self._core_incoming_commits = dict(
+            getattr(result, "core_incoming_commits", {}) or {}
+        )
+        self._agent_cli_statuses = tuple(
+            getattr(result, "agent_cli_statuses", ()) or ()
+        )
+        self._agent_cli_error = getattr(result, "agent_cli_error", None)
+        self._agent_cli_colors = dict(getattr(result, "agent_cli_colors", {}) or {})
+        self._agent_cli_history = tuple(getattr(result, "agent_cli_history", ()) or ())
+        self._agent_cli_history_error = getattr(result, "agent_cli_history_error", None)
+        self._rows = tuple(getattr(result, "rows", ()))
+        self._rows_by_key = {row.key: row for row in self._rows}
+        self._render_all()
+        if restored:
+            return
+        update_status = getattr(result, "update_status", None)
+        refresh_indicator = getattr(
+            self.app,
+            "_schedule_updates_indicator_revalidation",
+            None,
+        )
+        if update_status is not None and callable(refresh_indicator):
+            refresh_indicator(update_status)
+        if not self._offline:
+            self._session_state.inventory = result
 
     def _reusable_fresh_editable_roots(
         self,

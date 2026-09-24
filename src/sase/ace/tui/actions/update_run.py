@@ -250,6 +250,14 @@ class UpdateRunActionsMixin:
         self,
         completion: TrackedProcCompletion[ComprehensiveUpdateResult],
     ) -> None:
+        session_state = getattr(self, "_admin_center_session_state", None)
+        updates_state = getattr(session_state, "updates", None)
+        invalidate = getattr(updates_state, "invalidate_inventory", None)
+        if callable(invalidate):
+            try:
+                invalidate()
+            except Exception:
+                pass
         refresh = getattr(self, "_schedule_updates_indicator_revalidation", None)
         if callable(refresh):
             refresh()

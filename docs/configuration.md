@@ -414,6 +414,14 @@ The always-visible header above the list shows either the all-current banner or 
 per failed source; it never renders "all current" while any enabled source is unknown or
 failed.
 
+Opening the tab never refreshes from the network. The first open in an ACE session
+builds the inventory from local caches the automatic update check maintains (plugin
+catalog, latest-version caches, editable checkouts' last-fetched upstream refs), without
+PyPI/GitHub/npm or `git fetch`. Later opens reuse the in-memory inventory instantly;
+when the automatic check has published newer results, the open re-reads those caches
+instead. `r` refreshes everything from the network, and `checked … ago` is the age of
+the last network check.
+
 The Plugins rows stay visually consistent with the CLI by reusing the same catalog
 loader and Rich renderables. They are split into **Built-in** and **Community**
 (third-party, shown with a warning) sections; status glyphs match the CLI exactly: `●`

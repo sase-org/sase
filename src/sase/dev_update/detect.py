@@ -16,8 +16,14 @@ from sase.version._git import (
 from sase.version._models import GitProbeResult, VersionPackageRecord
 
 
-def detect_dev_latest(record: VersionPackageRecord, *, offline: bool) -> DevLatest:
-    """Return latest-dev information for one editable package record."""
+def detect_dev_latest(
+    record: VersionPackageRecord, *, offline: bool, fetch: bool = True
+) -> DevLatest:
+    """Return latest-dev information for one editable package record.
+
+    With ``fetch=False`` (and ``offline=False``) the existing
+    remote-tracking ref is classified without running ``git fetch``.
+    """
     unavailable = _record_unavailable_reason(record)
     if unavailable is not None:
         return _latest(record, "unavailable", unavailable)
@@ -44,7 +50,7 @@ def detect_dev_latest(record: VersionPackageRecord, *, offline: bool) -> DevLate
         return _from_status(record, status, "no_upstream", "checkout has no upstream")
 
     fetch_error: str | None = None
-    if not offline:
+    if not offline and fetch:
         try:
             fetch_git_upstream(status)
             status = classify_git_upstream(source_root)

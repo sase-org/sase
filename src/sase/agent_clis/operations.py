@@ -43,6 +43,7 @@ def collect_agent_cli_statuses(
     metadata_payload: Mapping[str, Any] | None = None,
     run_fn: RunnerFn = run_command,
     latest_fn: LatestFn = get_latest_versions,
+    cache_only: bool = False,
 ) -> tuple[AgentCliStatus, ...]:
     """Return detected CLIs enriched with cached/remote latest versions."""
     providers = _provider_metadata(metadata_payload)
@@ -52,7 +53,12 @@ def collect_agent_cli_statuses(
         for status in detected
         if (query := _latest_query(status)) is not None
     }
-    latest = latest_fn(tuple(queries.values()), offline=offline, refresh=refresh)
+    if cache_only:
+        latest = latest_fn(
+            tuple(queries.values()), offline=offline, refresh=refresh, cache_only=True
+        )
+    else:
+        latest = latest_fn(tuple(queries.values()), offline=offline, refresh=refresh)
     enriched: list[AgentCliStatus] = []
     for status in detected:
         query = queries.get(status.name)

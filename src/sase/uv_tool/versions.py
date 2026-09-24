@@ -31,8 +31,22 @@ if TYPE_CHECKING:
     from sase.dev_update.models import DevLatest
 
 
+class _CachedLatestLike(Protocol):
+    """Duck-typed cached latest entry (keeps this module independent)."""
+
+    @property
+    def version(self) -> str | None:
+        """The cached latest version, if known."""
+        ...
+
+
+CachedLatestFn = Callable[[str], _CachedLatestLike | None]
+
+
 class _DetectDevLatestFn(Protocol):
-    def __call__(self, record: VersionPackageRecord, *, offline: bool) -> DevLatest:
+    def __call__(
+        self, record: VersionPackageRecord, *, offline: bool, fetch: bool = True
+    ) -> DevLatest:
         """Return latest-dev metadata for one editable core package."""
         ...
 
@@ -104,8 +118,16 @@ def enrich_core_versions_latest(
     is_newer: IsNewerFn,
     version_records_fn: VersionRecordsFn | None = _runtime_core_records,
     detect_dev_latest_fn: _DetectDevLatestFn | None = None,
+    cache_only: bool = False,
+    cached_latest_fn: CachedLatestFn | None = None,
 ) -> CoreVersions:
-    """Return *versions* with best-effort latest-version metadata attached."""
+    """Return *versions* with best-effort latest-version metadata attached.
+
+    With ``cache_only=True`` nothing touches the network and no cache is
+    written: index packages use any cached entry regardless of TTL (a miss
+    stays unchecked), and editable packages classify the existing
+    remote-tracking ref without fetching. ``fetch_fn`` is never called.
+    """
     if detect_dev_latest_fn is None:
         # Imported lazily so the TUI app startup closure does not pull the
         # dev-update graph (import budget); only editable installs need it.
@@ -124,6 +146,17 @@ def enrich_core_versions_latest(
                     record=record,
                     offline=offline,
                     detect_dev_latest_fn=detect_dev_latest_fn,
+                    fetch=not cache_only,
+                )
+            )
+            continue
+        if cache_only:
+            enriched.append(
+                _enrich_index_core_package_cache_only(
+                    package,
+                    record=record,
+                    is_newer=is_newer,
+                    cached_latest_fn=cached_latest_fn,
                 )
             )
             continue
@@ -174,15 +207,53 @@ def _record_lookup(
     }
 
 
+def _enrich_index_core_package_cache_only(
+    package: CorePackageVersion,
+    *,
+    record: VersionPackageRecord | None,
+    is_newer: IsNewerFn,
+    cached_latest_fn: CachedLatestFn | None,
+) -> CorePackageVersion:
+    """Enrich one index package from cache only; a miss stays unchecked."""
+    cached = None
+    if cached_latest_fn is not None:
+        try:
+            cached = cached_latest_fn(package.distribution_name)
+        except Exception:  # noqa: BLE001 - cache reads must never break the UI.
+            cached = None
+    if cached is None:
+        return dataclasses.replace(
+            package,
+            latest_checked=False,
+            latest_version=None,
+            update_available=False,
+            latest_error=None,
+            install_type=_install_type(record, package.install_type),
+        )
+    version = cached.version
+    return dataclasses.replace(
+        package,
+        latest_checked=True,
+        latest_version=version,
+        update_available=is_newer(version, package.installed_version),
+        latest_error=None if version else "unavailable",
+        install_type=_install_type(record, package.install_type),
+    )
+
+
 def _enrich_editable_core_package(
     package: CorePackageVersion,
     *,
     record: VersionPackageRecord,
     offline: bool,
     detect_dev_latest_fn: _DetectDevLatestFn,
+    fetch: bool = True,
 ) -> CorePackageVersion:
     try:
-        latest = detect_dev_latest_fn(record, offline=offline)
+        if fetch:
+            latest = detect_dev_latest_fn(record, offline=offline)
+        else:
+            latest = detect_dev_latest_fn(record, offline=offline, fetch=False)
     except Exception as exc:  # noqa: BLE001 - latest hints are best effort.
         reason = f"dev version unavailable: {exc}"
         return dataclasses.replace(
@@ -244,6 +315,7 @@ def _safe_fetch_latest(dist_name: str, fetch_fn: FetchLatestFn) -> str | None:
 
 
 __all__ = [
+    "CachedLatestFn",
     "CorePackageVersion",
     "CoreVersions",
     "FetchLatestFn",

@@ -23,6 +23,8 @@ class PluginsBrowserLatestMixin:
     """Lazy plugin latest-version fetches for the highlighted detail row."""
 
     if TYPE_CHECKING:
+        from .config_center_session import UpdatesSessionState
+
         _catalog: PluginCatalog | None
         _grouped: list[tuple[str, str, list[UpdateRow]]]
         _offline: bool
@@ -30,6 +32,7 @@ class PluginsBrowserLatestMixin:
         _plugin_latest_workers: dict[int, str]
         _rows: tuple[UpdateRow, ...]
         _rows_by_key: dict[str, UpdateRow]
+        _session_state: UpdatesSessionState
         _uv_tool: object | None
 
         def _current_entry(self) -> PluginCatalogEntry | None: ...
@@ -122,6 +125,14 @@ class PluginsBrowserLatestMixin:
             new_row if row.key == new_row.key else row for row in self._rows
         )
         self._rows_by_key[new_row.key] = new_row
+        if not self._offline:
+            inventory = self._session_state.inventory
+            if inventory is not None and inventory.catalog is not None:
+                self._session_state.inventory = dataclasses.replace(
+                    inventory,
+                    catalog=self._catalog,
+                    rows=self._rows,
+                )
         self._grouped = [
             (
                 group,
