@@ -63,13 +63,19 @@ def normalize_request_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
     if "requester_continuation" in payload:
         normalized["requester_continuation"] = payload["requester_continuation"]
-    family_type = payload.get("family_type")
-    if family_type is not None:
-        if not isinstance(family_type, str) or not family_type.strip():
+    # legacy agent-family spelling: pre-rename launch requests carry
+    # ``family_type``; new writers emit only ``agent_session_type``.
+    raw_session_type = payload.get("agent_session_type")
+    if raw_session_type is None:
+        raw_session_type = payload.get("family_type")
+    if raw_session_type is not None:
+        if not isinstance(raw_session_type, str) or not raw_session_type.strip():
             raise LaunchRequestError(
-                "invalid_request", "family_type", "family_type must be a string"
+                "invalid_request",
+                "agent_session_type",
+                "agent_session_type must be a string",
             )
-        normalized["family_type"] = family_type
+        normalized["agent_session_type"] = raw_session_type
     return normalized
 
 

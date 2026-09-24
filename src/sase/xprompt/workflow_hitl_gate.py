@@ -248,7 +248,7 @@ def _workflow_hitl_shell_spec(
         "settled_status": "HITL DONE",
         "accent": "#F8AD08",
         "workspace": "inherit",
-        "next": {"fork": "family", "output": ["results"]},
+        "next": {"fork": "session", "output": ["results"]},
         "branches": branches,
     }
 

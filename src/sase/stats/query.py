@@ -13,6 +13,7 @@ from sase.stats.ranges import bucket_seconds_for
 RuntimeGroupBy = Literal[
     "tribe",
     "clan",
+    "session",
     "family",
     "agent",
     "provider",
@@ -21,6 +22,15 @@ RuntimeGroupBy = Literal[
     "project",
     "patch",
 ]
+# legacy agent-family spelling: stored or configured group-bys carry
+# ``"family"``; new writers emit only ``"session"``. Core accepts the alias
+# and still returns ``"family"`` until core-contract.
+LEGACY_RUNTIME_GROUP_BY = "family"
+
+
+def normalize_runtime_group_by(value: str) -> str:
+    """Map a stored or requested group-by to the spelling sent to core."""
+    return "session" if value == LEGACY_RUNTIME_GROUP_BY else value
 
 
 def query_run_stats(
@@ -54,7 +64,7 @@ def query_run_stats(
         {
             "start_ts": int(start_ts),
             "end_ts": int(end_ts),
-            "runtime_group_by": runtime_group_by,
+            "runtime_group_by": normalize_runtime_group_by(runtime_group_by),
             "bucket_seconds": int(resolved_bucket_seconds),
             "top_n": int(top_n),
             "project": project,
@@ -99,4 +109,10 @@ def query_activity_stats(
     return payload
 
 
-__all__ = ["RuntimeGroupBy", "query_activity_stats", "query_run_stats"]
+__all__ = [
+    "LEGACY_RUNTIME_GROUP_BY",
+    "RuntimeGroupBy",
+    "normalize_runtime_group_by",
+    "query_activity_stats",
+    "query_run_stats",
+]

@@ -134,7 +134,7 @@ def build_fork_injected_history(
         "Source sections are independent parents, and section order carries no "
         "priority."
     ]
-    if any(fork_source_kind(source) == "family" for source in sources):
+    if any(fork_source_kind(source) == "session" for source in sources):
         guidance_parts.append(
             "Members inside an agent family section are sequential: each member "
             "continued the previous member's work."
@@ -205,7 +205,7 @@ def _format_fork_source(
         return f"{heading}\n\n{history}"
     if kind == "proc":
         return format_proc_source(source, index=index, count=count)
-    if kind == "family":
+    if kind == "session":
         return format_family_fork_source(
             source,
             index=index,

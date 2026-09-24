@@ -50,11 +50,11 @@ def test_shell_block_pins_statuses_and_accents() -> None:
     assert shell["settled_status"] == "ANSWERED"
     assert shell["accent"] == "#FFAF00"
     assert shell["workspace"] == "inherit"
-    assert shell["next"] == {"fork": "family", "output": ["results"], "prompt": None}
+    assert shell["next"] == {"fork": "session", "output": ["results"], "prompt": None}
     assert shell["branches"]["submit"]["status"] == "ANSWERED"
     assert shell["branches"]["submit"]["accent"] == "#5FD7FF"
     assert shell["branches"]["submit"]["output"] == ["results"]
-    assert shell["branches"]["submit"]["fork"] == "family"
+    assert shell["branches"]["submit"]["fork"] == "session"
     assert "Implement the feature." in shell["branches"]["submit"]["prompt"]
     assert shell["branches"]["timeout"] == {
         "status": "QUESTION TIMED OUT",

@@ -43,7 +43,7 @@ def test_shell_block_defaults_timeout_and_statuses() -> None:
     assert spec.shell.settled_status == DEFAULT_GATE_SHELL_SETTLED_STATUS
     assert spec.shell.workspace == "inherit"
     assert spec.shell.next.output == ("results",)
-    assert spec.shell.next.fork == "family"
+    assert spec.shell.next.fork == "session"
 
 
 def test_explicit_shell_gate_timeout_is_preserved() -> None:

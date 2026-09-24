@@ -7,6 +7,11 @@ from typing import Literal
 
 _SDD_PATH_PREFIX = "sdd/"
 RevertRepoKind = Literal["linked", "external"]
+# legacy agent-family spelling: queued pre-rename ops revert requests carry
+# scope ``"family"`` and key ``"family_base"``; new writers emit only
+# ``"session"`` and ``"agent_session_base"``.
+LEGACY_REVERT_SCOPE = "family"
+LEGACY_REVERT_SESSION_BASE_KEY = "family_base"
 
 
 @dataclass(frozen=True)
@@ -81,7 +86,7 @@ class RevertPreview:
     """Discovered revert scope shown in the confirmation modal."""
 
     agent_name: str
-    scope: str  # "agent" or "family"
+    scope: str  # "agent" or "session"
     workspace_dir: str
     commits: tuple[RevertCommit, ...] = ()
     repos: tuple[RepoRevertPlan, ...] = ()
@@ -143,12 +148,12 @@ class RevertTarget:
     agent_name: str
     display_name: str
     workspace_dir: str
-    family_base: str | None = None
+    agent_session_base: str | None = None
     artifacts_dir: str | None = None
 
     @property
     def scope(self) -> str:
-        return "family" if self.family_base else "agent"
+        return "session" if self.agent_session_base else "agent"
 
 
 @dataclass(frozen=True)
@@ -236,7 +241,7 @@ class RevertIntent:
     #: The agent ran against the project (its ``cl_name`` is the project name),
     #: so preparation targets the default branch rather than a Patch branch.
     is_project_scoped: bool = False
-    family_base: str | None = None
+    agent_session_base: str | None = None
     artifacts_dir: str | None = None
     #: Names of linked repos the agent run touched. Re-resolved
     #: against the freshly claimed workspace number rather than reusing the
@@ -251,7 +256,7 @@ class RevertIntent:
 
     @property
     def scope(self) -> str:
-        return "family" if self.family_base else "agent"
+        return "session" if self.agent_session_base else "agent"
 
 
 @dataclass(frozen=True)

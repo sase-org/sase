@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sase.ace.revert_agent_git import run_git
 from sase.ace.revert_agent_models import RevertCommit, RevertTarget
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import agent_session_base as plan_chain_session_base
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
 #: How many recent commits to scan for matching ``AGENT=`` tags.
@@ -21,13 +21,13 @@ def discover_agent_commits(
     workspace_dir: str,
     agent_name: str,
     *,
-    family_base: str | None = None,
+    agent_session_base: str | None = None,
     limit: int = _DISCOVERY_COMMIT_LIMIT,
 ) -> list[RevertCommit]:
     """Return commits tagged for *agent_name* (or its family), newest-first.
 
     Matches the exact ``AGENT=<name>`` tag line parsed from each commit
-    message. When *family_base* is set, any commit whose ``AGENT`` tag shares
+    message. When *agent_session_base* is set, any commit whose ``AGENT`` tag shares
     that family base also matches.
     """
     log = run_git(
@@ -41,7 +41,7 @@ def discover_agent_commits(
     for full_sha, short_sha, subject, body in _parse_log_records(log.stdout):
         tags = parse_trailing_commit_tags(body)
         agent_value = tags.get("AGENT")
-        if not agent_tag_matches(agent_value, agent_name, family_base):
+        if not agent_tag_matches(agent_value, agent_name, agent_session_base):
             continue
         commits.append(
             RevertCommit(
@@ -88,7 +88,7 @@ def discover_bulk_commits(
         matching = [
             t
             for t in targets
-            if agent_tag_matches(agent_value, t.agent_name, t.family_base)
+            if agent_tag_matches(agent_value, t.agent_name, t.agent_session_base)
         ]
         if not matching:
             continue
@@ -112,15 +112,15 @@ def discover_bulk_commits(
 def agent_tag_matches(
     tag_value: str | None,
     agent_name: str,
-    family_base: str | None,
+    agent_session_base: str | None,
 ) -> bool:
     if not tag_value:
         return False
     if tag_value == agent_name:
         return True
-    if family_base is not None:
-        tag_base = agent_family_base(tag_value) or tag_value
-        return tag_base == family_base
+    if agent_session_base is not None:
+        tag_base = plan_chain_session_base(tag_value) or tag_value
+        return tag_base == agent_session_base
     return False
 
 

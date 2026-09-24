@@ -259,7 +259,8 @@ def _source_kind(source: Mapping[str, object]) -> str:
 
 def _source_node_identities(source: Mapping[str, object]) -> list[str]:
     kind = _source_kind(source)
-    if kind == "family":
+    # legacy agent-family spelling: stored fork sources carry "family".
+    if kind in ("session", "family"):
         raw_members = source.get("members", [])
         if not isinstance(raw_members, list):
             return []

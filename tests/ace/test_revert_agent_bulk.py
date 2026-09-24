@@ -52,8 +52,8 @@ def test_bulk_preview_dedups_overlapping_family_matches(tmp_path: Path) -> None:
     # Both targets share family base "feat" so each matches both commits;
     # the combined set must still list each commit exactly once.
     targets = [
-        _target(repo, "feat--plan", family_base="feat"),
-        _target(repo, "feat--code", family_base="feat"),
+        _target(repo, "feat--plan", agent_session_base="feat"),
+        _target(repo, "feat--code", agent_session_base="feat"),
     ]
     preview = preview_agents_revert(targets)
 

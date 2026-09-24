@@ -72,8 +72,21 @@ def _identity_lines(continuation: Mapping[str, Any]) -> list[str]:
             "Workspace",
             _first(context, "agent_meta.workspace_dir", "SASE_ACTIVE_PROJECT_DIR"),
         ),
-        ("Family", _first(context, "agent_meta.agent_family")),
-        ("Family role", _first(context, "agent_meta.agent_family_role")),
+        # legacy agent-family spelling: pre-rename requester contexts carry
+        # ``agent_meta.agent_family*``; new writers emit only
+        # ``agent_meta.agent_session*``.
+        (
+            "Family",
+            _first(context, "agent_meta.agent_session", "agent_meta.agent_family"),
+        ),
+        (
+            "Family role",
+            _first(
+                context,
+                "agent_meta.agent_session_role",
+                "agent_meta.agent_family_role",
+            ),
+        ),
         ("Checkpoint", _clean(continuation.get("checkpoint"))),
     ]
     return [f"{label}: {value}" for label, value in rows if value]

@@ -12,7 +12,10 @@ SETTLEMENT_NOTIFICATION_SENDERS = frozenset({"epic-launch", "monitor-settlement"
 PENDING_GATE_REFRESH_ACTIONS = frozenset(
     {"PlanApproval", "EpicApproval", "UserQuestion"}
 )
+# legacy agent-family spelling: pre-rename notifications carry
+# ``family_root_suffix``; new writers emit only ``agent_session_root_suffix``.
 FAMILY_ROOT_SUFFIX_KEYS = (
+    "agent_session_root_suffix",
     "family_root_suffix",
     "family_root_raw_suffix",
     "agent_root_timestamp",

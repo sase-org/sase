@@ -97,7 +97,7 @@ def test_answered_axis_inherits_the_top_level_next() -> None:
     assert policy.branch_key == "a"
     assert policy.prompt == "continue after review"
     assert policy.output == ("results",)
-    assert policy.fork == "family"
+    assert policy.fork == "session"
 
 
 def test_branch_next_overrides_the_top_level_next() -> None:

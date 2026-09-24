@@ -80,7 +80,7 @@ def serialize_bulk_revert_preview(preview: Any) -> dict[str, Any]:
                 "agent_name": item.agent_name,
                 "artifacts_dir": item.artifacts_dir,
                 "display_name": item.display_name,
-                "family_base": item.family_base,
+                "agent_session_base": item.agent_session_base,
                 "workspace_dir": item.workspace_dir,
             }
             for item in preview.targets
@@ -159,11 +159,18 @@ def _repos_from_payload(raw: object, name: str) -> tuple[Any, ...]:
 
 
 def _single_preview_from_payload(preview: Mapping[str, Any], name: str) -> Any:
-    from sase.ace.revert_agent_models import RevertPreview
+    from sase.ace.revert_agent_models import (
+        LEGACY_REVERT_SCOPE,
+        RevertPreview,
+    )
 
+    raw_scope = str(preview.get("scope") or "agent")
+    # legacy agent-family spelling: queued pre-rename requests carry scope
+    # ``"family"``; normalize to ``"session"`` at the input boundary.
+    scope = "session" if raw_scope == LEGACY_REVERT_SCOPE else raw_scope
     return RevertPreview(
         agent_name=str(preview.get("agent_name") or name),
-        scope=str(preview.get("scope") or "agent"),
+        scope=scope,
         workspace_dir=str(preview.get("workspace_dir") or ""),
         commits=tuple(
             _commit_from_payload(item, name)
@@ -175,7 +182,11 @@ def _single_preview_from_payload(preview: Mapping[str, Any], name: str) -> Any:
 
 
 def _bulk_preview_from_payload(payload: Mapping[str, Any], name: str) -> Any:
-    from sase.ace.revert_agent_models import BulkRevertPreview, RevertTarget
+    from sase.ace.revert_agent_models import (
+        LEGACY_REVERT_SESSION_BASE_KEY,
+        BulkRevertPreview,
+        RevertTarget,
+    )
 
     targets = tuple(
         RevertTarget(
@@ -184,7 +195,12 @@ def _bulk_preview_from_payload(payload: Mapping[str, Any], name: str) -> Any:
                 item.get("display_name") or item.get("agent_name") or name
             ),
             workspace_dir=str(item.get("workspace_dir") or ""),
-            family_base=item.get("family_base"),
+            # legacy agent-family spelling: queued pre-rename requests carry
+            # ``"family_base"``; new writers emit only
+            # ``"agent_session_base"``.
+            agent_session_base=item.get("agent_session_base")
+            if item.get("agent_session_base") is not None
+            else item.get(LEGACY_REVERT_SESSION_BASE_KEY),
             artifacts_dir=item.get("artifacts_dir"),
         )
         for item in payload.get("targets") or []

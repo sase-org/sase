@@ -271,13 +271,18 @@ def _stamp_pending_shell_on_spec(
         action_data.setdefault("raw_suffix", member_timestamp)
     if member_artifacts_dir and "artifacts_dir" not in action_data:
         action_data["artifacts_dir"] = member_artifacts_dir
+    # legacy agent-family spelling: pre-rename notifications carry
+    # ``family_root_suffix``; new writers emit only
+    # ``agent_session_root_suffix``.
     root = (
-        action_data.get("family_root_suffix")
+        action_data.get("agent_session_root_suffix")
+        or action_data.get("family_root_suffix")
         or action_data.get("agent_root_timestamp")
         or action_data.get("agent_timestamp")
     )
     if isinstance(root, str) and root.strip():
-        action_data.setdefault("family_root_suffix", root.strip())
+        action_data.setdefault("agent_session_root_suffix", root.strip())
+    action_data.pop("family_root_suffix", None)
     spec.presentation["action_data"] = action_data
 
 

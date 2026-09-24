@@ -261,7 +261,7 @@ def test_finish_claims_pending_and_sends_one_folded_completion(tmp_path: Path) -
     assert kwargs["cl_name"] == "demo-cl"
     assert kwargs["action"] == "JumpToAgent"
     assert kwargs["action_data"]["raw_suffix"] == artifacts.name
-    assert kwargs["action_data"]["family_root_suffix"] == artifacts.name
+    assert kwargs["action_data"]["agent_session_root_suffix"] == artifacts.name
     assert kwargs["action_data"]["agent_root_timestamp"] == artifacts.name
     assert kwargs["notes"][0] == _payload().notes[0]
     assert "Epic sase-64 launched from epic.md" in kwargs["notes"]
@@ -307,7 +307,7 @@ def test_finish_under_monitor_defers_folded_completion_until_settlement(
     assert payload["cl_name"] == "demo-cl"
     assert "Epic sase-64 launched from epic.md" in payload["notes"]
     assert payload["action_data"]["raw_suffix"] == monitor.name
-    assert payload["action_data"]["family_root_suffix"] == artifacts.name
+    assert payload["action_data"]["agent_session_root_suffix"] == artifacts.name
     assert payload["action_data"]["agent_root_timestamp"] == artifacts.name
 
 
@@ -434,7 +434,7 @@ def test_finish_marks_early_settle_then_runner_sends_without_refolding(
     assert notify.call_args_list[0].kwargs["action_data"] == {
         "cl_name": "demo-cl",
         "raw_suffix": artifacts.name,
-        "family_root_suffix": artifacts.name,
+        "agent_session_root_suffix": artifacts.name,
         "agent_root_timestamp": artifacts.name,
     }
     completion = notify.call_args_list[1].kwargs
@@ -600,7 +600,7 @@ def test_sweep_retries_old_terminal_monitor_pending_without_unknown_rewrite() ->
     assert notification.sender == "user-agent"
     assert "Epic launch outcome is unknown." not in notification.notes
     assert notification.action_data["raw_suffix"] == monitor.name
-    assert notification.action_data["family_root_suffix"] == root.name
+    assert notification.action_data["agent_session_root_suffix"] == root.name
     assert notification.action_data["agent_root_timestamp"] == root.name
 
 

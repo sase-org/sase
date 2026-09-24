@@ -51,14 +51,14 @@ def _question_gate_shell_spec(
         "settled_status": "ANSWERED",
         "accent": "#FFAF00",
         "workspace": "inherit",
-        "next": {"fork": "family", "output": ["results"], "prompt": None},
+        "next": {"fork": "session", "output": ["results"], "prompt": None},
         "branches": {
             "submit": {
                 "status": "ANSWERED",
                 "accent": "#5FD7FF",
                 "prompt": declared_prompt,
                 "output": ["results"],
-                "fork": "family",
+                "fork": "session",
             },
             "timeout": {
                 "status": "QUESTION TIMED OUT",

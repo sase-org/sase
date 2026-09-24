@@ -85,7 +85,8 @@ class WaitDependencyForkQueries:
                 name,
                 exclude_artifact_dir=exclude_artifact_dir,
             )
-        if kind == "family":
+        # legacy agent-family spelling: stored fork sources carry "family".
+        if kind in ("session", "family"):
             candidate = index._identity_candidate(dependency)
             if candidate is not None:
                 family = index.family_candidate_for_root(

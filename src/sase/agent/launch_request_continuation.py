@@ -187,17 +187,22 @@ def _launch_targets_requester_family_lane(
 
 
 def _requester_family_identity(context: Mapping[str, str]) -> str | None:
-    family = context.get("agent_meta.agent_family")
-    if family:
-        return family
+    # legacy agent-family spelling: pre-rename requester contexts carry
+    # ``agent_meta.agent_family``; new writers emit only
+    # ``agent_meta.agent_session``.
+    session = context.get("agent_meta.agent_session") or context.get(
+        "agent_meta.agent_family"
+    )
+    if session:
+        return session
     name = context.get("agent_meta.name") or context.get("SASE_AGENT_NAME")
     if not name:
         return None
     try:
-        from sase.plan_chain import agent_family_base
+        from sase.plan_chain import agent_session_base
     except Exception:
         return name
-    return agent_family_base(name) or name
+    return agent_session_base(name) or name
 
 
 __all__ = [

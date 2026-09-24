@@ -215,7 +215,7 @@ def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "accent": "#00D7D7",
         "workspace": "inherit",
         "next": {
-            "fork": "family",
+            "fork": "session",
             "output": ["results"],
         },
         "branches": {

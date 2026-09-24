@@ -8,9 +8,16 @@ from pathlib import Path
 LoadChatForResume = Callable[..., str]
 
 
+# legacy agent-family spelling: pre-rename fork sources carry ``kind:
+# "family"``; new writers emit only ``"session"``.
+LEGACY_FORK_SOURCE_KIND = "family"
+
+
 def fork_source_kind(source: Mapping[str, object]) -> str:
     value = source.get("kind", "agent")
-    if value not in {"agent", "proc", "clan", "family"}:
+    if value == LEGACY_FORK_SOURCE_KIND:
+        return "session"
+    if value not in {"agent", "proc", "clan", "session"}:
         raise ValueError(f"Unsupported fork source kind: {value!r}")
     return str(value)
 
@@ -54,7 +61,8 @@ def fork_source_has_failure(source: Mapping[str, object]) -> bool:
     if source.get("kind") == "proc":
         proc = source.get("proc")
         return isinstance(proc, Mapping) and bool(proc.get("failed"))
-    if source.get("kind") != "family":
+    # legacy agent-family spelling: pre-rename sources carry "family".
+    if source.get("kind") not in ("session", LEGACY_FORK_SOURCE_KIND):
         return False
     raw_members = source.get("members")
     if not isinstance(raw_members, list):
@@ -69,7 +77,8 @@ def fork_source_has_proc_content(source: Mapping[str, object]) -> bool:
     """Return whether one top-level source itself is, or contains, a proc shell."""
     if source.get("kind") == "proc":
         return True
-    if source.get("kind") != "family":
+    # legacy agent-family spelling: pre-rename sources carry "family".
+    if source.get("kind") not in ("session", LEGACY_FORK_SOURCE_KIND):
         return False
     raw_members = source.get("members")
     if not isinstance(raw_members, list):

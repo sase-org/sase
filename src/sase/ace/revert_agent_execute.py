@@ -476,7 +476,7 @@ def _target_names_with_reverted_work(
                 if agent_tag_matches(
                     commit.agent_tag,
                     target.agent_name,
-                    target.family_base,
+                    target.agent_session_base,
                 ):
                     matched.add(target.agent_name)
     return ordered_matched_names(preview.targets, matched)

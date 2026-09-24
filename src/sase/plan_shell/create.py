@@ -35,7 +35,7 @@ def plan_gate_shell_block(tier: PlanGateTier) -> dict[str, Any]:
             "settled_status": "EPIC APPROVED",
             "accent": "#D787FF",
             "workspace": "inherit",
-            "next": {"fork": "family", "output": ["results"], "prompt": None},
+            "next": {"fork": "session", "output": ["results"], "prompt": None},
             "branches": {
                 "approve": {
                     "status": "EPIC APPROVED",
@@ -55,7 +55,7 @@ def plan_gate_shell_block(tier: PlanGateTier) -> dict[str, Any]:
         "settled_status": "TALE APPROVED",
         "accent": "#FF87AF",
         "workspace": "inherit",
-        "next": {"fork": "family", "output": ["results"], "prompt": None},
+        "next": {"fork": "session", "output": ["results"], "prompt": None},
         "branches": {
             "approve+commit": _coder_branch("TALE APPROVED", "#00D7D7"),
             "approve": _coder_branch("PLAN APPROVED", "#00D7AF"),
@@ -215,7 +215,7 @@ def _feedback_branch(accent: str) -> dict[str, Any]:
         "accent": accent,
         "prompt": "Revise the plan using the reviewer feedback.",
         "output": ["results"],
-        "fork": "family",
+        "fork": "session",
         "suffix": f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
         "role": "feedback",
         "raw_prompt": True,

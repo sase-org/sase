@@ -27,10 +27,10 @@ def preview_agent_revert(
     repos: Sequence[RevertRepo] | str | None,
     agent_name: str,
     *,
-    family_base: str | None = None,
+    agent_session_base: str | None = None,
 ) -> RevertPreview:
     """Discover per-repository commits to revert for one agent."""
-    scope = "family" if family_base else "agent"
+    scope = "session" if agent_session_base else "agent"
     repo_tuple = _coerce_revert_repos(repos)
     workspace_dir = _primary_workspace_dir(repo_tuple)
 
@@ -48,14 +48,16 @@ def preview_agent_revert(
         return _fail("No workspace directory for agent")
 
     plans = tuple(
-        _preview_agent_repo(repo, agent_name, family_base=family_base)
+        _preview_agent_repo(repo, agent_name, agent_session_base=agent_session_base)
         for repo in repo_tuple
     )
     commits = _flatten_revertable_commits(plans)
     if not any(plan.revertable for plan in plans):
         error = _preview_empty_error(
             plans,
-            f"family '{family_base}'" if family_base else f"agent '{agent_name}'",
+            f"family '{agent_session_base}'"
+            if agent_session_base
+            else f"agent '{agent_name}'",
         )
         return _fail(error, plans)
 
@@ -162,7 +164,7 @@ def _preview_agent_repo(
     repo: RevertRepo,
     agent_name: str,
     *,
-    family_base: str | None,
+    agent_session_base: str | None,
 ) -> RepoRevertPlan:
     if not repo.workspace_dir:
         return _blocked_repo_plan(repo, (), "No workspace directory")
@@ -180,7 +182,7 @@ def _preview_agent_repo(
         _discover_agent_commits(
             repo.workspace_dir,
             agent_name,
-            family_base=family_base,
+            agent_session_base=agent_session_base,
         )
     )
     blocked = _repo_blocked_reason(repo.workspace_dir, commits)

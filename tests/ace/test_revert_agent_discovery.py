@@ -51,7 +51,7 @@ def test_discover_family_matching(tmp_path: Path) -> None:
     _commit(repo, _msg("code", "feat--code"), {"c.txt": "c\n"})
     _commit(repo, _msg("other", "other--plan"), {"o.txt": "o\n"})
 
-    family = _discover_agent_commits(str(repo), "feat--plan", family_base="feat")
+    family = _discover_agent_commits(str(repo), "feat--plan", agent_session_base="feat")
     exact = _discover_agent_commits(str(repo), "feat--plan")
 
     assert {c.subject for c in family} == {"plan", "code"}
@@ -66,7 +66,7 @@ def test_discover_lane_tagged_commits_match_family_members(tmp_path: Path) -> No
     _commit(repo, _msg("legacy member", "feat--plan"), {"p.txt": "p\n"})
     _commit(repo, _msg("other lane", "other"), {"o.txt": "o\n"})
 
-    family = _discover_agent_commits(str(repo), "feat--code", family_base="feat")
+    family = _discover_agent_commits(str(repo), "feat--code", agent_session_base="feat")
 
     # Both the lane spelling and the legacy member spelling belong to the lane.
     assert {c.subject for c in family} == {"lane", "legacy member"}
@@ -84,8 +84,8 @@ def test_discover_bulk_dedupes_lane_commits_across_family_and_member(
     commits, matched = discover_bulk_commits(
         str(repo),
         (
-            _target(repo, "feat", family_base="feat"),
-            _target(repo, "feat--code", family_base="feat"),
+            _target(repo, "feat", agent_session_base="feat"),
+            _target(repo, "feat--code", agent_session_base="feat"),
         ),
     )
 

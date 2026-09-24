@@ -206,5 +206,5 @@ def test_settle_monitor_followup_publishes_deferred_epic_completion_after_done(
     action_data = calls[0]["action_data"]
     assert isinstance(action_data, dict)
     assert action_data["raw_suffix"] == Path(artifacts_dir).name
-    assert action_data["family_root_suffix"] == Path(root_dir).name
+    assert action_data["agent_session_root_suffix"] == Path(root_dir).name
     assert action_data["agent_root_timestamp"] == Path(root_dir).name

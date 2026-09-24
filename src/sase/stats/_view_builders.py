@@ -323,10 +323,14 @@ def build_runtime_view(
     group_rows = rows(run_payload, "runtime_groups")
     total_seconds = sum(number(row.get("total_seconds")) for row in group_rows)
     raw_group = text(run_payload.get("runtime_group_by"), "agent")
+    # legacy agent-family spelling: core returns ``"family"`` until
+    # core-contract; normalize to ``"session"`` at the read boundary.
+    if raw_group == "family":
+        raw_group = "session"
     valid_groups = {
         "tribe",
         "clan",
-        "family",
+        "session",
         "agent",
         "provider",
         "model",

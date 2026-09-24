@@ -448,7 +448,7 @@ def _print_shell(console: Console, shell: Mapping[str, Any]) -> None:
         else:
             output_text = str(output or "")
         followup = Text("      next: ", style="dim")
-        followup.append(str(next_policy.get("fork") or "family"))
+        followup.append(str(next_policy.get("fork") or "session"))
         if output_text:
             followup.append(f" · output {output_text}", style="dim")
         if next_policy.get("model"):

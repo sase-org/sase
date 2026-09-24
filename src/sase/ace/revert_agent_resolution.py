@@ -13,7 +13,7 @@ from sase.ace.revert_agent_models import BulkRevertIntent, RevertIntent, RevertR
 from sase.ace.tui.models._projected_record import resolve_linked_repos
 from sase.linked_repos import opened_external_repo_records
 from sase.plan_chain import (
-    agent_family_base,
+    agent_session_base as plan_chain_session_base,
     agent_session_value,
 )
 
@@ -131,12 +131,12 @@ def resolve_revert_repos_for_agents(
 def build_revert_intent(
     agent: Agent,
     agent_name: str,
-    family_base: str | None,
+    agent_session_base: str | None,
 ) -> RevertIntent:
     """Capture immutable single-agent revert intent from an agent row.
 
     The intent carries stable provenance (project, target scope, agent name,
-    family base, artifacts dir, and the suffix-linked repo names the run touched)
+    agent-session base, artifacts dir, and the suffix-linked repo names the run touched)
     so the backend can claim a fresh workspace instead of reusing the directory
     the agent originally ran in.
     """
@@ -146,7 +146,7 @@ def build_revert_intent(
         cl_name=agent.cl_name,
         agent_name=agent_name,
         is_project_scoped=agent.is_project_agent,
-        family_base=family_base,
+        agent_session_base=agent_session_base,
         artifacts_dir=agent.get_artifacts_dir(),
         linked_repo_names=_suffix_linked_repo_names(agent),
         external_artifact_dirs=_external_artifact_dirs_for_revert(
@@ -188,9 +188,9 @@ def build_revert_execute_intent(
 ) -> RevertIntent:
     """Rebuild single-agent revert intent for the execute phase.
 
-    Execute reverts the exact previewed SHAs, so the discovery-only family base
-    is irrelevant; the linked repos to re-prepare are exactly those that carried
-    a plan in the confirmed preview.
+    Execute reverts the exact previewed SHAs, so the discovery-only
+    agent-session base is irrelevant; the linked repos to re-prepare are exactly
+    those that carried a plan in the confirmed preview.
     """
     return RevertIntent(
         project_file=agent.project_file,
@@ -198,7 +198,7 @@ def build_revert_execute_intent(
         cl_name=agent.cl_name,
         agent_name=preview.agent_name,
         is_project_scoped=agent.is_project_agent,
-        family_base=None,
+        agent_session_base=None,
         artifacts_dir=artifacts_dir,
         linked_repo_names=_preview_linked_repo_names(preview),
         external_repos=_preview_external_repos(preview),
@@ -276,7 +276,7 @@ def _external_repos_for_revert(
     *,
     source_agent_name: str | None = None,
 ) -> tuple[RevertRepo, ...]:
-    """Return external repositories recorded in an agent-family's markers."""
+    """Return external repositories recorded in an agent session's markers."""
     return external_repos_from_artifact_dirs(
         _external_artifact_dirs_for_revert(
             agent,
@@ -366,18 +366,20 @@ def _union_external_artifact_dirs_for_revert(
     return tuple(artifact_dirs)
 
 
-def resolve_revert_family_base(agent: Agent, agent_name: str | None) -> str | None:
-    """Resolve the agent-family base for family-scoped reverts, if any.
+def resolve_revert_agent_session_base(
+    agent: Agent, agent_name: str | None
+) -> str | None:
+    """Resolve the agent-session base for session-scoped reverts, if any.
 
     Plan-chain rows carry an explicit ``agent_session``; otherwise the base is
-    inferred from a family-suffixed name. ``None`` means exact selected-agent
+    inferred from a session-suffixed name. ``None`` means exact selected-agent
     scope.
     """
-    family = agent_session_value(agent)
-    if isinstance(family, str) and family.strip():
-        return family.strip()
+    session = agent_session_value(agent)
+    if isinstance(session, str) and session.strip():
+        return session.strip()
     if agent_name:
-        return agent_family_base(agent_name)
+        return plan_chain_session_base(agent_name)
     return None
 
 
@@ -429,7 +431,7 @@ __all__ = [
     "build_revert_intent",
     "external_repos_from_artifact_dirs",
     "resolve_revert_agent_name",
-    "resolve_revert_family_base",
+    "resolve_revert_agent_session_base",
     "resolve_revert_repos",
     "resolve_revert_repos_for_agents",
     "resolve_revert_workspace_dir",

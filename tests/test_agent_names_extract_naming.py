@@ -474,7 +474,7 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["info"].wait_names == ["cx"]
         assert result["info"].wait_fork_sources == [
             {
-                "kind": "family",
+                "kind": "session",
                 "name": "cx",
                 "artifact_dir": str(root),
                 "timestamp": root.name,
@@ -505,7 +505,7 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["info"].wait_names == [base_name]
         assert result["info"].wait_fork_sources == [
             {
-                "kind": "family",
+                "kind": "session",
                 "name": base_name,
                 "artifact_dir": str(root),
                 "timestamp": root.name,

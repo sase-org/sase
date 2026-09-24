@@ -72,7 +72,7 @@ class AgentRevertMixin:
         from ....revert_agent import (
             build_revert_intent,
             resolve_revert_agent_name,
-            resolve_revert_family_base,
+            resolve_revert_agent_session_base,
             resolve_revert_workspace_dir,
         )
 
@@ -91,8 +91,8 @@ class AgentRevertMixin:
             )
             return
 
-        family_base = resolve_revert_family_base(agent, agent_name)
-        intent = build_revert_intent(agent, agent_name, family_base)
+        agent_session_base = resolve_revert_agent_session_base(agent, agent_name)
+        intent = build_revert_intent(agent, agent_name, agent_session_base)
         self._submit_revert_preview(agent, intent)
 
     def _submit_revert_preview(self, agent: Agent, intent: RevertIntent) -> None:
@@ -238,7 +238,7 @@ class AgentRevertMixin:
             RevertTarget,
             build_bulk_revert_intent,
             resolve_revert_agent_name,
-            resolve_revert_family_base,
+            resolve_revert_agent_session_base,
             resolve_revert_workspace_dir,
         )
 
@@ -257,13 +257,13 @@ class AgentRevertMixin:
             if dedup in seen:
                 continue
             seen.add(dedup)
-            family_base = resolve_revert_family_base(agent, agent_name)
+            agent_session_base = resolve_revert_agent_session_base(agent, agent_name)
             targets.append(
                 RevertTarget(
                     agent_name=agent_name,
                     display_name=agent.display_name,
                     workspace_dir=workspace_dir,
-                    family_base=family_base,
+                    agent_session_base=agent_session_base,
                     artifacts_dir=agent.get_artifacts_dir(),
                 )
             )

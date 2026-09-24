@@ -169,7 +169,7 @@ def test_dead_supervisor_reconciliation_publishes_deferred_epic_completion(
     assert notification.tags == ["done"]
     assert notification.action_data["cl_name"] == "acme"
     assert notification.action_data["raw_suffix"] == Path(monitor_dir).name
-    assert notification.action_data["family_root_suffix"] == Path(root_dir).name
+    assert notification.action_data["agent_session_root_suffix"] == Path(root_dir).name
     assert notification.action_data["agent_root_timestamp"] == Path(root_dir).name
 
     assert reconcile_dead_supervisors(project="proj") == []

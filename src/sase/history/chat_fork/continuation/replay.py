@@ -76,7 +76,7 @@ class _ReplayBuilder:
 
     def add_source(self, source: Mapping[str, object]) -> None:
         kind = fork_source_kind(source)
-        if kind == "family":
+        if kind == "session":
             self._add_family(source)
             return
         self._add_one(source, label=f"{kind} `{fork_source_string(source, 'name')}`")

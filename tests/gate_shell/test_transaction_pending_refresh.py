@@ -71,7 +71,7 @@ def test_create_gate_shell_stamps_action_data_and_pulses_after_member(
     assert action_data["artifacts_dir"] == str(planner_dir)
     assert action_data["agent_timestamp"] == "20260919072902"
     assert action_data["agent_root_timestamp"] == "20260919072902"
-    assert action_data["family_root_suffix"] == "20260919072902"
+    assert action_data["agent_session_root_suffix"] == "20260919072902"
 
 
 def test_failed_create_gate_does_not_pulse(

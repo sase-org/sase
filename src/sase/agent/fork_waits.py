@@ -25,7 +25,7 @@ def fork_wait_dependency(name: str) -> dict[str, str]:
     family = find_agent_family(name)
     if family is not None:
         dependency = {
-            "kind": "family",
+            "kind": "session",
             "name": family.base_name,
         }
         if family.root is not None:

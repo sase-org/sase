@@ -23,7 +23,10 @@ GATE_SHELL_STATUS_MAX_CHARS = 20
 GATE_SHELL_STATUS_ELLIPSIS = "\u2026"
 
 GATE_SHELL_WORKSPACES = frozenset({"inherit", "release"})
-GATE_SHELL_NEXT_FORKS = frozenset({"family", "shell", "none"})
+GATE_SHELL_NEXT_FORKS = frozenset({"session", "shell", "none"})
+# legacy agent-family spelling: gate-spec input and pre-rename bundles carry
+# ``"family"``; new writers emit only ``"session"``.
+LEGACY_GATE_SHELL_NEXT_FORK = "family"
 GATE_SHELL_NEXT_OUTPUTS = frozenset({"none", "results", "tail", "file"})
 GATE_SHELL_RESERVED_BRANCHES = frozenset({"timeout", "stopped", "failed"})
 SUBSET_BRANCH_GATE_KINDS = frozenset({"epic_plan", "plan"})
@@ -51,7 +54,7 @@ class GateShellNext:
 
     prompt: str | None = None
     output: tuple[str, ...] = ("results",)
-    fork: str = "family"
+    fork: str = "session"
     model: str | None = None
     suffix: str | None = None
     role: str | None = None
@@ -88,11 +91,15 @@ class GateShellNext:
         role = _optional_role(data.get("role", base.role), f"{target}.role")
         raw_prompt = _raw_prompt(data.get("raw_prompt", base.raw_prompt), target)
         fork = data.get("fork", base.fork)
+        # legacy agent-family spelling: gate-spec input and pre-rename bundles
+        # carry ``"family"``; normalize to ``"session"`` at the input boundary.
+        if fork == LEGACY_GATE_SHELL_NEXT_FORK:
+            fork = "session"
         if fork not in GATE_SHELL_NEXT_FORKS:
             raise GateError(
                 "invalid_shell",
                 f"{target}.fork",
-                "next.fork must be family, shell, or none",
+                "next.fork must be session, shell, or none",
             )
         output = _next_output(data.get("output", list(base.output)), f"{target}.output")
         return cls(
@@ -148,7 +155,7 @@ class GateShellBranchSpec:
     accent: str | None = None
     prompt: str | None = None
     output: tuple[str, ...] = ("results",)
-    fork: str = "family"
+    fork: str = "session"
     model: str | None = None
     suffix: str | None = None
     role: str | None = None

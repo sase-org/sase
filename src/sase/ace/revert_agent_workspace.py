@@ -88,7 +88,7 @@ def preview_agent_revert_intent(intent: RevertIntent) -> RevertPreview:
         preview = preview_agent_revert(
             prepared.repos,
             intent.agent_name,
-            family_base=intent.family_base,
+            agent_session_base=intent.agent_session_base,
         )
         return _attach_prep_blocked(preview, prepared)
 

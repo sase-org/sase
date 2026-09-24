@@ -33,8 +33,12 @@ def monitor_settlement_payload(
         or optional_str(data.get("cl_name"))
     )
     monitor_suffix = artifact_timestamp(monitor_artifacts_dir)
+    # legacy agent-family spelling: pre-rename notifications carry
+    # ``family_root_suffix``; new writers emit only
+    # ``agent_session_root_suffix``.
     root_suffix = (
-        optional_str(data.get("family_root_suffix"))
+        optional_str(data.get("agent_session_root_suffix"))
+        or optional_str(data.get("family_root_suffix"))
         or optional_str(data.get("agent_root_timestamp"))
         or artifact_timestamp(root_artifacts_dir)
         or optional_str(data.get("raw_suffix"))
@@ -44,8 +48,9 @@ def monitor_settlement_payload(
     if monitor_suffix:
         data["raw_suffix"] = monitor_suffix
     if root_suffix:
-        data["family_root_suffix"] = root_suffix
+        data["agent_session_root_suffix"] = root_suffix
         data["agent_root_timestamp"] = root_suffix
+    data.pop("family_root_suffix", None)
     return replace(
         payload, cl_name=monitor_cl_name or payload.cl_name, action_data=data
     )

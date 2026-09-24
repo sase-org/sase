@@ -65,13 +65,13 @@ def _target(
     repo: Path,
     name: str,
     *,
-    family_base: str | None = None,
+    agent_session_base: str | None = None,
     artifacts: str | None = None,
 ) -> RevertTarget:
     return RevertTarget(
         agent_name=name,
         display_name=name,
         workspace_dir=str(repo),
-        family_base=family_base,
+        agent_session_base=agent_session_base,
         artifacts_dir=artifacts,
     )

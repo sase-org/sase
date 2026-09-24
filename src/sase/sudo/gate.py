@@ -88,7 +88,7 @@ def build_sudo_gate_request(
             "pending_status": "SUDO",
             "settled_status": "SUDOED",
             "accent": "#FFAF5F",
-            "next": {"prompt": next_prompt, "output": ["results"], "fork": "family"},
+            "next": {"prompt": next_prompt, "output": ["results"], "fork": "session"},
             "branches": {
                 "approve": {"status": "SUDOED", "accent": "#00D787"},
                 "deny": {

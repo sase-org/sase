@@ -41,12 +41,19 @@ def settlement_notification_action_data(
     raw_suffix = data.get("raw_suffix") or artifact_timestamp(artifacts_dir)
     if raw_suffix:
         data.setdefault("raw_suffix", raw_suffix)
+    # legacy agent-family spelling: pre-rename notifications carry
+    # ``family_root_suffix``; new writers emit only
+    # ``agent_session_root_suffix``.
     root_suffix = (
-        data.get("family_root_suffix") or data.get("agent_root_timestamp") or raw_suffix
+        data.get("agent_session_root_suffix")
+        or data.get("family_root_suffix")
+        or data.get("agent_root_timestamp")
+        or raw_suffix
     )
     if root_suffix:
-        data.setdefault("family_root_suffix", root_suffix)
+        data.setdefault("agent_session_root_suffix", root_suffix)
         data.setdefault("agent_root_timestamp", root_suffix)
+    data.pop("family_root_suffix", None)
     return data
 
 
