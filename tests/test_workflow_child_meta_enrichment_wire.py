@@ -46,8 +46,8 @@ def test_workflow_child_enrichment_derives_planner_identity_only_for_main_agent(
 ):
     meta = AgentMetaWire(
         name="ap5",
-        agent_family="ap5",
-        agent_family_role="root",
+        agent_session="ap5",
+        agent_session_role="root",
         plan_chain_root=True,
         role_suffix="-plan",
         model="gpt-test",
@@ -82,8 +82,8 @@ def test_workflow_child_enrichment_derives_planner_identity_only_for_main_agent(
 def test_workflow_child_enrichment_uses_generic_root_suffix() -> None:
     meta = AgentMetaWire(
         name="ap5",
-        agent_family="ap5",
-        agent_family_role="root",
+        agent_session="ap5",
+        agent_session_role="root",
         plan_chain_root=True,
         role_suffix="--0",
     )

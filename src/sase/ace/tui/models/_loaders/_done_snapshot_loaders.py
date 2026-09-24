@@ -158,7 +158,7 @@ def build_done_agent_from_record(
     )
     apply_imported_source_owner(agent, done.imported_source_owner)
     apply_archive_source_machine(agent, done.source_machine)
-    done_shell = done.family_shell
+    done_shell = done.agent_session_shell
     done_monitor_shell = (
         done_shell if done_shell is not None and done_shell.kind == "monitor" else None
     )

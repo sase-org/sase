@@ -8,8 +8,8 @@ from pathlib import Path
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
     DoneMarkerWire,
-    FamilyShellMonitorWire,
-    FamilyShellWire,
+    AgentSessionShellMonitorWire,
+    AgentSessionShellWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
@@ -32,8 +32,8 @@ def test_entry_maps_metadata_and_pending_question_to_stopped_bucket() -> None:
                 tribe="sase-26",
                 bead_id="sase-26.1",
                 changespec_name="sase-123",
-                agent_family="alpha",
-                agent_family_role="code",
+                agent_session="alpha",
+                agent_session_role="code",
                 parent_agent_name="planner",
                 output_variables={"PLAN": "plans/foo.md"},
             ),
@@ -174,22 +174,22 @@ def test_record_status_bucket_uses_marker_override_for_custom_label() -> None:
 def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
     artifact_record = record(
         agent_meta=AgentMetaWire(
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="monitor",
                 id="m123",
                 state="timeout",
                 label="sleep",
                 stop_status="SLEPT",
-                monitor=FamilyShellMonitorWire(command="sleep 60"),
+                monitor=AgentSessionShellMonitorWire(command="sleep 60"),
             ),
             status_bucket="Running",
-            agent_family_role="monitor",
+            agent_session_role="monitor",
             role_suffix="--mon",
         ),
         has_done_marker=True,
         done=DoneMarkerWire(
             outcome="monitored",
-            family_shell=FamilyShellWire(kind="monitor", state="timeout"),
+            agent_session_shell=AgentSessionShellWire(kind="monitor", state="timeout"),
             status_label="SLEPT",
             status_bucket="Running",
         ),

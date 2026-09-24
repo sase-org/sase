@@ -29,8 +29,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
-    FamilyShellGateWire,
-    FamilyShellWire,
+    AgentSessionShellGateWire,
+    AgentSessionShellWire,
 )
 
 
@@ -52,7 +52,7 @@ def test_settling_gate_meta_projects_start_label_and_bucket() -> None:
         agent,
         AgentMetaWire(
             name="alpha--gate",
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="gate",
                 id="g123",
                 state="settling",
@@ -61,11 +61,11 @@ def test_settling_gate_meta_projects_start_label_and_bucket() -> None:
                 label="Approve deploy",
                 reason="Release needs confirmation",
                 timeout_seconds=120.0,
-                gate=FamilyShellGateWire(kind="approval", accent="#0BCDEC"),
+                gate=AgentSessionShellGateWire(kind="approval", accent="#0BCDEC"),
             ),
             run_started_at="2026-08-12T13:00:00Z",
-            agent_family="alpha",
-            agent_family_role="gate",
+            agent_session="alpha",
+            agent_session_role="gate",
             role_suffix="--gate",
         ),
         waiting=None,
@@ -87,16 +87,16 @@ def test_gate_starter_keeps_reference_without_gate_row_semantics() -> None:
         agent,
         AgentMetaWire(
             name="alpha--0",
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="gate",
                 id="g123",
                 state="pending",
                 start_status="APPROVE",
                 stop_status="APPROVED",
-                gate=FamilyShellGateWire(kind="approval"),
+                gate=AgentSessionShellGateWire(kind="approval"),
             ),
-            agent_family="alpha",
-            agent_family_role="root",
+            agent_session="alpha",
+            agent_session_role="root",
             role_suffix="--0",
             stopped_at="2026-08-12T13:03:00Z",
         ),
@@ -223,25 +223,25 @@ def test_terminal_gate_done_projects_stop_label_and_followup_fields() -> None:
                 timestamp="20260812090000",
                 agent_meta=AgentMetaWire(
                     name="alpha--gate",
-                    family_shell=FamilyShellWire(
+                    agent_session_shell=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="settling",
                         start_status="APPROVE",
                         stop_status="APPROVED",
-                        gate=FamilyShellGateWire(kind="approval"),
+                        gate=AgentSessionShellGateWire(kind="approval"),
                     ),
                     run_started_at="2026-08-12T13:00:00Z",
                     stopped_at="2026-08-12T13:03:00Z",
-                    agent_family="alpha",
-                    agent_family_role="gate",
+                    agent_session="alpha",
+                    agent_session_role="gate",
                     role_suffix="--gate",
                 ),
                 done=DoneMarkerWire(
                     outcome="gated",
                     cl_name="gate-row",
                     project_file="/tmp/.sase/projects/sase/sase.sase",
-                    family_shell=FamilyShellWire(
+                    agent_session_shell=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="failed",
@@ -252,7 +252,7 @@ def test_terminal_gate_done_projects_stop_label_and_followup_fields() -> None:
                         followup_error="no branch selected",
                         followup_degraded_reason="workspace unavailable",
                         followup_prompt_path="/tmp/followup.md",
-                        gate=FamilyShellGateWire(
+                        gate=AgentSessionShellGateWire(
                             kind="approval",
                             bundle_path="/tmp/gate-bundle",
                             notification_id="n123",
@@ -332,16 +332,16 @@ def _enrich_gate_member(
         agent,
         AgentMetaWire(
             name="alpha--gate",
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="gate",
                 id="g123",
                 state=state,
                 start_status=start_status,
                 stop_status=stop_status,
-                gate=FamilyShellGateWire(kind=kind),
+                gate=AgentSessionShellGateWire(kind=kind),
             ),
-            agent_family="alpha",
-            agent_family_role="gate",
+            agent_session="alpha",
+            agent_session_role="gate",
             role_suffix="--gate",
         ),
         waiting=None,
@@ -431,29 +431,29 @@ def test_done_marker_answered_tale_approved_buckets_running() -> None:
                 timestamp="20260812090000",
                 agent_meta=AgentMetaWire(
                     name="alpha--gate",
-                    family_shell=FamilyShellWire(
+                    agent_session_shell=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="settling",
                         start_status="TALE",
                         stop_status="TALE APPROVED",
-                        gate=FamilyShellGateWire(kind="approval"),
+                        gate=AgentSessionShellGateWire(kind="approval"),
                     ),
                     run_started_at="2026-08-12T13:00:00Z",
                     stopped_at="2026-08-12T13:03:00Z",
-                    agent_family="alpha",
-                    agent_family_role="gate",
+                    agent_session="alpha",
+                    agent_session_role="gate",
                     role_suffix="--gate",
                 ),
                 done=DoneMarkerWire(
                     outcome="gated",
                     cl_name="gate-row",
                     project_file="/tmp/.sase/projects/sase/sase.sase",
-                    family_shell=FamilyShellWire(
+                    agent_session_shell=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="answered",
-                        gate=FamilyShellGateWire(kind="approval"),
+                        gate=AgentSessionShellGateWire(kind="approval"),
                     ),
                     status_label="TALE APPROVED",
                 ),

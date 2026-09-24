@@ -40,7 +40,10 @@ def normalize_remote_host_nodes(summary_pairs: list[_SummaryPair]) -> list[Agent
 
 def _is_history_or_nested(summary: Mapping[str, Any]) -> bool:
     kind = optional_str(summary.get("row_kind"))
+    # legacy agent-family spelling: older owner hosts emit ``family_role`` /
+    # ``agent_family_role``; new writers emit ``agent_session_role``.
     role = optional_str(
+        summary.get("agent_session_role"),
         summary.get("family_role"),
         summary.get("agent_family_role"),
     )
@@ -67,14 +70,18 @@ def _summary_owner_lineage_keys(summary: Mapping[str, Any]) -> tuple[str, ...]:
         summary.get("agent_timestamp"),
         summary.get("logical_key"),
         summary.get("exact_key"),
+        summary.get("agent_session_id"),
         summary.get("family_id"),
         summary.get("agent_id"),
         summary.get("agent_name"),
+        labels.get("session_label"),
         labels.get("family_label"),
         labels.get("agent_label"),
         logical_locator.get("agent_id"),
+        logical_locator.get("agent_session_id"),
         logical_locator.get("family_id"),
         nested_logical.get("agent_id"),
+        nested_logical.get("agent_session_id"),
         nested_logical.get("family_id"),
         exact_locator.get("run_id"),
         exact_locator.get("shell_id"),
@@ -233,8 +240,11 @@ def _family_identity_keys(summary: Mapping[str, Any], agent: Agent) -> tuple[str
     keys = (
         agent.agent_family,
         agent.agent_name,
+        labels.get("session_label"),
         labels.get("family_label"),
+        logical_locator.get("agent_session_id"),
         logical_locator.get("family_id"),
+        summary.get("agent_session_id"),
         summary.get("family_id"),
     )
     seen: set[str] = set()
@@ -251,6 +261,7 @@ def _family_identity_keys(summary: Mapping[str, Any], agent: Agent) -> tuple[str
 def _is_owner_presented_root(summary: Mapping[str, Any], agent: Agent) -> bool:
     kind = optional_str(summary.get("row_kind"), agent.fleet_row_kind)
     role = optional_str(
+        summary.get("agent_session_role"),
         summary.get("family_role"),
         summary.get("agent_family_role"),
         agent.agent_family_role,

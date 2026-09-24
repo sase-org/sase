@@ -14,7 +14,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
+from sase.core.agent_scan_wire_agent_session_shell import (
+    agent_session_shell_from_mapping,
+)
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
@@ -135,7 +137,7 @@ def _effective_shell_outcome(
     fallback_state_field: str,
     success_states: frozenset[str],
 ) -> str:
-    shell = family_shell_from_mapping(done_data)
+    shell = agent_session_shell_from_mapping(done_data)
     if shell is not None:
         shell_state = shell.state if shell.kind == expected_kind else None
     else:

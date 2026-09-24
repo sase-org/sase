@@ -26,7 +26,7 @@ from .follow_store import (
     FollowStoreError,
     activate_dispatch_follow,
     prewrite_dispatch_follow,
-    promote_family_follow,
+    promote_agent_session_follow,
 )
 from .launch_intent import (
     update_dispatch_launch_intent,
@@ -422,7 +422,9 @@ def _provisional_follow_locator(
             "project_id": str(project_id),
         },
         "agent_id": agent_id,
-        "family_id": None,
+        # New spelling; core accepts ``agent_session_id`` as an alias of the
+        # legacy ``family_id`` locator key.
+        "agent_session_id": None,
     }
 
 
@@ -446,8 +448,12 @@ def _activate_receipt_follow(
     logical = receipt.get("logical_locator")
     if not isinstance(logical, Mapping):
         return
-    if dict(logical) != dict(provisional_locator) and logical.get("family_id"):
-        promote_family_follow(provisional_locator, logical)
+    # legacy agent-family spelling: core emits ``family_id`` until core-contract;
+    # new writers send ``session_id``.
+    if dict(logical) != dict(provisional_locator) and (
+        logical.get("session_id") or logical.get("family_id")
+    ):
+        promote_agent_session_follow(provisional_locator, logical)
     activate_dispatch_follow(logical, operation_key=operation_key)
 
 

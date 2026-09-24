@@ -90,7 +90,7 @@ class AgentCleanupTargetWire:
     start_time: str | None = None
     stop_time: str | None = None
     is_workflow_child: bool = False
-    agent_family_parallel: bool = False
+    agent_session_parallel: bool = False
     appears_as_agent: bool = False
     step_type: str | None = None
     monitor_id: str | None = None
@@ -297,7 +297,12 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
         start_time=None if data.get("start_time") is None else str(data["start_time"]),
         stop_time=None if data.get("stop_time") is None else str(data["stop_time"]),
         is_workflow_child=bool(data.get("is_workflow_child", False)),
-        agent_family_parallel=bool(data.get("agent_family_parallel", False)),
+        # legacy agent-family spelling: pre-rename dicts carry
+        # ``agent_family_parallel``; new writers emit only
+        # ``agent_session_parallel``.
+        agent_session_parallel=bool(
+            data.get("agent_session_parallel", data.get("agent_family_parallel", False))
+        ),
         appears_as_agent=bool(data.get("appears_as_agent", False)),
         step_type=None if data.get("step_type") is None else str(data["step_type"]),
         monitor_id=(

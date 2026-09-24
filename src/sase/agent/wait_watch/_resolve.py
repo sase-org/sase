@@ -15,7 +15,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
-    agent_family_base,
+    agent_session_base,
     agent_session_value,
 )
 
@@ -61,7 +61,7 @@ def load_wait_caller_from_env(
         return WaitCaller(artifact_dir=str(artifact_dir))
     name = _string_value(data.get("name"))
     workflow_name = _string_value(data.get("workflow_name"))
-    family_name = _string_value(agent_session_value(data)) or _family_from_name(name)
+    family_name = _string_value(agent_session_value(data)) or _session_from_name(name)
     clan_name = _string_value(data.get("agent_clan"))
     return WaitCaller(
         artifact_dir=str(artifact_dir),
@@ -194,7 +194,7 @@ def _caller_excludes_record(
         return True
     if caller.family_name is None:
         return False
-    base = _record_family_base(record) or _family_from_name(record_name(record))
+    base = _record_session_base(record) or _session_from_name(record_name(record))
     return base is not None and _same_name(base, caller.family_name)
 
 
@@ -226,17 +226,17 @@ def _record_clan_identity(
     return meta.agent_clan, generation
 
 
-def _record_family_base(record: AgentArtifactRecordWire) -> str | None:
+def _record_session_base(record: AgentArtifactRecordWire) -> str | None:
     meta = record.agent_meta
     if meta is None:
         return None
-    if meta.agent_family:
-        return meta.agent_family
+    if meta.agent_session:
+        return meta.agent_session
     if meta.name:
-        base = agent_family_base(meta.name)
+        base = agent_session_base(meta.name)
         if base:
             return base
-    if meta.workflow_name and (meta.plan_chain_root or meta.agent_family_role):
+    if meta.workflow_name and (meta.plan_chain_root or meta.agent_session_role):
         return meta.workflow_name
     return None
 
@@ -345,7 +345,7 @@ def _target_for_live_record(
             kind=WaitTargetKind.CLAN,
             clan_generation=identity[1],
         )
-    if (base := _record_family_base(record)) is not None:
+    if (base := _record_session_base(record)) is not None:
         root_timestamp = _family_root_timestamp_for_record(records, base, record)
         return WaitTarget(
             raw_name=base,
@@ -400,7 +400,7 @@ def _family_generation_records(
     members = [
         record
         for record in records
-        if (base := _record_family_base(record)) is not None
+        if (base := _record_session_base(record)) is not None
         and _name_key(base) == family_key
     ]
     if not members:
@@ -563,7 +563,7 @@ def _same_path(left: str | None, right: str | None) -> bool:
     ).expanduser().resolve(strict=False)
 
 
-def _family_from_name(name: str | None) -> str | None:
+def _session_from_name(name: str | None) -> str | None:
     if not name or AGENT_FAMILY_SEPARATOR not in name:
         return None
     base, _, _suffix = name.partition(AGENT_FAMILY_SEPARATOR)

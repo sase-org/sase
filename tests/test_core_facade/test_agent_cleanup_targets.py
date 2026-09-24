@@ -42,7 +42,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     assert target.from_patch is False
     assert target.tribe == "triage"
     assert target.agent_name == "friendly"
-    assert target.agent_family_parallel is True
+    assert target.agent_session_parallel is True
     assert target.agent_clan == "research"
     assert target.agent_clan_generation == "20260430090000"
     assert target.display_name == "convert"

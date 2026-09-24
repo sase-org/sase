@@ -337,7 +337,7 @@ def _family_records(
     matches: list[AgentArtifactRecordWire] = []
     for record in records:
         meta = record.agent_meta
-        if meta is None or meta.agent_family != family:
+        if meta is None or meta.agent_session != family:
             continue
         matches.append(record)
     return matches

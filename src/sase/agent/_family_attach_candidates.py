@@ -144,11 +144,11 @@ def artifacts_timestamp_from_launch_timestamp(timestamp: str) -> str:
 
 def family_base(record: Any, parent_name: str) -> str:
     meta = record.agent_meta
-    if meta is not None and meta.agent_family:
-        return meta.agent_family
-    from sase.plan_chain import agent_family_base
+    if meta is not None and meta.agent_session:
+        return meta.agent_session
+    from sase.plan_chain import agent_session_base
 
-    return agent_family_base(parent_name) or parent_name
+    return agent_session_base(parent_name) or parent_name
 
 
 def known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
@@ -161,8 +161,8 @@ def known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
         if meta is None:
             continue
         if (
-            meta.agent_family
-            and current_owner_agent_name_key(meta.agent_family) != parent_key
+            meta.agent_session
+            and current_owner_agent_name_key(meta.agent_session) != parent_key
         ):
             continue
         if meta.role_suffix:
@@ -230,7 +230,7 @@ def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
         for record in records
         if record.agent_meta is not None
         and (
-            _key_matches(record.agent_meta.agent_family, parent_key)
+            _key_matches(record.agent_meta.agent_session, parent_key)
             or _key_matches(record.agent_meta.workflow_name, parent_key)
             or _key_matches(record.agent_meta.name, parent_key)
         )

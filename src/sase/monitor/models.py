@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     from sase.core.agent_scan_wire import (
         AgentArtifactRecordWire,
         AgentMetaWire,
+        AgentSessionShellWire,
         DoneMarkerWire,
-        FamilyShellWire,
     )
 
 MonitorState = Literal["running", "completed", "failed", "timeout", "stopped", "lost"]
@@ -66,19 +66,19 @@ class MonitorRefError(ValueError):
 
 def _monitor_shell(
     source: AgentMetaWire | DoneMarkerWire | None,
-) -> FamilyShellWire | None:
-    shell = None if source is None else source.family_shell
+) -> AgentSessionShellWire | None:
+    shell = None if source is None else source.agent_session_shell
     return shell if shell is not None and shell.kind == "monitor" else None
 
 
 def is_monitor_member_record(record: AgentArtifactRecordWire) -> bool:
-    """Return whether *record* is a real monitor family member.
+    """Return whether *record* is a real monitor agent-session member.
 
-    A row that merely claims ``agent_family_role="monitor"`` but has no
+    A row that merely claims ``agent_session_role="monitor"`` but has no
     durable ``monitor_id`` is a historical false positive, not a monitor.
     """
     meta = record.agent_meta
-    if meta is None or meta.agent_family_role != "monitor":
+    if meta is None or meta.agent_session_role != "monitor":
         return False
     shell = _monitor_shell(meta)
     return shell is not None and bool(shell.id)
@@ -86,7 +86,7 @@ def is_monitor_member_record(record: AgentArtifactRecordWire) -> bool:
 
 @dataclass(frozen=True)
 class MonitorRecord:
-    """Projection of one monitor family member's durable record."""
+    """Projection of one monitor agent-session member's durable record."""
 
     monitor_id: str
     member_agent_name: str
@@ -240,7 +240,7 @@ class MonitorRecord:
         return cls(
             monitor_id=meta_shell.id,
             member_agent_name=meta.name or "",
-            lane=meta.agent_family or "",
+            lane=meta.agent_session or "",
             project_name=record.project_name,
             artifacts_dir=record.artifact_dir,
             timestamp=record.timestamp,

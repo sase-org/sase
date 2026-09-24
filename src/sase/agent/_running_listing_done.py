@@ -132,8 +132,8 @@ def done_info_from_record(
             declared_clan_tribe=(meta.clan_tribe if meta is not None else None),
             context=context,
         ),
-        agent_family=meta.agent_family if meta is not None else None,
-        agent_family_role=meta.agent_family_role if meta is not None else None,
+        agent_family=meta.agent_session if meta is not None else None,
+        agent_family_role=meta.agent_session_role if meta is not None else None,
         role_suffix=meta.role_suffix if meta is not None else None,
         monitor_id=monitor_shell_field(meta, "id"),
         monitor_state=monitor_shell_field(done, "state")

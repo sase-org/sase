@@ -89,7 +89,8 @@ def test_current_armer_wire_uses_agent_metadata_when_artifacts_dir_set(
     assert armer["display"] == "worker.a--code"
     assert armer["project"] == "proj"
     assert armer["agent_name"] == "worker.a--code"
-    assert armer["family"] == "worker.a"
+    assert armer["session"] == "worker.a"
+    assert "family" not in armer
     assert armer["clan"] == "builders"
     assert armer["pid"] == 4242
     assert armer["done_marker_path"] == str(artifacts_dir / "done.json")

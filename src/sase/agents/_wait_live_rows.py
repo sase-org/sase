@@ -25,8 +25,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanWire,
     AgentMetaWire,
+    AgentSessionShellWire,
     DoneMarkerWire,
-    FamilyShellWire,
 )
 from sase.core.runner_slots import (
     live_runner_slot_waiters,
@@ -488,20 +488,20 @@ def _model_label(meta: AgentMetaWire | None, done: DoneMarkerWire | None) -> str
 def _is_monitor(meta: AgentMetaWire | None) -> bool:
     if meta is None:
         return False
-    return is_monitor_member_role(meta.agent_family_role, meta.role_suffix)
+    return is_monitor_member_role(meta.agent_session_role, meta.role_suffix)
 
 
 def _monitor_shell(
     source: AgentMetaWire | DoneMarkerWire | None,
-) -> FamilyShellWire | None:
-    shell = None if source is None else source.family_shell
+) -> AgentSessionShellWire | None:
+    shell = None if source is None else source.agent_session_shell
     return shell if shell is not None and shell.kind == "monitor" else None
 
 
 def _monitor_shared(
     source: AgentMetaWire | DoneMarkerWire | None, attr: str
 ) -> str | None:
-    """Read a shared ``family_shell`` field, only for a monitor shell."""
+    """Read a shared ``agent_session_shell`` field, only for a monitor shell."""
     shell = _monitor_shell(source)
     value = getattr(shell, attr, None) if shell is not None else None
     return value if isinstance(value, str) else None

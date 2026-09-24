@@ -134,8 +134,8 @@ class AgentArtifactIndexQueryWire:
     completed visible rows.
 
     Attributes:
-        only_monitors: Restrict results to monitor family members
-            (``agent_meta.agent_family_role == "monitor"``), so
+        only_monitors: Restrict results to monitor agent-session members
+            (``agent_meta.agent_session_role == "monitor"``), so
             ``sase monitor list`` can ask the index directly instead of
             scanning and filtering every record in Python.
         agents_list_projection: When True, the index hydrates only records

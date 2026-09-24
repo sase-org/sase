@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.plan_chain import (
-    agent_family_base,
+    agent_session_base,
     agent_session_value,
 )
 from sase.workspace_provider import resolve_workspace_owner_for_path
@@ -91,7 +91,7 @@ def resolve_lane_start(
         from sase.agent._family_promotion import promote_agent_to_family
 
         promoted_name = promote_agent_to_family(selected.artifact_dir, identity.target)
-        durable_lane = agent_family_base(promoted_name) or identity.target
+        durable_lane = agent_session_base(promoted_name) or identity.target
         raw_meta = read_start_meta(selected.artifact_dir)
 
     workspace_dir = raw_meta.get("workspace_dir")

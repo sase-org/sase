@@ -175,11 +175,11 @@ def test_agent_meta_output_variables_round_trip() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
-    assert record.agent_meta.agent_family_parallel is True
+    assert record.agent_meta.agent_session_parallel is True
     assert record.agent_meta.agent_clan == "legacy_clan"
     assert record.agent_meta.clan_summary == "[bold]Research[/bold]"
-    assert record.agent_meta.agent_family is None
-    assert record.agent_meta.agent_family_role is None
+    assert record.agent_meta.agent_session is None
+    assert record.agent_meta.agent_session_role is None
     assert record.agent_meta.output_variables == {
         "attempts": 2,
         "duration_s": 42.5,
@@ -202,12 +202,12 @@ def test_agent_meta_output_variables_round_trip() -> None:
         }
     ]
     payload = agent_scan_wire_to_json_dict(snapshot)
-    assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
+    assert payload["records"][0]["agent_meta"]["agent_session_parallel"] is True
     assert payload["records"][0]["agent_meta"]["agent_clan"] == "legacy_clan"
     assert payload["records"][0]["agent_meta"]["clan_summary"] == (
         "[bold]Research[/bold]"
     )
-    assert payload["records"][0]["agent_meta"]["agent_family"] is None
+    assert payload["records"][0]["agent_meta"]["agent_session"] is None
     assert payload["records"][0]["agent_meta"]["linked_repos"] == [
         {
             "name": "sase-core",
@@ -228,7 +228,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
         "status": "ok",
         "suites": ["unit", "integration"],
     }
-    assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
+    assert payload["records"][0]["agent_meta"]["agent_session_parallel"] is True
     assert payload["records"][0]["agent_meta"]["output_path"] == "/tmp/producer.log"
 
 
@@ -241,9 +241,9 @@ def test_agent_meta_clan_field_order_matches_rust_wire() -> None:
         "agent_clan_generation",
         "clan_tribe",
         "clan_summary",
-        "agent_family",
-        "agent_family_role",
-        "agent_family_parallel",
+        "agent_session",
+        "agent_session_role",
+        "agent_session_parallel",
     ]
 
 
@@ -252,14 +252,14 @@ def test_explicit_agent_clan_preserves_sequential_family_fields() -> None:
         agent_clan="alpha",
         agent_clan_generation="g1",
         clan_tribe="quality",
-        agent_family="alpha.family",
-        agent_family_role="code",
+        agent_session="alpha.family",
+        agent_session_role="code",
     )
     assert meta.agent_clan == "alpha"
     assert meta.agent_clan_generation == "g1"
     assert meta.clan_tribe == "quality"
-    assert meta.agent_family == "alpha.family"
-    assert meta.agent_family_role == "code"
+    assert meta.agent_session == "alpha.family"
+    assert meta.agent_session_role == "code"
 
 
 def test_agent_meta_imported_source_owner_round_trips() -> None:
@@ -382,8 +382,8 @@ def test_scan_wire_rehydration_does_not_mutate_source_payload() -> None:
     assert record.agent_meta.queue_capacity == 2
     assert record.agent_meta.queue_capacity_explicit is True
     assert record.agent_meta.agent_clan == "clan-a"
-    assert record.agent_meta.agent_family is None
-    assert record.agent_meta.agent_family_role is None
+    assert record.agent_meta.agent_session is None
+    assert record.agent_meta.agent_session_role is None
     assert record.agent_meta.plan_committed is None
     assert record.done is not None
     assert record.done.patch_name == "patch-b"

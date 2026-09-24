@@ -210,8 +210,8 @@ def _record_done_outcome(record: AgentArtifactRecordWire) -> str | None:
     if record.done is None:
         return None
     done_data: dict[str, object] = {"outcome": record.done.outcome}
-    if record.done.family_shell is not None:
-        done_data[AGENT_SESSION_SHELL_KEY] = asdict(record.done.family_shell)
+    if record.done.agent_session_shell is not None:
+        done_data[AGENT_SESSION_SHELL_KEY] = asdict(record.done.agent_session_shell)
     return effective_done_outcome(done_data)
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    FamilyShellWire,
+    AgentSessionShellWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
@@ -42,11 +42,11 @@ def _record(
         agent_meta=AgentMetaWire(
             pid=pid,
             parent_timestamp=parent_timestamp,
-            agent_family=agent_family,
-            agent_family_role=agent_family_role,
-            agent_family_parallel=agent_family_parallel,
-            family_shell=(
-                FamilyShellWire(kind="monitor", id=monitor_id)
+            agent_session=agent_family,
+            agent_session_role=agent_family_role,
+            agent_session_parallel=agent_family_parallel,
+            agent_session_shell=(
+                AgentSessionShellWire(kind="monitor", id=monitor_id)
                 if monitor_id is not None
                 else None
             ),

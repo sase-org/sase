@@ -267,15 +267,14 @@ def _dataclass_field_names(cls: type[Any]) -> frozenset[str]:
     return names
 
 
-def with_legacy_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
-    """Backfill legacy agent-family wire keys from new agent-session spellings.
+def with_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Backfill new agent-session wire keys from legacy agent-family spellings.
 
-    Temporary wire-cutover bridge: Python writers already emit only the
-    ``agent_session*`` keys, but ``AgentMetaWire`` / ``DoneMarkerWire`` still
-    declare the legacy field names until the wire-mirrors phase renames them.
-    A present legacy spelling stays authoritative for those fields; new
-    spellings backfill only absent legacy keys, and pre-rename files pass
-    through unchanged. Wire-mirrors removes this helper when the fields rename.
+    Wire-cutover reader bridge: ``AgentMetaWire`` / ``DoneMarkerWire`` declare
+    only the ``agent_session*`` fields, but pre-rename marker files still
+    carry the ``agent_family*`` / ``family_shell`` keys. A present new
+    spelling stays authoritative for those fields; legacy spellings backfill
+    only absent new keys, and new-shape files pass through unchanged.
     """
     from sase.plan_chain import (
         AGENT_SESSION_KEY,
@@ -294,12 +293,12 @@ def with_legacy_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
         (AGENT_SESSION_PARALLEL_KEY, LEGACY_AGENT_FAMILY_PARALLEL_KEY),
         (AGENT_SESSION_SHELL_KEY, LEGACY_AGENT_FAMILY_SHELL_KEY),
     )
-    if not any(key in data for key, _ in pairs):
+    if not any(key in data for _, key in pairs):
         return dict(data)
     bridged = dict(data)
     for new_key, legacy_key in pairs:
-        if legacy_key not in bridged and bridged.get(new_key) is not None:
-            bridged[legacy_key] = bridged[new_key]
+        if new_key not in bridged and bridged.get(legacy_key) is not None:
+            bridged[new_key] = bridged[legacy_key]
     return bridged
 
 

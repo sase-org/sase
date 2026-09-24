@@ -378,7 +378,7 @@ def test_start_monitor_serializes_concurrent_starts_in_one_lane(
                 record = record_from_disk(meta_path.parent)
                 if only_monitors and (
                     record.agent_meta is None
-                    or record.agent_meta.agent_family_role != "monitor"
+                    or record.agent_meta.agent_session_role != "monitor"
                 ):
                     continue
                 records.append(record)

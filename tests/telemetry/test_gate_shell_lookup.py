@@ -10,8 +10,8 @@ import sase.gate_shell.store as gate_store
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    FamilyShellGateWire,
-    FamilyShellWire,
+    AgentSessionShellGateWire,
+    AgentSessionShellWire,
 )
 from tests.telemetry.conftest import init_enabled, sample
 
@@ -26,13 +26,13 @@ def _gate_wire(path: str) -> AgentArtifactRecordWire:
         timestamp="20260812120000",
         agent_meta=AgentMetaWire(
             name=Path(path).name,
-            agent_family="lane",
-            agent_family_role="gate",
-            family_shell=FamilyShellWire(
+            agent_session="lane",
+            agent_session_role="gate",
+            agent_session_shell=AgentSessionShellWire(
                 kind="gate",
                 id="gate-1",
                 state="pending",
-                gate=FamilyShellGateWire(kind="custom"),
+                gate=AgentSessionShellGateWire(kind="custom"),
             ),
         ),
     )

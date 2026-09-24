@@ -18,7 +18,7 @@ from sase.dispatch.follow_store import (
     FollowStoreError,
     FollowStoreSnapshot,
     load_follow_snapshot,
-    promote_family_follow,
+    promote_agent_session_follow,
 )
 
 from ...models.fleet_agents import FleetRowsProjection
@@ -91,5 +91,5 @@ __all__ = [
     "build_federation_facade",
     "load_federation_config",
     "load_follow_snapshot",
-    "promote_family_follow",
+    "promote_agent_session_follow",
 ]

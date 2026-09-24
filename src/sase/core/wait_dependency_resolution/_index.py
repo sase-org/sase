@@ -27,11 +27,11 @@ from sase.core.agent_tribe import (
 )
 
 from ._artifact_state import (
+    agent_session_base_from_meta,
     artifact_failed_for_identity,
     artifact_is_resolved,
     artifact_succeeded_for_identity,
     done_outcome_from_data,
-    family_base_from_meta,
     shell_followup_handoff_agent,
     shell_member_kind_for_meta,
 )
@@ -277,7 +277,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             )
 
         workflow_name = meta.get("workflow_name")
-        family_name = family_base_from_meta(meta)
+        family_name = agent_session_base_from_meta(meta)
         parent_timestamp = (
             meta.get("parent_timestamp")
             if isinstance(meta.get("parent_timestamp"), str)
@@ -285,13 +285,15 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         )
         clan_name = meta.get("agent_clan")
         if not isinstance(clan_name, str) or not clan_name:
-            legacy_family = agent_session_value(meta)
+            # legacy agent-family spelling: pre-rename metas carry
+            # ``agent_family``; ``agent_session_value`` reads the new key first.
+            session_name = agent_session_value(meta)
             if (
                 agent_session_parallel_value(meta) is True
-                and isinstance(legacy_family, str)
-                and legacy_family
+                and isinstance(session_name, str)
+                and session_name
             ):
-                clan_name = legacy_family
+                clan_name = session_name
         if not isinstance(clan_name, str) or not clan_name:
             clan_name = None
         generation: str | None = None

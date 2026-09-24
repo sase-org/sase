@@ -16,8 +16,8 @@ from sase.core.agent_scan_wire import (
     AgentClanContextWire,
     AgentMetaWire,
     DoneMarkerWire,
-    FamilyShellMonitorWire,
-    FamilyShellWire,
+    AgentSessionShellMonitorWire,
+    AgentSessionShellWire,
     WaitingMarkerWire,
 )
 from sase.integrations.agent_list_entries import (
@@ -304,18 +304,18 @@ def test_agent_list_includes_live_monitor_family_child(
             name="alpha--mon",
             pid=1234,
             parent_timestamp="20260812085900",
-            agent_family="alpha",
-            agent_family_role="monitor",
+            agent_session="alpha",
+            agent_session_role="monitor",
             role_suffix="--mon",
             run_started_at="2026-08-12T13:00:00Z",
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="monitor",
                 id="m123",
                 state="running",
                 label="just check",
                 start_status="TESTING",
                 stop_status="TESTED",
-                monitor=FamilyShellMonitorWire(command="just check-full"),
+                monitor=AgentSessionShellMonitorWire(command="just check-full"),
             ),
         )
     )
@@ -363,27 +363,27 @@ def test_agent_list_includes_terminal_monitor_family_child() -> None:
         agent_meta=AgentMetaWire(
             name="alpha--mon",
             parent_timestamp="20260812085900",
-            agent_family="alpha",
-            agent_family_role="monitor",
+            agent_session="alpha",
+            agent_session_role="monitor",
             role_suffix="--mon",
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="monitor",
                 id="m123",
                 state="timeout",
                 label="just check",
                 start_status="TESTING",
                 stop_status="TESTED",
-                monitor=FamilyShellMonitorWire(command="just check-full"),
+                monitor=AgentSessionShellMonitorWire(command="just check-full"),
             ),
             status_bucket="Running",
         ),
         has_done_marker=True,
         done=DoneMarkerWire(
             outcome="monitored",
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="monitor",
                 state="timeout",
-                monitor=FamilyShellMonitorWire(exit_code=124),
+                monitor=AgentSessionShellMonitorWire(exit_code=124),
             ),
             status_label="TESTED",
             status_bucket="Running",
@@ -421,10 +421,10 @@ def test_agent_list_monitor_starter_with_monitor_id_buckets_by_done_status() -> 
     artifact_record = record(
         agent_meta=AgentMetaWire(
             name="alpha--0",
-            agent_family="alpha",
-            agent_family_role="root",
+            agent_session="alpha",
+            agent_session_role="root",
             role_suffix="--0",
-            family_shell=FamilyShellWire(kind="monitor", id="m123"),
+            agent_session_shell=AgentSessionShellWire(kind="monitor", id="m123"),
         ),
         has_done_marker=True,
         done=DoneMarkerWire(outcome="completed"),
@@ -453,10 +453,10 @@ def test_agent_list_monitored_outcome_starter_buckets_as_terminal_agent() -> Non
     artifact_record = record(
         agent_meta=AgentMetaWire(
             name="alpha--0",
-            agent_family="alpha",
-            agent_family_role="root",
+            agent_session="alpha",
+            agent_session_role="root",
             role_suffix="--0",
-            family_shell=FamilyShellWire(kind="monitor", id="m123"),
+            agent_session_shell=AgentSessionShellWire(kind="monitor", id="m123"),
         ),
         has_done_marker=True,
         done=DoneMarkerWire(outcome="monitored", status_bucket="Done"),

@@ -98,7 +98,7 @@ class GateShellRecord:
     def from_record(cls, record: AgentArtifactRecordWire) -> GateShellRecord:
         """Build a gate-shell record from an agent-artifact scan row."""
         meta = record.agent_meta
-        shell = meta.family_shell if meta is not None else None
+        shell = meta.agent_session_shell if meta is not None else None
         if meta is None or shell is None or shell.kind != "gate" or not shell.id:
             raise ValueError(
                 f"artifact record at {record.artifact_dir!r} is not a gate member"
@@ -110,7 +110,7 @@ class GateShellRecord:
         return cls(
             gate_id=shell.id,
             member_agent_name=meta.name or "",
-            lane=meta.agent_family or "",
+            lane=meta.agent_session or "",
             project_name=record.project_name,
             artifacts_dir=record.artifact_dir,
             timestamp=record.timestamp,
@@ -150,13 +150,13 @@ class GateShellRecord:
 
 
 def is_gate_shell_member_record(record: AgentArtifactRecordWire) -> bool:
-    """Return whether ``record`` is a real gate-shell family member."""
+    """Return whether ``record`` is a real gate-shell agent-session member."""
     meta = record.agent_meta
     if meta is None:
         return False
-    shell = meta.family_shell
+    shell = meta.agent_session_shell
     gate_id = shell.id if shell is not None and shell.kind == "gate" else None
-    return is_real_gate_member(meta.agent_family_role, gate_id)
+    return is_real_gate_member(meta.agent_session_role, gate_id)
 
 
 __all__ = [

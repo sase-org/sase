@@ -26,16 +26,16 @@ from sase.agent.status_buckets import (
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
+    AgentSessionShellWire,
     DoneMarkerWire,
-    FamilyShellWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
-    family_shell_from_mapping,
+    agent_session_shell_from_mapping,
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.core.time import get_timezone
-from sase.core.wire import with_legacy_agent_session_keys
+from sase.core.wire import with_agent_session_keys
 from sase.sdd.plan_tiers import cached_plan_tier
 from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
 from sase.monitor_status import (
@@ -204,8 +204,8 @@ def build_agent_list_entry(
                 record.workflow_state if record is not None else None, "workflow_name"
             ),
         ),
-        agent_family=_text(meta, "agent_family"),
-        agent_family_role=_text(meta, "agent_family_role"),
+        agent_family=_text(meta, "agent_session"),
+        agent_family_role=_text(meta, "agent_session_role"),
         role_suffix=_text(meta, "role_suffix"),
         parent_agent_name=_text(meta, "parent_agent_name"),
         plan=bool(_bool(meta, "plan")),
@@ -313,7 +313,7 @@ def _derive_status(
 
 def _is_monitor(meta: AgentMetaWire | None, done: DoneMarkerWire | None) -> bool:
     if meta is None or not is_monitor_member_role(
-        meta.agent_family_role,
+        meta.agent_session_role,
         meta.role_suffix,
     ):
         return False
@@ -560,10 +560,12 @@ def _read_meta(artifacts_dir: str | None) -> AgentMetaWire | None:
     if data is not None:
         canonicalize_patch_metadata(data)
         data = canonicalize_agent_tribe_metadata(dict(data))
-        data["family_shell"] = family_shell_from_mapping(data)
+        # legacy agent-family spelling: pre-rename marker files carry
+        # ``agent_family*`` / ``family_shell`` keys.
+        data["agent_session_shell"] = agent_session_shell_from_mapping(data)
     return _wire_from_dict(
         AgentMetaWire,
-        with_legacy_agent_session_keys(data) if data is not None else None,
+        with_agent_session_keys(data) if data is not None else None,
     )
 
 
@@ -583,10 +585,10 @@ def _read_done(artifacts_dir: str | None) -> DoneMarkerWire | None:
     data = _read_json_dict(artifacts_dir, "done.json")
     if data is not None:
         canonicalize_patch_metadata(data)
-        data["family_shell"] = family_shell_from_mapping(data)
+        data["agent_session_shell"] = agent_session_shell_from_mapping(data)
     return _wire_from_dict(
         DoneMarkerWire,
-        with_legacy_agent_session_keys(data) if data is not None else None,
+        with_agent_session_keys(data) if data is not None else None,
     )
 
 
@@ -630,15 +632,15 @@ def _workflow_traceback(record: AgentArtifactRecordWire | None) -> str | None:
 
 def _monitor_shell(
     source: AgentMetaWire | DoneMarkerWire | None,
-) -> FamilyShellWire | None:
-    shell = source.family_shell if source is not None else None
+) -> AgentSessionShellWire | None:
+    shell = source.agent_session_shell if source is not None else None
     return shell if shell is not None and shell.kind == "monitor" else None
 
 
 def _monitor_str(
     source: AgentMetaWire | DoneMarkerWire | None, attr: str
 ) -> str | None:
-    """Read a shared ``family_shell`` string field, only for a monitor shell."""
+    """Read a shared ``agent_session_shell`` string field, only for a monitor shell."""
     return _text(_monitor_shell(source), attr)
 
 

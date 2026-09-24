@@ -212,7 +212,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
         effective_clan_attributes,
     )
     from sase.core.agent_tribe import load_raw_agent_tribes
-    from sase.plan_chain import agent_family_base
+    from sase.plan_chain import agent_session_base
 
     statuses = {
         agent.artifacts_dir: agent.status
@@ -230,10 +230,10 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
         if not name:
             continue
 
-        family = (meta.agent_family or "").strip() or agent_family_base(name)
+        family = (meta.agent_session or "").strip() or agent_session_base(name)
         clan = (meta.agent_clan or "").strip() or None
-        if clan is None and meta.agent_family_parallel and meta.agent_family:
-            clan = meta.agent_family
+        if clan is None and meta.agent_session_parallel and meta.agent_session:
+            clan = meta.agent_session
         generation = None
         if clan is not None:
             generation = (
@@ -281,7 +281,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 tribe=persisted_tribe or ((meta.tribe or "").strip() or None),
                 status=statuses.get(record.artifact_dir) or _record_status(record),
                 is_monitor=is_monitor_member_role(
-                    meta.agent_family_role,
+                    meta.agent_session_role,
                     meta.role_suffix,
                 ),
             )
@@ -312,7 +312,7 @@ def _record_status(record: Any) -> str:
     if record.has_done_marker and done is not None:
         if done.outcome == "monitored":
             meta = record.agent_meta
-            meta_shell = meta.family_shell if meta is not None else None
+            meta_shell = meta.agent_session_shell if meta is not None else None
             monitor_stop_status = (
                 meta_shell.stop_status
                 if meta_shell is not None and meta_shell.kind == "monitor"

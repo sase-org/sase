@@ -3,7 +3,7 @@
 There is no dedicated monitor store: everything here is a query over the
 existing agent artifact index (the same one that backs the Agents tab and
 ``sase agent`` listing), filtered to monitor family members
-(``agent_meta.agent_family_role == "monitor"``).
+(``agent_meta.agent_session_role == "monitor"``).
 """
 
 from __future__ import annotations
@@ -25,10 +25,12 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
+from sase.core.agent_scan_wire_agent_session_shell import (
+    agent_session_shell_from_mapping,
+)
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
-from sase.core.wire import known_field_kwargs, with_legacy_agent_session_keys
+from sase.core.wire import known_field_kwargs, with_agent_session_keys
 from sase.procs.models import ProcStoreSnapshot
 
 from .identity import supervisor_is_alive
@@ -116,16 +118,16 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
         return None
     raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
 
-    meta_kwargs = known_field_kwargs(
-        AgentMetaWire, with_legacy_agent_session_keys(raw_meta)
-    )
-    meta_kwargs["family_shell"] = family_shell_from_mapping(raw_meta)
+    meta_kwargs = known_field_kwargs(AgentMetaWire, with_agent_session_keys(raw_meta))
+    # legacy agent-family spelling: pre-rename marker files carry
+    # ``agent_family*`` / ``family_shell`` keys.
+    meta_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_meta)
     done_kwargs = None
     if raw_done is not None:
         done_kwargs = known_field_kwargs(
-            DoneMarkerWire, with_legacy_agent_session_keys(raw_done)
+            DoneMarkerWire, with_agent_session_keys(raw_done)
         )
-        done_kwargs["family_shell"] = family_shell_from_mapping(raw_done)
+        done_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_done)
     record = AgentArtifactRecordWire(
         project_name=project_name,
         project_dir="",

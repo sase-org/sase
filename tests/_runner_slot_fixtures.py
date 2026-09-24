@@ -11,7 +11,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
-    family_shell_from_mapping,
+    agent_session_shell_from_mapping,
 )
 from sase.plan_chain import (
     agent_session_parallel_value,
@@ -53,16 +53,16 @@ def record(
                 if isinstance(meta.get("process_identity"), str)
                 else None
             ),
-            agent_family=agent_session_value(meta),
-            agent_family_role=agent_session_role_value(meta),
-            agent_family_parallel=bool(agent_session_parallel_value(meta)),
+            agent_session=agent_session_value(meta),
+            agent_session_role=agent_session_role_value(meta),
+            agent_session_parallel=bool(agent_session_parallel_value(meta)),
             parent_timestamp=meta.get("parent_timestamp"),
             runner_claim_owner_key=(
                 meta["runner_claim_owner_key"]
                 if isinstance(meta.get("runner_claim_owner_key"), str)
                 else None
             ),
-            family_shell=family_shell_from_mapping(meta),
+            agent_session_shell=agent_session_shell_from_mapping(meta),
             wait_priority=meta_wait_priority,
             queue_capacity=(
                 meta["queue_capacity"]

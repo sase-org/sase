@@ -6,7 +6,10 @@ from ._admission import (
     live_runner_slot_waiters,
     running_agent_slot_count,
 )
-from ._admission_capacity_records import runner_slot_candidate_record
+from ._admission_capacity_records import (
+    capacity_session_keys_for_core,
+    runner_slot_candidate_record,
+)
 from ._admission_lock import runner_slot_admission_lock, runner_slot_lock_path
 from ._admission_ordering import (
     deference_satisfied,
@@ -17,12 +20,12 @@ from ._admission_ordering import (
 )
 from ._admission_predicates import (
     better_priority_agent_pending,
-    group_records_by_runner_slot_family,
+    group_records_by_runner_slot_agent_session,
     is_real_gate_member_record,
     is_root_user_agent_record,
     is_runner_slot_occupying_record,
     is_runner_slot_user_agent_record,
-    runner_slot_family_key,
+    runner_slot_agent_session_key,
 )
 from ._admission_snapshot import (
     runner_capacity_snapshot,
@@ -48,7 +51,7 @@ __all__ = [
     "better_priority_agent_pending",
     "deference_satisfied",
     "deference_window_seconds",
-    "group_records_by_runner_slot_family",
+    "group_records_by_runner_slot_agent_session",
     "is_root_user_agent_record",
     "is_real_gate_member_record",
     "is_runner_slot_occupying_record",
@@ -60,8 +63,9 @@ __all__ = [
     "runner_capacity_snapshot",
     "runner_capacity_snapshot_from_capacity_records",
     "runner_slot_admission_lock",
+    "capacity_session_keys_for_core",
     "runner_slot_candidate_record",
-    "runner_slot_family_key",
+    "runner_slot_agent_session_key",
     "runner_slot_lock_path",
     "runner_slot_queue_display_key",
     "runner_slot_state_token",

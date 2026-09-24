@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_hold_liveness import (
-    FamilyIndexCache,
-    agent_family_settled,
+    AgentSessionIndexCache,
+    agent_session_settled,
     liveness_facts_for_holds,
     proc_identity_and_terminal,
 )
@@ -56,6 +56,7 @@ from sase.core.agent_hold_types import (
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.paths import sase_home
+from sase.plan_chain import agent_session_value
 from sase.core.rust import require_rust_binding
 from sase.procs.models import Proc
 
@@ -201,12 +202,12 @@ def reconcile_agent_holds_for_artifact(
     records: Sequence[AgentArtifactRecordWire] | None = None,
     now: datetime | float | None = None,
 ) -> int:
-    """Release agent-authored holds whose recorded family generation settled."""
+    """Release agent-authored holds whose recorded agent-session generation settled."""
     target_dir = str(Path(artifacts_dir))
     released = 0
     try:
         holds = validated_holds(list_holds({}, now=now))
-        index_cache = FamilyIndexCache(records or (), allow_scans=records is None)
+        index_cache = AgentSessionIndexCache(records or (), allow_scans=records is None)
         for hold in holds:
             armer = mapping_payload(hold.get("armer"))
             if armer.get("kind") != "agent":
@@ -218,7 +219,7 @@ def reconcile_agent_holds_for_artifact(
             if root_dir != target_dir:
                 continue
             project = armer.get("project")
-            if isinstance(project, str) and agent_family_settled(
+            if isinstance(project, str) and agent_session_settled(
                 root_dir,
                 project,
                 index_cache,
@@ -269,7 +270,9 @@ def agent_armer_wire_for_artifacts(
     pid = meta.get("pid")
     if not isinstance(pid, int):
         pid = pid_fallback
-    family = meta.get("agent_family")
+    # legacy agent-family spelling: pre-rename agent_meta.json files carry
+    # ``agent_family``; ``agent_session_value`` reads the new key first.
+    session = agent_session_value(meta)
     clan = meta.get("agent_clan")
     return {
         "kind": "agent",
@@ -277,7 +280,9 @@ def agent_armer_wire_for_artifacts(
         "display": name,
         "project": _project_for_artifacts_dir(artifacts_dir),
         "agent_name": name,
-        "family": family if isinstance(family, str) and family else None,
+        # Hold payload key ``session`` (core accepts it as an alias of the
+        # legacy ``family`` key).
+        "session": session if isinstance(session, str) and session else None,
         "clan": clan if isinstance(clan, str) and clan else None,
         "pid": pid,
         "done_marker_path": str(Path(artifacts_dir) / "done.json"),

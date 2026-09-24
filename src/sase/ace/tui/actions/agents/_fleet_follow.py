@@ -8,7 +8,7 @@ from typing import Any
 from sase.dispatch.follow_store import (
     FollowStoreSnapshot,
     load_follow_snapshot,
-    promote_family_follow,
+    promote_agent_session_follow,
 )
 
 from ...models.fleet_agents import fleet_followed_batch_agent_session_promotions
@@ -45,7 +45,9 @@ def reconcile_followed_batch_agent_session_promotions(
     )
     if not promotions:
         return snapshot
-    promote = fleet_public_override("promote_family_follow", promote_family_follow)
+    promote = fleet_public_override(
+        "promote_agent_session_follow", promote_agent_session_follow
+    )
     current = snapshot
     for promotion in promotions:
         source = promotion.get("from")

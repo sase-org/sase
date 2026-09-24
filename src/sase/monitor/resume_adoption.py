@@ -363,9 +363,9 @@ def _receiver_process_alive(ctx: Any) -> bool:
     if meta is None or getattr(meta, "pid", None) is None:
         return False
     identity = None
-    family_shell = getattr(meta, "family_shell", None)
-    if family_shell is not None:
-        identity = getattr(family_shell, "supervisor_identity", None)
+    agent_session_shell = getattr(meta, "agent_session_shell", None)
+    if agent_session_shell is not None:
+        identity = getattr(agent_session_shell, "supervisor_identity", None)
     return supervisor_is_alive(meta.pid, identity)
 
 

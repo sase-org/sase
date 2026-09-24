@@ -55,7 +55,7 @@ def _record(
             name=name,
             pid=pid,
             process_identity=process_identity_token(pid) if pid is not None else None,
-            agent_family=family,
+            agent_session=family,
             workflow_name=family,
         ),
         done=DoneMarkerWire(outcome=outcome) if outcome is not None else None,

@@ -13,7 +13,7 @@ from sase.core.agent_scan_facade import rebuild_agent_artifact_index
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    FamilyShellWire,
+    AgentSessionShellWire,
     PendingQuestionMarkerWire,
     WorkflowStateWire,
 )
@@ -118,11 +118,11 @@ def _record_as_of(shell: _Shell, instant: int) -> AgentArtifactRecordWire:
         agent_meta=AgentMetaWire(
             pid=shell.pid,
             parent_timestamp=shell.parent,
-            agent_family=shell.family,
-            agent_family_role=shell.role,
-            agent_family_parallel=shell.parallel,
-            family_shell=(
-                FamilyShellWire(kind="monitor", id=shell.monitor_id)
+            agent_session=shell.family,
+            agent_session_role=shell.role,
+            agent_session_parallel=shell.parallel,
+            agent_session_shell=(
+                AgentSessionShellWire(kind="monitor", id=shell.monitor_id)
                 if shell.monitor_id is not None
                 else None
             ),

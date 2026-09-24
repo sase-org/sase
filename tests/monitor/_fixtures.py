@@ -19,10 +19,12 @@ from pathlib import Path
 import pytest
 
 from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
-from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
+from sase.core.agent_scan_wire_agent_session_shell import (
+    agent_session_shell_from_mapping,
+)
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
-from sase.core.wire import known_field_kwargs, with_legacy_agent_session_keys
+from sase.core.wire import known_field_kwargs, with_agent_session_keys
 from sase.running_field import WorkspaceClaim
 
 DEAD_PID = 99_999_999
@@ -164,8 +166,8 @@ def wait_for_path(path: Path, *, timeout: float = POLL_TIMEOUT) -> None:
 
 
 def _load[WireT](path: Path, cls: type[WireT]) -> WireT:
-    data = with_legacy_agent_session_keys(json.loads(path.read_text(encoding="utf-8")))
+    data = with_agent_session_keys(json.loads(path.read_text(encoding="utf-8")))
     kwargs = known_field_kwargs(cls, data)
     if cls in (AgentMetaWire, DoneMarkerWire):
-        kwargs["family_shell"] = family_shell_from_mapping(data)
+        kwargs["agent_session_shell"] = agent_session_shell_from_mapping(data)
     return cls(**kwargs)

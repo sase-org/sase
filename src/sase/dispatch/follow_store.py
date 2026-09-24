@@ -192,20 +192,20 @@ def activate_dispatch_follow(
         return _finish_mutation(store_path, payload, reconciled)
 
 
-def promote_family_follow(
+def promote_agent_session_follow(
     singleton_locator: Mapping[str, Any],
-    family_locator: Mapping[str, Any],
+    agent_session_locator: Mapping[str, Any],
     *,
     now_unix: float | None = None,
     path: Path | None = None,
 ) -> _FollowStoreMutationOutcome:
-    """Promote a singleton follow to the durable family identity."""
+    """Promote a singleton follow to the durable agent-session identity."""
     store_path = path or _follow_store_path()
     now = _now(now_unix)
     promotion = {
         "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
         "from": _copy_mapping(singleton_locator),
-        "to": _copy_mapping(family_locator),
+        "to": _copy_mapping(agent_session_locator),
     }
     with _store_lock(store_path):
         payload = _read_store_unlocked(store_path)
@@ -499,5 +499,5 @@ __all__ = [
     "activate_dispatch_follow",
     "load_follow_snapshot",
     "prewrite_dispatch_follow",
-    "promote_family_follow",
+    "promote_agent_session_follow",
 ]

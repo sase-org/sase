@@ -36,7 +36,7 @@ from sase.notification_gates.model_request import GateSpec
 from sase.notification_gates.model_results import GateCreationResult
 from sase.notification_gates.service import create_gate
 from sase.plan_chain import (
-    agent_family_base,
+    agent_session_base,
     agent_session_value,
 )
 from sase.workflows.utils import get_project_file_path
@@ -356,7 +356,7 @@ def _resolve_creator(project_name: str) -> _CreatorContext:
     target_name = str(raw_meta.get("name") or caller)
     if not durable_lane:
         promoted_name = promote_agent_to_family(ctx.record.artifact_dir, target_name)
-        durable_lane = agent_family_base(promoted_name) or target_name
+        durable_lane = agent_session_base(promoted_name) or target_name
         raw_meta = _read_meta(ctx.record.artifact_dir)
     workspace_num = _optional_int(raw_meta.get("workspace_num"))
     runner_pid = _optional_int(raw_meta.get("pid"))

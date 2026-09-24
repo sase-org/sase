@@ -24,7 +24,10 @@ from sase.axe.run_agent_wait_slot_state import (
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
-from sase.core.runner_slots import notify_runner_slot_state_changed
+from sase.core.runner_slots import (
+    capacity_session_keys_for_core,
+    notify_runner_slot_state_changed,
+)
 from sase.plan_chain import (
     agent_session_value,
 )
@@ -190,11 +193,13 @@ def _hold_deadlock_candidate_wire(
         for value in (meta.tribe, meta.clan_tribe):
             if isinstance(value, str) and value and value not in tribe_values:
                 tribe_values.append(value)
-    family = agent_session_value(payload)
-    if not isinstance(family, str) or not family:
-        family = payload.get("family")
-    if not isinstance(family, str) or not family:
-        family = None if meta is None else meta.agent_family
+    # legacy agent-family spelling: pre-rename payloads carry ``family``;
+    # ``agent_session_value`` reads the new key first.
+    session = agent_session_value(payload)
+    if not isinstance(session, str) or not session:
+        session = payload.get("family")
+    if not isinstance(session, str) or not session:
+        session = None if meta is None else meta.agent_session
     workflow = payload.get("workflow")
     if not isinstance(workflow, str) or not workflow:
         workflow = None if meta is None else meta.workflow_name
@@ -209,7 +214,9 @@ def _hold_deadlock_candidate_wire(
     return {
         "artifact_dir": artifact_dir,
         "agent_name": candidate_agent_name,
-        "family": family,
+        # New spelling; core accepts ``agent_session`` as an alias of the
+        # legacy ``family`` deadlock-node key.
+        "agent_session": session,
         "clan": clan,
         "workflow": workflow,
         "timestamp": timestamp,
@@ -240,7 +247,9 @@ def _hold_deadlock_wait_node_wire(
     return {
         "artifact_dir": record.artifact_dir,
         "agent_name": None if meta is None else meta.name,
-        "family": None if meta is None else meta.agent_family,
+        # New spelling; core accepts ``agent_session`` as an alias of the
+        # legacy ``family`` deadlock-node key.
+        "agent_session": None if meta is None else meta.agent_session,
         "clan": None if meta is None else meta.agent_clan,
         "workflow": None if meta is None else meta.workflow_name,
         "timestamp": record.timestamp,
@@ -385,10 +394,14 @@ def enrich_candidate_from_records(
                     else record.workflow_state.appears_as_agent
                 ),
                 "parent_timestamp": None if meta is None else meta.parent_timestamp,
-                "agent_family": None if meta is None else meta.agent_family,
-                "agent_family_role": None if meta is None else meta.agent_family_role,
-                "agent_family_parallel": (
-                    False if meta is None else meta.agent_family_parallel
+                **capacity_session_keys_for_core(
+                    agent_session=None if meta is None else meta.agent_session,
+                    agent_session_role=None
+                    if meta is None
+                    else meta.agent_session_role,
+                    agent_session_parallel=False
+                    if meta is None
+                    else meta.agent_session_parallel,
                 ),
                 "runner_claim_owner_key": (
                     None if meta is None else meta.runner_claim_owner_key

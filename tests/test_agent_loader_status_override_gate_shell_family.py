@@ -21,8 +21,8 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
-    FamilyShellGateWire,
-    FamilyShellWire,
+    AgentSessionShellGateWire,
+    AgentSessionShellWire,
 )
 
 _FAMILY = "alpha"
@@ -105,16 +105,16 @@ def _gate_member(
         agent,
         AgentMetaWire(
             name=f"{_FAMILY}--gate",
-            family_shell=FamilyShellWire(
+            agent_session_shell=AgentSessionShellWire(
                 kind="gate",
                 id=gate_id,
                 state=state,
                 start_status=start_status,
                 stop_status=stop_status,
-                gate=FamilyShellGateWire(kind=kind, accent=accent),
+                gate=AgentSessionShellGateWire(kind=kind, accent=accent),
             ),
-            agent_family=_FAMILY,
-            agent_family_role="gate",
+            agent_session=_FAMILY,
+            agent_session_role="gate",
             role_suffix="--gate",
         ),
         waiting=None,

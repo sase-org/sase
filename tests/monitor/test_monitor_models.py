@@ -7,8 +7,8 @@ import pytest
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
     DoneMarkerWire,
-    FamilyShellMonitorWire,
-    FamilyShellWire,
+    AgentSessionShellMonitorWire,
+    AgentSessionShellWire,
 )
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.monitor.models import (
@@ -85,7 +85,7 @@ def test_from_record_rejects_non_monitor_rows() -> None:
             _record(
                 agent_meta=AgentMetaWire(
                     name="02i--7",
-                    agent_family_role="monitor",
+                    agent_session_role="monitor",
                 )
             )
         )
@@ -93,20 +93,20 @@ def test_from_record_rejects_non_monitor_rows() -> None:
 
 def test_is_monitor_member_record_requires_role_and_monitor_id() -> None:
     false_positive = _record(
-        agent_meta=AgentMetaWire(name="02i--7", agent_family_role="monitor")
+        agent_meta=AgentMetaWire(name="02i--7", agent_session_role="monitor")
     )
     valid = _record(
         agent_meta=AgentMetaWire(
             name="acme--mon",
-            agent_family_role="monitor",
-            family_shell=FamilyShellWire(kind="monitor", id="abc123"),
+            agent_session_role="monitor",
+            agent_session_shell=AgentSessionShellWire(kind="monitor", id="abc123"),
         )
     )
     other_role = _record(
         agent_meta=AgentMetaWire(
             name="acme--0",
-            agent_family_role="root",
-            family_shell=FamilyShellWire(kind="monitor", id="abc123"),
+            agent_session_role="root",
+            agent_session_shell=AgentSessionShellWire(kind="monitor", id="abc123"),
         )
     )
 
@@ -119,8 +119,8 @@ def test_is_monitor_member_record_requires_role_and_monitor_id() -> None:
 def test_from_record_prefers_running_meta_fields() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
-        agent_family="acme",
-        family_shell=FamilyShellWire(
+        agent_session="acme",
+        agent_session_shell=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             label="sleep",
@@ -130,7 +130,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
             timeout_seconds=60.0,
             state="running",
             next_model="@small",
-            monitor=FamilyShellMonitorWire(
+            monitor=AgentSessionShellMonitorWire(
                 command="sleep 60",
                 cwd="/work",
                 idle_timeout_seconds=10.0,
@@ -156,19 +156,19 @@ def test_from_record_prefers_running_meta_fields() -> None:
 def test_from_record_prefers_done_marker_over_running_meta() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
-        agent_family="acme",
-        family_shell=FamilyShellWire(
+        agent_session="acme",
+        agent_session_shell=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="running",
-            monitor=FamilyShellMonitorWire(command="sh -c 'exit 3'"),
+            monitor=AgentSessionShellMonitorWire(command="sh -c 'exit 3'"),
         ),
     )
     done = DoneMarkerWire(
-        family_shell=FamilyShellWire(
+        agent_session_shell=AgentSessionShellWire(
             kind="monitor",
             state="failed",
-            monitor=FamilyShellMonitorWire(exit_code=3),
+            monitor=AgentSessionShellMonitorWire(exit_code=3),
         )
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta, done=done))
@@ -182,12 +182,12 @@ def test_from_record_prefers_done_marker_over_running_meta() -> None:
 def test_from_record_treats_unsettled_terminal_meta_as_active() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
-        agent_family="acme",
-        family_shell=FamilyShellWire(
+        agent_session="acme",
+        agent_session_shell=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="completed",
-            monitor=FamilyShellMonitorWire(command="true", settled=False),
+            monitor=AgentSessionShellMonitorWire(command="true", settled=False),
         ),
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta))
@@ -201,13 +201,13 @@ def test_from_record_treats_unsettled_terminal_meta_as_active() -> None:
 def test_from_record_uses_settled_meta_without_done_marker() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
-        agent_family="acme",
-        family_shell=FamilyShellWire(
+        agent_session="acme",
+        agent_session_shell=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="completed",
             request_fingerprint="sha256:test",
-            monitor=FamilyShellMonitorWire(command="true", settled=True),
+            monitor=AgentSessionShellMonitorWire(command="true", settled=True),
         ),
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta))
@@ -221,12 +221,12 @@ def test_from_record_uses_settled_meta_without_done_marker() -> None:
 def test_from_record_preserves_a_zero_exit_code() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
-        agent_family="acme",
-        family_shell=FamilyShellWire(
+        agent_session="acme",
+        agent_session_shell=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="running",
-            monitor=FamilyShellMonitorWire(command="true", exit_code=0),
+            monitor=AgentSessionShellMonitorWire(command="true", exit_code=0),
         ),
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta))

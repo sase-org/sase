@@ -409,8 +409,8 @@ def _serve_index_with_taken_at(
         members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
         for record in records:
             meta = record.agent_meta
-            if meta is not None and meta.agent_family:
-                key = (record.project_name, meta.agent_family)
+            if meta is not None and meta.agent_session:
+                key = (record.project_name, meta.agent_session)
                 members.setdefault(key, []).append(record)
         return GateShellSnapshot(
             taken_at=taken_ats[min(index, len(taken_ats) - 1)],

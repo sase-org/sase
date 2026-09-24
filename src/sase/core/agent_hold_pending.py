@@ -51,7 +51,10 @@ def capture_pending_targets(
                 "bucket": bucket,
                 "artifact_dir": getattr(entry, "artifacts_dir", None),
                 "agent_name": getattr(entry, "name", None),
-                "family": getattr(entry, "agent_family", None),
+                # Hold payload key ``session`` (core accepts it as an alias of
+                # the legacy ``family`` key). The entry field stays until its
+                # owning phase renames it.
+                "session": getattr(entry, "agent_family", None),
                 "clan": getattr(entry, "agent_clan", None),
             }
         )

@@ -119,6 +119,36 @@ def _record_pid(record: AgentArtifactRecordWire) -> int | None:
     return None if running is None else running.pid
 
 
+def capacity_session_keys_for_core(
+    *,
+    agent_session: str | None,
+    agent_session_role: str | None,
+    agent_session_parallel: bool,
+    shell_kind: str | None = None,
+    shell_id: str | None = None,
+    shell_state: str | None = None,
+) -> dict[str, Any]:
+    """Legacy-keyed runner-slot session projection for the Rust capacity engine.
+
+    Boundary helper (wire-cutover): the pinned core capacity struct accepts
+    the ``agent_session*`` spellings as aliases except for
+    ``agent_session_parallel``, which it still declares only as
+    ``agent_family_parallel``. Python therefore keeps sending the legacy
+    spelling of that one field here until core-contract renames the struct.
+    Every other Python surface already uses the ``agent_session*`` names.
+    """
+    return {
+        "agent_session": agent_session,
+        "agent_session_role": agent_session_role,
+        # legacy agent-family spelling: core has no ``agent_session_parallel``
+        # alias yet (see module docstring reference above / core-contract).
+        "agent_family_parallel": agent_session_parallel,
+        "agent_session_shell_kind": shell_kind,
+        "agent_session_shell_id": shell_id,
+        "agent_session_shell_state": shell_state,
+    }
+
+
 def capacity_record_from_scan(
     record: AgentArtifactRecordWire,
     is_live: RecordLiveness,
@@ -134,7 +164,7 @@ def capacity_record_from_scan(
     meta = record.agent_meta
     state = record.workflow_state
     waiting = record.waiting
-    shell = None if meta is None else meta.family_shell
+    shell = None if meta is None else meta.agent_session_shell
     queue_weight, queue_weight_explicit, queue_weight_invalid = _record_queue_weight(
         record
     )
@@ -172,14 +202,16 @@ def capacity_record_from_scan(
                 None if meta is None else meta.runner_claim_owner_key
             ),
             "parent_timestamp": None if meta is None else meta.parent_timestamp,
-            "agent_family": None if meta is None else meta.agent_family,
-            "agent_family_role": None if meta is None else meta.agent_family_role,
-            "agent_family_parallel": (
-                False if meta is None else meta.agent_family_parallel
+            **capacity_session_keys_for_core(
+                agent_session=None if meta is None else meta.agent_session,
+                agent_session_role=None if meta is None else meta.agent_session_role,
+                agent_session_parallel=False
+                if meta is None
+                else meta.agent_session_parallel,
+                shell_kind=None if shell is None else shell.kind,
+                shell_id=None if shell is None else shell.id,
+                shell_state=None if shell is None else shell.state,
             ),
-            "family_shell_kind": None if shell is None else shell.kind,
-            "family_shell_id": None if shell is None else shell.id,
-            "family_shell_state": None if shell is None else shell.state,
             "queue_weight": queue_weight,
             "queue_weight_explicit": queue_weight_explicit,
             "queue_weight_invalid": queue_weight_invalid,
@@ -242,7 +274,7 @@ def _synthetic_capacity_record(
     workflow: str | None = None,
     clan: str | None = None,
     tribe: str | None = None,
-    agent_family: str | None = None,
+    agent_session: str | None = None,
     created_at: float | None = None,
     cl_name: str | None = None,
     clan_generation: str | None = None,
@@ -272,12 +304,14 @@ def _synthetic_capacity_record(
             "run_started_at": None,
             "runner_claim_owner_key": None,
             "parent_timestamp": parent_timestamp,
-            "agent_family": agent_family,
-            "agent_family_role": None,
-            "agent_family_parallel": False,
-            "family_shell_kind": None,
-            "family_shell_id": None,
-            "family_shell_state": None,
+            **capacity_session_keys_for_core(
+                agent_session=agent_session,
+                agent_session_role=None,
+                agent_session_parallel=False,
+                shell_kind=None,
+                shell_id=None,
+                shell_state=None,
+            ),
             "queue_weight": queue_weight,
             "queue_weight_explicit": queue_weight_explicit,
             "queue_weight_invalid": False,
@@ -318,7 +352,7 @@ def runner_slot_candidate_record(
     workflow: str | None = None,
     clan: str | None = None,
     tribe: str | None = None,
-    agent_family: str | None = None,
+    agent_session: str | None = None,
     created_at: float | None = None,
     cl_name: str | None = None,
     clan_generation: str | None = None,
@@ -343,7 +377,7 @@ def runner_slot_candidate_record(
         workflow=workflow,
         clan=clan,
         tribe=tribe,
-        agent_family=agent_family,
+        agent_session=agent_session,
         created_at=created_at,
         cl_name=cl_name,
         clan_generation=clan_generation,

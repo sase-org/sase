@@ -8,8 +8,8 @@ from typing import Any
 
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
-    agent_family_base,
-    agent_family_phase_name,
+    agent_session_base,
+    agent_session_phase_name,
     canonical_plan_chain_suffix,
 )
 
@@ -51,9 +51,9 @@ def submitted_plan_artifact(
     name = meta.get("name")
     if not isinstance(name, str) or not name:
         return None
-    base = agent_family_base(name) or name
+    base = agent_session_base(name) or name
     try:
-        row_name = agent_family_phase_name(base, PLAN_CHAIN_PLAN_SUFFIX)
+        row_name = agent_session_phase_name(base, PLAN_CHAIN_PLAN_SUFFIX)
     except ValueError:
         return None
     return SubmittedPlanArtifact(

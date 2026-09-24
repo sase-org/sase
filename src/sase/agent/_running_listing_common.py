@@ -10,7 +10,7 @@ from sase.agent.names import is_process_alive
 from sase.agent.status_buckets import valid_status_bucket
 from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentArtifactScanWire
 from sase.core.runner_slots import (
-    group_records_by_runner_slot_family,
+    group_records_by_runner_slot_agent_session,
     is_runner_slot_occupying_record,
 )
 from sase.core.time import get_timezone
@@ -121,13 +121,13 @@ def runner_slot_holder_dirs(
     own slot and is credited individually.
     """
     holders: set[str] = set()
-    for group in group_records_by_runner_slot_family(records).values():
+    for group in group_records_by_runner_slot_agent_session(records).values():
         serial_holder: str | None = None
         for candidate in group:
             if not is_runner_slot_occupying_record(candidate, record_is_live):
                 continue
             meta = candidate.agent_meta
-            if meta is not None and meta.agent_family_parallel:
+            if meta is not None and meta.agent_session_parallel:
                 holders.add(candidate.artifact_dir)
             elif serial_holder is None:
                 serial_holder = candidate.artifact_dir
@@ -154,7 +154,7 @@ def is_monitor_member_meta(meta: object | None) -> bool:
 
 
 def monitor_shell_field(source: object | None, field: str) -> Any:
-    """Read a shared ``family_shell`` field, only when *source* is a monitor shell."""
+    """Read a shared ``agent_session_shell`` field, only when *source* is a monitor shell."""
     shell = agent_session_shell_value(source)
     if shell is not None and getattr(shell, "kind", None) == "monitor":
         return getattr(shell, field, None)
@@ -162,7 +162,7 @@ def monitor_shell_field(source: object | None, field: str) -> Any:
 
 
 def monitor_sub_field(source: object | None, field: str) -> Any:
-    """Read a monitor-only ``family_shell.monitor`` field."""
+    """Read a monitor-only ``agent_session_shell.monitor`` field."""
     shell = agent_session_shell_value(source)
     if shell is not None and getattr(shell, "kind", None) == "monitor":
         monitor = getattr(shell, "monitor", None)

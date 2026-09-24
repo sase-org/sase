@@ -125,10 +125,10 @@ def enrich_agent_from_meta_wire(
     if not workflow_child and meta.role_suffix:
         agent.role_suffix = meta.role_suffix
     if not workflow_child:
-        if meta.agent_family:
-            agent.agent_family = meta.agent_family
-        if meta.agent_family_role:
-            agent.agent_family_role = meta.agent_family_role
+        if meta.agent_session:
+            agent.agent_family = meta.agent_session
+        if meta.agent_session_role:
+            agent.agent_family_role = meta.agent_session_role
         apply_imported_source_owner(agent, meta.imported_source_owner)
         apply_archive_source_machine(agent, meta.source_machine)
         if meta.agent_clan:
@@ -139,7 +139,7 @@ def enrich_agent_from_meta_wire(
             agent.clan_tribe = meta.clan_tribe
         if meta.clan_summary:
             agent.clan_summary = meta.clan_summary
-        agent.agent_family_parallel = meta.agent_family_parallel
+        agent.agent_family_parallel = meta.agent_session_parallel
     if not workflow_child and meta.plan_chain_root:
         agent.plan_chain_root = True
     if workflow_child:
@@ -325,7 +325,7 @@ def enrich_agent_from_meta_wire(
             if plan_status is not None:
                 agent.status = plan_status
 
-    shell = meta.family_shell
+    shell = meta.agent_session_shell
     monitor_shell = shell if shell is not None and shell.kind == "monitor" else None
     monitor = monitor_shell.monitor if monitor_shell is not None else None
     gate_shell = shell if shell is not None and shell.kind == "gate" else None

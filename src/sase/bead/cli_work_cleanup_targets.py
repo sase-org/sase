@@ -88,8 +88,8 @@ def load_agent_owner_view() -> _AgentOwnerView:
         meta = record.agent_meta
         if meta is None:
             continue
-        family_name = meta.agent_family or (
-            meta.workflow_name if meta.agent_family_role else None
+        family_name = meta.agent_session or (
+            meta.workflow_name if meta.agent_session_role else None
         )
         if family_name:
             key = current_owner_agent_name_key(family_name, identity)

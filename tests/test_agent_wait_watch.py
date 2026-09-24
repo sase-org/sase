@@ -19,7 +19,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
-    FamilyShellWire,
+    AgentSessionShellWire,
     PendingQuestionMarkerWire,
     PlanPathMarkerWire,
     WaitingMarkerWire,
@@ -42,7 +42,7 @@ def _record(
     name: str,
     pid: int | None = None,
     outcome: str | None = None,
-    done_family_shell: FamilyShellWire | None = None,
+    done_family_shell: AgentSessionShellWire | None = None,
     family: str | None = None,
     parent_timestamp: str | None = None,
     clan: str | None = None,
@@ -61,14 +61,14 @@ def _record(
         agent_meta=AgentMetaWire(
             name=name,
             pid=pid,
-            agent_family=family,
+            agent_session=family,
             workflow_name=family,
             parent_timestamp=parent_timestamp,
             agent_clan=clan,
             agent_clan_generation=clan_generation,
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
         ),
-        done=DoneMarkerWire(outcome=outcome, family_shell=done_family_shell)
+        done=DoneMarkerWire(outcome=outcome, agent_session_shell=done_family_shell)
         if outcome is not None
         else None,
         waiting=waiting,
@@ -117,7 +117,7 @@ def test_wait_watch_classifies_settled_gate_as_success() -> None:
             "20260827120000",
             name="approval--gate",
             outcome="gated",
-            done_family_shell=FamilyShellWire(kind="gate", state="answered"),
+            done_family_shell=AgentSessionShellWire(kind="gate", state="answered"),
         )
     )
 

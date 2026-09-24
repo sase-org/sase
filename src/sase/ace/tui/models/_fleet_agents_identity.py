@@ -8,20 +8,28 @@ from typing import Any
 from ._fleet_agents_scalars import display_token, mapping, optional_str
 
 
-def agent_family_name(
+def agent_session_name(
     summary: Mapping[str, Any],
     labels: Mapping[str, Any],
     logical_locator: Mapping[str, Any],
     *,
-    family_role: str | None,
+    session_role: str | None,
     parent_timestamp: str | None,
 ) -> str | None:
-    explicit = optional_str(summary.get("agent_family"))
+    # legacy agent-family spelling: older owner hosts emit ``agent_family`` /
+    # ``family_label`` / ``family_id``; new writers emit the ``session`` keys
+    # first below. Core still emits the legacy spelling until core-contract.
+    explicit = optional_str(summary.get("agent_session"), summary.get("agent_family"))
     if explicit is not None:
         return explicit
-    if family_role == "root" and parent_timestamp is None:
+    if session_role == "root" and parent_timestamp is None:
         return None
-    return optional_str(labels.get("family_label"), logical_locator.get("family_id"))
+    return optional_str(
+        labels.get("session_label"),
+        labels.get("family_label"),
+        logical_locator.get("agent_session_id"),
+        logical_locator.get("family_id"),
+    )
 
 
 def agent_name(
@@ -55,9 +63,9 @@ def agent_name(
 
 
 def role_suffix_from_name(
-    agent_name: str | None, family_role: str | None
+    agent_name: str | None, session_role: str | None
 ) -> str | None:
-    if family_role in {None, "root", "historical_shell"} or not agent_name:
+    if session_role in {None, "root", "historical_shell"} or not agent_name:
         return None
     for separator in ("--", "."):
         if separator not in agent_name:

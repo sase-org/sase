@@ -84,7 +84,7 @@ def test_parallel_family_marker_from_filesystem_and_wire(tmp_path: Path) -> None
     enrich_agent_from_meta(filesystem_agent, str(tmp_path))
     enrich_agent_from_meta_wire(
         wire_agent,
-        AgentMetaWire(agent_family_parallel=True),
+        AgentMetaWire(agent_session_parallel=True),
         None,
     )
 
@@ -157,7 +157,7 @@ def test_parallel_family_marker_from_agent_meta_wire() -> None:
 
     enrich_agent_from_meta_wire(
         agent,
-        AgentMetaWire(agent_family_parallel=True),
+        AgentMetaWire(agent_session_parallel=True),
         None,
     )
 

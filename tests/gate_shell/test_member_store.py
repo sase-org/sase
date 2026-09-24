@@ -10,8 +10,8 @@ import pytest
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    FamilyShellGateWire,
-    FamilyShellWire,
+    AgentSessionShellGateWire,
+    AgentSessionShellWire,
 )
 from sase.gate_shell.member import create_gate_shell_member
 from sase.gate_shell.models import GateShellRecord
@@ -137,13 +137,13 @@ def test_list_gate_shells_orders_tied_timestamps_deterministically(
             timestamp="20260812120000",
             agent_meta=AgentMetaWire(
                 name=Path(path).name,
-                agent_family="lane",
-                agent_family_role="gate",
-                family_shell=FamilyShellWire(
+                agent_session="lane",
+                agent_session_role="gate",
+                agent_session_shell=AgentSessionShellWire(
                     kind="gate",
                     id="gate-1",
                     state="pending",
-                    gate=FamilyShellGateWire(kind="custom"),
+                    gate=AgentSessionShellGateWire(kind="custom"),
                 ),
             ),
         )
@@ -175,13 +175,13 @@ def _gate_wire(path: str, gate_id: str = "gate-1") -> AgentArtifactRecordWire:
         timestamp="20260812120000",
         agent_meta=AgentMetaWire(
             name=Path(path).name,
-            agent_family="lane",
-            agent_family_role="gate",
-            family_shell=FamilyShellWire(
+            agent_session="lane",
+            agent_session_role="gate",
+            agent_session_shell=AgentSessionShellWire(
                 kind="gate",
                 id=gate_id,
                 state="pending",
-                gate=FamilyShellGateWire(kind="custom"),
+                gate=AgentSessionShellGateWire(kind="custom"),
             ),
         ),
     )

@@ -7,7 +7,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
+from sase.core.agent_scan_wire_agent_session_shell import (
+    agent_session_shell_from_mapping,
+)
 from sase.core.dismissed_agent_completion import (
     GATE_OUTCOME,
     MONITOR_OUTCOME,
@@ -16,7 +18,7 @@ from sase.core.dismissed_agent_completion import (
 from sase.gate_shell.state import TERMINAL_GATE_STATES, is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
-    agent_family_base,
+    agent_session_base,
     agent_session_role_value,
     agent_session_value,
     is_plan_chain_artifact_meta,
@@ -54,25 +56,25 @@ def done_outcome_from_data(done_data: Mapping[str, Any] | None) -> str | None:
     return effective_done_outcome(done_data)
 
 
-def _family_shell_field(
+def _agent_session_shell_field(
     data: Mapping[str, Any] | None,
     *,
     kind: str,
     field: str,
 ) -> Any:
-    """Read a shared ``family_shell`` field from a ``meta`` / ``done_data`` mapping.
+    """Read a shared ``agent_session_shell`` field from a ``meta`` / ``done_data`` mapping.
 
     ``meta`` / ``done_data`` reach this function in either shape:
     ``dataclasses.asdict()`` projections of ``AgentMetaWire`` /
-    ``DoneMarkerWire`` already carry a nested ``family_shell`` (see
+    ``DoneMarkerWire`` already carry a nested ``agent_session_shell`` (see
     ``sase.agents._wait_live_rows._index_from_snapshot``), while
     ``WaitDependencyIndex.build()`` reads flat ``monitor_*`` / ``gate_*``
-    on-disk marker keys directly. :func:`family_shell_from_mapping`
+    on-disk marker keys directly. :func:`agent_session_shell_from_mapping`
     understands both.
     """
     if data is None:
         return None
-    shell = family_shell_from_mapping(data)
+    shell = agent_session_shell_from_mapping(data)
     if shell is not None and shell.kind == kind:
         return getattr(shell, field, None)
     return None
@@ -91,22 +93,22 @@ def shell_followup_handoff_agent(
     if kind is None:
         return None
 
-    state = _family_shell_field(done_data, kind=kind, field="state") or (
-        _family_shell_field(meta, kind=kind, field="state")
+    state = _agent_session_shell_field(done_data, kind=kind, field="state") or (
+        _agent_session_shell_field(meta, kind=kind, field="state")
     )
     if not isinstance(state, str) or state not in _TERMINAL_STATES_BY_SHELL_KIND[kind]:
         return None
 
-    followup_outcome = _family_shell_field(
+    followup_outcome = _agent_session_shell_field(
         done_data,
         kind=kind,
         field="followup_outcome",
-    ) or _family_shell_field(meta, kind=kind, field="followup_outcome")
-    next_action = _family_shell_field(
+    ) or _agent_session_shell_field(meta, kind=kind, field="followup_outcome")
+    next_action = _agent_session_shell_field(
         done_data,
         kind=kind,
         field="next_action",
-    ) or _family_shell_field(meta, kind=kind, field="next_action")
+    ) or _agent_session_shell_field(meta, kind=kind, field="next_action")
     if (
         kind == "gate"
         and state not in {"lost", "stopped"}
@@ -118,11 +120,11 @@ def shell_followup_handoff_agent(
     if followup_outcome not in SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES:
         return None
 
-    followup_agent = _family_shell_field(
+    followup_agent = _agent_session_shell_field(
         done_data,
         kind=kind,
         field="followup_agent",
-    ) or _family_shell_field(meta, kind=kind, field="followup_agent")
+    ) or _agent_session_shell_field(meta, kind=kind, field="followup_agent")
     if not isinstance(followup_agent, str):
         return None
     followup_agent = followup_agent.strip()
@@ -172,12 +174,12 @@ def artifact_is_resolved(
         return outcome in WAIT_SUCCESS_OUTCOMES
     if not is_plan_chain_artifact_meta(meta):
         return False
-    if _is_family_shell_member_meta(meta):
+    if _is_agent_session_shell_member_meta(meta):
         return False
     return _completed_handoff_workflow_state(artifact_dir)
 
 
-def _is_family_shell_member_meta(meta: Mapping[str, Any]) -> bool:
+def _is_agent_session_shell_member_meta(meta: Mapping[str, Any]) -> bool:
     return _is_monitor_member_meta(meta) or is_real_gate_member(
         _str_or_none(agent_session_role_value(meta)),
         _str_or_none(meta.get("gate_id")),
@@ -192,21 +194,21 @@ def _is_monitor_member_meta(meta: Mapping[str, Any]) -> bool:
 
 
 def shell_member_kind_for_meta(meta: Mapping[str, Any]) -> str | None:
-    """Classify *meta* as a ``"monitor"`` / ``"gate"`` family-shell member.
+    """Classify *meta* as a ``"monitor"`` / ``"gate"`` agent-session-shell member.
 
-    ``agent_family_role`` and ``role_suffix`` are flat fields on every meta
+    ``agent_session_role`` and ``role_suffix`` are flat fields on every meta
     shape the index ingests (on-disk ``agent_meta.json``, and the
     ``asdict(AgentMetaWire)`` snapshots ``add_scan_record`` receives), so
     monitor classification reads them directly like
-    ``_is_family_shell_member_meta`` does. ``gate_id`` is flat on disk but
-    nested under ``family_shell.id`` on the wire snapshots, so gate
-    classification goes through :func:`_family_shell_field`, which
+    ``_is_agent_session_shell_member_meta`` does. ``gate_id`` is flat on disk but
+    nested under ``agent_session_shell.id`` on the wire snapshots, so gate
+    classification goes through :func:`_agent_session_shell_field`, which
     understands both shapes.
     """
     if _is_monitor_member_meta(meta):
         return "monitor"
     gate_id = _str_or_none(meta.get("gate_id")) or _str_or_none(
-        _family_shell_field(meta, kind="gate", field="id")
+        _agent_session_shell_field(meta, kind="gate", field="id")
     )
     if is_real_gate_member(_str_or_none(agent_session_role_value(meta)), gate_id):
         return "gate"
@@ -255,10 +257,12 @@ def _has_blocking_prompt_step_marker(artifact_dir: Path) -> bool:
     return False
 
 
-def family_base_from_meta(meta: dict[str, Any]) -> str | None:
-    family = agent_session_value(meta)
-    if isinstance(family, str) and family:
-        return family
+def agent_session_base_from_meta(meta: dict[str, Any]) -> str | None:
+    # legacy agent-family spelling: pre-rename metas carry ``agent_family``;
+    # ``agent_session_value`` reads the new key first.
+    session = agent_session_value(meta)
+    if isinstance(session, str) and session:
+        return session
 
     workflow_name = meta.get("workflow_name")
     if not isinstance(workflow_name, str) or not workflow_name:
@@ -268,7 +272,7 @@ def family_base_from_meta(meta: dict[str, Any]) -> str | None:
         return workflow_name
 
     name = meta.get("name")
-    if isinstance(name, str) and agent_family_base(name) == workflow_name:
+    if isinstance(name, str) and agent_session_base(name) == workflow_name:
         return workflow_name
 
     return None

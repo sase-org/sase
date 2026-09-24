@@ -1,4 +1,4 @@
-"""Singleton-to-family follow promotion derivation for fleet agents."""
+"""Singleton-to-agent-session follow promotion derivation for fleet agents."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def _observation_locators(response: Mapping[str, Any]) -> list[dict[str, Any]]:
                 locator["project"]["origin"]["installation_id"],
                 locator["project"]["project_id"],
                 locator["agent_id"],
-                locator.get("family_id") or "",
+                locator.get("agent_session_id") or locator.get("family_id") or "",
             )
             encoded = "|".join(key)
             if encoded in seen:
@@ -123,7 +123,10 @@ def _locator_wire(locator: Mapping[str, Any]) -> dict[str, Any] | None:
     agent_id = optional_str(locator.get("agent_id"))
     if installation_id is None or project_id is None or agent_id is None:
         return None
-    family_id = optional_str(locator.get("family_id"))
+    # legacy agent-family spelling: core emits ``family_id`` until
+    # core-contract; it accepts ``agent_session_id`` as an alias, so Python
+    # sends only the new spelling.
+    session_id = optional_str(locator.get("agent_session_id"), locator.get("family_id"))
     return {
         "schema_version": 1,
         "project": {
@@ -135,5 +138,5 @@ def _locator_wire(locator: Mapping[str, Any]) -> dict[str, Any] | None:
             "project_id": project_id,
         },
         "agent_id": agent_id,
-        "family_id": family_id,
+        "agent_session_id": session_id,
     }

@@ -14,9 +14,11 @@ from types import SimpleNamespace
 
 from sase.agents_sync.v2_validation import V2_METADATA_FIELDS
 from sase.axe.run_agent_directive_metadata import preserved_agent_metadata
-from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
+from sase.core.agent_scan_wire_agent_session_shell import (
+    agent_session_shell_from_mapping,
+)
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
-from sase.core.wire import known_field_kwargs, with_legacy_agent_session_keys
+from sase.core.wire import known_field_kwargs, with_agent_session_keys
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     AGENT_FAMILY_ROLE_FIELD,
@@ -184,7 +186,7 @@ def test_legacy_agent_meta_resolves_through_accessors(tmp_path: Path) -> None:
     assert agent_session_value(loaded) == "acme"
     assert agent_session_role_value(loaded) == "code"
     assert agent_session_parallel_value(loaded) is True
-    shell = family_shell_from_mapping(loaded)
+    shell = agent_session_shell_from_mapping(loaded)
     assert shell is not None and shell.kind == "monitor" and shell.id == "mon-1"
 
 
@@ -192,7 +194,7 @@ def test_done_json_nested_shell_reads_either_spelling() -> None:
     legacy = {"outcome": "MONITOR", "family_shell": {"kind": "monitor", "id": "m"}}
     new = {"outcome": "MONITOR", "agent_session_shell": {"kind": "monitor", "id": "m"}}
     for done_data in (legacy, new):
-        shell = family_shell_from_mapping(done_data)
+        shell = agent_session_shell_from_mapping(done_data)
         assert shell is not None and shell.kind == "monitor" and shell.id == "m"
     assert agent_session_shell_value(legacy) == {"kind": "monitor", "id": "m"}
     assert agent_session_shell_value(new) == {"kind": "monitor", "id": "m"}
@@ -223,38 +225,39 @@ def test_preserved_metadata_upgrades_legacy_parallel_keys(tmp_path: Path) -> Non
 
 
 def test_wire_bridge_backfills_new_spellings_for_legacy_fields() -> None:
-    """New-keyed markers still hydrate the legacy wire fields (bridge)."""
-    new_meta = {
+    """Legacy-keyed markers still hydrate the renamed wire fields (bridge)."""
+    legacy_meta = {
         "name": "acme--mon",
-        "agent_session": "acme",
-        "agent_session_role": "monitor",
-        "agent_session_parallel": True,
-        "agent_session_shell": {"kind": "monitor", "id": "m"},
+        "agent_family": "acme",
+        "agent_family_role": "monitor",
+        "agent_family_parallel": True,
+        "family_shell": {"kind": "monitor", "id": "m"},
     }
-    bridged = with_legacy_agent_session_keys(new_meta)
-    assert bridged["agent_family"] == "acme"
-    assert bridged["agent_family_role"] == "monitor"
-    assert bridged["agent_family_parallel"] is True
-    assert bridged["family_shell"] == {"kind": "monitor", "id": "m"}
+    bridged = with_agent_session_keys(legacy_meta)
+    assert bridged["agent_session"] == "acme"
+    assert bridged["agent_session_role"] == "monitor"
+    assert bridged["agent_session_parallel"] is True
+    assert bridged["agent_session_shell"] == {"kind": "monitor", "id": "m"}
     kwargs = known_field_kwargs(AgentMetaWire, bridged)
-    kwargs["family_shell"] = family_shell_from_mapping(bridged)
+    kwargs["agent_session_shell"] = agent_session_shell_from_mapping(bridged)
     wire = AgentMetaWire(**kwargs)
-    assert wire.agent_family == "acme"
-    assert wire.agent_family_role == "monitor"
-    assert wire.family_shell is not None and wire.family_shell.kind == "monitor"
+    assert wire.agent_session == "acme"
+    assert wire.agent_session_role == "monitor"
+    assert (
+        wire.agent_session_shell is not None
+        and wire.agent_session_shell.kind == "monitor"
+    )
     done = DoneMarkerWire(
-        **known_field_kwargs(
-            DoneMarkerWire, with_legacy_agent_session_keys({"outcome": "x"})
-        )
+        **known_field_kwargs(DoneMarkerWire, with_agent_session_keys({"outcome": "x"}))
     )
     assert done.outcome == "x"
 
 
-def test_wire_bridge_keeps_legacy_spelling_authoritative() -> None:
+def test_wire_bridge_keeps_new_spelling_authoritative() -> None:
     mixed = {"agent_session": "new", "agent_family": "old"}
-    assert with_legacy_agent_session_keys(mixed)["agent_family"] == "old"
-    legacy = {"agent_family": "old"}
-    assert with_legacy_agent_session_keys(legacy) == legacy
+    assert with_agent_session_keys(mixed)["agent_session"] == "new"
+    new = {"agent_session": "new"}
+    assert with_agent_session_keys(new) == new
 
 
 def test_renamed_helpers_match_deprecated_aliases() -> None:

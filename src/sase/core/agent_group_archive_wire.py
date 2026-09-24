@@ -51,7 +51,7 @@ class SavedAgentGroupWire:
     agent_refs: tuple[SavedAgentGroupRefWire, ...] = ()
     revived_at: str | None = None
     times_revived: int = 0
-    canonical_global_family: str | None = None
+    canonical_global_agent_session: str | None = None
     source_snapshot_digest: str | None = None
 
 
@@ -159,8 +159,12 @@ def saved_agent_group_from_dict(data: dict[str, Any]) -> SavedAgentGroupWire:
         ),
         revived_at=None if data.get("revived_at") is None else str(data["revived_at"]),
         times_revived=int(data.get("times_revived", 0)),
-        canonical_global_family=_optional_nonblank_str(
-            data.get("canonical_global_family")
+        # legacy agent-family spelling: pre-rename files carry
+        # ``canonical_global_family``; new writers emit only
+        # ``canonical_global_agent_session``.
+        canonical_global_agent_session=_optional_nonblank_str(
+            data.get("canonical_global_agent_session")
+            or data.get("canonical_global_family")
         ),
         source_snapshot_digest=_optional_nonblank_str(
             data.get("source_snapshot_digest")

@@ -197,13 +197,13 @@ def _root_family_name_from_meta_wire(meta: AgentMetaWire) -> str | None:
     role_suffix = canonical_plan_chain_suffix(meta.role_suffix)
     is_root = (
         meta.plan_chain_root
-        or meta.agent_family_role == "root"
+        or meta.agent_session_role == "root"
         or role_suffix == PLAN_CHAIN_PLAN_SUFFIX
     )
     if not is_root:
         return None
-    if meta.agent_family:
-        return meta.agent_family
+    if meta.agent_session:
+        return meta.agent_session
     if meta.name:
         return meta.name
     return None

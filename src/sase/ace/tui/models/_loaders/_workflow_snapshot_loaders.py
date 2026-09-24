@@ -47,15 +47,17 @@ def _is_workflow_state_record(record: AgentArtifactRecordWire) -> bool:
     return any(name.startswith(p) for p in WORKFLOW_STATE_DIR_PREFIXES)
 
 
-def _snapshot_record_is_family_shell_member(record: AgentArtifactRecordWire) -> bool:
-    """Return whether *record* is a durable family-shell member."""
+def _snapshot_record_is_agent_session_shell_member(
+    record: AgentArtifactRecordWire,
+) -> bool:
+    """Return whether *record* is a durable agent-session-shell member."""
     meta = record.agent_meta
     if meta is None:
         return False
-    shell = meta.family_shell
+    shell = meta.agent_session_shell
     gate_id = shell.id if shell is not None and shell.kind == "gate" else None
     return family_shell_member_from_meta(
-        agent_family_role=meta.agent_family_role,
+        agent_family_role=meta.agent_session_role,
         role_suffix=meta.role_suffix,
         gate_id=gate_id,
     )
@@ -120,8 +122,9 @@ def load_workflow_states_from_snapshot(
             and not is_process_running(pid)
         ):
             has_in_progress = any(s.status == StepStatus.IN_PROGRESS for s in steps)
-            if not has_in_progress and not _snapshot_record_is_family_shell_member(
-                record
+            if (
+                not has_in_progress
+                and not _snapshot_record_is_agent_session_shell_member(record)
             ):
                 display_status = "FAILED"
 

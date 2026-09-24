@@ -21,7 +21,7 @@ from ._fleet_agents_hosts import (
     viewer_observed_freshness,
 )
 from ._fleet_agents_identity import (
-    agent_family_name,
+    agent_session_name,
     agent_name,
     patch_name,
     project_display_name,
@@ -183,20 +183,23 @@ def _agent_from_summary(
     exact_key = optional_str(summary.get("exact_key"))
     row_revision = mapping(summary.get("row_revision"))
     row_kind = optional_str(summary.get("row_kind"))
-    family_role = optional_str(
+    # legacy agent-family spelling: older owner hosts emit ``family_role`` /
+    # ``agent_family_role``; new writers emit ``agent_session_role``.
+    session_role = optional_str(
+        summary.get("agent_session_role"),
         summary.get("family_role"),
         summary.get("agent_family_role"),
     )
-    is_proc = row_kind == "proc" or family_role == "proc"
-    is_gate = row_kind == "gate" or family_role == "gate"
-    is_monitor = row_kind == "monitor" or family_role == "monitor"
+    is_proc = row_kind == "proc" or session_role == "proc"
+    is_gate = row_kind == "gate" or session_role == "gate"
+    is_monitor = row_kind == "monitor" or session_role == "monitor"
     shell_id = exact_key or logical_key
     parent_timestamp = optional_str(summary.get("parent_timestamp"))
-    family_name = agent_family_name(
+    session_name = agent_session_name(
         summary,
         labels,
         logical_locator,
-        family_role=family_role,
+        session_role=session_role,
         parent_timestamp=parent_timestamp,
     )
     agent_name_value = agent_name(
@@ -210,7 +213,7 @@ def _agent_from_summary(
     )
     role_suffix = optional_str(fact("role_suffix")) or role_suffix_from_name(
         agent_name_value,
-        family_role,
+        session_role,
     )
     patch_name_value = patch_name(
         summary,
@@ -347,9 +350,14 @@ def _agent_from_summary(
             summary.get("container_projected_concrete_agent")
         ),
         role_suffix=role_suffix,
-        agent_family=family_name,
-        agent_family_role=optional_str(fact("agent_family_role")) or family_role,
-        agent_family_parallel=bool(fact("agent_family_parallel")),
+        agent_family=session_name,
+        agent_family_role=optional_str(
+            fact("agent_session_role"), fact("agent_family_role")
+        )
+        or session_role,
+        agent_family_parallel=bool(
+            fact("agent_session_parallel") or fact("agent_family_parallel")
+        ),
         parent_timestamp=parent_timestamp,
         plan_chain_root=bool(fact("plan_chain_root")),
         plan_action=optional_str(fact("plan_action")),

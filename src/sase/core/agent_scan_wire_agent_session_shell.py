@@ -1,15 +1,15 @@
-"""One nested ``family_shell`` wire record folding the flat monitor/gate blocks.
+"""One nested ``agent_session_shell`` wire record folding the flat monitor/gate blocks.
 
 Split out of :mod:`sase.core.agent_scan_wire_markers` to keep each module
 under the 500-line cap. Before wire schema v7, ``AgentMetaWire`` and
 ``DoneMarkerWire`` each carried two flat, mutually exclusive field blocks —
-``monitor_*`` and ``gate_*`` — mirroring the two family-shell kinds a
-durable family member can be. This module folds both blocks into one
-``FamilyShellWire`` record: a ``kind`` discriminator, the fields both shell
+``monitor_*`` and ``gate_*`` — mirroring the two agent-session-shell kinds a
+durable agent-session member can be. This module folds both blocks into one
+``AgentSessionShellWire`` record: a ``kind`` discriminator, the fields both shell
 kinds share, and a kind-specific sub-block (``monitor`` or ``gate``, never
 both).
 
-:func:`family_shell_from_mapping` is the compatibility projection: it reads
+:func:`agent_session_shell_from_mapping` is the compatibility projection: it reads
 either shape and always returns the current, nested representation. On-disk
 marker files (``agent_meta.json`` / ``done.json``) still carry the flat
 ``monitor_*`` / ``gate_*`` keys — many writers depend on that shape and this
@@ -27,18 +27,18 @@ from typing import Any
 
 from sase.plan_chain import agent_session_role_value, agent_session_shell_value
 
-#: Role recorded in ``agent_meta.json::agent_family_role`` for a monitor
-#: family member. Mirrors ``sase.monitor_state.MONITOR_FAMILY_ROLE``; not
+#: Role recorded in ``agent_meta.json::agent_session_role`` for a monitor
+#: agent-session member. Mirrors ``sase.monitor_state.MONITOR_FAMILY_ROLE``; not
 #: imported directly to avoid a dependency cycle with this low-level module.
-_MONITOR_FAMILY_ROLE = "monitor"
+_MONITOR_AGENT_SESSION_ROLE = "monitor"
 
 #: Mirrors ``sase.gate_shell.state.GATE_FAMILY_ROLE`` (see above).
-_GATE_FAMILY_ROLE = "gate"
+_GATE_AGENT_SESSION_ROLE = "gate"
 
 
 @dataclass(frozen=True)
-class FamilyShellMonitorWire:
-    """Monitor-only fields of a ``family_shell`` record."""
+class AgentSessionShellMonitorWire:
+    """Monitor-only fields of a ``agent_session_shell`` record."""
 
     command: str | None = None
     cwd: str | None = None
@@ -52,11 +52,11 @@ class FamilyShellMonitorWire:
 
 
 @dataclass(frozen=True)
-class FamilyShellGateWire:
-    """Gate-only fields of a ``family_shell`` record.
+class AgentSessionShellGateWire:
+    """Gate-only fields of a ``agent_session_shell`` record.
 
     ``kind`` here is the gate's own flavor (e.g. ``"approval"``), not the
-    ``FamilyShellWire.kind`` discriminator.
+    ``AgentSessionShellWire.kind`` discriminator.
     """
 
     kind: str | None = None
@@ -74,8 +74,8 @@ class FamilyShellGateWire:
 
 
 @dataclass(frozen=True)
-class FamilyShellWire:
-    """One durable family-shell member: a monitor or a gate, never both.
+class AgentSessionShellWire:
+    """One durable agent-session-shell member: a monitor or a gate, never both.
 
     ``kind`` discriminates ``"monitor"`` / ``"gate"``. The fields below
     ``kind`` are the ones both shells carry (mirroring the two flat
@@ -114,8 +114,8 @@ class FamilyShellWire:
     host_completion_status: str | None = None
     host_completion_message: str | None = None
     host_completion_reason: str | None = None
-    monitor: FamilyShellMonitorWire | None = None
-    gate: FamilyShellGateWire | None = None
+    monitor: AgentSessionShellMonitorWire | None = None
+    gate: AgentSessionShellGateWire | None = None
 
 
 # Old flat key -> new nested field name, for the fields both shell kinds
@@ -221,49 +221,55 @@ def _has_any_key(data: Mapping[str, Any], keys: frozenset[str]) -> bool:
     return any(key in data for key in keys)
 
 
-def _family_shell_from_flat_keys(data: Mapping[str, Any]) -> FamilyShellWire | None:
-    """Build a ``FamilyShellWire`` from flat legacy ``monitor_*`` / ``gate_*`` keys."""
+def _agent_session_shell_from_flat_keys(
+    data: Mapping[str, Any],
+) -> AgentSessionShellWire | None:
+    """Build an ``AgentSessionShellWire`` from flat legacy ``monitor_*`` / ``gate_*`` keys."""
     has_monitor = _has_any_key(data, _MONITOR_FLAT_KEYS)
     has_gate = _has_any_key(data, _GATE_FLAT_KEYS)
     if has_monitor and has_gate:
-        # A family shell is either a monitor or a gate, never both,
+        # An agent session shell is either a monitor or a gate, never both,
         # because the two are independent inheritance chains keyed off
         # different launch mechanisms; this branch should be unreachable
         # in practice. Fall back to the recorded role rather than silently
         # dropping one side.
-        has_monitor = agent_session_role_value(data) != _GATE_FAMILY_ROLE
+        has_monitor = agent_session_role_value(data) != _GATE_AGENT_SESSION_ROLE
         has_gate = not has_monitor
     if has_monitor:
-        return FamilyShellWire(
-            kind=_MONITOR_FAMILY_ROLE,
-            monitor=FamilyShellMonitorWire(**_project(data, _MONITOR_SPECIFIC_KEYS)),
+        return AgentSessionShellWire(
+            kind=_MONITOR_AGENT_SESSION_ROLE,
+            monitor=AgentSessionShellMonitorWire(
+                **_project(data, _MONITOR_SPECIFIC_KEYS)
+            ),
             **_project(data, _MONITOR_SHARED_KEYS),
         )
     if has_gate:
-        return FamilyShellWire(
-            kind=_GATE_FAMILY_ROLE,
-            gate=FamilyShellGateWire(**_project(data, _GATE_SPECIFIC_KEYS)),
+        return AgentSessionShellWire(
+            kind=_GATE_AGENT_SESSION_ROLE,
+            gate=AgentSessionShellGateWire(**_project(data, _GATE_SPECIFIC_KEYS)),
             **_project(data, _GATE_SHARED_KEYS),
         )
     return None
 
 
-def _family_shell_from_nested_dict(data: Mapping[str, Any]) -> FamilyShellWire | None:
+def _agent_session_shell_from_nested_dict(
+    data: Mapping[str, Any],
+) -> AgentSessionShellWire | None:
     kind = data.get("kind")
-    if kind not in (_MONITOR_FAMILY_ROLE, _GATE_FAMILY_ROLE):
+    if kind not in (_MONITOR_AGENT_SESSION_ROLE, _GATE_AGENT_SESSION_ROLE):
         return None
     shared = {
         key: data[key]
-        for key in FamilyShellWire.__dataclass_fields__
+        for key in AgentSessionShellWire.__dataclass_fields__
         if key in data and key not in ("kind", "monitor", "gate")
     }
     monitor_data = data.get("monitor")
     gate_data = data.get("gate")
     monitor = (
-        FamilyShellMonitorWire(
+        AgentSessionShellMonitorWire(
             **{
                 key: monitor_data[key]
-                for key in FamilyShellMonitorWire.__dataclass_fields__
+                for key in AgentSessionShellMonitorWire.__dataclass_fields__
                 if key in monitor_data
             }
         )
@@ -271,36 +277,38 @@ def _family_shell_from_nested_dict(data: Mapping[str, Any]) -> FamilyShellWire |
         else None
     )
     gate = (
-        FamilyShellGateWire(
+        AgentSessionShellGateWire(
             **{
                 key: gate_data[key]
-                for key in FamilyShellGateWire.__dataclass_fields__
+                for key in AgentSessionShellGateWire.__dataclass_fields__
                 if key in gate_data
             }
         )
         if isinstance(gate_data, dict)
         else None
     )
-    return FamilyShellWire(kind=kind, monitor=monitor, gate=gate, **shared)
+    return AgentSessionShellWire(kind=kind, monitor=monitor, gate=gate, **shared)
 
 
-def family_shell_from_mapping(data: Mapping[str, Any]) -> FamilyShellWire | None:
-    """Return the ``FamilyShellWire`` *data* describes, or ``None``.
+def agent_session_shell_from_mapping(
+    data: Mapping[str, Any],
+) -> AgentSessionShellWire | None:
+    """Return the ``AgentSessionShellWire`` *data* describes, or ``None``.
 
-    Reads either shape: the current nested wire shape (a ``family_shell``
+    Reads either shape: the current nested wire shape (an ``agent_session_shell``
     key holding a dict, as produced by ``agent_scan_wire_to_json_dict`` and
     by the Rust scanner), or the flat legacy ``monitor_*`` / ``gate_*`` keys
     still written to ``agent_meta.json`` / ``done.json`` on disk.
     """
     nested = agent_session_shell_value(data)
     if isinstance(nested, dict):
-        return _family_shell_from_nested_dict(nested)
-    return _family_shell_from_flat_keys(data)
+        return _agent_session_shell_from_nested_dict(nested)
+    return _agent_session_shell_from_flat_keys(data)
 
 
 __all__ = [
-    "FamilyShellGateWire",
-    "FamilyShellMonitorWire",
-    "FamilyShellWire",
-    "family_shell_from_mapping",
+    "AgentSessionShellGateWire",
+    "AgentSessionShellMonitorWire",
+    "AgentSessionShellWire",
+    "agent_session_shell_from_mapping",
 ]

@@ -23,10 +23,12 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
+from sase.core.agent_scan_wire_agent_session_shell import (
+    agent_session_shell_from_mapping,
+)
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
-from sase.core.wire import known_field_kwargs, with_legacy_agent_session_keys
+from sase.core.wire import known_field_kwargs, with_agent_session_keys
 from sase.gate_shell.models import (
     GateShellRecord,
     GateShellRefError,
@@ -64,16 +66,16 @@ def read_gate_shell_marker(
     if raw_meta is None:
         return None
     raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
-    meta_kwargs = known_field_kwargs(
-        AgentMetaWire, with_legacy_agent_session_keys(raw_meta)
-    )
-    meta_kwargs["family_shell"] = family_shell_from_mapping(raw_meta)
+    meta_kwargs = known_field_kwargs(AgentMetaWire, with_agent_session_keys(raw_meta))
+    # legacy agent-family spelling: pre-rename marker files carry
+    # ``agent_family*`` / ``family_shell`` keys.
+    meta_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_meta)
     done_kwargs = None
     if raw_done is not None:
         done_kwargs = known_field_kwargs(
-            DoneMarkerWire, with_legacy_agent_session_keys(raw_done)
+            DoneMarkerWire, with_agent_session_keys(raw_done)
         )
-        done_kwargs["family_shell"] = family_shell_from_mapping(raw_done)
+        done_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_done)
     record = AgentArtifactRecordWire(
         project_name=project_name,
         project_dir="",
@@ -122,8 +124,8 @@ def load_gate_shell_snapshot(*, project: str | None = None) -> GateShellSnapshot
     members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
     for record in records:
         meta = record.agent_meta
-        if meta is not None and meta.agent_family:
-            key = (record.project_name, meta.agent_family)
+        if meta is not None and meta.agent_session:
+            key = (record.project_name, meta.agent_session)
             members.setdefault(key, []).append(record)
     return GateShellSnapshot(
         taken_at=taken_at,
@@ -136,7 +138,7 @@ def load_gate_shell_snapshot(*, project: str | None = None) -> GateShellSnapshot
 def has_any_gate_shell(project_name: str, lane: str) -> bool:
     """Return whether ``lane`` has ever had a gate-shell member."""
     return any(
-        record.agent_meta is not None and record.agent_meta.agent_family == lane
+        record.agent_meta is not None and record.agent_meta.agent_session == lane
         for record in _gate_records(project_name)
     )
 

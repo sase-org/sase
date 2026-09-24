@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.core.agent_scan_wire_family_shell import FamilyShellWire
+from sase.core.agent_scan_wire_agent_session_shell import AgentSessionShellWire
 
 
 @dataclass(frozen=True)
@@ -66,9 +66,9 @@ class DoneMarkerWire:
             transactional imports hidden until their whole hood is complete.
         status_label: The configured stop-status label to display
             (e.g. ``MONITORED``), overriding the raw ``outcome``.
-        family_shell: Terminal monitor or gate-shell projection, folding the
+        agent_session_shell: Terminal monitor or gate-shell projection, folding the
             marker's flat ``monitor_*`` / ``gate_*`` fields (mirroring the
-            running member's ``agent_meta.json::family_shell``). ``None``
+            running member's ``agent_meta.json::agent_session_shell``). ``None``
             when the record is neither.
     """
 
@@ -106,7 +106,7 @@ class DoneMarkerWire:
     source_machine: str | None = None
     imported_source_owner: dict[str, Any] | None = None
     status_label: str | None = None
-    family_shell: FamilyShellWire | None = None
+    agent_session_shell: AgentSessionShellWire | None = None
     monitor_diagnostic_manifest_ref: str | None = None
     monitor_retained_log_ref: str | None = None
     continuation_monitor_result_id: str | None = None
@@ -157,9 +157,9 @@ class AgentMetaWire:
     agent_clan_generation: str | None = None
     clan_tribe: str | None = None
     clan_summary: str | None = None
-    agent_family: str | None = None
-    agent_family_role: str | None = None
-    agent_family_parallel: bool = False
+    agent_session: str | None = None
+    agent_session_role: str | None = None
+    agent_session_parallel: bool = False
     source_machine: str | None = None
     imported_source_owner: dict[str, Any] | None = None
     plan_chain_root: bool = False
@@ -217,7 +217,7 @@ class AgentMetaWire:
     retry_terminal: bool = False
     retry_error_category: str | None = None
     status_bucket: str | None = None
-    family_shell: FamilyShellWire | None = None
+    agent_session_shell: AgentSessionShellWire | None = None
     monitor_diagnostic_manifest_ref: str | None = None
     monitor_retained_log_ref: str | None = None
     continuation_monitor_result_id: str | None = None

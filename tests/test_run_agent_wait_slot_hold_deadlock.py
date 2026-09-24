@@ -46,7 +46,7 @@ def _record(
         timestamp=artifact_dir.rsplit("/", 1)[-1],
         agent_meta=AgentMetaWire(
             name=agent_name,
-            agent_family=family,
+            agent_session=family,
             agent_clan=clan,
             workflow_name=workflow,
             tribe=tribe,

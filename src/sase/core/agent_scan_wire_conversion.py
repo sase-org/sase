@@ -12,7 +12,9 @@ from dataclasses import MISSING, asdict, fields
 from typing import Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
-from sase.core.agent_scan_wire_family_shell import family_shell_from_mapping
+from sase.core.agent_scan_wire_agent_session_shell import (
+    agent_session_shell_from_mapping,
+)
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
     DoneMarkerWire,
@@ -41,7 +43,12 @@ from sase.core.agent_scan_wire_records import (
     AgentClanContextWire,
 )
 from sase.core.patch_metadata import canonicalize_patch_metadata
-from sase.core.wire import known_field_kwargs, with_legacy_agent_session_keys
+from sase.core.wire import known_field_kwargs
+from sase.plan_chain import (
+    agent_session_parallel_value,
+    agent_session_role_value,
+    agent_session_value,
+)
 
 
 def _record_shape_from_value(value: object) -> AgentArtifactRecordShape:
@@ -384,31 +391,37 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
-    payload = _queue_capacity_alias_payload(
-        _dual_patch_name_payload(with_legacy_agent_session_keys(data))
-    )
+    payload = _queue_capacity_alias_payload(_dual_patch_name_payload(dict(data)))
     if "tag" in payload or isinstance(payload.get("tribe"), str):
         payload = canonicalize_agent_tribe_metadata(dict(payload))
     kwargs = _non_default_field_kwargs(AgentMetaWire, payload)
-    if bool(payload.get("agent_family_parallel", False)):
+    # legacy agent-family spelling: pre-rename marker files carry
+    # ``agent_family*`` / ``family_shell`` keys; new writers emit only the
+    # ``agent_session*`` spellings below.
+    kwargs["agent_session"] = agent_session_value(payload)
+    kwargs["agent_session_role"] = agent_session_role_value(payload)
+    kwargs["agent_session_parallel"] = bool(agent_session_parallel_value(payload))
+    if kwargs["agent_session_parallel"]:
         if not kwargs.get("agent_clan"):
-            kwargs["agent_clan"] = payload.get("agent_family")
-        kwargs["agent_family"] = None
-        kwargs["agent_family_role"] = None
+            kwargs["agent_clan"] = kwargs["agent_session"]
+        kwargs["agent_session"] = None
+        kwargs["agent_session_role"] = None
     if "plan_committed" in payload and type(payload.get("plan_committed")) is not bool:
         kwargs["plan_committed"] = None
-    family_shell = family_shell_from_mapping(payload)
-    if family_shell is not None:
-        kwargs["family_shell"] = family_shell
+    agent_session_shell = agent_session_shell_from_mapping(payload)
+    if agent_session_shell is not None:
+        kwargs["agent_session_shell"] = agent_session_shell
     return AgentMetaWire(**kwargs)
 
 
 def _done_marker_from_dict(data: dict[str, Any]) -> DoneMarkerWire:
-    payload = _dual_patch_name_payload(with_legacy_agent_session_keys(data))
+    payload = _dual_patch_name_payload(dict(data))
     kwargs = _non_default_field_kwargs(DoneMarkerWire, payload)
-    family_shell = family_shell_from_mapping(payload)
-    if family_shell is not None:
-        kwargs["family_shell"] = family_shell
+    # legacy agent-family spelling: pre-rename marker files carry
+    # ``family_shell``; new writers emit only ``agent_session_shell``.
+    agent_session_shell = agent_session_shell_from_mapping(payload)
+    if agent_session_shell is not None:
+        kwargs["agent_session_shell"] = agent_session_shell
     return DoneMarkerWire(**kwargs)
 
 

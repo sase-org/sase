@@ -76,8 +76,8 @@ def _agent_record(
             name=name,
             pid=100,
             parent_timestamp=parent_timestamp,
-            agent_family=agent_family,
-            agent_family_parallel=agent_family_parallel,
+            agent_session=agent_family,
+            agent_session_parallel=agent_family_parallel,
             run_started_at=("2026-08-12T12:00:00-04:00" if run_started else None),
         ),
         pending_question=(

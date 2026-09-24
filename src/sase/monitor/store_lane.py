@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
-from sase.plan_chain import agent_family_base
+from sase.plan_chain import agent_session_base
 from sase.procs.models import ProcStoreSnapshot
 
 from sase.monitor import store
@@ -38,7 +38,7 @@ def default_caller(env: Mapping[str, str] | None = None) -> str | None:
     """Return the calling agent's exact name from its environment, if any.
 
     This does not collapse the name through
-    :func:`~sase.plan_chain.agent_family_base`: :func:`resolve_caller_agent`
+    :func:`~sase.plan_chain.agent_session_base`: :func:`resolve_caller_agent`
     resolves a durable family from the caller's own artifacts instead, so a
     phase name such as ``sase-m6.6.1.5`` is never rewritten into a broader
     family lane.
@@ -87,7 +87,7 @@ def resolve_caller_agent(
        callers whose env already carries the member name, e.g.
        ``02i--code``).
     3. The newest non-monitor member of *caller*'s own family -- records
-       whose ``agent_meta.agent_family`` equals *caller* exactly. Monitor
+       whose ``agent_meta.agent_session`` equals *caller* exactly. Monitor
        members are excluded so a settled ``--mon`` row, usually the newest
        member of the family, is never selected as the parent.
 
@@ -105,13 +105,13 @@ def resolve_caller_agent(
         newest = max(exact, key=lambda record: record.timestamp)
         return LaneContext(lane=caller, project_name=project_name, record=newest)
 
-    family_members = [
+    session_members = [
         record
         for record in records
-        if _record_family_is(record, caller) and not is_monitor_member_record(record)
+        if _record_session_is(record, caller) and not is_monitor_member_record(record)
     ]
-    if family_members:
-        newest = max(family_members, key=lambda record: record.timestamp)
+    if session_members:
+        newest = max(session_members, key=lambda record: record.timestamp)
         return LaneContext(lane=caller, project_name=project_name, record=newest)
 
     raise MonitorLaneError(_no_caller_artifacts_message(project_name, caller, records))
@@ -157,9 +157,9 @@ def durable_lane_for_record(record: AgentArtifactRecordWire, *, fallback: str) -
     """
     meta = record.agent_meta
     if meta is not None:
-        family = (meta.agent_family or "").strip()
-        if family:
-            return family
+        session = (meta.agent_session or "").strip()
+        if session:
+            return session
     return fallback
 
 
@@ -191,7 +191,7 @@ def active_monitor_for_lane(
     candidates: list[AgentArtifactRecordWire] = []
     for record in store.monitor_records(project_name):
         meta = record.agent_meta
-        if meta is None or meta.agent_family != lane:
+        if meta is None or meta.agent_session != lane:
             continue
         try:
             monitor = MonitorRecord.from_record(record)
@@ -222,7 +222,7 @@ def monitor_blocking_start_for_lane(
     candidates: list[MonitorRecord] = []
     for record in store.monitor_records(project_name):
         meta = record.agent_meta
-        if meta is None or meta.agent_family != lane:
+        if meta is None or meta.agent_session != lane:
             continue
         try:
             monitor = MonitorRecord.from_record(record)
@@ -244,7 +244,7 @@ def monitor_blocking_start_for_lane(
 def has_any_monitor(project_name: str, lane: str) -> bool:
     """Return whether *lane* has ever had a monitor member."""
     return any(
-        record.agent_meta is not None and record.agent_meta.agent_family == lane
+        record.agent_meta is not None and record.agent_meta.agent_session == lane
         for record in store.monitor_records(project_name)
     )
 
@@ -253,9 +253,9 @@ def _record_in_lane(record: AgentArtifactRecordWire, lane: str) -> bool:
     meta = record.agent_meta
     if meta is None:
         return False
-    if meta.agent_family == lane or meta.workflow_name == lane:
+    if meta.agent_session == lane or meta.workflow_name == lane:
         return True
-    return meta.name == lane or agent_family_base(meta.name) == lane
+    return meta.name == lane or agent_session_base(meta.name) == lane
 
 
 def _record_has_name(record: AgentArtifactRecordWire, agent_name: str) -> bool:
@@ -263,9 +263,9 @@ def _record_has_name(record: AgentArtifactRecordWire, agent_name: str) -> bool:
     return meta is not None and meta.name == agent_name
 
 
-def _record_family_is(record: AgentArtifactRecordWire, family: str) -> bool:
+def _record_session_is(record: AgentArtifactRecordWire, session: str) -> bool:
     meta = record.agent_meta
-    return meta is not None and meta.agent_family == family
+    return meta is not None and meta.agent_session == session
 
 
 def _pinned_caller_record(
@@ -289,8 +289,8 @@ def _pinned_caller_record(
             return None
         if (
             meta.name == caller
-            or meta.agent_family == caller
-            or agent_family_base(meta.name) == caller
+            or meta.agent_session == caller
+            or agent_session_base(meta.name) == caller
         ):
             return record
         return None
@@ -330,7 +330,7 @@ def _nearest_caller_artifact_names(
         and record.agent_meta.name
         and (
             record.agent_meta.name.startswith(caller)
-            or record.agent_meta.agent_family == caller
+            or record.agent_meta.agent_session == caller
         )
     ]
     candidates.sort(key=lambda record: record.timestamp, reverse=True)

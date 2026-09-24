@@ -25,7 +25,7 @@ def liveness_facts_for_holds(
     now: datetime | float | None,
 ) -> dict[str, Any]:
     proc_statuses = _proc_status_records()
-    family_indexes = FamilyIndexCache(records, allow_scans=allow_index_scan)
+    session_indexes = AgentSessionIndexCache(records, allow_scans=allow_index_scan)
     facts: dict[str, Any] = {}
     for hold in holds:
         armer = mapping_payload(hold.get("armer"))
@@ -43,7 +43,7 @@ def liveness_facts_for_holds(
                 terminal = True
             facts[key] = {"kind": "proc", "terminal": terminal}
         elif kind == "agent":
-            facts[key] = _agent_liveness_fact(armer, family_indexes)
+            facts[key] = _agent_liveness_fact(armer, session_indexes)
         elif kind == "cli":
             facts[key] = _cli_liveness_fact(armer)
         elif kind == "launch":
@@ -53,17 +53,17 @@ def liveness_facts_for_holds(
 
 def _agent_liveness_fact(
     armer: Mapping[str, Any],
-    family_indexes: FamilyIndexCache,
+    session_indexes: AgentSessionIndexCache,
 ) -> dict[str, Any]:
     marker_path = armer.get("done_marker_path")
     if isinstance(marker_path, str) and marker_path:
         done_present = Path(marker_path).exists()
         if done_present:
             project = armer.get("project")
-            settled = isinstance(project, str) and agent_family_settled(
+            settled = isinstance(project, str) and agent_session_settled(
                 str(Path(marker_path).parent),
                 project,
-                family_indexes,
+                session_indexes,
             )
             return {
                 "kind": "agent",
@@ -178,22 +178,22 @@ def proc_identity_and_terminal(
     )
 
 
-def agent_family_settled(
+def agent_session_settled(
     artifact_dir: str,
     project: str,
-    family_indexes: FamilyIndexCache,
+    session_indexes: AgentSessionIndexCache,
 ) -> bool:
-    index = family_indexes.for_project(project)
+    index = session_indexes.for_project(project)
     if index is None:
         return True
     root = index.artifacts_by_dir.get(str(Path(artifact_dir)))
     if root is None:
         return True
-    family = index.family_candidate_for_root(root)
-    return family is not None and family.is_resolved
+    session = index.family_candidate_for_root(root)
+    return session is not None and session.is_resolved
 
 
-class FamilyIndexCache:
+class AgentSessionIndexCache:
     def __init__(
         self,
         records: Sequence[AgentArtifactRecordWire],

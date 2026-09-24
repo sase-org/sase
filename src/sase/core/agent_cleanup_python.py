@@ -191,7 +191,7 @@ def _parallel_members_by_parent(
     members: dict[str, list[AgentCleanupTargetWire]] = defaultdict(list)
     for target in targets:
         if (
-            target.agent_family_parallel
+            target.agent_session_parallel
             and target.parent_workflow is None
             and target.parent_timestamp is not None
         ):
@@ -199,12 +199,12 @@ def _parallel_members_by_parent(
     return members
 
 
-def _parallel_family_members(
+def _parallel_agent_session_members(
     root: AgentCleanupTargetWire,
     members_by_parent: dict[str, list[AgentCleanupTargetWire]],
 ) -> list[AgentCleanupTargetWire]:
     if (
-        not root.agent_family_parallel
+        not root.agent_session_parallel
         or is_workflow_child(root)
         or root.raw_suffix is None
     ):
@@ -433,7 +433,7 @@ def plan_agent_cleanup_python(
             if dismissable:
                 live_family_members = [
                     member
-                    for member in _parallel_family_members(
+                    for member in _parallel_agent_session_members(
                         target,
                         parallel_members_by_parent,
                     )
@@ -515,7 +515,7 @@ def plan_agent_cleanup_python(
     for root in wire_targets:
         if root.identity not in action_identities:
             continue
-        for member in _parallel_family_members(root, parallel_members_by_parent):
+        for member in _parallel_agent_session_members(root, parallel_members_by_parent):
             if member.identity in action_identities:
                 continue
             if _target_is_dismissable(member, wire_request):

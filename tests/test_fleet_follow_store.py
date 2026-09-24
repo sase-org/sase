@@ -11,7 +11,7 @@ from sase.dispatch.follow_store import (
     activate_dispatch_follow,
     _follow_store_path,
     prewrite_dispatch_follow,
-    promote_family_follow,
+    promote_agent_session_follow,
 )
 from tests.conftest import redirect_sase_home
 
@@ -120,7 +120,7 @@ def test_dispatch_follow_activation_family_promotion_and_legacy_tombstone_wins(
     assert activated.snapshot.records[0]["state"] == "active"
     assert activated.snapshot.records[0]["activated_at_unix"] == 21.0
 
-    promoted = promote_family_follow(singleton, family, now_unix=22.0)
+    promoted = promote_agent_session_follow(singleton, family, now_unix=22.0)
     assert promoted.snapshot.records[0]["logical_locator"] == family
     assert _is_followed(promoted.snapshot, family)
 
@@ -163,7 +163,7 @@ def test_dispatch_follow_activation_family_promotion_and_legacy_tombstone_wins(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(stale_payload), encoding="utf-8")
 
-    reconciled = promote_family_follow(singleton, family, now_unix=32.0)
+    reconciled = promote_agent_session_follow(singleton, family, now_unix=32.0)
 
     assert reconciled.changed is True
     assert reconciled.snapshot.records == ()
