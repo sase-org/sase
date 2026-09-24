@@ -379,7 +379,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                         "Format: model, provider/model, or @alias; "
                         "optional trailing @effort"
                     ),
-                    placeholder="e.g. codex/gpt-5.6-sol@medium",
+                    placeholder="e.g. codex/gpt-6-sol@medium",
                 ),
                 callback=self._on_member_custom_picked,
             )

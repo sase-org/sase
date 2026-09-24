@@ -43,6 +43,7 @@ def test_build_model_options_has_known_models() -> None:
     assert "claude-fable-5" in ids
     assert "o3" in ids
     assert "gpt-6-astra" in ids
+    assert "gpt-6-sol" in ids
     assert "gpt-5.6-sol" in ids
     assert "gpt-5.6-terra" in ids
     assert "gpt-5.6-luna" in ids
@@ -154,6 +155,22 @@ def test_model_picker_codex_spark_row_includes_alias() -> None:
     assert isinstance(option.prompt, Text)
     assert "gpt-5.3-codex-spark" in option.prompt.plain
     assert "gpt53spark" in option.prompt.plain
+
+
+def test_model_picker_gpt6_sol_row_includes_alias() -> None:
+    """GPT-6 Sol should be a first-class Codex row with its short alias."""
+    rows = build_model_rows()
+    row = next(row for row in rows if row.option_id == "gpt-6-sol")
+    option = rows_to_options([row])[0]
+
+    assert row.provider == "codex"
+    assert row.model_id == "gpt-6-sol"
+    assert row.alias == "gpt6sol"
+    assert row.label == "    gpt-6-sol  (gpt6sol)"
+    assert option is not None
+    assert isinstance(option.prompt, Text)
+    assert "gpt-6-sol" in option.prompt.plain
+    assert "gpt6sol" in option.prompt.plain
 
 
 def test_model_picker_claude_point_version_rows_are_absent() -> None:

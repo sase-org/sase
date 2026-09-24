@@ -233,7 +233,7 @@ def register_bead_create_parser(
         "--model",
         help=(
             "Model to use when this bead is launched. Provider-qualified "
-            "(e.g. codex/gpt-5.6-sol) or local alias (e.g. #pro). For epic "
+            "(e.g. codex/gpt-6-sol) or local alias (e.g. #pro). For epic "
             "plan beads this becomes the land-agent model; for phase beads it "
             "is the per-phase work model; for task beads it is the task-worker "
             "model."
@@ -589,7 +589,7 @@ def register_bead_update_parser(
         "--model",
         help=(
             "Model for this bead's launch. Provider-qualified (e.g. "
-            "codex/gpt-5.6-sol) or local alias (e.g. #pro). Pass '' to clear."
+            "codex/gpt-6-sol) or local alias (e.g. #pro). Pass '' to clear."
         ),
     )
     parser.add_argument(

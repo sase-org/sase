@@ -226,10 +226,10 @@ The `grok-4.6` model — the only model in the authenticated catalog — accepts
 `medium`, `high`, and `xhigh` for `--effort`. `%effort:none`, `%effort:minimal`, and
 `%effort:max` raise a clean SASE error rather than a Grok process crash. The shipped
 Grok `@xlarge` candidate is `grok/grok-4.6@xhigh`, so a Grok-selected xlarge launch
-passes `--effort xhigh`. The shipped Codex `@xlarge` member is
-`codex/gpt-5.6-sol@xhigh`, so no shipped alias asks Codex for `max`. A user-configured
-Codex target that pairs an alias-borne `@max` is best-effort: `max` is logged and
-skipped and the CLI runs at its own default effort instead of erroring.
+passes `--effort xhigh`. The shipped Codex `@xlarge` member is `codex/gpt-6-sol@xhigh`,
+so no shipped alias asks Codex for `max`. A user-configured Codex target that pairs an
+alias-borne `@max` is best-effort: `max` is logged and skipped and the CLI runs at its
+own default effort instead of erroring.
 
 ### Usage is best-effort
 

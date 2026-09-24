@@ -134,7 +134,7 @@ launcher-materialized model catalog, in canonical catalog order, with case-insen
 prefix matching. Accepting `@large` replaces the whole `=query` token, including any
 suffix to the right of a mid-token caret, with `%m:@large`. The `==model` menu lists
 concrete model rows only, including provider-qualified matches such as `==codex/g`;
-accepting `gpt-5.6-sol` replaces the whole `==query` token with `%m:gpt-5.6-sol`.
+accepting `gpt-6-sol` replaces the whole `==query` token with `%m:gpt-6-sol`.
 
 At prompt or line end the expansion appends one ASCII space; before a tab it appends
 none; before an existing ASCII space it consumes and reinserts that first space so later

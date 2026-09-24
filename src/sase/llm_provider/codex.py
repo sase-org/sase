@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 # Map model tiers to Codex model names
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "gpt-5.6-sol",
+    "large": "gpt-6-sol",
     "small": "codex-mini-latest",
 }
 
@@ -228,6 +228,7 @@ class CodexProvider(LLMProvider):
     def llm_known_model_names(self) -> list[str]:
         return [
             "gpt-6-astra",
+            "gpt-6-sol",
             "gpt-5.6-sol",
             "gpt-5.6-terra",
             "gpt-5.6-luna",
@@ -248,6 +249,7 @@ class CodexProvider(LLMProvider):
     def llm_model_short_aliases(self) -> dict[str, str]:
         return {
             "gpt-6-astra": "astra",
+            "gpt-6-sol": "gpt6sol",
             "codex-mini-latest": "mini",
             "gpt-5.6-sol": "gpt56sol",
             "gpt-5.6-terra": "gpt56terra",

@@ -280,7 +280,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                         "A | 3 B weights B three-to-one. "
                         "(A | B) || C is last-resort when the pool is unavailable"
                     ),
-                    placeholder=("e.g. claude/fable || codex/gpt-5.6-sol"),
+                    placeholder=("e.g. claude/fable || codex/gpt-6-sol"),
                     initial=view.raw_value or "",
                 ),
                 callback=self._on_edit_custom_picked,

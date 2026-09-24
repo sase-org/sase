@@ -60,7 +60,7 @@ class FollowupModel:
     """The follow-up agent's model directive prefix and metadata.
 
     ``model_prefix`` is prepended to the generated follow-up prompt (for
-    example, ``"%model:codex/gpt-5.6-sol\\n"``). ``meta`` is the
+    example, ``"%model:codex/gpt-6-sol\\n"``). ``meta`` is the
     ``(provider_or_none, model)`` written to the follow-up's
     ``agent_meta.json``. It is ``None`` when the inherited planner metadata is
     already correct and does not need to be rewritten.

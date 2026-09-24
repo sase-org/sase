@@ -107,6 +107,20 @@ def test_model_completion_catalog_reflects_real_builtin_model_metadata(
     assert astra.aliases == ("astra",)
     assert astra.description == "Codex (astra)"
 
+    assert "gpt-6-sol" in model_entries
+
+    sol = model_entries["gpt-6-sol"]
+    assert sol.provider == "codex"
+    assert sol.aliases == ("gpt6sol",)
+    assert sol.description == "Codex (gpt6sol)"
+
+    assert "gpt-5.6-sol" in model_entries
+
+    legacy_sol = model_entries["gpt-5.6-sol"]
+    assert legacy_sol.provider == "codex"
+    assert legacy_sol.aliases == ("gpt56sol",)
+    assert legacy_sol.description == "Codex (gpt56sol)"
+
     assert "gpt-5.6-luna" in model_entries
     luna = model_entries["gpt-5.6-luna"]
     assert luna.provider == "codex"
@@ -172,6 +186,46 @@ def test_model_completion_catalog_includes_agy_gemini_38_flash_variants(
     scoped_values = {entry.value for entry in scoped}
     for model in expected_aliases:
         assert f"agy/{model}" in scoped_values
+
+
+def test_model_completion_catalog_filters_gpt6_sol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Filtering `gpt6` and `codex/gpt-6` surfaces the GPT-6 Sol row."""
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+
+    gpt6_values = {
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(entries, "gpt6")
+    }
+    assert "gpt-6-sol" in gpt6_values
+
+    scoped_values = {
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "codex/gpt-6"
+        )
+    }
+    assert "codex/gpt-6-sol" in scoped_values
+
+
+def test_model_completion_lsp_payload_includes_gpt6_sol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The serialized LSP catalog carries the GPT-6 Sol Codex row."""
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    payload = model_completion.model_completion_catalog_payload()
+    entries = payload["entries"]
+    assert isinstance(entries, list)
+    by_value = {entry["value"]: entry for entry in entries if isinstance(entry, dict)}
+    assert "gpt-6-sol" in by_value
+    assert by_value["gpt-6-sol"]["provider"] == "codex"
+    assert "gpt6sol" in by_value["gpt-6-sol"]["aliases"]
 
 
 def test_model_completion_catalog_hides_fakey_from_real_registry(

@@ -4408,14 +4408,14 @@ fewer than two pool members or the live validation line reports an error.
   non-default pill appears in the top bar.
 - Highlight `@large`, `e`, pick `claude/opus`, and confirm — only large phases and tasks
   without an explicit model use that target, replacing the shipped
-  `claude/opus@high | codex/gpt-5.6-sol@high | grok/grok-4.6@high` pool; other-sized
+  `claude/opus@high | codex/gpt-6-sol@high | grok/grok-4.6@high` pool; other-sized
   phase/task routing is unchanged.
 - Highlight `@xlarge`, `e`, pick `claude/opus`, and confirm — xlarge phases and tasks
   use that target directly, and `big epic lander` (left at its shipped `@xlarge`
   reference) inherits the same change.
 - Leave `@xlarge` implicit — xlarge phases, tasks, and threshold-selected epic landers
   (which reference `@xlarge` by default) all follow whichever member of its shipped
-  `claude/opus@xhigh | codex/gpt-5.6-sol@xhigh | grok/grok-4.6@xhigh` pool is currently
+  `claude/opus@xhigh | codex/gpt-6-sol@xhigh | grok/grok-4.6@xhigh` pool is currently
   selected.
 - Highlight `@xsmall`, `e`, choose `Custom...`, enter
   `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases and tasks
@@ -4918,10 +4918,9 @@ suffixes are supplied by the LLM provider plugins via the `llm_provider_short_na
 (built-in defaults: `cld` for Claude, `cdx` for Codex, `agy` for Antigravity).
 Additional provider plugins can contribute their own short names. Model-name shorthands
 come from the `llm_model_short_aliases` hook (e.g. `fable` for `claude-fable-5`,
-`gpt56sol` for `gpt-5.6-sol`; see [Model Short Aliases](llms.md#model-short-aliases))
-and are resolved against the configured model so the suffix stays compact regardless of
-how the model was spelled in the prompt or config. Single-runtime spawns omit the
-suffix.
+`gpt6sol` for `gpt-6-sol`; see [Model Short Aliases](llms.md#model-short-aliases)) and
+are resolved against the configured model so the suffix stays compact regardless of how
+the model was spelled in the prompt or config. Single-runtime spawns omit the suffix.
 
 An explicit `%id:<name>` launch fails before spawning if `<name>` is already reserved.
 The prompt is saved as a cancelled history entry and the error suggests the lowest free
@@ -6643,9 +6642,9 @@ token under the cursor:
   of a logical line or immediately after a literal ASCII space, completion opens a model
   shortcut menu. `=alias` lists alias rows only; for example, typing `=la` can select
   `@large` and rewrite the whole token to `%m:@large`. `==model` lists concrete model
-  rows only; for example, typing `==gpt` can select `gpt-5.6-sol` and rewrite the token
-  to `%m:gpt-5.6-sol`, while provider-qualified input such as `==codex/g` narrows to
-  that provider. The second equals sign switches an open alias shortcut panel into the
+  rows only; for example, typing `==gpt` can select `gpt-6-sol` and rewrite the token to
+  `%m:gpt-6-sol`, while provider-qualified input such as `==codex/g` narrows to that
+  provider. The second equals sign switches an open alias shortcut panel into the
   explicit model panel. If the token already has a following ASCII space, sase's TUI
   reuses it and leaves the cursor after that space; before a tab it inserts no extra
   space; before a newline or prompt end it appends one ASCII space. `Ctrl+F` and

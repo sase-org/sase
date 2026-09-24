@@ -334,7 +334,7 @@ async def test_on_edit_custom_opens_empty_when_alias_has_no_value(
         assert isinstance(screen, CustomModelInputModal)
         input_widget = screen.query_one("#custom-model-input", SingleLineVimTextArea)
         assert input_widget.text == ""
-        assert input_widget.placeholder == "e.g. claude/fable || codex/gpt-5.6-sol"
+        assert input_widget.placeholder == "e.g. claude/fable || codex/gpt-6-sol"
 
 
 async def test_on_edit_custom_explicit_alias_effort_skips_effort_picker(

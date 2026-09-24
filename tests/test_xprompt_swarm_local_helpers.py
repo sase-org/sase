@@ -109,6 +109,8 @@ def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
     assert source.count("#_article_search_agent") == 3
     assert "%model:agy/flash35h" not in source
     assert "%model:agy/gemini-3.7-flash-high" in source
+    assert "%model:codex/gpt-6-sol" in source
+    assert "%model:codex/gpt-5.6-sol" not in source
 
     reads = load_xprompt_from_file(reads_path)
     assert reads is not None

@@ -107,7 +107,7 @@ def test_size_aliases_use_independent_rotations(
             "@large",
             {
                 "claude/": ("claude/opus", "high"),
-                "codex/": ("codex/gpt-5.6-sol", "high"),
+                "codex/": ("codex/gpt-6-sol", "high"),
                 "grok/": ("grok/grok-4.6", "high"),
             },
         ),
@@ -115,7 +115,7 @@ def test_size_aliases_use_independent_rotations(
             "@xlarge",
             {
                 "claude/": ("claude/opus", "xhigh"),
-                "codex/": ("codex/gpt-5.6-sol", "xhigh"),
+                "codex/": ("codex/gpt-6-sol", "xhigh"),
                 "grok/": ("grok/grok-4.6", "xhigh"),
             },
         ),
@@ -152,7 +152,7 @@ def test_shipped_large_round_robins_claude_codex_grok(
     assert selector is not None
     assert selector.members == (
         "claude/opus@high",
-        "codex/gpt-5.6-sol@high",
+        "codex/gpt-6-sol@high",
         "grok/grok-4.6@high",
     )
     assert selector.fallback_members == ()
@@ -164,7 +164,7 @@ def test_shipped_large_round_robins_claude_codex_grok(
         lambda _target: True,
     )
     selected = [resolve_model_alias("@large", consume=True) for _ in range(3)]
-    assert selected == ["claude/opus", "codex/gpt-5.6-sol", "grok/grok-4.6"]
+    assert selected == ["claude/opus", "codex/gpt-6-sol", "grok/grok-4.6"]
 
 
 def test_shipped_xlarge_round_robins_claude_codex_grok(
@@ -177,7 +177,7 @@ def test_shipped_xlarge_round_robins_claude_codex_grok(
     assert selector is not None
     assert selector.members == (
         "claude/opus@xhigh",
-        "codex/gpt-5.6-sol@xhigh",
+        "codex/gpt-6-sol@xhigh",
         "grok/grok-4.6@xhigh",
     )
     assert selector.fallback_members == ()

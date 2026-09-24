@@ -258,7 +258,7 @@ class ModelsPanelOverrideMixin(_MixinBase):
                         "Format: model, provider/model, or @alias; "
                         "optional trailing @effort"
                     ),
-                    placeholder="e.g. codex/gpt-5.6-sol@medium",
+                    placeholder="e.g. codex/gpt-6-sol@medium",
                 ),
                 callback=self._on_custom_picked,
             )

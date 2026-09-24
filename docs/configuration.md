@@ -1661,7 +1661,7 @@ names, the five built-in size aliases (`@xsmall`, `@small`, `@medium`, `@large`,
 aliases are shown as filter/display hints but are not inserted. The `=alias` shortcut is
 alias-only: accepting `=la` on `@large` rewrites the token to `%m:@large`. The `==model`
 shortcut lists concrete model rows, so accepting `==gpt` can rewrite the token to
-`%m:gpt-5.6-sol`; provider-qualified input such as `==codex/g` narrows to that provider.
+`%m:gpt-6-sol`; provider-qualified input such as `==codex/g` narrows to that provider.
 The old `*alias` and `**model` forms remain ordinary prompt text. `Ctrl+T` remains
 available for both shortcut menus when automatic directive menus are disabled.
 
@@ -1934,8 +1934,8 @@ llm_provider:
   # Override examples; shipped size-alias defaults are generated in docs/llms.md.
   model_aliases:
     builtin:
-      medium: codex/gpt-5.6-sol # specialize the medium size alias
-      large: claude/opus | codex/gpt-5.6-sol # custom large-phase pool
+      medium: codex/gpt-6-sol # specialize the medium size alias
+      large: claude/opus | codex/gpt-6-sol # custom large-phase pool
     custom:
       blogger:
         model: claude/opus
