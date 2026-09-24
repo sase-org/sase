@@ -156,6 +156,17 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         self._update_proc_indicator()
         for completion in snapshot.completions:
             self._deliver_observed_completion(completion, projection)
+        for exit_completion in snapshot.exit_completions:
+            self._deliver_command_line_exit(exit_completion)
+
+    def _deliver_command_line_exit(self, exit_completion: object) -> None:
+        """Settle the Command Line block for one proc exit completion."""
+        try:
+            from ..command_line.exits import deliver_command_line_exit
+
+            deliver_command_line_exit(self, exit_completion)
+        except Exception:  # noqa: BLE001 - exit delivery never breaks snapshots.
+            log.debug("command line exit delivery failed", exc_info=True)
 
     def _sync_proc_shell_agents_from_projection(
         self,

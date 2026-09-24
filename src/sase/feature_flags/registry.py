@@ -21,6 +21,8 @@ from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
 class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
+    ace_command_line = "ace_command_line"
+
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     axe_routine_job_contract = "axe_routine_job_contract"
@@ -39,6 +41,15 @@ class FeatureFlag(StrEnum):
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
+    FeatureFlag.ace_command_line: FeatureFlagDefinition(
+        key=FeatureFlag.ace_command_line,
+        kind="beta",
+        description=(
+            "The TUI offers the Command Line panel through `open_command_line` "
+            "and a Command Palette row."
+        ),
+        bead="sase-181",
+    ),
     FeatureFlag.ace_refresh_tokens: FeatureFlagDefinition(
         key=FeatureFlag.ace_refresh_tokens,
         kind="sunset",

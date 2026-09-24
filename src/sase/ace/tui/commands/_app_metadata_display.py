@@ -191,4 +191,12 @@ DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ALL_TABS,
         ("commands", ":"),
     ),
+    # Command Line panel (beta flag ``ace_command_line``; hidden when off).
+    (
+        "open_command_line",
+        "Command Line",
+        "Misc",
+        ALL_TABS,
+        ("command line", "cli", ":"),
+    ),
 )

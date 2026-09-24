@@ -468,6 +468,16 @@ ace:
     collect_raw_placeholders: true
     xprompt_placeholder_args: true
   keymaps:
+    # Focused Command Line panel bindings. These keys are inactive everywhere
+    # else, even when they overlap app-level actions.
+    command_line:
+      toggle_full_height: "ctrl+t"
+      clear_transcript: "ctrl+l"
+      hide_panel: "escape"
+      hop_to_palette: "semicolon"
+      history_prev: "up"
+      history_next: "down"
+      history_search: "ctrl+r"
     # Focused Admin Center Config-hub bindings. The prefix is inactive
     # everywhere else and arms one numbered Config sub-tab selection.
     config:
@@ -819,6 +829,7 @@ ace:
       show_notifications: "i"
       open_config_center: "number_sign"
       open_command_palette: "colon,semicolon"
+      open_command_line: "unbound"
       dismiss_toasts: "ctrl+l"
       # Workspace mode prefixes
       checkout: "C"

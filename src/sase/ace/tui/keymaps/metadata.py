@@ -182,6 +182,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("show_agent_run_log", "Agent Run Log", False),
     ("view_agent_metadata", "Agent Metadata", False),
     ("open_command_palette", "Command Palette", False),
+    ("open_command_line", "Command Line", False),
     ("dismiss_toasts", "Dismiss Toasts", False),
 ]
 
@@ -287,6 +288,18 @@ _GATE_BINDING_META: tuple[tuple[str, str], ...] = (
 _GATE_INPUT_PANEL_BINDING_META: tuple[tuple[str, str], ...] = (
     ("next_input", "Next input"),
     ("previous_input", "Previous input"),
+)
+
+# Scoped bindings owned by the Command Line panel. Panel keys such as
+# ``ctrl+t``/``ctrl+l`` stay inactive everywhere else.
+_COMMAND_LINE_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("toggle_full_height", "Full Height"),
+    ("clear_transcript", "Clear Transcript"),
+    ("hide_panel", "Hide Panel"),
+    ("hop_to_palette", "Command Palette"),
+    ("history_prev", "Previous History"),
+    ("history_next", "Next History"),
+    ("history_search", "Search History"),
 )
 
 # Scoped bindings owned by the Memory panel. These are deliberately

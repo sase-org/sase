@@ -37,6 +37,10 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return False
     if spec.id == "app.follow_artifact_link":
         return ctx.link_edges_present is not False
+    if spec.id == "app.open_command_line":
+        from sase.ace.tui.command_line.flag import command_line_enabled
+
+        return command_line_enabled()
 
     if ctx.tab == "artifacts":
         return _patches_available(spec, ctx)

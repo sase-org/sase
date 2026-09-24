@@ -681,6 +681,21 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         if callable(refresh):
             refresh()
 
+    def action_open_command_line(self) -> None:
+        """Open the bottom-anchored Command Line panel (beta flag gated)."""
+        from ..command_line.flag import command_line_enabled
+        from ..command_line.screen import CommandLineScreen
+
+        if not command_line_enabled():
+            self.notify(  # type: ignore[attr-defined]
+                "Command Line is behind the `ace_command_line` beta flag.",
+                severity="information",
+            )
+            return
+        self.push_screen(  # type: ignore[attr-defined]
+            CommandLineScreen(), callback=None
+        )
+
     def action_open_command_palette(self) -> None:
         """Open the context-aware command palette modal (bound to ``:``)."""
         from ..commands import (

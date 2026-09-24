@@ -190,6 +190,7 @@ class AppKeymaps:
     show_notifications: str
     open_config_center: str
     open_command_palette: str
+    open_command_line: str
     dismiss_toasts: str
     # Workspace mode prefixes
     checkout: str
@@ -326,6 +327,19 @@ class MachinesPaneKeymaps:
     show_agents: str = "enter"
     copy_command: str = "y"
     reload: str = "U"
+
+
+@dataclass
+class CommandLineKeymaps:
+    """Panel-scoped actions for the ``:`` Command Line drawer."""
+
+    toggle_full_height: str = "ctrl+t"
+    clear_transcript: str = "ctrl+l"
+    hide_panel: str = "escape"
+    hop_to_palette: str = "semicolon"
+    history_prev: str = "up"
+    history_next: str = "down"
+    history_search: str = "ctrl+r"
 
 
 @dataclass

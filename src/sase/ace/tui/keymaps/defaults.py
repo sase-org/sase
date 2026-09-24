@@ -68,6 +68,12 @@ def load_builtin_gate_defaults() -> dict[str, str]:
     return dict(_builtin_scope_defaults("gate"))
 
 
+def load_builtin_command_line_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled Command Line panel defaults."""
+
+    return dict(_builtin_scope_defaults("command_line"))
+
+
 def load_builtin_memory_defaults() -> dict[str, str]:
     """Return a mutable copy of bundled focused Memory-panel defaults."""
 

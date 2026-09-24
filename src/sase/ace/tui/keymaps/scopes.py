@@ -6,6 +6,7 @@ from dataclasses import fields
 from typing import Any
 
 from sase.ace.tui.keymaps.defaults import (
+    load_builtin_command_line_defaults,
     load_builtin_config_defaults,
     load_builtin_gate_defaults,
     load_builtin_machines_defaults,
@@ -15,6 +16,7 @@ from sase.ace.tui.keymaps.defaults import (
     load_builtin_statistics_defaults,
 )
 from sase.ace.tui.keymaps.app_keymaps import (
+    CommandLineKeymaps,
     ConfigHubKeymaps,
     GateModalKeymaps,
     MachinesPaneKeymaps,
@@ -180,6 +182,17 @@ def load_config_keymaps(keymaps_cfg: dict[str, Any]) -> ConfigHubKeymaps:
         scope="config",
         dataclass_type=ConfigHubKeymaps,
         defaults=load_builtin_config_defaults(),
+    )
+
+
+def load_command_line_keymaps(keymaps_cfg: dict[str, Any]) -> CommandLineKeymaps:
+    """Load and validate the Command Line panel binding scope."""
+
+    return _load_scope_keymaps(
+        keymaps_cfg,
+        scope="command_line",
+        dataclass_type=CommandLineKeymaps,
+        defaults=load_builtin_command_line_defaults(),
     )
 
 
