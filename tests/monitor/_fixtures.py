@@ -125,9 +125,12 @@ def patch_project_records(
     from sase.monitor import store as store_module
 
     def fake(
-        project_name: str | None, *, only_monitors: bool = False
+        project_name: str | None,
+        *,
+        only_monitors: bool = False,
+        agent_session: str | None = None,
     ) -> list[AgentArtifactRecordWire]:
-        del only_monitors
+        del only_monitors, agent_session
         return [
             record
             for record in (record_from_disk(d) for d in artifacts_dirs)

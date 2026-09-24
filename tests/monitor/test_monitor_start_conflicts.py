@@ -60,8 +60,10 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
         request_fingerprint="sha256:match",
     )
 
-    def fake_blocking(project_name: str, lane: str) -> MonitorRecord:
-        del project_name, lane
+    def fake_blocking(
+        project_name: str, lane: str, *, reads: object = None
+    ) -> MonitorRecord:
+        del project_name, lane, reads
         return existing
 
     monkeypatch.setattr(store_module, "monitor_blocking_start_for_lane", fake_blocking)
@@ -115,7 +117,7 @@ def test_start_monitor_rejects_same_command_with_changed_request(
     monkeypatch.setattr(
         store_module,
         "monitor_blocking_start_for_lane",
-        lambda project_name, lane: existing,
+        lambda project_name, lane, *, reads=None: existing,
     )
     monkeypatch.setattr(
         start_module,
@@ -190,7 +192,7 @@ def test_start_monitor_rejects_same_command_with_different_next_model(
     monkeypatch.setattr(
         store_module,
         "monitor_blocking_start_for_lane",
-        lambda project_name, lane: existing,
+        lambda project_name, lane, *, reads=None: existing,
     )
 
     with pytest.raises(MonitorAlreadyRunningError, match="same command"):
@@ -226,7 +228,7 @@ def test_start_monitor_rejects_identical_replay_of_lost_monitor(
     monkeypatch.setattr(
         store_module,
         "monitor_blocking_start_for_lane",
-        lambda project_name, lane: existing,
+        lambda project_name, lane, *, reads=None: existing,
     )
     monkeypatch.setattr(
         start_module,
@@ -277,7 +279,7 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
     monkeypatch.setattr(
         store_module,
         "monitor_blocking_start_for_lane",
-        lambda project_name, lane: existing,
+        lambda project_name, lane, *, reads=None: existing,
     )
     monkeypatch.setattr(
         start_module,
@@ -367,7 +369,10 @@ def test_start_monitor_serializes_concurrent_starts_in_one_lane(
     )
 
     def dynamic_project_records(
-        project_name: str | None, *, only_monitors: bool = False
+        project_name: str | None,
+        *,
+        only_monitors: bool = False,
+        agent_session: str | None = None,
     ) -> list[AgentArtifactRecordWire]:
         records: list[AgentArtifactRecordWire] = []
         projects_root = sase_projects_dir()

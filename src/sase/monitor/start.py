@@ -91,6 +91,8 @@ from .start_runtime import (
     supervisor_pid,
     teardown_failed_member,
 )
+from .start_timing import StartTimer
+from .store_lane import LaneMonitorReads
 from .transaction import (
     MONITOR_GO_MARKER,
     monitor_lane_lock_path,
@@ -119,17 +121,24 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     its own agent session -- and the durable agent session is taken from that artifact.
     An explicit lane still resolves to the newest matching agent-session member.
     """
+    timer = StartTimer()
     identity = resolve_start_identity(request)
+    timer.mark("resolve_identity")
     with log_file_lock(
         monitor_lane_lock_path(request.project_name, identity.lock_lane)
     ):
-        return _start_monitor_locked(request, identity)
+        timer.mark("lane_lock")
+        return _start_monitor_locked(request, identity, timer)
 
 
 def _start_monitor_locked(
-    request: StartMonitorRequest, identity: StartIdentity
+    request: StartMonitorRequest, identity: StartIdentity, timer: StartTimer
 ) -> MonitorRecord:
-    """Start one monitor while the caller holds the lane start lock."""
+    """Start one monitor while the caller holds the lane start lock.
+
+    The lane's monitors are read from the artifact index once, up front, and
+    the snapshot is shared by every question this start asks about them.
+    """
     label = request.label or default_label(request.command)
     records_enabled = monitor_continuation_records_enabled()
     continuation_protocol = monitor_continuation_protocol_for_new_start(records_enabled)
@@ -168,16 +177,22 @@ def _start_monitor_locked(
     request_fingerprint = monitor_request_fingerprint(
         request, lane=identity.lock_lane, label=label
     )
+    timer.mark("continuation_setup")
 
+    lane_reads = LaneMonitorReads(request.project_name)
     replayed = _replayed_lane_monitor(
         request,
         identity.lock_lane,
         request_fingerprint=request_fingerprint,
+        reads=lane_reads,
     )
+    timer.mark("replay_lookup")
     if replayed is not None:
+        timer.log(identity.lock_lane)
         return replayed
 
     lane_start = resolve_lane_start(request, identity)
+    timer.mark("resolve_lane_start")
     preflight = preflight_monitor_workspace_claim(
         lane_start.project_file,
         lane_start.workspace_num,
@@ -196,14 +211,16 @@ def _start_monitor_locked(
             lane_start,
             transfer_from_pid=preflight.transfer_from_pid,
         )
+    timer.mark("claim_preflight")
     durable_lane = lane_start.durable_lane
     suffix = naming.allocate_monitor_suffix(
         durable_lane,
         has_existing_monitor=store_lane.has_any_monitor(
-            request.project_name, durable_lane
+            request.project_name, durable_lane, reads=lane_reads
         ),
     )
     monitor_id = naming.new_monitor_id()
+    timer.mark("suffix_lookup")
     bound_completion_ref: str | None = None
     if request.completion_ref:
         from sase.finalizers.declaration import FinalizerDeclarationError
@@ -221,6 +238,7 @@ def _start_monitor_locked(
         except FinalizerDeclarationError as exc:
             raise MonitorError(str(exc)) from exc
         bound_completion_ref = request.completion_ref
+    timer.mark("bind_completion")
 
     artifacts_dir = create_monitor_member(
         request.project_name,
@@ -274,6 +292,7 @@ def _start_monitor_locked(
             raise MonitorError(
                 f"could not persist frozen outcome policy: {exc}"
             ) from exc
+    timer.mark("create_member")
     member_name = f"{durable_lane}{suffix}"
     member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
     claim_holder: dict[str, Any] = {}
@@ -370,6 +389,7 @@ def _start_monitor_locked(
                 log_path,
                 format_reservation_fallback_line(reason).encode("utf-8"),
             )
+    timer.mark("tool_reservation")
     try:
         proc = submit_proc_request(
             ProcSubmitRequest(
@@ -449,6 +469,7 @@ def _start_monitor_locked(
             )
         teardown_failed_member(artifacts_dir, str(exc))
         raise MonitorError(str(exc)) from exc
+    timer.mark("spawn_and_ack")
 
     record = MonitorRecord(
         monitor_id=monitor_id,
@@ -487,6 +508,9 @@ def _start_monitor_locked(
         starter_artifacts_dir=starter_artifacts_dir,
         records_enabled=records_enabled,
     )
+    timer.mark("persist_intent")
+    timer.log(durable_lane)
+    timer.write(artifacts_dir)
     return record
 
 
@@ -495,6 +519,7 @@ def _replayed_lane_monitor(
     lane: str,
     *,
     request_fingerprint: str,
+    reads: LaneMonitorReads,
 ) -> MonitorRecord | None:
     """Return the monitor a replayed start should reuse, if there is one.
 
@@ -503,7 +528,7 @@ def _replayed_lane_monitor(
     *other* request, which a new start is allowed to supersede.
     """
     existing_record = store_lane.monitor_blocking_start_for_lane(
-        request.project_name, lane
+        request.project_name, lane, reads=reads
     )
     if existing_record is None:
         return None

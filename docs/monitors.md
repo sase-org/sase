@@ -374,6 +374,31 @@ On Linux, when the starter runs inside a SASE-owned systemd unit or scope such a
 `systemd-run --user --scope`, so restarting that service does not kill a running
 monitor. Set `SASE_DETACH_SCOPE_DISABLE=1` to opt out.
 
+### A start is fast, and never silent
+
+An in-agent `sase monitor start` has to finish inside the harness's own tool budget:
+Codex's yielding `exec_command` hands control back to the model after about 30 seconds
+while the command keeps running, and anything still running when the turn ends is
+killed. So the start touches only what it needs and says so at once:
+
+- Inside an agent it prints one line to stderr before any slow work
+  (`sase monitor start: starting monitor for lane <lane>; ... wait for it to exit`), so
+  a yielded result is never empty. All stdout, including the `--json` envelope, still
+  prints before the runner is killed.
+- The calling agent is resolved by reading its own `SASE_ARTIFACTS_DIR` directly. The
+  full project scan is only the fallback for a missing, stale, or foreign pin.
+- The lane's existing monitors are read once, through the artifact index's
+  `agent_session` candidate filter, and that snapshot answers the replay check and the
+  `--mon` suffix allocation. A lane read does not hydrate other lanes' records or walk
+  the project's source directories.
+- Each phase of the start (identity, lane lock, replay lookup, lane resolution, claim
+  preflight, member creation, ToolRun reservation, supervisor spawn and ack, intent
+  persistence) is timed. The timings are logged at debug level and written to
+  `monitor_start_timing.json` in the new member's artifacts directory.
+
+On a host with about 12,000 artifact records this took an in-agent start from roughly
+20-40 seconds to well under one.
+
 ### Startup acknowledgement
 
 The monitored command runs under the durable proc service's detached supervisor, and

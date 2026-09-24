@@ -22,7 +22,7 @@ from sase.monitor import store
 from .models import MonitorLaneError, MonitorRecord, is_monitor_member_record
 from .reconcile import reconcile_dead_supervisor, should_reconcile_dead_supervisor
 
-_STORE_QUERY_ANCHORS = (store.monitor_records, store.project_records)
+_STORE_QUERY_ANCHORS = (store.lane_monitor_records, store.project_records)
 
 
 @dataclass(frozen=True)
@@ -91,9 +91,23 @@ def resolve_caller_agent(
        members are excluded so a settled ``--mon`` row, usually the newest
        member of the agent session, is never selected as the parent.
 
+    Step 1 reads only the pinned artifact dir, so an in-agent start never
+    loads project history just to find the record it is already running in.
+    The full project scan is the fallback for steps 2 and 3 and for a
+    missing, stale, or foreign pin.
+
     Raises :class:`MonitorLaneError` naming ``-a/--agent`` when none of the
     above resolves.
     """
+    if artifacts_dir:
+        direct = store.artifact_dir_record(project_name, artifacts_dir)
+        if direct is not None:
+            pinned = _pinned_caller_record([direct], caller, artifacts_dir)
+            if pinned is not None:
+                return LaneContext(
+                    lane=caller, project_name=project_name, record=pinned
+                )
+
     records = store.project_records(project_name)
 
     pinned = _pinned_caller_record(records, caller, artifacts_dir)
@@ -163,6 +177,26 @@ def durable_lane_for_record(record: AgentArtifactRecordWire, *, fallback: str) -
     return fallback
 
 
+class LaneMonitorReads:
+    """One start's lane-scoped monitor reads, each lane queried at most once.
+
+    A monitor start asks several questions about its lane's monitors (does
+    one block the start, has the lane ever had one). Sharing this object
+    between them turns those into a single artifact-index read. It is only
+    valid while the caller holds the lane start lock, which is what keeps
+    the lane's set of monitors from changing underneath it.
+    """
+
+    def __init__(self, project_name: str) -> None:
+        self._project_name = project_name
+        self._by_lane: dict[str, list[AgentArtifactRecordWire]] = {}
+
+    def records(self, lane: str) -> list[AgentArtifactRecordWire]:
+        if lane not in self._by_lane:
+            self._by_lane[lane] = store.lane_monitor_records(self._project_name, lane)
+        return self._by_lane[lane]
+
+
 class _LazyProcSnapshot:
     """Read the durable proc store at most once for one lane scan.
 
@@ -189,10 +223,7 @@ def active_monitor_for_lane(
     """Return the not-yet-terminal monitor member for *lane*, if any."""
     procs = _LazyProcSnapshot()
     candidates: list[AgentArtifactRecordWire] = []
-    for record in store.monitor_records(project_name):
-        meta = record.agent_meta
-        if meta is None or meta.agent_session != lane:
-            continue
+    for record in store.lane_monitor_records(project_name, lane):
         try:
             monitor = MonitorRecord.from_record(record)
         except ValueError:
@@ -211,19 +242,25 @@ def active_monitor_for_lane(
 def monitor_blocking_start_for_lane(
     project_name: str,
     lane: str,
+    *,
+    reads: LaneMonitorReads | None = None,
 ) -> MonitorRecord | None:
     """Return the monitor that prevents starting a new one in *lane*.
 
     Same-boot dead supervisors are reconciled to terminal ``failed`` records
     and do not block replacement. Pre-reboot monitors reconcile to ``lost``
     and do block replacement because the command's effect is unknown.
+
+    *reads* shares one lane-scoped monitor read with the rest of a start.
     """
     procs = _LazyProcSnapshot()
     candidates: list[MonitorRecord] = []
-    for record in store.monitor_records(project_name):
-        meta = record.agent_meta
-        if meta is None or meta.agent_session != lane:
-            continue
+    lane_records = (
+        reads.records(lane)
+        if reads is not None
+        else store.lane_monitor_records(project_name, lane)
+    )
+    for record in lane_records:
         try:
             monitor = MonitorRecord.from_record(record)
         except ValueError:
@@ -241,12 +278,19 @@ def monitor_blocking_start_for_lane(
     return max(candidates, key=lambda record: record.timestamp)
 
 
-def has_any_monitor(project_name: str, lane: str) -> bool:
-    """Return whether *lane* has ever had a monitor member."""
-    return any(
-        record.agent_meta is not None and record.agent_meta.agent_session == lane
-        for record in store.monitor_records(project_name)
-    )
+def has_any_monitor(
+    project_name: str,
+    lane: str,
+    *,
+    reads: LaneMonitorReads | None = None,
+) -> bool:
+    """Return whether *lane* has ever had a monitor member.
+
+    *reads* shares one lane-scoped monitor read with the rest of a start.
+    """
+    if reads is not None:
+        return bool(reads.records(lane))
+    return bool(store.lane_monitor_records(project_name, lane))
 
 
 def _record_in_lane(record: AgentArtifactRecordWire, lane: str) -> bool:
@@ -345,6 +389,7 @@ def _nearest_caller_artifact_names(
 
 __all__ = [
     "LaneContext",
+    "LaneMonitorReads",
     "active_monitor_for_lane",
     "caller_artifacts_dir",
     "default_caller",

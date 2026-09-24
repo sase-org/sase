@@ -165,6 +165,18 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         )
         return 2
 
+    if will_handoff_monitor_to_agent_runner():
+        # Lane resolution and the launch transaction can take many seconds. A
+        # harness whose tool yields before this command exits (Codex's
+        # exec_command) must see a running command, not an empty result it
+        # could mistake for a finished handoff. Stdout stays reserved for the
+        # summary that must print before the runner is killed.
+        print(
+            f"sase monitor start: starting monitor for lane {agent}; this "
+            "command hands off your turn when it finishes -- wait for it to exit",
+            file=sys.stderr,
+            flush=True,
+        )
     cwd = resolve_cwd(getattr(args, "cwd", None), agent, exact=exact_caller)
     project_name = _monitor_start_project_name(infer_project_name(str(cwd)))
     if not project_name:

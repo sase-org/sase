@@ -45,7 +45,10 @@ def _patch_live_records(monkeypatch: pytest.MonkeyPatch) -> None:
     from sase.monitor import store as store_module
 
     def live_records(
-        project_name: str | None, *, only_monitors: bool = False
+        project_name: str | None,
+        *,
+        only_monitors: bool = False,
+        agent_session: str | None = None,
     ) -> list[object]:
         records = []
         projects_root = sase_projects_dir()

@@ -357,6 +357,106 @@ def test_start_prints_the_summary_before_the_agent_runner_handoff_kill(
     assert "This is the last output before the agent runner is killed" in out
 
 
+def _agent_handoff_start_argv(tmp_path: Path) -> list[str]:
+    return [
+        "monitor",
+        "start",
+        "-c",
+        "true",
+        "-r",
+        "verify",
+        "-t",
+        "30s",
+        "-a",
+        "acme",
+        "-C",
+        str(tmp_path),
+        "-s",
+        "TESTING",
+        "-S",
+        "TESTED",
+    ]
+
+
+def test_start_in_an_agent_says_so_on_stderr_before_any_slow_work(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A yielding harness must see a non-empty, self-explanatory running command."""
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    pin_project(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", starter_dir)
+    monkeypatch.setattr(
+        "sase.main.utils.kill_agent_runner_group",
+        lambda _artifacts_dir: (_ for _ in ()).throw(SystemExit(0)),
+    )
+
+    from sase.main.monitor import start as start_handler
+
+    real_start_monitor = start_handler.start_monitor
+    stderr_when_start_began: list[str] = []
+
+    def spying_start_monitor(request: object) -> object:
+        stderr_when_start_began.append(capsys.readouterr().err)
+        return real_start_monitor(request)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(start_handler, "start_monitor", spying_start_monitor)
+
+    exit_code = dispatch(_agent_handoff_start_argv(tmp_path))
+
+    assert exit_code == 0
+    assert len(stderr_when_start_began) == 1
+    assert (
+        "sase monitor start: starting monitor for lane acme; this command "
+        "hands off your turn when it finishes -- wait for it to exit"
+    ) in stderr_when_start_began[0]
+
+
+def test_start_outside_an_agent_prints_no_handoff_line(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    pin_project(monkeypatch)
+    monkeypatch.delenv("SASE_AGENT", raising=False)
+
+    exit_code = dispatch(_agent_handoff_start_argv(tmp_path))
+
+    assert exit_code == 0
+    assert "starting monitor for lane" not in capsys.readouterr().err
+
+
 def test_start_json_envelope_reports_handed_off_before_the_kill(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

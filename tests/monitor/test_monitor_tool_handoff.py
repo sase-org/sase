@@ -230,7 +230,10 @@ def _start(
     )
 
     def live_records(
-        project_name: str | None, *, only_monitors: bool = False
+        project_name: str | None,
+        *,
+        only_monitors: bool = False,
+        agent_session: str | None = None,
     ) -> list[object]:
         from sase.core.paths import sase_projects_dir
 

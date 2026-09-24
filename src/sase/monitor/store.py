@@ -18,6 +18,7 @@ from typing import Any
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index,
+    scan_agent_artifact_dirs,
     scan_agent_artifacts,
 )
 from sase.core.agent_scan_wire import (
@@ -93,7 +94,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
 
 def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
     """Return the current record for one monitor member's artifacts dir."""
-    for record in monitor_records(project_name):
+    for record in _monitor_records(project_name):
         if record.artifact_dir == artifacts_dir:
             converted = _monitor_record_from_wire(record)
             if converted is None:
@@ -167,9 +168,9 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     reconcile_proc_shells()
     snapshot = read_proc_snapshot()
     reconcile_dead_supervisors(project=project, snapshot=snapshot)
-    wire_records = list(monitor_records(project))
+    wire_records = list(_monitor_records(project))
     if reconcile_terminal_deliveries(project=project, records=wire_records):
-        wire_records = list(monitor_records(project))
+        wire_records = list(_monitor_records(project))
     records = [
         _with_proc_projection(converted, snapshot=snapshot)
         for converted in (_monitor_record_from_wire(record) for record in wire_records)
@@ -189,7 +190,7 @@ def reconcile_terminal_deliveries(
     from .resume import reconcile_terminal_delivery
 
     reconciled: list[MonitorRecord] = []
-    source_records = records if records is not None else monitor_records(project)
+    source_records = records if records is not None else _monitor_records(project)
     for record in (_monitor_record_from_wire(item) for item in source_records):
         if record is None or not record.is_terminal:
             continue
@@ -283,13 +284,57 @@ def _monitor_record_from_wire(
         return None
 
 
-def monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
-    """Return raw monitor artifact records for lane-scoped callers."""
+def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
+    """Return every raw monitor artifact record for *project_name*.
+
+    Only whole-project monitor listings and reconciliation want this; a start
+    asks about its own lane through :func:`lane_monitor_records` instead.
+    """
     return [
         record
         for record in project_records(project_name, only_monitors=True)
         if is_monitor_member_record(record)
     ]
+
+
+def lane_monitor_records(
+    project_name: str | None, lane: str
+) -> list[AgentArtifactRecordWire]:
+    """Return raw monitor members whose ``agent_session`` is exactly *lane*.
+
+    A monitor start only ever cares about its own lane, so this asks the
+    artifact index for that lane's rows instead of hydrating every monitor
+    in the project (see :func:`project_records`'s *agent_session*).
+    """
+    return [
+        record
+        for record in project_records(
+            project_name, only_monitors=True, agent_session=lane
+        )
+        if is_monitor_member_record(record)
+        and record.agent_meta is not None
+        and record.agent_meta.agent_session == lane
+    ]
+
+
+def artifact_dir_record(
+    project_name: str | None, artifacts_dir: str
+) -> AgentArtifactRecordWire | None:
+    """Read one known artifact dir's record straight from disk.
+
+    ``project_records()`` walks the whole project's history to find a record
+    the caller already knows the path to. This scans exactly *artifacts_dir*
+    (no index, no lock), the same way :func:`read_monitor_marker` reads one
+    member's markers. Returns ``None`` when the dir holds no record for
+    *project_name*, so a stale or foreign pin falls back to the full scan.
+    """
+    try:
+        scan = scan_agent_artifact_dirs(
+            sase_projects_dir(), [artifacts_dir], _scan_options(project_name)
+        )
+    except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
+        return None
+    return scan.records[0] if scan.records else None
 
 
 def _reconciliation_monitor_records(
@@ -351,18 +396,33 @@ def project_records(
     project_name: str | None,
     *,
     only_monitors: bool = False,
+    agent_session: str | None = None,
 ) -> list[AgentArtifactRecordWire]:
-    """Return raw artifact records, optionally restricted to monitor members."""
+    """Return raw artifact records, optionally restricted to monitor members.
+
+    *agent_session* narrows the index query to rows of that session/lane
+    before any record is hydrated. It is a cheap pre-filter (the index
+    matches it case-insensitively), so callers still check the exact
+    ``agent_meta.agent_session``; the filesystem-scan fallback ignores it.
+    A lane read also skips the full-history source reconciliation: members
+    of a lane are indexed when they are created, so it never needs to walk
+    the whole project to find them.
+    """
     projects_root = sase_projects_dir()
     options = _scan_options(project_name)
     query = AgentArtifactIndexQueryWire(
         include_active=True,
         include_recent_completed=True,
-        include_full_history=True,
+        include_full_history=agent_session is None,
         active_limit=None,
         recent_completed_limit=None,
         include_hidden=True,
         only_monitors=only_monitors,
+        candidate_filter=(
+            {"kind": "equals", "field": "agent_session", "value": agent_session}
+            if agent_session is not None
+            else None
+        ),
     )
     index_path = default_agent_artifact_index_path()
     if index_path.is_file():
@@ -377,9 +437,10 @@ def project_records(
 
 __all__ = [
     "MIN_MONITOR_REF_LENGTH",
+    "artifact_dir_record",
     "get_monitor",
+    "lane_monitor_records",
     "list_monitors",
-    "monitor_records",
     "project_records",
     "read_monitor_marker",
     "reconcile_dead_supervisors",
