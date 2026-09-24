@@ -72,6 +72,10 @@ def _seed_block(
     elapsed: float | None = None,
     proc_id: str | None = None,
     error: str | None = None,
+    expanded: bool = False,
+    restored: bool = False,
+    unseen: bool = False,
+    selected: bool = False,
 ) -> None:
     session = command_line_session_for(screen.app)
     block = session.add_block(line)
@@ -81,6 +85,11 @@ def _seed_block(
     block.elapsed = elapsed
     block.proc_id = proc_id
     block.error = error
+    block.expanded = expanded
+    block.restored = restored
+    block.unseen = unseen
+    if selected:
+        session.select_block(block.block_id)
     screen.refresh_transcript()
 
 
@@ -272,4 +281,124 @@ async def test_command_line_submit_failed_png_snapshot(
             )
             await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "submit failed")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_block_selected_120x40")],
+)
+async def test_command_line_block_selected_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+        override_flags(ace_command_line=True),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            _seed_block(
+                screen,
+                "bead list --status open",
+                status="success",
+                tail_text="sase-17x  epic  in_progress  Command Line\n",
+                exit_code=0,
+                elapsed=0.9,
+                proc_id="470vtqab",
+                unseen=True,
+            )
+            _seed_block(
+                screen,
+                "bead close sase-zz",
+                status="error",
+                tail_text="error: no such bead: sase-zz\n",
+                exit_code=2,
+                elapsed=0.7,
+                proc_id="9911ab02",
+                selected=True,
+            )
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "o expand")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_block_expanded_120x40")],
+)
+async def test_command_line_block_expanded_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+        override_flags(ace_command_line=True),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            _seed_block(
+                screen,
+                "bead list --status open",
+                status="success",
+                tail_text="\n".join(f"line {index}" for index in range(14)) + "\n",
+                exit_code=0,
+                elapsed=0.9,
+                proc_id="470vtqab",
+                expanded=True,
+                selected=True,
+            )
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "line 0")
+            assert_page_svg_contains(page, "line 13")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_earlier_divider_120x40")],
+)
+async def test_command_line_earlier_divider_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+        override_flags(ace_command_line=True),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            _seed_block(
+                screen,
+                "bead list --status open",
+                status="success",
+                tail_text="sase-17x  epic  in_progress  Command Line\n",
+                exit_code=0,
+                elapsed=0.9,
+                proc_id="470vtqab",
+            )
+            _seed_block(
+                screen,
+                "agent wait research.2h --timeout 10m",
+                status="success",
+                tail_text="done\n",
+                exit_code=0,
+                elapsed=61.2,
+                proc_id="3aacsa99",
+                restored=True,
+            )
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "earlier")
             ace_png_visual.assert_page_png(page, snapshot_name)

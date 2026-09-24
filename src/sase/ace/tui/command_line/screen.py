@@ -14,6 +14,9 @@ input: every edit resolves synchronously (tokens, slot, diagnostics,
 signature, run policy), the floating popup shows Rust-ranked candidates
 fed by in-memory TUI entities plus debounced providers, and the signature
 row renders the live signature with its policy chips.
+NORMAL-mode block navigation (``j``/``k``/``g``/``G`` plus the block action
+keys) is handled here; the input widget forwards those keys while in NORMAL
+mode so they never edit the line.
 """
 
 from __future__ import annotations
@@ -53,10 +56,19 @@ from sase.ace.tui.command_line.popup import (
     PopupDecision,
     popup_footer,
 )
+from sase.ace.tui.command_line.restore import (
+    block_from_proc,
+    ensure_block_for_proc,
+    load_block_tail_text,
+    read_command_line_store_rows,
+    refresh_pruned_flags,
+    restore_missing_blocks,
+)
 from sase.ace.tui.command_line.session import (
     CommandLineBlock,
     CommandLineSession,
     command_line_session_for,
+    tokenize_command_line,
 )
 from sase.ace.tui.command_line.signature import signature_hint_line
 from sase.ace.tui.command_line.sources import (
@@ -67,6 +79,7 @@ from sase.ace.tui.command_line.sources import (
     selected_entity_values,
 )
 from sase.ace.tui.command_line.submit import (
+    PreparedSubmit,
     apply_submit_failure,
     apply_submit_success,
     prepare_submit,
@@ -83,6 +96,11 @@ COMMAND_LINE_INPUT_HINTS = "⏎ run · ⇥ complete · ↑↓ history · ^R sear
 COMMAND_LINE_MENU_HINTS = "⏎ accept · ↑↓ move · esc normal"
 #: Signature-row text while the grammar loader worker is still in flight.
 COMMAND_LINE_INDEXING_HINT = "indexing commands…"
+#: Bottom-border key hints while a transcript block is selected (NORMAL mode).
+COMMAND_LINE_BLOCK_HINTS = (
+    "j/k move · o expand · v pager · K kill · r rerun · e edit · "
+    "y copy · p Procs · x remove · i input · esc hide"
+)
 
 
 class CommandLineScreen(ModalScreen[None]):
@@ -92,6 +110,30 @@ class CommandLineScreen(ModalScreen[None]):
         Binding("ctrl+t", "toggle_full_height", "Full height", show=False),
         Binding("ctrl+l", "clear_transcript", "Clear", show=False),
         Binding("escape", "hide_panel", "Hide", show=False),
+        Binding("j", "block_next", "Next block", show=False),
+        Binding("k", "block_prev", "Previous block", show=False),
+        Binding("up", "block_prev", "Previous block", show=False),
+        Binding("down", "block_next", "Next block", show=False),
+        Binding("g", "block_first", "First block", show=False),
+        Binding("G", "block_last", "Last block", show=False),
+        Binding("shift+g", "block_last", "Last block", show=False),
+        Binding("o", "block_toggle_expand", "Expand", show=False),
+        Binding("enter", "block_toggle_expand", "Expand", show=False),
+        Binding("v", "block_pager", "Pager", show=False),
+        Binding("K", "block_kill", "Kill", show=False),
+        Binding("shift+k", "block_kill", "Kill", show=False),
+        Binding("r", "block_rerun", "Rerun", show=False),
+        Binding("R", "block_rerun_confirm", "Rerun with -y", show=False),
+        Binding("shift+r", "block_rerun_confirm", "Rerun with -y", show=False),
+        Binding("e", "block_edit", "Edit", show=False),
+        Binding("y", "block_copy_output", "Copy output", show=False),
+        Binding("Y", "block_copy_command", "Copy command", show=False),
+        Binding("shift+y", "block_copy_command", "Copy command", show=False),
+        Binding("p", "block_procs", "Procs", show=False),
+        Binding("x", "block_remove", "Remove", show=False),
+        Binding("i", "block_focus_input", "Input", show=False),
+        Binding("a", "block_focus_input", "Input", show=False),
+        Binding("colon", "block_focus_input", "Input", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -214,8 +256,25 @@ class CommandLineScreen(ModalScreen[None]):
             restored_input.move_cursor((0, session.draft_cursor))
         except Exception:  # noqa: BLE001 - cursor restore is best effort.
             pass
+        pending_focus = session.focus_block_proc_id
+        session.focus_block_proc_id = None
+        if not session.restored:
+            session.restored = True
+            run_worker = getattr(self.app, "run_worker", None)
+            if callable(run_worker):
+                run_worker(self._restore_worker(pending_focus), exclusive=False)
+            elif pending_focus is not None:
+                self._focus_proc_block(pending_focus)
+        elif pending_focus is not None:
+            if not self._focus_proc_block(pending_focus):
+                run_worker = getattr(self.app, "run_worker", None)
+                if callable(run_worker):
+                    run_worker(
+                        self._ensure_focus_worker(pending_focus), exclusive=False
+                    )
         self._refresh_transcript()
         self._update_running()
+        self._update_hints()
         restored_input.focus()
         self._history.refresh()
         context = await asyncio.to_thread(resolve_working_context, self.app, session)
@@ -240,6 +299,87 @@ class CommandLineScreen(ModalScreen[None]):
             self._refresh_completion()
         except Exception:  # noqa: BLE001 - refresh is best effort.
             pass
+
+    async def _restore_worker(self, pending_focus: str | None) -> None:
+        """Rebuild the transcript from the proc store once per app session."""
+        app = self.app
+        session = self.session
+        try:
+            rows = await asyncio.to_thread(read_command_line_store_rows)
+        except Exception:  # noqa: BLE001 - restore is best effort.
+            rows = []
+        try:
+            restore_missing_blocks(session, rows)
+            refresh_pruned_flags(session, {row.proc_id for row in rows})
+            observer = getattr(app, "_proc_observer", None)
+            for block in session.blocks:
+                if block.running and block.proc_id is not None and observer is not None:
+                    try:
+                        observer.register_exit_watch(block.proc_id)
+                    except Exception:  # noqa: BLE001 - watches are best effort.
+                        pass
+            if pending_focus is not None:
+                self._focus_proc_block(pending_focus)
+                if session.block_for_proc(pending_focus) is None:
+                    for row in rows:
+                        if row.proc_id == pending_focus:
+                            rebuilt = block_from_proc(row)
+                            if rebuilt is not None:
+                                session.blocks.append(rebuilt)
+                                self._focus_proc_block(pending_focus)
+                            break
+        except Exception:  # noqa: BLE001 - restore never breaks the panel.
+            pass
+        self._refresh_transcript()
+        self._update_running()
+        self._update_hints()
+
+    async def _ensure_focus_worker(self, proc_id: str) -> None:
+        """Add a store-backed block for a Procs jump, then select it."""
+        session = self.session
+        try:
+            await asyncio.to_thread(ensure_block_for_proc, session, proc_id)
+        except Exception:  # noqa: BLE001 - focus is best effort.
+            pass
+        if session.block_for_proc(proc_id) is None:
+            try:
+                self.notify("Proc record pruned", severity="warning")
+            except Exception:  # noqa: BLE001 - notify is best effort.
+                pass
+            return
+        self._focus_proc_block(proc_id)
+        self._refresh_transcript()
+        self._update_hints()
+
+    def _focus_proc_block(self, proc_id: str) -> bool:
+        """Select the block tracking *proc_id*; False when it is missing."""
+        session = self.session
+        block = session.block_for_proc(proc_id)
+        if block is None:
+            return False
+        session.select_block(block.block_id)
+        self._ensure_block_tail(block)
+        return True
+
+    def _ensure_block_tail(self, block: CommandLineBlock) -> None:
+        """Lazily load a viewed block's tail in a worker (repaints after)."""
+        if block.tail_loaded or block.proc_id is None:
+            return
+        run_worker = getattr(self.app, "run_worker", None)
+        if not callable(run_worker):
+            return
+        run_worker(self._load_tail_worker(block.block_id), exclusive=False)
+
+    async def _load_tail_worker(self, block_id: str) -> None:
+        """Read one block's lazy tail off-thread, then repaint."""
+        block = self.session.block_by_id(block_id)
+        if block is None:
+            return
+        try:
+            await asyncio.to_thread(load_block_tail_text, block)
+        except Exception:  # noqa: BLE001 - lazy tails are best effort.
+            return
+        self._refresh_transcript()
 
     async def on_unmount(self) -> None:
         """Persist the draft and stop tail polling."""
@@ -320,23 +460,51 @@ class CommandLineScreen(ModalScreen[None]):
             widget = self.query_one(CommandLineInput)
         except Exception:  # noqa: BLE001 - unmounted screen cannot submit.
             return
+        self._submit_line(widget.normalized_text())
+
+    def _submit_line(
+        self, line: str, *, bypass_dedup: bool = False, select: bool = False
+    ) -> bool:
+        """Submit *line* as a new block; deliberate reruns bypass the guard."""
         session = self.session
-        line = widget.normalized_text()
-        prepared = prepare_submit(session, line, tokens=self._submit_tokens())
+        prepared: PreparedSubmit | None
+        if bypass_dedup:
+            tokens = tokenize_command_line(line)
+            if tokens is None:
+                return False
+            prepared = PreparedSubmit(tokens=tokens, line=line.strip())
+            session.last_submit_line = line.strip()
+            try:
+                import time as _time
+
+                session.last_submit_at = _time.monotonic()
+            except Exception:  # noqa: BLE001 - guard bookkeeping is best effort.
+                pass
+        else:
+            prepared = prepare_submit(session, line, tokens=self._submit_tokens())
         if prepared is None:
-            return
+            return False
         block = session.add_block(prepared.line)
-        widget.set_line("")
-        session.draft = ""
-        session.draft_cursor = 0
-        self._walk_anchor = None
+        if not bypass_dedup:
+            try:
+                widget = self.query_one(CommandLineInput)
+            except Exception:  # noqa: BLE001 - unmounted screen cannot submit.
+                widget = None
+            if widget is not None:
+                widget.set_line("")
+            session.draft = ""
+            session.draft_cursor = 0
+            self._walk_anchor = None
+        if select:
+            session.select_block(block.block_id)
         self._refresh_transcript()
         self._update_running()
+        self._update_hints()
         run_worker = getattr(self.app, "run_worker", None)
         if not callable(run_worker):
             apply_submit_failure(block, "worker unavailable")
             self._refresh_transcript()
-            return
+            return False
         run_worker(
             self._submit_worker(
                 block=block,
@@ -345,6 +513,7 @@ class CommandLineScreen(ModalScreen[None]):
             ),
             exclusive=False,
         )
+        return True
 
     async def _submit_worker(
         self, *, block: CommandLineBlock, tokens: list[str], line: str
@@ -468,12 +637,389 @@ class CommandLineScreen(ModalScreen[None]):
         """Repaint the transcript and running count from session state."""
         self._refresh_transcript()
         self._update_running()
+        self._update_hints()
 
     def _refresh_transcript(self) -> None:
         try:
-            self.transcript.refresh_blocks(self.session.blocks)
+            self.transcript.refresh_blocks(
+                self.session.blocks,
+                selected_id=self.session.selected_block_id,
+            )
         except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
             pass
+
+    def _update_hints(self) -> None:
+        """Show block keys while a block is selected, input keys otherwise."""
+        try:
+            keys = self.query_one("#command-line-keys", Static)
+        except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
+            return
+        if self.session.selected_block_id is not None:
+            keys.update(COMMAND_LINE_BLOCK_HINTS)
+        else:
+            keys.update(COMMAND_LINE_INPUT_HINTS)
+
+    # -- NORMAL-mode block navigation --------------------------------------
+
+    #: Forwarded NORMAL-mode keys (from the input widget) to screen handlers.
+    _BLOCK_NAV_KEYS = frozenset(
+        {
+            "j",
+            "k",
+            "g",
+            "G",
+            "o",
+            "v",
+            "K",
+            "r",
+            "R",
+            "e",
+            "y",
+            "Y",
+            "p",
+            "x",
+            "i",
+            "a",
+            "enter",
+            "up",
+            "down",
+            "colon",
+        }
+    )
+
+    def handle_block_nav_key(self, key: str) -> bool:
+        """Dispatch one forwarded NORMAL-mode key; False when unhandled."""
+        if key not in self._BLOCK_NAV_KEYS:
+            return False
+        handler = {
+            "j": self._select_next,
+            "down": self._select_next,
+            "k": self._select_prev,
+            "up": self._select_prev,
+            "g": self._select_first,
+            "G": self._select_last,
+            "o": self.toggle_selected_expand,
+            "enter": self.toggle_selected_expand,
+            "v": self.open_selected_in_pager,
+            "K": self.kill_selected_block,
+            "r": self.rerun_selected_block,
+            "R": self.rerun_selected_with_confirm_flag,
+            "e": self.edit_selected_block,
+            "y": self.copy_selected_output,
+            "Y": self.copy_selected_command,
+            "p": self.open_selected_in_procs,
+            "x": self.remove_selected_block,
+            "i": self.focus_input,
+            "a": self.focus_input,
+            "colon": self.focus_input,
+        }[key]
+        handler()
+        return True
+
+    def _select_next(self) -> None:
+        """Select the next block, entering the transcript at the last one."""
+        self._after_selection(self.session.move_selection(1))
+
+    def _select_prev(self) -> None:
+        """Select the previous block, entering the transcript at the last one."""
+        self._after_selection(self.session.move_selection(-1))
+
+    def _select_first(self) -> None:
+        """Jump the selection to the first block."""
+        self._after_selection(self.session.select_first())
+
+    def _select_last(self) -> None:
+        """Jump the selection to the last block."""
+        self._after_selection(self.session.select_last())
+
+    def _after_selection(self, block: CommandLineBlock | None) -> None:
+        """Repaint after a selection move and lazily load the viewed tail."""
+        if block is not None:
+            self._ensure_block_tail(block)
+        self._refresh_transcript()
+        self._update_hints()
+
+    def selected_block(self) -> CommandLineBlock | None:
+        """Return the NORMAL-mode selected block, if any."""
+        return self.session.selected_block()
+
+    def toggle_selected_expand(self) -> bool:
+        """Expand or collapse the selected block (``o`` / ``⏎``)."""
+        block = self.selected_block()
+        if block is None:
+            return False
+        block.expanded = not block.expanded
+        block.unseen = False
+        if block.expanded:
+            self._ensure_block_tail(block)
+        self._refresh_transcript()
+        return True
+
+    def open_selected_in_pager(self) -> bool:
+        """Open the selected block's full sanitized log in ``PagerScreen``."""
+        block = self.selected_block()
+        if block is None:
+            return False
+        block.unseen = False
+        if not block.tail_loaded and block.proc_id is not None:
+            run_worker = getattr(self.app, "run_worker", None)
+            if callable(run_worker):
+                run_worker(self._open_pager_worker(block.block_id), exclusive=False)
+                return True
+        self._push_block_pager(block)
+        return True
+
+    async def _open_pager_worker(self, block_id: str) -> None:
+        """Load a block's tail off-thread, then push its pager on the app."""
+        block = self.session.block_by_id(block_id)
+        if block is None:
+            return
+        try:
+            await asyncio.to_thread(load_block_tail_text, block)
+        except Exception:  # noqa: BLE001 - lazy tails are best effort.
+            pass
+        self._refresh_transcript()
+        self.app.call_from_thread(self._push_block_pager, block)
+
+    def _push_block_pager(self, block: CommandLineBlock) -> None:
+        """Push ``PagerScreen`` for one block's cached output."""
+        from rich.text import Text as _Text
+
+        from sase.pager.document import PagerDocument, PagerSection
+        from sase.pager.link_scan import PagerOrigin
+        from sase.pager.screen import PagerScreen
+
+        from sase.ace.tui.command_line.block_render import sanitize_block_output
+
+        body_text = block.tail_text or "(no output)"
+        body = _Text.from_ansi(sanitize_block_output(body_text))
+        document = PagerDocument(
+            sections=(
+                PagerSection(
+                    identity=block.block_id,
+                    title=f": {block.line}",
+                    kind="text",
+                    body=body,
+                ),
+            ),
+            title=f": {block.line}",
+            origin=PagerOrigin.FILE,
+        )
+        self.app.push_screen(PagerScreen(document))
+
+    def kill_selected_block(self) -> bool:
+        """Kill the selected running proc after confirmation (``K``)."""
+        from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
+        from sase.ace.tui.modals.confirm_dialog import ConfirmKind
+        from sase.ace.tui.modals.procs_store_rows import kill_store_task
+
+        block = self.selected_block()
+        if block is None:
+            return False
+        if not block.running or block.proc_id is None:
+            self.notify("Proc already finished", severity="warning")
+            return True
+        proc_id = block.proc_id
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            error = kill_store_task(proc_id)
+            if error is not None:
+                self.notify(f"Kill failed: {error}", severity="error")
+
+        self.app.push_screen(
+            ConfirmActionModal(
+                title="Kill Proc",
+                message=f"Kill running proc: {block.line}?",
+                kind=ConfirmKind.DANGER,
+                confirm_label="Kill",
+                cancel_label="Cancel",
+            ),
+            _on_confirm,
+        )
+        return True
+
+    def rerun_selected_block(self) -> bool:
+        """Rerun the selected block's line as a new block (``r``)."""
+        block = self.selected_block()
+        if block is None:
+            return False
+        return self._submit_line(block.line, bypass_dedup=True, select=True)
+
+    def rerun_selected_with_confirm_flag(self) -> bool:
+        """Rerun the selected line visibly appended with ``-y`` (``R``)."""
+        import re as _re
+
+        block = self.selected_block()
+        if block is None:
+            return False
+        line = block.line
+        if _re.search(r"(?:^|\s)(?:-y|--yes)(?:\s|$|=)", line) is None:
+            line = f"{line} -y"
+        return self._submit_line(line, bypass_dedup=True, select=True)
+
+    def edit_selected_block(self) -> bool:
+        """Load the selected block's line into the input for editing (``e``)."""
+        block = self.selected_block()
+        if block is None:
+            return False
+        try:
+            widget = self.query_one(CommandLineInput)
+        except Exception:  # noqa: BLE001 - unmounted screen cannot edit.
+            return False
+        self.session.select_block(None)
+        widget.set_line(block.line)
+        self._store_draft()
+        self._update_ghost()
+        self.focus_input()
+        self._refresh_transcript()
+        self._update_hints()
+        return True
+
+    def copy_selected_output(self) -> bool:
+        """Copy the selected block's output (``y``)."""
+        from sase.ace.tui.actions.clipboard import schedule_copy_delivery
+
+        block = self.selected_block()
+        if block is None:
+            return False
+        if not block.tail_text:
+            self.notify("No output available", severity="warning")
+            return True
+        line_count = block.tail_text.count("\n") + (
+            0 if block.tail_text.endswith("\n") else 1
+        )
+        schedule_copy_delivery(
+            self,
+            block.tail_text,
+            copied_label=f"block output ({line_count} lines)",
+            task_name="sase-copy-command-line-output",
+        )
+        return True
+
+    def copy_selected_command(self) -> bool:
+        """Copy the selected block's command line (``Y``)."""
+        from sase.ace.tui.actions.clipboard import schedule_copy_delivery
+
+        block = self.selected_block()
+        if block is None:
+            return False
+        schedule_copy_delivery(
+            self,
+            block.line,
+            copied_label="block command",
+            task_name="sase-copy-command-line-command",
+        )
+        return True
+
+    def open_selected_in_procs(self) -> bool:
+        """Open Admin Center → Procs with the selected proc focused (``p``)."""
+        block = self.selected_block()
+        if block is None:
+            return False
+        if block.proc_id is None:
+            self.notify("No proc record for this block", severity="warning")
+            return True
+        opener = getattr(self.app, "_open_config_center", None)
+        if not callable(opener):
+            return False
+        opener("procs", proc_focus_target=block.proc_id)
+        return True
+
+    def remove_selected_block(self) -> bool:
+        """Remove the selected block; the proc record stays (``x``)."""
+        block = self.selected_block()
+        if block is None:
+            return False
+        self.session.remove_block(block.block_id)
+        self._refresh_transcript()
+        self._update_running()
+        self._update_hints()
+        return True
+
+    def focus_input(self) -> bool:
+        """Return to the input in INSERT mode (``i`` / ``a`` / ``:``)."""
+        try:
+            widget = self.query_one(CommandLineInput)
+        except Exception:  # noqa: BLE001 - unmounted screen has no input.
+            return False
+        self.session.select_block(None)
+        try:
+            widget.focus()
+        except Exception:  # noqa: BLE001 - focus is best effort.
+            pass
+        enter_insert = getattr(widget, "_enter_insert_mode", None)
+        if callable(enter_insert):
+            try:
+                enter_insert()
+            except Exception:  # noqa: BLE001 - mode switch is best effort.
+                pass
+        self._refresh_transcript()
+        self._update_hints()
+        return True
+
+    # -- screen-binding entry points (input NORMAL mode forwards directly) --
+
+    def action_block_next(self) -> None:
+        """Select the next transcript block."""
+        self._select_next()
+
+    def action_block_prev(self) -> None:
+        """Select the previous transcript block."""
+        self._select_prev()
+
+    def action_block_first(self) -> None:
+        """Jump to the first transcript block."""
+        self._select_first()
+
+    def action_block_last(self) -> None:
+        """Jump to the last transcript block."""
+        self._select_last()
+
+    def action_block_toggle_expand(self) -> None:
+        """Expand or collapse the selected block."""
+        self.toggle_selected_expand()
+
+    def action_block_pager(self) -> None:
+        """Open the selected block in the pager."""
+        self.open_selected_in_pager()
+
+    def action_block_kill(self) -> None:
+        """Kill the selected block's proc after confirmation."""
+        self.kill_selected_block()
+
+    def action_block_rerun(self) -> None:
+        """Rerun the selected block's line."""
+        self.rerun_selected_block()
+
+    def action_block_rerun_confirm(self) -> None:
+        """Rerun the selected line with ``-y`` appended."""
+        self.rerun_selected_with_confirm_flag()
+
+    def action_block_edit(self) -> None:
+        """Load the selected block's line into the input."""
+        self.edit_selected_block()
+
+    def action_block_copy_output(self) -> None:
+        """Copy the selected block's output."""
+        self.copy_selected_output()
+
+    def action_block_copy_command(self) -> None:
+        """Copy the selected block's command."""
+        self.copy_selected_command()
+
+    def action_block_procs(self) -> None:
+        """Open Admin Center → Procs on the selected proc."""
+        self.open_selected_in_procs()
+
+    def action_block_remove(self) -> None:
+        """Remove the selected block from the transcript."""
+        self.remove_selected_block()
+
+    def action_block_focus_input(self) -> None:
+        """Return to the input in INSERT mode."""
+        self.focus_input()
 
     def _update_running(self) -> None:
         count = len(self.session.running_blocks())
@@ -936,6 +1482,7 @@ class CommandLineScreen(ModalScreen[None]):
 
 
 __all__ = [
+    "COMMAND_LINE_BLOCK_HINTS",
     "COMMAND_LINE_IDLE_HINT",
     "COMMAND_LINE_INDEXING_HINT",
     "COMMAND_LINE_INPUT_HINTS",

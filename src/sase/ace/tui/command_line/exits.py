@@ -28,11 +28,55 @@ def deliver_command_line_exit(app: Any, completion: Any) -> bool:
         exit_code=completion.exit_code,
         status=completion.status,
     )
-    block.unseen = not _panel_visible(app)
+    visible = _panel_visible(app)
+    block.unseen = not visible
     _drop_tail_token(app, block.block_id)
     _record_history_async(app, block)
+    if not visible:
+        _toast_completion(app, block)
     _repaint_panel(app)
     return True
+
+
+def completion_toast_text(app: Any, block: Any) -> str:
+    """Build the hidden-finish toast for a settled block (pure)."""
+    glyph = "✓" if block.status == "success" else "✗"
+    parts: list[str] = []
+    if block.exit_code is not None:
+        parts.append(f"exit {block.exit_code}")
+    if block.elapsed is not None:
+        parts.append(f"{block.elapsed:.1f}s")
+    message = f"{glyph} {block.line}"
+    if parts:
+        message += f" · {' · '.join(parts)}"
+    hint = _command_line_open_hint(app)
+    if hint:
+        message += f" — {hint} to view"
+    return message
+
+
+def _toast_completion(app: Any, block: Any) -> None:
+    """Raise a completion toast; failures toast at error severity."""
+    notify = getattr(app, "notify", None)
+    if not callable(notify):
+        return
+    severity = "information" if block.status == "success" else "error"
+    try:
+        notify(completion_toast_text(app, block), severity=severity)
+    except Exception:  # noqa: BLE001 - toasts are best effort.
+        pass
+
+
+def _command_line_open_hint(app: Any) -> str:
+    """Return the live ``open_command_line`` key name, or "" while unbound."""
+    try:
+        registry = getattr(app, "_keymap_registry", None)
+        key = getattr(getattr(registry, "app", None), "open_command_line", "unbound")
+        from sase.ace.tui.keymaps.display import key_display_name
+
+        return key_display_name(key or "unbound")
+    except Exception:  # noqa: BLE001 - hint reads always degrade.
+        return ""
 
 
 def _panel_visible(app: Any) -> bool:
@@ -109,4 +153,4 @@ def _repaint_panel(app: Any) -> None:
             pass
 
 
-__all__ = ["deliver_command_line_exit"]
+__all__ = ["completion_toast_text", "deliver_command_line_exit"]

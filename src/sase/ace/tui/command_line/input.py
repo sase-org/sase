@@ -67,6 +67,39 @@ def _byte_offset(text: str, char_index: int) -> int:
     return len(text[:char_index].encode("utf-8"))
 
 
+#: NORMAL-mode keys the panel owns for transcript block navigation. While the
+#: field is in NORMAL mode these are forwarded to the screen instead of
+#: editing the line; INSERT mode keeps them as ordinary text.
+BLOCK_NAV_KEYS = frozenset(
+    {
+        "j",
+        "k",
+        "g",
+        "G",
+        "o",
+        "v",
+        "K",
+        "r",
+        "R",
+        "e",
+        "y",
+        "Y",
+        "p",
+        "x",
+        "i",
+        "a",
+        "enter",
+        "up",
+        "down",
+        "colon",
+    }
+)
+
+#: Printable characters that map to block navigation (covers ``shift+x``
+#: spellings such as ``shift+g`` whose ``event.key`` differs by platform).
+_BLOCK_NAV_CHARS = frozenset("jkgGovKrReyYpxia")
+
+
 class CommandLineInput(SingleLineVimTextArea):
     """Single-line vim input for the Command Line panel."""
 
@@ -185,7 +218,7 @@ class CommandLineInput(SingleLineVimTextArea):
             )
 
     async def _on_key(self, event: Key) -> None:
-        """Route popup keys to the screen before Escape/hop/vim handling."""
+        """Route popup and block-nav keys before Escape/hop/vim handling."""
         if event.key in _POPUP_KEYS:
             handler = getattr(self.screen, "command_line_handle_key", None)
             if callable(handler):
@@ -194,6 +227,24 @@ class CommandLineInput(SingleLineVimTextArea):
                         return
                 except Exception:  # noqa: BLE001 - fall back to vim handling.
                     pass
+        if getattr(self, "_vim_mode", "insert") == "normal":
+            nav_key = event.key or ""
+            if nav_key not in BLOCK_NAV_KEYS:
+                character = event.character or ""
+                if len(character) == 1 and character in _BLOCK_NAV_CHARS:
+                    nav_key = character
+                else:
+                    nav_key = ""
+            if nav_key:
+                try:
+                    handler = getattr(self.screen, "handle_block_nav_key", None)
+                except Exception:  # noqa: BLE001 - screen reads degrade.
+                    handler = None
+                if callable(handler):
+                    event.stop()
+                    event.prevent_default()
+                    handler(nav_key)
+                    return
         if event.key == "escape" and self._vim_mode == "insert":
             if not self.text.strip():
                 event.stop()

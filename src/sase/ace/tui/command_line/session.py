@@ -37,6 +37,12 @@ class CommandLineBlock:
     unseen: bool = False
     error: str | None = None
     pruned: bool = False
+    #: True for blocks rebuilt from the proc store after a TUI restart.
+    restored: bool = False
+    #: True once this block's lazy tail has been read from the proc log.
+    tail_loaded: bool = False
+    #: Bytes the log rotation dropped underneath this block's cursor.
+    lost_bytes: int = 0
 
     @property
     def running(self) -> bool:
@@ -66,6 +72,10 @@ class CommandLineSession:
     full_height: bool = False
     last_submit_at: float = 0.0
     last_submit_line: str = ""
+    #: Block id with the NORMAL-mode selection bar; None means INSERT mode.
+    selected_block_id: str | None = None
+    #: Proc id a Procs-pane Enter jump wants selected; consumed on mount.
+    focus_block_proc_id: str | None = None
 
     def add_block(self, line: str) -> CommandLineBlock:
         """Append a block and enforce the transcript cap."""
@@ -96,6 +106,74 @@ class CommandLineSession:
     def clear_transcript(self) -> None:
         """Drop finished blocks; running procs are untouched."""
         self.blocks = [block for block in self.blocks if block.running]
+        if (
+            self.selected_block_id is not None
+            and self.block_by_id(self.selected_block_id) is None
+        ):
+            self.selected_block_id = None
+
+    def selected_block(self) -> CommandLineBlock | None:
+        """Return the NORMAL-mode selected block, if it still exists."""
+        if self.selected_block_id is None:
+            return None
+        return self.block_by_id(self.selected_block_id)
+
+    def select_block(self, block_id: str | None) -> CommandLineBlock | None:
+        """Select *block_id* (viewing clears its unseen dot); None deselects."""
+        self.selected_block_id = block_id
+        if block_id is None:
+            return None
+        block = self.block_by_id(block_id)
+        if block is None:
+            self.selected_block_id = None
+            return None
+        block.unseen = False
+        return block
+
+    def move_selection(self, delta: int) -> CommandLineBlock | None:
+        """Move the selection by *delta*, entering the transcript when empty."""
+        if not self.blocks:
+            return self.select_block(None)
+        selected = self.selected_block()
+        if selected is None:
+            return self.select_block(self.blocks[-1].block_id)
+        index = self.blocks.index(selected)
+        index = max(0, min(len(self.blocks) - 1, index + delta))
+        return self.select_block(self.blocks[index].block_id)
+
+    def select_first(self) -> CommandLineBlock | None:
+        """Jump the selection to the first block."""
+        if not self.blocks:
+            return self.select_block(None)
+        return self.select_block(self.blocks[0].block_id)
+
+    def select_last(self) -> CommandLineBlock | None:
+        """Jump the selection to the last block."""
+        if not self.blocks:
+            return self.select_block(None)
+        return self.select_block(self.blocks[-1].block_id)
+
+    def remove_block(self, block_id: str) -> CommandLineBlock | None:
+        """Remove a block from the transcript; the proc record is untouched."""
+        block = self.block_by_id(block_id)
+        if block is None:
+            return None
+        index = self.blocks.index(block)
+        self.blocks.pop(index)
+        if self.selected_block_id == block_id:
+            if self.blocks:
+                fallback = self.blocks[min(index, len(self.blocks) - 1)]
+                self.select_block(fallback.block_id)
+            else:
+                self.selected_block_id = None
+        return block
+
+    def first_restored_index(self) -> int | None:
+        """Return the index of the first restored block, if any."""
+        for index, block in enumerate(self.blocks):
+            if block.restored:
+                return index
+        return None
 
 
 def command_line_session_for(app: Any) -> CommandLineSession:

@@ -31,12 +31,28 @@ from sase.procs.logs import ProcLogCursor
 TAIL_POLL_SECONDS = 0.2
 
 
+#: Divider above blocks restored from the proc store after a restart.
+EARLIER_DIVIDER = "── earlier ──"
+
+
 class CommandLineBlockWidget(Static):
     """One transcript block widget; repaints only itself on tail ticks."""
 
-    def __init__(self, block: CommandLineBlock, **kwargs: Any) -> None:
-        super().__init__(self.render_block(block), **kwargs)
+    def __init__(
+        self,
+        block: CommandLineBlock,
+        *,
+        selected: bool = False,
+        show_divider: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            self.render_block(block, selected=selected, show_divider=show_divider),
+            **kwargs,
+        )
         self._block = block
+        self._selected = selected
+        self._show_divider = show_divider
         self._spinner_index = 0
 
     @property
@@ -46,10 +62,28 @@ class CommandLineBlockWidget(Static):
 
     def repaint(self) -> None:
         """Re-render this block's content from session state."""
-        self.update(self.render_block(self._block, spinner_index=self._spinner_index))
+        self.update(
+            self.render_block(
+                self._block,
+                spinner_index=self._spinner_index,
+                selected=self._selected,
+                show_divider=self._show_divider,
+            )
+        )
+
+    def set_state(self, *, selected: bool, show_divider: bool) -> None:
+        """Update the selection bar and divider, then repaint."""
+        self._selected = selected
+        self._show_divider = show_divider
 
     @staticmethod
-    def render_block(block: CommandLineBlock, *, spinner_index: int = 0) -> Text:
+    def render_block(
+        block: CommandLineBlock,
+        *,
+        spinner_index: int = 0,
+        selected: bool = False,
+        show_divider: bool = False,
+    ) -> Text:
         """Build the block's renderable from session state (pure)."""
         glyph = gutter_glyph(block.status, exit_code=block.exit_code)
         if block.status in ("submitting", "running"):
@@ -62,11 +96,21 @@ class CommandLineBlockWidget(Static):
             proc_id=block.proc_id,
         )
         text = Text()
+        if show_divider:
+            text.append(f"{EARLIER_DIVIDER}\n", style="dim")
+        if selected:
+            text.append("▌", style="#00D7AF")
+        else:
+            text.append(" ")
         text.append(f"{glyph} ", style="bold")
+        if block.unseen:
+            text.append("• ", style="bold #FFD700")
         text.append(block.line, style="bold")
         if header_right:
             text.append(f"  {header_right}", style="dim")
         text.append("\n")
+        if block.lost_bytes:
+            text.append("⋯ earlier output rotated\n", style="dim")
         if block.status == "submit_failed" and block.error:
             error = Text(f"│ {block.error}", style="red")
             text.append_text(error)
@@ -101,9 +145,15 @@ class CommandLineTranscript(VerticalScroll):
         self._cursors: dict[str, ProcLogCursor] = {}
         self._tail_task_registry = "_command_line_tail_tasks"
 
-    def refresh_blocks(self, blocks: list[CommandLineBlock]) -> None:
+    def refresh_blocks(
+        self, blocks: list[CommandLineBlock], *, selected_id: str | None = None
+    ) -> None:
         """Reconcile widgets with session blocks, repainting each in place."""
         by_id = {block.block_id: block for block in blocks}
+        first_restored = next(
+            (index for index, block in enumerate(blocks) if block.restored),
+            None,
+        )
         for widget in list(self.query(CommandLineBlockWidget)):
             if widget.block.block_id not in by_id:
                 widget.remove()
@@ -111,11 +161,18 @@ class CommandLineTranscript(VerticalScroll):
             widget.block.block_id: widget
             for widget in self.query(CommandLineBlockWidget)
         }
-        for block in blocks:
+        for index, block in enumerate(blocks):
+            selected = block.block_id == selected_id
+            show_divider = first_restored is not None and index == first_restored
             existing_widget = existing.get(block.block_id)
             if existing_widget is None:
-                self.mount(CommandLineBlockWidget(block))
+                self.mount(
+                    CommandLineBlockWidget(
+                        block, selected=selected, show_divider=show_divider
+                    )
+                )
             else:
+                existing_widget.set_state(selected=selected, show_divider=show_divider)
                 existing_widget.repaint()
         for block_id in list(self._cursors):
             if block_id not in by_id:
@@ -162,6 +219,9 @@ class CommandLineTranscript(VerticalScroll):
                 continue
             if read.text:
                 block.tail_text += read.text
+                block.tail_loaded = True
+            if read.lost_bytes:
+                block.lost_bytes += read.lost_bytes
             widget._spinner_index += 1
             try:
                 widget.repaint()
@@ -170,6 +230,7 @@ class CommandLineTranscript(VerticalScroll):
 
 
 __all__ = [
+    "EARLIER_DIVIDER",
     "TAIL_POLL_SECONDS",
     "CommandLineBlockWidget",
     "CommandLineTranscript",
