@@ -27,7 +27,7 @@ _SERVICE_PROCS_ITEM_CLASSES = frozenset({"ServiceProcItem", "BgCmdItem"})
 _SCHEDULED_ROUTINES_ITEM_CLASSES = frozenset({"LumberjackItem", "ChopItem"})
 
 
-def services_panel_key_for_item(item: object) -> ServicesPanelKey:
+def _services_panel_key_for_item(item: object) -> ServicesPanelKey:
     """Return the panel that renders ``item``.
 
     ``ServiceProcItem`` and ``BgCmdItem`` (oneshots) belong to the Service
@@ -121,7 +121,7 @@ def build_services_panel_index(items: Sequence[object]) -> ServicesPanelIndex:
     """Build a :class:`ServicesPanelIndex` over ``items`` in visual order."""
     panels: dict[ServicesPanelKey, _ServicesPanelSlice] = {}
     for global_idx, item in enumerate(items):
-        key = services_panel_key_for_item(item)
+        key = _services_panel_key_for_item(item)
         slot = panels.get(key)
         if slot is None:
             slot = _ServicesPanelSlice()

@@ -7,7 +7,7 @@ import pytest
 from sase.ace.tui.actions.axe_display._panels import (
     SERVICES_PANEL_ORDER,
     build_services_panel_index,
-    services_panel_key_for_item,
+    _services_panel_key_for_item,
 )
 from sase.ace.tui.widgets.bgcmd_list import (
     BgCmdItem,
@@ -34,18 +34,20 @@ def test_panel_order_is_service_procs_then_routines() -> None:
 
 
 def test_item_panel_membership() -> None:
-    assert services_panel_key_for_item(ServiceProcItem(name="x")) == "service_procs"
-    assert services_panel_key_for_item(BgCmdItem(slot=1)) == "service_procs"
-    assert services_panel_key_for_item(LumberjackItem(name="x")) == "scheduled_routines"
+    assert _services_panel_key_for_item(ServiceProcItem(name="x")) == "service_procs"
+    assert _services_panel_key_for_item(BgCmdItem(slot=1)) == "service_procs"
     assert (
-        services_panel_key_for_item(ChopItem(lumberjack_name="x", chop_name="y"))
+        _services_panel_key_for_item(LumberjackItem(name="x")) == "scheduled_routines"
+    )
+    assert (
+        _services_panel_key_for_item(ChopItem(lumberjack_name="x", chop_name="y"))
         == "scheduled_routines"
     )
 
 
 def test_unknown_item_type_fails_loudly() -> None:
     with pytest.raises(TypeError):
-        services_panel_key_for_item(object())
+        _services_panel_key_for_item(object())
 
 
 def test_partition_and_global_local_mapping() -> None:
