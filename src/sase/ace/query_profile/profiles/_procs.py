@@ -58,6 +58,18 @@ def procs_query_schema() -> ArtifactQuerySchema:
             negatable=True,
             hint="service proc name",
         ),
+        QueryFieldSpec(
+            key="tag",
+            exact_match=True,
+            negatable=True,
+            hint="proc tag (for example command-line)",
+        ),
+        QueryFieldSpec(
+            key="origin",
+            exact_match=True,
+            negatable=True,
+            hint="proc origin (for example ace)",
+        ),
     )
     enum_fields = (
         QueryFieldSpec(

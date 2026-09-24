@@ -2,8 +2,10 @@
 
 from .attribution import infer_proc_attribution
 from .command_line import (
+    COMMAND_LINE_PROC_ENV,
     COMMAND_LINE_PROC_HISTORY_LIMIT,
     COMMAND_LINE_PROC_TAG,
+    submit_command_line_proc,
 )
 from .ids import ProcRefError, new_proc_id, resolve_proc_ref, short_proc_id
 from .names import (
@@ -16,6 +18,8 @@ from .names import (
     qualify_proc_shell_name,
 )
 from .logs import (
+    ProcLogCursor,
+    ProcLogRead,
     append_proc_log_text,
     delete_proc_logs,
     open_proc_log,
@@ -85,6 +89,7 @@ from .store import (
 
 __all__ = [
     "ACTIVE_PROC_STATUSES",
+    "COMMAND_LINE_PROC_ENV",
     "COMMAND_LINE_PROC_HISTORY_LIMIT",
     "COMMAND_LINE_PROC_TAG",
     "COMMAND_PROC_KIND",
@@ -103,6 +108,8 @@ __all__ = [
     "ProcAppendOutcome",
     "ProcControlError",
     "ProcFinish",
+    "ProcLogCursor",
+    "ProcLogRead",
     "ProcLogRetentionEntry",
     "ProcLogRetentionResult",
     "ProcPruneOutcome",
@@ -154,6 +161,7 @@ __all__ = [
     "reserve_proc",
     "resolve_proc_ref",
     "short_proc_id",
+    "submit_command_line_proc",
     "submit_detached_proc",
     "submit_proc",
     "submit_proc_request",

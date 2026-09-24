@@ -86,6 +86,7 @@ class ObservedProc:
     settled_at: datetime | None = None
     xprompt_proc: Mapping[str, Any] | None = None
     service: ProcServiceBlock | None = None
+    tags: tuple[str, ...] = ()
 
     @property
     def label(self) -> str:
@@ -392,11 +393,28 @@ class ProcCompletionRecord:
 
 
 @dataclass(frozen=True)
+class ProcExitCompletion:
+    """One terminal exit observed without decoding any typed result.
+
+    The Command Line watches ordinary procs (which leave no result
+    envelope) this way: the completion settles purely from the store row's
+    ``status``, ``exit_code`` and ``finished_at``.
+    """
+
+    proc_id: str
+    status: str
+    exit_code: int | None = None
+    finished_at: datetime | None = None
+    placeholder_id: str | None = None
+
+
+@dataclass(frozen=True)
 class ProcObserverSnapshot:
     """Immutable observer-to-UI delivery record."""
 
     projection: ProcProjection
     completions: tuple[ProcCompletionRecord, ...] = ()
+    exit_completions: tuple[ProcExitCompletion, ...] = ()
 
 
 __all__ = [
@@ -404,6 +422,7 @@ __all__ = [
     "ObservedProc",
     "PLUGIN_UPDATE_SCOPE_PREFIX",
     "ProcCompletionRecord",
+    "ProcExitCompletion",
     "ProcGearLanes",
     "ProcObserverSnapshot",
     "ProcProjection",

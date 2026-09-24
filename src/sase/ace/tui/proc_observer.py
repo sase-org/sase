@@ -40,6 +40,7 @@ from ._proc_observer_models import (
     ObservedProc,
     PLUGIN_UPDATE_SCOPE_PREFIX,
     ProcCompletionRecord,
+    ProcExitCompletion,
     ProcGearLanes,
     ProcObserverSnapshot,
     ProcProjection,
@@ -86,7 +87,10 @@ class ProcObserver:
     _pending: dict[str, ObservedProc] = field(default_factory=dict, init=False)
     _watches: dict[str, ProcWatch] = field(default_factory=dict, init=False)
     _delivered: set[str] = field(default_factory=set, init=False)
-    _detail_proc_id: str | None = field(default=None, init=False)
+    _exit_watches: dict[str, str | None] = field(default_factory=dict, init=False)
+    _delivered_exit: set[str] = field(default_factory=set, init=False)
+    _tail_subscriptions: dict[str, str] = field(default_factory=dict, init=False)
+    _legacy_detail_token: str | None = field(default=None, init=False)
     _context: ObserverContext | None = field(default=None, init=False)
     _last_signature: tuple[Any, ...] | None = field(default=None, init=False)
     _cached_store_rows: list[Proc] | None = field(default=None, init=False, repr=False)
@@ -196,9 +200,47 @@ class ProcObserver:
             self._pending.pop(placeholder_id, None)
         self.request_poll()
 
-    def set_detail_proc(self, proc_id: str | None) -> None:
+    def register_exit_watch(
+        self, proc_id: str, *, placeholder_id: str | None = None
+    ) -> None:
+        """Watch an ordinary proc's exit without decoding any typed result.
+
+        The completion settles purely from the store row's ``status``,
+        ``exit_code`` and ``finished_at`` and is delivered as a
+        :class:`ProcExitCompletion` on the snapshot.
+        """
         with self._lock:
-            self._detail_proc_id = proc_id
+            self._exit_watches[proc_id] = placeholder_id
+        self.request_poll()
+
+    def subscribe_tail(self, proc_id: str) -> str:
+        """Subscribe one surface to a proc's log tail; returns a token.
+
+        Subscriptions are ref-counted by token so the Procs pane and the
+        Command Line can tail the same proc without fighting over one slot.
+        """
+        token = f"tail-{uuid.uuid4().hex}"
+        with self._lock:
+            self._tail_subscriptions[token] = proc_id
+        self.request_poll()
+        return token
+
+    def unsubscribe_tail(self, token: str) -> None:
+        """Drop one tail subscription previously returned by ``subscribe_tail``."""
+        with self._lock:
+            self._tail_subscriptions.pop(token, None)
+        self.request_poll()
+
+    def set_detail_proc(self, proc_id: str | None) -> None:
+        """Compat shim for the single-detail slot, backed by one tail token."""
+        with self._lock:
+            if self._legacy_detail_token is not None:
+                self._tail_subscriptions.pop(self._legacy_detail_token, None)
+                self._legacy_detail_token = None
+            if proc_id is not None:
+                token = f"tail-{uuid.uuid4().hex}"
+                self._tail_subscriptions[token] = proc_id
+                self._legacy_detail_token = token
 
     def request_poll(self) -> None:
         """Ask the observer to publish a fresh snapshot soon."""
@@ -217,7 +259,11 @@ class ProcObserver:
             log.debug("proc observer poll failed", exc_info=True)
             return None
         signature = _snapshot_signature(snapshot)
-        if signature == self._last_signature and not snapshot.completions:
+        if (
+            signature == self._last_signature
+            and not snapshot.completions
+            and not snapshot.exit_completions
+        ):
             return snapshot
         self._last_signature = signature
         try:
@@ -232,26 +278,41 @@ class ProcObserver:
             pending = dict(self._pending)
             watches = dict(self._watches)
             delivered = set(self._delivered)
-            detail_proc_id = self._detail_proc_id
+            exit_watches = dict(self._exit_watches)
+            delivered_exit = set(self._delivered_exit)
+            tail_proc_ids = frozenset(self._tail_subscriptions.values())
         rows: list[ObservedProc] = []
         completions: list[ProcCompletionRecord] = []
+        exit_completions: list[ProcExitCompletion] = []
         session_ids = live_session_ids()
         store_rows = self._store_rows()
         seen_proc_ids: set[str] = set()
         for proc in store_rows:
-            if not proc_is_relevant(proc, context=context, watched=watches):
+            if not proc_is_relevant(
+                proc, context=context, watched=watches, exit_watched=exit_watches
+            ):
                 continue
             seen_proc_ids.add(proc.proc_id)
-            rows.append(
-                store_proc_row(
-                    proc,
-                    live_session_ids=session_ids,
-                    with_output=proc.proc_id == detail_proc_id,
-                )
+            row = store_proc_row(
+                proc,
+                live_session_ids=session_ids,
+                with_output=proc.proc_id in tail_proc_ids,
             )
+            rows.append(row)
             if proc.proc_id in watches and not proc_status_is_active(proc.status):
                 if proc.proc_id not in delivered:
                     completions.append(decode_completion(proc, watches[proc.proc_id]))
+            if proc.proc_id in exit_watches and not proc_status_is_active(proc.status):
+                if proc.proc_id not in delivered_exit:
+                    exit_completions.append(
+                        ProcExitCompletion(
+                            proc_id=proc.proc_id,
+                            status=row.status,
+                            exit_code=row.exit_code,
+                            finished_at=row.finished_at,
+                            placeholder_id=exit_watches[proc.proc_id],
+                        )
+                    )
 
         for placeholder_id, placeholder in pending.items():
             durable_id = placeholder.durable_proc_id
@@ -273,9 +334,16 @@ class ProcObserver:
                     self._pending.pop(
                         watches[completion.proc_id].placeholder_id or "", None
                     )
+        if exit_completions:
+            with self._lock:
+                for exit_completion in exit_completions:
+                    self._delivered_exit.add(exit_completion.proc_id)
+                    if exit_completion.placeholder_id:
+                        self._pending.pop(exit_completion.placeholder_id, None)
         return ProcObserverSnapshot(
             projection=projection,
             completions=tuple(completions),
+            exit_completions=tuple(exit_completions),
         )
 
     def _resolve_context(self) -> ObserverContext:
@@ -409,6 +477,7 @@ __all__ = [
     "ObservedProcLog",
     "ObserverContext",
     "ProcCompletionRecord",
+    "ProcExitCompletion",
     "ProcGearLanes",
     "ProcLogLine",
     "ProcLogStream",

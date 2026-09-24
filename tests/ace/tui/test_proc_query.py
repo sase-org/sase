@@ -37,6 +37,7 @@ def _proc(
     exit_code: int | None = None,
     project: str | None = None,
     service: ProcServiceBlock | None = None,
+    tags: tuple[str, ...] = (),
 ) -> ObservedProc:
     return ObservedProc(
         proc_id=proc_id,
@@ -57,6 +58,7 @@ def _proc(
         exit_code=exit_code,
         project=project,
         service=service,
+        tags=tags,
     )
 
 
@@ -307,6 +309,34 @@ def test_host_rows_without_a_service_block_still_match_service_and_svc() -> None
     assert _ids(filt.matching("service", procs, now=_NOW)) == ["stripped"]
     assert _ids(filt.matching("-service", procs, now=_NOW)) == ["plain"]
     assert _ids(filt.matching("svc:scheduler", procs, now=_NOW)) == ["stripped"]
+
+
+def test_tag_field_matches_command_line_rows() -> None:
+    procs = [
+        _proc("cmdline", tags=("command-line",)),
+        _proc("other", tags=("other",)),
+        _proc("plain"),
+    ]
+    filt = ProcQueryFilter()
+    assert _ids(filt.matching("tag:command-line", procs, now=_NOW)) == ["cmdline"]
+    assert _ids(filt.matching("-tag:command-line", procs, now=_NOW)) == [
+        "other",
+        "plain",
+    ]
+
+
+def test_origin_field_matches_the_submitting_origin() -> None:
+    procs = [
+        _proc("ace-row", origin="ace"),
+        _proc("cli-row", origin="cli"),
+        _proc("no-origin"),
+    ]
+    filt = ProcQueryFilter()
+    assert _ids(filt.matching("origin:ace", procs, now=_NOW)) == ["ace-row"]
+    assert _ids(filt.matching("-origin:ace", procs, now=_NOW)) == [
+        "cli-row",
+        "no-origin",
+    ]
 
 
 def test_exit_field_matches_the_exact_exit_code() -> None:

@@ -8,7 +8,7 @@ and typed-result decoding for watched operations.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -93,6 +93,7 @@ def store_proc_row(
         settled_at=_local_datetime(proc.settled_at),
         xprompt_proc=proc.xprompt_proc,
         service=proc.service,
+        tags=tuple(proc.tags),
     )
 
 
@@ -129,9 +130,12 @@ def proc_is_relevant(
     *,
     context: ObserverContext,
     watched: Mapping[str, ProcWatch],
+    exit_watched: Collection[str] = (),
 ) -> bool:
     """Return whether a stored proc belongs in this observer's projection."""
     if proc.proc_id in watched:
+        return True
+    if proc.proc_id in exit_watched:
         return True
     if proc.session_id is None:
         return True

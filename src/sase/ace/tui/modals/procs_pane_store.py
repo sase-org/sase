@@ -24,6 +24,7 @@ class ProcsPaneStoreMixin(_MixinBase):
         _session_state: object
         _spinner_index: int
         _store_detail_id: str | None
+        _store_tail_token: str | None
         _store_loaded_once: bool
         _tasks: list[ObservedProc]
         _tick_count: int
@@ -113,6 +114,19 @@ class ProcsPaneStoreMixin(_MixinBase):
             return
         self._store_detail_id = proc_id
         observer = getattr(self.app, "_proc_observer", None)
+        old_token = getattr(self, "_store_tail_token", None)
+        if old_token is not None:
+            unsubscribe = getattr(observer, "unsubscribe_tail", None)
+            if callable(unsubscribe):
+                unsubscribe(old_token)
+            self._store_tail_token = None
+        if observer is None:
+            return
+        if proc_id is not None:
+            subscribe = getattr(observer, "subscribe_tail", None)
+            if callable(subscribe):
+                self._store_tail_token = subscribe(proc_id)
+                return
         set_detail = getattr(observer, "set_detail_proc", None)
         if callable(set_detail):
             set_detail(proc_id)

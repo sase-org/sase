@@ -101,6 +101,10 @@ def _proc_query_row(
     service_name = service_row_name(proc)
     if service_name is not None:
         fields["svc"] = service_name
+    if proc.tags:
+        fields["tag"] = tuple(proc.tags)
+    if proc.origin:
+        fields["origin"] = proc.origin
     if proc.finished_at is not None:
         finished_epoch = int(proc.finished_at.timestamp())
         fields["after"] = finished_epoch

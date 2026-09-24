@@ -91,6 +91,7 @@ class ProcsPane(
         self._all_sessions = self._session_state.all_sessions
         self._session_id: str | None = None
         self._store_detail_id: str | None = None
+        self._store_tail_token: str | None = None
         self._store_loaded_once = False
         self._tick_count = 0
         self._init_procs_filter_session()
@@ -179,6 +180,35 @@ class ProcsPane(
     def _signal_store_task(self, proc_id: str) -> str | None:
         """Call the facade's patchable durable-task kill helper."""
         return kill_store_task(proc_id)
+
+    def focus_proc_target(self, proc_id: str) -> bool:
+        """Select *proc_id*, clearing the filter (with a notice) if it hides the row.
+
+        Returns whether a matching row exists in the pane's current scope.
+        """
+        for task in self._tasks:
+            if task.proc_id == proc_id or task.durable_proc_id == proc_id:
+                self._refresh_snapshot(prior_identity=self._task_identity(task))
+                self._focus_task_list()
+                return True
+        scoped = self._proc_projection().scoped_rows(all_sessions=self._all_sessions)
+        match = next(
+            (
+                task
+                for task in scoped
+                if task.proc_id == proc_id or task.durable_proc_id == proc_id
+            ),
+            None,
+        )
+        if match is None:
+            return False
+        if self._display_filter_query().strip():
+            self._commit_filter_query("")
+            self.query_one(ProcsFilterBar).set_query("")
+            self.notify(f"Filter cleared to show {match.label}")
+        self._refresh_snapshot(prior_identity=self._task_identity(match))
+        self._focus_task_list()
+        return True
 
     @staticmethod
     def _run_editor(editor_args: list[str]) -> None:

@@ -120,10 +120,12 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         session_state: AdminCenterSessionState | None = None,
         on_tab_activated: Callable[[CenterTab], None] | None = None,
         config_entry: ConfigHubEntry | None = None,
+        proc_focus_target: str | None = None,
     ) -> None:
         super().__init__()
         self._project = project
         self._log_error_target = log_error_target
+        self._proc_focus_target = proc_focus_target
         self._session_state = session_state or AdminCenterSessionState()
         self._tab_specs = _TAB_SPECS
         self._tab_by_id = _TAB_BY_ID
@@ -304,9 +306,40 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
     async def _open_initial_tab(self, tab: CenterTab) -> None:
         """Finish direct entry before enabling the home resume binding."""
         try:
-            await self._switch_to(tab)
+            switched = await self._switch_to(tab)
         finally:
             self._initial_navigation_pending = False
+        if switched and tab == "procs" and self._proc_focus_target is not None:
+            self._post_proc_focus_target()
+
+    def _post_proc_focus_target(self) -> None:
+        """Deliver a pending proc focus target on the message-pump thread."""
+        try:
+            app = self.app
+        except Exception:
+            return
+        try:
+            app.call_from_thread(self._deliver_proc_focus_target)
+        except Exception:
+            log.debug("proc focus target delivery failed", exc_info=True)
+
+    def _deliver_proc_focus_target(self) -> bool:
+        """Select the pending focus proc in the Procs pane, if mounted."""
+        target = self._proc_focus_target
+        if target is None:
+            return False
+        pane = self._panes.get("procs")
+        focus = getattr(pane, "focus_proc_target", None)
+        if not callable(focus):
+            return False
+        try:
+            focused = bool(focus(target))
+        except Exception:
+            log.debug("proc focus target failed", exc_info=True)
+            return False
+        if focused:
+            self._proc_focus_target = None
+        return focused
 
     async def _remove_failed_pane(self, pane: Widget) -> None:
         """Best-effort cleanup after a failed mount so a retry can reuse the ID."""

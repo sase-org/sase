@@ -340,8 +340,19 @@ class AgentDetailRenderMixin:
             return
         self._selected_proc_shell_detail_proc_id = proc_id  # type: ignore[attr-defined]
         observer = getattr(self, "_proc_observer", None)
+        old_token = getattr(self, "_selected_proc_shell_tail_token", None)
+        if old_token is not None:
+            unsubscribe = getattr(observer, "unsubscribe_tail", None)
+            if callable(unsubscribe):
+                unsubscribe(old_token)
+            self._selected_proc_shell_tail_token = None  # type: ignore[attr-defined]
         if observer is None:
             return
+        if proc_id is not None:
+            subscribe = getattr(observer, "subscribe_tail", None)
+            if callable(subscribe):
+                self._selected_proc_shell_tail_token = subscribe(proc_id)  # type: ignore[attr-defined]
+                return
         set_detail_proc = getattr(observer, "set_detail_proc", None)
         request_poll = getattr(observer, "request_poll", None)
         if callable(set_detail_proc):

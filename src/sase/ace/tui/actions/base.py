@@ -627,6 +627,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         log_error_target: Any = None,
         config_entry: Any = None,
         on_dismissed: Any = None,
+        proc_focus_target: str | None = None,
     ) -> None:
         """Open the SASE Admin Center and refresh updates state on dismiss."""
         from ..modals.config_center_modal import (
@@ -663,6 +664,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
                 session_state=session_state,
                 on_tab_activated=self._on_admin_center_tab_activated,
                 config_entry=config_entry,
+                proc_focus_target=proc_focus_target,
             ),
             _callback,
         )

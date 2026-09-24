@@ -7750,7 +7750,9 @@ Free text (and its explicit `text:` spelling) matches the command string, the ro
 and the retained output; `cmd:` and `out:` narrow to one side. Every key is negatable
 with a leading `-`, and a boolean key takes the bare shorthand (`monitor` means
 `monitor:true`). The `service` boolean matches service-proc runs (daemon or oneshot),
-and `svc:<name>` narrows to one service proc by exact name.
+and `svc:<name>` narrows to one service proc by exact name. `tag:<tag>` matches a proc
+tag exactly (for example `tag:command-line` for Command Line runs, visible by default),
+and `origin:<origin>` matches the submitting origin (for example `origin:ace`).
 
 The seeded default query is `-service`, so service-proc runs stay hidden unless asked
 for; `ace.procs.default_query` in `sase.yml` changes the seed. It applies only when no
@@ -7769,6 +7771,8 @@ committed query is persisted — a user-cleared query stays cleared.
 | `monitor`  | bool     | A `sase monitor start` proc shell                              |
 | `service`  | bool     | A service proc run (daemon or oneshot)                         |
 | `svc:`     | string   | Service name (exact)                                           |
+| `tag:`     | string   | Proc tag (exact, for example `command-line`)                   |
+| `origin:`  | string   | Submitting origin (exact, for example `ace`)                   |
 | `running`  | bool     | Active and owned by a live session                             |
 | `failed`   | bool     | Terminal status is `error` or `killed`                         |
 | `exit:`    | int      | Exit code (exact)                                              |

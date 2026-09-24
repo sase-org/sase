@@ -29,6 +29,8 @@ def test_procs_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         "agent": "bbugyi200.athena.sase-s9.2",
         "project": "sase",
         "svc": "gateway",
+        "tag": "command-line",
+        "origin": "ace",
         "status": "running",
         "kind": "command",
         "monitor": "true",
@@ -102,6 +104,14 @@ def test_procs_profile_project_field_is_exact_match() -> None:
 def test_procs_profile_svc_field_is_exact_match() -> None:
     profile = compile_query_profile(procs_query_schema())
     assert profile.field("svc").exact_match is True
+
+
+def test_procs_profile_tag_and_origin_fields_are_exact_match() -> None:
+    profile = compile_query_profile(procs_query_schema())
+    assert profile.field("tag").exact_match is True
+    assert profile.field("tag").negatable is True
+    assert profile.field("origin").exact_match is True
+    assert profile.field("origin").negatable is True
 
 
 def test_procs_profile_declares_the_host_limit_field() -> None:
