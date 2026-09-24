@@ -19,6 +19,25 @@ from sase.llm_provider.usage.config import collection_skip_reason
 log = logging.getLogger(__name__)
 
 
+def _provider_has_probe_capability(provider: str) -> bool:
+    """Return whether *provider* declares usage probe capability."""
+    try:
+        from sase.llm_provider.registry import get_llm_metadata_payload
+
+        payload = get_llm_metadata_payload()
+        providers = payload.get("providers")
+        if not isinstance(providers, dict):
+            return False
+        metadata = providers.get(provider)
+        if not isinstance(metadata, dict):
+            return False
+        capabilities = metadata.get("usage_capabilities")
+        return isinstance(capabilities, dict) and capabilities.get("probe") is True
+    except Exception:
+        log.debug("usage probe-capability lookup failed for %r", provider)
+        return False
+
+
 def _mark_usage_refresh_due(
     provider: str,
     reason: str,
@@ -59,10 +78,7 @@ def mark_provider_usage_hot_hint(
     probe capability. Never raises; a hint must not add latency or failure
     modes to launches.
     """
-    from sase.llm_provider.usage.refresh import (
-        _provider_has_probe_capability,
-        mark_provider_usage_hot,
-    )
+    from sase.llm_provider.usage.refresh import mark_provider_usage_hot
 
     try:
         if collection_skip_reason(provider) is not None:
@@ -91,10 +107,7 @@ def trigger_usage_refresh_after_limit_event(
     A 15-minute hot hint keeps the provider on the hot cadence so the
     post-limit windows refresh promptly.
     """
-    from sase.llm_provider.usage.refresh import (
-        _mark_usage_refresh_due,
-        mark_provider_usage_hot,
-    )
+    from sase.llm_provider.usage.refresh import mark_provider_usage_hot
 
     try:
         _mark_usage_refresh_due(provider, "limit_event", now=now)

@@ -80,7 +80,7 @@ class _SourcedSlowToolCall:
     source_index: int
 
 
-def slow_tool_overflow_hint(
+def _slow_tool_overflow_hint(
     overflow: int,
     *,
     next_deck_key: str = "",
@@ -307,7 +307,7 @@ def _append_slow_tool_calls_section(
             except Exception:
                 keys = {}
         keys = keys or {}
-        hint = slow_tool_overflow_hint(
+        hint = _slow_tool_overflow_hint(
             overflow,
             next_deck_key=str(keys.get("next_deck", "") or ""),
             prev_deck_key=str(keys.get("prev_deck", "") or ""),
@@ -513,5 +513,4 @@ __all__ = [
     "append_slow_tool_calls_section",
     "append_slow_tool_calls_section_no_fold_owner",
     "resolve_slow_tool_overflow_keys",
-    "slow_tool_overflow_hint",
 ]

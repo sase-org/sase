@@ -266,8 +266,6 @@ def resolve_value_kind(
     return None
 
 
-_HINT_ATTR: Final = "_sase_completion_value_hint"
-
 #: Free-form value hints for slots that name no completable entity. Keyed by
 #: lowercased action dest, mirroring ``NAME_TABLE``. Allowed values are the
 #: spec wire's ``"text" | "int" | "number" | "duration"``; ``"path"`` is never
@@ -476,30 +474,16 @@ _VALUE_HINT_TABLE.update(
 HINT_PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], str]] = {}
 
 
-def set_completion_hint(action: argparse.Action, hint: str) -> None:
-    """Record an explicit free-form value-hint override on *action*.
-
-    Wins over ``HINT_PATH_OVERRIDES`` and ``_VALUE_HINT_TABLE`` during
-    resolution. Kind-derived ``"path"`` hints still win over this, because a
-    kinded slot never consults the hint tables.
-    """
-    setattr(action, _HINT_ATTR, hint)
-
-
 def resolve_value_hint(
     action: argparse.Action, command_path: tuple[str, ...]
 ) -> str | None:
     """Resolve the free-form value hint for *action* under *command_path*.
 
-    Resolution order, first match wins: an explicit per-action override set
-    by ``set_completion_hint``, a ``(command_path, dest)`` entry in
+    Resolution order, first match wins: a ``(command_path, dest)`` entry in
     ``HINT_PATH_OVERRIDES``, then a dest entry in ``_VALUE_HINT_TABLE``.
     ``PATH``/``DIR`` kinds never reach this table: the spec builder derives
     their ``"path"`` hint from the kind directly.
     """
-    explicit = getattr(action, _HINT_ATTR, None)
-    if isinstance(explicit, str) and explicit:
-        return explicit
     path_hint = HINT_PATH_OVERRIDES.get((command_path, action.dest))
     if path_hint is not None:
         return path_hint
@@ -514,6 +498,5 @@ __all__ = [
     "ValueKind",
     "resolve_value_hint",
     "resolve_value_kind",
-    "set_completion_hint",
     "set_completion_kind",
 ]

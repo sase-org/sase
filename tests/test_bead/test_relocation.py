@@ -8,13 +8,13 @@ import pytest
 
 from sase.bead.relocation import (
     BeadIdRelocation,
-    BeadRelocationIdentityError,
+    _BeadRelocationIdentityError,
+    _rewrite_text_for_bead_relocations,
     compose_bead_relocations,
     normalize_bead_relocations,
     relocations_for_subtree,
     resolve_created_bead_id,
     resolve_own_bead_id,
-    rewrite_text_for_bead_relocations,
 )
 
 
@@ -51,7 +51,7 @@ def test_compose_bead_relocations_resolves_children_and_text() -> None:
     assert BeadIdRelocation("sase-2", "sase-3", "top_level_duplicate") in composed
     assert resolve_created_bead_id("sase-1", composed) == "sase-3"
     assert resolve_created_bead_id("sase-1.4", composed) == "sase-3.4"
-    assert rewrite_text_for_bead_relocations("work sase-1.4", composed) == (
+    assert _rewrite_text_for_bead_relocations("work sase-1.4", composed) == (
         "work sase-3.4"
     )
 
@@ -150,7 +150,7 @@ def test_resolve_own_bead_id_raises_when_neither_id_matches() -> None:
     def show(_bead_id: str) -> SimpleNamespace:
         raise KeyError(_bead_id)
 
-    with pytest.raises(BeadRelocationIdentityError) as excinfo:
+    with pytest.raises(_BeadRelocationIdentityError) as excinfo:
         resolve_own_bead_id(
             show,
             before,
@@ -164,11 +164,11 @@ def test_rewrite_matches_child_suffixes_but_not_prefix_hits() -> None:
     relocations = (BeadIdRelocation("sase-17v", "sase-17w", "top_level_duplicate"),)
 
     assert (
-        rewrite_text_for_bead_relocations("work sase-17v.3 sase-17v.land", relocations)
+        _rewrite_text_for_bead_relocations("work sase-17v.3 sase-17v.land", relocations)
         == "work sase-17w.3 sase-17w.land"
     )
     assert (
-        rewrite_text_for_bead_relocations("keep sase-17v1 untouched", relocations)
+        _rewrite_text_for_bead_relocations("keep sase-17v1 untouched", relocations)
         == "keep sase-17v1 untouched"
     )
 
@@ -179,6 +179,6 @@ def test_rewrite_does_not_chain_relocations() -> None:
         BeadIdRelocation("sase-b", "sase-c", "top_level_duplicate"),
     )
 
-    assert rewrite_text_for_bead_relocations("work sase-a", relocations) == (
+    assert _rewrite_text_for_bead_relocations("work sase-a", relocations) == (
         "work sase-b"
     )

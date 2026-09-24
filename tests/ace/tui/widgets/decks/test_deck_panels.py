@@ -13,7 +13,7 @@ from sase.ace.tui.widgets.decks.model import DeckId
 from sase.ace.tui.widgets.file_panel._file_list import desired_file_pages
 from sase.ace.tui.widgets.file_panel import AgentFilePanel
 from sase.ace.tui.widgets._agent_detail_files import (
-    dispatch_file_view,
+    _dispatch_file_view,
     load_deck_file_view,
 )
 from sase.ace.tui.widgets._llm_calls_panel_fetching import cached_tool_call_count
@@ -236,7 +236,7 @@ def test_dispatch_and_helpers_flag_off() -> None:
             self.calls.append("empty")
 
     fake = _FakePanel()
-    assert dispatch_file_view(fake, agent) is True  # type: ignore[arg-type]
+    assert _dispatch_file_view(fake, agent) is True  # type: ignore[arg-type]
     assert load_deck_file_view(fake, agent, attempt_number=1) is False  # type: ignore[arg-type]
 
 

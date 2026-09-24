@@ -171,7 +171,7 @@ def _approve_plan_from_cli(
 ) -> PlanApprovalActionResult:
     """Resolve and approve a pending PlanApproval notification."""
     _validate_wait_spec_for_cli(wait)
-    plan = _resolve_plan_for_cli(selector)
+    plan = resolve_plan_for_cli(selector)
     notification = plan.notification
     ensure_plan_notification_available(notification)
     result = execute_plan_approval_response(
@@ -189,7 +189,7 @@ def _approve_plan_from_cli(
     return result
 
 
-def _resolve_plan_for_cli(selector: str | None) -> PendingPlan:
+def resolve_plan_for_cli(selector: str | None) -> PendingPlan:
     """Resolve PLAN through the structured selector, rendering misses."""
     from sase.main.plan_pending import PendingPlanAmbiguity, PendingPlanMiss
 

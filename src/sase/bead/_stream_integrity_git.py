@@ -9,7 +9,6 @@ evidence.
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 import os
 import subprocess
 from pathlib import Path
@@ -224,28 +223,6 @@ def _batch_timeout() -> float:
     except ValueError:
         return DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS
     return value if value > 0 else DEFAULT_LOCAL_GIT_TIMEOUT_SECONDS
-
-
-def streams_at_rev(
-    repo_root: Path,
-    rev: str,
-    stream_dir: str,
-) -> dict[str, list[dict[str, Any]]]:
-    """Return every readable event stream under *stream_dir* at *rev*."""
-    paths = stream_paths_at_rev(repo_root, rev, stream_dir)
-    if not paths:
-        return {}
-    texts = batch_show_texts(repo_root, rev, list(paths.values()))
-    streams: dict[str, list[dict[str, Any]]] = {}
-    for stream_id, path in paths.items():
-        text = texts.get(path)
-        if text is None:
-            continue
-        try:
-            streams[stream_id] = parse_stream_text(text)
-        except json.JSONDecodeError:
-            continue
-    return streams
 
 
 def stream_history_records(

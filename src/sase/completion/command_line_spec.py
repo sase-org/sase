@@ -31,15 +31,15 @@ _TIMINGS_NAME = "command_line_spec-timings.jsonl"
 _BUILD_TIMEOUT_SECONDS = 120.0
 
 
-def command_line_spec_key() -> str:
+def _command_line_spec_key() -> str:
     """Return the cache key for the current runtime and sources."""
     return f"{runtime_identity_key()}-{source_fingerprint()}"
 
 
-def command_line_spec_path(key: str | None = None) -> Path:
+def _command_line_spec_path(key: str | None = None) -> Path:
     """Return the on-disk path for the Command Line spec cache."""
     return (
-        _cache_dir() / f"{_SPEC_PREFIX}{key or command_line_spec_key()}{_SPEC_SUFFIX}"
+        _cache_dir() / f"{_SPEC_PREFIX}{key or _command_line_spec_key()}{_SPEC_SUFFIX}"
     )
 
 
@@ -53,8 +53,8 @@ def ensure_command_line_spec(*, timeout: float = _BUILD_TIMEOUT_SECONDS) -> Path
     the completions timing log and echoed to stderr, following the
     ``completion ensure`` stderr-diagnostics convention.
     """
-    key = command_line_spec_key()
-    path = command_line_spec_path(key)
+    key = _command_line_spec_key()
+    path = _command_line_spec_path(key)
     if _is_usable(path):
         return path
     directory = path.parent
@@ -179,7 +179,5 @@ class CompletionSpecCacheError(RuntimeError):
 
 __all__ = [
     "CompletionSpecCacheError",
-    "command_line_spec_key",
-    "command_line_spec_path",
     "ensure_command_line_spec",
 ]

@@ -160,17 +160,7 @@ def stdin_for(path: tuple[str, ...]) -> bool:
     return path in _STDIN_PATHS
 
 
-def policy_table_paths() -> tuple[tuple[str, ...], ...]:
-    """Return every path mentioned in the policy/writes/stdin tables."""
-    paths: set[tuple[str, ...]] = set(_RUN_POLICY_TABLE)
-    paths |= set(_WRITES_TRUE_OVERRIDES)
-    paths |= set(_WRITES_FALSE_OVERRIDES)
-    paths |= set(_STDIN_PATHS)
-    return tuple(sorted(paths))
-
-
 __all__ = [
-    "policy_table_paths",
     "run_policy_for",
     "stdin_for",
     "writes_for",

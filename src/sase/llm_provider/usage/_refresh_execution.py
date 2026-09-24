@@ -22,7 +22,7 @@ from sase.llm_provider.usage._refresh_model import (
     USAGE_REFRESH_BATCH_DEADLINE_SECONDS,
     USAGE_REFRESH_OPERATION,
     USAGE_REFRESH_PROVIDER_DEADLINE_SECONDS,
-    _UsageRefreshProviderResult,
+    UsageRefreshProviderResult,
 )
 
 log = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ def wait_for_usage_refresh_operations(
 
 
 def _runner_payload(
-    started: Sequence[_UsageRefreshProviderResult],
+    started: Sequence[UsageRefreshProviderResult],
     *,
     origin: str,
     plugin_specs: Mapping[str, Mapping[str, Any]],
@@ -109,8 +109,8 @@ def _runner_payload(
     }
 
 
-def _run_inline_batch(
-    started: Sequence[_UsageRefreshProviderResult],
+def run_inline_batch(
+    started: Sequence[UsageRefreshProviderResult],
     *,
     origin: str,
     plugin_specs: Mapping[str, Mapping[str, Any]],
@@ -132,7 +132,7 @@ def _run_inline_batch(
         log.warning("inline usage refresh failed", exc_info=True)
         crashed = _live_inline_providers(started)
         _record_inline_crash(crashed, cadence_seconds, now=now)
-        _release_started(crashed, now=now)
+        release_started(crashed, now=now)
         return [
             {
                 "provider": item.provider,
@@ -145,8 +145,8 @@ def _run_inline_batch(
 
 
 def _live_inline_providers(
-    started: Sequence[_UsageRefreshProviderResult],
-) -> list[_UsageRefreshProviderResult]:
+    started: Sequence[UsageRefreshProviderResult],
+) -> list[UsageRefreshProviderResult]:
     """Return the started providers still holding a live reservation.
 
     A provider whose probe already recorded and released its lease finished
@@ -171,7 +171,7 @@ def _live_inline_providers(
 
 
 def _record_inline_crash(
-    started: Sequence[_UsageRefreshProviderResult],
+    started: Sequence[UsageRefreshProviderResult],
     cadence_seconds: float,
     *,
     now: float | None,
@@ -203,8 +203,8 @@ def _record_inline_crash(
             )
 
 
-def _submit_started_proc(
-    started: Sequence[_UsageRefreshProviderResult],
+def submit_started_proc(
+    started: Sequence[UsageRefreshProviderResult],
     *,
     operation_id: str,
     origin: str,
@@ -239,8 +239,8 @@ def _submit_started_proc(
     )
 
 
-def _release_started(
-    started: Sequence[_UsageRefreshProviderResult], *, now: float | None
+def release_started(
+    started: Sequence[UsageRefreshProviderResult], *, now: float | None
 ) -> None:
     from sase.llm_provider.usage.refresh import release_provider_usage_refresh
 

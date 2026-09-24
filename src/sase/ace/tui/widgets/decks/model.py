@@ -55,7 +55,7 @@ def cycle_card_id(
     else:
         # Unknown anchor: step from the default card so the keystroke still
         # moves by exactly one card from a sensible neighbor.
-        default = default_card_id(card_ids)
+        default = _default_card_id(card_ids)
         index = list(card_ids).index(default) if default is not None else -1
         if direction < 0:
             return list(card_ids)[index]
@@ -108,7 +108,7 @@ def with_preferred_card(
     return dataclasses.replace(state, panels=tuple(panels))
 
 
-def default_card_id(card_ids: Sequence[str]) -> str | None:
+def _default_card_id(card_ids: Sequence[str]) -> str | None:
     """Return the default card: Context, else first, else None."""
     if not card_ids:
         return None
@@ -128,4 +128,4 @@ def resolve_active_card(
         return preferred
     if partial and preferred is not None:
         return None
-    return default_card_id(card_ids)
+    return _default_card_id(card_ids)

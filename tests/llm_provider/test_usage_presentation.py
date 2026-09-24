@@ -7,6 +7,7 @@ import io
 from rich.console import Console
 
 from sase.llm_provider.usage import presentation
+from sase.llm_provider.usage._presentation_labels import _collector_health_label
 from sase.llm_provider.usage.presentation import (
     render_usage_plain,
     render_usage_refresh_toast,
@@ -18,7 +19,7 @@ from sase.llm_provider.usage.presentation import (
 from sase.llm_provider.usage.refresh import (
     USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
     UsageRefreshReceipt,
-    _UsageRefreshProviderResult,
+    UsageRefreshProviderResult,
 )
 from sase.llm_provider.usage.store import ProviderUsageStoreDiagnostic
 
@@ -126,10 +127,10 @@ def test_collector_health_helpers_render_compact_unhealthy_state() -> None:
         "failing_since": 1_799_740_800.0,
     }
 
-    assert presentation._collector_health_label(health, reason="vendor_drift") == (
+    assert _collector_health_label(health, reason="vendor_drift") == (
         "failing · vendor drift · 5x"
     )
-    assert presentation._collector_health_style(health) == "bold #FFAF5F"
+    assert presentation.collector_health_style(health) == "bold #FFAF5F"
 
 
 def test_rich_status_cell_uses_unhealthy_collector_health() -> None:
@@ -194,7 +195,7 @@ def _toast_receipt(
     *items: tuple[str, str | None, str | None, float | None],
 ) -> UsageRefreshReceipt:
     providers = tuple(
-        _UsageRefreshProviderResult(
+        UsageRefreshProviderResult(
             provider=name,
             status="reserved" if operation_id else "deferred",
             reason=reason,

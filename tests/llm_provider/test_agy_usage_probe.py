@@ -348,7 +348,7 @@ def _pin_agy_registry(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: frozenset(),
     )
     monkeypatch.setattr(
-        "sase.llm_provider.usage.refresh._referenced_provider_ids",
+        "sase.llm_provider.usage._refresh_eligibility._referenced_provider_ids",
         lambda: set(),
     )
     monkeypatch.setattr(

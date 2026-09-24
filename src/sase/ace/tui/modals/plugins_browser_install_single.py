@@ -34,14 +34,25 @@ from .plugin_action_confirm_modal import (
     PluginActionVariant,
 )
 from .plugins_browser_install_messages import (
-    _install_many_skipped_message,
-    _source_variant_label,
+    install_many_skipped_message,
     install_many_summary,
     install_many_success_message,
     install_not_found_message,
     install_summary,
 )
 from .plugins_browser_install_previews import InstallManyPreview, InstallPreview
+
+_SOURCE_VARIANT_LABELS: dict[str, str] = {
+    "catalog": "from index",
+    "git": "from git",
+    "passthrough": "from source",
+}
+
+
+def _source_variant_label(source: str) -> str:
+    """The confirm-modal variant label for a resolved :class:`ResolvedSpec` source."""
+    return _SOURCE_VARIANT_LABELS.get(source, f"from {source}")
+
 
 if TYPE_CHECKING:
     from textual.app import App
@@ -172,7 +183,7 @@ class PluginSingleInstallActionsMixin:
             self._notify(str(plan.error), severity="warning")
         elif isinstance(plan, InstallManyNothing):
             skipped = "; ".join(
-                _install_many_skipped_message(item) for item in plan.skipped
+                install_many_skipped_message(item) for item in plan.skipped
             )
             suffix = f": {skipped}" if skipped else "."
             self._notify(
@@ -229,7 +240,7 @@ class PluginSingleInstallActionsMixin:
         names = tuple(spec.display_name for spec in plan.specs)
         count = len(names)
         noun = "plugin" if count == 1 else "plugins"
-        skipped = tuple(_install_many_skipped_message(item) for item in plan.skipped)
+        skipped = tuple(install_many_skipped_message(item) for item in plan.skipped)
         modal = PluginActionConfirmModal(
             title=f"Install {count} {noun}",
             intro=(

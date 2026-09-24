@@ -13,8 +13,6 @@ from sase.plugins.operations import (
 )
 from sase.plugins.render_common import humanize_duration
 
-from .plugins_browser_install_previews import _CombinedInstallOutcome
-
 
 def install_summary(plan: InstallReady) -> str:
     """The resolved-plugin-set line shown in the confirm-preview modal."""
@@ -46,19 +44,6 @@ def install_many_success_message(outcome: InstallManyOutcome) -> str:
     return f"Installed {count} {noun} in {humanize_duration(outcome.elapsed)}"
 
 
-def _combined_install_message(outcome: _CombinedInstallOutcome) -> str:
-    """The proc message for a mixed install: CLI lines then the plugin leg."""
-    from .plugins_browser_agent_clis_actions import agent_cli_install_summary
-
-    cli_message, _severity = agent_cli_install_summary(outcome.cli_results)
-    if outcome.plugin_error is not None:
-        return f"{cli_message}\n{outcome.plugin_error}"
-    if outcome.plugin_outcome is not None:
-        plugin_message = install_many_success_message(outcome.plugin_outcome)
-        return f"{cli_message}\n{plugin_message}"
-    return cli_message
-
-
 def missing_plugin_message(
     query: str, suggestions: tuple[PluginCatalogEntry, ...]
 ) -> str:
@@ -74,19 +59,7 @@ def install_not_found_message(plan: InstallNotFound) -> str:
     return missing_plugin_message(plan.query, plan.suggestions)
 
 
-_SOURCE_VARIANT_LABELS: dict[str, str] = {
-    "catalog": "from index",
-    "git": "from git",
-    "passthrough": "from source",
-}
-
-
-def _source_variant_label(source: str) -> str:
-    """The confirm-modal variant label for a resolved :class:`ResolvedSpec` source."""
-    return _SOURCE_VARIANT_LABELS.get(source, f"from {source}")
-
-
-def _install_many_skipped_message(skipped: InstallSkipped) -> str:
+def install_many_skipped_message(skipped: InstallSkipped) -> str:
     """Human-readable skipped entry for batch-install previews/toasts."""
     if skipped.reason == "not found" and skipped.suggestions:
         names = ", ".join(entry.name for entry in skipped.suggestions)

@@ -11,7 +11,7 @@ import pytest
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import run_builtin_chop
 from sase.llm_provider.usage.refresh import (
-    _UsageRefreshProviderResult,
+    UsageRefreshProviderResult,
     UsageRefreshReceipt,
 )
 
@@ -25,13 +25,13 @@ def _isolate_chop_result_file(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def _receipt(*, started: bool) -> UsageRefreshReceipt:
     providers = [
-        _UsageRefreshProviderResult(
+        UsageRefreshProviderResult(
             provider="claude",
             status="reserved",
             reason="cadence",
             operation_id="usage-job:abc123" if started else None,
         ),
-        _UsageRefreshProviderResult(
+        UsageRefreshProviderResult(
             provider="grok",
             status="deferred",
             reason="backoff",
@@ -40,7 +40,7 @@ def _receipt(*, started: bool) -> UsageRefreshReceipt:
         ),
     ]
     if not started:
-        providers[0] = _UsageRefreshProviderResult(
+        providers[0] = UsageRefreshProviderResult(
             provider="claude",
             status="deferred",
             reason="floor",

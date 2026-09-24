@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.decks.model import (
 )
 from sase.ace.tui.widgets.decks.node_spine import (
     NodeSpine,
-    spine_geometry,
+    _spine_geometry,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
 
@@ -53,7 +53,7 @@ def test_toggle_nodes_collapsed_round_trips_and_preserves_layout() -> None:
 
 def test_zoom_round_trip_restores_snapshot_exactly() -> None:
     state = _split_state()
-    zoomed = deck_layout.enter_zoom(state)
+    zoomed = deck_layout.toggle_zoom(state)
     assert deck_layout.is_zoomed(zoomed)
     assert zoomed.layout is DeckLayout.SINGLE
     assert zoomed.focused == 1
@@ -61,21 +61,21 @@ def test_zoom_round_trip_restores_snapshot_exactly() -> None:
     # The zoomed panel keeps its deck, card preference and scroll owner:
     # both panel entries survive, only the layout changes.
     assert zoomed.panels == state.panels
-    assert deck_layout.exit_zoom(zoomed) == state
+    assert deck_layout.toggle_zoom(zoomed) == state
     assert deck_layout.toggle_zoom(zoomed) == state
     assert deck_layout.toggle_zoom(state) == zoomed
 
 
 def test_zoom_from_single_keeps_panel_and_collapses() -> None:
-    zoomed = deck_layout.enter_zoom(DeckAreaState())
+    zoomed = deck_layout.toggle_zoom(DeckAreaState())
     assert zoomed.focused == 0
     assert zoomed.panels == DeckAreaState().panels
     assert zoomed.nodes_collapsed is True
-    assert deck_layout.exit_zoom(zoomed) == DeckAreaState()
+    assert deck_layout.toggle_zoom(zoomed) == DeckAreaState()
 
 
 def test_layout_key_ends_zoom_without_restoring() -> None:
-    zoomed = deck_layout.enter_zoom(_split_state())
+    zoomed = deck_layout.toggle_zoom(_split_state())
     ended = deck_layout.toggle_split(
         zoomed, DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.TOOLS)
     )
@@ -87,7 +87,7 @@ def test_layout_key_ends_zoom_without_restoring() -> None:
 
 
 def test_collapse_key_ends_zoom_then_toggles() -> None:
-    zoomed = deck_layout.enter_zoom(_split_state())
+    zoomed = deck_layout.toggle_zoom(_split_state())
     assert zoomed.nodes_collapsed is True
     ended = deck_layout.toggle_nodes_collapsed(zoomed)
     assert not deck_layout.is_zoomed(ended)
@@ -95,15 +95,19 @@ def test_collapse_key_ends_zoom_then_toggles() -> None:
     assert ended.layout is DeckLayout.SINGLE
 
 
+def test_node_spine_expand_requested_handler_name() -> None:
+    assert NodeSpine.ExpandRequested.handler_name == "on_node_spine_expand_requested"
+
+
 def test_spine_geometry_edges() -> None:
-    assert spine_geometry(0, 0, 5) == (0, 0)
-    assert spine_geometry(10, 0, 0) == (0, 0)
-    start, size = spine_geometry(10, 0, 5)
+    assert _spine_geometry(0, 0, 5) == (0, 0)
+    assert _spine_geometry(10, 0, 0) == (0, 0)
+    start, size = _spine_geometry(10, 0, 5)
     assert (start, size) == (0, 2)
-    end_start, end_size = spine_geometry(10, 4, 5)
+    end_start, end_size = _spine_geometry(10, 4, 5)
     assert end_start + end_size <= 10
     assert end_start > start
-    single_start, single_size = spine_geometry(7, 0, 1)
+    single_start, single_size = _spine_geometry(7, 0, 1)
     assert (single_start, single_size) == (0, 7)
 
 

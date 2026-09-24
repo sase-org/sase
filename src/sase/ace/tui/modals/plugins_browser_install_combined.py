@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shlex
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.tui.actions.proc_actions import (
@@ -33,16 +34,37 @@ from .plugin_action_confirm_modal import (
     PluginActionVariant,
 )
 from .plugins_browser_install_messages import (
-    _combined_install_message,
-    _install_many_skipped_message,
+    install_many_skipped_message,
     install_many_success_message,
     install_many_summary,
 )
 from .plugins_browser_install_previews import (
     CombinedInstallPreview,
     InstallManyPreview,
-    _CombinedInstallOutcome,
 )
+
+
+@dataclass(frozen=True)
+class _CombinedInstallOutcome:
+    """The result of a mixed install proc: agent CLIs first, then plugins."""
+
+    cli_results: tuple[AgentCliUpdateResult, ...]
+    plugin_outcome: InstallManyOutcome | None = None
+    plugin_error: str | None = None
+
+
+def _combined_install_message(outcome: _CombinedInstallOutcome) -> str:
+    """The proc message for a mixed install: CLI lines then the plugin leg."""
+    from .plugins_browser_agent_clis_actions import agent_cli_install_summary
+
+    cli_message, _severity = agent_cli_install_summary(outcome.cli_results)
+    if outcome.plugin_error is not None:
+        return f"{cli_message}\n{outcome.plugin_error}"
+    if outcome.plugin_outcome is not None:
+        plugin_message = install_many_success_message(outcome.plugin_outcome)
+        return f"{cli_message}\n{plugin_message}"
+    return cli_message
+
 
 if TYPE_CHECKING:
     from textual.app import App
@@ -127,7 +149,7 @@ class PluginCombinedInstallActionsMixin:
             return str(plan.error)
         if isinstance(plan, InstallManyNothing):
             skipped = "; ".join(
-                _install_many_skipped_message(item) for item in plan.skipped
+                install_many_skipped_message(item) for item in plan.skipped
             )
             suffix = f": {skipped}" if skipped else "."
             return f"No marked plugins can be installed{suffix}"

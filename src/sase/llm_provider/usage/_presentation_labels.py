@@ -12,13 +12,18 @@ from sase.llm_provider.usage._presentation_shared import (
     _COLLECTOR_HEALTH_STYLES,
     _STATE_STATUS_LABELS,
     _WINDOW_STATE_LABELS,
-    _failure_count,
-    _format_remaining_text,
-    _number,
-    _optional_text,
-    _provider_collector_health,
-    _string_list,
+    failure_count,
+    finite_number,
+    format_remaining_text,
+    nonblank_text,
+    provider_collector_health,
 )
+
+
+def _string_list(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(str(item) for item in value if str(item))
 
 
 def provider_status_label(provider: Mapping[str, Any]) -> str:
@@ -27,7 +32,7 @@ def provider_status_label(provider: Mapping[str, Any]) -> str:
         return health_label
     status = str(provider.get("collection_status") or "unknown")
     label = _STATE_STATUS_LABELS.get(status, status.replace("_", " "))
-    reason = _optional_text(provider.get("collection_reason"))
+    reason = nonblank_text(provider.get("collection_reason"))
     if reason:
         return f"{label}: {reason.replace('_', ' ')}"
     return label
@@ -49,10 +54,10 @@ def _collector_health_label(
     state = str(health.get("state") or "unknown")
     label = state.replace("_", " ")
     parts = [label]
-    reason_text = _optional_text(reason)
+    reason_text = nonblank_text(reason)
     if reason_text is not None:
         parts.append(reason_text.replace("_", " "))
-    failures = _failure_count(health)
+    failures = failure_count(health)
     if failures is not None and (state != "ok" or failures > 0):
         parts.append(f"{failures}x")
     return " · ".join(parts)
@@ -81,7 +86,7 @@ def collector_retry_label(health: Mapping[str, Any] | None, now: float) -> str |
 
 def _collector_failure_reason(health: Mapping[str, Any]) -> str | None:
     """Return the spaced ``last_failure_reason`` text, if present."""
-    reason = _optional_text(health.get("last_failure_reason"))
+    reason = nonblank_text(health.get("last_failure_reason"))
     if reason is None:
         return None
     return reason.replace("_", " ")
@@ -89,7 +94,7 @@ def _collector_failure_reason(health: Mapping[str, Any]) -> str | None:
 
 def _collector_retry_at_label(health: Mapping[str, Any], now: float) -> str | None:
     """Return the ``retry_at`` portion of a retry label, if present."""
-    retry_at = _number(health.get("retry_at"))
+    retry_at = finite_number(health.get("retry_at"))
     if retry_at is None:
         return None
     if retry_at > now:
@@ -98,20 +103,15 @@ def _collector_retry_at_label(health: Mapping[str, Any], now: float) -> str | No
     return f"retry ~{clock}"
 
 
-def _collector_health_style(health: Mapping[str, Any] | None) -> str:
-    """Return the Rich style associated with a collector-health block."""
+def collector_health_style(health: Mapping[str, Any] | None) -> str:
+    """Return the public Rich style for a collector-health block."""
     if health is None:
         return ""
     state = str(health.get("state") or "")
     return _COLLECTOR_HEALTH_STYLES.get(state, "")
 
 
-def collector_health_style(health: Mapping[str, Any] | None) -> str:
-    """Return the public Rich style for a collector-health block."""
-    return _collector_health_style(health)
-
-
-def _window_status_label_for_provider(
+def window_status_label_for_provider(
     provider: Mapping[str, Any],
     window: Mapping[str, Any],
 ) -> str:
@@ -121,24 +121,8 @@ def _window_status_label_for_provider(
     return window_status_label(window)
 
 
-def _window_source_label(window: Mapping[str, Any]) -> str:
-    parts = [
-        _optional_text(window.get("source")),
-        _optional_text(window.get("freshness")),
-        applicability_label(window.get("applicability")),
-    ]
-    return " · ".join(part for part in parts if part)
-
-
-def _remaining_label(window: Mapping[str, Any]) -> str:
-    used = _number(window.get("used_percent"))
-    if used is None:
-        return "-"
-    return _format_remaining_text(used)
-
-
 def window_label(window: Mapping[str, Any]) -> str:
-    label = _optional_text(window.get("label")) or _optional_text(window.get("key"))
+    label = nonblank_text(window.get("label")) or nonblank_text(window.get("key"))
     return label or "-"
 
 
@@ -148,7 +132,7 @@ def reset_label(
     *,
     verbose: bool,
 ) -> str:
-    resets_at = _number(window.get("resets_at"))
+    resets_at = finite_number(window.get("resets_at"))
     reset_passed = window.get("reset_passed") is True
     if resets_at is None:
         return "unknown"
@@ -161,21 +145,14 @@ def reset_label(
 
 
 def age_label(window: Mapping[str, Any]) -> str:
-    age = _number(window.get("age_seconds"))
+    age = finite_number(window.get("age_seconds"))
     if age is None:
         return "unknown"
     return duration_label(age)
 
 
-def _age_from_timestamp(value: Any, now: float) -> str:
-    timestamp = _number(value)
-    if timestamp is None:
-        return "unknown"
-    return duration_label(max(now - timestamp, 0.0))
-
-
 def timestamp_label(value: Any, now: float) -> str:
-    timestamp = _number(value)
+    timestamp = finite_number(value)
     if timestamp is None:
         return "unknown"
     if not math.isfinite(timestamp):
@@ -208,17 +185,17 @@ def duration_label(seconds: float) -> str:
 def applicability_label(value: Any) -> str:
     if not isinstance(value, Mapping):
         return "unknown"
-    kind = _optional_text(value.get("kind")) or "unknown"
+    kind = nonblank_text(value.get("kind")) or "unknown"
     if kind == "account":
         return "account"
     if kind == "models":
         models = _string_list(value.get("model_ids"))
         return "models:" + ",".join(models) if models else "models"
     if kind == "model_family":
-        family = _optional_text(value.get("family"))
+        family = nonblank_text(value.get("family"))
         return f"family:{family}" if family else "model_family"
     if kind == "product":
-        product = _optional_text(value.get("product"))
+        product = nonblank_text(value.get("product"))
         models = _string_list(value.get("model_ids"))
         suffix = f":{','.join(models)}" if models else ""
         return f"product:{product or 'unknown'}{suffix}"
@@ -226,7 +203,7 @@ def applicability_label(value: Any) -> str:
 
 
 def provider_style(provider: Mapping[str, Any]) -> str:
-    health_style = _collector_health_style(_provider_collector_health(provider))
+    health_style = collector_health_style(provider_collector_health(provider))
     if health_style:
         return health_style
     status = str(provider.get("collection_status") or "")
@@ -235,11 +212,11 @@ def provider_style(provider: Mapping[str, Any]) -> str:
     return ""
 
 
-def _provider_window_style(
+def provider_window_style(
     provider: Mapping[str, Any],
     window: Mapping[str, Any],
 ) -> str:
-    health_style = _collector_health_style(_provider_collector_health(provider))
+    health_style = collector_health_style(provider_collector_health(provider))
     if health_style:
         return health_style
     return _window_style(window)
@@ -264,7 +241,7 @@ def diagnostic_line(diagnostic: Mapping[str, Any]) -> str:
 
 
 def _unhealthy_collector_health_label(provider: Mapping[str, Any]) -> str | None:
-    health = _provider_collector_health(provider)
+    health = provider_collector_health(provider)
     if health is None:
         return None
     state = str(health.get("state") or "")

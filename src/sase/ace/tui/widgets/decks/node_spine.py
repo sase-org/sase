@@ -13,7 +13,7 @@ _THUMB_GLYPH = "┃"
 _AFFORDANCE_GLYPH = "»"
 
 
-def spine_geometry(track_rows: int, index: int, total: int) -> tuple[int, int]:
+def _spine_geometry(track_rows: int, index: int, total: int) -> tuple[int, int]:
     """Return ``(thumb_start, thumb_size)`` for a ``track_rows``-tall track.
 
     The thumb is positioned and sized in proportion to ``index`` among
@@ -31,12 +31,11 @@ def spine_geometry(track_rows: int, index: int, total: int) -> tuple[int, int]:
     return (start, size)
 
 
-class NodeSpineExpandRequested(Message):
-    """A click on the collapsed node spine asked to expand the node panel."""
-
-
 class NodeSpine(Static):
     """Two-cell-wide collapsed node-panel indicator with a scroll thumb."""
+
+    class ExpandRequested(Message):
+        """A click on the collapsed node spine asked to expand the node panel."""
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the spine with an empty selection."""
@@ -64,7 +63,7 @@ class NodeSpine(Static):
     def on_click(self, _event: object) -> None:
         """Ask to expand the node panel without stealing widget focus."""
         try:
-            self.post_message(NodeSpineExpandRequested())
+            self.post_message(self.ExpandRequested())
         except Exception:
             pass
 
@@ -99,7 +98,7 @@ class NodeSpine(Static):
         text = Text()
         text.append(_AFFORDANCE_GLYPH, style="bold #FFD700")
         track_rows = max(0, height - 1)
-        start, size = spine_geometry(track_rows, self._index, self._total)
+        start, size = _spine_geometry(track_rows, self._index, self._total)
         for row in range(track_rows):
             text.append("\n", style="")
             if start <= row < start + size:

@@ -360,10 +360,14 @@ _lint-patch-stitch-terminology: _setup
     {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root . --allow-missing-linked-repos
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping).
+# Epic-symbol entries below are self-cleaning: 17x.9 consumes the two sase-17x
+# symbols. Each entry goes away with its phase.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-17x(ensure_command_line_spec)' \
+        --epic-symbol 'sase-17x(CompletionSpecCacheError)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -34,21 +34,7 @@ _COLLECTOR_HEALTH_STYLES: Mapping[str, str] = {
 }
 
 
-def _provider_rows(snapshot: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
-    raw = snapshot.get("providers")
-    if not isinstance(raw, list):
-        return ()
-    return tuple(item for item in raw if isinstance(item, Mapping))
-
-
-def _window_rows(provider: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
-    raw = provider.get("windows")
-    if not isinstance(raw, list):
-        return ()
-    return tuple(item for item in raw if isinstance(item, Mapping))
-
-
-def _number(value: Any) -> float | None:
+def finite_number(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     number = float(value)
@@ -57,25 +43,19 @@ def _number(value: Any) -> float | None:
     return number
 
 
-def _format_number(value: float) -> str:
-    if value.is_integer():
-        return str(int(value))
-    return f"{value:.2f}".rstrip("0").rstrip(".")
-
-
-def _optional_text(value: Any) -> str | None:
+def nonblank_text(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     stripped = value.strip()
     return stripped or None
 
 
-def _provider_collector_health(provider: Mapping[str, Any]) -> Mapping[str, Any] | None:
+def provider_collector_health(provider: Mapping[str, Any]) -> Mapping[str, Any] | None:
     health = provider.get("collector_health")
     return health if isinstance(health, Mapping) else None
 
 
-def _failure_count(health: Mapping[str, Any]) -> int | None:
+def failure_count(health: Mapping[str, Any]) -> int | None:
     value = health.get("consecutive_failures")
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
@@ -84,13 +64,7 @@ def _failure_count(health: Mapping[str, Any]) -> int | None:
     return max(int(value), 0)
 
 
-def _string_list(value: Any) -> tuple[str, ...]:
-    if not isinstance(value, list | tuple):
-        return ()
-    return tuple(str(item) for item in value if str(item))
-
-
-def _format_remaining_text(used: float) -> str:
+def format_remaining_text(used: float) -> str:
     """Return user-facing remaining text for a ``used_percent`` value.
 
     Resolved through the ``sase.llm_provider.usage.presentation`` facade at

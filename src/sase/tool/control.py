@@ -551,7 +551,7 @@ def _wait_json(run_id: str, run: dict[str, Any]) -> dict[str, Any]:
 def _print_wait_tail(run_id: str, run: dict[str, Any], tail_lines: int | None) -> None:
     if tail_lines is None:
         return
-    tail = read_output_tail(run, tail_lines)
+    tail = _read_output_tail(run, tail_lines)
     if tail:
         print(f"--- last {tail_lines} lines of {run_id} ---", file=sys.stderr)
         sys.stderr.write(tail if tail.endswith("\n") else tail + "\n")
@@ -608,7 +608,7 @@ def _monitor_output_path(run: dict[str, Any], monitor_id: str) -> Path | None:
         return None
 
 
-def read_output_tail(run: dict[str, Any], lines: int) -> str:
+def _read_output_tail(run: dict[str, Any], lines: int) -> str:
     """Return the last *lines* lines of the run's output of record."""
 
     if lines <= 0:
@@ -671,6 +671,5 @@ __all__ = [
     "handle_stop",
     "handle_wait",
     "output_paths_for_run",
-    "read_output_tail",
     "wait_for_settlement",
 ]

@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sase.agent_clis.install import AgentCliInstallPlan
-from sase.agent_clis.models import AgentCliUpdateResult
 from sase.plugins.catalog import PluginCatalogError
 from sase.plugins.operations import (
-    InstallManyOutcome,
     InstallManyPlan,
     InstallPlan,
     InstallReady,
@@ -51,15 +49,6 @@ class CombinedInstallPreview:
     plugin_names: tuple[str, ...]
     cli_plan: AgentCliInstallPlan
     plugin_preview: InstallManyPreview
-
-
-@dataclass(frozen=True)
-class _CombinedInstallOutcome:
-    """The result of a mixed install proc: agent CLIs first, then plugins."""
-
-    cli_results: tuple[AgentCliUpdateResult, ...]
-    plugin_outcome: InstallManyOutcome | None = None
-    plugin_error: str | None = None
 
 
 def plan_install_preview(name: str, *, offline: bool) -> InstallPreview:

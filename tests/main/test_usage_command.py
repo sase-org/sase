@@ -7,7 +7,7 @@ import json
 import pytest
 
 from sase.llm_provider.usage.refresh import (
-    _UsageRefreshProviderResult,
+    UsageRefreshProviderResult,
     UsageRefreshReceipt,
 )
 from sase.llm_provider.usage.store import (
@@ -141,7 +141,7 @@ def test_refresh_background_emits_receipt_without_waiting(monkeypatch, capsys) -
         origin="cli",
         operation_ids=("op123",),
         providers=(
-            _UsageRefreshProviderResult(
+            UsageRefreshProviderResult(
                 provider="codex",
                 status="reserved",
                 reason="never_observed",
@@ -189,7 +189,7 @@ def test_refresh_foreground_exits_one_for_unauthenticated_result(
             origin=origin,
             operation_ids=("op123",),
             providers=(
-                _UsageRefreshProviderResult(
+                UsageRefreshProviderResult(
                     provider="codex",
                     status="reserved",
                     reason="never_observed",
@@ -258,7 +258,7 @@ def test_refresh_foreground_joins_inline_operation_via_store(
             origin=origin,
             operation_ids=("usage-job:abc123",),
             providers=(
-                _UsageRefreshProviderResult(
+                UsageRefreshProviderResult(
                     provider="codex",
                     status="reserved",
                     reason="cadence",
@@ -316,7 +316,7 @@ def test_refresh_foreground_reports_inline_timeout_as_failure(
             origin=origin,
             operation_ids=("usage-job:abc123",),
             providers=(
-                _UsageRefreshProviderResult(
+                UsageRefreshProviderResult(
                     provider="codex",
                     status="reserved",
                     reason="cadence",

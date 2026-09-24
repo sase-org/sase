@@ -13,7 +13,7 @@ import pytest
 
 from sase.completion.build import build_spec
 from sase.completion.command_line_spec import (
-    command_line_spec_path,
+    _command_line_spec_path,
     ensure_command_line_spec,
 )
 from sase.completion.kinds import ValueKind
@@ -23,7 +23,20 @@ from sase.completion.model import (
     OptionSpec,
     PositionalSpec,
 )
-from sase.completion.run_policy import policy_table_paths
+from sase.completion.run_policy import (
+    _RUN_POLICY_TABLE,
+    _STDIN_PATHS,
+    _WRITES_FALSE_OVERRIDES,
+    _WRITES_TRUE_OVERRIDES,
+)
+
+
+def _policy_table_paths() -> tuple[tuple[str, ...], ...]:
+    paths: set[tuple[str, ...]] = set(_RUN_POLICY_TABLE)
+    paths |= set(_WRITES_TRUE_OVERRIDES)
+    paths |= set(_WRITES_FALSE_OVERRIDES)
+    paths |= set(_STDIN_PATHS)
+    return tuple(sorted(paths))
 
 
 def _all_commands(root: CommandSpec) -> Iterator[CommandSpec]:
@@ -179,7 +192,7 @@ def test_option_metavar_plain_string_or_none() -> None:
 def test_run_policy_tables_match_live_parser() -> None:
     spec = build_spec()
     known = {command.path for command in _all_commands(spec.root)}
-    missing = [path for path in policy_table_paths() if path not in known]
+    missing = [path for path in _policy_table_paths() if path not in known]
     assert not missing, (
         "run_policy tables reference commands missing from build_spec(): "
         + ", ".join(" ".join(path) for path in missing)
@@ -213,7 +226,7 @@ def test_command_line_spec_cache_hit_returns_without_subprocess(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    path = command_line_spec_path()
+    path = _command_line_spec_path()
     _write_spec_json(path)
 
     def _fail(*args: Any, **kwargs: Any) -> Any:
@@ -258,7 +271,7 @@ def test_command_line_spec_prunes_stale_siblings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    current = command_line_spec_path()
+    current = _command_line_spec_path()
     current.parent.mkdir(parents=True, exist_ok=True)
     stale = current.parent / "command_line_spec-stale.json"
     _write_spec_json(stale)

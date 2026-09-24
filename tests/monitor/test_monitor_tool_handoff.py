@@ -23,9 +23,9 @@ from sase.monitor.models import MonitorRecord
 from sase.monitor.proc_adapter import _compile_monitor_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.tool_handoff import (
+    _parse_monitor_tool_words,
     format_reservation_fallback_line,
     maybe_reserve_monitor_tool_run,
-    parse_monitor_tool_words,
 )
 from sase.monitor.tool_wrap import monitor_tool_run_words
 from sase.procs.store import get_proc
@@ -139,18 +139,18 @@ def test_words_unwrapped_reason_never_reserves() -> None:
 
 
 def test_parse_rejects_output_mode_options() -> None:
-    assert parse_monitor_tool_words(["check"]) == ("check",)
-    assert parse_monitor_tool_words(["--", "/bin/sh", "-c", "true"]) == (
+    assert _parse_monitor_tool_words(["check"]) == ("check",)
+    assert _parse_monitor_tool_words(["--", "/bin/sh", "-c", "true"]) == (
         "--",
         "/bin/sh",
         "-c",
         "true",
     )
-    assert parse_monitor_tool_words(["-v", "check"]) is None
-    assert parse_monitor_tool_words(["-q", "check"]) is None
-    assert parse_monitor_tool_words(["-T", "5", "check"]) is None
-    assert parse_monitor_tool_words(["-H", "check"]) is None
-    assert parse_monitor_tool_words([]) is None
+    assert _parse_monitor_tool_words(["-v", "check"]) is None
+    assert _parse_monitor_tool_words(["-q", "check"]) is None
+    assert _parse_monitor_tool_words(["-T", "5", "check"]) is None
+    assert _parse_monitor_tool_words(["-H", "check"]) is None
+    assert _parse_monitor_tool_words([]) is None
 
 
 def test_reserve_declines_without_words(tmp_path: Path) -> None:

@@ -1,15 +1,10 @@
-"""Background eligibility for subscription-usage refresh.
-
-Names that tests patch on the public :mod:`sase.llm_provider.usage.refresh`
-namespace are resolved with late imports so the facade stays the single patch
-point.
-"""
+"""Background eligibility for subscription-usage refresh."""
 
 from __future__ import annotations
 
 import logging
 import shutil
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +20,6 @@ def eligible_usage_providers(*, include_hidden: bool = False) -> tuple[str, ...]
         model_picker_hidden_provider_names,
         registered_provider_names,
     )
-    from sase.llm_provider.usage.refresh import _referenced_provider_ids
 
     payload = get_llm_metadata_payload()
     hidden = set() if include_hidden else set(model_picker_hidden_provider_names())
@@ -48,37 +42,6 @@ def eligible_usage_providers(*, include_hidden: bool = False) -> tuple[str, ...]
             continue
         eligible.append(name)
     return tuple(eligible)
-
-
-def _resolve_requested_providers(
-    providers: Sequence[str] | None,
-) -> tuple[str, ...]:
-    from sase.llm_provider.usage.refresh import eligible_usage_providers as _eligible
-
-    if providers is None:
-        return _eligible()
-    return tuple(
-        dict.fromkeys(str(name).strip() for name in providers if str(name).strip())
-    )
-
-
-def _provider_has_probe_capability(provider: str) -> bool:
-    """Return whether *provider* declares usage probe capability."""
-    try:
-        from sase.llm_provider.registry import get_llm_metadata_payload
-
-        payload = get_llm_metadata_payload()
-        providers = payload.get("providers")
-        if not isinstance(providers, dict):
-            return False
-        metadata = providers.get(provider)
-        if not isinstance(metadata, dict):
-            return False
-        capabilities = metadata.get("usage_capabilities")
-        return isinstance(capabilities, dict) and capabilities.get("probe") is True
-    except Exception:
-        log.debug("usage probe-capability lookup failed for %r", provider)
-        return False
 
 
 def _referenced_provider_ids() -> set[str]:

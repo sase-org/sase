@@ -18,7 +18,7 @@ from sase.tool.adopt import execute_adopted_run
 from sase.tool.argv import resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 from sase.tool.handoff import (
-    envelope_from_resolved,
+    _envelope_from_resolved,
     owner_request_fingerprint,
     owner_tags,
     reserve_handoff_run,
@@ -66,7 +66,7 @@ def _handoff_request(*words: str, quiet: bool = False) -> ToolRunCliRequest:
 
 def test_envelope_round_trip_preserves_shape() -> None:
     resolved = resolve_run_argv(["--", "printf", "hi"])
-    envelope = envelope_from_resolved(resolved)
+    envelope = _envelope_from_resolved(resolved)
     assert envelope["argv"] == ["printf", "hi"]
     assert envelope["adhoc"] is True
     rebuilt = resolved_from_envelope(envelope)

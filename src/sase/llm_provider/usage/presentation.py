@@ -11,8 +11,6 @@ primitives in :mod:`sase.llm_provider.usage._presentation_shared`.
 from __future__ import annotations
 
 from sase.llm_provider.usage._presentation_labels import (
-    _collector_health_label,
-    _collector_health_style,
     age_label,
     applicability_label,
     collector_health_style,

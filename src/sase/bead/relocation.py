@@ -97,7 +97,7 @@ def resolve_created_bead_id(
         seen.add(current)
 
 
-class BeadRelocationIdentityError(ValueError):
+class _BeadRelocationIdentityError(ValueError):
     """A relocation record could not be proven to move (or miss) our bead."""
 
 
@@ -138,7 +138,7 @@ def resolve_own_bead_id(
     matching creation identity in the post-publication store: a match at the
     candidate means our bead moved, a match at the original means a foreign
     bead moved and the record is ignored. Anything else raises
-    :class:`BeadRelocationIdentityError` naming both IDs.
+    :class:`_BeadRelocationIdentityError` naming both IDs.
     """
 
     candidate = resolve_created_bead_id(before.id, relocations)
@@ -156,13 +156,13 @@ def resolve_own_bead_id(
         staying = None
     if staying is not None and _creation_identity_matches(before, staying):
         return before.id
-    raise BeadRelocationIdentityError(
+    raise _BeadRelocationIdentityError(
         f"cannot locate bead {before.id} after relocation to {candidate}: "
         "neither ID matches the pre-publication creation identity"
     )
 
 
-def rewrite_text_for_bead_relocations(
+def _rewrite_text_for_bead_relocations(
     value: str,
     relocations: Iterable[BeadIdRelocation] | None,
 ) -> str:
@@ -203,7 +203,7 @@ def rewrite_head_subject_for_bead_relocations(
     lines = message.splitlines()
     if not lines:
         return False
-    rewritten_subject = rewrite_text_for_bead_relocations(lines[0], relocation_tuple)
+    rewritten_subject = _rewrite_text_for_bead_relocations(lines[0], relocation_tuple)
     if rewritten_subject == lines[0]:
         return False
     rewritten_message = "\n".join((rewritten_subject, *lines[1:])).rstrip() + "\n"
@@ -233,12 +233,10 @@ def rewrite_head_subject_for_bead_relocations(
 
 __all__ = [
     "BeadIdRelocation",
-    "BeadRelocationIdentityError",
     "compose_bead_relocations",
     "normalize_bead_relocations",
     "relocations_for_subtree",
     "resolve_created_bead_id",
     "resolve_own_bead_id",
     "rewrite_head_subject_for_bead_relocations",
-    "rewrite_text_for_bead_relocations",
 ]

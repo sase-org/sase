@@ -12,7 +12,7 @@ import sase.ace.tui.modals.models_panel_usage_modal as usage_modal
 from sase.ace.tui.modals.models_panel_usage_modal import ProviderUsageModal
 from sase.llm_provider.usage.refresh import (
     UsageRefreshReceipt,
-    _UsageRefreshProviderResult,
+    UsageRefreshProviderResult,
 )
 from sase.llm_provider.usage.store import ProviderUsageRefreshReservation
 from tests._models_panel_helpers import ModelsPanelTestApp, wait_for
@@ -35,7 +35,7 @@ def _reservation(
 
 
 def _receipt(*, provider: str, operation_id: str, status: str) -> UsageRefreshReceipt:
-    result = _UsageRefreshProviderResult(
+    result = UsageRefreshProviderResult(
         provider=provider, status=status, reason=None, operation_id=operation_id
     )
     return UsageRefreshReceipt(

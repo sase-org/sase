@@ -5,8 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from sase.llm_provider.usage._presentation_shared import _provider_rows
 from sase.llm_provider.usage.store import ProviderUsageStoreDiagnostic
+
+
+def _provider_rows(snapshot: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    raw = snapshot.get("providers")
+    if not isinstance(raw, list):
+        return ()
+    return tuple(item for item in raw if isinstance(item, Mapping))
 
 
 def usage_snapshot_json_payload(
@@ -22,7 +28,7 @@ def usage_snapshot_json_payload(
         _missing_usage_providers(snapshot, requested_providers)
     )
     payload["store_diagnostics"] = [
-        _usage_diagnostic_to_json(item) for item in diagnostics
+        usage_diagnostic_to_json(item) for item in diagnostics
     ]
     return payload
 
@@ -56,7 +62,7 @@ def _missing_usage_providers(
     return tuple(name for name in requested_providers if name not in observed)
 
 
-def _usage_diagnostic_to_json(
+def usage_diagnostic_to_json(
     diagnostic: ProviderUsageStoreDiagnostic | Mapping[str, Any],
 ) -> dict[str, Any]:
     """Return a JSON-ready store diagnostic."""
@@ -68,7 +74,7 @@ def _usage_diagnostic_to_json(
     return {"provider": diagnostic.provider, "message": diagnostic.message}
 
 
-def _display_provider_rows(
+def display_provider_rows(
     snapshot: Mapping[str, Any],
     requested_providers: Sequence[str],
 ) -> tuple[Mapping[str, Any], ...]:

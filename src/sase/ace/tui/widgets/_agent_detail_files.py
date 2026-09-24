@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .file_panel import AgentFilePanel
 
 
-def dispatch_file_view(
+def _dispatch_file_view(
     file_panel: AgentFilePanel,
     agent: Agent,
     *,
@@ -58,7 +58,7 @@ def load_deck_file_view(
     if agent.is_workflow_child and agent.step_type in ("bash", "python"):
         file_panel.show_empty()
         return False
-    loaded = dispatch_file_view(
+    loaded = _dispatch_file_view(
         file_panel, agent, stale_threshold_seconds=stale_threshold_seconds
     )
     if not loaded:

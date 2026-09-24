@@ -11,11 +11,10 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from sase.llm_provider.usage._refresh_eligibility import _resolve_requested_providers
 from sase.llm_provider.usage._refresh_execution import (
-    _release_started,
-    _run_inline_batch,
-    _submit_started_proc,
+    release_started,
+    run_inline_batch,
+    submit_started_proc,
 )
 from sase.llm_provider.usage._refresh_model import (
     INLINE_USAGE_OPERATION_PREFIX,
@@ -25,7 +24,7 @@ from sase.llm_provider.usage._refresh_model import (
     USAGE_REFRESH_ORIGINS,
     USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
     UsageRefreshReceipt,
-    _UsageRefreshProviderResult,
+    UsageRefreshProviderResult,
 )
 from sase.llm_provider.usage.config import (
     collection_skip_reason,
@@ -38,6 +37,18 @@ from sase.llm_provider.usage.store import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _resolve_requested_providers(
+    providers: Sequence[str] | None,
+) -> tuple[str, ...]:
+    from sase.llm_provider.usage.refresh import eligible_usage_providers as _eligible
+
+    if providers is None:
+        return _eligible()
+    return tuple(
+        dict.fromkeys(str(name).strip() for name in providers if str(name).strip())
+    )
 
 
 def request_due_usage_refresh(
@@ -94,8 +105,8 @@ def submit_usage_refresh(
             providers=(),
         )
 
-    results: list[_UsageRefreshProviderResult] = []
-    started: list[_UsageRefreshProviderResult] = []
+    results: list[UsageRefreshProviderResult] = []
+    started: list[UsageRefreshProviderResult] = []
     if execution == "inline":
         operation_id = f"{INLINE_USAGE_OPERATION_PREFIX}{new_proc_id()}"
     else:
@@ -107,7 +118,7 @@ def submit_usage_refresh(
         skip = collection_skip_reason(provider)
         if skip is not None:
             results.append(
-                _UsageRefreshProviderResult(
+                UsageRefreshProviderResult(
                     provider=provider,
                     status="disabled",
                     reason=skip,
@@ -128,7 +139,7 @@ def submit_usage_refresh(
                 "usage refresh admission failed for %r", provider, exc_info=True
             )
             results.append(
-                _UsageRefreshProviderResult(
+                UsageRefreshProviderResult(
                     provider=provider,
                     status="error",
                     reason="admission_failed",
@@ -144,7 +155,7 @@ def submit_usage_refresh(
     if started:
         if execution == "inline":
             inline_results = tuple(
-                _run_inline_batch(
+                run_inline_batch(
                     started,
                     origin=origin,
                     plugin_specs=specs,
@@ -154,7 +165,7 @@ def submit_usage_refresh(
             )
         else:
             try:
-                _submit_started_proc(
+                submit_started_proc(
                     started,
                     operation_id=operation_id,
                     origin=origin,
@@ -163,10 +174,10 @@ def submit_usage_refresh(
                 )
             except Exception:
                 log.warning("usage refresh proc submit failed", exc_info=True)
-                _release_started(started, now=now)
+                release_started(started, now=now)
                 results = [
                     (
-                        _UsageRefreshProviderResult(
+                        UsageRefreshProviderResult(
                             provider=item.provider,
                             status="error",
                             reason="submit_failed",
@@ -208,7 +219,7 @@ def _admit_one(
     now: float | None,
     active_cadence_seconds: float | None = None,
     warn_percent: float | None = None,
-) -> _UsageRefreshProviderResult:
+) -> UsageRefreshProviderResult:
     from sase.llm_provider.usage.refresh import (
         admit_provider_usage_refresh,
         evaluate_provider_usage_refresh_due,
@@ -248,7 +259,7 @@ def _admit_one(
             now=now,
         )
         if not due.due:
-            return _UsageRefreshProviderResult(
+            return UsageRefreshProviderResult(
                 provider=provider,
                 status=PROVIDER_USAGE_REFRESH_DEFERRED,
                 reason=due.reason,
@@ -279,7 +290,7 @@ def _admit_one(
     result_operation = joined_operation
     if status == PROVIDER_USAGE_REFRESH_DEFERRED:
         result_operation = None
-    return _UsageRefreshProviderResult(
+    return UsageRefreshProviderResult(
         provider=provider,
         status=status,
         reason=admitted.reason,
@@ -295,7 +306,7 @@ def _disabled_receipt(
     providers: Sequence[str], origin: str, reason: str
 ) -> UsageRefreshReceipt:
     results = tuple(
-        _UsageRefreshProviderResult(
+        UsageRefreshProviderResult(
             provider=name,
             status="disabled",
             reason=reason,

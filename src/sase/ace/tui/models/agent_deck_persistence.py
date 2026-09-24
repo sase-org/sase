@@ -41,7 +41,7 @@ MAX_CARD_ID_LENGTH = 256
 
 
 @dataclass(frozen=True)
-class DeckPanelSnapshot:
+class _DeckPanelSnapshot:
     """Persisted deck and preferred card for one deck panel."""
 
     deck: DeckId = DeckId.MAIN
@@ -56,7 +56,7 @@ class AgentsDeckStateSnapshot:
     ratio: int = 50
     focused: int = 0
     nodes_collapsed: bool = False
-    panels: tuple[DeckPanelSnapshot, ...] = (DeckPanelSnapshot(),)
+    panels: tuple[_DeckPanelSnapshot, ...] = (_DeckPanelSnapshot(),)
 
 
 EMPTY_AGENTS_DECK_STATE = AgentsDeckStateSnapshot()
@@ -85,7 +85,7 @@ def _decode_layout(raw: Any) -> DeckLayout:
         raise _AgentsDeckStateDecodeError(f"unknown layout: {raw!r}") from None
 
 
-def _decode_panel(raw: Any) -> DeckPanelSnapshot:
+def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
     if not isinstance(raw, dict):
         raise _AgentsDeckStateDecodeError("panel must be an object")
     deck = _decode_deck(raw.get("deck", DeckId.MAIN.value))
@@ -96,7 +96,7 @@ def _decode_panel(raw: Any) -> DeckPanelSnapshot:
         or len(preferred) > MAX_CARD_ID_LENGTH
     ):
         raise _AgentsDeckStateDecodeError("invalid preferred card")
-    return DeckPanelSnapshot(deck, preferred)
+    return _DeckPanelSnapshot(deck, preferred)
 
 
 def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
@@ -121,13 +121,13 @@ def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
     raw_panels = decoded.get("panels", [{"deck": DeckId.MAIN.value}])
     if not isinstance(raw_panels, list) or not raw_panels:
         raise _AgentsDeckStateDecodeError("panels must be a non-empty list")
-    panels: list[DeckPanelSnapshot] = []
+    panels: list[_DeckPanelSnapshot] = []
     for raw in raw_panels[:MAX_PANELS]:
         try:
             panels.append(_decode_panel(raw))
         except _AgentsDeckStateDecodeError:
             log.warning("Ignoring unknown deck in persisted deck state")
-            panels.append(DeckPanelSnapshot())
+            panels.append(_DeckPanelSnapshot())
     if layout is DeckLayout.SINGLE:
         panels = panels[:1]
     focused = decoded.get("focused", 0)
@@ -146,9 +146,9 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
     """Capture ``state`` for persistence, unwrapping any zoom snapshot."""
     effective = state.zoom_snapshot if state.zoom_snapshot is not None else state
     panels = tuple(
-        DeckPanelSnapshot(panel.deck, panel.preferred_card)
+        _DeckPanelSnapshot(panel.deck, panel.preferred_card)
         for panel in effective.panels[:MAX_PANELS]
-    ) or (DeckPanelSnapshot(),)
+    ) or (_DeckPanelSnapshot(),)
     layout = effective.layout
     if layout is DeckLayout.SINGLE:
         panels = panels[:1]
@@ -266,7 +266,6 @@ def save_agents_deck_state(
 
 __all__ = [
     "AgentsDeckStateSnapshot",
-    "DeckPanelSnapshot",
     "EMPTY_AGENTS_DECK_STATE",
     "FILENAME",
     "MAX_FILE_BYTES",

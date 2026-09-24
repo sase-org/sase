@@ -11,7 +11,6 @@ from sase.ace.tui.widgets.decks.model import (
     DeckPanelState,
     cycle_card_id,
     cycle_deck_id,
-    default_card_id,
     resolve_active_card,
     with_panel_deck,
     with_preferred_card,
@@ -85,9 +84,12 @@ def test_with_preferred_card() -> None:
 
 
 def test_default_card_id_prefers_context() -> None:
-    assert default_card_id(["summary", "context", "reply"]) == "context"
-    assert default_card_id(["summary"]) == "summary"
-    assert default_card_id([]) is None
+    assert (
+        resolve_active_card(["summary", "context", "reply"], None, partial=False)
+        == "context"
+    )
+    assert resolve_active_card(["summary"], None, partial=False) == "summary"
+    assert resolve_active_card([], None, partial=False) is None
 
 
 def test_resolve_active_card() -> None:

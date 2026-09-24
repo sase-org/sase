@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any
 
 from textual import events
 from textual.containers import ScrollableContainer
@@ -18,18 +18,6 @@ from ._section_navigation import (
     PromptPanelSectionTargetKind,
     SectionTrackingVisual,
 )
-
-
-class _SectionLayoutPublisher(Protocol):
-    """Minimal surface SectionTrackingVisual needs from its owner."""
-
-    def _publish_section_layout(
-        self,
-        *,
-        generation: int,
-        width: int,
-        anchors: tuple[PromptPanelSectionAnchor, ...],
-    ) -> None: ...
 
 
 class SectionViewMixin(Static):

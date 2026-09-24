@@ -15,7 +15,7 @@ from sase.ace.tui.agent_decks_settings import (
 )
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
 from sase.ace.tui.widgets.decks.model import DeckId
-from sase.ace.tui.widgets.decks.separators import CardSeparator
+from sase.ace.tui.widgets.decks.separators import main_separator_for
 from sase.ace.tui.widgets.decks.titles import deck_subtitle
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     DECK_CARD_META_KEY,
@@ -151,7 +151,7 @@ def test_reserve_covers_last_card_anchor() -> None:
 def test_separators_render_and_meta() -> None:
     console = Console(width=40)
     options = console.options.update_width(40)
-    sep = CardSeparator("reply", "Reply", glyph="◆", accent="green")
+    sep = main_separator_for("reply", "Reply", accent="green")
     lines = console.render_lines(sep, options, pad=False)
     assert len(lines) == 2
     text = "".join(seg.text for line in lines for seg in line)

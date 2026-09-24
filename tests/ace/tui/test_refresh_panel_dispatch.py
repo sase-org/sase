@@ -23,7 +23,7 @@ from sase.feature_flags import override_flags
 from sase.llm_provider.usage.refresh import (
     USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
     UsageRefreshReceipt,
-    _UsageRefreshProviderResult,
+    UsageRefreshProviderResult,
 )
 from tests.ace.tui._leader_keymap_helpers import (
     _FakeApp,
@@ -102,7 +102,7 @@ def _help_labels(bindings_fn: Any) -> set[str]:
 
 def _started_receipt(*providers: str) -> UsageRefreshReceipt:
     results = tuple(
-        _UsageRefreshProviderResult(
+        UsageRefreshProviderResult(
             provider=name,
             status="reserved",
             reason=None,
@@ -377,7 +377,7 @@ def test_usage_receipt_toast_for_disabled_collection() -> None:
         origin="ace",
         operation_ids=(),
         providers=(
-            _UsageRefreshProviderResult(
+            UsageRefreshProviderResult(
                 provider="synth",
                 status="disabled",
                 reason="config_disabled",
@@ -412,7 +412,7 @@ def test_usage_receipt_toast_for_deferred_receipt() -> None:
         origin="ace",
         operation_ids=(),
         providers=(
-            _UsageRefreshProviderResult(
+            UsageRefreshProviderResult(
                 provider="synth",
                 status="deferred",
                 reason="floor",
@@ -435,13 +435,13 @@ def test_usage_receipt_toast_renders_deferral_reasons() -> None:
         origin="ace",
         operation_ids=("op-claude",),
         providers=(
-            _UsageRefreshProviderResult(
+            UsageRefreshProviderResult(
                 provider="claude",
                 status="reserved",
                 reason="cadence",
                 operation_id="op-claude",
             ),
-            _UsageRefreshProviderResult(
+            UsageRefreshProviderResult(
                 provider="grok",
                 status="deferred",
                 reason="rate_limited",

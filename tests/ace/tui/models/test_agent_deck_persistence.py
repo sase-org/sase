@@ -9,7 +9,7 @@ import pytest
 
 from sase.ace.tui.models.agent_deck_persistence import (
     AgentsDeckStateSnapshot,
-    DeckPanelSnapshot,
+    _DeckPanelSnapshot,
     EMPTY_AGENTS_DECK_STATE,
     area_state_from_snapshot,
     load_agents_deck_state,
@@ -17,7 +17,7 @@ from sase.ace.tui.models.agent_deck_persistence import (
     snapshot_from_area_state,
     _serialize_agents_deck_state,
 )
-from sase.ace.tui.widgets.decks.layout import enter_zoom, toggle_split
+from sase.ace.tui.widgets.decks.layout import toggle_split, toggle_zoom
 from sase.ace.tui.widgets.decks.model import (
     DeckAreaState,
     DeckId,
@@ -33,8 +33,8 @@ def _full_snapshot() -> AgentsDeckStateSnapshot:
         focused=1,
         nodes_collapsed=True,
         panels=(
-            DeckPanelSnapshot(DeckId.MAIN, "reply"),
-            DeckPanelSnapshot(DeckId.FILES, None),
+            _DeckPanelSnapshot(DeckId.MAIN, "reply"),
+            _DeckPanelSnapshot(DeckId.FILES, None),
         ),
     )
 
@@ -59,7 +59,7 @@ def test_empty_state_round_trips_to_single_main(tmp_path: Path) -> None:
     save_agents_deck_state(EMPTY_AGENTS_DECK_STATE, path)
     assert load_agents_deck_state(path) == EMPTY_AGENTS_DECK_STATE
     assert EMPTY_AGENTS_DECK_STATE.layout is DeckLayout.SINGLE
-    assert EMPTY_AGENTS_DECK_STATE.panels == (DeckPanelSnapshot(DeckId.MAIN, None),)
+    assert EMPTY_AGENTS_DECK_STATE.panels == (_DeckPanelSnapshot(DeckId.MAIN, None),)
 
 
 def test_missing_file_fails_open_to_empty(tmp_path: Path) -> None:
@@ -95,7 +95,7 @@ def test_unknown_layout_fails_open_while_panels_apply(tmp_path: Path) -> None:
     )
     loaded = load_agents_deck_state(path)
     assert loaded.layout is DeckLayout.SINGLE
-    assert loaded.panels == (DeckPanelSnapshot(DeckId.TOOLS, None),)
+    assert loaded.panels == (_DeckPanelSnapshot(DeckId.TOOLS, None),)
 
 
 def test_unknown_deck_falls_back_to_main_panel(tmp_path: Path) -> None:
@@ -119,8 +119,8 @@ def test_unknown_deck_falls_back_to_main_panel(tmp_path: Path) -> None:
     loaded = load_agents_deck_state(path)
     assert loaded.layout is DeckLayout.LEFT_RIGHT
     assert loaded.focused == 1
-    assert loaded.panels[0] == DeckPanelSnapshot(DeckId.MAIN, "reply")
-    assert loaded.panels[1] == DeckPanelSnapshot(DeckId.MAIN, None)
+    assert loaded.panels[0] == _DeckPanelSnapshot(DeckId.MAIN, "reply")
+    assert loaded.panels[1] == _DeckPanelSnapshot(DeckId.MAIN, None)
 
 
 def test_unsupported_schema_version_fails_open(tmp_path: Path) -> None:
@@ -144,7 +144,7 @@ def test_snapshot_from_area_state_unwraps_zoom() -> None:
     split = toggle_split(
         DeckAreaState(), DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES)
     )
-    zoomed = enter_zoom(split)
+    zoomed = toggle_zoom(split)
     snapshot = snapshot_from_area_state(zoomed)
     assert snapshot.layout is DeckLayout.TOP_BOTTOM
     assert len(snapshot.panels) == 2
@@ -169,7 +169,7 @@ def test_serialize_rejects_oversize_payload() -> None:
         _serialize_agents_deck_state(
             AgentsDeckStateSnapshot(
                 panels=tuple(
-                    DeckPanelSnapshot(DeckId.MAIN, f"card-{index}")
+                    _DeckPanelSnapshot(DeckId.MAIN, f"card-{index}")
                     for index in range(5000)
                 ),
             )

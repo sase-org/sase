@@ -57,7 +57,7 @@ def decide_render_mode(
     return RenderMode.PAGED
 
 
-def lower_bound_rows(renderables: Iterable[object], *, stop_after: float) -> int:
+def _lower_bound_rows(renderables: Iterable[object], *, stop_after: float) -> int:
     """Return a cheap lower bound of rendered rows, stopping early."""
     total = 0
     for node in renderables:
@@ -122,7 +122,7 @@ def measure_main_rows(
     flat: list[object] = []
     for card in card_list:
         flat.extend(list(card.renderables))
-    lower = lower_bound_rows(flat, stop_after=max(0.0, stop_after))
+    lower = _lower_bound_rows(flat, stop_after=max(0.0, stop_after))
     lower_total = lower + separator_rows
     if lower_total > budget * (1 + SPREAD_HYSTERESIS):
         return lower_total
@@ -165,7 +165,6 @@ def measure_main_rows(
 __all__ = [
     "SPREAD_HYSTERESIS",
     "decide_render_mode",
-    "lower_bound_rows",
     "measure_main_rows",
     "spread_budget_rows",
 ]

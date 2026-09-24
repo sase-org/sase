@@ -13,9 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from sase.llm_provider.usage.refresh import (
+from sase.llm_provider.usage._refresh_eligibility import (
     _provider_cli_ready,
     _referenced_provider_ids,
+)
+from sase.llm_provider.usage.refresh import (
     eligible_usage_providers,
 )
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -61,7 +63,7 @@ def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: frozenset(),
     )
     monkeypatch.setattr(
-        "sase.llm_provider.usage.refresh._referenced_provider_ids",
+        "sase.llm_provider.usage._refresh_eligibility._referenced_provider_ids",
         lambda: set(),
     )
 
@@ -273,7 +275,7 @@ class TestEligibleUsageProvidersExclusionRules:
             lambda: frozenset(),
         )
         monkeypatch.setattr(
-            "sase.llm_provider.usage.refresh._referenced_provider_ids",
+            "sase.llm_provider.usage._refresh_eligibility._referenced_provider_ids",
             lambda: {"codex"},
         )
         monkeypatch.setattr(

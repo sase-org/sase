@@ -68,6 +68,7 @@ def test_admit_one_passes_active_cadence_and_warn(
 ) -> None:
     pytest.importorskip("sase_core_rs")
     from sase.llm_provider.usage import refresh as refresh_mod
+    from sase.llm_provider.usage._refresh_submit import _admit_one
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     mock_provider_config(monkeypatch, {"usage_metrics": {"enabled": True}})
@@ -108,7 +109,7 @@ def test_admit_one_passes_active_cadence_and_warn(
             "Ctx", (), {"context_id": context_id, "account_generation": 1}
         )(),
     )
-    refresh_mod._admit_one(
+    _admit_one(
         "codex", operation_id="op-1", explicit=False, cadence_seconds=300.0, now=None
     )
     assert seen["due"]["active_cadence_seconds"] == 120.0
@@ -116,7 +117,7 @@ def test_admit_one_passes_active_cadence_and_warn(
     assert seen["admit"]["active_cadence_seconds"] == 120.0
     assert seen["admit"]["warn_percent"] == 75.0
 
-    refresh_mod._admit_one(
+    _admit_one(
         "codex",
         operation_id="op-1",
         explicit=False,
@@ -173,6 +174,7 @@ def test_hot_hint_only_when_eligible_and_capable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from sase.llm_provider.usage import refresh as refresh_mod
+    from sase.llm_provider.usage import _refresh_triggers as triggers_mod
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     mock_provider_config(monkeypatch, {"usage_metrics": {"enabled": True}})
@@ -182,7 +184,7 @@ def test_hot_hint_only_when_eligible_and_capable(
         calls.append({"provider": provider, "until": until, **kwargs})
 
     monkeypatch.setattr(refresh_mod, "mark_provider_usage_hot", fake_mark_hot)
-    monkeypatch.setattr(refresh_mod, "_provider_has_probe_capability", lambda _p: True)
+    monkeypatch.setattr(triggers_mod, "_provider_has_probe_capability", lambda _p: True)
 
     now = 1_800_000_000.0
     assert refresh_mod.mark_provider_usage_hot_hint("synth", now=now) is None
@@ -197,7 +199,9 @@ def test_hot_hint_only_when_eligible_and_capable(
     assert len(calls) == 1
 
     mock_provider_config(monkeypatch, {"usage_metrics": {"enabled": True}})
-    monkeypatch.setattr(refresh_mod, "_provider_has_probe_capability", lambda _p: False)
+    monkeypatch.setattr(
+        triggers_mod, "_provider_has_probe_capability", lambda _p: False
+    )
     refresh_mod.mark_provider_usage_hot_hint("synth", now=now)
     assert len(calls) == 1
 
@@ -205,7 +209,7 @@ def test_hot_hint_only_when_eligible_and_capable(
         raise RuntimeError("store unavailable")
 
     monkeypatch.setattr(refresh_mod, "mark_provider_usage_hot", _boom)
-    monkeypatch.setattr(refresh_mod, "_provider_has_probe_capability", lambda _p: True)
+    monkeypatch.setattr(triggers_mod, "_provider_has_probe_capability", lambda _p: True)
     assert refresh_mod.mark_provider_usage_hot_hint("synth", now=now) is None
 
 

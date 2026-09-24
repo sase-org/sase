@@ -84,6 +84,7 @@ def test_admit_one_passes_adaptive_floor_fingerprint(
 ) -> None:
     pytest.importorskip("sase_core_rs")
     from sase.llm_provider.usage import refresh as refresh_mod
+    from sase.llm_provider.usage._refresh_submit import _admit_one
     from tests.llm_provider._provider_config_helpers import mock_provider_config
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
@@ -125,7 +126,7 @@ def test_admit_one_passes_adaptive_floor_fingerprint(
             "Ctx", (), {"context_id": context_id, "account_generation": 1}
         )(),
     )
-    refresh_mod._admit_one(
+    _admit_one(
         "claude", operation_id="op-1", explicit=False, cadence_seconds=300.0, now=None
     )
     assert seen["due"]["adaptive"] is True
@@ -402,6 +403,7 @@ def test_limit_event_spawns_no_probe(
 ) -> None:
     pytest.importorskip("sase_core_rs")
     from sase.llm_provider.usage import refresh as refresh_mod
+    from sase.llm_provider.usage._refresh_submit import _admit_one
     from tests.llm_provider._provider_config_helpers import mock_provider_config
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path))

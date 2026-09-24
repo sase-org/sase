@@ -59,8 +59,7 @@ def test_every_value_slot_is_kinded_choiced_or_hinted() -> None:
         + ". Fix each slot one of three ways: (1) a ValueKind in "
         "src/sase/completion/kinds.py NAME_TABLE/PATH_OVERRIDES (or "
         "set_completion_kind at the parser), (2) argparse choices= on the "
-        "action, or (3) a free-form value_hint in the kinds.py hint table "
-        "(or set_completion_hint at the parser)."
+        "action, or (3) a free-form value_hint in the kinds.py hint table."
     )
 
 

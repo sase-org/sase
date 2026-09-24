@@ -66,11 +66,6 @@ def _pack_file_count(git_dir: Path) -> int:
     return sum(1 for path in pack_dir.glob("*.pack") if path.is_file())
 
 
-def _loose_object_count(git_dir: Path) -> int:
-    count, _ = _loose_object_stats(git_dir)
-    return count
-
-
 def _loose_object_stats(git_dir: Path) -> tuple[int, int]:
     """Return ``(count, bytes)`` of loose objects under *git_dir*."""
 

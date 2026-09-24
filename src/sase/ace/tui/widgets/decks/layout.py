@@ -114,12 +114,12 @@ def is_zoomed(state: DeckAreaState) -> bool:
     return state.zoom_snapshot is not None
 
 
-def enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
+def _enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
     """Zoom the focused panel in place, collapsing the node panel.
 
     Snapshots the deck-area state (layout, panels, focus, ratio, collapse)
     and shows only the focused panel as SINGLE. A second ``Z`` restores the
-    snapshot exactly via :func:`exit_zoom`.
+    snapshot exactly via :func:`_exit_zoom`.
     """
     if state.zoom_snapshot is not None:
         return state
@@ -137,8 +137,8 @@ def enter_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaStat
     )
 
 
-def exit_zoom(state: DeckAreaState) -> DeckAreaState:
-    """Restore the snapshot taken by :func:`enter_zoom`."""
+def _exit_zoom(state: DeckAreaState) -> DeckAreaState:
+    """Restore the snapshot taken by :func:`_enter_zoom`."""
     if state.zoom_snapshot is None:
         return state
     return state.zoom_snapshot
@@ -147,8 +147,8 @@ def exit_zoom(state: DeckAreaState) -> DeckAreaState:
 def toggle_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:
     """Enter the zoom, or restore the snapshot when already zoomed."""
     if state.zoom_snapshot is not None:
-        return exit_zoom(state)
-    return enter_zoom(state, focused)
+        return _exit_zoom(state)
+    return _enter_zoom(state, focused)
 
 
 def toggle_focus(state: DeckAreaState) -> DeckAreaState:

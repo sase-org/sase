@@ -15,7 +15,7 @@ from .titles import DECK_GLYPHS
 from ..prompt_panel._section_navigation import DECK_CARD_META_KEY
 
 
-class CardSeparator:
+class _CardSeparator:
     """One full-width titled rule between consecutive spread cards."""
 
     def __init__(
@@ -73,18 +73,17 @@ class CardSeparator:
         return Measurement(width, width)
 
 
-def main_separator_for(card_id: str, title: str, *, accent: str) -> CardSeparator:
+def main_separator_for(card_id: str, title: str, *, accent: str) -> _CardSeparator:
     """Build a Main-deck separator with the deck glyph."""
-    return CardSeparator(card_id, title, glyph=DECK_GLYPHS[DeckId.MAIN], accent=accent)
+    return _CardSeparator(card_id, title, glyph=DECK_GLYPHS[DeckId.MAIN], accent=accent)
 
 
-def files_separator_for(card_id: str, title: str) -> CardSeparator:
+def files_separator_for(card_id: str, title: str) -> _CardSeparator:
     """Build a Files-deck separator (green, ▤ glyph)."""
-    return CardSeparator(card_id, title, glyph="▤", accent="green")
+    return _CardSeparator(card_id, title, glyph="▤", accent="green")
 
 
 __all__ = [
-    "CardSeparator",
     "files_separator_for",
     "main_separator_for",
 ]

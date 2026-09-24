@@ -266,15 +266,15 @@ def test_limit_event_trigger_marks_due_without_submitting(
         ),
     )
     marked: list[tuple[str, str]] = []
-    import sase.llm_provider.usage.refresh as refresh_mod
+    import sase.llm_provider.usage._refresh_triggers as triggers_mod
 
-    real_mark = refresh_mod._mark_usage_refresh_due
+    real_mark = triggers_mod._mark_usage_refresh_due
 
     def _capture_mark(provider: str, reason: str, **kwargs: object) -> None:
         marked.append((provider, reason))
         return real_mark(provider, reason, **kwargs)
 
-    monkeypatch.setattr(refresh_mod, "_mark_usage_refresh_due", _capture_mark)
+    monkeypatch.setattr(triggers_mod, "_mark_usage_refresh_due", _capture_mark)
     receipt = trigger_usage_refresh_after_limit_event(
         "synth", expires_at=1_800_000_100.0
     )

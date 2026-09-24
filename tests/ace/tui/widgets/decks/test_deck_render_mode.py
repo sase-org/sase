@@ -10,7 +10,7 @@ from sase.ace.tui.widgets.decks.card_part import CardPart, context_card, reply_c
 from sase.ace.tui.widgets.decks.model import RenderMode
 from sase.ace.tui.widgets.decks.render_mode import (
     decide_render_mode,
-    lower_bound_rows,
+    _lower_bound_rows,
     measure_main_rows,
     spread_budget_rows,
 )
@@ -134,18 +134,18 @@ def test_same_versus_new_subject() -> None:
 
 
 def test_lower_bound_walker() -> None:
-    assert lower_bound_rows([Text("")], stop_after=10) == 0
-    assert lower_bound_rows([Text("a\nb")], stop_after=10) == 2
-    assert lower_bound_rows([Syntax("x\ny\nz", "python")], stop_after=10) == 3
+    assert _lower_bound_rows([Text("")], stop_after=10) == 0
+    assert _lower_bound_rows([Text("a\nb")], stop_after=10) == 2
+    assert _lower_bound_rows([Syntax("x\ny\nz", "python")], stop_after=10) == 3
     group = Group(Text("a"), Text("b\nc"))
-    assert lower_bound_rows([group], stop_after=10) == 3
+    assert _lower_bound_rows([group], stop_after=10) == 3
     card = CardPart("c", "C", Text("a\nb"), Text("c"))
-    assert lower_bound_rows([card], stop_after=10) == 3
-    assert lower_bound_rows([object()], stop_after=10) == 1
+    assert _lower_bound_rows([card], stop_after=10) == 3
+    assert _lower_bound_rows([object()], stop_after=10) == 1
     # Early exit: stops summing once past stop_after.
     many = [Text("line") for _ in range(20)]
-    full = lower_bound_rows(many, stop_after=1000)
-    early = lower_bound_rows(many, stop_after=5)
+    full = _lower_bound_rows(many, stop_after=1000)
+    early = _lower_bound_rows(many, stop_after=5)
     assert early <= full
     assert early > 5
 
@@ -155,7 +155,7 @@ def test_lower_bound_below_exact_on_wrapped_text() -> None:
     options = console.options.update_width(20)
     long_line = "word " * 30
     card = context_card(Text(long_line))
-    lower = lower_bound_rows(list(card.renderables), stop_after=1000)
+    lower = _lower_bound_rows(list(card.renderables), stop_after=1000)
     measured = measure_main_rows(
         [card],
         width=20,

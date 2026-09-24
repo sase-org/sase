@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.core.term_color import should_colorize
-from sase.main.plan_inventory_paths import display_path
 from sase.main.plan_pending import (
     PendingPlan,
     PendingPlanAmbiguity,
@@ -26,7 +25,7 @@ if TYPE_CHECKING:
 _TIER_STYLES = {"tale": "green", "epic": "magenta"}
 
 
-def stderr_console() -> Console:
+def _stderr_console() -> Console:
     """Return a stderr rich console honoring the shared color contract."""
     from rich.console import Console
 
@@ -36,7 +35,7 @@ def stderr_console() -> Console:
     )
 
 
-def stdout_console() -> Console:
+def _stdout_console() -> Console:
     """Return a stdout rich console honoring the shared color contract."""
     from rich.console import Console
 
@@ -52,7 +51,7 @@ def render_miss(
     """Render a selector miss (or omitted-PLAN miss) to stderr."""
     from rich.text import Text
 
-    out = console or stderr_console()
+    out = console or _stderr_console()
     header = miss.header if miss.selector is None else f"✗ {miss.header}"
     out.print(Text(header, style="red"))
     for line in miss.detail_lines:
@@ -69,7 +68,7 @@ def render_ambiguity(
     """Render an ambiguous selector to stderr with per-row matched-by notes."""
     from rich.text import Text
 
-    out = console or stderr_console()
+    out = console or _stderr_console()
     out.print(
         Text(f"✗ `{ambiguity.selector}` matches multiple pending plans", style="red")
     )
@@ -78,15 +77,6 @@ def render_ambiguity(
     _ = plans
     out.print(Text(""))
     out.print(Text("Pass one plan name from the list above.", style="dim"))
-
-
-def render_awaiting_list(
-    plans: tuple[PendingPlan, ...],
-    console: Console | None = None,
-) -> None:
-    """Render the trailing Awaiting-approval list (public for handlers)."""
-    out = console or stderr_console()
-    _render_awaiting_list(plans, out)
 
 
 def render_approve_success(
@@ -99,7 +89,7 @@ def render_approve_success(
     """Render an approval success leading with the plan name."""
     from rich.text import Text
 
-    out = console or stdout_console()
+    out = console or _stdout_console()
     head = Text("✓ ", style="green")
     head.append(message, style="green")
     head.append(f" · {plan.display_name}", style="bold cyan")
@@ -154,18 +144,9 @@ def _candidate_line(
     return line
 
 
-def short_plan_path(path: str | None) -> str:
-    """Shorten *path* for display, falling back to ``-``."""
-    return display_path(path) if path else "-"
-
-
 __all__ = [
     "render_ambiguity",
     "render_approve_success",
-    "render_awaiting_list",
     "render_miss",
     "render_reject_success",
-    "short_plan_path",
-    "stderr_console",
-    "stdout_console",
 ]

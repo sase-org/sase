@@ -11,7 +11,7 @@ from sase.ace.tui.llm_calls._constants import MAX_VISIBLE_SLOW_TOOL_CALLS
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_slow_tools import (
     append_slow_tool_calls_section,
-    slow_tool_overflow_hint,
+    _slow_tool_overflow_hint,
 )
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_logical_section_is_compact,
@@ -207,9 +207,9 @@ def test_slow_tools_section_keeps_running_call_when_capped() -> None:
     assert "+ 1 more · full timeline in LLM Calls" in plain
 
 
-def test_slow_tool_overflow_hint_decks_on_with_keys() -> None:
+def test__slow_tool_overflow_hint_decks_on_with_keys() -> None:
     assert (
-        slow_tool_overflow_hint(
+        _slow_tool_overflow_hint(
             2,
             next_deck_key="^N",
             prev_deck_key="^P",
@@ -218,8 +218,8 @@ def test_slow_tool_overflow_hint_decks_on_with_keys() -> None:
     )
 
 
-def test_slow_tool_overflow_hint_drops_key_clause_without_keys() -> None:
-    assert slow_tool_overflow_hint(3) == "+ 3 more · full timeline in LLM Calls"
+def test__slow_tool_overflow_hint_drops_key_clause_without_keys() -> None:
+    assert _slow_tool_overflow_hint(3) == "+ 3 more · full timeline in LLM Calls"
 
 
 def test_slow_tools_section_truncates_long_targets() -> None:

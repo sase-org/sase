@@ -538,12 +538,6 @@ def _derived_label(command: list[str]) -> str:
     return f"{label[: _LABEL_MAX_CHARS - 1]}…"
 
 
-def _infer_attribution(cwd: Path, project: str | None) -> tuple[str | None, int | None]:
-    """Return the project and workspace number a proc should be attributed to."""
-
-    return infer_proc_attribution(cwd, project)
-
-
 def _live_session_ids() -> set[str]:
     try:
         return {identity.session_id for identity in live_sessions()}

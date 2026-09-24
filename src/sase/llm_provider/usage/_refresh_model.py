@@ -21,7 +21,7 @@ HOT_HINT_TTL_SECONDS = 900.0
 
 
 @dataclass(frozen=True)
-class _UsageRefreshProviderResult:
+class UsageRefreshProviderResult:
     """One provider's place in a batch receipt."""
 
     provider: str
@@ -54,7 +54,7 @@ class UsageRefreshReceipt:
     schema_version: int
     origin: str
     operation_ids: tuple[str, ...]
-    providers: tuple[_UsageRefreshProviderResult, ...]
+    providers: tuple[UsageRefreshProviderResult, ...]
     inline_results: tuple[Mapping[str, Any], ...] = ()
 
     def to_json(self) -> dict[str, Any]:

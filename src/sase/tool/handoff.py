@@ -29,7 +29,7 @@ class HandoffReservation:
         return self.error is None
 
 
-def envelope_from_resolved(resolved: ResolvedToolArgv) -> dict[str, Any]:
+def _envelope_from_resolved(resolved: ResolvedToolArgv) -> dict[str, Any]:
     """Freeze a resolved invocation into a private launch envelope."""
 
     return {
@@ -95,7 +95,7 @@ def reserve_handoff_run(
     )
     request["commit_running"] = False
     request["launch_mode"] = "handoff"
-    request["launch"] = envelope_from_resolved(resolved)
+    request["launch"] = _envelope_from_resolved(resolved)
     try:
         started = tool_run_begin(request)
     except Exception as exc:  # noqa: BLE001 - reservation is fail-closed.
@@ -174,7 +174,6 @@ def settle_launch_failure(run_id: str, message: str) -> bool:
 
 __all__ = [
     "HandoffReservation",
-    "envelope_from_resolved",
     "owner_request_fingerprint",
     "owner_tags",
     "reserve_handoff_run",

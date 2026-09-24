@@ -9,33 +9,29 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sase.llm_provider.usage._presentation_labels import (
-    _age_from_timestamp,
-    _provider_window_style,
-    _remaining_label,
-    _window_source_label,
-    _window_status_label_for_provider,
     age_label,
     applicability_label,
     collector_retry_label,
     diagnostic_line,
+    duration_label,
     provider_status_label,
     provider_style,
+    provider_window_style,
     reset_label,
     timestamp_label,
     window_label,
+    window_status_label_for_provider,
 )
 from sase.llm_provider.usage._presentation_shared import (
-    _failure_count,
-    _format_number,
-    _format_remaining_text,
-    _number,
-    _optional_text,
-    _provider_collector_health,
-    _window_rows,
+    failure_count,
+    finite_number,
+    format_remaining_text,
+    nonblank_text,
+    provider_collector_health,
 )
 from sase.llm_provider.usage._presentation_snapshot import (
-    _display_provider_rows,
-    _usage_diagnostic_to_json,
+    display_provider_rows,
+    usage_diagnostic_to_json,
 )
 from sase.llm_provider.usage.store import ProviderUsageStoreDiagnostic
 
@@ -52,7 +48,7 @@ def render_usage_plain(
 ) -> str:
     """Render cached usage as undecorated, line-oriented ASCII text."""
     clock = time.time() if now is None else float(now)
-    rows = list(_display_provider_rows(snapshot, requested_providers))
+    rows = list(display_provider_rows(snapshot, requested_providers))
     lines = ["Subscription usage"]
     if not rows:
         lines.append("No observations yet; run sase usage refresh.")
@@ -72,7 +68,7 @@ def render_usage_plain(
                 )
             )
     for item in diagnostics:
-        diagnostic = _usage_diagnostic_to_json(item)
+        diagnostic = usage_diagnostic_to_json(item)
         lines.append(
             _plain_record(
                 "diagnostic",
@@ -98,7 +94,7 @@ def render_usage_rich(
     from rich.text import Text
 
     clock = time.time() if now is None else float(now)
-    rows = list(_display_provider_rows(snapshot, requested_providers))
+    rows = list(display_provider_rows(snapshot, requested_providers))
     if not rows:
         return Panel(
             Text("No observations yet; run sase usage refresh."),
@@ -119,7 +115,7 @@ def render_usage_rich(
     for provider in rows:
         windows = _window_rows(provider)
         retry_label = (
-            collector_retry_label(_provider_collector_health(provider), clock)
+            collector_retry_label(provider_collector_health(provider), clock)
             if verbose
             else None
         )
@@ -133,7 +129,7 @@ def render_usage_rich(
                 provider_status_label(provider),
             ]
             if verbose:
-                values.append(_optional_text(provider.get("diagnostic")) or "-")
+                values.append(nonblank_text(provider.get("diagnostic")) or "-")
                 values.append(retry_label or "-")
             table.add_row(*values, style=provider_style(provider))
             continue
@@ -145,7 +141,7 @@ def render_usage_rich(
                 window_label(window),
                 reset_label(window, clock, verbose=verbose),
                 age_label(window),
-                _window_status_label_for_provider(provider, window),
+                window_status_label_for_provider(provider, window),
             ]
             if verbose:
                 values.append(_window_source_label(window))
@@ -153,10 +149,10 @@ def render_usage_rich(
                     values.append(retry_label)
                 else:
                     values.append("")
-            table.add_row(*values, style=_provider_window_style(provider, window))
+            table.add_row(*values, style=provider_window_style(provider, window))
 
     diagnostic_lines = tuple(
-        diagnostic_line(_usage_diagnostic_to_json(item)) for item in diagnostics
+        diagnostic_line(usage_diagnostic_to_json(item)) for item in diagnostics
     )
     if diagnostic_lines:
         return Group(table, Text("\n".join(diagnostic_lines), style="yellow"))
@@ -257,24 +253,24 @@ def _provider_plain_record(
     }
     summary = provider.get("summary")
     if isinstance(summary, Mapping):
-        used = _number(summary.get("used_percent"))
+        used = finite_number(summary.get("used_percent"))
         if used is not None:
-            values["remaining"] = _format_remaining_text(used)
+            values["remaining"] = format_remaining_text(used)
             values["used_percent"] = _format_number(used)
-        freshness = _optional_text(summary.get("freshness"))
+        freshness = nonblank_text(summary.get("freshness"))
         if freshness is not None:
             values["freshness"] = freshness
-    reason = _optional_text(provider.get("collection_reason"))
+    reason = nonblank_text(provider.get("collection_reason"))
     if reason is not None:
         values["reason"] = reason
-    diagnostic = _optional_text(provider.get("diagnostic"))
+    diagnostic = nonblank_text(provider.get("diagnostic"))
     if diagnostic is not None:
         values["diagnostic"] = diagnostic
     if verbose:
-        health = _provider_collector_health(provider)
+        health = provider_collector_health(provider)
         if health is not None:
             values["health"] = str(health.get("state") or "unknown")
-            failures = _failure_count(health)
+            failures = failure_count(health)
             if failures is not None:
                 values["consecutive_failures"] = failures
             values["last_success"] = timestamp_label(health.get("last_success_at"), now)
@@ -298,12 +294,12 @@ def _window_plain_record(
     verbose: bool,
     now: float,
 ) -> str:
-    used = _number(window.get("used_percent"))
+    used = finite_number(window.get("used_percent"))
     values: dict[str, Any] = {
         "provider": provider,
         "key": window.get("key") or "",
         "label": window.get("label") or window.get("key") or "",
-        "remaining": "-" if used is None else _format_remaining_text(used),
+        "remaining": "-" if used is None else format_remaining_text(used),
         "used_percent": "-" if used is None else _format_number(used),
         "reset": reset_label(window, now, verbose=False),
         "age": age_label(window),
@@ -315,10 +311,46 @@ def _window_plain_record(
     if verbose:
         values["observed_at"] = timestamp_label(window.get("observed_at"), now)
         values["resets_at"] = timestamp_label(window.get("resets_at"), now)
-        exceeded = _number(window.get("exceeded_by_percent"))
+        exceeded = finite_number(window.get("exceeded_by_percent"))
         if exceeded is not None:
             values["exceeded_by_percent"] = _format_number(exceeded)
     return _plain_record("window", **values)
+
+
+def _window_rows(provider: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
+    raw = provider.get("windows")
+    if not isinstance(raw, list):
+        return ()
+    return tuple(item for item in raw if isinstance(item, Mapping))
+
+
+def _format_number(value: float) -> str:
+    if value.is_integer():
+        return str(int(value))
+    return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def _age_from_timestamp(value: Any, now: float) -> str:
+    timestamp = finite_number(value)
+    if timestamp is None:
+        return "unknown"
+    return duration_label(max(now - timestamp, 0.0))
+
+
+def _window_source_label(window: Mapping[str, Any]) -> str:
+    parts = [
+        nonblank_text(window.get("source")),
+        nonblank_text(window.get("freshness")),
+        applicability_label(window.get("applicability")),
+    ]
+    return " · ".join(part for part in parts if part)
+
+
+def _remaining_label(window: Mapping[str, Any]) -> str:
+    used = finite_number(window.get("used_percent"))
+    if used is None:
+        return "-"
+    return format_remaining_text(used)
 
 
 def _plain_record(kind: str, **values: Any) -> str:

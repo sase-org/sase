@@ -39,7 +39,7 @@ def format_reservation_fallback_line(reason: str) -> str:
     return f"{RESERVATION_FALLBACK_LOG_PREFIX} ({one_line}); running wrapped\n"
 
 
-def parse_monitor_tool_words(words: Sequence[str]) -> tuple[str, ...] | None:
+def _parse_monitor_tool_words(words: Sequence[str]) -> tuple[str, ...] | None:
     """Parse ``tool run`` *words* with the real parser, or return ``None``.
 
     ``None`` means the E1.5 argv stays untouched: the words do not parse,
@@ -71,7 +71,7 @@ def parse_monitor_tool_words(words: Sequence[str]) -> tuple[str, ...] | None:
 
 
 @dataclass(frozen=True)
-class MonitorToolHandoff:
+class _MonitorToolHandoff:
     """Outcome of attempting a monitor ToolRun reservation."""
 
     attempted: bool
@@ -83,7 +83,7 @@ def maybe_reserve_monitor_tool_run(
     *,
     cwd: str | None,
     monitor_id: str,
-) -> MonitorToolHandoff:
+) -> _MonitorToolHandoff:
     """Reserve a monitor-owned hand-off run for *words*, or decline.
 
     Returns ``attempted=False`` when there is nothing reservable (no words,
@@ -93,26 +93,24 @@ def maybe_reserve_monitor_tool_run(
     fall back with a reason line.
     """
     if not words:
-        return MonitorToolHandoff(attempted=False)
-    parsed = parse_monitor_tool_words(words)
+        return _MonitorToolHandoff(attempted=False)
+    parsed = _parse_monitor_tool_words(words)
     if parsed is None:
-        return MonitorToolHandoff(attempted=False)
+        return _MonitorToolHandoff(attempted=False)
     try:
         resolved = resolve_run_argv(parsed, cwd=Path(cwd) if cwd else None)
     except ToolRunUsageError:
-        return MonitorToolHandoff(attempted=False)
+        return _MonitorToolHandoff(attempted=False)
     except Exception:  # noqa: BLE001 - resolution failure keeps E1.5 wrapping.
-        return MonitorToolHandoff(attempted=False)
+        return _MonitorToolHandoff(attempted=False)
     reservation = reserve_handoff_run(
         resolved, owner_kind="monitor", owner_id=monitor_id
     )
-    return MonitorToolHandoff(attempted=True, reservation=reservation)
+    return _MonitorToolHandoff(attempted=True, reservation=reservation)
 
 
 __all__ = [
-    "MonitorToolHandoff",
     "RESERVATION_FALLBACK_LOG_PREFIX",
     "format_reservation_fallback_line",
     "maybe_reserve_monitor_tool_run",
-    "parse_monitor_tool_words",
 ]

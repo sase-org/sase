@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NoReturn
 
-from sase.main.plan_approve_handler import _resolve_plan_for_cli
+from sase.main.plan_approve_handler import resolve_plan_for_cli
 from sase.main.plan_pending import (
     ensure_plan_notification_available,
     plan_context_from_notification,
@@ -71,7 +71,7 @@ def _reject_plan_from_cli(*, selector: str | None) -> _PlanRejectResult:
         perform_plan_rejection_cleanup,
     )
 
-    plan = _resolve_plan_for_cli(selector)
+    plan = resolve_plan_for_cli(selector)
     notification = plan.notification
     ensure_plan_notification_available(notification)
     action_result = execute_plan_approval_response(
