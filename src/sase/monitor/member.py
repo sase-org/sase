@@ -9,7 +9,7 @@ from sase.continuation_capture.rollout import (
     MONITOR_CONTINUATION_PROTOCOL_FIELD,
     MONITOR_CONTINUATION_PROTOCOL_LEGACY,
 )
-from sase.shells.member import create_family_shell_member
+from sase.shells.member import create_agent_session_shell_member
 
 _MONITOR_INHERITED_METADATA_FIELDS = (
     "agent_clan",
@@ -53,7 +53,7 @@ def create_monitor_member(
     continuation_protocol: str = MONITOR_CONTINUATION_PROTOCOL_LEGACY,
     queue_weight_override: float | None = None,
 ) -> str:
-    """Create a monitor family member's artifacts directory.
+    """Create a monitor agent-session member's artifacts directory.
 
     Inherits ``create_followup_artifacts()``-shaped metadata from the
     selected parent artifact (model, provider, workspace, Patch/bead
@@ -116,15 +116,15 @@ def create_monitor_member(
         monitor_metadata["queue_weight"] = queue_weight_override
         monitor_metadata["queue_weight_explicit"] = True
 
-    return create_family_shell_member(
+    return create_agent_session_shell_member(
         project_name,
         base_meta,
-        family=lane,
+        agent_session=lane,
         suffix=suffix,
         prev_artifacts_timestamp=prev_artifacts_timestamp,
         workspace_num=workspace_num,
         shell_kind="proc",
-        family_role="monitor",
+        agent_session_role="monitor",
         metadata=monitor_metadata,
         inherited_metadata_fields=_MONITOR_INHERITED_METADATA_FIELDS,
     )

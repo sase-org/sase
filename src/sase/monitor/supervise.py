@@ -1,4 +1,4 @@
-"""Detached supervisor process for one monitor family member.
+"""Detached supervisor process for one monitor agent-session member.
 
 Invoked as ``python -m sase.monitor.supervise --artifacts-dir <dir>``, mirroring
 :mod:`sase.procs.supervisor`. Owns the monitored command from spawn through the

@@ -28,11 +28,11 @@ from typing import Any
 from sase.plan_chain import agent_session_role_value, agent_session_shell_value
 
 #: Role recorded in ``agent_meta.json::agent_session_role`` for a monitor
-#: agent-session member. Mirrors ``sase.monitor_state.MONITOR_FAMILY_ROLE``; not
+#: agent-session member. Mirrors ``sase.monitor_state.MONITOR_AGENT_SESSION_ROLE``; not
 #: imported directly to avoid a dependency cycle with this low-level module.
 _MONITOR_AGENT_SESSION_ROLE = "monitor"
 
-#: Mirrors ``sase.gate_shell.state.GATE_FAMILY_ROLE`` (see above).
+#: Mirrors ``sase.gate_shell.state.GATE_AGENT_SESSION_ROLE`` (see above).
 _GATE_AGENT_SESSION_ROLE = "gate"
 
 

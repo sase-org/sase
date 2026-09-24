@@ -1,4 +1,4 @@
-"""Identity-aware plan-family wait_checks chop script tests."""
+"""Identity-aware plan-agent-session wait_checks chop script tests."""
 
 import json
 from pathlib import Path
@@ -40,7 +40,7 @@ def _write_waiting_marker(
     )
 
 
-def test_identity_wait_successful_plan_family_generation_resolves(
+def test_identity_wait_successful_plan_agent_session_generation_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
     root_dir = make_agent(
@@ -77,7 +77,7 @@ def test_identity_wait_successful_plan_family_generation_resolves(
     assert ready == {"resolved_deps": ["planfam"]}
 
 
-def test_identity_wait_failed_plan_family_generation_keeps_waiting(
+def test_identity_wait_failed_plan_agent_session_generation_keeps_waiting(
     tmp_path: Path, monkeypatch
 ) -> None:
     root_dir = make_agent(
@@ -113,19 +113,19 @@ def test_identity_wait_failed_plan_family_generation_keeps_waiting(
     assert not (waiter_dir / "ready.json").exists()
 
 
-@pytest.mark.parametrize("parent_has_family_meta", [False, True])
-def test_queued_family_child_does_not_block_its_parent_dependency(
+@pytest.mark.parametrize("parent_has_agent_session_meta", [False, True])
+def test_queued_agent_session_child_does_not_block_its_parent_dependency(
     tmp_path: Path,
     monkeypatch,
-    parent_has_family_meta: bool,
+    parent_has_agent_session_meta: bool,
 ) -> None:
     parent_dir = make_agent(
         tmp_path,
         "proj",
         "20260706130831",
         "b",
-        workflow_name="b" if parent_has_family_meta else None,
-        agent_session="b" if parent_has_family_meta else None,
+        workflow_name="b" if parent_has_agent_session_meta else None,
+        agent_session="b" if parent_has_agent_session_meta else None,
         done=True,
         outcome="completed",
     )
@@ -150,7 +150,7 @@ def test_queued_family_child_does_not_block_its_parent_dependency(
     assert ready == {"resolved_deps": ["b"]}
 
 
-def test_queued_family_child_blocks_external_wait_on_whole_family(
+def test_queued_agent_session_child_blocks_external_wait_on_whole_agent_session(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -187,7 +187,7 @@ def test_queued_family_child_blocks_external_wait_on_whole_family(
     assert not (external_waiter / "ready.json").exists()
 
 
-def test_queued_family_siblings_do_not_mutually_block_parent_dependency(
+def test_queued_agent_session_siblings_do_not_mutually_block_parent_dependency(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -234,7 +234,7 @@ def test_queued_family_siblings_do_not_mutually_block_parent_dependency(
     }
 
 
-def test_stale_waiting_marker_on_failed_family_member_keeps_waiting(
+def test_stale_waiting_marker_on_failed_agent_session_member_keeps_waiting(
     tmp_path: Path,
     monkeypatch,
 ) -> None:

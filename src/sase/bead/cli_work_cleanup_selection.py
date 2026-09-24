@@ -196,7 +196,7 @@ def _select_preserved_slots_from_registry(
     """Return an all-preserved selection without scanning unrelated history.
 
     This is the already-running fast path: every logical slot must already be a
-    concrete registry owner whose targeted artifact check is PRESERVE. Family
+    concrete registry owner whose targeted artifact check is PRESERVE. Agent-session
     and clan containers, missing owners, and destructive or blocked states fall
     through to the full archive view.
     """

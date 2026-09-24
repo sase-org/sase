@@ -93,8 +93,8 @@ def maybe_reserve_monitor_tool_run(
     fall back with a reason line.
 
     *starter_agent* is the starter's durable (possibly just-promoted) name.
-    It wins over the starter shell's ``SASE_AGENT_NAME``, which a family
-    promotion leaves stale, so the run is attributed exactly as an E1.5
+    It wins over the starter shell's ``SASE_AGENT_NAME``, which an
+    agent-session promotion leaves stale, so the run is attributed exactly as an E1.5
     wrapped run is through ``SASE_TOOL_RUN_AGENT``.
     """
     if not words:

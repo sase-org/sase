@@ -1,4 +1,4 @@
-"""Question gate shells: the question gate as a family-attached gate shell."""
+"""Question gate shells: the question gate as a session-attached gate shell."""
 
 from typing import Any
 

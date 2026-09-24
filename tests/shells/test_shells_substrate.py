@@ -1,4 +1,4 @@
-"""Focused tests for the reusable family-shell substrate."""
+"""Focused tests for the reusable agent-session-shell substrate."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from sase.shells.handoff import (
     will_handoff_shell_to_agent_runner,
     write_shell_pending_marker,
 )
-from sase.shells.member import create_family_shell_member
+from sase.shells.member import create_agent_session_shell_member
 from sase.shells.naming import SequenceSuffixSpec, allocate_shell_suffix
 from sase.shells.settlement import (
     ShellSettlementConfig,
@@ -48,8 +48,8 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
 
-def test_create_family_shell_member_layers_kind_role_and_metadata() -> None:
-    artifacts_dir = create_family_shell_member(
+def test_create_agent_session_shell_member_layers_kind_role_and_metadata() -> None:
+    artifacts_dir = create_agent_session_shell_member(
         "proj",
         {
             "name": "acme--0",
@@ -59,12 +59,12 @@ def test_create_family_shell_member_layers_kind_role_and_metadata() -> None:
             "agent_clan": "clan-a",
             "vcs_ref": ["git", "home"],
         },
-        family="acme",
+        agent_session="acme",
         suffix="--gate",
         prev_artifacts_timestamp="20260812120000",
         workspace_num=3,
         shell_kind="proc",
-        family_role="gate",
+        agent_session_role="gate",
         metadata={"gate_id": "g123", "pid": None},
         inherited_metadata_fields=("agent_clan",),
     )
@@ -143,7 +143,7 @@ def test_write_shell_pending_marker_adds_payload_and_refresh_pulse(
 
 def test_status_and_state_helpers_are_parameterized() -> None:
     state = ShellStateConfig(
-        family_role="gate",
+        agent_session_role="gate",
         buckets={"running": "Running", "approved": "Done", "rejected": "Failed"},
     )
     pair = shell_status_pair(
@@ -185,11 +185,11 @@ def test_status_and_state_helpers_are_parameterized() -> None:
     )
 
 
-def test_fork_target_prefers_the_family_transcript() -> None:
+def test_fork_target_prefers_the_agent_session_transcript() -> None:
     assert (
         fork_target_for_settled_starter(
             starter_name="acme--code",
-            family_name="acme",
+            agent_session_name="acme",
             settled=True,
         )
         == "acme"
@@ -197,7 +197,7 @@ def test_fork_target_prefers_the_family_transcript() -> None:
     assert (
         fork_target_for_settled_starter(
             starter_name="acme--code",
-            family_name=None,
+            agent_session_name=None,
             settled=True,
         )
         == "acme"
@@ -205,7 +205,7 @@ def test_fork_target_prefers_the_family_transcript() -> None:
     assert (
         fork_target_for_settled_starter(
             starter_name="acme--code",
-            family_name="acme",
+            agent_session_name="acme",
             settled=True,
             prefer_exact_starter=True,
         )
@@ -214,7 +214,7 @@ def test_fork_target_prefers_the_family_transcript() -> None:
     assert (
         fork_target_for_settled_starter(
             starter_name="acme--code",
-            family_name="acme",
+            agent_session_name="acme",
             settled=False,
         )
         is None

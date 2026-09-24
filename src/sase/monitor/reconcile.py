@@ -1,4 +1,4 @@
-"""Dead-supervisor reconciliation for monitor family members."""
+"""Dead-supervisor reconciliation for monitor agent-session members."""
 
 from __future__ import annotations
 

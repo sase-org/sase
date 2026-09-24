@@ -92,12 +92,12 @@ def test_start_implicit_numeric_phase_uses_caller_workspace_without_agent_flag(
     assert "agent_family" not in land_meta
 
 
-def test_start_implicit_family_member_uses_caller_workspace_without_agent_flag(
+def test_start_implicit_agent_session_member_uses_caller_workspace_without_agent_flag(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A family member must not inherit a newer settled monitor's workspace."""
+    """An agent-session member must not inherit a newer settled monitor's workspace."""
     caller_ws = tmp_path / "ws12"
     caller_ws.mkdir()
     primary = tmp_path / "primary"
@@ -143,7 +143,7 @@ def test_start_implicit_family_member_uses_caller_workspace_without_agent_flag(
             "-c",
             "true",
             "-r",
-            "verify implicit family member",
+            "verify implicit agent-session member",
             "-t",
             "30s",
             "--json",
@@ -169,7 +169,7 @@ def test_start_implicit_family_member_uses_caller_workspace_without_agent_flag(
     assert settled_meta["workspace_num"] == 0
 
 
-def test_start_implicit_family_container_derives_cwd_from_the_live_member(
+def test_start_implicit_agent_session_container_derives_cwd_from_the_live_member(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -214,7 +214,7 @@ def test_start_implicit_family_container_derives_cwd_from_the_live_member(
             "-c",
             "true",
             "-r",
-            "verify implicit family-container cwd",
+            "verify implicit agent-session-container cwd",
             "-t",
             "30s",
             "--json",

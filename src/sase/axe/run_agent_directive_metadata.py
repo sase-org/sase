@@ -311,7 +311,7 @@ def build_agent_meta(
         agent_meta["changespec_name"] = inputs.cl_name
         agent_meta.setdefault("cl_name", inputs.cl_name)
     if agent_session_attach_plan:
-        _add_family_metadata(agent_meta, agent_session_attach_plan)
+        _add_agent_session_metadata(agent_meta, agent_session_attach_plan)
     if clan_membership_plan:
         _add_clan_metadata(
             agent_meta,
@@ -371,7 +371,7 @@ def _parent_queue_weight(
     parent_meta = _read_parent_agent_meta(agent_session_attach_plan)
     if parent_meta is None:
         return None
-    return _existing_queue_weight(parent_meta, source="family parent metadata")
+    return _existing_queue_weight(parent_meta, source="agent-session parent metadata")
 
 
 def _parent_runner_claim_owner_key(
@@ -414,7 +414,7 @@ def _qualify_agent_identity_metadata(agent_meta: dict[str, Any]) -> None:
         ]
 
 
-def _add_family_metadata(
+def _add_agent_session_metadata(
     agent_meta: dict[str, Any],
     agent_session_attach_plan: AgentSessionAttachLaunchPlan,
 ) -> None:

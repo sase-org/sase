@@ -1,4 +1,4 @@
-"""Follow-up launch support shared by family shell kinds."""
+"""Follow-up launch support shared by agent-session shell kinds."""
 
 from __future__ import annotations
 
@@ -377,9 +377,9 @@ class FollowupPersistence:
     prompt_kind: str = "markdown"
 
 
-def spawn_shell_family_successor(
+def spawn_shell_agent_session_successor(
     *,
-    family: str,
+    agent_session: str,
     project_name: str,
     prompt: str,
     workspace_dir: str,
@@ -392,9 +392,9 @@ def spawn_shell_family_successor(
     extra_env: dict[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
 ) -> AgentLaunchResult:
-    """Spawn the next agent member in *family* using family-attach semantics."""
+    """Spawn the next agent member in *agent_session* using agent-session attach semantics."""
     return spawn_agent_session_successor(
-        AgentSessionAttachDirective(parent=family, suffix=suffix or "@"),
+        AgentSessionAttachDirective(parent=agent_session, suffix=suffix or "@"),
         project_name=project_name,
         prompt=prompt,
         workspace_dir=workspace_dir,
@@ -467,7 +467,7 @@ def record_followup_not_launchable(
 def fork_target_for_settled_starter(
     *,
     starter_name: str | None,
-    family_name: str | None,
+    agent_session_name: str | None,
     settled: bool,
     prefer_exact_starter: bool = False,
 ) -> str | None:
@@ -477,9 +477,9 @@ def fork_target_for_settled_starter(
     starter = _clean_str(starter_name)
     if prefer_exact_starter and starter:
         return starter
-    family = _clean_str(family_name)
-    if family:
-        return family
+    agent_session = _clean_str(agent_session_name)
+    if agent_session:
+        return agent_session
     if not starter:
         return None
     return agent_session_base(starter) or starter
@@ -634,7 +634,7 @@ __all__ = [
     "persist_followup_prompt",
     "record_followup_launched",
     "record_followup_not_launchable",
-    "spawn_shell_family_successor",
+    "spawn_shell_agent_session_successor",
     "starter_identity",
     "vcs_ref_from_meta",
     "wait_for_followup_started",

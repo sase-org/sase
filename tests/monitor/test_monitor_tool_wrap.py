@@ -423,7 +423,7 @@ def test_verify_true_becomes_named_check_run(
     assert run.get("tool_name") == "check"
     assert run.get("owner_kind") == "monitor"
     assert run.get("owner_id") == record.monitor_id  # type: ignore[attr-defined]
-    # The starter is promoted to a family on monitor start; the run records
+    # The starter is promoted to an agent session on monitor start; the run records
     # that promoted starter through the SASE_TOOL_RUN_AGENT overlay.
     assert meta["monitor_starter_agent"]
     assert run.get("agent") == meta["monitor_starter_agent"]

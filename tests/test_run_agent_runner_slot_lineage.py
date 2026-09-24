@@ -86,7 +86,7 @@ def test_unrelated_serial_branch_does_not_join_persisted_parallel_lineage(
 
     The successor already carries its actual (released) parallel
     predecessor's owner key durably on disk -- exactly what
-    ``_add_family_metadata``/``create_followup_artifacts`` now persist -- so
+    ``_add_agent_session_metadata``/``create_followup_artifacts`` now persist -- so
     it must resolve its own lineage from that key rather than from the
     coincidentally-shared ``agent_session`` string.
     """
@@ -139,7 +139,7 @@ def test_unrelated_serial_branch_does_not_join_persisted_parallel_lineage(
     # The unrelated branch occupies 2.0 of the 4.0 limit; the successor's own
     # released parallel lineage is independently free, so it acquires its own
     # 2.0 claim instead of either merging with or being blocked by the
-    # unrelated same-family branch.
+    # unrelated same-agent-session branch.
     assert result == "successor-started"
     assert not parked
     meta = json.loads((successor / "agent_meta.json").read_text())
@@ -357,7 +357,7 @@ def test_capacity_only_dropped_predecessor_does_not_break_persisted_lineage(
     ``elder`` is the original parallel member; it has finished (``done.json``
     present), so a ``capacity_only`` scan drops its directory entirely.
     ``holder`` is elder's live serial successor, carrying elder's owner key
-    forward durably (as ``_add_family_metadata``/``create_followup_artifacts``
+    forward durably (as ``_add_agent_session_metadata``/``create_followup_artifacts``
     now do). ``grandchild`` is a *third*-generation continuation that also
     carries that same durable owner key. Even though the real scanner never
     sees ``elder`` at all, ``grandchild`` must resolve onto the *same* claim

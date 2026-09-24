@@ -1,4 +1,4 @@
-"""Prompt-routing and text-formatting helpers for family shell follow-ups."""
+"""Prompt-routing and text-formatting helpers for agent-session shell follow-ups."""
 
 from __future__ import annotations
 

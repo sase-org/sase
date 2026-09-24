@@ -1,4 +1,4 @@
-"""Reusable substrate for SASE family shell mechanics."""
+"""Reusable substrate for SASE agent-session shell mechanics."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ _MODULE_BY_EXPORT = {
     "fork_target_for_settled_starter": "followup",
     "record_followup_launched": "followup",
     "record_followup_not_launchable": "followup",
-    "spawn_shell_family_successor": "followup",
+    "spawn_shell_agent_session_successor": "followup",
     "starter_identity": "followup",
     "wait_for_followup_started": "followup",
     "wait_for_starter": "followup",
@@ -20,7 +20,7 @@ _MODULE_BY_EXPORT = {
     "maybe_handoff_shell_from_agent": "handoff",
     "will_handoff_shell_to_agent_runner": "handoff",
     "write_shell_pending_marker": "handoff",
-    "create_family_shell_member": "member",
+    "create_agent_session_shell_member": "member",
     "SequenceSuffixSpec": "naming",
     "ShellIdSpec": "naming",
     "allocate_shell_suffix": "naming",

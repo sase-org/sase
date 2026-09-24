@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from sase.notification_gates.model_shell import GateShellSpec
-from sase.shells.member import create_family_shell_member
+from sase.shells.member import create_agent_session_shell_member
 
 _GATE_INHERITED_METADATA_FIELDS = (
     "agent_clan",
@@ -33,7 +33,7 @@ def create_gate_shell_member(
     request_fingerprint: str | None,
     shell: GateShellSpec,
 ) -> str:
-    """Create a pending gate-shell family member."""
+    """Create a pending gate-shell agent-session member."""
     next_output = ",".join(shell.next.output)
     gate_metadata: dict[str, Any] = {
         "gate_id": gate_id,
@@ -63,15 +63,15 @@ def create_gate_shell_member(
     if shell.next.role:
         gate_metadata["gate_next_role"] = shell.next.role
 
-    return create_family_shell_member(
+    return create_agent_session_shell_member(
         project_name,
         base_meta,
-        family=lane,
+        agent_session=lane,
         suffix=suffix,
         prev_artifacts_timestamp=prev_artifacts_timestamp,
         workspace_num=workspace_num,
         shell_kind="gate",
-        family_role="gate",
+        agent_session_role="gate",
         metadata=gate_metadata,
         inherited_metadata_fields=_GATE_INHERITED_METADATA_FIELDS,
     )

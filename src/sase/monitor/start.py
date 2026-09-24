@@ -116,8 +116,8 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     An omitted ``request.lane`` is an implicit start: the calling agent
     shell is resolved metadata-first -- its own artifacts dir, then an
     exact ``SASE_AGENT_NAME`` match, then the newest non-monitor member of
-    its own family -- and the durable family is taken from that artifact.
-    An explicit lane still resolves to the newest matching family member.
+    its own agent session -- and the durable agent session is taken from that artifact.
+    An explicit lane still resolves to the newest matching agent-session member.
     """
     identity = resolve_start_identity(request)
     with log_file_lock(

@@ -48,7 +48,7 @@ def claim_deferred_workspace(
 
     Releases the placeholder workspace_num=0 claim, then atomically
     allocates-and-claims a workspace *before* materializing the checkout.
-    A pinned family-attach target is a single-shot claim: an occupied
+    A pinned agent-session-attach target is a single-shot claim: an occupied
     checkout fails the run with the occupant named.
 
     Returns (workspace_num, workspace_dir).
@@ -230,7 +230,7 @@ def _claim_pinned_deferred_workspace(
     vcs_wf_type: str | None,
     ws_get_dir: Callable[[str, int, str, str], str] | None,
 ) -> tuple[int, str, str | None]:
-    """Claim a family-attach pin once. Occupied checkouts fail with the occupant named."""
+    """Claim an agent-session-attach pin once. Occupied checkouts fail with the occupant named."""
     from sase.running_field import claim_workspace, release_workspace
 
     claim_result = claim_workspace(

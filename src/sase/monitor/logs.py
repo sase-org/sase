@@ -1,4 +1,4 @@
-"""Bounded durable output logs for monitor family members."""
+"""Bounded durable output logs for monitor agent-session members."""
 
 from __future__ import annotations
 

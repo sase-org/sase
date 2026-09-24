@@ -38,7 +38,7 @@ def make_starter_agent(
     name: str,
     **meta_overrides: object,
 ) -> str:
-    """Create a real sharded artifacts dir for a fake single (non-family) agent."""
+    """Create a real sharded artifacts dir for a fake single (non-agent-session) agent."""
     artifact_dir = (
         sase_projects_dir()
         / project

@@ -1,8 +1,8 @@
-"""Index-backed lookups and control for monitor family members.
+"""Index-backed lookups and control for monitor agent-session members.
 
 There is no dedicated monitor store: everything here is a query over the
 existing agent artifact index (the same one that backs the Agents tab and
-``sase agent`` listing), filtered to monitor family members
+``sase agent`` listing), filtered to monitor agent-session members
 (``agent_meta.agent_session_role == "monitor"``).
 """
 

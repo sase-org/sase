@@ -1,8 +1,8 @@
-"""Typed records and state semantics for monitor family members.
+"""Typed records and state semantics for monitor agent-session members.
 
 A monitor has no dedicated store: its durable record is the monitor member's
 own ``agent_meta.json`` (while running) and ``done.json`` (once terminal),
-exactly like any other agent family member. :class:`MonitorRecord` is the
+exactly like any other agent session member. :class:`MonitorRecord` is the
 Python-side projection of those two markers.
 """
 
@@ -53,7 +53,7 @@ class MonitorError(RuntimeError):
 
 
 class MonitorLaneError(MonitorError):
-    """A monitor's lane could not be resolved to a family member."""
+    """A monitor's lane could not be resolved to an agent-session member."""
 
 
 class MonitorAlreadyRunningError(MonitorError):

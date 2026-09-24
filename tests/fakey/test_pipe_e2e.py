@@ -164,7 +164,7 @@ def _run_until_hang(
     return handle
 
 
-def test_default_pipe_creates_family_member_with_fork_and_shared_workspace(
+def test_default_pipe_creates_agent_session_member_with_fork_and_shared_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     harness = FakeyRetryHarness(
@@ -215,9 +215,9 @@ def test_default_pipe_creates_family_member_with_fork_and_shared_workspace(
     names = {row.agent_name or row.cl_name for row in rows}
     assert "fakey-e2e--plan" in names
     assert "fakey-e2e--1" in names
-    family_rows = [row for row in rows if row.agent_session == "fakey-e2e"]
-    assert len(family_rows) >= 2
-    workspaces = {row.workspace_dir for row in family_rows if row.workspace_dir}
+    agent_session_rows = [row for row in rows if row.agent_session == "fakey-e2e"]
+    assert len(agent_session_rows) >= 2
+    workspaces = {row.workspace_dir for row in agent_session_rows if row.workspace_dir}
     assert workspaces == {str(harness.workspace)}
 
 
@@ -359,7 +359,7 @@ def test_two_link_chain_then_bound_leaves_the_agent_running(
 def test_monitor_sleep_one_next_still_attaches_and_transfers_claim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``sleep 1 --next`` still uses the shared family-spawn primitive."""
+    """``sleep 1 --next`` still uses the shared agent-session-spawn primitive."""
     import os
 
     import sase.monitor.followup as followup_module

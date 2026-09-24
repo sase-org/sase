@@ -1,4 +1,4 @@
-"""Reusable suffix and id allocation for family shell members."""
+"""Reusable suffix and id allocation for agent-session shell members."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ class ShellIdSpec:
 
 @dataclass(frozen=True, slots=True)
 class SequenceSuffixSpec:
-    """First and subsequent suffixes for one sequential family shell kind."""
+    """First and subsequent suffixes for one sequential agent-session shell kind."""
 
     first_suffix: str
     sequence_template: str

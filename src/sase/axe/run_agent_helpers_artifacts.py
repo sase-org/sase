@@ -109,7 +109,7 @@ def promote_to_workflow(
     base_name: str,
     role_suffix: str,
 ) -> None:
-    """Rename the initial agent into the first plan-chain family member."""
+    """Rename the initial agent into the first plan-chain agent-session member."""
     from sase.agent._agent_session_promotion import (
         normalized_agent_session_root_role_suffix,
         promote_agent_to_agent_session,
@@ -141,8 +141,8 @@ def create_followup_artifacts(
     role_suffix and parent_timestamp.
 
     ``stamp_creating_process`` records this process's pid on both
-    ``agent_meta.json`` and ``workflow_state.json``. Family-shell members
-    (gates, monitors) pass ``False``: they are not this process.
+    ``agent_meta.json`` and ``workflow_state.json``. Agent-session-shell
+    members (gates, monitors) pass ``False``: they are not this process.
     """
     reserved_timestamp = reserve_launch_timestamp_batch(1)[0]
     new_artifacts_dir = create_artifacts_directory(
@@ -201,16 +201,18 @@ def create_followup_artifacts(
         followup_meta["workflow_name"] = workflow_name
     followup_meta["role_suffix"] = canonical_suffix
     base_session = agent_session_value(base_meta)
-    family_name = (
+    agent_session_name = (
         workflow_name
         or (str(base_session) if base_session else None)
         or agent_session_base(agent_name_override)
     )
-    family_role = agent_session_role or agent_session_role_for_suffix(canonical_suffix)
+    resolved_role = agent_session_role or agent_session_role_for_suffix(
+        canonical_suffix
+    )
     set_agent_session_fields(
         followup_meta,
-        session=family_name if family_name else None,
-        role=family_role if family_role else None,
+        session=agent_session_name if agent_session_name else None,
+        role=resolved_role if resolved_role else None,
     )
     followup_meta["parent_timestamp"] = prev_artifacts_timestamp
     if is_plan_chain_artifact_meta(followup_meta):

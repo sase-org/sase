@@ -1,4 +1,4 @@
-"""Create reusable family shell member artifacts."""
+"""Create reusable agent-session shell member artifacts."""
 
 from __future__ import annotations
 
@@ -14,25 +14,25 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 
 
-def create_family_shell_member(
+def create_agent_session_shell_member(
     project_name: str,
     base_meta: dict[str, Any],
     *,
-    family: str,
+    agent_session: str,
     suffix: str,
     prev_artifacts_timestamp: str,
     workspace_num: int | None,
     shell_kind: str,
-    family_role: str,
+    agent_session_role: str,
     metadata: Mapping[str, Any] | None = None,
     inherited_metadata_fields: Sequence[str] = (),
 ) -> str:
-    """Create a family shell member and layer caller-supplied metadata on it.
+    """Create an agent-session shell member and layer caller-supplied metadata on it.
 
     Does not stamp this process's pid onto the member: a gate has no
     process, and a monitor's pid is the detached supervisor's.
     """
-    member_name = f"{family}{suffix}"
+    member_name = f"{agent_session}{suffix}"
     artifacts_dir = create_followup_artifacts(
         project_name,
         base_meta,
@@ -40,8 +40,8 @@ def create_family_shell_member(
         prev_artifacts_timestamp,
         workspace_num=workspace_num,
         agent_name_override=member_name,
-        workflow_name=family,
-        agent_session_role=family_role,
+        workflow_name=agent_session,
+        agent_session_role=agent_session_role,
         stamp_creating_process=False,
     )
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
@@ -69,4 +69,4 @@ def _has_metadata_value(value: Any) -> bool:
     return value is not None and value != ""
 
 
-__all__ = ["create_family_shell_member"]
+__all__ = ["create_agent_session_shell_member"]

@@ -251,7 +251,7 @@ def _start(
 
     monkeypatch.setattr(store_module, "project_records", live_records)
     # Production starts run in the starter agent's own shell, whose
-    # SASE_AGENT_NAME predates the start's family promotion.
+    # SASE_AGENT_NAME predates the start's agent-session promotion.
     monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     return start_monitor(
         StartMonitorRequest(
@@ -304,7 +304,7 @@ def test_named_upgrade_reserves_handoff(
     assert run.get("launch_mode") == "handoff"
     assert run.get("owner_kind") == "monitor"
     assert run.get("owner_id") == record.monitor_id
-    # The start promotes the starter to a family; the run is attributed to
+    # The start promotes the starter to an agent session; the run is attributed to
     # that durable name, not the starter shell's now-stale SASE_AGENT_NAME.
     starter = _meta(record)["monitor_starter_agent"]
     assert starter and starter != "acme"

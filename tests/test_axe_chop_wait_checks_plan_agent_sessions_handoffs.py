@@ -1,4 +1,4 @@
-"""Plan-family handoff wait_checks chop script tests."""
+"""Plan-agent-session handoff wait_checks chop script tests."""
 
 import json
 from pathlib import Path
@@ -87,7 +87,7 @@ def _stale_index_handoff_wait_fixture(tmp_path: Path) -> tuple[Path, Path]:
     return waiter_dir, next_monitor_dir
 
 
-def test_stale_index_membership_defers_family_release(
+def test_stale_index_membership_defers_agent_session_release(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -112,7 +112,7 @@ def test_stale_index_membership_defers_family_release(
     assert "Deferred release for waiter-cl" in out
 
 
-def test_complete_index_membership_still_releases_family_waiter(
+def test_complete_index_membership_still_releases_agent_session_waiter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -136,7 +136,7 @@ def test_complete_index_membership_still_releases_family_waiter(
     }
 
 
-def test_completed_plan_chain_handoff_without_done_resolves_family_dependency(
+def test_completed_plan_chain_handoff_without_done_resolves_agent_session_dependency(
     tmp_path: Path, monkeypatch
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "33.r1")
@@ -184,7 +184,7 @@ def test_completed_plan_root_handoff_without_done_does_not_resolve(
     tmp_path: Path, monkeypatch
 ) -> None:
     # A `--plan` root that merely completed its handoff (completed
-    # workflow_state.json, no terminal done.json anywhere in the family) must
+    # workflow_state.json, no terminal done.json anywhere in the agent session) must
     # not resolve the wait barrier: the plan chain is still in flight.
     waiter_dir = make_waiting_agent(tmp_path, "3j")
     root_dir = make_agent(
@@ -204,7 +204,7 @@ def test_completed_plan_root_handoff_without_done_does_not_resolve(
 
 
 @pytest.mark.parametrize("outcome", ["failed", "killed"])
-def test_failed_or_killed_plan_chain_handoff_done_blocks_family_dependency(
+def test_failed_or_killed_plan_chain_handoff_done_blocks_agent_session_dependency(
     tmp_path: Path, monkeypatch, outcome: str
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "planfam")
@@ -256,7 +256,7 @@ def test_failed_or_killed_plan_chain_handoff_done_blocks_family_dependency(
         ("completed", "in_progress", "in_progress"),
     ],
 )
-def test_incomplete_plan_chain_handoff_blocks_family_dependency(
+def test_incomplete_plan_chain_handoff_blocks_agent_session_dependency(
     tmp_path: Path,
     monkeypatch,
     workflow_status: str,
@@ -296,7 +296,7 @@ def test_incomplete_plan_chain_handoff_blocks_family_dependency(
     assert not (waiter_dir / "ready.json").exists()
 
 
-def test_failed_latest_plan_family_child_blocks_dependency(
+def test_failed_latest_plan_agent_session_child_blocks_dependency(
     tmp_path: Path, monkeypatch
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "planfam")
@@ -329,7 +329,7 @@ def test_failed_latest_plan_family_child_blocks_dependency(
     assert not (waiter_dir / "ready.json").exists()
 
 
-def test_killed_latest_plan_family_child_blocks_dependency(
+def test_killed_latest_plan_agent_session_child_blocks_dependency(
     tmp_path: Path, monkeypatch
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "planfam")
@@ -362,7 +362,7 @@ def test_killed_latest_plan_family_child_blocks_dependency(
     assert not (waiter_dir / "ready.json").exists()
 
 
-def test_legacy_dot_plan_family_dependency_resolves(
+def test_legacy_dot_plan_agent_session_dependency_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "legacy")

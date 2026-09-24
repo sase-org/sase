@@ -94,10 +94,10 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
     "failure_mode",
     [
         pytest.param("member-errors", id="member-wipe-errors"),
-        pytest.param("residual-family", id="residual-family-reservation"),
+        pytest.param("residual-agent-session", id="residual-agent-session-reservation"),
     ],
 )
-def test_work_family_cleanup_failure_aborts_before_mutation(
+def test_work_agent_session_cleanup_failure_aborts_before_mutation(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure_mode: str,
@@ -107,16 +107,16 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
+    agent_session_name = phase_ids[0]
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
     write_bead_agent_meta(
         fake_home,
         plan_name,
         bead_id=phase_ids[0],
         done=True,
         outcome="completed",
-        agent_session=family_name,
+        agent_session=agent_session_name,
         agent_session_role="plan",
     )
     write_bead_agent_meta(
@@ -125,7 +125,7 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
         bead_id=phase_ids[0],
         done=True,
         outcome="failed",
-        agent_session=family_name,
+        agent_session=agent_session_name,
         agent_session_role="code",
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
@@ -138,7 +138,7 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
                 errors=("kaboom",),
             )
         if name in {plan_name, code_name}:
-            if failure_mode == "residual-family":
+            if failure_mode == "residual-agent-session":
                 return AgentNameWipeResult(
                     target_name=name,
                     found=True,
@@ -155,7 +155,9 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
     monkeypatch.setattr(
         "sase.agent.names.rebuild_name_registry",
         lambda: {
-            "entries": {family_name: {}} if failure_mode == "residual-family" else {}
+            "entries": {agent_session_name: {}}
+            if failure_mode == "residual-agent-session"
+            else {}
         },
     )
     launched: list[str] = []
@@ -249,9 +251,9 @@ def test_work_force_reuse_cleanup_failure_aborts_before_mutation(
             assert phase.assignee == ""
 
 
-def _write_family_member(
+def _write_agent_session_member(
     home: Path,
-    family_name: str,
+    agent_session_name: str,
     suffix: str,
     *,
     bead_id: str | None,
@@ -260,16 +262,16 @@ def _write_family_member(
 ) -> Path:
     return write_bead_agent_meta(
         home,
-        f"{family_name}{suffix}",
+        f"{agent_session_name}{suffix}",
         bead_id=bead_id,
         done=True,
         outcome=outcome,
-        agent_session=family_name,
+        agent_session=agent_session_name,
         agent_session_role=role,
     )
 
 
-def _stub_family_wipe(
+def _stub_agent_session_wipe(
     monkeypatch: pytest.MonkeyPatch,
     member_names: set[str],
 ) -> list[str]:
@@ -312,7 +314,7 @@ def _phase_slot(phase_id: str) -> BeadWorkSlot:
     )
 
 
-def test_work_beadless_family_members_do_not_wedge_retry(
+def test_work_beadless_agent_session_members_do_not_wedge_retry(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -320,30 +322,32 @@ def test_work_beadless_family_members_do_not_wedge_retry(
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
+    agent_session_name = phase_ids[0]
     members = {
-        f"{family_name}--plan",
-        f"{family_name}--code",
-        f"{family_name}--1",
-        f"{family_name}--mon-0",
+        f"{agent_session_name}--plan",
+        f"{agent_session_name}--code",
+        f"{agent_session_name}--1",
+        f"{agent_session_name}--mon-0",
     }
-    _write_family_member(
+    _write_agent_session_member(
         fake_home,
-        family_name,
+        agent_session_name,
         "--plan",
-        bead_id=family_name,
+        bead_id=agent_session_name,
         role="plan",
         outcome="completed",
     )
-    _write_family_member(
-        fake_home, family_name, "--code", bead_id=family_name, role="code"
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--code", bead_id=agent_session_name, role="code"
     )
-    _write_family_member(fake_home, family_name, "--1", bead_id=None, role="code")
-    _write_family_member(
-        fake_home, family_name, "--mon-0", bead_id=None, role="monitor"
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--1", bead_id=None, role="code"
+    )
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--mon-0", bead_id=None, role="monitor"
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
-    wiped = _stub_family_wipe(monkeypatch, members)
+    wiped = _stub_agent_session_wipe(monkeypatch, members)
     launched = _stub_launch(monkeypatch)
 
     bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
@@ -352,13 +356,13 @@ def test_work_beadless_family_members_do_not_wedge_retry(
     assert "not associated with expected bead" not in err
     assert set(wiped) == members
     assert len(launched) == 1
-    assert family_name in launched[0]
+    assert agent_session_name in launched[0]
     assert "no bead metadata; matched by family membership" in err
     for member in members:
         assert member in err
 
 
-def test_work_conflicting_family_bead_still_blocks(
+def test_work_conflicting_agent_session_bead_still_blocks(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -366,18 +370,18 @@ def test_work_conflicting_family_bead_still_blocks(
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    conflict_name = f"{family_name}--1"
-    _write_family_member(
+    agent_session_name = phase_ids[0]
+    conflict_name = f"{agent_session_name}--1"
+    _write_agent_session_member(
         fake_home,
-        family_name,
+        agent_session_name,
         "--plan",
-        bead_id=family_name,
+        bead_id=agent_session_name,
         role="plan",
         outcome="completed",
     )
-    _write_family_member(
-        fake_home, family_name, "--1", bead_id="unrelated-epic.1", role="code"
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--1", bead_id="unrelated-epic.1", role="code"
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     monkeypatch.setattr(
@@ -404,33 +408,33 @@ def test_work_conflicting_family_bead_still_blocks(
             assert phase.assignee == ""
 
 
-def test_work_family_member_with_ancestor_epic_bead_is_accepted(
+def test_work_agent_session_member_with_ancestor_epic_bead_is_accepted(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    plan_name = f"{family_name}--plan"
-    member_name = f"{family_name}--1"
-    _write_family_member(
+    agent_session_name = phase_ids[0]
+    plan_name = f"{agent_session_name}--plan"
+    member_name = f"{agent_session_name}--1"
+    _write_agent_session_member(
         fake_home,
-        family_name,
+        agent_session_name,
         "--plan",
-        bead_id=family_name,
+        bead_id=agent_session_name,
         role="plan",
         outcome="completed",
     )
-    artifact_dir = _write_family_member(
-        fake_home, family_name, "--1", bead_id=None, role="code"
+    artifact_dir = _write_agent_session_member(
+        fake_home, agent_session_name, "--1", bead_id=None, role="code"
     )
     meta_path = artifact_dir / "agent_meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta["epic_bead_id"] = epic_id
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
     monkeypatch.setattr(Path, "home", lambda: fake_home)
-    wiped = _stub_family_wipe(monkeypatch, {plan_name, member_name})
+    wiped = _stub_agent_session_wipe(monkeypatch, {plan_name, member_name})
     launched = _stub_launch(monkeypatch)
 
     bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
@@ -439,7 +443,7 @@ def test_work_family_member_with_ancestor_epic_bead_is_accepted(
     assert len(launched) == 1
 
 
-def test_work_reports_every_family_blocker_in_one_run(
+def test_work_reports_every_agent_session_blocker_in_one_run(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -447,22 +451,22 @@ def test_work_reports_every_family_blocker_in_one_run(
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    first = f"{family_name}--1"
-    second = f"{family_name}--2"
-    _write_family_member(
+    agent_session_name = phase_ids[0]
+    first = f"{agent_session_name}--1"
+    second = f"{agent_session_name}--2"
+    _write_agent_session_member(
         fake_home,
-        family_name,
+        agent_session_name,
         "--plan",
-        bead_id=family_name,
+        bead_id=agent_session_name,
         role="plan",
         outcome="completed",
     )
-    _write_family_member(
-        fake_home, family_name, "--1", bead_id="unrelated-alpha.1", role="code"
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--1", bead_id="unrelated-alpha.1", role="code"
     )
-    _write_family_member(
-        fake_home, family_name, "--2", bead_id="unrelated-beta.1", role="code"
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--2", bead_id="unrelated-beta.1", role="code"
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     launched = _stub_launch(monkeypatch)
@@ -487,17 +491,17 @@ def test_work_dry_run_renders_blockers_without_mutating(
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    _write_family_member(
+    agent_session_name = phase_ids[0]
+    _write_agent_session_member(
         fake_home,
-        family_name,
+        agent_session_name,
         "--plan",
-        bead_id=family_name,
+        bead_id=agent_session_name,
         role="plan",
         outcome="completed",
     )
-    _write_family_member(
-        fake_home, family_name, "--1", bead_id="unrelated-epic.1", role="code"
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--1", bead_id="unrelated-epic.1", role="code"
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     monkeypatch.setattr(
@@ -561,7 +565,7 @@ def test_work_direct_registry_name_mismatch_without_beads_blocks(
         assert proj.show(epic_id).is_ready_to_work is False
 
 
-def test_task_work_accepts_beadless_family_member(
+def test_task_work_accepts_beadless_agent_session_member(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -570,8 +574,10 @@ def test_task_work_accepts_beadless_family_member(
     fake_home = project_dir / "home"
     fake_home.mkdir()
     members = {f"{task_id}--code", f"{task_id}--1"}
-    _write_family_member(fake_home, task_id, "--code", bead_id=task_id, role="code")
-    _write_family_member(fake_home, task_id, "--1", bead_id=None, role="code")
+    _write_agent_session_member(
+        fake_home, task_id, "--code", bead_id=task_id, role="code"
+    )
+    _write_agent_session_member(fake_home, task_id, "--1", bead_id=None, role="code")
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     monkeypatch.setattr(
         "sase.bead.cli_work_task.resolve_task_vcs_launch_context",
@@ -581,7 +587,7 @@ def test_task_work_accepts_beadless_family_member(
         "sase.bead.cli_work_task.checkpoint_task_work_launch",
         lambda *_args, **_kwargs: True,
     )
-    wiped = _stub_family_wipe(monkeypatch, members)
+    wiped = _stub_agent_session_wipe(monkeypatch, members)
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.bead.cli_work_task.launch_bead_work_agents",
@@ -606,22 +612,22 @@ def test_select_bead_work_launch_returns_blocked_targets_instead_of_raising(
     _epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    _write_family_member(
-        fake_home, family_name, "--1", bead_id="unrelated-alpha.1", role="code"
+    agent_session_name = phase_ids[0]
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--1", bead_id="unrelated-alpha.1", role="code"
     )
-    _write_family_member(
-        fake_home, family_name, "--2", bead_id="unrelated-beta.1", role="code"
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--2", bead_id="unrelated-beta.1", role="code"
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     selection = select_bead_work_launch(
-        slots=(_phase_slot(family_name),),
+        slots=(_phase_slot(agent_session_name),),
         bead_assignees={},
     )
 
     blocked_names = {target.name for target in selection.blocked_targets}
-    assert blocked_names == {f"{family_name}--1", f"{family_name}--2"}
+    assert blocked_names == {f"{agent_session_name}--1", f"{agent_session_name}--2"}
     assert selection.launch_names == frozenset()
     assert selection.destructive_targets == ()
 
@@ -683,15 +689,15 @@ def test_revalidate_raises_when_blocker_appears_after_preview(
     _epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    _write_family_member(
-        fake_home, family_name, "--1", bead_id="unrelated-epic.1", role="code"
+    agent_session_name = phase_ids[0]
+    _write_agent_session_member(
+        fake_home, agent_session_name, "--1", bead_id="unrelated-epic.1", role="code"
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     previous = BeadWorkLaunchSelection(
-        slots=(_phase_slot(family_name),),
+        slots=(_phase_slot(agent_session_name),),
         targets=(),
-        launch_names=frozenset({family_name}),
+        launch_names=frozenset({agent_session_name}),
     )
 
     with pytest.raises(

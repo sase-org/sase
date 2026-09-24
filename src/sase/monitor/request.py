@@ -33,8 +33,8 @@ class StartMonitorRequest:
     ``project_name`` and ``cwd`` are resolved by the caller (the CLI or the
     host epic-launch path). An omitted ``lane`` is an implicit start: the
     exact ``SASE_AGENT_NAME`` caller is selected first, and the durable
-    family is derived from that artifact. An explicit ``lane`` still
-    targets an existing family the way host epic launch and ``--agent``
+    agent session is derived from that artifact. An explicit ``lane`` still
+    targets an existing agent session the way host epic launch and ``--agent``
     do today.
     """
 

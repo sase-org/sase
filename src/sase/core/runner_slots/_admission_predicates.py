@@ -14,7 +14,7 @@ from sase.monitor_state import is_real_monitor_member
 from ._admission_ordering import normalize_wait_priority
 from ._admission_types import RecordLiveness
 
-GATE_FAMILY_ROLE = "gate"
+GATE_AGENT_SESSION_ROLE = "gate"
 
 
 def _agent_session_shell_of_kind(
@@ -139,7 +139,10 @@ def is_runner_slot_occupying_record(
 def is_real_gate_member_record(record: AgentArtifactRecordWire) -> bool:
     """Return whether *record* is the durable gate-shell member."""
     meta = record.agent_meta
-    if meta is None or (meta.agent_session_role or "").strip() != GATE_FAMILY_ROLE:
+    if (
+        meta is None
+        or (meta.agent_session_role or "").strip() != GATE_AGENT_SESSION_ROLE
+    ):
         return False
     gate_shell = _agent_session_shell_of_kind(meta, "gate")
     gate_id = gate_shell.id if gate_shell is not None else None

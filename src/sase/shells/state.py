@@ -1,4 +1,4 @@
-"""State bucketing and role predicates for family shell kinds."""
+"""State bucketing and role predicates for agent-session shell kinds."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from sase.plan_chain import agent_session_role_for_suffix
 
 @dataclass(frozen=True, slots=True)
 class ShellStateConfig:
-    """State bucket map and family role for one shell kind."""
+    """State bucket map and agent-session role for one shell kind."""
 
-    family_role: str
+    agent_session_role: str
     buckets: Mapping[str, str]
     running_bucket: str = "Running"
 
@@ -38,8 +38,8 @@ def is_shell_member_role(
 ) -> bool:
     """Return whether a row is a member for *config*'s shell role."""
     if isinstance(agent_session_role, str) and agent_session_role.strip():
-        return agent_session_role.strip() == config.family_role
-    return agent_session_role_for_suffix(role_suffix) == config.family_role
+        return agent_session_role.strip() == config.agent_session_role
+    return agent_session_role_for_suffix(role_suffix) == config.agent_session_role
 
 
 def is_real_shell_member(
@@ -51,7 +51,7 @@ def is_real_shell_member(
     """Return whether a row is the durable member for this shell kind."""
     return (
         isinstance(agent_session_role, str)
-        and agent_session_role.strip() == config.family_role
+        and agent_session_role.strip() == config.agent_session_role
         and isinstance(shell_id, str)
         and bool(shell_id.strip())
     )

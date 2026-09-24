@@ -96,7 +96,7 @@ def _make_bootstrap_popen(supervisor_pid: int):  # noqa: ANN201
     return _fake_bootstrap_popen
 
 
-def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap(
+def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -142,7 +142,7 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
         queue_weight_explicit=True,
     )
     # `%i(@, family=...)` resolution (exercised below by the real ``--next``
-    # handoff) matches on `workflow_name`, the durable family key -- not on
+    # handoff) matches on `workflow_name`, the durable agent-session key -- not on
     # `agent_session` alone -- so a real starter must carry both. A real
     # starter also always carries its own continuation-graph node id from
     # its own captured turn; without one, monitor-result capture treats the
@@ -179,7 +179,7 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
         record = start_monitor(
             StartMonitorRequest(
                 command="true",
-                reason="weight-2 land family acceptance",
+                reason="weight-2 land agent-session acceptance",
                 timeout_seconds=30.0,
                 cwd=str(harness.workspace),
                 project_name=_MONITOR_PROJECT,
@@ -187,7 +187,7 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
                 stop_status="MONITORED",
                 lane="land",
                 inherit_lane_workspace_claim=False,
-                next_action="Report that the land family finished.",
+                next_action="Report that the land agent session finished.",
             )
         )
 
@@ -234,7 +234,7 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
                 name=plan["agent_name"],
                 # The runner-slot lineage chain points a serial successor at
                 # its *immediate* occupying predecessor -- the still-live
-                # monitor member -- not the display family's original
+                # monitor member -- not the display agent session's original
                 # starter (already done and gone), matching the working
                 # `parallel_successor -> parallel_member` shape below.
                 parent_timestamp=Path(record.artifacts_dir).name,
@@ -294,7 +294,7 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
         assert successor_meta["queue_weight_explicit"] is True
 
         # Only introduced now that the successor is confirmed live, proving
-        # the successor -- not the finished monitor -- holds the family's
+        # the successor -- not the finished monitor -- holds the agent session's
         # one 2.0 claim: a fresh weight-2 waiter stays parked against it.
         late_competitor = harness.create_agent(
             3, name="late-competitor", queue_weight=2.0, queue_weight_explicit=True
@@ -454,7 +454,7 @@ def _assert_weighted_monitor_failure_reclaims_without_disturbing_unrelated_owner
         record = start_monitor(
             StartMonitorRequest(
                 command="true",
-                reason="weight-2 land family failure acceptance",
+                reason="weight-2 land agent-session failure acceptance",
                 timeout_seconds=30.0,
                 cwd=str(harness.workspace),
                 project_name=_MONITOR_PROJECT,
@@ -544,9 +544,9 @@ def test_independently_weighted_parallel_member_and_its_serial_successor_keep_ow
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A parallel member sharing a land family's display name keeps its own
+    """A parallel member sharing a land agent session's display name keeps its own
     claim, and its own serial successor reuses that claim -- never the land
-    family's -- through real ``wait_for_runner_slot`` contention.
+    agent session's -- through real ``wait_for_runner_slot`` contention.
     """
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=3)
 
@@ -583,7 +583,7 @@ def test_independently_weighted_parallel_member_and_its_serial_successor_keep_ow
     # the shape production retry/pipe handoffs use. The successor carries no
     # `agent_session_parallel` marker of its own; it continues the parallel
     # member's specific lineage (via `parent_timestamp`), not the land
-    # family's active one.
+    # agent session's active one.
     parallel_successor = harness.create_agent(
         3,
         name="land2--p1",

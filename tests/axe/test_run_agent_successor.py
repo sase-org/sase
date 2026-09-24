@@ -1,4 +1,4 @@
-"""Direct tests for the in-process family-successor engine."""
+"""Direct tests for the in-process agent-session-successor engine."""
 
 from __future__ import annotations
 

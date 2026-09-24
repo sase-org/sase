@@ -30,7 +30,7 @@ from sase.shells.followup import (
     launch_shell_followup,
     record_followup_launched,
     record_followup_not_launchable,
-    spawn_shell_family_successor,
+    spawn_shell_agent_session_successor,
     starter_identity,
     vcs_ref_from_meta,
     wait_for_starter,
@@ -110,8 +110,8 @@ def launch_gate_followup_agent(
         transfer_pid: int | None,
         vcs_ref: tuple[str, str] | None,
     ) -> Any:
-        return spawn_shell_family_successor(
-            family=lane,
+        return spawn_shell_agent_session_successor(
+            agent_session=lane,
             project_name=project_name,
             prompt=prompt,
             workspace_dir=workspace_dir,

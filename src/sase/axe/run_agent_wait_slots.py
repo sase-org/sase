@@ -503,9 +503,9 @@ def wait_for_runner_slot(
 ) -> str:
     """Pass the final participating-agent gate and atomically claim RUNNING.
 
-    Serial family continuations reuse a still-live family claim under the
-    runner-slot lock. Once that family has released its claim, the successor
-    queues and reacquires capacity like any other launch.
+    Serial agent-session continuations reuse a still-live agent-session claim
+    under the runner-slot lock. Once that agent session has released its claim,
+    the successor queues and reacquires capacity like any other launch.
     """
     poll_attempt = 0
     seen_token = runner_slot_state_token()

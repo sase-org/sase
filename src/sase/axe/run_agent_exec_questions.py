@@ -63,7 +63,7 @@ def _interrupted_phase_meta(
     return loaded if isinstance(loaded, dict) and loaded else fallback_meta
 
 
-def _meta_family_role(meta: dict[str, Any]) -> str | None:
+def _meta_agent_session_role(meta: dict[str, Any]) -> str | None:
     role = agent_session_role_value(meta)
     return role if isinstance(role, str) and role else None
 
@@ -81,7 +81,7 @@ def _question_interrupted_suffix_and_role(
     if state.agent_step == 1:
         update_meta_suffix(state.current_artifacts_dir, interrupted_suffix)
 
-    interrupted_role = _meta_family_role(base_meta)
+    interrupted_role = _meta_agent_session_role(base_meta)
     if interrupted_role is None:
         interrupted_role = agent_session_role_for_suffix(interrupted_suffix)
     if interrupted_role is None:
@@ -140,10 +140,10 @@ def handle_questions_marker(
         if isinstance(meta_name, str) and meta_name
         else (ctx.agent_name or "")
     )
-    meta_family = agent_session_value(base_meta)
+    meta_agent_session = agent_session_value(base_meta)
     lane = (
-        meta_family
-        if isinstance(meta_family, str) and meta_family
+        meta_agent_session
+        if isinstance(meta_agent_session, str) and meta_agent_session
         else agent_session_base(creator_agent) or creator_agent
     )
 
@@ -241,7 +241,7 @@ def _continue_after_auto_answered_question(
 
     Mirrors the Off branch's ordinary successor launch -- suffix allocation,
     inherited role, relationships, and artifact-label arguments -- except the
-    merged Q&A comes from the family's settled question gate shells, rebuilt
+    merged Q&A comes from the agent session's settled question gate shells, rebuilt
     here to include the round the gate shell just settled, rather than from
     ``LoopState.qa_rounds``.
     """

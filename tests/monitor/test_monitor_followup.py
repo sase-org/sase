@@ -269,7 +269,7 @@ def test_launch_followup_agent_omits_the_fork_prefix_when_the_starter_never_sett
 def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
     tmp_path: Path,
 ) -> None:
-    # No promotion, no real family in the artifact index: resolution fails.
+    # No promotion, no real agent session in the artifact index: resolution fails.
     write_project_file("proj")
     workspace = tmp_path / "workspace"
     _init_git_workspace(workspace, dirty=True)

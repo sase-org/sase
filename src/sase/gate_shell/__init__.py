@@ -1,4 +1,4 @@
-"""Gate shells: processless family members that own pending gate decisions."""
+"""Gate shells: processless agent-session members that own pending gate decisions."""
 
 from typing import Any
 

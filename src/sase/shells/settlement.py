@@ -1,4 +1,4 @@
-"""Claim settlement helpers shared by supervised family shell kinds."""
+"""Claim settlement helpers shared by supervised agent-session shell kinds."""
 
 from __future__ import annotations
 

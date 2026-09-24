@@ -30,7 +30,10 @@ def _stub_empty_snapshot(monkeypatch: pytest.MonkeyPatch, script: object) -> Non
         script,
         "load_gate_shell_snapshot",
         lambda **_kwargs: GateShellSnapshot(
-            taken_at=0.0, gate_shells=(), family_members={}, record_count=0
+            taken_at=0.0,
+            gate_shells=(),
+            agent_session_members={},
+            record_count=0,
         ),
     )
 

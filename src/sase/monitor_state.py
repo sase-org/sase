@@ -11,7 +11,7 @@ from sase.shells.state import (
     shell_state_is_terminal,
 )
 
-MONITOR_FAMILY_ROLE = "monitor"
+MONITOR_AGENT_SESSION_ROLE = "monitor"
 MONITOR_GLYPH = "⚙"
 MONITOR_GLYPH_COLOR = "#FFAF5F"
 #: Finished-monitor lane hue, shared by row and panel-title badges.
@@ -28,7 +28,7 @@ MONITOR_STATE_BUCKETS: dict[str, str] = {
     "lost": "Failed",
 }
 _MONITOR_STATE_CONFIG = ShellStateConfig(
-    family_role=MONITOR_FAMILY_ROLE,
+    agent_session_role=MONITOR_AGENT_SESSION_ROLE,
     buckets=MONITOR_STATE_BUCKETS,
 )
 
@@ -75,7 +75,7 @@ def is_real_monitor_member(
     agent_session_role: str | None,
     monitor_id: str | None,
 ) -> bool:
-    """Return whether a row is the durable monitor member for its family.
+    """Return whether a row is the durable monitor member for its agent session.
 
     ``monitor_id`` is inherited by the starter and later monitor-associated
     follow-ups, so the durable monitor predicate requires the explicit monitor
@@ -90,7 +90,7 @@ def is_real_monitor_member(
 
 __all__ = [
     "DEFAULT_MONITOR_STOP_STATUS",
-    "MONITOR_FAMILY_ROLE",
+    "MONITOR_AGENT_SESSION_ROLE",
     "MONITOR_GLYPH",
     "MONITOR_GLYPH_COLOR",
     "MONITOR_PROC_ORIGIN",

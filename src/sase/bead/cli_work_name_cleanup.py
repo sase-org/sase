@@ -1,6 +1,6 @@
 """Low-level deterministic-name cleanup helpers for bead work.
 
-The forced-reuse cleanup algorithm (concrete owner / family generation /
+The forced-reuse cleanup algorithm (concrete owner / agent-session generation /
 clan container) is shared with the ACE and ``sase agent restart`` launch
 boundary; this module re-exports the shared primitive from
 ``sase.agent.names`` so existing bead-work imports keep working unchanged.

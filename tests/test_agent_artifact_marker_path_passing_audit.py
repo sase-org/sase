@@ -14,7 +14,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "Tier 1 artifact index for the same artifacts directory."
         ),
     ),
-    "src/sase/shells/member.py:create_family_shell_member": PathPassingReview(
+    "src/sase/shells/member.py:create_agent_session_shell_member": PathPassingReview(
         lifecycle_coverage=(
             "Reads the freshly created shell member metadata, then rewrites "
             "agent_meta.json through write_agent_meta_atomic with the Tier 1 "

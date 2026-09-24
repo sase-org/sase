@@ -1,11 +1,11 @@
-"""In-process family-successor engine for the agent execution loop.
+"""In-process agent-session-successor engine for the agent execution loop.
 
 Plan-approval coder hand-off and questions follow-up both become the next
-family member with this six-step sequence. The order is load-bearing:
+agent-session member with this six-step sequence. The order is load-bearing:
 
 1. Bump ``state.agent_step`` and ``promote_to_workflow`` when the step
-   reaches 2 and the agent is named. Promotion turns a lone agent into a
-   family root and must happen before follow-up artifacts are created.
+   reaches 2 and the agent is named. Promotion turns a lone agent into an
+   agent-session root and must happen before follow-up artifacts are created.
 2. Resolve the successor suffix: ``request.suffix`` verbatim, otherwise
    ``allocate_agent_session_child_suffix`` on ``request.suffix_template``,
    otherwise an unnamed-agent template render (``fallback_token``).
@@ -206,7 +206,7 @@ def continue_as_successor(
     store_prompt: Callable[..., None] | None = None,
     write_model_meta: Callable[..., None] | None = None,
 ) -> str:
-    """Become the next in-process family member and return its agent name."""
+    """Become the next in-process agent-session member and return its agent name."""
     create = create_followup_artifacts if create_artifacts is None else create_artifacts
     promote_fn = promote_to_workflow if promote is None else promote
     store = store_followup_prompt_artifact if store_prompt is None else store_prompt

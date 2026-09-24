@@ -4,7 +4,7 @@ A start request either names its lane explicitly or leaves it implicit, in
 which case the caller's own identity -- ``SASE_AGENT_NAME``,
 ``SASE_ARTIFACTS_DIR``, and the cwd it runs from -- decides which agent the
 monitor attaches to. These tests pin that choice against the near misses:
-siblings, land agents, newer settled monitors, and newer family members.
+siblings, land agents, newer settled monitors, and newer agent-session members.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ def test_implicit_start_pins_numeric_phase_caller_not_sibling_or_land(
     wait_for_done(record.artifacts_dir)
 
 
-def test_implicit_start_pins_family_member_not_newer_settled_monitor(
+def test_implicit_start_pins_agent_session_member_not_newer_settled_monitor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     caller_ws = tmp_path / "ws12"
@@ -155,7 +155,7 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
     record = start_monitor(
         StartMonitorRequest(
             command="true",
-            reason="verify implicit family-member identity",
+            reason="verify implicit agent-session-member identity",
             timeout_seconds=30.0,
             cwd=str(caller_ws),
             project_name="proj",
@@ -183,10 +183,10 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
     wait_for_done(record.artifacts_dir)
 
 
-def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
+def test_implicit_start_from_a_promoted_agent_session_container_pins_the_live_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``SASE_AGENT_NAME`` naming the family container pins the live member."""
+    """``SASE_AGENT_NAME`` naming the agent-session container pins the live member."""
     caller_ws = tmp_path / "ws12"
     caller_ws.mkdir()
     primary = tmp_path / "primary"
@@ -241,7 +241,7 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
     record = start_monitor(
         StartMonitorRequest(
             command="true",
-            reason="verify implicit family-container identity",
+            reason="verify implicit agent-session-container identity",
             timeout_seconds=30.0,
             cwd=str(caller_ws),
             project_name="proj",
@@ -272,7 +272,7 @@ def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
 def test_implicit_start_pins_the_callers_artifacts_dir_over_a_newer_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A caller's own ``SASE_ARTIFACTS_DIR`` outranks a newer family member."""
+    """A caller's own ``SASE_ARTIFACTS_DIR`` outranks a newer agent-session member."""
     write_project_file("proj")
     plan_dir = make_starter_agent(
         "proj",
@@ -321,7 +321,7 @@ def test_implicit_start_pins_the_callers_artifacts_dir_over_a_newer_member(
     wait_for_done(record.artifacts_dir)
 
 
-def test_explicit_family_target_still_selects_newest_lane_member(
+def test_explicit_agent_session_target_still_selects_newest_lane_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     older_ws = tmp_path / "ws12"
@@ -356,7 +356,7 @@ def test_explicit_family_target_still_selects_newest_lane_member(
     record = start_monitor(
         StartMonitorRequest(
             command="true",
-            reason="verify explicit family target",
+            reason="verify explicit agent-session target",
             timeout_seconds=30.0,
             cwd=str(newer_ws),
             project_name="proj",

@@ -91,7 +91,7 @@ def _write_bootstrap_agent_meta(
 def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
     """Snapshot pre-existing repository checkouts before this agent's first turn.
 
-    A family-attach continuation inherits its parent's baseline instead of
+    An agent-session-attach continuation inherits its parent's baseline instead of
     capturing a fresh one: it runs in the same lane/workspace as its parent,
     so the parent's still-uncommitted work is this run's own responsibility
     to commit, not foreign dirt to exclude (plan
@@ -112,7 +112,7 @@ def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
 
 
 def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
-    """Copy a family-attach parent's baseline into ``artifacts_dir``.
+    """Copy an agent-session-attach parent's baseline into ``artifacts_dir``.
 
     Returns ``True`` when the parent's baseline was inherited, so the caller
     skips capturing a fresh one. Best-effort: any missing plan, missing

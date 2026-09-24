@@ -1,4 +1,4 @@
-"""Core plan-family wait_checks chop script tests."""
+"""Core plan-agent-session wait_checks chop script tests."""
 
 import json
 import os
@@ -94,7 +94,7 @@ def _monitor_handoff_wait_fixture(
     return waiter_dir
 
 
-def test_successful_plan_family_dependency_resolves(
+def test_successful_plan_agent_session_dependency_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "planfam")
@@ -128,7 +128,7 @@ def test_successful_plan_family_dependency_resolves(
     assert ready == {"resolved_deps": ["planfam"]}
 
 
-def test_completed_monitor_member_releases_plan_family_waiter(
+def test_completed_monitor_member_releases_plan_agent_session_waiter(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -177,7 +177,7 @@ def test_completed_monitor_member_releases_plan_family_waiter(
     assert ready == {"resolved_deps": ["monitor-lane"]}
 
 
-def test_settled_gate_member_releases_plan_family_waiter_without_unknown_log(
+def test_settled_gate_member_releases_plan_agent_session_waiter_without_unknown_log(
     tmp_path: Path,
     monkeypatch,
     capsys,
@@ -220,7 +220,7 @@ def test_settled_gate_member_releases_plan_family_waiter_without_unknown_log(
     assert "unknown_outcome=0" in out
 
 
-def test_running_monitor_member_keeps_plan_family_waiting(
+def test_running_monitor_member_keeps_plan_agent_session_waiting(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -253,7 +253,7 @@ def test_running_monitor_member_keeps_plan_family_waiting(
 
 
 @pytest.mark.parametrize("followup_outcome", ["launched", "launched-degraded"])
-def test_wait_checks_monitor_handoff_successor_releases_plan_family(
+def test_wait_checks_monitor_handoff_successor_releases_plan_agent_session(
     tmp_path: Path,
     monkeypatch,
     followup_outcome: str,
@@ -285,7 +285,7 @@ def test_wait_checks_monitor_handoff_waits_for_unresolved_successor(
     assert not (waiter_dir / "ready.json").exists()
 
 
-def test_running_sequential_grandchild_keeps_family_waiting(
+def test_running_sequential_grandchild_keeps_agent_session_waiting(
     tmp_path: Path, monkeypatch
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "chain")

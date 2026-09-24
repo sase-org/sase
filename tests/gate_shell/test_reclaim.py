@@ -373,17 +373,19 @@ def _serve_index(
     return reads
 
 
-def _serve_family_query(
+def _serve_agent_session_query(
     monkeypatch: pytest.MonkeyPatch, artifacts_dirs: tuple[str, ...] = ()
 ) -> list[tuple[str | None, str]]:
-    """Replace the per-family index query, recording each call."""
+    """Replace the per-agent-session index query, recording each call."""
     queries: list[tuple[str | None, str]] = []
 
-    def query(project_name: str | None, family: str) -> list[AgentArtifactRecordWire]:
-        queries.append((project_name, family))
+    def query(
+        project_name: str | None, agent_session: str
+    ) -> list[AgentArtifactRecordWire]:
+        queries.append((project_name, agent_session))
         return [record_from_disk(artifacts_dir) for artifacts_dir in artifacts_dirs]
 
-    monkeypatch.setattr(handoff_mod, "_family_records", query)
+    monkeypatch.setattr(handoff_mod, "_agent_session_records", query)
     return queries
 
 
@@ -415,7 +417,7 @@ def _serve_index_with_taken_at(
         return GateShellSnapshot(
             taken_at=taken_ats[min(index, len(taken_ats) - 1)],
             gate_shells=tuple(store_mod._gate_shells_from_records(records)),
-            family_members={key: tuple(value) for key, value in members.items()},
+            agent_session_members={key: tuple(value) for key, value in members.items()},
             record_count=len(records),
         )
 
@@ -452,14 +454,14 @@ def test_reconcile_reads_the_artifact_index_once_for_every_gate(
     gates = _settled_gates(3)
     successor = _coder_successor("20260912000009", lane="lane1")
     index_reads = _serve_index(monkeypatch, [*gates, successor])
-    family_queries = _serve_family_query(monkeypatch)
+    agent_session_queries = _serve_agent_session_query(monkeypatch)
     evidence = _stub_decisions(monkeypatch)
 
     summary = reconcile_incomplete_gate_handoffs()
 
     assert summary.scanned == 3
     assert index_reads == [None]
-    assert family_queries == []
+    assert agent_session_queries == []
     assert evidence["lane1"]["attached_agent"] == f"lane1{PLAN_CHAIN_CODER_SUFFIX}"
     assert evidence["lane0"]["attached_agent"] is None
 
@@ -473,14 +475,14 @@ def test_reconcile_refreshes_the_snapshot_once_for_a_gate_changed_after_it(
     index_reads = _serve_index_with_taken_at(
         monkeypatch, [[gate], [gate, successor]], taken_ats=[1_000.0, 1_010.0]
     )
-    family_queries = _serve_family_query(monkeypatch)
+    agent_session_queries = _serve_agent_session_query(monkeypatch)
     evidence = _stub_decisions(monkeypatch)
 
     summary = reconcile_incomplete_gate_handoffs()
 
     assert summary.scanned == 1
     assert index_reads == [None, None]
-    assert family_queries == []
+    assert agent_session_queries == []
     assert evidence["lane"]["attached_agent"] == f"lane{PLAN_CHAIN_CODER_SUFFIX}"
 
 
@@ -498,14 +500,14 @@ def test_reconcile_refreshes_the_snapshot_at_most_once_for_two_changed_gates(
         [[gate_a, gate_b], [gate_a, gate_b, successor]],
         taken_ats=[1_000.0, 1_010.0],
     )
-    family_queries = _serve_family_query(monkeypatch)
+    agent_session_queries = _serve_agent_session_query(monkeypatch)
     evidence = _stub_decisions(monkeypatch)
 
     summary = reconcile_incomplete_gate_handoffs()
 
     assert summary.scanned == 2
     assert reads == [None, None]
-    assert family_queries == []
+    assert agent_session_queries == []
     assert evidence["lane-a"]["attached_agent"] == f"lane-a{PLAN_CHAIN_CODER_SUFFIX}"
     assert evidence["lane-b"]["attached_agent"] is None
 
@@ -520,14 +522,14 @@ def test_reconcile_defers_a_gate_still_changed_after_its_refresh(
         [[gate]],
         taken_ats=[1_000_000.0, 1_000_000.0, 2_000_000.0],
     )
-    family_queries = _serve_family_query(monkeypatch)
+    agent_session_queries = _serve_agent_session_query(monkeypatch)
     evidence = _stub_decisions(monkeypatch)
 
     first = reconcile_incomplete_gate_handoffs()
 
     assert first.scanned == 0
     assert first.deferred == 1
-    assert family_queries == []
+    assert agent_session_queries == []
     assert evidence == {}
     assert load_reconcile_cursor(_PROJECT) == {}
 
@@ -542,7 +544,7 @@ def test_reconcile_skips_a_refresh_when_it_would_not_fit_before_the_deadline(
 ) -> None:
     gate = _settled_gate("20260912000001", lane="lane", changed_after_snapshot=True)
     _serve_index(monkeypatch, [gate])
-    family_queries = _serve_family_query(monkeypatch)
+    agent_session_queries = _serve_agent_session_query(monkeypatch)
     evidence = _stub_decisions(monkeypatch)
 
     summary = reconcile_incomplete_gate_handoffs(
@@ -551,7 +553,7 @@ def test_reconcile_skips_a_refresh_when_it_would_not_fit_before_the_deadline(
 
     assert summary.scanned == 0
     assert summary.deferred == 1
-    assert family_queries == []
+    assert agent_session_queries == []
     assert evidence == {}
 
 
@@ -559,7 +561,7 @@ def test_reconcile_defers_everything_when_its_deadline_has_already_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _serve_index(monkeypatch, _settled_gates(3))
-    _serve_family_query(monkeypatch)
+    _serve_agent_session_query(monkeypatch)
     _stub_decisions(monkeypatch)
 
     summary = reconcile_incomplete_gate_handoffs(deadline=0.0, clock=lambda: 1.0)
@@ -581,7 +583,7 @@ def test_reclaim_and_reconcile_share_one_caller_provided_snapshot(
     )
     settled = _settled_gate("20260912000001", lane="lane2")
     index_reads = _serve_index(monkeypatch, [pending, settled])
-    family_queries = _serve_family_query(monkeypatch)
+    agent_session_queries = _serve_agent_session_query(monkeypatch)
     _stub_decisions(monkeypatch)
 
     snapshot = store_mod.load_gate_shell_snapshot()
@@ -592,7 +594,7 @@ def test_reclaim_and_reconcile_share_one_caller_provided_snapshot(
     # Settling the bundle-less pending gate as "lost" makes its own unrelated
     # follow-up-evidence query through handoff_launch.launch_or_record_followup,
     # outside the reconcile pass this test exercises.
-    assert family_queries == [(_PROJECT, "lane")]
+    assert agent_session_queries == [(_PROJECT, "lane")]
     assert reclaim_summary.scanned == 1
     assert reclaim_summary.lost == 1
     assert reconcile_summary.scanned == 1
@@ -603,7 +605,7 @@ def test_reconcile_saves_its_cursor_after_each_gate(
 ) -> None:
     gates = _settled_gates(3)
     _serve_index(monkeypatch, gates)
-    _serve_family_query(monkeypatch)
+    _serve_agent_session_query(monkeypatch)
     classified: list[None] = []
 
     def killed_on_third_gate() -> None:
@@ -626,7 +628,7 @@ def test_reconcile_defers_gates_past_its_time_budget_then_resumes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _serve_index(monkeypatch, _settled_gates(3))
-    _serve_family_query(monkeypatch)
+    _serve_agent_session_query(monkeypatch)
     now = [0.0]
 
     def forty_seconds_per_gate() -> None:

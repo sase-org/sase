@@ -41,7 +41,7 @@ class GateShellRefError(ValueError):
 
 @dataclass(frozen=True)
 class GateShellRecord:
-    """Projection of one gate-shell family member."""
+    """Projection of one gate-shell agent-session member."""
 
     gate_id: str
     member_agent_name: str

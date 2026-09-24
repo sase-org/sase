@@ -329,9 +329,9 @@ def _plan_lane(
     source_plan_agent_name: str | None,
     agent_name: str | None,
 ) -> str:
-    raw_family = agent_session_value(source_meta)
-    if isinstance(raw_family, str) and raw_family:
-        return raw_family
+    raw_agent_session = agent_session_value(source_meta)
+    if isinstance(raw_agent_session, str) and raw_agent_session:
+        return raw_agent_session
     for candidate in (source_plan_agent_name, agent_name):
         lane = agent_session_base(candidate) if candidate else None
         if lane:

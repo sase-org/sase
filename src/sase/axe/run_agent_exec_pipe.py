@@ -67,7 +67,7 @@ def handle_pipe_marker(
 
     if name_token:
         suffix = f"--{name_token}"
-        family_role = name_token
+        pipe_role = name_token
     elif ctx.agent_name:
         suffix = allocate_agent_session_child_suffix(
             ctx.agent_name,
@@ -78,12 +78,12 @@ def handle_pipe_marker(
                 if saved_suffix
             ),
         )
-        family_role = "feedback"
+        pipe_role = "feedback"
     else:
         from sase.agent.names import render_agent_name_template
 
         suffix = render_agent_name_template("--@", "0")
-        family_role = "feedback"
+        pipe_role = "feedback"
 
     successor_name = (
         plan_chain_agent_name(ctx.agent_name, suffix) if ctx.agent_name else suffix
@@ -130,7 +130,7 @@ def handle_pipe_marker(
                 for saved_suffix, _path in state.saved_chat_paths
                 if saved_suffix
             ),
-            agent_session_role=family_role,
+            agent_session_role=pipe_role,
             relationships={
                 "piped_from": parent_name,
                 "pipe_reason": reason,
@@ -190,7 +190,7 @@ def _format_pipe_response(
     lines = [
         "# Pipe hand-off",
         "",
-        "This agent handed the remaining work to its next family member.",
+        "This agent handed the remaining work to its next agent-session member.",
         f"Successor: {successor_name}",
     ]
     if reason:

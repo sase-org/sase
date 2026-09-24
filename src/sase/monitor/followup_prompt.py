@@ -92,11 +92,11 @@ def _routing_prefix(
     model: str | None,
     reasoning_effort: str | None,
     next_model: str | None = None,
-    family_name: str | None = None,
+    agent_session_name: str | None = None,
 ) -> str:
     fork_target = fork_target_for_settled_starter(
         starter_name=starter_name,
-        family_name=family_name,
+        agent_session_name=agent_session_name,
         settled=starter_name is not None,
         prefer_exact_starter=True,
     )
@@ -128,7 +128,7 @@ def compose_followup_prompt(
     model: str | None = None,
     reasoning_effort: str | None = None,
     next_model: str | None = None,
-    family_name: str | None = None,
+    agent_session_name: str | None = None,
     workspace_degraded_reason: str | None = None,
     diagnostic_manifest: dict[str, object] | None = None,
     retained_log_metadata: dict[str, object] | None = None,
@@ -215,7 +215,9 @@ def compose_followup_prompt(
             elapsed_seconds=elapsed_seconds,
             timeout_seconds=timeout_seconds,
             timeout_kind=timeout_kind,
-            starter_execution_id=starter_execution_id or starter_name or family_name,
+            starter_execution_id=starter_execution_id
+            or starter_name
+            or agent_session_name,
             workspace_identity=workspace_identity or cwd,
             diagnostic_manifest_ref=diagnostic_ref,
             retained_log=retained_log,
@@ -311,7 +313,7 @@ def compose_followup_prompt(
         model,
         reasoning_effort,
         next_model,
-        family_name=family_name,
+        agent_session_name=agent_session_name,
     )
     return f"{prefix}\n{body}" if prefix else body
 

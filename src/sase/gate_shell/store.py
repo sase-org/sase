@@ -1,4 +1,4 @@
-"""Index-backed lookups for gate-shell family members."""
+"""Index-backed lookups for gate-shell agent-session members."""
 
 from __future__ import annotations
 
@@ -102,23 +102,23 @@ class GateShellSnapshot:
     """One artifact-index read shared by every lookup in a gate-shell sweep.
 
     A full index read costs seconds on a long-lived host, so a sweep that needs
-    both the gate shells and each gate's family members reads the index once.
+    both the gate shells and each gate's agent-session members reads the index once.
     """
 
     taken_at: float
     gate_shells: tuple[GateShellRecord, ...]
-    family_members: Mapping[tuple[str, str], tuple[AgentArtifactRecordWire, ...]]
+    agent_session_members: Mapping[tuple[str, str], tuple[AgentArtifactRecordWire, ...]]
     record_count: int
 
-    def family_records(
-        self, project_name: str, family: str
+    def agent_session_records(
+        self, project_name: str, agent_session: str
     ) -> tuple[AgentArtifactRecordWire, ...]:
-        """Return ``family``'s members in ``project_name`` as of :attr:`taken_at`."""
-        return self.family_members.get((project_name, family), ())
+        """Return ``agent_session``'s members in ``project_name`` as of :attr:`taken_at`."""
+        return self.agent_session_members.get((project_name, agent_session), ())
 
 
 def load_gate_shell_snapshot(*, project: str | None = None) -> GateShellSnapshot:
-    """Read the artifact index once for gate-shell and family-member lookups."""
+    """Read the artifact index once for gate-shell and agent-session-member lookups."""
     taken_at = time.time()
     records = project_records(project)
     members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
@@ -130,7 +130,7 @@ def load_gate_shell_snapshot(*, project: str | None = None) -> GateShellSnapshot
     return GateShellSnapshot(
         taken_at=taken_at,
         gate_shells=tuple(_gate_shells_from_records(records)),
-        family_members={key: tuple(value) for key, value in members.items()},
+        agent_session_members={key: tuple(value) for key, value in members.items()},
         record_count=len(records),
     )
 

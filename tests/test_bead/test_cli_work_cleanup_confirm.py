@@ -280,7 +280,7 @@ def test_preview_renders_kill_remove_and_release(
     assert "RELEASE" in rendered and "stale" in rendered
 
 
-def test_orphaned_family_bundle_is_released_and_launch_proceeds(
+def test_orphaned_agent_session_bundle_is_released_and_launch_proceeds(
     project_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -292,7 +292,7 @@ def test_orphaned_family_bundle_is_released_and_launch_proceeds(
     )
 
     epic_id, phase_ids = seed_diamond(project_dir)
-    family_name = phase_ids[0]
+    agent_session_name = phase_ids[0]
     fake_home = tmp_path / "fake_home"
     bundle_path = (
         fake_home / ".sase" / "dismissed_bundles" / "202607" / "20260723120000.json"
@@ -302,9 +302,9 @@ def test_orphaned_family_bundle_is_released_and_launch_proceeds(
         json.dumps(
             {
                 "raw_suffix": "20260723120000",
-                "agent_name": f"{family_name}--code",
-                "workflow_name": family_name,
-                "agent_session": family_name,
+                "agent_name": f"{agent_session_name}--code",
+                "workflow_name": agent_session_name,
+                "agent_session": agent_session_name,
                 "status": "DONE",
             }
         ),
@@ -312,8 +312,8 @@ def test_orphaned_family_bundle_is_released_and_launch_proceeds(
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
     rebuild_name_registry()
-    assert is_name_reserved(family_name)
-    assert find_agent_session(family_name) is None
+    assert is_name_reserved(agent_session_name)
+    assert find_agent_session(agent_session_name) is None
 
     launched: list[str] = []
     monkeypatch.setattr(
@@ -327,7 +327,7 @@ def test_orphaned_family_bundle_is_released_and_launch_proceeds(
 
     assert len(launched) == 1
     assert not bundle_path.exists()
-    assert not is_name_reserved(family_name)
+    assert not is_name_reserved(agent_session_name)
 
 
 def test_orphaned_clan_bundle_is_released_and_launch_proceeds(

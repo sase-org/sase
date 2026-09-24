@@ -1,4 +1,4 @@
-"""Suffix and id allocation for gate shell family members."""
+"""Suffix and id allocation for gate shell agent-session members."""
 
 from __future__ import annotations
 

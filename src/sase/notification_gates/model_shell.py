@@ -364,14 +364,14 @@ def _suffix(value: object) -> str | None:
         raise GateError(
             "invalid_shell",
             "shell.suffix",
-            "shell.suffix must be a -- prefixed family suffix",
+            "shell.suffix must be a -- prefixed agent-session suffix",
         )
     canonical = canonical_plan_chain_suffix(value)
     if canonical is None:
         raise GateError(
             "invalid_shell",
             "shell.suffix",
-            "shell.suffix must be a recognized family suffix",
+            "shell.suffix must be a recognized agent-session suffix",
         )
     return canonical
 

@@ -20,8 +20,8 @@ def _is_safe_bead_prefix(prefix: str) -> bool:
 
     Bead IDs must keep matching ``^[^\\s.]+-[0-9a-z]+(?:\\.\\d+)*$`` so agent
     names launched by ``sase bead work`` still resolve back to their bead, and
-    ``--`` is the reserved agent-family separator, so a prefix containing it
-    would make bead-named agents parse as family members.
+    ``--`` is the reserved agent-session separator, so a prefix containing it
+    would make bead-named agents parse as agent-session members.
     """
     if not prefix:
         return False

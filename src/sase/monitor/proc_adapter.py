@@ -1,4 +1,4 @@
-"""Project monitors onto the shared proc service and settle family artifacts."""
+"""Project monitors onto the shared proc service and settle agent-session artifacts."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def proc_shell_owns(
 def _monitor_state_from_proc(
     proc: Proc, *, termination_reason: str | None = None
 ) -> MonitorState:
-    """Project a proc row onto the monitor family-member state labels."""
+    """Project a proc row onto the monitor agent-session-member state labels."""
     reason = termination_reason or _termination_reason(proc)
     if proc.status in ACTIVE_PROC_STATUSES:
         return "running"
@@ -139,7 +139,7 @@ def overlay_proc_on_monitor(record: MonitorRecord, proc: Proc) -> MonitorRecord:
 
 
 def settle_monitor_artifacts(state: dict[str, Any]) -> None:
-    """Write family presentation for a monitor whose command is gone."""
+    """Write agent-session presentation for a monitor whose command is gone."""
     artifacts_dir = state.get("artifacts_dir")
     if not isinstance(artifacts_dir, str) or not artifacts_dir:
         return
@@ -249,7 +249,7 @@ def settle_monitor_artifacts(state: dict[str, Any]) -> None:
 
 
 def settle_monitor_followup(state: dict[str, Any]) -> None:
-    """Launch or suppress ``--next`` and write the terminal family markers."""
+    """Launch or suppress ``--next`` and write the terminal agent-session markers."""
     artifacts_dir = state.get("artifacts_dir")
     if not isinstance(artifacts_dir, str) or not artifacts_dir:
         state["followup_outcome"] = None

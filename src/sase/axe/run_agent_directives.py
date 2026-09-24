@@ -293,7 +293,7 @@ def extract_directives_and_write_meta(
         and agent_session_attach_plan.parent_agent_clan
     ):
         raise ClanMembershipError(
-            "Cannot use %id(..., tribe=...) on a family attachment that "
+            "Cannot use %id(..., tribe=...) on an agent-session attachment that "
             "inherits clan membership; tribe membership belongs to the "
             "inherited clan and must be supplied by a clan member's "
             "%clan(<clan>, tribe=<tribe>) declaration."

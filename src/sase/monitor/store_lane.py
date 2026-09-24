@@ -39,9 +39,9 @@ def default_caller(env: Mapping[str, str] | None = None) -> str | None:
 
     This does not collapse the name through
     :func:`~sase.plan_chain.agent_session_base`: :func:`resolve_caller_agent`
-    resolves a durable family from the caller's own artifacts instead, so a
+    resolves a durable agent session from the caller's own artifacts instead, so a
     phase name such as ``sase-m6.6.1.5`` is never rewritten into a broader
-    family lane.
+    agent-session lane.
     """
     current_env = env if env is not None else os.environ
     name = current_env.get("SASE_AGENT_NAME")
@@ -75,9 +75,9 @@ def resolve_caller_agent(
     """Resolve the artifact record of the agent shell calling right now.
 
     Mirrors :func:`sase.agent.identity.resolve_local_agent_name`'s
-    metadata-first resolution: family members can replace one another
+    metadata-first resolution: agent-session members can replace one another
     inside a single process, leaving ``SASE_AGENT_NAME`` set to the
-    family/container while this run's own artifacts carry the concrete
+    agent-session container while this run's own artifacts carry the concrete
     agent shell. Tried in order:
 
     1. *artifacts_dir* (the caller's own ``SASE_ARTIFACTS_DIR``), when the
@@ -86,10 +86,10 @@ def resolve_caller_agent(
     2. An exact ``agent_meta.name`` match for *caller* (bare agents, and
        callers whose env already carries the member name, e.g.
        ``02i--code``).
-    3. The newest non-monitor member of *caller*'s own family -- records
+    3. The newest non-monitor member of *caller*'s own agent session -- records
        whose ``agent_meta.agent_session`` equals *caller* exactly. Monitor
        members are excluded so a settled ``--mon`` row, usually the newest
-       member of the family, is never selected as the parent.
+       member of the agent session, is never selected as the parent.
 
     Raises :class:`MonitorLaneError` naming ``-a/--agent`` when none of the
     above resolves.
@@ -118,7 +118,7 @@ def resolve_caller_agent(
 
 
 def resolve_lane(project_name: str, lane: str) -> LaneContext:
-    """Resolve *lane* to its newest family member's artifact record."""
+    """Resolve *lane* to its newest agent-session member's artifact record."""
     records = [
         record
         for record in store.project_records(project_name)
@@ -275,9 +275,10 @@ def _pinned_caller_record(
 ) -> AgentArtifactRecordWire | None:
     """Return the record at *artifacts_dir* if it belongs to *caller*.
 
-    A record only counts as pinned when its own name, family, or family
-    base matches the caller -- a stale or foreign ``SASE_ARTIFACTS_DIR``
-    must fall through to the name/family steps instead of hijacking start.
+    A record only counts as pinned when its own name, agent session, or
+    agent-session base matches the caller -- a stale or foreign
+    ``SASE_ARTIFACTS_DIR`` must fall through to the name/agent-session steps
+    instead of hijacking start.
     """
     if not artifacts_dir:
         return None

@@ -147,10 +147,10 @@ def test_stop_omitted_id_with_no_active_monitor_names_the_agent(
     assert "agent 'acme' has no active monitor" in capsys.readouterr().err
 
 
-def test_stop_omitted_id_resolves_the_callers_own_family_not_a_sibling(
+def test_stop_omitted_id_resolves_the_callers_own_agent_session_not_a_sibling(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A caller's durable family stops its own monitor, not a sibling's."""
+    """A caller's durable agent session stops its own monitor, not a sibling's."""
     child = subprocess.Popen(["sleep", "30"])
     real_kill = os.kill
 

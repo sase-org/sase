@@ -1,11 +1,11 @@
 """Launch the follow-up agent into a monitor's lane once it goes terminal.
 
-Reuses the same ``%id(<suffix>, family=<parent>)`` family-attach machinery a
-user-typed directive would trigger (:mod:`sase.agent.agent_session_attach`): the
-monitor's lane is resolved to a family-attach plan, encoded into the child's
-launch environment, and the child's own runner boot adopts the resulting name,
-family, and role when it starts -- exactly as it would for an interactive
-``%id(@, family=acme)`` launch.
+Reuses the same ``%id(<suffix>, family=<parent>)`` agent-session attach machinery
+a user-typed directive would trigger (:mod:`sase.agent.agent_session_attach`):
+the monitor's lane is resolved to an agent-session attach plan, encoded into
+the child's launch environment, and the child's own runner boot adopts the
+resulting name, agent session, and role when it starts -- exactly as it would
+for an interactive ``%id(@, family=acme)`` launch.
 """
 
 from __future__ import annotations
@@ -279,7 +279,7 @@ def launch_followup_agent(
 
     prompt_kwargs: dict[str, Any] = {
         "starter_name": starter_name if settled else None,
-        "family_name": lane,
+        "agent_session_name": lane,
         "command": str(meta.get("monitor_command") or ""),
         "cwd": str(meta.get("monitor_cwd") or ""),
         "reason": str(meta.get("monitor_reason") or ""),

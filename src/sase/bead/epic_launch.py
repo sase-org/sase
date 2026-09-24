@@ -276,9 +276,9 @@ def _epic_launch_lane(
     exact_name = _optional_text(meta.get("name"))
     if _uses_exact_agent_lane(meta):
         return exact_name or _optional_text(host_action_data.get("agent_name"))
-    raw_family = _optional_text(agent_session_value(meta))
-    if raw_family:
-        return raw_family
+    raw_agent_session = _optional_text(agent_session_value(meta))
+    if raw_agent_session:
+        return raw_agent_session
     if exact_name:
         return agent_session_base(exact_name) or exact_name
 

@@ -188,7 +188,7 @@ def test_start_epic_launch_monitor_treats_legacy_parallel_family_as_clan(
     assert request.lane == "sase-m6.6"
 
 
-def test_start_epic_launch_monitor_uses_explicit_family_lane(
+def test_start_epic_launch_monitor_uses_explicit_agent_session_lane(
     tmp_path: Path,
 ) -> None:
     request = start_epic_launch_monitor_request(

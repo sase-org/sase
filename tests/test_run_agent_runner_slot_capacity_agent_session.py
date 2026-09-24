@@ -1,4 +1,4 @@
-"""Runtime tests for runner-slot family weight capacity handling."""
+"""Runtime tests for runner-slot agent-session weight capacity handling."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 from tests._runner_slot_fixtures import artifact, record
 
 
-def test_serial_child_reuses_active_family_weighted_claim(
+def test_serial_child_reuses_active_agent_session_weighted_claim(
     tmp_path: Path,
 ) -> None:
     parent = artifact(
@@ -63,7 +63,7 @@ def test_serial_child_reuses_active_family_weighted_claim(
     assert not (child / "waiting.json").exists()
 
 
-def test_serial_child_publishes_inherited_active_family_weight(
+def test_serial_child_publishes_inherited_active_agent_session_weight(
     tmp_path: Path,
 ) -> None:
     parent = artifact(
@@ -129,7 +129,7 @@ def test_serial_child_publishes_inherited_active_family_weight(
     assert not (child / "waiting.json").exists()
 
 
-def test_conflicting_active_family_weight_fails_clearly(tmp_path: Path) -> None:
+def test_conflicting_active_agent_session_weight_fails_clearly(tmp_path: Path) -> None:
     parent = artifact(
         tmp_path,
         "20260910131000",

@@ -15,7 +15,7 @@ from sase.shells.state import (
     shell_state_bucket,
 )
 
-GATE_FAMILY_ROLE = "gate"
+GATE_AGENT_SESSION_ROLE = "gate"
 GATE_GLYPH = "⋔"
 GATE_SETTLED_GLYPH_COLOR = "#9E9E9E"
 GATE_FAILURE_GLYPH_COLOR = "#FF5F5F"
@@ -30,7 +30,7 @@ TERMINAL_GATE_STATES = frozenset(
 )
 
 _GATE_STATE_CONFIG = ShellStateConfig(
-    family_role=GATE_FAMILY_ROLE,
+    agent_session_role=GATE_AGENT_SESSION_ROLE,
     buckets=GATE_STATE_BUCKETS,
 )
 
@@ -81,7 +81,7 @@ def is_real_gate_member(agent_session_role: str | None, gate_id: str | None) -> 
 
 
 __all__ = [
-    "GATE_FAMILY_ROLE",
+    "GATE_AGENT_SESSION_ROLE",
     "GATE_FAILURE_GLYPH_COLOR",
     "GATE_GLYPH",
     "GATE_SETTLED_GLYPH_COLOR",

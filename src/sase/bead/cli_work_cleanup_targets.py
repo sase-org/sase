@@ -22,6 +22,14 @@ if TYPE_CHECKING:
 type _OwnerMembership = Literal["registry", "family", "clan"]
 
 
+def _is_agent_session_membership(membership: _OwnerMembership) -> bool:
+    """Return whether *membership* names agent-session ownership.
+
+    # legacy agent-family spelling: pre-rename registries store "family".
+    """
+    return membership == "family"
+
+
 class _OwnerRecordLookup(Protocol):
     """Minimal owner view needed to classify one targeted artifact."""
 
@@ -39,7 +47,7 @@ class _AgentOwnerView:
 
     records_by_artifact_dir: dict[str, AgentArtifactRecordWire]
     records_by_name_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
-    family_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
+    agent_session_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
     clan_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
     identity: AgentIdentitySnapshot
 
@@ -78,7 +86,7 @@ def load_agent_owner_view() -> _AgentOwnerView:
         )
     records_by_artifact_dir: dict[str, AgentArtifactRecordWire] = {}
     records_by_name: dict[str, list[AgentArtifactRecordWire]] = {}
-    family_members: dict[str, list[AgentArtifactRecordWire]] = {}
+    agent_session_members: dict[str, list[AgentArtifactRecordWire]] = {}
     clan_members: dict[str, list[AgentArtifactRecordWire]] = {}
     for record in snapshot.records:
         records_by_artifact_dir[_normalized_path_key(record.artifact_dir)] = record
@@ -89,12 +97,12 @@ def load_agent_owner_view() -> _AgentOwnerView:
         meta = record.agent_meta
         if meta is None:
             continue
-        family_name = meta.agent_session or (
+        agent_session_name = meta.agent_session or (
             meta.workflow_name if meta.agent_session_role else None
         )
-        if family_name:
-            key = current_owner_agent_name_key(family_name, identity)
-            family_members.setdefault(key, []).append(record)
+        if agent_session_name:
+            key = current_owner_agent_name_key(agent_session_name, identity)
+            agent_session_members.setdefault(key, []).append(record)
         if meta.agent_clan:
             key = current_owner_agent_name_key(meta.agent_clan, identity)
             clan_members.setdefault(key, []).append(record)
@@ -104,8 +112,8 @@ def load_agent_owner_view() -> _AgentOwnerView:
         records_by_name_key={
             key: tuple(value) for key, value in records_by_name.items()
         },
-        family_members_by_key={
-            key: tuple(value) for key, value in family_members.items()
+        agent_session_members_by_key={
+            key: tuple(value) for key, value in agent_session_members.items()
         },
         clan_members_by_key={key: tuple(value) for key, value in clan_members.items()},
         identity=identity,
@@ -181,7 +189,7 @@ def classify_slot_owner(
     container_kind = owner.get("container_kind")
     # legacy agent-family spelling: pre-rename registries still store "family".
     if is_agent_session_container_kind(container_kind):
-        return _classify_family_owner(
+        return _classify_agent_session_owner(
             slot,
             bead_assignees=bead_assignees,
             view=view,
@@ -285,7 +293,7 @@ def _record_for_owner(
     return view.records_by_artifact_dir.get(_normalized_path_key(artifacts_dir))
 
 
-def _classify_family_owner(
+def _classify_agent_session_owner(
     slot: BeadWorkSlot,
     *,
     bead_assignees: dict[str, str],
@@ -294,7 +302,7 @@ def _classify_family_owner(
     from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     key = current_owner_agent_name_key(slot.owner_name, view.identity)
-    members = view.family_members_by_key.get(key, ())
+    members = view.agent_session_members_by_key.get(key, ())
     if not members:
         return (
             CleanupTarget(
@@ -415,7 +423,7 @@ def classify_artifact_record(
         ) from None
     detail = f"for bead {slot.expected_bead_id} at {record.artifact_dir}"
     if not _record_bead_ids(record):
-        if membership in {"family", "clan"}:
+        if _is_agent_session_membership(membership) or membership == "clan":
             detail += f" (no bead metadata; matched by {membership} membership)"
         else:
             detail += " (no bead metadata; matched by registry owner name)"
@@ -506,7 +514,7 @@ def _bead_ids_related(left: str, right: str) -> bool:
 
 
 def _membership_via(membership: _OwnerMembership, slot: BeadWorkSlot) -> str:
-    if membership == "family":
+    if _is_agent_session_membership(membership):
         return f"family {slot.owner_name}"
     if membership == "clan":
         return f"clan {slot.owner_name}"
@@ -547,7 +555,7 @@ def _require_record_association(
     if any(_bead_ids_related(observed, slot.expected_bead_id) for observed in bead_ids):
         return
     if not bead_ids:
-        if membership in {"family", "clan"}:
+        if _is_agent_session_membership(membership) or membership == "clan":
             return
         from sase.core.agent_identity_facade import current_owner_agent_name_key
 

@@ -152,8 +152,8 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
 
     # A shell-backed gate is defined by the envelope's ``shell`` block (the
     # source of truth per the gate-shell design), never by whether the
-    # family-member lookup below happens to resolve one -- that lookup goes
-    # through the artifact-index scan, which is best-effort here.
+    # agent-session-member lookup below happens to resolve one -- that lookup
+    # goes through the artifact-index scan, which is best-effort here.
     shell_backed = isinstance(bundle.envelope.get("shell"), dict)
     if retry == "resume" and shell_backed and bundle.response_path.exists():
         return _resume_answered_shell(

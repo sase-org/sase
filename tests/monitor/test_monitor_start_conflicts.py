@@ -301,7 +301,7 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
         start_monitor(request)
 
 
-def test_implicit_start_conflicts_on_durable_family_not_member_name(
+def test_implicit_start_conflicts_on_durable_agent_session_not_member_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     caller_ws = tmp_path / "ws12"

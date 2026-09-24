@@ -48,7 +48,7 @@ def _promote_and_start_monitor(
     """Return ``(monitor_dir, starter_dir, project_file)`` from a real promotion.
 
     Uses the real ``start_monitor()`` so the starter is genuinely promoted to
-    a family root and the monitor member inherits real lineage, without
+    an agent-session root and the monitor member inherits real lineage, without
     actually spawning a detached supervisor subprocess.
     """
     project_file = write_project_file(

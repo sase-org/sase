@@ -164,21 +164,21 @@ def persist_attempt(
 def collect_successor_evidence(
     *,
     project_name: str | None,
-    family: str,
+    agent_session: str,
     expected_suffix: str | None,
     recorded_agent: str | None,
-    family_records: Sequence[AgentArtifactRecordWire] | None = None,
+    agent_session_records: Sequence[AgentArtifactRecordWire] | None = None,
 ) -> dict[str, Any]:
-    """Inspect family attachment/launch evidence without starting a provider.
+    """Inspect agent-session attachment/launch evidence without starting a provider.
 
-    A caller that already read the artifact index passes ``family_records``;
-    otherwise the family's members are queried from the index.
+    A caller that already read the artifact index passes ``agent_session_records``;
+    otherwise the agent session's members are queried from the index.
     """
     suffix = expected_suffix or PLAN_CHAIN_CODER_SUFFIX
-    if family_records is None:
-        family_records = _family_records(project_name, family)
+    if agent_session_records is None:
+        agent_session_records = _agent_session_records(project_name, agent_session)
     matches: list[tuple[str, bool, bool]] = []
-    for record in family_records:
+    for record in agent_session_records:
         name = _record_name(record)
         if not name or not name.endswith(suffix):
             continue
@@ -189,11 +189,12 @@ def collect_successor_evidence(
         named = [item for item in matches if item[0] == recorded_agent]
         if named:
             matches = named
+    # legacy agent-family spelling: core reads "family_name" until core-contract.
     if len(matches) > 1:
         running_or_done = [item for item in matches if item[1] or item[2]]
         if len(running_or_done) != 1:
             return {
-                "family_name": family,
+                "family_name": agent_session,
                 "expected_suffix": suffix,
                 "ambiguous": True,
                 "running": any(item[1] for item in matches),
@@ -202,7 +203,7 @@ def collect_successor_evidence(
         matches = running_or_done
     if not matches:
         return {
-            "family_name": family,
+            "family_name": agent_session,
             "expected_suffix": suffix,
             "attached_agent": recorded_agent,
             "running": False,
@@ -211,7 +212,7 @@ def collect_successor_evidence(
         }
     name, running, completed = matches[0]
     return {
-        "family_name": family,
+        "family_name": agent_session,
         "expected_suffix": suffix,
         "attached_agent": name,
         "launch_receipt": recorded_agent,
@@ -304,10 +305,10 @@ def merge_followup_fields(memory: dict[str, Any], disk: Mapping[str, Any]) -> No
             memory[key] = value
 
 
-def _family_records(
-    project_name: str | None, family: str
+def _agent_session_records(
+    project_name: str | None, agent_session: str
 ) -> list[AgentArtifactRecordWire]:
-    if not family:
+    if not agent_session:
         return []
     options = AgentArtifactScanOptionsWire(
         only_workflow_dirs=("ace-run",),
@@ -337,7 +338,7 @@ def _family_records(
     matches: list[AgentArtifactRecordWire] = []
     for record in records:
         meta = record.agent_meta
-        if meta is None or meta.agent_session != family:
+        if meta is None or meta.agent_session != agent_session:
             continue
         matches.append(record)
     return matches

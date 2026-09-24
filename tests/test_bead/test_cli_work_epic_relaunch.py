@@ -83,7 +83,7 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
     assert wiped == [phase_ids[0]]
 
 
-def test_work_interrupted_phase_family_is_wiped_before_retry(
+def test_work_interrupted_phase_agent_session_is_wiped_before_retry(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -93,16 +93,16 @@ def test_work_interrupted_phase_family_is_wiped_before_retry(
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = project_dir / "home"
     fake_home.mkdir()
-    family_name = phase_ids[0]
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
+    agent_session_name = phase_ids[0]
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
     write_bead_agent_meta(
         fake_home,
         plan_name,
         bead_id=phase_ids[0],
         done=True,
         outcome="completed",
-        agent_session=family_name,
+        agent_session=agent_session_name,
         agent_session_role="plan",
     )
     write_bead_agent_meta(
@@ -111,7 +111,7 @@ def test_work_interrupted_phase_family_is_wiped_before_retry(
         bead_id=phase_ids[0],
         done=True,
         outcome="failed",
-        agent_session=family_name,
+        agent_session=agent_session_name,
         agent_session_role="code",
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)

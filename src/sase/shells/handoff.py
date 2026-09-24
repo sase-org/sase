@@ -1,4 +1,4 @@
-"""Pending-marker handoff from an agent runner to a family shell."""
+"""Pending-marker handoff from an agent runner to an agent-session shell."""
 
 from __future__ import annotations
 

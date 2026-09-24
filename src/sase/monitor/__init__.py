@@ -1,4 +1,4 @@
-"""Monitor family members: long-running commands as agent family members."""
+"""Monitor agent-session members: long-running commands as agent session members."""
 
 from .member import create_monitor_member
 from .models import (

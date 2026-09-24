@@ -249,7 +249,7 @@ def _resolve_auto_gate(
         # `creator_live=True`: creation-time auto-resolution always runs
         # inline in the creating agent's own process/turn, which already
         # owns the lane and workspace (and, via `prev_artifacts_timestamp`
-        # pointing at that same creator, the family's runner-slot claim) --
+        # pointing at that same creator, the agent session's runner-slot claim) --
         # never a separate answering process. No follow-up may launch and
         # no claim may be disposed of here.
         settle_gate_shell(

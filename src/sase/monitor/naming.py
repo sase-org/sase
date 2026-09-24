@@ -1,4 +1,4 @@
-"""Suffix and id allocation for monitor family members."""
+"""Suffix and id allocation for monitor agent-session members."""
 
 from __future__ import annotations
 

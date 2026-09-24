@@ -232,7 +232,7 @@ def test_work_force_reuses_workflow_name_only_owner(
 ) -> None:
     """The land name can be reserved as a *workflow_name* of an unrelated agent.
 
-    Reproduces the ``sase-4q`` class: a completed ``home`` agent family whose
+    Reproduces the ``sase-4q`` class: a completed ``home`` agent session whose
     artifact ``name`` is ``<epic_id>.land--code`` but whose ``workflow_name`` is
     the plan's land name (``<epic_id>.land``). Relaunch must wipe that owner before
     the launcher's permanent-name validation runs.

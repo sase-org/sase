@@ -147,7 +147,7 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
     assert record.lane == "acme"
     assert record.idle_timeout_seconds == 10.0
 
-    # The starter is now a promoted family root.
+    # The starter is now a promoted agent-session root.
     starter_meta = json.loads((Path(starter_dir) / "agent_meta.json").read_text())
     assert starter_meta["agent_session"] == "acme"
     assert "agent_family" not in starter_meta

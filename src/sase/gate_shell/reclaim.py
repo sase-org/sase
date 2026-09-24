@@ -447,10 +447,10 @@ def _diagnose_one(
         live = read_gate_shell_marker(record.project_name, record.artifacts_dir)
         if live is None:
             return "skipped"
-        family_records = _resolve_family_records(
+        agent_session_records = _resolve_agent_session_records(
             pass_state, live, deadline=deadline, clock=clock
         )
-        if family_records is None:
+        if agent_session_records is None:
             return None
         meta = {
             "gate_id": live.gate_id,
@@ -471,10 +471,10 @@ def _diagnose_one(
         }
         evidence = collect_successor_evidence(
             project_name=live.project_name,
-            family=live.lane,
+            agent_session=live.lane,
             expected_suffix=live.next_suffix,
             recorded_agent=live.followup_agent,
-            family_records=family_records,
+            agent_session_records=agent_session_records,
         )
         decision = classify_gate_handoff(
             meta,
@@ -492,14 +492,14 @@ def _diagnose_one(
         return "skipped"
 
 
-def _resolve_family_records(
+def _resolve_agent_session_records(
     pass_state: _ReconcilePassState,
     live: GateShellRecord,
     *,
     deadline: float,
     clock: Callable[[], float],
 ) -> tuple[AgentArtifactRecordWire, ...] | None:
-    """Return live's family members from a fresh-enough snapshot, or None to defer.
+    """Return live's agent-session members from a fresh-enough snapshot, or None to defer.
 
     Launching or recording a successor rewrites the gate's metadata, so a
     gate touched after the active snapshot needs fresher evidence. The pass
@@ -508,7 +508,7 @@ def _resolve_family_records(
     deferred instead of falling back to a full per-gate index read.
     """
     if not _changed_since(live, pass_state.snapshot.taken_at):
-        return pass_state.snapshot.family_records(live.project_name, live.lane)
+        return pass_state.snapshot.agent_session_records(live.project_name, live.lane)
     if pass_state.refreshed:
         return None
     if clock() + pass_state.read_seconds >= deadline:
@@ -521,7 +521,7 @@ def _resolve_family_records(
     )
     if _changed_since(live, pass_state.snapshot.taken_at):
         return None
-    return pass_state.snapshot.family_records(live.project_name, live.lane)
+    return pass_state.snapshot.agent_session_records(live.project_name, live.lane)
 
 
 def _changed_since(live: GateShellRecord, taken_at: float) -> bool:

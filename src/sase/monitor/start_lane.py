@@ -40,14 +40,14 @@ class LaneStart:
 
 @dataclass(frozen=True)
 class StartIdentity:
-    """How a start chose its parent artifact and durable family lane.
+    """How a start chose its parent artifact and durable agent-session lane.
 
     ``target`` is the resolved parent's own agent name for an implicit
     start, or the explicit ``--agent`` / lane string. ``context`` is the
     already-resolved artifact for an implicit start, reused by
     ``resolve_lane_start()`` instead of re-resolving; it is ``None`` for
     an explicit start, which still resolves via ``store_lane.resolve_lane()``.
-    ``lock_lane`` is the durable family used for the start lock, replay,
+    ``lock_lane`` is the durable agent session used for the start lock, replay,
     conflict detection, and request fingerprint.
     """
 

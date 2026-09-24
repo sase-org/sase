@@ -43,7 +43,7 @@ def test_caller_artifacts_dir_returns_the_env_value_when_present() -> None:
     assert caller_artifacts_dir({}) is None
 
 
-def test_resolve_lane_picks_the_newest_family_member(
+def test_resolve_lane_picks_the_newest_agent_session_member(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     older = make_starter_agent(
@@ -59,7 +59,7 @@ def test_resolve_lane_picks_the_newest_family_member(
     assert ctx.record.artifact_dir == newer
 
 
-def test_resolve_exact_agent_ignores_newer_sibling_and_family_artifacts(
+def test_resolve_exact_agent_ignores_newer_sibling_and_agent_session_artifacts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     caller = make_starter_agent(
@@ -83,7 +83,7 @@ def test_resolve_exact_agent_ignores_newer_sibling_and_family_artifacts(
         workspace_num=0,
         workspace_dir="/work/primary",
     )
-    family_member = make_starter_agent(
+    agent_session_member = make_starter_agent(
         "proj",
         "20260812120500",
         "02i--code",
@@ -104,18 +104,18 @@ def test_resolve_exact_agent_ignores_newer_sibling_and_family_artifacts(
         workspace_dir="/work/primary",
     )
     patch_project_records(
-        monkeypatch, [caller, sibling, land, family_member, settled_monitor]
+        monkeypatch, [caller, sibling, land, agent_session_member, settled_monitor]
     )
 
     phase = resolve_exact_agent("proj", "sase-m6.6.1.5")
     member = resolve_exact_agent("proj", "02i--code")
     collapsed_phase = resolve_lane("proj", "sase-m6.6.1")
-    family_lane = resolve_lane("proj", "02i")
+    agent_session_lane = resolve_lane("proj", "02i")
 
     assert phase.record.artifact_dir == caller
-    assert member.record.artifact_dir == family_member
+    assert member.record.artifact_dir == agent_session_member
     assert collapsed_phase.record.artifact_dir == sibling
-    assert family_lane.record.artifact_dir == settled_monitor
+    assert agent_session_lane.record.artifact_dir == settled_monitor
 
 
 def test_resolve_caller_agent_pins_the_callers_artifacts_dir_over_a_newer_member(
@@ -134,7 +134,7 @@ def test_resolve_caller_agent_pins_the_callers_artifacts_dir_over_a_newer_member
     assert ctx.record.artifact_dir == older
 
 
-def test_resolve_caller_agent_family_container_resolves_to_newest_non_monitor_member(
+def test_resolve_caller_agent_agent_session_container_resolves_to_newest_non_monitor_member(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = make_starter_agent(
@@ -153,32 +153,36 @@ def test_resolve_caller_agent_family_container_resolves_to_newest_non_monitor_me
         monitor_state="completed",
         monitor_settled=True,
     )
-    other_family = make_starter_agent(
+    other_agent_session = make_starter_agent(
         "proj", "20260812150000", "other--code", agent_session="other"
     )
-    patch_project_records(monkeypatch, [plan, code, settled_monitor, other_family])
+    patch_project_records(
+        monkeypatch, [plan, code, settled_monitor, other_agent_session]
+    )
 
     ctx = resolve_caller_agent("proj", "046")
 
     assert ctx.record.artifact_dir == code
 
 
-def test_resolve_caller_agent_exact_name_wins_over_family_and_sibling_records(
+def test_resolve_caller_agent_exact_name_wins_over_agent_session_and_sibling_records(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     phase_caller = make_starter_agent("proj", "20260812120000", "sase-m6.6.1.5")
     sibling = make_starter_agent("proj", "20260812125000", "sase-m6.6.1")
     land = make_starter_agent("proj", "20260812130000", "sase-m6.10")
-    family_member = make_starter_agent(
+    agent_session_member = make_starter_agent(
         "proj", "20260812120500", "02i--code", agent_session="02i"
     )
-    patch_project_records(monkeypatch, [phase_caller, sibling, land, family_member])
+    patch_project_records(
+        monkeypatch, [phase_caller, sibling, land, agent_session_member]
+    )
 
     phase_ctx = resolve_caller_agent("proj", "sase-m6.6.1.5")
     member_ctx = resolve_caller_agent("proj", "02i--code")
 
     assert phase_ctx.record.artifact_dir == phase_caller
-    assert member_ctx.record.artifact_dir == family_member
+    assert member_ctx.record.artifact_dir == agent_session_member
 
 
 def test_resolve_caller_agent_ignores_a_foreign_artifacts_dir(
@@ -206,7 +210,7 @@ def test_resolve_caller_agent_raises_a_usage_error_when_unresolvable(
         resolve_caller_agent("proj", "ghost")
 
 
-def test_durable_lane_for_record_prefers_agent_family_metadata(
+def test_durable_lane_for_record_prefers_agent_session_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     bare = make_starter_agent("proj", "20260812120000", "sase-m6.6.1.5")

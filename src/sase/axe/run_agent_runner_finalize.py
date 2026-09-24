@@ -269,12 +269,13 @@ def _completion_notification_agent_name(
     agent_name: str | None,
     current_artifacts_dir: str | None,
 ) -> str | None:
-    """Prefer the artifact's agent family for user-facing completion identity.
+    """Prefer the artifact's agent session for user-facing completion identity.
 
-    Monitor follow-up shells such as ``0bw--1`` belong to family ``0bw``. The
-    completion note, ``action_data.agent_name``, and bead-display lookup should
-    name that family. Missing or malformed metadata keeps *agent_name*; family
-    is never inferred from dotted standalone names such as ``sase-x.3``.
+    Monitor follow-up shells such as ``0bw--1`` belong to agent session ``0bw``.
+    The completion note, ``action_data.agent_name``, and bead-display lookup
+    should name that agent session. Missing or malformed metadata keeps
+    *agent_name*; the agent session is never inferred from dotted standalone
+    names such as ``sase-x.3``.
     """
     if not current_artifacts_dir:
         return agent_name
@@ -284,11 +285,11 @@ def _completion_notification_agent_name(
             meta = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return agent_name
-    family = agent_session_value(meta) if isinstance(meta, dict) else None
-    if isinstance(family, str):
-        family = family.strip()
-        if family:
-            return family
+    agent_session = agent_session_value(meta) if isinstance(meta, dict) else None
+    if isinstance(agent_session, str):
+        agent_session = agent_session.strip()
+        if agent_session:
+            return agent_session
     return agent_name
 
 
