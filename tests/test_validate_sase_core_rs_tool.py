@@ -653,3 +653,54 @@ def test_validate_sase_core_rs_requires_finalizer_bindings() -> None:
         assert not validator._validate_bindings(
             module_with_required_bindings(validator, missing={binding})
         )
+
+
+def test_validate_sase_core_rs_requires_tool_run_handoff_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {"tool_run_claim", "tool_run_request_stop"}
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def test_validate_sase_core_rs_probes_tool_run_handoff_contract() -> None:
+    validator = load_validate_sase_core_rs()
+    good = SimpleNamespace(
+        tool_run_normalize_definition=lambda definition: {
+            "digest": "digest-1",
+            "definition": definition,
+        },
+        tool_run_begin=lambda store, request, timeout: {
+            "run": {"run_id": "run-1", "state": "created"}
+        },
+        tool_run_claim=lambda store, request, timeout: {
+            "outcome": "refused",
+            "refusal": "owner_mismatch",
+            "run": {"run_id": "run-1"},
+        },
+        tool_run_show=lambda store, request, timeout: {
+            "run": {"run_id": "run-1", "state": "created"}
+        },
+    )
+    assert validator._validate_tool_run_handoff_contract(good)
+    stale = SimpleNamespace(
+        tool_run_normalize_definition=lambda definition: {
+            "digest": "digest-1",
+            "definition": definition,
+        },
+        tool_run_begin=lambda store, request, timeout: {
+            "run": {"run_id": "run-1", "state": "created"}
+        },
+        tool_run_claim=lambda store, request, timeout: {
+            "outcome": "claimed",
+            "run": {"run_id": "run-1"},
+        },
+        tool_run_show=lambda store, request, timeout: {
+            "run": {"run_id": "run-1", "state": "created"}
+        },
+    )
+    assert not validator._validate_tool_run_handoff_contract(stale)

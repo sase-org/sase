@@ -131,6 +131,40 @@ def tool_run_reconcile(
     )
 
 
+def tool_run_claim(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Atomically claim a reserved hand-off run for its owner."""
+
+    return dict(
+        require_rust_binding("tool_run_claim")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
+def tool_run_request_stop(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Record a durable stop request for a ToolRun."""
+
+    return dict(
+        require_rust_binding("tool_run_request_stop")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
 def tool_run_list(
     request: Mapping[str, Any] | None = None,
     *,
@@ -234,11 +268,13 @@ __all__ = [
     "tool_run_append_event",
     "tool_run_begin",
     "tool_run_canonicalize_fingerprint",
+    "tool_run_claim",
     "tool_run_finish",
     "tool_run_list",
     "tool_run_normalize_definition",
     "tool_run_observe",
     "tool_run_reconcile",
+    "tool_run_request_stop",
     "tool_run_retention_apply",
     "tool_run_retention_preview",
     "tool_run_show",

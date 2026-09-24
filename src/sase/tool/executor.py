@@ -43,6 +43,7 @@ from sase.tool.logs import (
     LogSinkError,
     RunLogBudget,
     log_policy,
+    log_write_diagnostics,
     prepare_run_paths,
     record_truncation,
     truncation_diagnostics,
@@ -334,6 +335,7 @@ def _execute_resolved(
             write_display(sys.stderr, f"{line}\n".encode())
         ingest_diagnostics = list(ingestor.diagnostics)
     truncation = truncation_diagnostics(stdout_sink, stderr_sink, budget)
+    log_write_facts = log_write_diagnostics(stdout_sink, stderr_sink)
     if recorded:
         record_truncation(events_path, run_id, truncation)
     if log_failed and recorded:
@@ -351,7 +353,7 @@ def _execute_resolved(
             duration_ms=duration_ms,
             child_pid=child_pid,
             child_pgid=child_pgid,
-            diagnostics=ingest_diagnostics or None,
+            diagnostics=[*ingest_diagnostics, *truncation, *log_write_facts] or None,
             fingerprint_before=fingerprint_before,
             fingerprint_after=fingerprint_after,
         )

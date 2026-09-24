@@ -7,10 +7,12 @@ import pytest
 
 from sase.core.tool_run import (
     tool_run_begin,
+    tool_run_claim,
     tool_run_finish,
     tool_run_list,
     tool_run_observe,
     tool_run_reconcile,
+    tool_run_request_stop,
     tool_run_show,
     tool_run_store_stats,
     tool_run_unknown_evidence,
@@ -159,3 +161,115 @@ def test_observe_persists_child_facts_and_reconcile_authorizes_reap(
             "child_process_start_identity": "boot-1:12345",
         }
     ]
+
+
+@pytest.mark.skipif(
+    not hasattr(importlib.import_module("sase_core_rs"), "tool_run_claim"),
+    reason="tool_run_claim is not in this wheel",
+)
+def test_handoff_reserve_claim_stop_finish_reconcile(tmp_path: Path) -> None:
+    store = str(tmp_path / "tools" / "runs.sqlite")
+    definition = {
+        "schema_version": 1,
+        "name": "check",
+        "argv": ["just", "check"],
+        "description": "check",
+        "stages": "run_silent",
+        "inputs": ["Justfile"],
+        "env": [],
+        "args": "deny",
+        "fingerprint": {"repos": [], "toolchain": {}},
+    }
+    started = tool_run_begin(
+        {
+            "schema_version": 1,
+            "tool_name": "check",
+            "definition": definition,
+            "display_argv": ["just", "check"],
+            "project": "sase",
+            "now_ts": 10,
+            "commit_running": False,
+            "launch_mode": "handoff",
+            "owner_kind": "proc",
+            "owner_id": "proc-1",
+            "owner_log_path": "logs/proc-1.log",
+            "wrapper_pid": 111,
+            "boot_id": "boot-1",
+            "process_start_identity": "boot-1:111",
+            "launch": {
+                "argv": ["just", "check"],
+                "tool_name": "check",
+                "extra_args": [],
+                "display_argv": ["just", "check"],
+                "definition": definition,
+                "adhoc": False,
+            },
+        },
+        store_path=store,
+    )
+    assert started["run"]["state"] == "created"
+    run_id = started["run"]["run_id"]
+    claimed = tool_run_claim(
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "owner_kind": "proc",
+            "owner_id": "proc-1",
+            "wrapper_pid": 4242,
+            "boot_id": "boot-1",
+            "process_start_identity": "boot-1:4242",
+            "now_ts": 11,
+        },
+        store_path=store,
+    )
+    assert claimed["outcome"] == "claimed"
+    assert claimed["launch"]["argv"] == ["just", "check"]
+    stopped = tool_run_request_stop(
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "requested_by": "agent-1",
+            "now_ts": 12,
+        },
+        store_path=store,
+    )
+    assert stopped["outcome"] == "recorded"
+    finished = tool_run_finish(
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "state": "signaled",
+            "terminal_cause": "stop_requested",
+            "diagnostics": ["stopped by request"],
+            "duration_ms": 5,
+            "now_ts": 13,
+        },
+        store_path=store,
+    )
+    assert finished["run"]["terminal_cause"] == "stop_requested"
+    assert "stopped by request" in finished["run"]["diagnostics"]
+    reconciled = tool_run_reconcile(
+        {
+            "schema_version": 1,
+            "facts": [
+                {
+                    "run_id": run_id,
+                    "wrapper_pid": 4242,
+                    "boot_id": "boot-1",
+                    "process_start_identity": "boot-1:4242",
+                    "observation": "dead",
+                    "owner": {
+                        "kind": "proc",
+                        "id": "proc-1",
+                        "state": "terminal",
+                        "exit_code": 0,
+                        "termination_reason": "success",
+                    },
+                }
+            ],
+            "now_ts": 14,
+        },
+        store_path=store,
+    )
+    assert reconciled["persisted"] is True
+    assert reconciled["settled"] == []

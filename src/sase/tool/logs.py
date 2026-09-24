@@ -133,6 +133,19 @@ class BoundedLogSink:
             self._line_buf.clear()
 
 
+def log_write_diagnostics(
+    stdout_sink: BoundedLogSink | None,
+    stderr_sink: BoundedLogSink | None,
+) -> list[str]:
+    """Return one explicit fact per retained log sink whose write failed."""
+
+    facts = []
+    for label, sink in (("stdout", stdout_sink), ("stderr", stderr_sink)):
+        if sink is not None and sink.failed:
+            facts.append(f"retained {label} log write failed: {sink.path}")
+    return facts
+
+
 def truncation_diagnostics(
     stdout_sink: BoundedLogSink | None,
     stderr_sink: BoundedLogSink | None,
@@ -282,6 +295,7 @@ __all__ = [
     "LogSinkError",
     "RunLogBudget",
     "log_policy",
+    "log_write_diagnostics",
     "prepare_run_paths",
     "read_truncation_messages",
     "record_truncation",

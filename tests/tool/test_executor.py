@@ -372,3 +372,68 @@ def test_settled_proc_id_is_stale_but_unknown_or_running_procs_still_own(
 
     monkeypatch.setattr("sase.procs.store.get_proc", boom)
     assert ownership.resolve_ownership(quiet=False).owner_kind == "proc"
+
+
+@pytest.mark.skipif(
+    not hasattr(__import__("sase_core_rs"), "tool_run_claim"),
+    reason="tool_run_claim is not in this wheel",
+)
+def test_finish_diagnostics_persist_spawn_and_truncation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _home(monkeypatch, tmp_path)
+    code = _run("--", str(tmp_path / "missing-cmd"))
+    captured = capsys.readouterr()
+    assert code == 127
+    header = next(
+        line for line in captured.err.splitlines() if "sase tool run " in line
+    )
+    run_id = header.split("sase tool run ")[1].strip().split()[0]
+    shown = tool_run_show(run_id)
+    assert shown["run"]["run_id"] == run_id
+    assert any(
+        "executable not found" in item or "not found" in item
+        for item in shown["run"]["diagnostics"]
+    )
+    from sase.tool.logs import (
+        BoundedLogSink,
+        RunLogBudget,
+        log_write_diagnostics,
+        truncation_diagnostics,
+    )
+
+    budget = RunLogBudget(10)
+    stdout_path = tmp_path / "stdout.log"
+    stderr_path = tmp_path / "stderr.log"
+    stdout_sink = BoundedLogSink(stdout_path, budget, tail_lines=10)
+    stderr_sink = BoundedLogSink(stderr_path, budget, tail_lines=10)
+    stdout_sink.write(b"x" * 100)
+    stdout_sink.close()
+    stderr_sink.close()
+    truncation = truncation_diagnostics(stdout_sink, stderr_sink, budget)
+    assert truncation
+    stdout_sink.failed = True
+    write_facts = log_write_diagnostics(stdout_sink, stderr_sink)
+    assert any("stdout" in item for item in write_facts)
+    monkeypatch.setattr(
+        "sase.tool.executor.log_policy",
+        lambda: {"run_log_max_bytes": 10, "event_max_bytes": 1024 * 1024},
+    )
+    code = _run(
+        "--",
+        "python3",
+        "-c",
+        "import sys; sys.stdout.write('y' * 1000)",
+    )
+    captured = capsys.readouterr()
+    assert code == 0
+    header = next(
+        line for line in captured.err.splitlines() if "sase tool run " in line
+    )
+    trunc_id = header.split("sase tool run ")[1].strip().split()[0]
+    shown = tool_run_show(trunc_id)
+    assert any(
+        "retained output truncated" in item for item in shown["run"]["diagnostics"]
+    )

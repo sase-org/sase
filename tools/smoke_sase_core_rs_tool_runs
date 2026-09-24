@@ -22,6 +22,8 @@ TOOL_RUN_BINDINGS = (
     "tool_run_finish",
     "tool_run_observe",
     "tool_run_reconcile",
+    "tool_run_claim",
+    "tool_run_request_stop",
     "tool_run_list",
     "tool_run_show",
     "tool_run_summary",
@@ -164,12 +166,122 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
         )
         if preview.get("dry_run") is not True:
             raise RuntimeError(f"preview must be dry-run: {preview!r}")
+        handoff_started = module.tool_run_begin(
+            store_path,
+            {
+                "schema_version": 1,
+                "tool_name": "check",
+                "definition": definition,
+                "display_argv": ["just", "check"],
+                "project": "sase",
+                "now_ts": 30,
+                "commit_running": False,
+                "launch_mode": "handoff",
+                "owner_kind": "proc",
+                "owner_id": "proc-1",
+                "owner_log_path": "logs/proc-1.log",
+                "wrapper_pid": 111,
+                "boot_id": "boot-1",
+                "process_start_identity": "boot-1:111",
+                "launch": {
+                    "argv": ["just", "check"],
+                    "tool_name": "check",
+                    "extra_args": [],
+                    "display_argv": ["just", "check"],
+                    "definition": definition,
+                    "digest": digest,
+                    "adhoc": False,
+                },
+            },
+            1_000,
+        )
+        handoff_run = handoff_started["run"]
+        handoff_id = handoff_run["run_id"]
+        if handoff_run.get("state") != "created":
+            raise RuntimeError(f"expected created handoff: {handoff_started!r}")
+        handoff_shown = module.tool_run_show(
+            store_path,
+            {"schema_version": 1, "run_id": handoff_id},
+            1_000,
+        )
+        if "launch" in (handoff_shown.get("run") or {}):
+            raise RuntimeError(f"show must not expose launch: {handoff_shown!r}")
+        claimed = module.tool_run_claim(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": handoff_id,
+                "owner_kind": "proc",
+                "owner_id": "proc-1",
+                "wrapper_pid": 4242,
+                "boot_id": "boot-1",
+                "process_start_identity": "boot-1:4242",
+                "now_ts": 31,
+            },
+            1_000,
+        )
+        if claimed.get("outcome") != "claimed":
+            raise RuntimeError(f"claim failed: {claimed!r}")
+        if (claimed.get("launch") or {}).get("argv") != ["just", "check"]:
+            raise RuntimeError(f"claim envelope mismatch: {claimed!r}")
+        replayed_claim = module.tool_run_claim(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": handoff_id,
+                "owner_kind": "proc",
+                "owner_id": "proc-1",
+                "wrapper_pid": 4242,
+                "boot_id": "boot-1",
+                "process_start_identity": "boot-1:4242",
+                "now_ts": 31,
+            },
+            1_000,
+        )
+        if replayed_claim.get("replayed") is not True:
+            raise RuntimeError(f"replayed claim must replay: {replayed_claim!r}")
+        stopped = module.tool_run_request_stop(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": handoff_id,
+                "requested_by": "agent-1",
+                "now_ts": 32,
+            },
+            1_000,
+        )
+        if stopped.get("outcome") != "recorded":
+            raise RuntimeError(f"stop must record: {stopped!r}")
+        handoff_finished = module.tool_run_finish(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": handoff_id,
+                "state": "signaled",
+                "terminal_cause": "stop_requested",
+                "diagnostics": ["stopped by request"],
+                "now_ts": 33,
+            },
+            1_000,
+        )
+        if handoff_finished["run"].get("terminal_cause") != "stop_requested":
+            raise RuntimeError(f"finish must persist cause: {handoff_finished!r}")
+        if "stopped by request" not in handoff_finished["run"].get(
+            "diagnostics", []
+        ):
+            raise RuntimeError(
+                f"finish must persist diagnostics: {handoff_finished!r}"
+            )
     return {
         "schema_version": 1,
         "run_state": finished["run"]["state"],
         "run_count": stats["run_count"],
         "typical_duration_ms": summary["typical_duration_ms"],
         "unknown_complete": unknown["completeness"]["complete"],
+        "handoff_outcome": claimed["outcome"],
+        "handoff_replayed": replayed_claim["replayed"],
+        "handoff_stop": stopped["outcome"],
+        "handoff_cause": handoff_finished["run"]["terminal_cause"],
     }
 
 

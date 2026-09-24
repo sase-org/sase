@@ -374,6 +374,8 @@ REQUIRED_BINDINGS = (
     "project_tag_expand",
     "project_tag_trigger",
     "project_tag_apply_selection",
+    "tool_run_claim",
+    "tool_run_request_stop",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
@@ -2644,6 +2646,99 @@ def _validate_axe_chop_guard_providers(
     return valid
 
 
+def _validate_tool_run_handoff_contract(module: ModuleType) -> bool:
+    """Probe hand-off reservation behavior beyond binding names.
+
+    A local core built before the handoff contract exports the old names but
+    rejects the hand-off begin or raises on a mismatched claim instead of
+    refusing with ``owner_mismatch``. This probe exercises the smallest
+    reservation the sase checkout relies on in a temporary store.
+    """
+
+    definition = {
+        "schema_version": 1,
+        "name": "check",
+        "argv": ["just", "check"],
+        "description": "check",
+        "stages": "run_silent",
+        "inputs": ["Justfile"],
+        "env": [],
+        "args": "deny",
+        "fingerprint": {"repos": [], "toolchain": {}},
+    }
+    try:
+        normalized = module.tool_run_normalize_definition(definition)
+        digest = normalized["digest"]
+    except Exception as exc:
+        _error(f"tool-run handoff probe could not normalize: {exc}")
+        return False
+    with tempfile.TemporaryDirectory(
+        prefix="sase-core-rs-tool-run-handoff-probe-"
+    ) as tmp:
+        store_path = str(Path(tmp) / "tools" / "runs.sqlite")
+        try:
+            started = module.tool_run_begin(
+                store_path,
+                {
+                    "schema_version": 1,
+                    "tool_name": "check",
+                    "definition": definition,
+                    "display_argv": ["just", "check"],
+                    "project": "sase",
+                    "now_ts": 10,
+                    "commit_running": False,
+                    "launch_mode": "handoff",
+                    "owner_kind": "proc",
+                    "owner_id": "proc-1",
+                    "wrapper_pid": 111,
+                    "boot_id": "boot-1",
+                    "process_start_identity": "boot-1:111",
+                    "launch": {
+                        "argv": ["just", "check"],
+                        "tool_name": "check",
+                        "extra_args": [],
+                        "display_argv": ["just", "check"],
+                        "definition": definition,
+                        "digest": digest,
+                        "adhoc": False,
+                    },
+                },
+                1_000,
+            )
+            run_id = started["run"]["run_id"]
+            refused = module.tool_run_claim(
+                store_path,
+                {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "owner_kind": "proc",
+                    "owner_id": "other",
+                    "wrapper_pid": 4242,
+                    "now_ts": 11,
+                },
+                1_000,
+            )
+            shown = module.tool_run_show(
+                store_path,
+                {"schema_version": 1, "run_id": run_id},
+                1_000,
+            )
+        except Exception as exc:
+            _error(f"tool-run handoff contract probe failed: {exc}")
+            return False
+    if not isinstance(refused, dict) or refused.get("outcome") != "refused":
+        _error(f"tool-run handoff probe did not refuse: {refused!r}")
+        return False
+    if refused.get("refusal") != "owner_mismatch":
+        _error(f"tool-run handoff probe returned {refused!r}")
+        return False
+    shown_run = shown.get("run") if isinstance(shown, dict) else None
+    if not isinstance(shown_run, dict) or "launch" in shown_run:
+        _error(f"tool-run handoff probe exposed the envelope: {shown!r}")
+        return False
+    return True
+
+
 def _load_version_validator() -> ModuleType:
     """Load `tools/validate_sase_core_rs_version` to reuse its specifier parsing.
 
@@ -2778,6 +2873,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_provider_disable_first_writer(module):
         return 1
     if not _validate_provider_priority_routing_contract(module):
+        return 1
+    if not _validate_tool_run_handoff_contract(module):
         return 1
     return 0
 

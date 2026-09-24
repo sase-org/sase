@@ -38,3 +38,9 @@ def test_installed_core_tool_runs_round_trip() -> None:
     assert result["run_count"] == 1
     assert result["typical_duration_ms"] == 12
     assert result["unknown_complete"] is False
+    if not hasattr(module, "tool_run_claim"):
+        pytest.skip("tool_run_claim is not in this wheel")
+    assert result["handoff_outcome"] == "claimed"
+    assert result["handoff_replayed"] is True
+    assert result["handoff_stop"] == "recorded"
+    assert result["handoff_cause"] == "stop_requested"
