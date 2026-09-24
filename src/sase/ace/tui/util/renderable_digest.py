@@ -46,6 +46,17 @@ def _update_digest(hasher: Any, node: object) -> None:
         for child in node.renderables:
             _update_digest(hasher, child)
         return
+    if bool(getattr(node, "__sase_card_part__", False)):
+        hasher.update(b"K")
+        hasher.update(
+            str(getattr(node, "card_id", "")).encode("utf-8", errors="replace")
+        )
+        hasher.update(b"\x00")
+        hasher.update(str(getattr(node, "title", "")).encode("utf-8", errors="replace"))
+        hasher.update(b"\x00")
+        for child in getattr(node, "renderables", ()):
+            _update_digest(hasher, child)
+        return
     if isinstance(node, str):
         hasher.update(b"s")
         hasher.update(node.encode("utf-8", errors="replace"))

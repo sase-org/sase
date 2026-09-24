@@ -43,12 +43,22 @@ def _make_agent(**overrides: object) -> Agent:
 
 
 def _plain(renderable: object) -> str:
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    renderable = flatten_card_document(renderable)
     if isinstance(renderable, Text):
         return renderable.plain
     if isinstance(renderable, Syntax):
         return str(renderable.code)
+    if bool(getattr(renderable, "__sase_card_part__", False)):
+        return "\n".join(
+            _plain(item) for item in getattr(renderable, "renderables", ())
+        )
     if isinstance(renderable, Group):
         return "\n".join(_plain(item) for item in renderable.renderables)
+    plain = getattr(renderable, "plain", None)
+    if isinstance(plain, str):
+        return plain
     return str(renderable)
 
 

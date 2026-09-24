@@ -47,7 +47,15 @@ class _FakePanel(AgentDisplayMixin):
         self.captured.append(renderable)
 
 
-def _concat_plain(group: Group) -> str:
+def _concat_plain(group: object) -> str:
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    group = flatten_card_document(group)
+    if not isinstance(group, Group):
+        plain = getattr(group, "plain", None)
+        if isinstance(plain, str):
+            return plain
+        return str(group)
     parts: list[str] = []
     for r in group.renderables:
         if isinstance(r, Text):
@@ -57,7 +65,8 @@ def _concat_plain(group: Group) -> str:
         elif hasattr(r, "code"):
             parts.append(str(r.code))
         else:
-            parts.append(str(r))
+            plain = getattr(r, "plain", None)
+            parts.append(plain if isinstance(plain, str) else str(r))
     return "\n".join(parts)
 
 
@@ -118,9 +127,12 @@ def test_render_attempt_pinned_missing_attempt_shows_error() -> None:
     panel.attempt_pinned_number = 5
     panel.update_display(agent)
 
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
     rendered = panel.captured[-1]
-    assert isinstance(rendered, Text)
-    assert "Attempt 5 not found" in rendered.plain
+    flat = flatten_card_document(rendered)
+    assert isinstance(flat, Text)
+    assert "Attempt 5 not found" in flat.plain
 
 
 def test_render_attempt_pinned_handles_missing_reply_file() -> None:

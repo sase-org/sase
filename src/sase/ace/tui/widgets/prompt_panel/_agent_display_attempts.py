@@ -6,13 +6,13 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from rich.console import Group
 from rich.text import Text
 
 from sase.core.time import get_timezone
 
 from ...models.agent import Agent, AttemptRecord
 from ...util.lazy_syntax import lazy_renderable
+from ..decks.card_part import card_document, context_card, reply_card
 from ._agent_display_content import (
     get_prompt_content,
     render_attempt_divider,
@@ -75,14 +75,14 @@ class AgentAttemptDisplayMixin:
         aren't snapshotted per-attempt; the detail panel hides those panels.
         """
         record = find_attempt(agent, attempt_number)
-        renderables: list[Any] = []
+        context_parts: list[Any] = []
         if record is None:
             missing = Text()
             missing.append(
                 f"Attempt {attempt_number} not found for this agent.\n",
                 style="bold #FF5F5F",
             )
-            self.update(missing)  # type: ignore[attr-defined]
+            self.update(card_document(context_card(missing)))  # type: ignore[attr-defined]
             return
 
         banner: Any = render_attempt_banner(record, total=len(agent.attempt_history))
@@ -107,31 +107,31 @@ class AgentAttemptDisplayMixin:
             identity = find_identity_header(identity_document)
             if identity is not None:
                 banner = AgentHeaderRenderable(banner, (), identity_header=identity)
-        renderables.append(banner)
+        context_parts.append(banner)
 
         if record.error_full.strip():
-            renderables.append(lazy_renderable(record.error_full, "pytb"))
+            context_parts.append(lazy_renderable(record.error_full, "pytb"))
         elif record.error_snippet:
             snippet = Text()
             snippet.append(f"{record.error_snippet}\n", style="#FF5F5F")
-            renderables.append(snippet)
+            context_parts.append(snippet)
 
         divider = Text()
         divider.append("\n")
         divider.append("─" * 50 + "\n", style="dim")
         divider.append("\n")
-        renderables.append(divider)
+        context_parts.append(divider)
 
         prompt_header = Text()
         append_section_heading(prompt_header, "AGENT PROMPT")
-        renderables.append(prompt_header)
+        context_parts.append(prompt_header)
         prompt_content = get_prompt_content(agent)
         if prompt_content:
-            renderables.append(
+            context_parts.append(
                 self._render_agent_prompt(agent, prompt_content)  # type: ignore[attr-defined]
             )
         else:
-            renderables.append(Text("No prompt file found.\n", style="dim italic"))
+            context_parts.append(Text("No prompt file found.\n", style="dim italic"))
 
         reply_header = Text()
         reply_header.append("\n")
@@ -142,29 +142,34 @@ class AgentAttemptDisplayMixin:
             f"ATTEMPT {record.attempt_number} REPLY",
             section_id="attempt-reply",
         )
-        renderables.append(reply_header)
+        reply_parts: list[Any] = [reply_header]
 
         chunks = record.get_timestamped_reply_chunks()
         if chunks:
             for ts, chunk_text in chunks:
-                renderables.append(render_timestamp_divider(ts))
+                reply_parts.append(render_timestamp_divider(ts))
                 content = chunk_text.strip()
                 if content:
-                    renderables.append(
+                    reply_parts.append(
                         self._render_markdown(content)  # type: ignore[attr-defined]
                     )
         else:
             reply = record.get_reply_content()
             if reply and reply.strip():
-                renderables.append(
+                reply_parts.append(
                     self._render_markdown(reply)  # type: ignore[attr-defined]
                 )
             else:
-                renderables.append(
+                reply_parts.append(
                     Text("(no partial reply captured)\n", style="dim italic")
                 )
 
-        self.update(Group(*renderables))  # type: ignore[attr-defined]
+        self.update(  # type: ignore[attr-defined]
+            card_document(
+                context_card(*context_parts),
+                reply_card(*reply_parts),
+            )
+        )
 
 
 def find_attempt(agent: Agent, attempt_number: int) -> AttemptRecord | None:

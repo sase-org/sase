@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 
@@ -30,7 +29,9 @@ from ._agent_proc_shell_section import (
     build_proc_shell_preview,
     build_proc_shell_section,
 )
+from ..decks.card_part import card_document, context_card, output_card
 from ._helpers import append_section_heading, format_output
+from ._traceback_section import build_traceback_block
 
 
 class AgentStepDisplayMixin:
@@ -64,21 +65,23 @@ class AgentStepDisplayMixin:
         output_header.append("\n")
         append_section_heading(output_header, "STEP OUTPUT")
 
-        renderables: list[Any] = [header_text]
-        if error_tb_syntax:
-            renderables.append(error_tb_syntax)
-        renderables.append(source_content)
+        output_parts: list[Any] = [*build_traceback_block(error_tb_syntax)]
 
         step_output = resolve_step_output(agent)
         if step_output:
             output_str = format_output(step_output)
             output_syntax = lazy_renderable(output_str, "json")
-            renderables.extend([output_header, output_syntax])
+            output_parts.extend([output_header, output_syntax])
         else:
             output_header.append("No output available.\n", style="dim italic")
-            renderables.append(output_header)
+            output_parts.append(output_header)
 
-        self.update(Group(*renderables))  # type: ignore[attr-defined]
+        self.update(  # type: ignore[attr-defined]
+            card_document(
+                context_card(header_text, source_content),
+                output_card(*output_parts),  # type: ignore[arg-type]
+            )
+        )
 
     def _update_parallel_display(
         self,
@@ -87,21 +90,32 @@ class AgentStepDisplayMixin:
         error_tb_syntax: Syntax | None = None,
     ) -> None:
         """Display output for a parallel workflow step without a prompt."""
-        append_section_heading(header_text, "STEP OUTPUT")
+        try:
+            header_text.end = ""
+        except Exception:
+            pass
+        output_header = Text()
+        append_section_heading(output_header, "STEP OUTPUT")
 
-        renderables: list[Any] = [header_text]
-        if error_tb_syntax:
-            renderables.append(error_tb_syntax)
+        output_parts: list[Any] = [
+            *build_traceback_block(error_tb_syntax),
+            output_header,
+        ]
 
         step_output = resolve_step_output(agent)
         if step_output:
             output_str = format_output(step_output)
             output_syntax = lazy_renderable(output_str, "json")
-            renderables.append(output_syntax)
+            output_parts.append(output_syntax)
         else:
-            renderables.append(Text("No output available.\n", style="dim italic"))
+            output_parts.append(Text("No output available.\n", style="dim italic"))
 
-        self.update(Group(*renderables))  # type: ignore[attr-defined]
+        self.update(  # type: ignore[attr-defined]
+            card_document(
+                context_card(header_text),
+                output_card(*output_parts),  # type: ignore[arg-type]
+            )
+        )
 
     def _update_monitor_display(
         self,
@@ -121,13 +135,21 @@ class AgentStepDisplayMixin:
         overrides = section_fold_overrides or {}
         section_level = overrides.get(MONITOR_SECTION_ID, panel_level)
 
-        renderables: list[Any] = [header_text]
-        if error_tb_syntax:
-            renderables.append(error_tb_syntax)
-        renderables.extend(build_monitor_section(agent, panel_level=section_level))
-        renderables.extend(build_monitor_output(agent))
+        context_parts: list[Any] = [
+            header_text,
+            *build_monitor_section(agent, panel_level=section_level),
+        ]
+        output_parts: list[Any] = [
+            *build_traceback_block(error_tb_syntax),
+            *build_monitor_output(agent),
+        ]
 
-        self.update(Group(*renderables))  # type: ignore[attr-defined]
+        self.update(  # type: ignore[attr-defined]
+            card_document(
+                context_card(*context_parts),  # type: ignore[arg-type]
+                output_card(*output_parts),  # type: ignore[arg-type]
+            )
+        )
 
     def _update_gate_display(
         self,
@@ -142,13 +164,21 @@ class AgentStepDisplayMixin:
         overrides = section_fold_overrides or {}
         section_level = overrides.get(GATE_SECTION_ID, panel_level)
 
-        renderables: list[Any] = [header_text]
-        if error_tb_syntax:
-            renderables.append(error_tb_syntax)
-        renderables.extend(build_gate_section(agent, panel_level=section_level))
-        renderables.extend(build_gate_output(agent))
+        context_parts = [
+            header_text,
+            *build_gate_section(agent, panel_level=section_level),
+        ]
+        output_parts: list[Any] = [
+            *build_traceback_block(error_tb_syntax),
+            *build_gate_output(agent),
+        ]
 
-        self.update(Group(*renderables))  # type: ignore[attr-defined]
+        self.update(  # type: ignore[attr-defined]
+            card_document(
+                context_card(*context_parts),  # type: ignore[arg-type]
+                output_card(*output_parts),  # type: ignore[arg-type]
+            )
+        )
 
     def _update_proc_shell_display(
         self,
@@ -163,11 +193,19 @@ class AgentStepDisplayMixin:
         overrides = section_fold_overrides or {}
         section_level = overrides.get(PROC_SHELL_SECTION_ID, panel_level)
 
-        renderables: list[Any] = [header_text]
-        if error_tb_syntax:
-            renderables.append(error_tb_syntax)
-        renderables.extend(build_proc_shell_preview(agent))
-        renderables.extend(build_proc_shell_section(agent, panel_level=section_level))
-        renderables.extend(build_proc_shell_output(agent))
+        context_parts = [
+            header_text,
+            *build_proc_shell_preview(agent),
+            *build_proc_shell_section(agent, panel_level=section_level),
+        ]
+        output_parts: list[Any] = [
+            *build_traceback_block(error_tb_syntax),
+            *build_proc_shell_output(agent),
+        ]
 
-        self.update(Group(*renderables))  # type: ignore[attr-defined]
+        self.update(  # type: ignore[attr-defined]
+            card_document(
+                context_card(*context_parts),  # type: ignore[arg-type]
+                output_card(*output_parts),  # type: ignore[arg-type]
+            )
+        )

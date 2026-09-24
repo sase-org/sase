@@ -158,7 +158,9 @@ def test_collapsed_presence_discovery_enriches_and_reuses_member_artifacts(
 
     panel.update_display(container)
 
-    cold = cast(Text, panel.captured[-1]).plain
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    cold = cast(Text, flatten_card_document(panel.captured[-1])).plain
     for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
         assert heading not in cold
     assert cold.count("⋯ scanning member data…") == 1
@@ -180,7 +182,7 @@ def test_collapsed_presence_discovery_enriches_and_reuses_member_artifacts(
         "#review representative segment",
         "Inspect the clan summary contract.",
     ]
-    enriched = cast(Text, panel.captured[-1]).plain
+    enriched = cast(Text, flatten_card_document(panel.captured[-1])).plain
     assert "▸ REPLIES · 1" in enriched
     assert "▸ PROMPTS · 2" in enriched
     assert "SLOW TOOL CALLS" not in enriched

@@ -81,6 +81,12 @@ def _find_carrier(content: object) -> AgentHeaderRenderable | None:
     """Return the first document carrier inside ``content``, if any."""
     if isinstance(content, AgentHeaderRenderable):
         return content
+    if bool(getattr(content, "__sase_card_part__", False)):
+        for child in getattr(content, "renderables", ()):
+            found = _find_carrier(child)
+            if found is not None:
+                return found
+        return None
     if isinstance(content, Group):
         for child in content.renderables:
             found = _find_carrier(child)

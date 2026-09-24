@@ -57,8 +57,13 @@ class _FakePanel(AgentDisplayMixin):
 
 def _plain_of(renderable: object) -> str:
     """Flatten a Group/Text into its plain text for assertions."""
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    renderable = flatten_card_document(renderable)
     if isinstance(renderable, Text):
         return renderable.plain
+    if isinstance(renderable, Syntax):
+        return str(renderable.code)
     if isinstance(renderable, Group):
         parts: list[str] = []
         for r in renderable.renderables:
@@ -66,7 +71,13 @@ def _plain_of(renderable: object) -> str:
                 parts.append(r.plain)
             elif isinstance(r, Syntax):
                 parts.append(str(r.code))
+            else:
+                plain = getattr(r, "plain", None)
+                parts.append(plain if isinstance(plain, str) else str(r))
         return "\n".join(parts)
+    plain = getattr(renderable, "plain", None)
+    if isinstance(plain, str):
+        return plain
     return str(renderable)
 
 
@@ -181,12 +192,17 @@ def test_update_header_only_includes_error_traceback() -> None:
 
     rendered = panel.captured[-1]
     assert isinstance(rendered, Group)
-    # Group should contain the header Text plus the traceback Syntax.
-    has_syntax = any(isinstance(r, Syntax) for r in rendered.renderables)
+    # Card document holds the header plus the TRACEBACK Reply card.
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    flat = flatten_card_document(rendered)
+    assert isinstance(flat, Group)
+    has_syntax = any(isinstance(r, Syntax) for r in flat.renderables)
     assert has_syntax, "error_traceback should render as a Syntax block"
     plain = _plain_of(rendered)
     assert plain.startswith("AGENT SHELL\nName: unassigned\n")
     assert "ValueError: boom" in plain
+    assert "TRACEBACK" in plain
 
 
 def test_update_header_only_failed_without_recorded_error_shows_output() -> None:

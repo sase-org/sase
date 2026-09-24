@@ -35,10 +35,12 @@ def render_agent_prompt_hint_body(
     hint_counter: int,
     hint_mappings: dict[int, str],
     workspace_dir: str | None,
+    reply_text: AgentHeader,
 ) -> int:
     """Render the xprompt, prompt, and reply/chat sections with file hints.
 
-    Returns the updated hint counter.
+    Context sections go into ``header_text``; reply/chat sections go into
+    ``reply_text``. Returns the updated hint counter.
     """
     # AGENT XPROMPT section (with file path hints)
     raw_xprompt = agent.get_raw_xprompt_content()
@@ -104,13 +106,13 @@ def render_agent_prompt_hint_body(
 
         # Consolidated AGENT REPLY for agents with follow-ups (with hints)
         if agent.followup_agents:
-            header_text.append("\n")
-            header_text.append("─" * 50 + "\n", style="dim")
-            header_text.append("\n")
-            append_section_heading(header_text, "AGENT REPLY")
+            reply_text.append("\n")
+            reply_text.append("─" * 50 + "\n", style="dim")
+            reply_text.append("\n")
+            append_section_heading(reply_text, "AGENT REPLY")
 
             # Main agent's phase
-            header_text.append_text(
+            reply_text.append_text(
                 render_phase_divider(
                     get_phase_label(agent),
                     agent.run_start_time or agent.start_time,
@@ -118,7 +120,7 @@ def render_agent_prompt_hint_body(
             )
             hint_counter = render_reply_with_hints(
                 agent,
-                header_text,
+                reply_text,
                 hint_counter,
                 hint_mappings,
                 workspace_dir,
@@ -133,12 +135,12 @@ def render_agent_prompt_hint_body(
                         hint_mappings,
                         workspace_dir,
                     )
-                    header_text.append_text(
+                    reply_text.append_text(
                         monitor_phase_text(followup, annotate=annotate)
                     )
                     hint_counter = hint_count()
                     continue
-                header_text.append_text(
+                reply_text.append_text(
                     render_phase_divider(
                         get_phase_label(followup),
                         followup.run_start_time or followup.start_time,
@@ -146,7 +148,7 @@ def render_agent_prompt_hint_body(
                 )
                 hint_counter = render_reply_with_hints(
                     followup,
-                    header_text,
+                    reply_text,
                     hint_counter,
                     hint_mappings,
                     workspace_dir,
@@ -166,71 +168,71 @@ def render_agent_prompt_hint_body(
             ):
                 response_content = format_output(step_output)
 
-            header_text.append("\n")
-            header_text.append("─" * 50 + "\n", style="dim")
-            header_text.append("\n")
-            append_section_heading(header_text, "AGENT CHAT")
+            reply_text.append("\n")
+            reply_text.append("─" * 50 + "\n", style="dim")
+            reply_text.append("\n")
+            append_section_heading(reply_text, "AGENT CHAT")
 
             chunks = agent.get_timestamped_reply_chunks()
             if chunks:
                 for ts, chunk_text in chunks:
-                    header_text.append_text(render_timestamp_divider(ts))
+                    reply_text.append_text(render_timestamp_divider(ts))
                     content = chunk_text.strip()
                     if content:
                         content = humanize_text(content)
                         hint_counter = append_bounded_text_with_file_hints(
-                            header_text,
+                            reply_text,
                             content + "\n",
                             hint_counter,
                             hint_mappings,
                             workspace_dir,
                         )
-                        header_text.append("\n")
+                        reply_text.append("\n")
             elif response_content:
                 response_content = humanize_text(response_content)
                 hint_counter = append_bounded_text_with_file_hints(
-                    header_text,
+                    reply_text,
                     response_content + "\n",
                     hint_counter,
                     hint_mappings,
                     workspace_dir,
                 )
             else:
-                header_text.append("No response file found.\n", style="dim italic")
+                reply_text.append("No response file found.\n", style="dim italic")
         else:
             # AGENT REPLY section for running agents (with hints)
-            header_text.append("\n")
-            header_text.append("─" * 50 + "\n", style="dim")
-            header_text.append("\n")
-            append_section_heading(header_text, "AGENT REPLY")
+            reply_text.append("\n")
+            reply_text.append("─" * 50 + "\n", style="dim")
+            reply_text.append("\n")
+            append_section_heading(reply_text, "AGENT REPLY")
 
             live_reply = agent.get_live_reply_content()
             chunks = agent.get_timestamped_reply_chunks()
             if chunks:
                 for ts, chunk_text in chunks:
-                    header_text.append_text(render_timestamp_divider(ts))
+                    reply_text.append_text(render_timestamp_divider(ts))
                     content = chunk_text.strip()
                     if content:
                         content = humanize_text(content)
                         hint_counter = append_bounded_text_with_file_hints(
-                            header_text,
+                            reply_text,
                             content + "\n",
                             hint_counter,
                             hint_mappings,
                             workspace_dir,
                         )
-                        header_text.append("\n")
+                        reply_text.append("\n")
             elif live_reply:
                 live_reply = humanize_text(live_reply)
                 hint_counter = append_bounded_text_with_file_hints(
-                    header_text,
+                    reply_text,
                     live_reply + "\n",
                     hint_counter,
                     hint_mappings,
                     workspace_dir,
                 )
             else:
-                header_text.append(
+                reply_text.append(
                     "Waiting for agent response...\n",
                     style="dim italic",
                 )

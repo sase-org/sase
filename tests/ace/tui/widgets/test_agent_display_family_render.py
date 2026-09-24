@@ -63,6 +63,10 @@ def _section_ids(renderable: object) -> list[str]:
     identities: list[str] = []
 
     def _visit(candidate: object) -> None:
+        if bool(getattr(candidate, "__sase_card_part__", False)):
+            for child in getattr(candidate, "renderables", ()):
+                _visit(child)
+            return
         if isinstance(candidate, Group):
             for child in candidate.renderables:
                 _visit(child)

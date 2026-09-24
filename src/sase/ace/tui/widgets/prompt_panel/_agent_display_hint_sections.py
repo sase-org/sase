@@ -17,8 +17,10 @@ from ._agent_display_hint_annotators import (
     hint_monitor_annotator,
     hint_proc_shell_annotator,
 )
+from ..decks.card_part import card_document, context_card, output_card
 from ._agent_display_state import AgentHintRender, DetailHeaderSummary, HeaderHintState
 from ._agent_gate_section import GATE_SECTION_ID, build_gate_output, build_gate_section
+from ._traceback_section import append_traceback_hint
 from ._agent_monitor_section import (
     MONITOR_SECTION_ID,
     build_monitor_output,
@@ -30,6 +32,21 @@ from ._agent_proc_shell_section import (
     build_proc_shell_preview,
     build_proc_shell_section,
 )
+
+
+def _publish_hint_cards(
+    panel: object, header_text: AgentHeader, reply_text: Text
+) -> object:
+    """Publish Context/Reply hint cards, keeping the split blank-line free."""
+    try:
+        header_text.end = ""  # type: ignore[union-attr]
+    except Exception:
+        pass
+    document = card_document(
+        context_card(header_text),  # type: ignore[arg-type]
+        output_card(reply_text),
+    )
+    return panel._prepare_cached_hint_renderable(document)  # type: ignore[attr-defined]
 
 
 def render_proc_shell_hint_document(
@@ -65,11 +82,26 @@ def render_proc_shell_hint_document(
     ):
         if isinstance(part, Text):
             header_text.append_text(part)
-    for part in build_proc_shell_output(agent, annotate=annotate):
-        if isinstance(part, Text):
-            header_text.append_text(part)
     hint_counter = hint_count()
-    panel.update(panel._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
+    reply_text = Text()
+    if agent.error_traceback:
+        hint_counter = append_traceback_hint(
+            reply_text,
+            agent.error_traceback,
+            hint_counter,
+            hint_mappings,
+            workspace_dir,
+        )
+    annotate_out, hint_count_out = hint_proc_shell_annotator(
+        hint_counter,
+        hint_mappings,
+        workspace_dir,
+    )
+    for part in build_proc_shell_output(agent, annotate=annotate_out):
+        if isinstance(part, Text):
+            reply_text.append_text(part)
+    hint_counter = hint_count_out()
+    panel.update(_publish_hint_cards(panel, header_text, reply_text))  # type: ignore[attr-defined]
     return AgentHintRender(
         file_hints=hint_mappings,
         tool_call_reports=tool_call_reports,
@@ -112,11 +144,26 @@ def render_monitor_hint_document(
     ):
         if isinstance(part, Text):
             header_text.append_text(part)
-    for part in build_monitor_output(agent, annotate=annotate):
-        if isinstance(part, Text):
-            header_text.append_text(part)
     hint_counter = hint_count()
-    panel.update(panel._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
+    reply_text = Text()
+    if agent.error_traceback:
+        hint_counter = append_traceback_hint(
+            reply_text,
+            agent.error_traceback,
+            hint_counter,
+            hint_mappings,
+            workspace_dir,
+        )
+    annotate_out, hint_count_out = hint_monitor_annotator(
+        hint_counter,
+        hint_mappings,
+        workspace_dir,
+    )
+    for part in build_monitor_output(agent, annotate=annotate_out):
+        if isinstance(part, Text):
+            reply_text.append_text(part)
+    hint_counter = hint_count_out()
+    panel.update(_publish_hint_cards(panel, header_text, reply_text))  # type: ignore[attr-defined]
     if summary is None:
         panel._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
     return AgentHintRender(
@@ -160,11 +207,27 @@ def render_gate_hint_document(
     ):
         if isinstance(part, Text):
             header_text.append_text(part)
-    for part in build_gate_output(agent, annotate=annotate):
-        if isinstance(part, Text):
-            header_text.append_text(part)
+    # Gate sections are not annotated, but keep the counter protocol.
     hint_counter = hint_count()
-    panel.update(panel._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
+    reply_text = Text()
+    if agent.error_traceback:
+        hint_counter = append_traceback_hint(
+            reply_text,
+            agent.error_traceback,
+            hint_counter,
+            hint_mappings,
+            workspace_dir,
+        )
+    annotate_out, hint_count_out = hint_gate_annotator(
+        hint_counter,
+        hint_mappings,
+        workspace_dir,
+    )
+    for part in build_gate_output(agent, annotate=annotate_out):
+        if isinstance(part, Text):
+            reply_text.append_text(part)
+    hint_counter = hint_count_out()
+    panel.update(_publish_hint_cards(panel, header_text, reply_text))  # type: ignore[attr-defined]
     if summary is None:
         panel._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
     return AgentHintRender(

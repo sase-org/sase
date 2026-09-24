@@ -83,10 +83,17 @@ class FakePromptPanel(AgentDisplayMixin, AgentHintsDisplayMixin):
 
 def plain_of(renderable: object) -> str:
     """Flatten a prompt panel renderable into plain text for assertions."""
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    renderable = flatten_card_document(renderable)
     if isinstance(renderable, Text):
         return renderable.plain
     if isinstance(renderable, Syntax):
         return str(renderable.code)
+    if bool(getattr(renderable, "__sase_card_part__", False)):
+        return "\n".join(
+            plain_of(child) for child in getattr(renderable, "renderables", ())
+        )
     if isinstance(renderable, Group):
         return "\n".join(plain_of(child) for child in renderable.renderables)
     plain = getattr(renderable, "plain", None)

@@ -54,7 +54,7 @@ class AgentHintRenderCacheEntry:
     """A memoized hint result and its width-cached Rich document."""
 
     result: AgentHintRender
-    renderable: CachedRenderable
+    renderable: object
 
 
 def agent_hint_render_cache(

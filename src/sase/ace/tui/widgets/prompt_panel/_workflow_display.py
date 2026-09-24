@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from rich.console import Group, RenderableType
+from rich.console import RenderableType
 from rich.text import Text
 from textual.worker import Worker, WorkerState
 
@@ -18,11 +18,21 @@ from ...util.lazy_syntax import lazy_renderable
 from ._workflow_data import (
     load_workflow_detail_snapshot as _load_workflow_detail_snapshot_impl,
 )
+from ..decks.card_part import card_document, context_card
 from ._workflow_render import (
     build_workflow_detail_renderable as _build_workflow_detail_renderable,
     workflow_steps_rich_from_snapshot as _workflow_steps_rich_from_snapshot,
 )
 from ._workflow_types import WorkflowDetailSnapshot
+
+
+def _workflow_card_document(document: object) -> object:
+    """Wrap a whole workflow document as a Context-only card document."""
+    from rich.console import Group
+
+    if isinstance(document, Group):
+        return card_document(context_card(*document.renderables))
+    return card_document(context_card(document))  # type: ignore[arg-type]
 
 
 @dataclass(frozen=True)
@@ -71,13 +81,15 @@ class WorkflowDisplayMixin:
         )
         slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_widget(self)
         self.update(  # type: ignore[attr-defined]
-            _build_workflow_detail_renderable(
-                agent,
-                snapshot,
-                slow_tool_sources=slow_tool_sources,
-                slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
-                render_prompt=self._workflow_prompt_renderer(agent),
-                detach_identity=getattr(self, "detaches_identity_header", False),
+            _workflow_card_document(
+                _build_workflow_detail_renderable(
+                    agent,
+                    snapshot,
+                    slow_tool_sources=slow_tool_sources,
+                    slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
+                    render_prompt=self._workflow_prompt_renderer(agent),
+                    detach_identity=getattr(self, "detaches_identity_header", False),
+                )
             )
         )
 
@@ -112,20 +124,22 @@ class WorkflowDisplayMixin:
         render_prompt = self._workflow_prompt_renderer(agent)
         detach_identity = bool(getattr(self, "detaches_identity_header", False))
 
-        def render_task() -> Group:
+        def render_task() -> object:
             snapshot = _load_workflow_detail_snapshot(agent)
             slow_tool_sources = (
                 build_slow_tool_sources(agent)
                 if supports_slow_tool_sources(agent)
                 else None
             )
-            return _build_workflow_detail_renderable(
-                agent,
-                snapshot,
-                slow_tool_sources=slow_tool_sources,
-                slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
-                render_prompt=render_prompt,
-                detach_identity=detach_identity,
+            return _workflow_card_document(
+                _build_workflow_detail_renderable(
+                    agent,
+                    snapshot,
+                    slow_tool_sources=slow_tool_sources,
+                    slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
+                    render_prompt=render_prompt,
+                    detach_identity=detach_identity,
+                )
             )
 
         self._workflow_detail_worker = self.run_worker(  # type: ignore[attr-defined]

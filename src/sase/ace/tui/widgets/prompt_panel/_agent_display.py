@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from rich.console import Group
+from ..decks.card_part import card_document, context_card, reply_card, summary_card
+from ._traceback_section import build_traceback_block
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, wait_display_agent
@@ -137,23 +138,24 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 )
             from ._agent_display_tribe import build_tribe_detail_text
 
+            tribe_document = build_tribe_detail_text(
+                snapshot,
+                section_snapshot=get_cached_tribe_section_snapshot(
+                    self,
+                    snapshot.container_identity,
+                ),
+                fold_level=fold_level,
+                section_fold_overrides=fold_overrides,
+                member_jump_map_publisher=(
+                    member_jump_map_publisher_for(app)
+                    if publish_member_jump_map and not cheap
+                    else None
+                ),
+                cheap=cheap,
+                detach_identity=getattr(self, "detaches_identity_header", False),
+            )
             self.update(  # type: ignore[attr-defined]
-                build_tribe_detail_text(
-                    snapshot,
-                    section_snapshot=get_cached_tribe_section_snapshot(
-                        self,
-                        snapshot.container_identity,
-                    ),
-                    fold_level=fold_level,
-                    section_fold_overrides=fold_overrides,
-                    member_jump_map_publisher=(
-                        member_jump_map_publisher_for(app)
-                        if publish_member_jump_map and not cheap
-                        else None
-                    ),
-                    cheap=cheap,
-                    detach_identity=getattr(self, "detaches_identity_header", False),
-                )
+                card_document(summary_card(tribe_document))  # type: ignore[arg-type]
             )
             if not cheap:
                 required = tribe_enrichment_sections_for_fold_state(
@@ -278,10 +280,19 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                     else None
                 ),
             )
-            if error_tb_syntax is not None:
-                self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
+            # Partial paint keeps the traceback in a Reply card so j/k never
+            # makes it jump before the full paint replaces it ~150 ms later.
+            if agent.is_clan_container:
+                self.update(card_document(summary_card(header_text)))  # type: ignore[attr-defined]
+            elif error_tb_syntax is not None:
+                self.update(  # type: ignore[attr-defined]
+                    card_document(
+                        context_card(header_text),  # type: ignore[arg-type]
+                        reply_card(*build_traceback_block(error_tb_syntax)),
+                    )
+                )
             else:
-                self.update(header_text)  # type: ignore[attr-defined]
+                self.update(card_document(context_card(header_text)))  # type: ignore[attr-defined]
 
 
 __all__ = [

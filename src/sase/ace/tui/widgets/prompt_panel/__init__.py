@@ -29,6 +29,7 @@ from ._identity_header import (
     find_member_roster,
 )
 from ...util.renderable_digest import renderable_content_digest
+from ..decks.card_part import flatten_card_document
 from ._section_navigation import (
     PromptPanelSectionAnchor,
     PromptPanelSectionRole,
@@ -91,7 +92,7 @@ class AgentPromptPanel(
         from rich.text import Text
 
         identity = getattr(self, "_identity_last_published", None)
-        content = getattr(self, "_identity_last_content", "")
+        content = flatten_card_document(getattr(self, "_identity_last_content", ""))
         roster = getattr(self, "_member_roster_last_published", None)
         if identity is None:
             if roster is None:
@@ -104,9 +105,9 @@ class AgentPromptPanel(
                 combined.append("\n")
                 combined.append_text(roster)
                 return combined
-            return Group(content, Text("\n"), roster)
+            return Group(content, Text("\n"), roster)  # type: ignore[arg-type]
         if roster is None:
-            return Group(identity.inline_renderable(), content)
+            return Group(identity.inline_renderable(), content)  # type: ignore[arg-type]
         if isinstance(content, Text):
             combined_body = Text()
             combined_body.append_text(content)
@@ -114,8 +115,8 @@ class AgentPromptPanel(
                 combined_body.append("\n")
             combined_body.append("\n")
             combined_body.append_text(roster)
-            return Group(identity.inline_renderable(), combined_body)
-        return Group(identity.inline_renderable(), content, Text("\n"), roster)
+            return Group(identity.inline_renderable(), combined_body)  # type: ignore[arg-type]
+        return Group(identity.inline_renderable(), content, Text("\n"), roster)  # type: ignore[arg-type]
 
     def prepare_section_document(self, identity: object) -> None:
         """Set the logical metadata-document identity for cursor reconciliation."""
@@ -185,7 +186,7 @@ class AgentPromptPanel(
         self._section_anchor_generation = -1
         self._section_anchor_width = -1
         self._section_anchors = ()
-        super().update(content, layout=layout)
+        super().update(flatten_card_document(content), layout=layout)  # type: ignore[arg-type]
         self._schedule_bottom_pin_reapply()
 
     @property

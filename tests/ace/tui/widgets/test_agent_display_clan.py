@@ -500,6 +500,9 @@ def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
     harness = _Harness()
     harness._update_display_impl(container)
 
-    assert isinstance(harness.content, Text)
-    assert harness.content.plain.startswith("CLAN\nName: research\n")
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    flat = flatten_card_document(harness.content)
+    assert isinstance(flat, Text)
+    assert flat.plain.startswith("CLAN\nName: research\n")
     assert harness._app._member_jump_maps[container.identity].targets[0].number == "0"

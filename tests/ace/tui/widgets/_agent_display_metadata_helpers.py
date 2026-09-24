@@ -49,13 +49,34 @@ def assert_kind_header(
     assert covering[0].end <= limit
 
 
+def _logical_plain(renderable: Any) -> str:
+    """Return logical plain text for Text, Group, CardPart, or caches."""
+    from rich.console import Group
+
+    if isinstance(renderable, Text):
+        return renderable.plain
+    if bool(getattr(renderable, "__sase_card_part__", False)):
+        return "\n".join(
+            _logical_plain(child) for child in getattr(renderable, "renderables", ())
+        )
+    if isinstance(renderable, Group):
+        return "\n".join(_logical_plain(child) for child in renderable.renderables)
+    plain = getattr(renderable, "plain", None)
+    if isinstance(plain, str):
+        return plain
+    code = getattr(renderable, "code", None)
+    if isinstance(code, str):
+        return code
+    return str(renderable)
+
+
 def assert_logical_section_is_compact(
     renderable: Any,
     heading: str,
     first_content_prefix: str,
 ) -> None:
     """Assert that logical text has no spacer after a section heading."""
-    plain = renderable.plain
+    plain = _logical_plain(renderable)
     lines = plain.splitlines()
     heading_index = lines.index(heading)
     assert lines[heading_index + 1].startswith(first_content_prefix)

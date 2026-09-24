@@ -41,7 +41,11 @@ def test_repeat_hint_render_reuses_result_and_renderable(tmp_path: Path) -> None
 
     assert first is second
     assert panel.captured[-1] is first_renderable
-    assert isinstance(first_renderable, CachedRenderable)
+    from rich.console import Group
+    from sase.ace.tui.widgets.decks.card_part import CardPart
+
+    assert isinstance(first_renderable, Group)
+    assert any(isinstance(c, CardPart) for c in first_renderable.renderables)
     assert first.file_hints == {
         1: str(workspace / "src/raw.py"),
         2: str(workspace / "src/reused.py"),

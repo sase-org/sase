@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from rich.console import Group, RenderableType
+from rich.console import RenderableType
 from rich.syntax import Syntax
 from rich.text import Text
 
@@ -40,10 +40,12 @@ from ._file_path_hints import (
     resolve_agent_workspace_dir,
 )
 from ._hint_caps import HintContentBudget
+from ..decks.card_part import card_document, context_card, reply_card
 from ._helpers import (
     PROMPT_PANEL_SECTION_HEADING_STYLE,
     append_section_heading,
 )
+from ._traceback_section import build_traceback_block
 
 
 class AgentFamilyDisplayMixin:
@@ -99,12 +101,13 @@ class AgentFamilyDisplayMixin:
             if isinstance(section_fold_overrides, Mapping)
             else {}
         )
-        renderables: list[Any] = [header_text]
+        context_parts: list[Any] = [header_text]
         hint_budget = HintContentBudget() if hint_state is not None else None
 
         error_level = effective_family_fold_level("error", level, overrides)
+        traceback_parts: list[Any] = []
         if error_tb_syntax is not None and error_level != FoldLevel.COLLAPSED:
-            renderables.append(error_tb_syntax)
+            traceback_parts = build_traceback_block(error_tb_syntax)
 
         rendered_content_section = False
         raw_xprompt = agent.get_raw_xprompt_content()
@@ -151,7 +154,7 @@ class AgentFamilyDisplayMixin:
                 header_text.append("\n")
             append_section_heading(header_text, "AGENT PROMPT")
             if hint_state is None:
-                renderables.append(
+                context_parts.append(
                     self._render_agent_prompt(
                         agent,
                         prompt_content,
@@ -159,7 +162,7 @@ class AgentFamilyDisplayMixin:
                     )
                 )
             else:
-                renderables.append(
+                context_parts.append(
                     self._family_text_with_hints(
                         self._humanize_display_text(prompt_content),
                         hint_state,
@@ -185,10 +188,10 @@ class AgentFamilyDisplayMixin:
             style=fold_count_style("AGENT REPLY"),
         )
         append_section_heading(reply_header, reply_heading)
-        renderables.append(reply_header)
+        reply_parts: list[Any] = [*traceback_parts, reply_header]
         for phase in phases:
             if phase.is_monitor:
-                renderables.extend(
+                reply_parts.extend(
                     build_monitor_phase(
                         phase,
                         annotate=(
@@ -202,7 +205,7 @@ class AgentFamilyDisplayMixin:
                 )
                 continue
             if phase.is_gate:
-                renderables.extend(
+                reply_parts.extend(
                     build_gate_phase(
                         phase,
                         annotate=(
@@ -215,7 +218,7 @@ class AgentFamilyDisplayMixin:
                     )
                 )
                 continue
-            renderables.append(
+            reply_parts.append(
                 render_phase_divider(
                     get_phase_label(phase),
                     phase.run_start_time or phase.start_time,
@@ -232,7 +235,7 @@ class AgentFamilyDisplayMixin:
                     hint_state,
                     budget=hint_budget,
                 )
-            renderables.extend(
+            reply_parts.extend(
                 reply_renderables
                 or [
                     Text(
@@ -242,7 +245,10 @@ class AgentFamilyDisplayMixin:
                 ]
             )
 
-        renderable: object = Group(*renderables)
+        renderable: object = card_document(
+            context_card(*context_parts),
+            reply_card(*reply_parts),
+        )
         if hint_state is not None:
             prepare_hint_renderable = getattr(
                 self,

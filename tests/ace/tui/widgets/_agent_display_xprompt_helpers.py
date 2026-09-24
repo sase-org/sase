@@ -9,14 +9,28 @@ from sase.ace.tui.util.lazy_syntax import CachedRenderable
 
 
 def _header_text(renderable: object) -> Text:
-    if isinstance(renderable, CachedRenderable):
-        renderable = renderable.renderable
+    from sase.ace.tui.widgets.decks.card_part import flatten_card_document
+
+    def _unwrap(candidate: object) -> object:
+        while isinstance(candidate, CachedRenderable):
+            candidate = candidate.renderable
+        return candidate
+
+    renderable = _unwrap(renderable)
+    renderable = flatten_card_document(renderable)
     if isinstance(renderable, Text):
         return renderable
     assert isinstance(renderable, Group)
-    header = renderable.renderables[0]
-    assert isinstance(header, Text)
-    return header
+    header = _unwrap(renderable.renderables[0])
+    if isinstance(header, Text):
+        return header
+    # Unwrap AgentHeaderRenderable carriers to their logical text.
+    text = getattr(header, "_text", None)
+    if isinstance(text, Text):
+        return text
+    plain = getattr(header, "plain", None)
+    assert isinstance(plain, str), f"unexpected header type {type(header)}"
+    raise AssertionError(f"unexpected header type {type(header)}")
 
 
 def _styles_at(text: Text, needle: str, *, offset: int = 0) -> set[str]:

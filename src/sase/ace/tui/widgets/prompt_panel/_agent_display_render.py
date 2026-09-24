@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rich.console import Group, RenderableType
+from rich.console import RenderableType
 from rich.text import Text
 
 from sase.project_display_names import (
@@ -57,8 +57,10 @@ from ._agent_xprompt_highlighting import (
     AgentPromptHighlightContext,
     agent_prompt_highlight_context,
 )
+from ..decks.card_part import card_document, context_card, reply_card, summary_card
 from ._helpers import append_section_heading, format_output
 from ._member_roster import member_jump_map_publisher_for
+from ._traceback_section import build_traceback_block
 
 _HUMANIZED_TEXT_CACHE_LIMIT = 24
 _HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...], object]
@@ -284,7 +286,7 @@ class AgentDisplayRenderMixin(
                 member_jump_map_publisher=member_jump_map_publisher_for(app),
                 detach_identity=getattr(self, "detaches_identity_header", False),
             )
-            self.update(header_text)  # type: ignore[attr-defined]
+            self.update(card_document(summary_card(header_text)))  # type: ignore[attr-defined]
             return
 
         # Attempt-pinned view: render the selected prior attempt's full error
@@ -451,48 +453,46 @@ class AgentDisplayRenderMixin(
 
             # For agents with follow-ups, show consolidated reply
             if agent.followup_agents:
-                renderables: list[Any] = [header_text]
-                if error_tb_syntax:
-                    renderables.append(error_tb_syntax)
-                renderables.append(prompt_syntax)
-
                 reply_header = Text()
                 reply_header.append("\n")
                 reply_header.append("\u2500" * 50 + "\n", style="dim")
                 reply_header.append("\n")
                 append_section_heading(reply_header, "AGENT REPLY")
-                renderables.append(reply_header)
 
-                # Main agent's phase
-                renderables.append(
+                reply_parts: list[Any] = [
+                    *build_traceback_block(error_tb_syntax),
+                    reply_header,
                     render_phase_divider(
                         get_phase_label(agent),
                         agent.run_start_time or agent.start_time,
-                    )
-                )
-                renderables.extend(
-                    render_agent_reply_content(agent, self._render_markdown)
-                )
+                    ),
+                    *render_agent_reply_content(agent, self._render_markdown),
+                ]
 
                 # Follow-up phases
                 for followup in agent.followup_agents:
                     if followup.is_monitor:
-                        renderables.extend(build_monitor_phase(followup))
+                        reply_parts.extend(build_monitor_phase(followup))
                         continue
                     if followup.is_gate:
-                        renderables.extend(build_gate_phase(followup))
+                        reply_parts.extend(build_gate_phase(followup))
                         continue
-                    renderables.append(
+                    reply_parts.append(
                         render_phase_divider(
                             get_phase_label(followup),
                             followup.run_start_time or followup.start_time,
                         )
                     )
-                    renderables.extend(
+                    reply_parts.extend(
                         render_agent_reply_content(followup, self._render_markdown)
                     )
 
-                self.update(Group(*renderables))  # type: ignore[attr-defined]
+                self.update(  # type: ignore[attr-defined]
+                    card_document(
+                        context_card(header_text, prompt_syntax),
+                        reply_card(*reply_parts),
+                    )
+                )
             # For completed or failed agents/steps, also show the response
             elif agent.status in ("DONE", "FAILED"):
                 reply_header = Text()
@@ -515,49 +515,46 @@ class AgentDisplayRenderMixin(
                 ):
                     response_content = format_output(step_output)
 
-                renderables = [header_text]
-                if error_tb_syntax:
-                    renderables.append(error_tb_syntax)
-                renderables.append(prompt_syntax)
+                reply_parts = [*build_traceback_block(error_tb_syntax)]
 
                 chunks = agent.get_timestamped_reply_chunks()
                 merge_history = should_render_merged(agent, self.attempt_view_mode)
                 if chunks:
-                    renderables.append(reply_header)
+                    reply_parts.append(reply_header)
                     if merge_history:
-                        renderables.extend(
+                        reply_parts.extend(
                             render_merged_attempt_history(
                                 agent,
                                 self._render_markdown,
                             )
                         )
                     for ts, chunk_text in chunks:
-                        renderables.append(render_timestamp_divider(ts))
+                        reply_parts.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            renderables.append(self._render_markdown(content))
+                            reply_parts.append(self._render_markdown(content))
                 elif response_content:
                     response_syntax = self._render_markdown(response_content)
-                    renderables.append(reply_header)
+                    reply_parts.append(reply_header)
                     if merge_history:
-                        renderables.extend(
+                        reply_parts.extend(
                             render_merged_attempt_history(
                                 agent,
                                 self._render_markdown,
                             )
                         )
-                    renderables.append(response_syntax)
+                    reply_parts.append(response_syntax)
                 else:
                     reply_header.append("No response file found.\n", style="dim italic")
-                    renderables.append(reply_header)
+                    reply_parts.append(reply_header)
 
-                self.update(Group(*renderables))  # type: ignore[attr-defined]
+                self.update(  # type: ignore[attr-defined]
+                    card_document(
+                        context_card(header_text, prompt_syntax),
+                        reply_card(*reply_parts),
+                    )
+                )
             else:
-                renderables_other: list[Any] = [header_text]
-                if error_tb_syntax:
-                    renderables_other.append(error_tb_syntax)
-                renderables_other.append(prompt_syntax)
-
                 # AGENT REPLY section for running agents
                 reply_header = Text()
                 reply_header.append("\n")
@@ -565,48 +562,60 @@ class AgentDisplayRenderMixin(
                 reply_header.append("\n")
                 append_section_heading(reply_header, "AGENT REPLY")
 
+                reply_parts = [*build_traceback_block(error_tb_syntax)]
                 live_reply = agent.get_live_reply_content()
                 chunks = agent.get_timestamped_reply_chunks()
                 merge_history = should_render_merged(agent, self.attempt_view_mode)
                 if chunks:
-                    renderables_other.append(reply_header)
+                    reply_parts.append(reply_header)
                     if merge_history:
-                        renderables_other.extend(
+                        reply_parts.extend(
                             render_merged_attempt_history(
                                 agent,
                                 self._render_markdown,
                             )
                         )
                     for ts, chunk_text in chunks:
-                        renderables_other.append(render_timestamp_divider(ts))
+                        reply_parts.append(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            renderables_other.append(self._render_markdown(content))
+                            reply_parts.append(self._render_markdown(content))
                 elif live_reply:
                     reply_syntax = self._render_markdown(live_reply)
-                    renderables_other.append(reply_header)
+                    reply_parts.append(reply_header)
                     if merge_history:
-                        renderables_other.extend(
+                        reply_parts.extend(
                             render_merged_attempt_history(
                                 agent,
                                 self._render_markdown,
                             )
                         )
-                    renderables_other.append(reply_syntax)
+                    reply_parts.append(reply_syntax)
                 else:
                     reply_header.append(
                         "Waiting for agent response...\n",
                         style="dim italic",
                     )
-                    renderables_other.append(reply_header)
+                    reply_parts.append(reply_header)
 
-                self.update(Group(*renderables_other))  # type: ignore[attr-defined]
+                self.update(  # type: ignore[attr-defined]
+                    card_document(
+                        context_card(header_text, prompt_syntax),
+                        reply_card(*reply_parts),
+                    )
+                )
         else:
             header_text.append("No prompt file found.\n", style="dim italic")
-            if error_tb_syntax:
-                self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
+            traceback_parts = build_traceback_block(error_tb_syntax)
+            if traceback_parts:
+                self.update(  # type: ignore[attr-defined]
+                    card_document(
+                        context_card(header_text),
+                        reply_card(*traceback_parts),
+                    )
+                )
             else:
-                self.update(header_text)  # type: ignore[attr-defined]
+                self.update(card_document(context_card(header_text)))  # type: ignore[attr-defined]
 
     def show_empty(self) -> None:
         """Show empty state."""
@@ -632,5 +641,6 @@ class AgentDisplayRenderMixin(
             cancel_tribe_worker()
         clear_detail_header_summary_cache(self)
         clear_agent_hint_render_cache(self)
+        # Cardless on purpose: deck-panel-core delegates show_empty in deck mode.
         text = Text("No agent selected", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]

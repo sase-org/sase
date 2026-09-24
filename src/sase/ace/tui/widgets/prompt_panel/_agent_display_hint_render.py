@@ -32,15 +32,14 @@ from ._agent_display_hint_sections import (
     render_monitor_hint_document,
     render_proc_shell_hint_document,
 )
+from ..decks.card_part import card_document, context_card, reply_card, summary_card
 from ._agent_display_state import AgentHintRender, HeaderHintState
 from ._file_path_hints import resolve_agent_workspace_dir
-from ._hint_caps import append_bounded_text_with_file_hints
+from ._traceback_section import append_traceback_hint
 from ._member_roster import member_jump_map_publisher_for
 
 if TYPE_CHECKING:
     from rich.console import RenderableType
-
-    from ...util.lazy_syntax import CachedRenderable
 
 
 class AgentHintRenderMixin:
@@ -51,7 +50,7 @@ class AgentHintRenderMixin:
         def _prepare_cached_hint_renderable(
             self,
             renderable: RenderableType,
-        ) -> CachedRenderable: ...
+        ) -> object: ...
 
     def _update_display_with_hints_impl(self, agent: Agent) -> AgentHintRender:
         """Render agent display with ``[N]`` file path hints.
@@ -181,16 +180,6 @@ class AgentHintRenderMixin:
                 ),
             )
 
-        # Error traceback as text with hints (not Syntax)
-        if agent.error_traceback:
-            hint_counter = append_bounded_text_with_file_hints(
-                header_text,
-                agent.error_traceback + "\n",
-                hint_counter,
-                hint_mappings,
-                workspace_dir,
-            )
-
         if agent.is_proc_shell:
             return render_proc_shell_hint_document(
                 self,
@@ -235,6 +224,18 @@ class AgentHintRenderMixin:
                 summary,
             )
 
+        from rich.text import Text
+
+        reply_text: object = Text()
+        assert isinstance(reply_text, Text)
+        if agent.error_traceback:
+            hint_counter = append_traceback_hint(
+                reply_text,
+                agent.error_traceback,
+                hint_counter,
+                hint_mappings,
+                workspace_dir,
+            )
         hint_counter = render_agent_prompt_hint_body(
             self,
             agent,
@@ -243,9 +244,23 @@ class AgentHintRenderMixin:
             hint_counter,
             hint_mappings,
             workspace_dir,
+            reply_text,
         )
 
-        self.update(self._prepare_cached_hint_renderable(header_text))  # type: ignore[attr-defined]
+        if reply_text.plain.strip():
+            try:
+                header_text.end = ""  # type: ignore[union-attr]
+            except Exception:
+                pass
+            document = card_document(
+                context_card(header_text),  # type: ignore[arg-type]
+                reply_card(reply_text),  # type: ignore[arg-type]
+            )
+        else:
+            document = card_document(
+                context_card(header_text),  # type: ignore[arg-type]
+            )
+        self.update(self._prepare_cached_hint_renderable(document))  # type: ignore[attr-defined]
         if summary is None:
             self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
         return AgentHintRender(
@@ -292,7 +307,10 @@ class AgentHintRenderMixin:
             clan_section_fold_overrides=fold_overrides,
             member_jump_map_publisher=member_jump_map_publisher_for(app),
         )
-        self.update(self._prepare_cached_hint_renderable(clan_text))  # type: ignore[attr-defined]
+        clan_document = card_document(
+            summary_card(clan_text),  # type: ignore[arg-type]
+        )
+        self.update(self._prepare_cached_hint_renderable(clan_document))  # type: ignore[attr-defined]
 
         self._cancel_agent_bead_display_worker_for_selection_change(agent)  # type: ignore[attr-defined]
         self._cancel_agent_linked_delta_worker_for_selection_change(agent)  # type: ignore[attr-defined]

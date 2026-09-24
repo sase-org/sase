@@ -36,6 +36,11 @@ def _plain_renderable_content(renderable: object) -> str:
         return renderable.plain
     if isinstance(renderable, Syntax):
         return str(renderable.code)
+    if bool(getattr(renderable, "__sase_card_part__", False)):
+        return "\n".join(
+            _plain_renderable_content(child)
+            for child in getattr(renderable, "renderables", ())
+        )
     if isinstance(renderable, Group):
         return "\n".join(
             _plain_renderable_content(child) for child in renderable.renderables
@@ -49,7 +54,7 @@ def _plain_renderable_content(renderable: object) -> str:
 class AgentHintsDisplayMixin(AgentHintRenderMixin):
     """Mixin providing hint-annotated agent display for AgentPromptPanel."""
 
-    _agent_hint_renderable: CachedRenderable | None = None
+    _agent_hint_renderable: object | None = None
     _rendered_agent_hint_cache_key: AgentHintRenderCacheKey | None = None
 
     def hint_document_is_current(self, agent: Agent) -> bool:
@@ -64,8 +69,31 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
     def _prepare_cached_hint_renderable(
         self,
         renderable: RenderableType,
-    ) -> CachedRenderable:
-        """Wrap and retain a newly built hint document's segment cache."""
+    ) -> object:
+        """Wrap each card's children in one segment cache per card."""
+        from ..decks.card_part import CardPart
+
+        if isinstance(renderable, Group) and any(
+            isinstance(child, CardPart) for child in renderable.renderables
+        ):
+            kept: list[object] = []
+            for child in renderable.renderables:
+                if not isinstance(child, CardPart):
+                    kept.append(child)
+                    continue
+                inner: RenderableType
+                if len(child.renderables) == 1:
+                    inner = child.renderables[0]  # type: ignore[assignment]
+                else:
+                    inner = Group(*child.renderables)  # type: ignore[arg-type]
+                cached = CachedRenderable(
+                    inner,
+                    _plain_renderable_content(child),
+                )
+                kept.append(CardPart(child.card_id, child.title, cached))
+            document = Group(*kept)  # type: ignore[arg-type]
+            self._agent_hint_renderable = document
+            return document
         cached = CachedRenderable(
             renderable,
             _plain_renderable_content(renderable),
@@ -124,7 +152,7 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
                 self._agent_hint_renderable = None
                 render = self._update_display_with_hints_impl(agent)
                 renderable = getattr(self, "_agent_hint_renderable", None)
-                if isinstance(renderable, CachedRenderable):
+                if isinstance(renderable, (CachedRenderable, Group)):
                     cache[cache_key] = AgentHintRenderCacheEntry(
                         result=render,
                         renderable=renderable,
