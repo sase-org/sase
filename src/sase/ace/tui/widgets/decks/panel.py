@@ -431,6 +431,19 @@ class DeckPanel(DeckPanelChromeMixin, DeckPanelSpreadMixin, Vertical):  # type: 
                 self.main_view.show_document(
                     document, preferred_card=preferred, mode=new_mode
                 )
+                if (
+                    preferred is not None
+                    and document.card(preferred) is not None
+                    and preferred
+                    != (document.cards[0].card_id if document.cards else None)
+                ):
+                    # Spread starts at the top; keep the stuck explicit
+                    # choice (e.g. a split duplicate's card) like the
+                    # transition one-shot does.
+                    try:
+                        self.main_view.scroll_to_card(preferred)
+                    except Exception:
+                        pass
                 self._main_active_card = self.main_view.active_card_id
             else:
                 # Spread -> paged anchors the card at the viewport top.
@@ -498,8 +511,11 @@ class DeckPanel(DeckPanelChromeMixin, DeckPanelSpreadMixin, Vertical):  # type: 
         except Exception:
             active = None
         self._main_active_card = active
-        if is_new_subject and new_mode is RenderMode.SPREAD:
-            # Spread starts at the top; honor duplicate one-shot cards.
+        if new_mode is RenderMode.SPREAD:
+            # Spread starts at the top; honor duplicate one-shot cards and
+            # the stuck explicit choice across PAGED->SPREAD transitions
+            # (a fresh panel first paints PAGED before the viewport settles,
+            # so the transition is same-subject and still must keep it).
             if (
                 preferred_card is not None
                 and document.card(preferred_card) is not None

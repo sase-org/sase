@@ -554,7 +554,9 @@ async def test_config_center_plugins_loading_png_snapshot(
     _patch_config_view(monkeypatch, _build_view(_config_schema(), _config_layers()))
     _patch_plugins_catalog(monkeypatch)
     monkeypatch.setattr(
-        PluginsBrowserPane, "_start_load", lambda self, *, force=False: None
+        PluginsBrowserPane,
+        "_start_load",
+        lambda self, *, force=False, cache_only=False: None,
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:

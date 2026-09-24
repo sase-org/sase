@@ -250,9 +250,16 @@ class MainDeckView(SectionViewMixin, Static):
         render_key = (document.digest, "spread", document.partial)
         if render_key == self._last_render_key and self._document is not None:
             self._render_mode = RenderMode.SPREAD
-            active = self.spread_active_card()
-            if active is not None:
-                self._active_card = active
+            pending = self._spread_pending_card
+            if pending is not None and document.card(pending) is not None:
+                # Explicit card navigation is in flight; the scroll position
+                # has not caught up yet, so keep the requested card instead
+                # of re-deriving from the stale scroll offset.
+                self._active_card = pending
+            else:
+                active = self.spread_active_card()
+                if active is not None:
+                    self._active_card = active
             return self._active_card
         is_new_subject = (
             not self._subject_seen or document.subject != self._previous_subject
@@ -293,9 +300,15 @@ class MainDeckView(SectionViewMixin, Static):
             except Exception:
                 pass
         else:
-            derived = self.spread_active_card()
-            if derived is not None:
-                self._active_card = derived
+            pending = self._spread_pending_card
+            if pending is not None and document.card(pending) is not None:
+                # Same as above: explicit navigation wins over the stale
+                # scroll offset until the deferred scroll is applied.
+                self._active_card = pending
+            else:
+                derived = self.spread_active_card()
+                if derived is not None:
+                    self._active_card = derived
         # Honor a one-shot scroll-to-card recorded for duplicate panels.
         pending = getattr(self, "_spread_pending_card", None)
         if pending is not None and document.card(pending) is not None:
