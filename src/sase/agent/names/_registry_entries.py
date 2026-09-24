@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.agent_identity_facade import (
@@ -16,6 +16,27 @@ from sase.core.agent_identity_facade import (
 REGISTRY_ORIGIN_LOCAL = "local"
 REGISTRY_ORIGIN_IMPORT_V2 = "import_v2"
 REGISTRY_ORIGIN_IMPORT_V1 = "import_v1"
+
+AGENT_SESSION_CONTAINER_KIND: Literal["session"] = "session"
+# legacy agent-family spelling
+LEGACY_AGENT_FAMILY_CONTAINER_KIND: Literal["family"] = "family"
+
+
+def is_agent_session_container_kind(value: object) -> bool:
+    """Return whether *value* names an agent-session container.
+
+    Accepts the legacy ``"family"`` spelling so pre-rename registry files
+    keep resolving; writers always store the session spelling.
+    """
+    return value in {AGENT_SESSION_CONTAINER_KIND, LEGACY_AGENT_FAMILY_CONTAINER_KIND}
+
+
+def normalize_agent_session_kind(value: Any) -> Any:
+    """Map a legacy agent-family kind value to the session spelling."""
+    # legacy agent-family spelling
+    if value == LEGACY_AGENT_FAMILY_CONTAINER_KIND:
+        return AGENT_SESSION_CONTAINER_KIND
+    return value
 
 
 def dotted_namespace_prefixes(name: str) -> set[str]:

@@ -19,9 +19,13 @@ import pytest
 
 from sase.agent.names import (
     ForcedReuseCleanupError,
+    claim_registered_name,
+    convert_registered_agent_to_family,
     get_reserved_agent_names,
     lookup_registered_name,
     rebuild_name_registry,
+    release_stale_container,
+    wipe_agent_name_for_reuse,
     wipe_force_reuse_owner,
 )
 
@@ -46,6 +50,24 @@ def _artifact(
             encoding="utf-8",
         )
     return path
+
+
+def test_stale_session_container_skips_wipe_and_releases(tmp_path: Path) -> None:
+    """A session container is never wiped in place but releases as stale."""
+    root = tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run1"
+    root.mkdir(parents=True)
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("foo", root)
+        convert_registered_agent_to_family("foo", "foo--0", root)
+        assert lookup_registered_name("foo")["container_kind"] == "session"
+
+        skipped = wipe_agent_name_for_reuse("foo")
+        assert skipped.found is True
+        assert skipped.skipped_container_kind == "session"
+        assert lookup_registered_name("foo") is not None
+
+        release_stale_container("foo", container_kind="session")
+        assert lookup_registered_name("foo") is None
 
 
 def test_wipe_force_reuse_owner_replaces_newest_family_generation(

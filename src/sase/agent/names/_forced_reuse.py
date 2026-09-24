@@ -14,6 +14,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Literal
 
+from sase.agent.names._registry_entries import (
+    AGENT_SESSION_CONTAINER_KIND,
+    is_agent_session_container_kind,
+)
+
 
 class ForcedReuseCleanupError(RuntimeError):
     """Raised when forced-name-reuse cleanup cannot be completed."""
@@ -76,7 +81,7 @@ def wipe_force_reuse_owners(
                 f"agent name '{name}' reported errors: " + "; ".join(result.errors)
             )
             continue
-        if result.skipped_container_kind == "family":
+        if is_agent_session_container_kind(result.skipped_container_kind):
             family_names.append(name)
             continue
         if result.skipped_container_kind == "clan":
@@ -153,7 +158,9 @@ def _wipe_families_for_forced_reuse(names: Sequence[str]) -> None:
         all_member_names.update(member_names)
 
     if stale_families:
-        release_stale_containers(tuple((name, "family") for name in stale_families))
+        release_stale_containers(
+            tuple((name, AGENT_SESSION_CONTAINER_KIND) for name in stale_families)
+        )
     if not all_member_names:
         return
 
@@ -212,14 +219,14 @@ def _wipe_families_for_forced_reuse(names: Sequence[str]) -> None:
 def release_stale_container(
     name: str,
     *,
-    container_kind: Literal["family", "clan"],
+    container_kind: Literal["session", "clan"],
 ) -> None:
     """Remove an orphaned container's residual owner and verify its release."""
     release_stale_containers(((name, container_kind),))
 
 
 def release_stale_containers(
-    containers: Sequence[tuple[str, Literal["family", "clan"]]],
+    containers: Sequence[tuple[str, Literal["session", "clan"]]],
 ) -> None:
     """Remove orphaned container reservations as one cleanup batch."""
     materialized = tuple(

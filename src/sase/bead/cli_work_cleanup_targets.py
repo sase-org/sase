@@ -12,6 +12,7 @@ from sase.bead.cli_work_cleanup_types import (
     CleanupAction,
     CleanupTarget,
 )
+from sase.agent.names._registry_entries import is_agent_session_container_kind
 from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 
 if TYPE_CHECKING:
@@ -178,7 +179,8 @@ def classify_slot_owner(
 ) -> tuple[CleanupTarget, ...] | None:
     """Classify one registered name as preserved or safe to clean up."""
     container_kind = owner.get("container_kind")
-    if container_kind == "family":
+    # legacy agent-family spelling: pre-rename registries still store "family".
+    if is_agent_session_container_kind(container_kind):
         return _classify_family_owner(
             slot,
             bead_assignees=bead_assignees,

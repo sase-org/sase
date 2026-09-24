@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.agent.names._registry_entries import AGENT_SESSION_CONTAINER_KIND
 from sase.agent.names._registry_mutation_support import (
     RegistryMutationOperations,
     ensure_local_namespace_available,
@@ -139,7 +140,12 @@ def convert_registered_agent_to_family(
             container_kind = existing.get("container_kind")
             if container_kind == "clan":
                 operations.raise_container_name_collision(name, existing)
-            if container_kind not in {None, "family"}:
+            # legacy agent-family spelling: a stored "family" container converts too.
+            if container_kind not in {
+                None,
+                AGENT_SESSION_CONTAINER_KIND,
+                "family",
+            }:
                 operations.raise_container_name_collision(name, existing)
             if container_kind is None and operations.entry_has_other_claim_owner(
                 existing, artifact_dir
@@ -158,10 +164,10 @@ def convert_registered_agent_to_family(
             operations,
             artifact_dir,
             family_storage_name,
-            reservation_kind="family",
+            reservation_kind=AGENT_SESSION_CONTAINER_KIND,
             identity=identity,
         )
-        family_entry["container_kind"] = "family"
+        family_entry["container_kind"] = AGENT_SESSION_CONTAINER_KIND
         entries[family_storage_name] = family_entry
         entries[member_storage_name] = local_artifact_entry(
             operations,

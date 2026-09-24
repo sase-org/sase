@@ -283,7 +283,7 @@ def _apply_cleanup_targets(
 
 def _apply_cleanup_batches(
     wipe_names: tuple[str, ...],
-    release_targets: tuple[tuple[str, Literal["family", "clan"]], ...],
+    release_targets: tuple[tuple[str, Literal["session", "clan"]], ...],
 ) -> None:
     if wipe_names:
         wipe_force_reuse_owners(wipe_names, allow_container_skip=False)
@@ -295,5 +295,5 @@ def _release_container_name(target: CleanupTarget) -> str:
     return target.name
 
 
-def _release_container_kind(target: CleanupTarget) -> Literal["family", "clan"]:
-    return "clan" if "clan" in target.detail else "family"
+def _release_container_kind(target: CleanupTarget) -> Literal["session", "clan"]:
+    return "clan" if "clan" in target.detail else "session"

@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from sase.agent.names._common import NameCollisionError
-from sase.agent.names._registry_entries import entry_belongs_to_artifact
+from sase.agent.names._registry_entries import (
+    entry_belongs_to_artifact,
+    is_agent_session_container_kind,
+    normalize_agent_session_kind,
+)
 from sase.agent.names._registry_mutation_support import (
     RegistryMutationOperations,
     local_artifact_entry,
@@ -155,7 +159,7 @@ class RegisteredNameReservationSnapshot:
         return {
             name
             for name, entry in self.entries.items()
-            if entry.get("container_kind") == "family"
+            if is_agent_session_container_kind(entry.get("container_kind"))
         }
 
 
@@ -479,13 +483,26 @@ def _merge_predicate_matches(
         "clan_generation",
     ):
         expected_value = expected.get(field)
-        if expected_value is not None and existing.get(field) != expected_value:
+        if expected_value is None:
+            continue
+        existing_value = existing.get(field)
+        if field in {"reservation_kind", "container_kind"}:
+            # legacy agent-family spelling: core still plans "family" predicates.
+            if normalize_agent_session_kind(
+                existing_value
+            ) != normalize_agent_session_kind(expected_value):
+                return False
+        elif existing_value != expected_value:
             return False
     return True
 
 
 def _wire_entry_to_registry(entry: Mapping[str, Any]) -> dict[str, Any]:
     out = dict(entry)
+    # Core still emits the legacy agent-family spelling; store the session one.
+    for field in ("reservation_kind", "container_kind"):
+        if field in out:
+            out[field] = normalize_agent_session_kind(out[field])
     out["source_owner"] = _owner_to_wire(out.get("source_owner"))
     collision_owners = out.get("collision_owners")
     if isinstance(collision_owners, list):

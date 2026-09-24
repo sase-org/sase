@@ -12,12 +12,15 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
-from sase.agent.names._registry_entries import entry_owner_missing
+from sase.agent.names._registry_entries import (
+    entry_owner_missing,
+    normalize_agent_session_kind,
+)
 from sase.agent.names._registry_scan import source_signature_paths
 from sase.core.paths import sase_home
 
-SCHEMA_VERSION = 2
-_LEGACY_SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
+_LEGACY_SCHEMA_VERSIONS = frozenset({1, 2})
 INDEX_FILENAME = "agent_name_registry.json"
 
 # Bumped whenever a scan-logic change would derive different entries from the
@@ -54,20 +57,27 @@ def read_registry(path: Path) -> dict[str, Any] | None:
     if not isinstance(data, dict):
         return None
     schema_version = data.get("schema_version")
-    if schema_version not in {SCHEMA_VERSION, _LEGACY_SCHEMA_VERSION}:
+    if schema_version not in {SCHEMA_VERSION, *_LEGACY_SCHEMA_VERSIONS}:
         return None
     entries = data.get("entries")
     if not isinstance(entries, dict):
         return None
-    if schema_version == _LEGACY_SCHEMA_VERSION:
+    if schema_version in _LEGACY_SCHEMA_VERSIONS:
         upgraded = dict(data)
         upgraded["schema_version"] = SCHEMA_VERSION
         upgraded["_needs_rebuild"] = True
-        upgraded["entries"] = {
-            name: _upgrade_v1_entry(name, entry)
-            for name, entry in entries.items()
-            if isinstance(name, str) and isinstance(entry, dict)
-        }
+        if schema_version == 1:
+            upgraded["entries"] = {
+                name: _upgrade_v1_entry(name, entry)
+                for name, entry in entries.items()
+                if isinstance(name, str) and isinstance(entry, dict)
+            }
+        else:
+            upgraded["entries"] = {
+                name: _upgrade_v2_entry(entry)
+                for name, entry in entries.items()
+                if isinstance(name, str) and isinstance(entry, dict)
+            }
         return upgraded
     return data
 
@@ -263,4 +273,14 @@ def _upgrade_v1_entry(name: str, entry: dict[str, Any]) -> dict[str, Any]:
             }
         )
     upgraded["name"] = name
+    return _upgrade_v2_entry(upgraded)
+
+
+def _upgrade_v2_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a v2 entry's container kinds to the session spelling."""
+    upgraded = dict(entry)
+    # legacy agent-family spelling
+    for field in ("reservation_kind", "container_kind"):
+        if field in upgraded:
+            upgraded[field] = normalize_agent_session_kind(upgraded[field])
     return upgraded

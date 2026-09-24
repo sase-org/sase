@@ -391,7 +391,7 @@ def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> 
 
         assert get_reserved_family_names() == {"foo"}
         assert agent_name_registry_freshness_token() > before_conversion
-        assert lookup_registered_name("foo")["container_kind"] == "family"
+        assert lookup_registered_name("foo")["container_kind"] == "session"
         assert lookup_registered_name("foo--0")["reservation_kind"] == "claimed"
         with pytest.raises(NameCollisionError, match="reserved for agent family"):
             claim_registered_name("foo", other_dir, replace_existing=True)
@@ -420,7 +420,7 @@ def test_auto_prefix_hood_neighbor_does_not_block_family_conversion(
         rebuild_name_registry()
         convert_registered_agent_to_family("sq", "sq--plan", root_dir)
 
-        assert lookup_registered_name("sq")["container_kind"] == "family"
+        assert lookup_registered_name("sq")["container_kind"] == "session"
         assert lookup_registered_name("sq--plan")["reservation_kind"] == "claimed"
         assert {"sq", "sq.w0"} <= get_reserved_agent_names()
 

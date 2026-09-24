@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from sase.agent.names._registry_entries import is_agent_session_container_kind
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     current_owner_agent_name_key,
@@ -78,7 +79,8 @@ def get_reserved_family_names(*, load_registry: RegistryLoader) -> set[str]:
     return {
         name
         for name, entry in load_registry()["entries"].items()
-        if isinstance(entry, dict) and entry.get("container_kind") == "family"
+        if isinstance(entry, dict)
+        and is_agent_session_container_kind(entry.get("container_kind"))
     }
 
 

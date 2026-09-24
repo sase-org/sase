@@ -14,6 +14,7 @@ import pytest
 from sase.agent.names import (
     claim_registered_name,
     get_reserved_agent_names,
+    get_reserved_family_names,
     get_reserved_family_names_for_display,
     load_name_registry,
     lookup_registered_name,
@@ -21,7 +22,12 @@ from sase.agent.names import (
     rebuild_name_registry,
     reset_name_registry_caches_for_tests,
 )
-from sase.agent.names import _registry, _registry_scan, _registry_store
+from sase.agent.names import (
+    _registry,
+    _registry_queries,
+    _registry_scan,
+    _registry_store,
+)
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
@@ -86,8 +92,8 @@ def test_registry_rebuild_collects_family_container(tmp_path: Path) -> None:
         data = rebuild_name_registry()
 
     assert {"foo", "foo--0"} <= set(data["entries"])
-    assert data["entries"]["foo"]["container_kind"] == "family"
-    assert data["entries"]["foo"]["reservation_kind"] == "family"
+    assert data["entries"]["foo"]["container_kind"] == "session"
+    assert data["entries"]["foo"]["reservation_kind"] == "session"
     assert data["entries"]["foo--0"]["reservation_kind"] == "claimed"
 
 
@@ -109,8 +115,8 @@ def test_registry_rebuild_family_container_outranks_auto_prefix(
         data = rebuild_name_registry()
 
     entry = data["entries"]["sq"]
-    assert entry["container_kind"] == "family"
-    assert entry["reservation_kind"] == "family"
+    assert entry["container_kind"] == "session"
+    assert entry["reservation_kind"] == "session"
 
 
 def test_registry_rebuild_clan_container_outranks_auto_prefix(
@@ -640,6 +646,88 @@ def test_stale_proof_memo_expires_after_ttl(
             load_name_registry()
 
     assert is_stale.call_count == 1
+
+
+def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
+    tmp_path: Path,
+) -> None:
+    """A realistic v2 file loads, answers container queries, and rebuilds as v3."""
+    artifact_dir = _make_family_agent(tmp_path, "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        reset_name_registry_caches_for_tests()
+        path = _registry_store.registry_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "scan_version": _registry_store.SCAN_VERSION,
+                    "source_signature": _registry_store._source_signature(),
+                    "entries": {
+                        "foo": {
+                            "name": "foo",
+                            "source": "artifact",
+                            "artifacts_dir": str(artifact_dir),
+                            "reservation_kind": "family",
+                            "container_kind": "family",
+                        },
+                        "foo--0": {
+                            "name": "foo--0",
+                            "source": "artifact",
+                            "artifacts_dir": str(artifact_dir),
+                            "reservation_kind": "claimed",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        reset_name_registry_caches_for_tests()
+
+        upgraded = _registry_store.read_registry(path)
+        assert upgraded is not None
+        assert upgraded["schema_version"] == 3
+        assert upgraded["_needs_rebuild"] is True
+        assert upgraded["entries"]["foo"]["reservation_kind"] == "session"
+        assert upgraded["entries"]["foo"]["container_kind"] == "session"
+        assert upgraded["entries"]["foo--0"]["reservation_kind"] == "claimed"
+
+        assert _registry_queries.get_reserved_family_names(
+            load_registry=lambda: upgraded
+        ) == {"foo"}
+        # The raw legacy spelling still resolves through the same reader.
+        assert _registry_queries.get_reserved_family_names(
+            load_registry=lambda: {"entries": {"foo": {"container_kind": "family"}}}
+        ) == {"foo"}
+
+        data = load_name_registry()
+        assert data["schema_version"] == 3
+        assert data["entries"]["foo"]["container_kind"] == "session"
+        assert data["entries"]["foo"]["reservation_kind"] == "session"
+        assert get_reserved_family_names() == {"foo"}
+
+        rewritten = json.loads(path.read_text(encoding="utf-8"))
+        assert rewritten["schema_version"] == 3
+        for entry in rewritten["entries"].values():
+            assert entry.get("reservation_kind") != "family"
+            assert entry.get("container_kind") != "family"
+
+
+def test_v3_rebuild_emits_no_family_kinds(tmp_path: Path) -> None:
+    """A v3 rebuild stores session container kinds and no family spelling."""
+    _make_family_agent(tmp_path, "run1", "foo")
+    with patch.object(Path, "home", return_value=tmp_path):
+        rebuild_name_registry()
+        written = json.loads(
+            _registry_store.registry_path().read_text(encoding="utf-8")
+        )
+
+    assert written["schema_version"] == 3
+    assert written["entries"]["foo"]["container_kind"] == "session"
+    assert written["entries"]["foo"]["reservation_kind"] == "session"
+    for entry in written["entries"].values():
+        assert entry.get("reservation_kind") != "family"
+        assert entry.get("container_kind") != "family"
 
 
 def test_stale_proof_memo_still_detects_deleted_owner_after_ttl(

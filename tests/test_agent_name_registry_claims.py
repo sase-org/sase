@@ -109,7 +109,7 @@ def test_local_claim_records_v2_registry_provenance(
         claim_registered_name("athena.foo", artifact_dir)
         data = load_name_registry()
 
-    assert data["schema_version"] == 2
+    assert data["schema_version"] == 3
     entry = data["entries"]["foo"]
     assert entry["origin"] == "local"
     assert entry["canonical_global_name"] == "alice.athena.foo"

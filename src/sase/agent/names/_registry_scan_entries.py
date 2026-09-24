@@ -8,8 +8,10 @@ from typing import Any
 
 from sase.agent.names._common import extract_auto_name_prefix, strip_dismissed_prefix
 from sase.agent.names._registry_entries import (
+    AGENT_SESSION_CONTAINER_KIND,
     imported_v1_entry_provenance,
     imported_v2_entry_provenance,
+    is_agent_session_container_kind,
     local_entry_provenance,
 )
 from sase.core.agent_identity_facade import (
@@ -110,8 +112,8 @@ def add_owner_family(
         **owner,
         **_entry_provenance(name, provenance_payload, identity),
         "name": name,
-        "reservation_kind": "family",
-        "container_kind": "family",
+        "reservation_kind": AGENT_SESSION_CONTAINER_KIND,
+        "container_kind": AGENT_SESSION_CONTAINER_KIND,
     }
     existing = entries.get(name)
     if not isinstance(existing, dict):
@@ -119,7 +121,7 @@ def add_owner_family(
         return
     if promote_container_over_auto_prefix(entries, name, entry):
         return
-    if existing.get("container_kind") == "family":
+    if is_agent_session_container_kind(existing.get("container_kind")):
         return
     if _entry_owner_identity(existing) == _entry_owner_identity(entry):
         entries[name] = entry

@@ -23,6 +23,7 @@ def preview_legacy_bead_work_force_reuse(
         get_live_agent_name_subset,
         lookup_registered_name,
     )
+    from sase.agent.names._registry_entries import is_agent_session_container_kind
     from sase.bead.cli_work_cleanup_types import CleanupPreview, CleanupTarget
     from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 
@@ -46,7 +47,8 @@ def preview_legacy_bead_work_force_reuse(
         if owner is None:
             continue
         container_kind = owner.get("container_kind")
-        if container_kind == "family":
+        # legacy agent-family spelling: pre-rename registries still store "family".
+        if is_agent_session_container_kind(container_kind):
             family = find_agent_family(name)
             members = (
                 tuple(

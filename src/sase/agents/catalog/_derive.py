@@ -22,7 +22,9 @@ def classify_kind(
     fields already use elsewhere in the Artifacts query corpus.
     """
     kinds: list[str] = []
-    if container_kind == "family":
+    # legacy agent-family spelling: registries still store "family" until rebuild.
+    # The emitted "family" kind stays for session-pages.
+    if container_kind in {"session", "family"}:
         kinds.append("family")
     elif container_kind == "clan":
         kinds.append("clan")
