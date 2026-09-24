@@ -1,6 +1,10 @@
 """Durable proc models, ids, logs, paths, and store facade."""
 
 from .attribution import infer_proc_attribution
+from .command_line import (
+    COMMAND_LINE_PROC_HISTORY_LIMIT,
+    COMMAND_LINE_PROC_TAG,
+)
 from .ids import ProcRefError, new_proc_id, resolve_proc_ref, short_proc_id
 from .names import (
     ProcShellNameError,
@@ -81,6 +85,8 @@ from .store import (
 
 __all__ = [
     "ACTIVE_PROC_STATUSES",
+    "COMMAND_LINE_PROC_HISTORY_LIMIT",
+    "COMMAND_LINE_PROC_TAG",
     "COMMAND_PROC_KIND",
     "DETACHED_PROC_KIND",
     "PROC_KINDS",

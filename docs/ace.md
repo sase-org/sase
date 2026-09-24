@@ -7724,8 +7724,9 @@ render dim with a `†` marker.
 
 **Retention.** [`procs.history_limit`](configuration.md#procs) caps how many _finished_
 procs are kept; pending and running work is never pruned for being old. Lowering the
-limit removes the oldest finished rows and their log files. The legacy
-`tasks.history_limit` key is still honored as a deprecated alias.
+limit removes the oldest finished rows and their log files. Finished procs tagged
+`command-line` (TUI Command Line submissions) keep a separate bucket of 50 beside this
+limit. The legacy `tasks.history_limit` key is still honored as a deprecated alias.
 
 The CLI equivalents are `sase proc list`, `sase proc show ID` (`--follow` to stream),
 `sase proc run [--session SESSION|none] -- COMMAND` (`--wait` to stream and inherit the

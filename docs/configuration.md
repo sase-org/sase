@@ -4059,7 +4059,9 @@ Source: `src/sase/default_config.yml`, `src/sase/config/_settings_runner.py`,
 Durable proc records live in `~/.sase/procs/procs.jsonl`, with combined output logs
 under `~/.sase/procs/logs/`. Retention keeps every pending or running proc plus the
 newest configured number of finished procs. Lowering the limit trims the oldest finished
-rows and their logs; active work is never pruned.
+rows and their logs; active work is never pruned. Finished procs tagged `command-line`
+(TUI Command Line submissions) keep a separate bucket of 50 beside this limit, so heavy
+Command Line use never evicts operational proc history.
 
 Each proc also has a runtime directory under `~/.sase/procs/runtime/`. Retention deletes
 a pruned row's runtime directory immediately, while the hourly `proc_runtime_sweep`

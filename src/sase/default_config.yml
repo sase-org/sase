@@ -92,7 +92,8 @@ agent_hold_confirm_capture_threshold: 10
 
 procs:
   # Maximum number of finished procs kept in ~/.sase/procs. Running procs are
-  # never pruned.
+  # never pruned. Finished procs tagged `command-line` (TUI Command Line
+  # submissions) keep a separate bucket of 50 beside this limit.
   history_limit: 100
   # Rowless proc runtime directories are historical orphans. Fresh entries are
   # preserved to avoid racing launch/reservation handoff; hourly housekeeping
