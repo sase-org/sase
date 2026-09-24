@@ -20,8 +20,8 @@ from sase.core.dismissed_agent_completion import (
     load_archived_agent_completions,
 )
 from sase.core.agent_identity_facade import (
-    AgentFamilyNameKind,
-    parse_agent_family_name,
+    AgentSessionNameKind,
+    parse_agent_session_name,
 )
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
@@ -371,7 +371,7 @@ def _find_agent_family_exact(base_name: str) -> AgentFamily | None:
 
 def _is_canonical_agent_family_member_name(name: str) -> bool:
     try:
-        return parse_agent_family_name(name).kind is AgentFamilyNameKind.MEMBER
+        return parse_agent_session_name(name).kind is AgentSessionNameKind.MEMBER
     except (RuntimeError, ValueError):
         return False
 

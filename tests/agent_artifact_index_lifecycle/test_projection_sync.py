@@ -128,7 +128,7 @@ def test_sync_dismissed_projection_reports_reconcile_failure(
 
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle."
-        "reconcile_agent_artifact_index_dismissed_family_members",
+        "reconcile_agent_artifact_index_dismissed_agent_session_members",
         fail_reconcile,
     )
 
@@ -509,7 +509,7 @@ def test_authoritative_dismissed_sync_skips_when_metadata_matches_projection(
     )
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle."
-        "reconcile_agent_artifact_index_dismissed_family_members",
+        "reconcile_agent_artifact_index_dismissed_agent_session_members",
         fail_reconcile,
     )
 
@@ -575,7 +575,7 @@ def test_authoritative_dismissed_sync_updates_when_projection_digest_differs(
     )
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle."
-        "reconcile_agent_artifact_index_dismissed_family_members",
+        "reconcile_agent_artifact_index_dismissed_agent_session_members",
         fake_reconcile,
     )
 

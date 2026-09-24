@@ -62,25 +62,27 @@ class _ParsedOwnedAgentName:
     owner_root: str | None
     local_name: str
     hood: str
-    family_name: str
+    agent_session_name: str
     member_role: str | None
 
 
-class AgentFamilyNameKind(StrEnum):
+class AgentSessionNameKind(StrEnum):
     SOLO = "solo"
     MEMBER = "member"
 
 
 @dataclass(frozen=True, slots=True)
-class _ParsedAgentFamilyName:
-    kind: AgentFamilyNameKind
-    family_name: str
+class _ParsedAgentSessionName:
+    kind: AgentSessionNameKind
+    agent_session_name: str
     member_role: str | None
 
 
 class _AgentLinkTargetKind(StrEnum):
     AGENT = "agent"
+    # legacy agent-family spelling; core still emits "family" until core-contract
     FAMILY = "family"
+    SESSION = "session"
 
 
 @dataclass(frozen=True, slots=True)
@@ -475,6 +477,11 @@ def _parse_owned_agent_name(
     roots = _known_owner_roots(snapshot)
     binding = require_rust_binding("parse_owned_agent_name")
     payload: Mapping[str, Any] = binding(name, list(roots))
+    # legacy agent-family spelling: core still serializes the result as
+    # "family_name" and accepts "agent_session_name" as an alias
+    session_name = payload.get("agent_session_name")
+    if session_name is None:
+        session_name = payload["family_name"]
     return _ParsedOwnedAgentName(
         owner_root=(
             str(payload["owner_root"])
@@ -483,7 +490,7 @@ def _parse_owned_agent_name(
         ),
         local_name=str(payload["local_name"]),
         hood=str(payload["hood"]),
-        family_name=str(payload["family_name"]),
+        agent_session_name=str(session_name),
         member_role=(
             str(payload["member_role"])
             if payload.get("member_role") is not None
@@ -492,27 +499,32 @@ def _parse_owned_agent_name(
     )
 
 
-def parse_agent_family_name(
+def parse_agent_session_name(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
-) -> _ParsedAgentFamilyName:
+) -> _ParsedAgentSessionName:
     snapshot = identity or AgentIdentitySnapshot.current()
     if snapshot.owner is not None:
         parsed = _parse_owned_agent_name(name, snapshot)
-        return _ParsedAgentFamilyName(
+        return _ParsedAgentSessionName(
             kind=(
-                AgentFamilyNameKind.MEMBER
+                AgentSessionNameKind.MEMBER
                 if parsed.member_role is not None
-                else AgentFamilyNameKind.SOLO
+                else AgentSessionNameKind.SOLO
             ),
-            family_name=parsed.family_name,
+            agent_session_name=parsed.agent_session_name,
             member_role=parsed.member_role,
         )
-    binding = require_rust_binding("parse_agent_family_name")
+    binding = require_rust_binding("parse_agent_session_name")
     payload: Mapping[str, Any] = binding(name)
-    return _ParsedAgentFamilyName(
-        kind=AgentFamilyNameKind(str(payload["kind"])),
-        family_name=str(payload["family_name"]),
+    # legacy agent-family spelling: core still serializes the result as
+    # "family_name" and accepts "agent_session_name" as an alias
+    session_name = payload.get("agent_session_name")
+    if session_name is None:
+        session_name = payload["family_name"]
+    return _ParsedAgentSessionName(
+        kind=AgentSessionNameKind(str(payload["kind"])),
+        agent_session_name=str(session_name),
         member_role=(
             str(payload["member_role"])
             if payload.get("member_role") is not None
@@ -630,7 +642,7 @@ def _split_dismissed_prefix(name: str) -> tuple[str, str]:
 
 
 __all__ = [
-    "AgentFamilyNameKind",
+    "AgentSessionNameKind",
     "AgentIdentitySnapshot",
     "AgentOwnerIdentity",
     "agent_link_target",
@@ -646,7 +658,7 @@ __all__ = [
     "imported_source_owner_from_mapping",
     "normalize_owned_agent_name",
     "normalize_agent_archive_name",
-    "parse_agent_family_name",
+    "parse_agent_session_name",
     "present_agent_name",
     "present_imported_agent_name",
     "validate_agent_owner",

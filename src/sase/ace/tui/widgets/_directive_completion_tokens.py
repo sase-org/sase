@@ -249,8 +249,7 @@ def compat_directive_name(clause: DirectiveClauseCompletion) -> str:
 def _looks_like_id_keyword_prefix(token: str) -> bool:
     partial = token.casefold()
     return any(
-        keyword.startswith(partial)
-        for keyword in ("bead", "clan", "family", "session", "tribe")
+        keyword.startswith(partial) for keyword in ("bead", "clan", "session", "tribe")
     )
 
 

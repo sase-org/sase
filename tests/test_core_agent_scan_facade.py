@@ -498,3 +498,16 @@ def test_scan_agent_artifact_dirs_stale_wheel_raises_attributeerror(
     install_fake_rust_extension(monkeypatch)
     with pytest.raises(AttributeError, match="scan_agent_artifact_dirs"):
         scan_agent_artifact_dirs(fixture_root, [])
+
+
+def test_renamed_dismissed_agent_session_reconcile_binding_is_registered() -> None:
+    """The wire-cutover reconcile binding name exists on the installed core."""
+    import sase_core_rs
+
+    assert callable(
+        getattr(
+            sase_core_rs,
+            "reconcile_agent_artifact_index_dismissed_agent_session_members",
+            None,
+        )
+    )

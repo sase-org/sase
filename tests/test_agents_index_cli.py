@@ -192,7 +192,7 @@ def test_index_gc_dry_run_reports_without_mutating(
             return_value=(dismissed, 0),
         ),
         patch(
-            "sase.agents.cli_index.reconcile_agent_artifact_index_dismissed_family_members",
+            "sase.agents.cli_index.reconcile_agent_artifact_index_dismissed_agent_session_members",
             return_value=AgentArtifactIndexDismissalReconcileWire(
                 schema_version=1,
                 index_path="/tmp/index.sqlite",

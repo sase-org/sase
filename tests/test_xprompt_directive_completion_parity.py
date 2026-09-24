@@ -174,7 +174,7 @@ def test_ace_and_lsp_include_dispatch_machine_rows(
         "%xprompts_enabled:",
         "%id(worker, be",
         "%id(worker, cl",
-        "%id(worker, fa",
+        "%id(worker, se",
         "%id(worker, tr",
         "%clan(research, su",
         "%clan(research, tr",

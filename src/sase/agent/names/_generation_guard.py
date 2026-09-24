@@ -57,18 +57,18 @@ def generated_child_name_base(name: str) -> str:
     Names that can already parent a dotted child are returned unchanged.
     """
     from sase.core.agent_identity_facade import (
-        AgentFamilyNameKind,
+        AgentSessionNameKind,
         agent_local_hood,
-        parse_agent_family_name,
+        parse_agent_session_name,
     )
 
     base = name
     try:
-        parsed = parse_agent_family_name(name)
+        parsed = parse_agent_session_name(name)
     except ValueError:
         return name
-    if parsed.kind is AgentFamilyNameKind.MEMBER:
-        base = parsed.family_name
+    if parsed.kind is AgentSessionNameKind.MEMBER:
+        base = parsed.agent_session_name
     if AGENT_FAMILY_SEPARATOR not in base:
         return base
     try:

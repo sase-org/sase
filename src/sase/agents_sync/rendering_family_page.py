@@ -26,8 +26,8 @@ from sase.agents_sync.v2_models import (
     V2RunRecord,
 )
 from sase.core.agent_identity_facade import (
-    AgentFamilyNameKind,
-    parse_agent_family_name,
+    AgentSessionNameKind,
+    parse_agent_session_name,
 )
 
 
@@ -195,10 +195,10 @@ def _bead_header_fact(member_bead_links: tuple[BeadPageLink | None, ...]) -> str
 
 
 def _member_role(run: V2RunRecord) -> str:
-    parsed = parse_agent_family_name(run.local_name)
+    parsed = parse_agent_session_name(run.local_name)
     return (
         parsed.member_role or "root"
-        if parsed.kind is AgentFamilyNameKind.MEMBER
+        if parsed.kind is AgentSessionNameKind.MEMBER
         else "root"
     )
 

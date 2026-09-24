@@ -36,7 +36,7 @@ from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
     globalize_agent_name,
-    parse_agent_family_name,
+    parse_agent_session_name,
 )
 
 # Preserve existing private test/support imports and monkeypatch points while
@@ -220,7 +220,7 @@ def _normalize_historical_family_metadata(
     """Make stale family metadata agree with canonical name classification."""
 
     try:
-        parsed = parse_agent_family_name(run.local_name)
+        parsed = parse_agent_session_name(run.local_name)
     except Exception as exc:  # noqa: BLE001 - defensive history boundary.
         source = run.source_label or run.source_run_id
         diagnostics.append(
@@ -229,10 +229,10 @@ def _normalize_historical_family_metadata(
         return run
     raw_family = run.family_name
     canonical_family = (
-        parsed.family_name
+        parsed.agent_session_name
         if parsed.member_role is not None
         else raw_family
-        if raw_family == parsed.family_name
+        if raw_family == parsed.agent_session_name
         else None
     )
     metadata = dict(run.metadata)
@@ -268,11 +268,11 @@ def _diagnose_unrepresented_family_history(
     member_families: set[str] = set()
     for run in runs:
         try:
-            parsed = parse_agent_family_name(run.local_name)
+            parsed = parse_agent_session_name(run.local_name)
         except Exception:
             continue
         if parsed.member_role is not None:
-            member_families.add(parsed.family_name)
+            member_families.add(parsed.agent_session_name)
     for history in lane_commits:
         if (
             not history.is_family

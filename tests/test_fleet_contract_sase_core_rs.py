@@ -36,7 +36,7 @@ FLEET_BINDINGS = {
     "fleet_count_logical_agents",
     "fleet_follow_record_key",
     "fleet_reconcile_follow_records",
-    "fleet_followed_batch_family_promotions",
+    "fleet_followed_batch_agent_session_promotions",
     "fleet_count_focus_and_fleet",
     "fleet_normalize_federation_response",
     "fleet_count_focus_and_fleet_from_federation",
@@ -284,3 +284,12 @@ raise SystemExit(1 if forbidden else 0)
         text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_renamed_agent_session_promotion_binding_is_registered() -> None:
+    """The wire-cutover promotion binding name exists on the installed core."""
+    import sase_core_rs
+
+    assert callable(
+        getattr(sase_core_rs, "fleet_followed_batch_agent_session_promotions", None)
+    )

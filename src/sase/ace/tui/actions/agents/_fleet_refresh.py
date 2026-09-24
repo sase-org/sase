@@ -33,7 +33,7 @@ from ._fleet_common import (
 from ._fleet_follow import (
     followed_logical_keys,
     load_reconciled_follow_snapshot,
-    reconcile_followed_batch_family_promotions,
+    reconcile_followed_batch_agent_session_promotions,
 )
 
 if TYPE_CHECKING:
@@ -131,8 +131,8 @@ class AgentFleetRefreshMixin:
                         ),
                     )
                     reconcile_promotions = fleet_public_override(
-                        "_reconcile_followed_batch_family_promotions",
-                        reconcile_followed_batch_family_promotions,
+                        "_reconcile_followed_batch_agent_session_promotions",
+                        reconcile_followed_batch_agent_session_promotions,
                     )
                     follow_snapshot = await asyncio.to_thread(
                         reconcile_promotions,

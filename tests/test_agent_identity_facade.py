@@ -71,7 +71,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
             "family_name": "foo",
             "member_role": "code",
         },
-        "parse_agent_family_name": {
+        "parse_agent_session_name": {
             "kind": "member",
             "family_name": "foo",
             "member_role": "code",
@@ -118,7 +118,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
     assert facade.globalize_agent_name("foo", target) == "alice.athena.foo"
     assert facade.normalize_owned_agent_name("alice.athena.foo", identity) == "foo"
     assert facade.globalize_owned_agent_name("foo", identity) == "alice.athena.foo"
-    assert facade.parse_agent_family_name("foo--code", identity).member_role == "code"
+    assert facade.parse_agent_session_name("foo--code", identity).member_role == "code"
     assert facade.agent_local_hood("foo.bar", identity) == "foo"
     assert facade.agent_name_in_hood("foo.bar", "foo", identity)
     assert facade.agent_name_ancestors("foo.bar", identity) == ("foo", "foo.bar")
@@ -161,13 +161,13 @@ def test_owner_family_integration() -> None:
         facade.globalize_agent_name("260722.foo.bar--code", target)
         == "alice.athena.foo.bar--code"
     )
-    parsed = facade.parse_agent_family_name("foo.bar--code", identity)
+    parsed = facade.parse_agent_session_name("foo.bar--code", identity)
     assert (
         parsed.kind,
-        parsed.family_name,
+        parsed.agent_session_name,
         parsed.member_role,
     ) == (
-        facade.AgentFamilyNameKind.MEMBER,
+        facade.AgentSessionNameKind.MEMBER,
         "foo.bar",
         "code",
     )
@@ -245,7 +245,7 @@ def test_owner_roots_parse_topology_without_becoming_local_owner() -> None:
 
     assert parsed.owner_root == "athena"
     assert parsed.hood == "7n"
-    assert parsed.family_name == "7n"
+    assert parsed.agent_session_name == "7n"
     assert parsed.member_role == "code"
     assert facade.agent_local_hood("athena.7n--code", identity) == "7n"
     assert facade.foreign_agent_owner_root("athena.7n--code", identity) == "athena"
@@ -387,3 +387,17 @@ def test_relationship_validation_integration() -> None:
     malformed["owner"] = {"username": "Alice", "machine_name": "athena"}
     with pytest.raises(ValueError, match="invalid username"):
         facade.validate_agent_relationship_batch(malformed)
+
+
+@pytest.mark.parametrize(
+    "binding_name",
+    [
+        "parse_agent_session_name",
+        "resolve_agent_session_parent",
+    ],
+)
+def test_renamed_agent_session_binding_is_registered(binding_name: str) -> None:
+    """The wire-cutover binding names exist on the installed core wheel."""
+    import sase_core_rs
+
+    assert callable(getattr(sase_core_rs, binding_name, None)), binding_name

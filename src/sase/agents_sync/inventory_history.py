@@ -17,7 +17,7 @@ from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
-    parse_agent_family_name,
+    parse_agent_session_name,
 )
 from sase.core.commit_footer_facade import CommitTagValue, LinkedCommitTagValue
 from sase.sase_agent import SaseAgentRef, sase_agent_ref_for_name
@@ -72,7 +72,7 @@ def historical_associations(
             continue
         try:
             local_name = _canonical_local_name(raw_name, identity)
-            parsed = parse_agent_family_name(local_name)
+            parsed = parse_agent_session_name(local_name)
         except (AgentsSyncFormatError, ValueError, RuntimeError):
             continue
         commit = CommitRecord(sha, subject, committed_at)

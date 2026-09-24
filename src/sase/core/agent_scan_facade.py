@@ -290,15 +290,15 @@ def replace_agent_artifact_index_dismissed_agents(
     return agent_artifact_index_update_from_dict(payload)
 
 
-def reconcile_agent_artifact_index_dismissed_family_members(
+def reconcile_agent_artifact_index_dismissed_agent_session_members(
     index_path: Path | str,
     *,
     dry_run: bool = False,
 ) -> AgentArtifactIndexDismissalReconcileWire:
-    """Back-fill dismissed identities for dead members of dismissed families."""
+    """Back-fill dismissed identities for dead members of dismissed agent sessions."""
     with agent_artifact_index_operation_lock():
         rust_reconcile = require_rust_binding(
-            "reconcile_agent_artifact_index_dismissed_family_members"
+            "reconcile_agent_artifact_index_dismissed_agent_session_members"
         )
         payload: dict[str, Any] = rust_reconcile(str(index_path), bool(dry_run))
     return agent_artifact_index_dismissal_reconcile_from_dict(payload)
@@ -669,7 +669,7 @@ __all__ = [
     "query_related_agent_artifact_dirs_bounded",
     "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",
-    "reconcile_agent_artifact_index_dismissed_family_members",
+    "reconcile_agent_artifact_index_dismissed_agent_session_members",
     "replace_agent_artifact_index_dismissed_agents",
     "scan_agent_artifact_dirs",
     "scan_agent_artifacts",

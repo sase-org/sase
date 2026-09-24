@@ -12,7 +12,7 @@ agent.
 projection and the ``SASE_AGENT=`` commit footer identify the sase agent.
 
 This module is a thin projection over the naming primitives the Rust core
-already owns (:func:`parse_agent_family_name`, :func:`agent_link_target`,
+already owns (:func:`parse_agent_session_name`, :func:`agent_link_target`,
 :func:`globalize_owned_agent_name`); it deliberately does not re-implement name
 parsing.  Everything here is pure apart from one guarded reservation-registry
 read in :func:`sase_agent_ref_for_name`.
@@ -24,13 +24,13 @@ from collections.abc import Collection
 from dataclasses import dataclass
 
 from sase.core.agent_identity_facade import (
-    AgentFamilyNameKind,
+    AgentSessionNameKind,
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
     agent_link_target,
     globalize_owned_agent_name,
     normalize_owned_agent_name,
-    parse_agent_family_name,
+    parse_agent_session_name,
 )
 
 
@@ -64,11 +64,11 @@ def sase_agent_ref_for_shell(
     """
     snapshot = identity or AgentIdentitySnapshot.current()
     local_name = normalize_owned_agent_name(name, snapshot)
-    parsed = parse_agent_family_name(local_name, snapshot)
-    is_member = parsed.kind is AgentFamilyNameKind.MEMBER
+    parsed = parse_agent_session_name(local_name, snapshot)
+    is_member = parsed.kind is AgentSessionNameKind.MEMBER
     return SaseAgentRef(
-        local_name=parsed.family_name,
-        global_name=globalize_owned_agent_name(parsed.family_name, snapshot),
+        local_name=parsed.agent_session_name,
+        global_name=globalize_owned_agent_name(parsed.agent_session_name, snapshot),
         is_family=is_member,
         member_local_name=local_name if is_member else None,
     )
@@ -92,8 +92,8 @@ def sase_agent_ref_for_name(
     """
     snapshot = identity or AgentIdentitySnapshot.current()
     local_name = normalize_owned_agent_name(name, snapshot)
-    parsed = parse_agent_family_name(local_name, snapshot)
-    if parsed.kind is AgentFamilyNameKind.MEMBER:
+    parsed = parse_agent_session_name(local_name, snapshot)
+    if parsed.kind is AgentSessionNameKind.MEMBER:
         return sase_agent_ref_for_shell(local_name, snapshot)
     return SaseAgentRef(
         local_name=local_name,
@@ -134,7 +134,7 @@ def sase_agent_name(name: str) -> str:
     local one yields a local sase-agent name.  It exists for callers that only
     compare labels.
     """
-    return parse_agent_family_name(name).family_name
+    return parse_agent_session_name(name).agent_session_name
 
 
 def _is_reserved_family_name(local_name: str) -> bool:

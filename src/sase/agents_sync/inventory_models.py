@@ -7,11 +7,11 @@ from typing import Any
 
 from sase.agents_sync.models import CommitRecord
 from sase.core.agent_identity_facade import (
-    AgentFamilyNameKind,
+    AgentSessionNameKind,
     AgentOwnerIdentity,
     agent_local_hood,
     agent_name_in_hood,
-    parse_agent_family_name,
+    parse_agent_session_name,
 )
 
 
@@ -127,10 +127,13 @@ class ProjectHoodInventory:
     def _family_lane_has_member(self, lane: str) -> bool:
         for run in self.runs:
             try:
-                parsed = parse_agent_family_name(run.local_name)
+                parsed = parse_agent_session_name(run.local_name)
             except Exception:
                 continue
-            if parsed.kind is AgentFamilyNameKind.MEMBER and parsed.family_name == lane:
+            if (
+                parsed.kind is AgentSessionNameKind.MEMBER
+                and parsed.agent_session_name == lane
+            ):
                 return True
         return False
 

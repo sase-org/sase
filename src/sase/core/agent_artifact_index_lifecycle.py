@@ -42,7 +42,7 @@ from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     read_agent_artifact_index_meta,
     rebuild_agent_artifact_index,
-    reconcile_agent_artifact_index_dismissed_family_members,
+    reconcile_agent_artifact_index_dismissed_agent_session_members,
     replace_agent_artifact_index_dismissed_agents,
     terminalize_stale_active_agent_artifact_index_rows,
     write_agent_artifact_index_meta,
@@ -206,7 +206,9 @@ def _sync_projection(
             index, projection.identities, force=force
         )
         try:
-            reconcile = reconcile_agent_artifact_index_dismissed_family_members(index)
+            reconcile = reconcile_agent_artifact_index_dismissed_agent_session_members(
+                index
+            )
         except _INDEX_ERRORS as error:
             if _is_corruption_error(error):
                 raise _CorruptArtifactIndexError from error

@@ -30,7 +30,7 @@ from ._fleet_common import (
 from ._fleet_dispatch_launches import AgentFleetDispatchLaunchMixin
 from ._fleet_follow import (
     load_reconciled_follow_snapshot,
-    reconcile_followed_batch_family_promotions,
+    reconcile_followed_batch_agent_session_promotions,
 )
 from ._fleet_header import AgentFleetHeaderMixin
 from ._fleet_projection import AgentFleetProjectionMixin
@@ -41,7 +41,9 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 _load_reconciled_follow_snapshot = load_reconciled_follow_snapshot
-_reconcile_followed_batch_family_promotions = reconcile_followed_batch_family_promotions
+_reconcile_followed_batch_agent_session_promotions = (
+    reconcile_followed_batch_agent_session_promotions
+)
 
 
 class AgentFleetMixin(
@@ -85,7 +87,7 @@ __all__ = [
     "_FLEET_CATALOG_MAX_PAGES",
     "_FLEET_CATALOG_PAGE_LIMIT",
     "_load_reconciled_follow_snapshot",
-    "_reconcile_followed_batch_family_promotions",
+    "_reconcile_followed_batch_agent_session_promotions",
     "build_federation_facade",
     "load_federation_config",
     "load_follow_snapshot",

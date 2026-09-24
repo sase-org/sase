@@ -158,10 +158,10 @@ class HostedLinkResolver:
         """Return the agents sidecar page URL for *agent_name*."""
 
         from sase.core.agent_identity_facade import (
-            AgentFamilyNameKind,
+            AgentSessionNameKind,
             agent_link_target,
             normalize_owned_agent_name,
-            parse_agent_family_name,
+            parse_agent_session_name,
         )
         from sase.sase_agent import sase_agent_page_path, sase_agent_ref_for_name
 
@@ -174,8 +174,8 @@ class HostedLinkResolver:
             return None
         try:
             local_name = normalize_owned_agent_name(agent_name, snapshot)
-            parsed = parse_agent_family_name(local_name, snapshot)
-            if parsed.kind is AgentFamilyNameKind.MEMBER:
+            parsed = parse_agent_session_name(local_name, snapshot)
+            if parsed.kind is AgentSessionNameKind.MEMBER:
                 link_target = agent_link_target(local_name, owner, snapshot)
                 path = link_target.path
             else:

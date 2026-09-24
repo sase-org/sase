@@ -32,11 +32,9 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     }
     expected_aliases["q"] = "queue"
     assert _contract_aliases(contract) == expected_aliases
-    # Dual-shape: the additive core lists session= next to family=; the pinned
-    # core lists family= only. Tightened to the new shape in wire-cutover.
-    expected_id_keywords = ("bead", "clan", "family", "tribe")
-    if "session" in _contract_keywords(contract)["id"]:
-        expected_id_keywords = ("bead", "clan", "family", "session", "tribe")
+    # Wire-cutover pins core-expand: legacy family= stays in the contract so
+    # it still parses, next to the offered session= keyword.
+    expected_id_keywords = ("bead", "clan", "family", "session", "tribe")
     assert {
         name for name, row in contract.items() if bool(row["allows_multiple"])
     } == set(_MULTI_VALUE_DIRECTIVES) | {"alt", "hold", "xprompts_enabled", "queue"}

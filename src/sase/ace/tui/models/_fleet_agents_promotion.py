@@ -12,11 +12,11 @@ from ._fleet_agents_payload import host_payloads, summary_payloads
 from ._fleet_agents_scalars import mapping, optional_str
 
 
-def followed_batch_family_promotions(
+def fleet_followed_batch_agent_session_promotions(
     snapshot: FollowStoreSnapshot | None,
     followed_response: Mapping[str, Any] | None,
 ) -> tuple[dict[str, Any], ...]:
-    """Derive safe singleton-to-family follow promotions from hydrated rows."""
+    """Derive safe singleton-to-agent-session follow promotions from hydrated rows."""
     if (
         snapshot is None
         or followed_response is None
@@ -33,7 +33,7 @@ def followed_batch_family_promotions(
     if not records or not observations:
         return ()
     try:
-        result = require_rust_binding("fleet_followed_batch_family_promotions")(
+        result = require_rust_binding("fleet_followed_batch_agent_session_promotions")(
             {
                 "schema_version": 1,
                 "records": records,

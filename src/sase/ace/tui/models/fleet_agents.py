@@ -21,7 +21,7 @@ from ._fleet_agents_payload import (
     normalize_response,
     response_is_partial,
 )
-from ._fleet_agents_promotion import followed_batch_family_promotions
+from ._fleet_agents_promotion import fleet_followed_batch_agent_session_promotions
 from ._fleet_agents_rows import HostFeedIssue, host_feed_issues, rows_from_response
 from .agent import Agent
 
@@ -138,7 +138,7 @@ __all__ = [
     "HostFeedIssue",
     "catalog_next_cursor",
     "catalog_next_cursors_by_host",
-    "followed_batch_family_promotions",
+    "fleet_followed_batch_agent_session_promotions",
     "host_feed_issues",
     "merge_catalog_pages",
     "project_fleet_agents",

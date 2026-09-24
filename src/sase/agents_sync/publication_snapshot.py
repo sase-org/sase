@@ -33,11 +33,11 @@ from sase.agents_sync.v2_run_io import (
 )
 from sase.core.agent_archive_facade import capabilities_from_v2_run
 from sase.core.agent_identity_facade import (
-    AgentFamilyNameKind,
+    AgentSessionNameKind,
     AgentOwnerIdentity,
     agent_name_ancestors,
     globalize_agent_name,
-    parse_agent_family_name,
+    parse_agent_session_name,
 )
 
 
@@ -187,10 +187,10 @@ def _build_containers(
     family_commits: dict[str, dict[str, CommitRecord]] = {}
     for run in runs:
         metadata = dict(run.metadata)
-        parsed = parse_agent_family_name(run.local_name)
+        parsed = parse_agent_session_name(run.local_name)
         family = (
-            parsed.family_name
-            if parsed.kind is AgentFamilyNameKind.MEMBER
+            parsed.agent_session_name
+            if parsed.kind is AgentSessionNameKind.MEMBER
             else _text(metadata.get("agent_family"))
         )
         if family:

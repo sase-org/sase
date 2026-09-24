@@ -3,7 +3,9 @@ from __future__ import annotations
 import copy
 
 from sase.ace.tui.actions.agents._fleet_follow import followed_logical_keys
-from sase.ace.tui.models.fleet_agents import followed_batch_family_promotions
+from sase.ace.tui.models.fleet_agents import (
+    fleet_followed_batch_agent_session_promotions,
+)
 from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui.fleet_fixture import (
     fleet_contract_schema_version,
@@ -50,7 +52,7 @@ def _canonical_locator(
 ) -> dict[str, object]:
     """Return the locator shape promotion output always carries.
 
-    ``followed_batch_family_promotions`` canonicalizes every locator it
+    ``fleet_followed_batch_agent_session_promotions`` canonicalizes every locator it
     sends to the core through ``_locator_wire``, which fixes each nested
     ``schema_version`` at 1 regardless of the fleet contract's evolving
     schema version; the promoted ``from``/``to`` fields echo that same
@@ -71,7 +73,9 @@ def _canonical_locator(
     }
 
 
-def test_followed_batch_family_promotions_promote_explicit_singleton() -> None:
+def test_fleet_followed_batch_agent_session_promotions_promote_explicit_singleton() -> (
+    None
+):
     installation_id = fleet_installation_id("d")
     singleton = fleet_logical_locator(
         installation_id=installation_id,
@@ -88,7 +92,7 @@ def test_followed_batch_family_promotions_promote_explicit_singleton() -> None:
         ),
     )
 
-    assert followed_batch_family_promotions(
+    assert fleet_followed_batch_agent_session_promotions(
         fleet_follow_snapshot(singleton),
         response,
     ) == (
@@ -104,7 +108,9 @@ def test_followed_batch_family_promotions_promote_explicit_singleton() -> None:
     )
 
 
-def test_followed_batch_family_promotions_skip_ambiguous_families() -> None:
+def test_fleet_followed_batch_agent_session_promotions_skip_ambiguous_families() -> (
+    None
+):
     installation_id = fleet_installation_id("e")
     singleton = fleet_logical_locator(
         installation_id=installation_id,
@@ -120,7 +126,7 @@ def test_followed_batch_family_promotions_skip_ambiguous_families() -> None:
     )
 
     assert (
-        followed_batch_family_promotions(
+        fleet_followed_batch_agent_session_promotions(
             fleet_follow_snapshot(singleton),
             response,
         )
@@ -128,7 +134,9 @@ def test_followed_batch_family_promotions_skip_ambiguous_families() -> None:
     )
 
 
-def test_followed_batch_family_promotions_skip_family_and_dispatch_records() -> None:
+def test_fleet_followed_batch_agent_session_promotions_skip_family_and_dispatch_records() -> (
+    None
+):
     installation_id = fleet_installation_id("f")
     singleton = fleet_logical_locator(
         installation_id=installation_id,
@@ -156,4 +164,4 @@ def test_followed_batch_family_promotions_skip_family_and_dispatch_records() -> 
         summaries=(fleet_summary(installation_id=installation_id, agent_id="worker"),),
     )
 
-    assert followed_batch_family_promotions(snapshot, response) == ()
+    assert fleet_followed_batch_agent_session_promotions(snapshot, response) == ()

@@ -22,8 +22,8 @@ from sase.agent.names import (
 )
 from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.agent_identity_facade import (
-    AgentFamilyNameKind,
-    parse_agent_family_name,
+    AgentSessionNameKind,
+    parse_agent_session_name,
 )
 from sase.core.dismissed_agent_completion import (
     ArchivedAgentCompletion,
@@ -146,12 +146,12 @@ def find_family_member(name: str) -> AgentFamilyMember | None:
 
 def _canonical_family_member_base(name: str) -> str | None:
     try:
-        parsed = parse_agent_family_name(name)
+        parsed = parse_agent_session_name(name)
     except (RuntimeError, ValueError):
         return None
-    if parsed.kind is not AgentFamilyNameKind.MEMBER:
+    if parsed.kind is not AgentSessionNameKind.MEMBER:
         return None
-    return parsed.family_name
+    return parsed.agent_session_name
 
 
 def resolve_done_response_path(name: str) -> str | None:

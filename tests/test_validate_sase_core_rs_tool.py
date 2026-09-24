@@ -289,7 +289,7 @@ def test_validate_sase_core_rs_requires_machine_setup_bindings() -> None:
         "classify_tailnet_health",
         "classify_tailnet_discovery",
         "reconcile_machine_enrollments",
-        "fleet_followed_batch_family_promotions",
+        "fleet_followed_batch_agent_session_promotions",
         "fleet_normalize_federation_response",
         "fleet_count_focus_and_fleet_from_federation",
     }
@@ -375,7 +375,7 @@ def test_validate_sase_core_rs_requires_fleet_contract_bindings() -> None:
         "fleet_count_logical_agents",
         "fleet_follow_record_key",
         "fleet_reconcile_follow_records",
-        "fleet_followed_batch_family_promotions",
+        "fleet_followed_batch_agent_session_promotions",
         "fleet_count_focus_and_fleet",
         "fleet_normalize_federation_response",
         "fleet_count_focus_and_fleet_from_federation",

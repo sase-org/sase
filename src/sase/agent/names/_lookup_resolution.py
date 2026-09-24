@@ -22,8 +22,8 @@ from sase.agent.names._lookup_groups import (
 from sase.agent.names._lookup_named import find_named_agent
 from sase.agent.names._templates import resolve_agent_name_template_reference
 from sase.core.agent_identity_facade import (
-    AgentFamilyNameKind,
-    parse_agent_family_name,
+    AgentSessionNameKind,
+    parse_agent_session_name,
 )
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.plan_chain import AGENT_FAMILY_FIELD
@@ -105,7 +105,7 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
 
 def _is_canonical_agent_family_member_name(name: str) -> bool:
     try:
-        return parse_agent_family_name(name).kind is AgentFamilyNameKind.MEMBER
+        return parse_agent_session_name(name).kind is AgentSessionNameKind.MEMBER
     except (RuntimeError, ValueError):
         return False
 

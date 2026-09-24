@@ -289,12 +289,12 @@ def resolve_binding() -> Any:
     from sase.core.rust import require_rust_binding
 
     try:
-        return require_rust_binding("resolve_agent_family_parent")
+        return require_rust_binding("resolve_agent_session_parent")
     except AttributeError:
-        return _resolve_agent_family_parent_fallback
+        return _resolve_agent_session_parent_fallback
 
 
-def _resolve_agent_family_parent_fallback(request: dict[str, Any]) -> dict[str, Any]:
+def _resolve_agent_session_parent_fallback(request: dict[str, Any]) -> dict[str, Any]:
     """Compatibility path for dev checkouts with a stale core binding."""
 
     parent_name = str(request.get("parent_name") or "")

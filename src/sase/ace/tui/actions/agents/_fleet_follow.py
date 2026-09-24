@@ -11,7 +11,7 @@ from sase.dispatch.follow_store import (
     promote_family_follow,
 )
 
-from ...models.fleet_agents import followed_batch_family_promotions
+from ...models.fleet_agents import fleet_followed_batch_agent_session_promotions
 from ._fleet_common import fleet_public_override
 
 
@@ -35,12 +35,14 @@ def followed_logical_keys(
     return tuple(keys)
 
 
-def reconcile_followed_batch_family_promotions(
+def reconcile_followed_batch_agent_session_promotions(
     snapshot: FollowStoreSnapshot,
     followed_response: Mapping[str, Any] | None,
 ) -> FollowStoreSnapshot:
-    """Persist safe singleton-to-family promotions discovered during hydration."""
-    promotions = followed_batch_family_promotions(snapshot, followed_response)
+    """Persist safe singleton-to-agent-session promotions discovered during hydration."""
+    promotions = fleet_followed_batch_agent_session_promotions(
+        snapshot, followed_response
+    )
     if not promotions:
         return snapshot
     promote = fleet_public_override("promote_family_follow", promote_family_follow)
@@ -57,5 +59,5 @@ def reconcile_followed_batch_family_promotions(
 __all__ = [
     "followed_logical_keys",
     "load_reconciled_follow_snapshot",
-    "reconcile_followed_batch_family_promotions",
+    "reconcile_followed_batch_agent_session_promotions",
 ]

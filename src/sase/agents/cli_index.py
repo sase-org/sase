@@ -19,7 +19,7 @@ from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
     prune_hidden_terminal_agent_artifact_index_rows,
     rebuild_agent_artifact_index,
-    reconcile_agent_artifact_index_dismissed_family_members,
+    reconcile_agent_artifact_index_dismissed_agent_session_members,
     replace_agent_artifact_index_dismissed_agents,
     vacuum_agent_artifact_index,
     verify_agent_artifact_index,
@@ -406,7 +406,7 @@ def _family_dismissal_reconcile_payload(
         "rows_skipped_no_dismissed_root": 0,
     }
     try:
-        report = reconcile_agent_artifact_index_dismissed_family_members(
+        report = reconcile_agent_artifact_index_dismissed_agent_session_members(
             index_path, dry_run=dry_run
         )
     except (ImportError, AttributeError, OSError, RuntimeError, ValueError):
