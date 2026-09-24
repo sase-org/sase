@@ -228,12 +228,13 @@ def test_packaged_split_file_renders_colon_path_inside_inline_code() -> None:
 
 def test_packaged_split_file_requires_import_safe_verification() -> None:
     content = load_xprompts_from_internal()["split_file"].content
+    # The packaged file is wrapped to the Markdown prose width, so match
+    # wrap-sensitive phrases against whitespace-normalized content.
+    flat = " ".join(content.split())
 
     assert "original module's public import path" in content
     assert "never `_private` names" in content
-    assert "Never import a `_`-prefixed name across the new modules." in content
+    assert "Never import a `_`-prefixed name across the new modules." in flat
     assert "Keep test monkeypatch targets working" in content
-    assert (
-        "`just _lint-symvision`, `just _lint-mypy`, and\n`just _lint-toobig`" in content
-    )
+    assert "`just _lint-symvision`, `just _lint-mypy`, and `just _lint-toobig`" in flat
     assert "`sase tool run check`" in content
