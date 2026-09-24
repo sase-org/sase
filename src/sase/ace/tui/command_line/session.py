@@ -16,7 +16,16 @@ from typing import Any, Literal
 #: Maximum transcript blocks kept per app session.
 COMMAND_LINE_MAX_BLOCKS = 200
 
-BlockStatus = Literal["submitting", "running", "success", "error", "submit_failed"]
+BlockStatus = Literal[
+    "submitting",
+    "running",
+    "success",
+    "error",
+    "submit_failed",
+    "denied",
+    "foreground",
+    "builtin",
+]
 
 
 @dataclass
@@ -43,6 +52,14 @@ class CommandLineBlock:
     tail_loaded: bool = False
     #: Bytes the log rotation dropped underneath this block's cursor.
     lost_bytes: int = 0
+    #: True when the command asks to confirm, ``-y/--yes`` was absent, and
+    #: the proc failed: the block renders ``⊘ declined`` with an ``R``
+    #: rerun-with-``-y`` hint (run-policies phase).
+    declined: bool = False
+    #: Resolver's ``confirms`` flag captured at submit time (declined logic).
+    confirms: bool = False
+    #: Resolver's ``confirm_flag_present`` captured at submit time.
+    confirm_flag_present: bool = False
 
     @property
     def running(self) -> bool:

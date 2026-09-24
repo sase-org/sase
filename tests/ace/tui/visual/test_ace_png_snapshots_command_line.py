@@ -76,6 +76,7 @@ def _seed_block(
     restored: bool = False,
     unseen: bool = False,
     selected: bool = False,
+    declined: bool = False,
 ) -> None:
     session = command_line_session_for(screen.app)
     block = session.add_block(line)
@@ -88,6 +89,7 @@ def _seed_block(
     block.expanded = expanded
     block.restored = restored
     block.unseen = unseen
+    block.declined = declined
     if selected:
         session.select_block(block.block_id)
     screen.refresh_transcript()
@@ -401,4 +403,126 @@ async def test_command_line_earlier_divider_png_snapshot(
             )
             await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "earlier")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_declined_120x40")],
+)
+async def test_command_line_declined_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+        override_flags(ace_command_line=True),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            _seed_block(
+                screen,
+                "agent restart research.2h.cld",
+                status="error",
+                tail_text="Restart would stop 1 agent and wipe 3 related agents.\n",
+                exit_code=2,
+                elapsed=0.4,
+                proc_id="d3c11ned",
+                declined=True,
+            )
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "declined")
+            assert_page_svg_contains(page, "R rerun with -y")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_denied_120x40")],
+)
+async def test_command_line_denied_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+        override_flags(ace_command_line=True),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            _seed_block(
+                screen,
+                "tui",
+                status="denied",
+                tail_text="You're already in the TUI\n",
+            )
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "not run")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_foreground_120x40")],
+)
+async def test_command_line_foreground_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+        override_flags(ace_command_line=True),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            _seed_block(
+                screen,
+                "prompt edit",
+                status="foreground",
+                exit_code=0,
+                elapsed=12.3,
+            )
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "ran in terminal")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_help_120x40")],
+)
+async def test_command_line_help_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+        override_flags(ace_command_line=True),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            _seed_block(
+                screen,
+                "help bead close",
+                status="builtin",
+                tail_text="bead close ‹ID…› [-n NOTE]\nClose beads.\n",
+            )
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "built-in")
             ace_png_visual.assert_page_png(page, snapshot_name)

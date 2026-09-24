@@ -85,7 +85,9 @@ class CommandLineBlockWidget(Static):
         show_divider: bool = False,
     ) -> Text:
         """Build the block's renderable from session state (pure)."""
-        glyph = gutter_glyph(block.status, exit_code=block.exit_code)
+        glyph = gutter_glyph(
+            block.status, exit_code=block.exit_code, declined=block.declined
+        )
         if block.status in ("submitting", "running"):
             glyph = BLOCK_SPINNER_FRAMES[spinner_index % len(BLOCK_SPINNER_FRAMES)]
         header_right = block_header_right(
@@ -94,6 +96,7 @@ class CommandLineBlockWidget(Static):
             elapsed=block.elapsed,
             finished_at=block.finished_at,
             proc_id=block.proc_id,
+            declined=block.declined,
         )
         text = Text()
         if show_divider:

@@ -25,7 +25,7 @@ import asyncio
 import json
 import os
 import time
-from typing import Any
+from typing import Any, cast
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -37,10 +37,25 @@ from textual.widgets import Static
 from sase.ace.tui.command_line.block_render import (
     BLOCK_SPINNER_FRAMES,  # noqa: F401 - re-exported for golden tests.
 )
+from sase.ace.tui.command_line.builtins import (
+    BuiltinOutcome,
+    builtin_name_for,
+    render_help,
+    render_history,
+    run_cd,
+    run_clear,
+)
 from sase.ace.tui.command_line.context import (
     CommandLineContext,
+    resolve_launch_cwd,
     resolve_working_context,
     working_context_chip,
+)
+from sase.ace.tui.command_line.policies import (
+    append_confirm_flag,
+    deny_note_for,
+    run_in_terminal,
+    submit_route_for,
 )
 from sase.ace.tui.command_line.grammar import (
     command_line_grammar_for,
@@ -80,8 +95,10 @@ from sase.ace.tui.command_line.sources import (
 )
 from sase.ace.tui.command_line.submit import (
     PreparedSubmit,
+    apply_local_block,
     apply_submit_failure,
     apply_submit_success,
+    capture_resolve_context,
     prepare_submit,
     submit_in_worker,
 )
@@ -484,7 +501,12 @@ class CommandLineScreen(ModalScreen[None]):
             prepared = prepare_submit(session, line, tokens=self._submit_tokens())
         if prepared is None:
             return False
+        context = self._submit_context_for(prepared.line)
+        local = self._submit_local(prepared, context, clear_input=not bypass_dedup)
+        if local is not None:
+            return local
         block = session.add_block(prepared.line)
+        capture_resolve_context(block, context)
         if not bypass_dedup:
             try:
                 widget = self.query_one(CommandLineInput)
@@ -514,6 +536,213 @@ class CommandLineScreen(ModalScreen[None]):
             exclusive=False,
         )
         return True
+
+    def _submit_context_for(self, line: str) -> dict[str, Any] | None:
+        """Return the resolver context for *line* (cached when still fresh)."""
+        if self._resolve_context is not None and self._resolved_line == line:
+            return self._resolve_context
+        try:
+            resolved = resolve_command_line(self.app, line, len(line))
+        except Exception:  # noqa: BLE001 - advisory path never raises.
+            return None
+        return cast("dict[str, Any] | None", resolved)
+
+    def _submit_local(
+        self,
+        prepared: PreparedSubmit,
+        context: dict[str, Any] | None,
+        *,
+        clear_input: bool,
+    ) -> bool | None:
+        """Handle built-in, deny, and foreground submits; None means proc path."""
+        name = builtin_name_for(prepared.tokens)
+        if name is not None:
+            self._run_builtin(prepared, name, clear_input=clear_input)
+            return True
+        route = submit_route_for(context)
+        if route == "proc":
+            return None
+        if route == "deny":
+            self._add_local_block(
+                prepared.line,
+                status="denied",
+                text=deny_note_for(context),
+                exit_code=None,
+                clear_input=clear_input,
+                record_history=False,
+            )
+            return True
+        return self._run_foreground(prepared, clear_input=clear_input)
+
+    def _local_working_context(self) -> CommandLineContext:
+        """Return the cached working context, or a cheap launch-cwd fallback."""
+        if self._working_context is not None:
+            return self._working_context
+        try:
+            cwd = resolve_launch_cwd(self.app)
+        except Exception:  # noqa: BLE001 - context reads always degrade.
+            cwd = ""
+        return CommandLineContext(cwd=cwd, project=None)
+
+    def _add_local_block(
+        self,
+        line: str,
+        *,
+        status: str,
+        text: str,
+        exit_code: int | None,
+        clear_input: bool,
+        record_history: bool,
+    ) -> CommandLineBlock:
+        """Create a finished non-proc block (denied, foreground, built-in)."""
+        session = self.session
+        working = self._local_working_context()
+        block = session.add_block(line)
+        apply_local_block(block, status=status, text=text, exit_code=exit_code)
+        if clear_input:
+            try:
+                widget = self.query_one(CommandLineInput)
+            except Exception:  # noqa: BLE001 - unmounted screen cannot submit.
+                widget = None
+            if widget is not None:
+                widget.set_line("")
+            session.draft = ""
+            session.draft_cursor = 0
+            self._walk_anchor = None
+        self._refresh_transcript()
+        self._update_running()
+        self._update_hints()
+        if record_history:
+            self._record_local_history(
+                line,
+                cwd=working.cwd,
+                project=working.project,
+                exit_code=exit_code,
+            )
+        return block
+
+    def _run_foreground(self, prepared: PreparedSubmit, *, clear_input: bool) -> bool:
+        """Suspend the TUI and run a foreground-policy command in the terminal."""
+        working = self._local_working_context()
+        try:
+            exit_code = run_in_terminal(
+                self.app, ["sase", *prepared.tokens], cwd=working.cwd
+            )
+        except OSError as error:
+            session = self.session
+            block = session.add_block(prepared.line)
+            apply_submit_failure(block, str(error) or type(error).__name__)
+            try:
+                widget = self.query_one(CommandLineInput)
+                widget.set_line(prepared.line)
+            except Exception:  # noqa: BLE001 - teardown races degrade silently.
+                pass
+            self._refresh_transcript()
+            self._update_running()
+            return False
+        self._add_local_block(
+            prepared.line,
+            status="foreground",
+            text="",
+            exit_code=exit_code,
+            clear_input=clear_input,
+            record_history=True,
+        )
+        return True
+
+    def _run_builtin(
+        self, prepared: PreparedSubmit, name: str, *, clear_input: bool
+    ) -> None:
+        """Run a first-token built-in instantly with no proc."""
+        session = self.session
+        working = self._local_working_context()
+        args = prepared.tokens[1:]
+        if name == "cd":
+            outcome = run_cd(session, args[0] if args else None, cwd=working.cwd or "")
+            self._refresh_working_context(pinned=session.cwd_pin)
+        elif name == "clear":
+            outcome = run_clear(session)
+        elif name == "help":
+            outcome = self._builtin_help(args)
+        else:
+            outcome = render_history(self._history.entries, args[0] if args else None)
+        self._add_local_block(
+            prepared.line,
+            status="builtin",
+            text=outcome.text,
+            exit_code=outcome.exit_code,
+            clear_input=clear_input,
+            record_history=True,
+        )
+
+    def _builtin_help(self, args: list[str]) -> BuiltinOutcome:
+        """Render ``help [command…]`` from ``command_help``."""
+        from sase.ace.tui.command_line.grammar import command_line_grammar_for
+
+        handle = command_line_grammar_for(self.app)
+        if handle is None:
+            return BuiltinOutcome("command index still loading…")
+        try:
+            view = handle.command_help(list(args))
+        except Exception:  # noqa: BLE001 - help lookup is best effort.
+            view = None
+        return render_help(view, list(args))
+
+    def _refresh_working_context(self, *, pinned: str | None) -> None:
+        """Update the chip optimistically after ``cd``, then re-resolve."""
+        if pinned:
+            self._working_context = CommandLineContext(
+                cwd=pinned, project=None, pinned=True
+            )
+            self._update_chip()
+            self._update_ghost()
+            return
+        run_worker = getattr(self.app, "run_worker", None)
+        if not callable(run_worker):
+            return
+
+        async def _resolve() -> None:
+            try:
+                context = await asyncio.to_thread(
+                    resolve_working_context, self.app, self.session
+                )
+            except Exception:  # noqa: BLE001 - context display always degrades.
+                return
+            self._working_context = context
+            self._update_chip()
+            self._update_ghost()
+
+        run_worker(_resolve(), exclusive=False)
+
+    def _record_local_history(
+        self,
+        line: str,
+        *,
+        cwd: str,
+        project: str | None,
+        exit_code: int | None,
+    ) -> None:
+        """Record a non-proc submission off-thread (deny records nothing)."""
+        run_worker = getattr(self.app, "run_worker", None)
+        if not callable(run_worker):
+            return
+
+        async def _record() -> None:
+            try:
+                await asyncio.to_thread(
+                    self._history.record,
+                    line,
+                    cwd=cwd,
+                    project=project,
+                    exit_code=exit_code,
+                )
+            except Exception:  # noqa: BLE001 - history is best effort.
+                pass
+
+        try:
+            run_worker(_record(), exclusive=False)
+        except Exception:  # noqa: BLE001 - history is best effort.
+            pass
 
     async def _submit_worker(
         self, *, block: CommandLineBlock, tokens: list[str], line: str
@@ -849,15 +1078,12 @@ class CommandLineScreen(ModalScreen[None]):
 
     def rerun_selected_with_confirm_flag(self) -> bool:
         """Rerun the selected line visibly appended with ``-y`` (``R``)."""
-        import re as _re
-
         block = self.selected_block()
         if block is None:
             return False
-        line = block.line
-        if _re.search(r"(?:^|\s)(?:-y|--yes)(?:\s|$|=)", line) is None:
-            line = f"{line} -y"
-        return self._submit_line(line, bypass_dedup=True, select=True)
+        return self._submit_line(
+            append_confirm_flag(block.line), bypass_dedup=True, select=True
+        )
 
     def edit_selected_block(self) -> bool:
         """Load the selected block's line into the input for editing (``e``)."""

@@ -96,6 +96,8 @@ def apply_exit_completion(
     status: str,
 ) -> None:
     """Settle a block from an observer exit completion."""
+    from sase.ace.tui.command_line.policies import is_confirmation_declined
+
     block.exit_code = exit_code
     block.finished_at = time.time()
     block.elapsed = block.elapsed_seconds()
@@ -106,6 +108,39 @@ def apply_exit_completion(
         block.status = "success"
     else:
         block.status = "error"
+    block.declined = is_confirmation_declined(
+        confirms=block.confirms,
+        confirm_flag_present=block.confirm_flag_present,
+        exit_code=exit_code,
+    )
+
+
+def capture_resolve_context(
+    block: CommandLineBlock, context: dict[str, Any] | None
+) -> None:
+    """Capture the resolver's confirm flags on a block for declined logic."""
+    if not context:
+        block.confirms = False
+        block.confirm_flag_present = False
+        return
+    block.confirms = bool(context.get("confirms", False))
+    block.confirm_flag_present = bool(context.get("confirm_flag_present", False))
+
+
+def apply_local_block(
+    block: CommandLineBlock,
+    *,
+    status: str,
+    text: str,
+    exit_code: int | None = None,
+) -> None:
+    """Finish a non-proc block (denied, foreground, built-in) instantly."""
+    block.status = status  # type: ignore[assignment]
+    block.tail_text = text
+    block.tail_loaded = True
+    block.exit_code = exit_code
+    block.finished_at = time.time()
+    block.elapsed = block.elapsed_seconds()
 
 
 def apply_submit_failure(block: CommandLineBlock, error: str) -> None:
@@ -119,8 +154,10 @@ __all__ = [
     "SUBMIT_DEDUP_SECONDS",
     "PreparedSubmit",
     "apply_exit_completion",
+    "apply_local_block",
     "apply_submit_failure",
     "apply_submit_success",
+    "capture_resolve_context",
     "prepare_submit",
     "submit_in_worker",
 ]

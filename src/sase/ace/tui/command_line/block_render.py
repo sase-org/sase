@@ -73,14 +73,20 @@ def expanded_body_lines(text: str) -> tuple[list[str], bool]:
     return lines[-EXPANDED_BLOCK_LINE_CAP:], True
 
 
-def gutter_glyph(status: str, *, exit_code: int | None = None) -> str:
+def gutter_glyph(
+    status: str, *, exit_code: int | None = None, declined: bool = False
+) -> str:
     """Return the block gutter glyph for a block status."""
     if status in ("submitting", "running"):
         return "⠹"
     if status == "success":
         return "✓"
     if status == "error":
-        return "✗"
+        return "✗" if not declined else "⊘"
+    if status == "foreground":
+        return "↗"
+    if status == "builtin":
+        return "›"
     return "⊘"
 
 
@@ -91,6 +97,7 @@ def block_header_right(
     elapsed: float | None = None,
     finished_at: float | None = None,
     proc_id: str | None = None,
+    declined: bool = False,
 ) -> str:
     """Render the dim right-aligned block header metadata."""
     if status in ("submitting", "running"):
@@ -99,6 +106,19 @@ def block_header_right(
         return f"running {running_for}{proc}"
     if status == "submit_failed":
         return "submit failed"
+    if status == "denied":
+        return "not run"
+    if status == "foreground":
+        exit_part = f"exit {exit_code}" if exit_code is not None else "exit ?"
+        return f"ran in terminal · {exit_part}"
+    if status == "builtin":
+        return "built-in"
+    if declined and status == "error":
+        parts = ["declined"]
+        if exit_code is not None:
+            parts.append(f"exit {exit_code}")
+        parts.append("R rerun with -y")
+        return " · ".join(parts)
     stamp = ""
     if finished_at is not None:
         try:
