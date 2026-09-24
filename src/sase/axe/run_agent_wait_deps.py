@@ -69,7 +69,11 @@ def initial_dependencies_resolved(
             return index
 
         dependency_index = build_index()
-    except Exception:
+    except Exception as exc:
+        print(
+            f"Wait dependency check failed (index): {type(exc).__name__}: "
+            f"{exc}; staying parked"
+        )
         return False
     names = tuple(wait_names)
     identity_deps = tuple(wait_identity_deps)
@@ -111,7 +115,11 @@ def initial_dependencies_resolved(
             closed_bead_ids=closed_bead_ids,
             self_artifact_dir=artifacts_dir,
         ).confirmed
-    except Exception:
+    except Exception as exc:
+        print(
+            f"Wait dependency check failed (confirmation): {type(exc).__name__}: "
+            f"{exc}; staying parked"
+        )
         return False
 
 

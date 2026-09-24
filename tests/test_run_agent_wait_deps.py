@@ -692,3 +692,72 @@ def test_waiting_marker_fallback_waits_for_settled_gate_without_terminal_outcome
         project_name="proj",
         artifacts_dir=str(waiter_dir),
     )
+
+
+def test_runner_fallback_confirmation_failure_warns_and_stays_parked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+
+    def _boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("confirm exploded")
+
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.confirm_dependency_resolution", _boom
+    )
+
+    assert not initial_dependencies_resolved(
+        ["foo"],
+        [],
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )
+    out = capsys.readouterr().out
+    assert "Wait dependency check failed (confirmation)" in out
+    assert "RuntimeError" in out
+    assert "staying parked" in out
+
+
+def test_runner_fallback_index_failure_warns_and_stays_parked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="completed",
+    )
+
+    def _boom(_project: str) -> object:
+        raise RuntimeError("index exploded")
+
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.build_wait_dependency_index", _boom
+    )
+
+    assert not initial_dependencies_resolved(
+        ["foo"],
+        [],
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )
+    out = capsys.readouterr().out
+    assert "Wait dependency check failed (index)" in out
+    assert "staying parked" in out

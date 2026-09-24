@@ -266,6 +266,9 @@ waiter remains parked for a later tick. The waiting runner applies the same conf
 for its startup and periodic fallback path. Such ordinary deferrals are counted in the
 `deferred_unconfirmed` summary field rather than treated as errors.
 
+A waiter whose resolution raises stays parked, is counted in `waiter_errors`, and marks
+the tick `check_error` without blocking other waiters.
+
 Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`.
 `wait_checks` reads the waiting agent's project bead store once per cycle and releases
 the marker only when every named bead is closed as well as every agent or artifact

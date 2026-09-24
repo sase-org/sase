@@ -9,6 +9,7 @@ legacy full O(all-artifacts) meta walk for parity testing.
 """
 
 import json
+import traceback
 from dataclasses import dataclass
 from collections.abc import Mapping
 from datetime import datetime
@@ -88,6 +89,8 @@ def _run(
     unresolved = 0
     unknown_outcome = 0
     deferred_unconfirmed = 0
+    waiter_errors = 0
+    waiter_error_logs = 0
     terminal_blocker_logs = 0
     terminal_blocker_suppressed = 0
     dependency_index = WaitDependencyIndex.empty()
@@ -138,44 +141,21 @@ def _run(
         dependency_index.add_many(artifact_rows)
 
     wait_bead_cache = WaitBeadStatusCache()
-    for waiting_marker in pending_waiting_markers:
-        try:
-            with open(waiting_marker.waiting_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, OSError):
-            skipped_invalid += 1
-            continue
 
-        if not isinstance(data, dict):
-            skipped_invalid += 1
-            continue
-
-        waiting_for = data.get("waiting_for", [])
-        wait_for_artifacts = data.get("wait_for_artifacts", [])
-        wait_for_fork_sources = data.get("wait_for_fork_sources", [])
-        wait_for_beads = data.get("wait_for_beads", [])
-        wait_for_hoods = data.get("wait_for_hoods", [])
-        resolved_deps = data.get("resolved_deps", [])
-        if not isinstance(wait_for_artifacts, list):
-            wait_for_artifacts = []
-        if not isinstance(wait_for_fork_sources, list):
-            wait_for_fork_sources = []
-        if not isinstance(wait_for_beads, list):
-            wait_for_beads = []
-        if not isinstance(wait_for_hoods, list):
-            wait_for_hoods = []
-        if not isinstance(resolved_deps, list):
-            resolved_deps = []
-        if not isinstance(waiting_for, list) or (
-            not waiting_for
-            and not wait_for_artifacts
-            and not wait_for_fork_sources
-            and not wait_for_beads
-            and not wait_for_hoods
-        ):
-            skipped_invalid += 1
-            continue
-
+    def _process_one_waiter(
+        waiting_marker: _WaitingMarker,
+        data: dict[str, Any],
+        waiting_for: list[Any],
+        wait_for_artifacts: list[Any],
+        wait_for_fork_sources: list[Any],
+        wait_for_beads: list[Any],
+        wait_for_hoods: list[Any],
+        resolved_deps: list[Any],
+    ) -> None:
+        """Resolve one waiter; any exception parks only this waiter."""
+        nonlocal ready_written, skipped_invalid, unresolved, unknown_outcome
+        nonlocal deferred_unconfirmed, terminal_blocker_logs
+        nonlocal terminal_blocker_suppressed
         closed_bead_ids = None
         if wait_for_beads:
             project_name = waiting_marker.project_name
@@ -263,7 +243,7 @@ def _run(
                     f"{data.get('cl_name', 'unknown')}: could not confirm "
                     f"dependency membership ({exc})",
                 )
-                continue
+                return
             if not confirmation.confirmed:
                 deferred_unconfirmed += 1
                 cl_name = data.get("cl_name", "unknown")
@@ -281,7 +261,7 @@ def _run(
                         f"{cl_name}: fresh dependency view remains unresolved "
                         f"(blocked on: {blocked or '<unknown>'})",
                     )
-                continue
+                return
             cl_name = data.get("cl_name", "unknown")
             waited_on = ", ".join(waiting_for)
             if wait_for_beads:
@@ -342,6 +322,71 @@ def _run(
                 else:
                     terminal_blocker_suppressed += 1
 
+    for waiting_marker in pending_waiting_markers:
+        try:
+            with open(waiting_marker.waiting_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            skipped_invalid += 1
+            continue
+
+        if not isinstance(data, dict):
+            skipped_invalid += 1
+            continue
+
+        waiting_for = data.get("waiting_for", [])
+        wait_for_artifacts = data.get("wait_for_artifacts", [])
+        wait_for_fork_sources = data.get("wait_for_fork_sources", [])
+        wait_for_beads = data.get("wait_for_beads", [])
+        wait_for_hoods = data.get("wait_for_hoods", [])
+        resolved_deps = data.get("resolved_deps", [])
+        if not isinstance(wait_for_artifacts, list):
+            wait_for_artifacts = []
+        if not isinstance(wait_for_fork_sources, list):
+            wait_for_fork_sources = []
+        if not isinstance(wait_for_beads, list):
+            wait_for_beads = []
+        if not isinstance(wait_for_hoods, list):
+            wait_for_hoods = []
+        if not isinstance(resolved_deps, list):
+            resolved_deps = []
+        if not isinstance(waiting_for, list) or (
+            not waiting_for
+            and not wait_for_artifacts
+            and not wait_for_fork_sources
+            and not wait_for_beads
+            and not wait_for_hoods
+        ):
+            skipped_invalid += 1
+            continue
+
+        try:
+            _process_one_waiter(
+                waiting_marker,
+                data,
+                waiting_for,
+                wait_for_artifacts,
+                wait_for_fork_sources,
+                wait_for_beads,
+                wait_for_hoods,
+                resolved_deps,
+            )
+        except Exception as exc:  # noqa: BLE001 - one bad waiter must not stall the tick.
+            waiter_errors += 1
+            waiter_name = data.get("cl_name", "unknown")
+            waiter_dir = waiting_marker.waiting_path.parent
+            if waiter_error_logs < _MAX_TERMINAL_BLOCKER_LOGS:
+                waiter_error_logs += 1
+                runtime.log(
+                    f"[wait_checks] Waiter {waiter_dir} ({waiter_name}) "
+                    f"failed: {exc}\n{traceback.format_exc()}",
+                )
+            else:
+                runtime.log(
+                    f"[wait_checks] Waiter {waiter_dir} ({waiter_name}) failed: {exc}",
+                )
+            continue
+
     if terminal_blocker_suppressed:
         runtime.log(
             "[wait_checks] Suppressed "
@@ -360,7 +405,7 @@ def _run(
             reason = "waiting_markers_already_ready"
         else:
             reason = "no_ready_markers_written"
-    return runtime.emit_summary(
+    result = runtime.emit_summary(
         {
             "projects": projects,
             "artifacts": artifacts,
@@ -371,9 +416,13 @@ def _run(
             "unresolved": unresolved,
             "unknown_outcome": unknown_outcome,
             "deferred_unconfirmed": deferred_unconfirmed,
+            "waiter_errors": waiter_errors,
         },
         reason=reason,
     )
+    if waiter_errors > 0:
+        result.status = "check_error"
+    return result
 
 
 def _filesystem_dependency_rows(
