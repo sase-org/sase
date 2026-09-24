@@ -227,6 +227,22 @@ Rust-backed boundaries, while others are Python-owned host adapters.
 | `agent_artifact_run_retention.py` | `ace-run` retention protection gathering plus the Rust preview/refusal owner                                       |
 | `agent_tribe.py`                  | Rust-backed tribe validation and public/stored tribe identity resolution                                           |
 
+### Command Line grammar handle
+
+The `:` Command Line panel completes through the frozen `CommandLineGrammar` pyclass in
+`sase_core_rs` (`crates/sase_core/src/command_line/` in `sase-core`, bound in
+`crates/sase_core_py/src/command_line/`). It is built once from the cached
+`sase completion spec -d -j` file (`src/sase/completion/command_line_spec.py`) off the
+event loop, then answers per keystroke: `resolve` (tokens, cursor slot, advisory
+diagnostics, live signature, run policy), `complete` (fuzzy-ranked candidates), and
+`command_help` (the doc peek). The sase side
+(`src/sase/completion/command_line_grammar.py`) is only a loader plus typed views. Every
+`start`, `end`, `cursor`, `replace_start`, `replace_end`, and `match_runs` value is a
+Unicode scalar (char) offset, exactly a Python `str` index. The
+`COMMAND_LINE_GRAMMAR_SCHEMA_VERSION` mirror (Rust `COMMAND_LINE_WIRE_SCHEMA_VERSION`)
+fails fast on drift, and sase-core owns the fixture regeneration step
+(`crates/sase_core/tests/fixtures/command_line/`).
+
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
 with a PyO3 crate at `crates/sase_core_py/`.
 
