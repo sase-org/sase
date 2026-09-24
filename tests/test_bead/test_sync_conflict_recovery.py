@@ -254,6 +254,81 @@ def test_managed_sync_worker_reports_duplicate_create_relocation_and_rewrites_su
     ]
 
 
+def test_incident_older_local_creation_relocates_leaving_published_bead_stable(
+    tmp_path: Path,
+) -> None:
+    """Mirror the 2026-09-24 collision at the sync level.
+
+    Clone A mints ``X`` at T0 and does not push; clone B mints the same ``X``
+    at T1 > T0 and pushes; clone A then publishes. B's published bead must
+    keep ``X`` unchanged on the remote, A's unpublished bead relocates, and
+    the relocation record names A's bead.
+    """
+    remote = tmp_path / "incident-mirror.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    seed = tmp_path / "incident-mirror-seed"
+    seed.mkdir()
+    init_git_repo(seed)
+    _git(seed, "branch", "-M", "main")
+    (seed / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(seed, beads_dirname="beads"):
+        pass
+    _commit(seed, "seed empty bead store")
+    _git(seed, "remote", "add", "origin", str(remote))
+    _git(seed, "push", "-u", "origin", "main")
+
+    left = tmp_path / "incident-mirror-left"
+    right = tmp_path / "incident-mirror-right"
+    _clone(remote, left)
+    _clone(remote, right)
+
+    # Clone A creates first (older) but publishes last.
+    local, _ = bead_mutation_facade.create(
+        left / "beads",
+        title="Clone A relocates",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:00Z",
+    )
+    _commit(left, f"chore(beads): create {local.id}", "beads")
+
+    upstream, _ = bead_mutation_facade.create(
+        right / "beads",
+        title="Clone B wins",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:05Z",
+    )
+    assert upstream.id == local.id
+    _commit(right, f"right creates {upstream.id}", "beads")
+    _git(right, "push")
+
+    log_path = tmp_path / "incident-mirror-sync.log"
+    outcome = run_managed_sync_worker(left, left / "beads", log_path=log_path)
+
+    assert outcome.pushed is True
+    assert outcome.integrated is True
+    assert len(outcome.bead_relocations) == 1
+    relocation = outcome.bead_relocations[0]
+    assert relocation.old_id == local.id
+    assert relocation.new_id == f"{local.id.rsplit('-', 1)[0]}-2"
+    assert relocation.kind == "top_level_duplicate"
+    assert _git(left, "status", "--porcelain").stdout == ""
+    with BeadProject(left, beads_dirname="beads") as project:
+        assert project.show(upstream.id).title == "Clone B wins"
+        assert project.show(relocation.new_id).title == "Clone A relocates"
+
+    # The published bead is stable on the remote: a fresh clone still sees
+    # clone B's bead at the original ID.
+    third = tmp_path / "incident-mirror-third"
+    _clone(remote, third)
+    with BeadProject(third, beads_dirname="beads") as project:
+        assert project.show(upstream.id).title == "Clone B wins"
+
+
 @pytest.mark.parametrize("invalid_kind", ["rewrite", "corrupt"])
 def test_managed_sync_worker_invalid_stream_restores_exact_starting_state(
     tmp_path: Path,

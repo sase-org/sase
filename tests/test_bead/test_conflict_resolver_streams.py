@@ -97,6 +97,65 @@ def test_duplicate_top_level_creations_report_typed_relocation(
         assert project.show(relocation.new_id).title == "Local relocates"
 
 
+def test_duplicate_top_level_creations_older_local_still_relocates(
+    tmp_path: Path,
+) -> None:
+    """An older local creation still relocates when upstream published first.
+
+    Regression for the 2026-09-24 incident: the old merge rule let the older
+    creation keep the ID, so a pushing clone whose local creation was older
+    renumbered the already-published upstream bead (whose creator never learns
+    about the move). The published upstream creation now always wins; only the
+    pushing clone's unpublished bead moves.
+    """
+    _init_repo(tmp_path)
+    (tmp_path / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(tmp_path, beads_dirname=BEADS_DIRNAME):
+        pass
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", "seed empty bead store")
+
+    _git(tmp_path, "checkout", "-b", "other")
+    upstream, _ = bead_mutation_facade.create(
+        tmp_path / BEADS_DIRNAME,
+        title="Upstream wins",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:05Z",
+    )
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", f"other creates {upstream.id}")
+
+    _git(tmp_path, "checkout", "master")
+    local, _ = bead_mutation_facade.create(
+        tmp_path / BEADS_DIRNAME,
+        title="Local relocates",
+        issue_type=IssueType.PLAN,
+        now="2026-08-20T00:00:00Z",
+    )
+    assert local.id == upstream.id
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-m", f"local creates {local.id}")
+    _git(tmp_path, "merge", "other", check=False)
+
+    result = resolve_bead_conflicts(tmp_path, beads_dir=tmp_path / BEADS_DIRNAME)
+
+    assert result.ok is True, result.message
+    assert len(result.bead_relocations) == 1
+    relocation = result.bead_relocations[0]
+    assert relocation.old_id == local.id
+    assert relocation.new_id == f"{local.id.rsplit('-', 1)[0]}-2"
+    assert relocation.kind == "top_level_duplicate"
+    assert f"{relocation.old_id} -> {relocation.new_id}" in result.message
+    relocated_stream = (
+        tmp_path / BEADS_DIRNAME / "events" / "streams" / f"{relocation.new_id}.jsonl"
+    ).read_text(encoding="utf-8")
+    assert f'"issue_id":"{relocation.old_id}"' not in relocated_stream
+    assert f'"issue_id":"{relocation.new_id}"' in relocated_stream
+    with BeadProject(tmp_path, beads_dirname=BEADS_DIRNAME) as project:
+        assert project.show(upstream.id).title == "Upstream wins"
+        assert project.show(relocation.new_id).title == "Local relocates"
+
+
 def test_unequal_mint_counts_merge_config_json_and_relocate_duplicate(
     tmp_path: Path,
 ) -> None:
