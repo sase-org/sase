@@ -250,6 +250,7 @@ class CommandLineScreen(
         self._history = CommandLineHistory()
         self._working_context: CommandLineContext | None = None
         self._walk_anchor: str | None = None
+        self._history_walk_line: str | None = None
         self._applying_history = False
         self._tail_tokens: dict[str, str] = {}
         self._resolve_context: LineContext | None = None

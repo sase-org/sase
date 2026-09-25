@@ -392,7 +392,7 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
             # ``:`` on an empty filter hops to the Command Line.
             event.input.value = ""
             self.dismiss(
-                CommandPaletteResult(selected_id=None, command_line_prefill="")
+                CommandPaletteResult(selected_id=None, preserve_command_line_draft=True)
             )
             return
         self._apply_filter(event.value)

@@ -609,9 +609,15 @@ class CommandLineScreenCompletionMixin:
         elif key == "ctrl+p":
             decision = state.on_ctrl_p()
         elif key in ("up", "down"):
+            if state.menu_active:
+                decision = state.on_ctrl_n() if key == "down" else state.on_ctrl_p()
+            else:
+                self.history_step(1 if key == "up" else -1)
+                return True
+        elif key == "ctrl+f":
             if not state.menu_active:
                 return False
-            decision = state.on_ctrl_n() if key == "down" else state.on_ctrl_p()
+            decision = state.on_enter()
         elif key == "enter":
             if self._empty_state_active or self._history_search_active:
                 return self._accept_stored_row()

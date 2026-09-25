@@ -3564,15 +3564,15 @@ TUI.
 
 - Selection-aware, fuzzy completion with a live signature line: the panel knows the
   current selection, ranks the selected entity first, and shows advisory grammar
-  diagnostics. `Tab` completes, `Ctrl+R` searches history, and `;` on an empty line hops
-  back to the Command Palette.
+  diagnostics. `Tab` completes, `Ctrl+F` accepts an active completion, `Ctrl+R` searches
+  history, and `;` on an empty line hops back to the Command Palette.
 - Every command runs as an ordinary durable proc (tagged `command-line`, visible by
   default in Admin Center → Procs), so hiding the panel never interrupts anything.
   Finished command-line procs keep their own retention bucket of 50.
 - Run policies: most commands run as procs, some (editors, pagers, interactive tools)
   run in the real terminal with the TUI suspended, and a few refuse with an alternative.
-  Commands that ask to confirm render a declined block with an explicit `R`
-  rerun-with-`-y`.
+  Declined confirmation commands render an explicit `R` rerun with `-y`; `R` does
+  nothing for other blocks.
 - Built-ins: `cd` (pin a working directory), `clear`, `help`, and `history`. They run
   instantly with no proc.
 - Block keys (`NORMAL` mode): `o` expand, `v` pager, `K` kill, `r`/`R` rerun, `e` edit,

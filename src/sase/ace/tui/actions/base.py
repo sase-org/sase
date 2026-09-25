@@ -709,6 +709,9 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         def _on_dismiss(result: CommandPaletteResult | None) -> None:
             if result is None:
                 return
+            if result.preserve_command_line_draft:
+                self.action_open_command_line()
+                return
             if result.command_line_prefill is not None:
                 from ..command_line.session import command_line_session_for
 

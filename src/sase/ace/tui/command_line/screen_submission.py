@@ -90,6 +90,7 @@ class CommandLineScreenSubmissionMixin:
     """Behavior mixed into the public command-line screen."""
 
     _walk_anchor: str | None
+    _history_walk_line: str | None
     _working_context: CommandLineContext | None
 
     if TYPE_CHECKING:
@@ -135,8 +136,14 @@ class CommandLineScreenSubmissionMixin:
             except Exception:  # noqa: BLE001 - cursor restore is best effort.
                 pass
             return
-        if not self._applying_history:
+        if self._history_walk_line == widget.text:
+            # TextArea posts Changed after ``history_step`` has reset its
+            # synchronous guard, so retain the prefix for this one programmatic
+            # history walk. Any user edit below starts a fresh walk instead.
+            self._history_walk_line = None
+        elif not self._applying_history:
             self._walk_anchor = None
+            self._history_walk_line = None
         self._store_draft()
         self._update_ghost()
         self._refresh_completion()

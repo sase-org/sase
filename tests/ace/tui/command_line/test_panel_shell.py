@@ -244,6 +244,90 @@ def test_ghost_prefers_same_cwd(history_file: Path) -> None:
     assert history.ghost("zzz", cwd="/here") == ""
 
 
+async def test_real_input_walks_history_and_never_pastes_mid_line_ghost() -> None:
+    """The mounted input owns inactive arrows and clears ghosts off line end."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            page.app.action_open_command_line()
+            await page.expect_modal("CommandLineScreen")
+            screen = page.app.screen
+            assert isinstance(screen, CommandLineScreen)
+            widget = screen.query_one(CommandLineInput)
+            screen._history.entries = [
+                history_store.CommandLineHistoryEntry(
+                    line="bead list --status open", last_used="260101_000001"
+                )
+            ]
+            widget.set_line("bead")
+            await page.pause()
+
+            await page.press("up")
+            assert widget.text == "bead list --status open"
+            await page.press("down")
+            assert widget.text == "bead"
+
+            screen._update_ghost()
+            assert widget.suggestion == " list --status open"
+            await page.press("left")
+            assert widget.suggestion == ""
+            await page.press("right")
+            assert widget.text == "bead"
+
+
+async def test_real_input_ctrl_f_accepts_only_an_active_menu() -> None:
+    """Ctrl-F keeps forward-char behavior until the mounted menu is active."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            page.app.action_open_command_line()
+            await page.expect_modal("CommandLineScreen")
+            screen = page.app.screen
+            assert isinstance(screen, CommandLineScreen)
+            widget = screen.query_one(CommandLineInput)
+
+            widget.set_line("bead")
+            widget.move_cursor((0, 0))
+            await page.press("ctrl+f")
+            assert widget.text == "bead"
+            assert widget.cursor_location == (0, 1)
+
+            widget.set_line("bead ")
+            screen._popup_state.reset(
+                [
+                    {"insert_text": "list ", "display": "list", "match_runs": []},
+                    {"insert_text": "show ", "display": "show", "match_runs": []},
+                ],
+                typed_text="bead ",
+                replace_start=len("bead "),
+                replace_end=len("bead "),
+            )
+            screen._popup_state.on_tab()
+            assert screen._popup_state.menu_active is True
+
+            await page.press("ctrl+f")
+            assert widget.text == "bead list "
+            assert screen._popup_state.menu_active is False
+
+
 # -- submit ---------------------------------------------------------------------
 
 

@@ -504,10 +504,10 @@ async def test_block_keys_select_move_and_switch_hints(
             assert COMMAND_LINE_INPUT_HINTS in keys.content
 
 
-async def test_forwarded_j_key_moves_selection(
+async def test_forwarded_k_key_enters_transcript_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A NORMAL-mode ``j`` in the input reaches the transcript selection."""
+    """A NORMAL-mode ``k`` in an unselected input enters the transcript."""
     from unittest.mock import patch as mock_patch
 
     from sase.ace.testing import AcePage, make_patch
@@ -528,11 +528,43 @@ async def test_forwarded_j_key_moves_selection(
             await page.pause()
             widget._enter_normal_mode()
             await page.pause()
-            await page.press("j")
+            await page.press("k")
             await page.pause()
             session = command_line_session_for(page.app)
             assert session.selected_block() is session.blocks[-1]
             assert widget.text == "bead list --status open"
+
+
+async def test_unselected_normal_input_keeps_vim_editing_and_redo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only k/Up enter blocks; x and Ctrl-R retain their vim meanings."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.session import command_line_session_for
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
+            widget = screen.query_one(CommandLineInput)
+            widget.set_line("bead lisst")
+            widget.move_cursor((0, len("bead lis")))
+            widget._enter_normal_mode()
+            await page.pause()
+
+            await page.press("x")
+            assert widget.text == "bead list"
+            assert command_line_session_for(page.app).selected_block() is None
+
+            await page.press("u", "ctrl+r")
+            assert widget.text == "bead list"
+            assert screen._history_search_active is False
 
 
 async def test_o_toggles_expand_and_x_removes(
@@ -589,10 +621,10 @@ async def test_e_loads_line_into_input(
             assert screen.selected_block() is None
 
 
-async def test_r_reruns_and_R_appends_confirm_flag(
+async def test_r_reruns_and_R_is_limited_to_declined_blocks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``r`` reruns the line; ``R`` reruns visibly appended with ``-y``."""
+    """``R`` appends ``-y`` only for blocks whose confirmation was declined."""
     from types import SimpleNamespace as _NS
     from unittest.mock import patch as mock_patch
 
@@ -625,8 +657,11 @@ async def test_r_reruns_and_R_appends_confirm_flag(
             await page.pause_until_cpu_idle()
             assert session.blocks[-1].proc_id == "proc-rerun-1"
             screen.handle_block_nav_key("R")
-            assert session.blocks[-1].line == "bead list -y"
+            assert len(session.blocks) == 2
+
+            session.blocks[-1].declined = True
             screen.handle_block_nav_key("R")
+            assert len(session.blocks) == 3
             assert session.blocks[-1].line == "bead list -y"
 
 

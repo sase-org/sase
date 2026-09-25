@@ -50,7 +50,10 @@ async def test_semicolon_opens_command_palette_modal() -> None:
 
 
 async def test_palette_colon_hops_to_command_line() -> None:
-    """Typing ``:`` into an empty palette filter hops to the Command Line."""
+    """Typing ``:`` into an empty palette filter restores its exact draft."""
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.session import command_line_session_for
+
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -59,10 +62,19 @@ async def test_palette_colon_hops_to_command_line() -> None:
             query="test_feature",
             patches=[make_patch()],
         ) as page:
+            session = command_line_session_for(page.app)
+            session.draft = "bead list --status open"
+            session.draft_cursor = len("bead list")
+            block = session.add_block("bead show sase-17x")
+            session.select_block(block.block_id)
             await page.press("semicolon")
             await page.expect_modal("CommandPaletteModal")
             await page.press("colon")
             await page.expect_modal("CommandLineScreen")
+            input_widget = page.app.screen.query_one(CommandLineInput)
+            assert input_widget.text == session.draft
+            assert input_widget.cursor_location[1] == session.draft_cursor
+            assert session.selected_block() is block
 
 
 async def test_palette_no_match_fallback_prefills_command_line() -> None:

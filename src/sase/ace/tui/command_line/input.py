@@ -10,7 +10,7 @@ The completion-popup phase layers the resolver overlay on top: token-role
 highlight spans (command paths, options, quoted strings) plus a red
 undercurl for advisory diagnostics, following the ``_highlights`` overlay
 approach from ``widgets/_jinja_highlight.py``. Popup keys (Tab, Shift-Tab,
-``ctrl+n``/``ctrl+p``, ``↑``/``↓`` while the menu is active, and
+``ctrl+n``/``ctrl+p``, ``↑``/``↓`` while the menu is active, ``ctrl+f``, and
 menu-active Enter/Escape) are routed to the screen's popup state machine
 before vim handling. ``ctrl+r`` toggles fuzzy history search the same way.
 """
@@ -54,6 +54,7 @@ _POPUP_KEYS = frozenset(
         "shift+tab",
         "ctrl+n",
         "ctrl+p",
+        "ctrl+f",
         "ctrl+r",
         "up",
         "down",
@@ -133,6 +134,46 @@ class CommandLineInput(SingleLineVimTextArea):
             self.refresh()
         except Exception:  # noqa: BLE001 - unmounted refresh is best effort.
             pass
+
+    def _refresh_ghost_for_cursor_move(self) -> None:
+        """Clear or refresh ghost text after a cursor-only edit."""
+        try:
+            refresh = getattr(self.screen, "_update_ghost", None)
+        except Exception:  # noqa: BLE001 - input may be unmounted.
+            refresh = None
+        if callable(refresh):
+            refresh()
+
+    def action_cursor_left(self, select: bool = False) -> None:
+        """Move left, then withdraw a ghost that is no longer at line end."""
+        super().action_cursor_left(select)
+        self._refresh_ghost_for_cursor_move()
+
+    def action_cursor_right(self, select: bool = False) -> None:
+        """Only let right-arrow accept a ghost while the cursor is at line end."""
+        self._refresh_ghost_for_cursor_move()
+        super().action_cursor_right(select)
+        self._refresh_ghost_for_cursor_move()
+
+    def action_cursor_line_start(self, select: bool = False) -> None:
+        """Refresh ghost text after a readline line-start move."""
+        super().action_cursor_line_start(select)
+        self._refresh_ghost_for_cursor_move()
+
+    def action_cursor_line_end(self, select: bool = False) -> None:
+        """Refresh ghost text after a readline line-end move."""
+        super().action_cursor_line_end(select)
+        self._refresh_ghost_for_cursor_move()
+
+    def action_cursor_word_left(self, select: bool = False) -> None:
+        """Refresh ghost text after a word-left move."""
+        super().action_cursor_word_left(select)
+        self._refresh_ghost_for_cursor_move()
+
+    def action_cursor_word_right(self, select: bool = False) -> None:
+        """Refresh ghost text after a word-right move."""
+        super().action_cursor_word_right(select)
+        self._refresh_ghost_for_cursor_move()
 
     def on_mount(self) -> None:
         """Register the overlay theme after the base widget is mounted."""
@@ -222,7 +263,10 @@ class CommandLineInput(SingleLineVimTextArea):
 
     async def _on_key(self, event: Key) -> None:
         """Route popup and block-nav keys before Escape/hop/vim handling."""
-        if event.key in _POPUP_KEYS:
+        if (
+            getattr(self, "_vim_mode", "insert") != "normal"
+            and event.key in _POPUP_KEYS
+        ):
             handler = getattr(self.screen, "command_line_handle_key", None)
             if callable(handler):
                 try:
@@ -238,16 +282,26 @@ class CommandLineInput(SingleLineVimTextArea):
                     nav_key = character
                 else:
                     nav_key = ""
-            if nav_key:
+            selected_block = None
+            try:
+                selected = getattr(self.screen, "selected_block", None)
+                if callable(selected):
+                    selected_block = selected()
+            except Exception:  # noqa: BLE001 - screen reads degrade.
+                pass
+            # ``k``/Up enter the transcript from an unselected NORMAL input;
+            # every other panel key remains a normal vim edit until a block is
+            # selected. Once selected, the full block-nav set is panel-owned.
+            if nav_key and (selected_block is not None or nav_key in {"k", "up"}):
                 try:
                     handler = getattr(self.screen, "handle_block_nav_key", None)
                 except Exception:  # noqa: BLE001 - screen reads degrade.
                     handler = None
                 if callable(handler):
-                    event.stop()
-                    event.prevent_default()
-                    handler(nav_key)
-                    return
+                    if handler(nav_key):
+                        event.stop()
+                        event.prevent_default()
+                        return
         if event.key == "escape" and self._vim_mode == "insert":
             if not self.text.strip():
                 event.stop()

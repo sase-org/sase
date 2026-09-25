@@ -566,7 +566,7 @@ async def test_modal_enter_with_no_results_offers_command_line_fallback() -> Non
 
 
 async def test_modal_colon_on_empty_filter_hops_to_command_line() -> None:
-    """Typing ``:`` into an empty filter dismisses with an empty prefill."""
+    """Typing ``:`` into an empty filter preserves the Command Line draft."""
     result: CommandPaletteResult | None = None
 
     async with _TestApp().run_test() as pilot:
@@ -588,7 +588,8 @@ async def test_modal_colon_on_empty_filter_hops_to_command_line() -> None:
 
         assert result is not None
         assert result.selected_id is None
-        assert result.command_line_prefill == ""
+        assert result.command_line_prefill is None
+        assert result.preserve_command_line_draft is True
 
 
 async def test_modal_empty_state_names_command_line_fallback() -> None:

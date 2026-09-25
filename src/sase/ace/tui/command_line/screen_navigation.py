@@ -88,6 +88,7 @@ class CommandLineScreenNavigationMixin:
     """Behavior mixed into the public command-line screen."""
 
     _walk_anchor: str | None
+    _history_walk_line: str | None
 
     if TYPE_CHECKING:
 
@@ -106,7 +107,9 @@ class CommandLineScreenNavigationMixin:
         match = self._history.walk(self._walk_anchor, direction=direction, cwd=cwd)
         self._applying_history = True
         try:
-            widget.set_line(match if match is not None else self._walk_anchor)
+            target = match if match is not None else self._walk_anchor
+            self._history_walk_line = target
+            widget.set_line(target)
         finally:
             self._applying_history = False
         self._store_draft()
@@ -367,6 +370,11 @@ class CommandLineScreenNavigationMixin:
         block = self.selected_block()
         if block is None:
             return False
+        if not block.declined:
+            self.notify(
+                "Rerun with -y is available for declined confirmations", timeout=2
+            )
+            return True
         return self._submit_line(
             append_confirm_flag(block.line), bypass_dedup=True, select=True
         )
@@ -558,7 +566,12 @@ class CommandLineScreenNavigationMixin:
             return
         cwd = self._working_context.cwd if self._working_context else None
         try:
-            widget.suggestion = self._history.ghost(widget.text, cwd=cwd)
+            cursor = widget.cursor_location[1]
+            widget.suggestion = (
+                self._history.ghost(widget.text, cwd=cwd)
+                if cursor == len(widget.text)
+                else ""
+            )
         except Exception:  # noqa: BLE001 - ghost text is best effort.
             pass
 
