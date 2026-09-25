@@ -201,9 +201,36 @@ class CommandLineTranscript(VerticalScroll):
     async def _tail_loop(self) -> None:
         while True:
             await asyncio.sleep(TAIL_POLL_SECONDS)
-            self._poll_once()
+            await self._poll_once()
 
-    def _poll_once(self) -> None:
+    def _tail_target_visible(self, widget: _CommandLineBlockWidget) -> bool:
+        """Return whether a block widget is on-screen and worth tailing."""
+        try:
+            if not widget.display:
+                return False
+        except Exception:  # noqa: BLE001 - teardown races read as hidden.
+            return False
+        try:
+            if not widget.visible:
+                return False
+        except Exception:  # noqa: BLE001 - visibility reads are best effort.
+            pass
+        try:
+            viewport = self.scrollable_content_region
+        except Exception:  # noqa: BLE001 - no viewport, tail it.
+            return True
+        try:
+            region = widget.region
+        except Exception:  # noqa: BLE001 - no region, tail it.
+            return True
+        if region.area == 0:
+            return False
+        try:
+            return region.overlaps(viewport)
+        except Exception:  # noqa: BLE001 - overlap reads are best effort.
+            return True
+
+    async def _poll_once(self) -> None:
         try:
             widgets = list(self.query(_CommandLineBlockWidget))
         except Exception:  # noqa: BLE001 - teardown races degrade silently.
@@ -212,12 +239,14 @@ class CommandLineTranscript(VerticalScroll):
             block = widget.block
             if not block.running or block.proc_id is None:
                 continue
+            if not self._tail_target_visible(widget):
+                continue
             cursor = self._cursors.get(block.block_id)
             if cursor is None:
                 cursor = ProcLogCursor(proc_id=block.proc_id)
                 self._cursors[block.block_id] = cursor
             try:
-                read = cursor.read_new()
+                read = await asyncio.to_thread(cursor.read_new)
             except Exception:  # noqa: BLE001 - log reads never break the panel.
                 continue
             if read.text:

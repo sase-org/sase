@@ -234,7 +234,6 @@ class CommandLineScreen(
         super().__init__(*args, **kwargs)
         seed = keymaps or CommandLineKeymaps(**load_builtin_command_line_defaults())
         self._bindings = BindingsMap(build_command_line_bindings(seed))
-        self._history = CommandLineHistory()
         self._working_context: CommandLineContext | None = None
         self._walk_anchor: str | None = None
         self._history_walk_line: str | None = None
@@ -255,6 +254,14 @@ class CommandLineScreen(
     def session(self) -> CommandLineSession:
         """Return the app-held session backing this screen."""
         return command_line_session_for(self.app)
+
+    @property
+    def _history(self) -> CommandLineHistory:
+        """Return the session-held history, creating the holder on first use."""
+        session = self.session
+        if session.command_history is None:
+            session.command_history = CommandLineHistory()
+        return session.command_history
 
     def compose(self) -> ComposeResult:
         """Compose the frame: title, transcript, input, hint, status."""
@@ -325,7 +332,7 @@ class CommandLineScreen(
         self._update_running()
         self._update_hints()
         restored_input.focus()
-        self._history.refresh()
+        self._ensure_history_loaded()
         context = await asyncio.to_thread(resolve_working_context, self.app, session)
         self._working_context = context
         self._update_chip()
@@ -337,29 +344,104 @@ class CommandLineScreen(
         self._refresh_completion()
         self._maybe_show_palette_moved_tip()
 
+    def _ensure_history_loaded(self) -> None:
+        """Load session-held history once, off-thread; reopens reuse it."""
+        session = self.session
+        if session.history_loaded or session.history_loading:
+            return
+        session.history_loading = True
+        # Create the holder now so submits landing before the load lands
+        # still update memory instead of dropping entries.
+        _ = self._history
+        run_worker = getattr(self.app, "run_worker", None)
+        if not callable(run_worker):
+            session.history_loading = False
+            return
+        try:
+            run_worker(self._load_history_worker(), exclusive=False)
+        except Exception:  # noqa: BLE001 - history is best effort.
+            session.history_loading = False
+
+    async def _load_history_worker(self) -> None:
+        """Read the history store off-thread into the session holder."""
+        from sase.history.command_line import load_command_line_history
+
+        try:
+            entries = await asyncio.to_thread(load_command_line_history)
+        except Exception:  # noqa: BLE001 - history is best effort.
+            entries = []
+        session = self.session
+        history = self._history
+        # Keep submissions remembered while the load was in flight: they are
+        # already newest-first at the front, so append only stored lines the
+        # holder does not already have.
+        try:
+            known = {entry.line for entry in history.entries}
+            history.entries.extend(
+                entry for entry in entries if entry.line not in known
+            )
+            history.cursor = None
+        except Exception:  # noqa: BLE001 - history is best effort.
+            pass
+        session.history_loaded = True
+        session.history_loading = False
+        try:
+            self._update_ghost()
+        except Exception:  # noqa: BLE001 - ghost refresh is best effort.
+            pass
+        try:
+            self._refresh_completion()
+        except Exception:  # noqa: BLE001 - refresh is best effort.
+            pass
+
     def _maybe_show_palette_moved_tip(self) -> None:
         """Show the one-time ``:``/``;`` flip tip in the hint row."""
         from sase.ace.tui.command_line.palette_moved_tip import (
             COMMAND_LINE_PALETTE_MOVED_TIP,
-            has_shown_palette_moved_tip,
             mark_palette_moved_tip_shown,
         )
 
-        try:
-            if has_shown_palette_moved_tip():
+        session = self.session
+        if session.palette_tip_show is False:
+            return
+        if session.palette_tip_show is True:
+            try:
+                self.query_one("#command-line-hint-row", Static).update(
+                    COMMAND_LINE_PALETTE_MOVED_TIP
+                )
+            except Exception:  # noqa: BLE001 - unmounted screen cannot render.
                 return
+            try:
+                mark_palette_moved_tip_shown()
+            except Exception:  # noqa: BLE001 - marker writes are best effort.
+                pass
+            session.palette_tip_show = False
+            return
+        run_worker = getattr(self.app, "run_worker", None)
+        if not callable(run_worker):
+            return
+        try:
+            run_worker(self._load_palette_tip_worker(), exclusive=False)
+        except Exception:  # noqa: BLE001 - tip reads are best effort.
+            pass
+
+    async def _load_palette_tip_worker(self) -> None:
+        """Read the tip marker off-thread, cache it, and show the tip once."""
+        from sase.ace.tui.command_line.palette_moved_tip import (
+            has_shown_palette_moved_tip,
+        )
+
+        try:
+            shown = await asyncio.to_thread(has_shown_palette_moved_tip)
         except Exception:  # noqa: BLE001 - tip reads always degrade.
             return
-        try:
-            self.query_one("#command-line-hint-row", Static).update(
-                COMMAND_LINE_PALETTE_MOVED_TIP
-            )
-        except Exception:  # noqa: BLE001 - unmounted screen cannot render.
+        session = self.session
+        # Cache first: a reopen before this worker lands reuses the decision
+        # instead of re-reading the marker.
+        session.palette_tip_show = not shown
+        if shown:
             return
-        try:
-            mark_palette_moved_tip_shown()
-        except Exception:  # noqa: BLE001 - marker writes are best effort.
-            pass
+        self._maybe_show_palette_moved_tip()
 
     def _on_grammar_ready_from_worker(self) -> None:
         """Refresh after the loop-owned grammar loader has completed."""

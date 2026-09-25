@@ -11,7 +11,10 @@ import shlex
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from sase.ace.tui.command_line.history import CommandLineHistory
 
 #: Maximum transcript blocks kept per app session.
 COMMAND_LINE_MAX_BLOCKS = 200
@@ -85,6 +88,15 @@ class CommandLineSession:
     draft_cursor: int = 0
     cwd_pin: str | None = None
     history_cursor: int | None = None
+    #: Session-held history, loaded once off-thread and reused on reopen so
+    #: the panel never re-reads the store on open.
+    command_history: CommandLineHistory | None = None
+    #: True once the session-held history has been loaded from the store.
+    history_loaded: bool = False
+    #: True while the one-time history load worker is in flight.
+    history_loading: bool = False
+    #: Cached palette-moved tip decision; None means not yet read off-thread.
+    palette_tip_show: bool | None = None
     restored: bool = False
     full_height: bool = False
     last_submit_at: float = 0.0

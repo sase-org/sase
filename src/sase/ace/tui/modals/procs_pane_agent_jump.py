@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from textual.widgets import OptionList
@@ -134,25 +135,59 @@ def _open_command_line_on_block(app: Any, proc_id: str) -> bool:
 
     Adds the block when the transcript lacks it; a missing (pruned) record
     still opens the panel and reports the pruned record. Returns whether a
-    block exists for *proc_id*.
+    block exists for *proc_id* (False while the off-thread ensure for an
+    unknown block is still in flight).
     """
-    from sase.ace.tui.command_line.restore import ensure_block_for_proc
     from sase.ace.tui.command_line.session import command_line_session_for
 
     session = command_line_session_for(app)
     try:
-        block = ensure_block_for_proc(session, proc_id)
-    except Exception:  # noqa: BLE001 - store reads are best effort.
-        block = None
+        existing = session.block_for_proc(proc_id)
+    except Exception:  # noqa: BLE001 - session reads always degrade.
+        existing = None
+    if existing is not None:
+        return _focus_and_open(app, session, proc_id, pruned=False)
+    run_worker = getattr(app, "run_worker", None)
+    if not callable(run_worker):
+        from sase.ace.tui.command_line.restore import ensure_block_for_proc
+
+        try:
+            block = ensure_block_for_proc(session, proc_id)
+        except Exception:  # noqa: BLE001 - store reads are best effort.
+            block = None
+        return _focus_and_open(app, session, proc_id, pruned=block is None)
+    try:
+        run_worker(_ensure_and_open(app, session, proc_id), exclusive=False)
+    except Exception:  # noqa: BLE001 - jumps are best effort.
+        return False
+    return False
+
+
+def _focus_and_open(app: Any, session: Any, proc_id: str, *, pruned: bool) -> bool:
+    """Point the panel at *proc_id* and open it, warning when pruned."""
     session.focus_block_proc_id = proc_id
     opener = getattr(app, "action_open_command_line", None)
     if callable(opener):
         opener()
-    if block is None:
+    if pruned:
         notify = getattr(app, "notify", None)
         if callable(notify):
             notify("Proc record pruned", severity="warning")
-    return block is not None
+    return not pruned
+
+
+async def _ensure_and_open(app: Any, session: Any, proc_id: str) -> None:
+    """Read the store off-thread, then open the panel on the ensured block."""
+    from sase.ace.tui.command_line.restore import ensure_block_for_proc
+
+    try:
+        block = await asyncio.to_thread(ensure_block_for_proc, session, proc_id)
+    except Exception:  # noqa: BLE001 - store reads are best effort.
+        block = None
+    try:
+        _focus_and_open(app, session, proc_id, pruned=block is None)
+    except Exception:  # noqa: BLE001 - jumps are best effort.
+        pass
 
 
 __all__ = [

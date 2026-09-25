@@ -319,9 +319,28 @@ class CommandLineScreenNavigationMixin:
         def _on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            error = kill_store_task(proc_id)
-            if error is not None:
-                self.notify(f"Kill failed: {error}", severity="error")
+            run_worker = getattr(self.app, "run_worker", None)
+            if not callable(run_worker):
+                error = kill_store_task(proc_id)
+                if error is not None:
+                    self.notify(f"Kill failed: {error}", severity="error")
+                return
+
+            async def _kill() -> None:
+                try:
+                    error = await asyncio.to_thread(kill_store_task, proc_id)
+                except Exception as exc:  # noqa: BLE001 - kill never breaks the panel.
+                    error = " ".join(str(exc).splitlines()) or type(exc).__name__
+                if error is not None:
+                    try:
+                        self.notify(f"Kill failed: {error}", severity="error")
+                    except Exception:  # noqa: BLE001 - notify is best effort.
+                        pass
+
+            try:
+                run_worker(_kill(), exclusive=False)
+            except Exception:  # noqa: BLE001 - kill is best effort.
+                pass
 
         self.app.push_screen(
             ConfirmActionModal(

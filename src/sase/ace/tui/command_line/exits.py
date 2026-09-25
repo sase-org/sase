@@ -120,6 +120,21 @@ def _record_history_async(app: Any, block: Any) -> None:
 
         session = command_line_session_for(app)
         context = await asyncio.to_thread(resolve_working_context, app, session)
+        try:
+            from sase.ace.tui.command_line.history import CommandLineHistory
+
+            holder = session.command_history
+            if holder is None:
+                holder = CommandLineHistory()
+                session.command_history = holder
+            holder.remember(
+                block.line,
+                cwd=context.cwd,
+                project=context.project,
+                exit_code=block.exit_code,
+            )
+        except Exception:  # noqa: BLE001 - history is best effort.
+            pass
 
         def _write() -> None:
             with locked_command_line_history():

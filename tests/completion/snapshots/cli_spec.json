@@ -24606,7 +24606,7 @@
             "run_policy": [],
             "stdin": false,
             "subcommands": [],
-            "writes": false
+            "writes": true
           },
           {
             "aliases": [],
@@ -25176,7 +25176,7 @@
             "run_policy": [],
             "stdin": false,
             "subcommands": [],
-            "writes": false
+            "writes": true
           },
           {
             "aliases": [],
@@ -35028,7 +35028,7 @@
             "run_policy": [],
             "stdin": false,
             "subcommands": [],
-            "writes": false
+            "writes": true
           },
           {
             "aliases": [],

@@ -212,6 +212,9 @@ def test_run_policy_spot_checks() -> None:
     assert by_path[("bead", "close")].writes is True
     assert by_path[("bead", "show")].writes is False
     assert by_path[("artifact", "open")].writes is False
+    assert by_path[("tool", "stop")].writes is True
+    assert by_path[("plan", "approve")].writes is True
+    assert by_path[("plan", "reject")].writes is True
 
 
 def _write_spec_json(path: Path) -> None:

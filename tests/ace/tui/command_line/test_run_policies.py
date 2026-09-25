@@ -457,6 +457,7 @@ async def test_foreground_submit_runs_in_terminal_and_records(
     from sase.ace.tui.command_line import screen as screen_module
     from sase.ace.tui.command_line.context import CommandLineContext
     from sase.ace.tui.command_line.session import command_line_session_for
+    from sase.ace.tui.durable_ops import sase_command_argv
 
     history_file = tmp_path / "command_line_history.json"
     calls: dict[str, Any] = {}
@@ -486,7 +487,9 @@ async def test_foreground_submit_runs_in_terminal_and_records(
             assert block.status == "foreground"
             assert block.exit_code == 0
             assert block.proc_id is None
-            assert calls["argv"] == ["sase", "prompt", "edit"]
+            assert calls["argv"] == sase_command_argv("prompt", "edit")
+            assert calls["argv"][0] != "sase"
+            assert calls["argv"][-2:] == ["prompt", "edit"]
             assert calls["cwd"] == "/tmp"
 
 

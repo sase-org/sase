@@ -192,6 +192,13 @@ class CommandLineScreenSubmissionMixin:
             return local
         block = session.add_block(prepared.line)
         capture_resolve_context(block, context)
+        try:
+            working = self._local_working_context()
+            self._history.remember(
+                prepared.line, cwd=working.cwd, project=working.project
+            )
+        except Exception:  # noqa: BLE001 - history is best effort.
+            pass
         if not bypass_dedup:
             try:
                 widget = self.query_one(CommandLineInput)
@@ -312,9 +319,10 @@ class CommandLineScreenSubmissionMixin:
         working = self._local_working_context()
         try:
             from sase.ace.tui.command_line import screen as screen_module
+            from sase.ace.tui.durable_ops import sase_command_argv
 
             exit_code = screen_module.run_in_terminal(
-                self.app, ["sase", *prepared.tokens], cwd=working.cwd
+                self.app, sase_command_argv(*prepared.tokens), cwd=working.cwd
             )
         except OSError as error:
             session = self.session
@@ -442,19 +450,28 @@ class CommandLineScreenSubmissionMixin:
         exit_code: int | None,
     ) -> None:
         """Record a non-proc submission off-thread (deny records nothing)."""
+        try:
+            self._history.remember(line, cwd=cwd, project=project, exit_code=exit_code)
+        except Exception:  # noqa: BLE001 - history is best effort.
+            pass
         run_worker = getattr(self.app, "run_worker", None)
         if not callable(run_worker):
             return
 
         async def _record() -> None:
             try:
-                await asyncio.to_thread(
-                    self._history.record,
-                    line,
-                    cwd=cwd,
-                    project=project,
-                    exit_code=exit_code,
+                from sase.history.command_line import (
+                    locked_command_line_history,
+                    record_command_line,
                 )
+
+                def _write() -> None:
+                    with locked_command_line_history():
+                        record_command_line(
+                            line, cwd=cwd, project=project, exit_code=exit_code
+                        )
+
+                await asyncio.to_thread(_write)
             except Exception:  # noqa: BLE001 - history is best effort.
                 pass
 

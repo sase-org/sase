@@ -818,10 +818,12 @@ async def test_K_warns_when_finished_and_confirms_when_running(
 
             session.blocks[0].status = "running"
             session.blocks[0].proc_id = "proc-kill-1"
-            killed: list[str] = []
+            killed: list[tuple[str, int]] = []
 
             def _stub_kill(proc_id: str) -> str | None:
-                killed.append(proc_id)
+                import threading
+
+                killed.append((proc_id, threading.get_ident()))
                 return None
 
             monkeypatch.setattr(
@@ -839,7 +841,12 @@ async def test_K_warns_when_finished_and_confirms_when_running(
             assert screen.handle_block_nav_key("K") is True
             await page.expect_modal("ConfirmActionModal")
             pushed["callback"](True)
-            assert killed == ["proc-kill-1"]
+            assert killed == []
+            await page.pause_until_cpu_idle()
+            assert [proc_id for proc_id, _ in killed] == ["proc-kill-1"]
+            import threading
+
+            assert killed[0][1] != threading.get_ident()
 
 
 async def test_procs_jump_focus_selects_block_on_open(

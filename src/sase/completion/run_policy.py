@@ -94,6 +94,9 @@ _WRITES_VERBS: Final[frozenset[str]] = frozenset(
 # Leaves that write but are not in _WRITES_VERBS (leaf name -> paths).
 _WRITES_TRUE_OVERRIDES: Final[frozenset[tuple[str, ...]]] = frozenset(
     {
+        ("tool", "stop"),
+        ("plan", "approve"),
+        ("plan", "reject"),
         ("bead", "note"),
         ("bead", "snooze"),
         ("bead", "work"),
