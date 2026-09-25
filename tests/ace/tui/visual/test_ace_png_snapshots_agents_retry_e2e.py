@@ -124,12 +124,12 @@ async def test_real_fakey_retry_countdown_png_snapshot(
         runner_utils.reset_killed()
 
 
-async def test_real_loader_plan_family_retry_countdown_png_snapshot(
+async def test_real_loader_plan_agent_session_retry_countdown_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failed coder attempt cannot conceal its live family's backoff."""
+    """A failed coder attempt cannot conceal its live agent session's backoff."""
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     now_epoch = _VISUAL_NOW.timestamp()
@@ -159,8 +159,8 @@ async def test_real_loader_plan_family_retry_countdown_png_snapshot(
         assert_page_svg_contains(page, "2/3")
         ace_png_visual.assert_page_png(
             page,
-            "agents_retry_e2e_plan_family_countdown_120x40",
-            title="ACE real-loader plan family retry countdown",
+            "agents_retry_e2e_plan_session_countdown_120x40",
+            title="ACE real-loader plan session retry countdown",
         )
 
 

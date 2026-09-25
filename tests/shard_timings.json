@@ -203,7 +203,7 @@
     "tests/ace/tui/test_xprompt_browser_filter.py": 55.6,
     "tests/ace/tui/test_xprompt_browser_jump.py": 64.4,
     "tests/ace/tui/test_xprompt_browser_load_keymap.py": 89.3,
-    "tests/ace/tui/widgets/test_agent_display_family_roster.py": 6.1,
+    "tests/ace/tui/widgets/test_agent_display_agent_session_roster.py": 6.1,
     "tests/ace/tui/widgets/test_agent_display_kind_headers.py": 7.8,
     "tests/ace/tui/widgets/test_agent_display_name_model_metadata.py": 4.2,
     "tests/ace/tui/widgets/test_agent_list_runtime_rendering_layout.py": 3.8,

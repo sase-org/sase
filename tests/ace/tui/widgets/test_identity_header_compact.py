@@ -18,8 +18,8 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_clan_identity import (
     build_clan_compact_lines,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan_roster import (
-    family_children,
-    family_rows,
+    agent_session_children,
+    agent_session_rows,
     ordered_clan_members,
 )
 from sase.ace.tui.widgets.prompt_panel._identity_header_compact import (
@@ -96,7 +96,7 @@ def test_agent_row_falls_back_to_quiet_context(tmp_path: Path) -> None:
     assert "START" in second or "WAIT" in second
 
 
-def test_family_rows_summarize_shells_and_fold(tmp_path: Path) -> None:
+def test_agent_session_rows_summarize_shells_and_fold(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     compact = build_agent_compact_lines(
         agent=root,
@@ -173,16 +173,18 @@ def _clan_compact_args(container: object, *, now: datetime | None = None) -> dic
 
     assert isinstance(container, Agent)
     members = ordered_clan_members(container)
-    family_members = tuple(m for m in members if family_children(m))
+    agent_session_members = tuple(m for m in members if agent_session_children(m))
     agent_count = sum(
-        max(1, len(family_rows(m, family_children(m)))) if family_children(m) else 1
+        max(1, len(agent_session_rows(m, agent_session_children(m))))
+        if agent_session_children(m)
+        else 1
         for m in members
     )
     return {
         "agent": container,
         "counts": clan_member_counts(container),
         "agent_count": agent_count,
-        "family_count": len(family_members),
+        "agent_session_count": len(agent_session_members),
         "now": now,
     }
 
@@ -266,21 +268,21 @@ def test_clan_rows_use_singular_and_plural_member_summary() -> None:
         agent=container,
         counts=ClanStatusCounts(),
         agent_count=2,
-        family_count=1,
+        agent_session_count=1,
         fold_level=FoldLevel.COLLAPSED,
     )
     _first_plural, second_plural = _rows(plural)
     assert "2 agents" in second_plural
-    assert "1 family" in second_plural
+    assert "1 session" in second_plural
 
-    plural_families = build_clan_compact_lines(
+    plural_agent_sessions = build_clan_compact_lines(
         agent=container,
         counts=ClanStatusCounts(),
         agent_count=3,
-        family_count=2,
+        agent_session_count=2,
         fold_level=FoldLevel.COLLAPSED,
     )
-    assert "2 families" in _rows(plural_families)[1]
+    assert "2 sessions" in _rows(plural_agent_sessions)[1]
 
 
 def test_clan_rows_carry_fold_chip_at_each_level() -> None:

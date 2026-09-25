@@ -347,7 +347,7 @@ def _unix(moment: datetime) -> float:
     return moment.timestamp()
 
 
-def _fleet_tribe_family_response() -> Mapping[str, Any]:
+def _fleet_tribe_agent_session_response() -> Mapping[str, Any]:
     installation = fleet_installation_id("a")
     started = _FLEET_TRIBE_NOW - timedelta(hours=3)
     run_started = _FLEET_TRIBE_NOW - timedelta(minutes=27)
@@ -468,12 +468,12 @@ def _fleet_tribe_family_response() -> Mapping[str, Any]:
     )
 
 
-async def test_agents_fleet_remote_tribe_families_png_snapshot(
+async def test_agents_fleet_remote_tribe_sessions_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, _FLEET_TRIBE_NOW)
-    response = _fleet_tribe_family_response()
+    response = _fleet_tribe_agent_session_response()
     facade = OfflineFleetFacade(
         summary_response=response,
         catalog_response=response,
@@ -496,8 +496,8 @@ async def test_agents_fleet_remote_tribe_families_png_snapshot(
         assert_page_svg_contains(page, "⋔")
         ace_png_visual.assert_page_png(
             page,
-            "agents_fleet_remote_tribe_families_120x40",
-            title="ACE agents Fleet remote tribe families",
+            "agents_fleet_remote_tribe_sessions_120x40",
+            title="ACE agents Fleet remote tribe sessions",
         )
 
 
@@ -548,7 +548,7 @@ def _production_fixture_response(home_root: Path) -> Mapping[str, Any]:
     )
 
 
-async def test_agents_fleet_production_families_png_snapshot(
+async def test_agents_fleet_production_sessions_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -568,13 +568,13 @@ async def test_agents_fleet_production_families_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "apollo")
-        # The completed root-less plan-chain family renders as a family row
+        # The completed root-less plan-chain session renders as a session row
         # with its rich status, nested shells and the shell/neighbor chips.
         assert_page_svg_contains(page, "chain")
         assert_page_svg_contains(page, "TALE DONE")
         assert_page_svg_contains(page, "EPIC CREATED")
         ace_png_visual.assert_page_png(
             page,
-            "agents_fleet_production_families_120x40",
-            title="ACE agents Fleet production-derived families",
+            "agents_fleet_production_sessions_120x40",
+            title="ACE agents Fleet production-derived sessions",
         )

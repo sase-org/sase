@@ -1,4 +1,4 @@
-"""Family fixtures shared by Agents-tab PNG visual snapshot tests."""
+"""Agent session fixtures shared by Agents-tab PNG visual snapshot tests."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.monitor_state import monitor_state_bucket
 
 
-def waiting_family_child_agents() -> list[Agent]:
+def waiting_agent_session_child_agents() -> list[Agent]:
     parent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-parent",
@@ -46,7 +46,7 @@ def waiting_family_child_agents() -> list[Agent]:
     return [parent, child]
 
 
-def running_family_runtime_agents() -> list[Agent]:
+def running_agent_session_runtime_agents() -> list[Agent]:
     started = datetime(2026, 7, 19, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -107,8 +107,8 @@ def running_family_runtime_agents() -> list[Agent]:
     return [root, planner, coder]
 
 
-def settled_monitor_family_agents() -> list[Agent]:
-    """Return a collapsed family mixing one running and three finished monitors.
+def settled_monitor_agent_session_agents() -> list[Agent]:
+    """Return a collapsed agent session mixing one running and three finished monitors.
 
     Finished monitors mix a clean completion, a failure, and an explicit stop
     so the grey settled badge is proven to read as "finished", not merely
@@ -195,8 +195,8 @@ def settled_monitor_family_agents() -> list[Agent]:
     return [root, running_monitor, completed_monitor, failed_monitor, stopped_monitor]
 
 
-def parent_navigation_family_agents() -> list[Agent]:
-    """Return a loader-shaped plan family with a hidden Python pre-step."""
+def parent_navigation_agent_session_agents() -> list[Agent]:
+    """Return a loader-shaped plan agent session with a hidden Python pre-step."""
     started = datetime(2026, 7, 22, 6, 0, 0)
     stopped = datetime(2026, 7, 22, 6, 10, 0)
     root = Agent(
@@ -267,7 +267,7 @@ def parent_navigation_family_agents() -> list[Agent]:
     return [root, main, coder, prepare, setup]
 
 
-def parallel_family_agents() -> list[Agent]:
+def parallel_agent_session_agents() -> list[Agent]:
     root = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-parallel-family",
@@ -309,7 +309,7 @@ def parallel_family_agents() -> list[Agent]:
     return sort_and_reorder(rows, [])
 
 
-def renamed_generic_family_agents() -> list[Agent]:
+def renamed_generic_agent_session_agents() -> list[Agent]:
     root = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="visual-family-root",
@@ -371,8 +371,8 @@ def renamed_generic_family_agents() -> list[Agent]:
     return rows
 
 
-def family_and_lone_planner_agents() -> list[Agent]:
-    family = Agent(
+def agent_session_and_lone_planner_agents() -> list[Agent]:
+    agent_session = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-real-family",
         project_file="/workspace/sase/visual_project.sase",
@@ -395,7 +395,7 @@ def family_and_lone_planner_agents() -> list[Agent]:
         start_time=datetime(2026, 7, 18, 12, 5, 0),
         stop_time=datetime(2026, 7, 18, 12, 8, 0),
         raw_suffix="20260718120500",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session.raw_suffix,
         role_suffix="--code",
         agent_name="visual-real-family--code",
         agent_session="visual-real-family",
@@ -416,6 +416,6 @@ def family_and_lone_planner_agents() -> list[Agent]:
         plan_chain_root=True,
         appears_as_agent=True,
     )
-    rows = [family, member, lone_planner]
+    rows = [agent_session, member, lone_planner]
     _apply_status_overrides(rows)
     return rows

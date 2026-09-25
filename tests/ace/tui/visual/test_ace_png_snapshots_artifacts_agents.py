@@ -264,7 +264,7 @@ async def test_artifacts_agents_empty_png_snapshot(
         )
 
 
-async def test_artifacts_agents_family_grouped_png_snapshot(
+async def test_artifacts_agents_session_grouped_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -285,8 +285,8 @@ async def test_artifacts_agents_family_grouped_png_snapshot(
         assert_page_svg_contains(page, "(3)")
         ace_png_visual.assert_page_png(
             page,
-            "artifacts_agents_family_grouped_120x40",
-            title="ACE Artifacts - Agent family grouped",
+            "artifacts_agents_session_grouped_120x40",
+            title="ACE Artifacts - Agent session grouped",
         )
 
 

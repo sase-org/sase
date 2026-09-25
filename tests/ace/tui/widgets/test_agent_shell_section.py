@@ -15,22 +15,22 @@ from sase.ace.tui.widgets.prompt_panel._agent_shell_section import (
     _AgentShellLane,
     _GateShellLane,
     _MonitorShellLane,
-    build_family_shell_lanes,
+    build_agent_session_shell_lanes,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
-_FAMILY_NAME = "family"
+_AGENT_SESSION_NAME = "family"
 _ROOT_SUFFIX = "20260805130000"
 
 
-def _family_root(
+def _agent_session_root(
     *,
     role_suffix: str = "--plan",
     agent_session_role: str = "plan",
     **overrides: object,
 ) -> Agent:
     return make_agent(
-        agent_session=_FAMILY_NAME,
+        agent_session=_AGENT_SESSION_NAME,
         agent_session_role=agent_session_role,
         plan_chain_root=True,
         raw_suffix=_ROOT_SUFFIX,
@@ -39,13 +39,13 @@ def _family_root(
     )
 
 
-def _family_member(
+def _agent_session_member(
     role_suffix: str, agent_session_role: str, **overrides: object
 ) -> Agent:
     values: dict[str, object] = {
-        "agent_session": _FAMILY_NAME,
+        "agent_session": _AGENT_SESSION_NAME,
         "agent_session_role": agent_session_role,
-        "agent_name": f"{_FAMILY_NAME}{role_suffix}",
+        "agent_name": f"{_AGENT_SESSION_NAME}{role_suffix}",
         "parent_timestamp": _ROOT_SUFFIX,
         "raw_suffix": f"{_ROOT_SUFFIX}{role_suffix}",
         "role_suffix": role_suffix,
@@ -60,7 +60,7 @@ def _monitor_member(**overrides: object) -> Agent:
         "monitor_reason": "Verify the refactor before replying",
     }
     values.update(overrides)
-    return _family_member(
+    return _agent_session_member(
         "--mon",
         "monitor",
         **values,
@@ -77,14 +77,14 @@ def _gate_member(**overrides: object) -> Agent:
         "gate_timeout_seconds": 300.0,
     }
     values.update(overrides)
-    return _family_member(
+    return _agent_session_member(
         "--gate",
         "gate",
         **values,
     )
 
 
-def _family(root: Agent, *members: Agent) -> Agent:
+def _agent_session(root: Agent, *members: Agent) -> Agent:
     root.followup_agents = list(members)
     return root
 
@@ -109,17 +109,19 @@ def _styles_covering(text: Text, substring: str) -> set[str]:
     }
 
 
-def test_mixed_agent_shell_family_renders_one_lane_per_shell_aligned() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude", reasoning_effort="xhigh"),
-        _family_member(
+def test_mixed_agent_shell_agent_session_renders_one_lane_per_shell_aligned() -> None:
+    agent = _agent_session(
+        _agent_session_root(
+            model="opus", llm_provider="claude", reasoning_effort="xhigh"
+        ),
+        _agent_session_member(
             "--code",
             "code",
             model="sonnet",
             llm_provider="claude",
             reasoning_effort="high",
         ),
-        _family_member(
+        _agent_session_member(
             "--reviewer",
             "reviewer",
             model="gpt-5.2",
@@ -128,7 +130,7 @@ def test_mixed_agent_shell_family_renders_one_lane_per_shell_aligned() -> None:
         ),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
 
     assert lines == [
@@ -140,15 +142,15 @@ def test_mixed_agent_shell_family_renders_one_lane_per_shell_aligned() -> None:
     assert len(dot_positions) == 1
 
 
-def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
-    agent = _family(
-        _family_root(
+def test_mixed_alias_agent_session_keeps_separator_column_aligned() -> None:
+    agent = _agent_session(
+        _agent_session_root(
             model="opus",
             llm_provider="claude",
             reasoning_effort="xhigh",
             model_alias="large",
         ),
-        _family_member(
+        _agent_session_member(
             "--code",
             "code",
             model="sonnet",
@@ -156,7 +158,7 @@ def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
             reasoning_effort="high",
             model_alias="medium",
         ),
-        _family_member(
+        _agent_session_member(
             "--reviewer",
             "reviewer",
             model="gpt-5.2",
@@ -165,7 +167,7 @@ def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
         ),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
 
     assert lines == [
@@ -177,14 +179,16 @@ def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
     assert len(dot_positions) == 1
 
 
-def test_mixed_agent_and_monitor_family_keeps_shell_order_and_alignment() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude"),
+def test_mixed_agent_and_monitor_agent_session_keeps_shell_order_and_alignment() -> (
+    None
+):
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"),
         _monitor_member(),
-        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+        _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
 
     assert [type(lane) for lane in lanes] == [
@@ -201,15 +205,17 @@ def test_mixed_agent_and_monitor_family_keeps_shell_order_and_alignment() -> Non
     assert len(dot_positions) == 1
 
 
-def test_mixed_agent_monitor_and_gate_family_keeps_shell_order_and_alignment() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude"),
+def test_mixed_agent_monitor_and_gate_agent_session_keeps_shell_order_and_alignment() -> (
+    None
+):
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"),
         _monitor_member(),
         _gate_member(),
-        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+        _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
 
     assert [type(lane) for lane in lanes] == [
@@ -229,10 +235,12 @@ def test_mixed_agent_monitor_and_gate_family_keeps_shell_order_and_alignment() -
 
 
 def test_nested_monitor_appears_after_its_starter_in_shell_lanes() -> None:
-    root = _family_root(model="opus", llm_provider="claude")
-    coder = _family_member("--code", "code", model="sonnet", llm_provider="claude")
+    root = _agent_session_root(model="opus", llm_provider="claude")
+    coder = _agent_session_member(
+        "--code", "code", model="sonnet", llm_provider="claude"
+    )
     monitor = _monitor_member()
-    review = _family_member(
+    review = _agent_session_member(
         "--reviewer", "reviewer", model="gpt-5.2", llm_provider="codex"
     )
     monitor.parent_timestamp = coder.raw_suffix
@@ -241,7 +249,7 @@ def test_nested_monitor_appears_after_its_starter_in_shell_lanes() -> None:
     coder.followup_agents = [monitor]
     coder.runtime_children = [monitor]
 
-    lanes = build_family_shell_lanes(root)
+    lanes = build_agent_session_shell_lanes(root)
 
     assert [type(lane) for lane in lanes] == [
         _AgentShellLane,
@@ -258,8 +266,8 @@ def test_nested_monitor_appears_after_its_starter_in_shell_lanes() -> None:
 
 
 def test_monitor_lane_never_renders_stale_model_metadata() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude"),
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"),
         _monitor_member(
             model="sonnet",
             llm_provider="claude",
@@ -271,21 +279,25 @@ def test_monitor_lane_never_renders_stale_model_metadata() -> None:
         ),
     )
 
-    lines = ResponsiveShellSection(build_family_shell_lanes(agent)).logical_text.plain
+    lines = ResponsiveShellSection(
+        build_agent_session_shell_lanes(agent)
+    ).logical_text.plain
 
     assert "CLAUDE(sonnet)" not in lines
     assert "why" in lines
     assert "Full-suite verification before landing" in lines
 
 
-def test_uniform_model_family_still_renders_one_lane_per_member() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude"),
-        _family_member("--code", "code", model="opus", llm_provider="claude"),
-        _family_member("--reviewer", "reviewer", model="opus", llm_provider="claude"),
+def test_uniform_model_agent_session_still_renders_one_lane_per_member() -> None:
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"),
+        _agent_session_member("--code", "code", model="opus", llm_provider="claude"),
+        _agent_session_member(
+            "--reviewer", "reviewer", model="opus", llm_provider="claude"
+        ),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
 
     assert len(lanes) == 3
     assert [
@@ -298,12 +310,12 @@ def test_uniform_model_family_still_renders_one_lane_per_member() -> None:
 
 
 def test_member_with_no_model_renders_default_lane() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude"),
-        _family_member("--code", "code", model=None, llm_provider=None),
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"),
+        _agent_session_member("--code", "code", model=None, llm_provider=None),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
 
     assert len(lanes) == 2
     assert isinstance(lanes[1], _AgentShellLane)
@@ -311,12 +323,14 @@ def test_member_with_no_model_renders_default_lane() -> None:
 
 
 def test_member_with_effort_renders_suffix_member_without_does_not() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude", reasoning_effort="xhigh"),
-        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+    agent = _agent_session(
+        _agent_session_root(
+            model="opus", llm_provider="claude", reasoning_effort="xhigh"
+        ),
+        _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
 
     assert isinstance(lanes[0], _AgentShellLane)
     assert isinstance(lanes[1], _AgentShellLane)
@@ -326,14 +340,16 @@ def test_member_with_effort_renders_suffix_member_without_does_not() -> None:
 
 def test_cap_renders_twelve_lanes_plus_tail() -> None:
     members = [
-        _family_member(
+        _agent_session_member(
             f"--m{index:02d}", f"phase-{index:02d}", model="opus", llm_provider="claude"
         )
         for index in range(1, 15)
     ]
-    agent = _family(_family_root(model="opus", llm_provider="claude"), *members)
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"), *members
+    )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     assert len(lanes) == 15
     section = ResponsiveShellSection(
         lanes=lanes[:SHELL_LANE_LIMIT],
@@ -346,12 +362,12 @@ def test_cap_renders_twelve_lanes_plus_tail() -> None:
 
 
 def test_gutter_tracks_widest_label_only() -> None:
-    agent = _family(
-        _family_root(role_suffix="--a", model="opus", llm_provider="claude"),
-        _family_member("--bb", "code", model="sonnet", llm_provider="claude"),
+    agent = _agent_session(
+        _agent_session_root(role_suffix="--a", model="opus", llm_provider="claude"),
+        _agent_session_member("--bb", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
 
     gutter = max(len("--a"), len("--bb"))
@@ -361,16 +377,18 @@ def test_gutter_tracks_widest_label_only() -> None:
 
 
 def test_responsive_narrow_width_folds_value_column() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude", reasoning_effort="xhigh"),
-        _family_member(
+    agent = _agent_session(
+        _agent_session_root(
+            model="opus", llm_provider="claude", reasoning_effort="xhigh"
+        ),
+        _agent_session_member(
             "--code",
             "code",
             model="a-very-long-model-name-that-will-need-to-wrap",
             llm_provider="claude",
         ),
     )
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     section = ResponsiveShellSection(lanes)
 
     lines = _render(section, width=40).splitlines()
@@ -382,16 +400,16 @@ def test_responsive_narrow_width_folds_value_column() -> None:
 
 
 def test_responsive_long_alias_chip_folds_under_value_column() -> None:
-    agent = _family(
-        _family_root(
+    agent = _agent_session(
+        _agent_session_root(
             model="opus",
             llm_provider="claude",
             reasoning_effort="xhigh",
             model_alias="very_long_launch_alias_name",
         ),
-        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+        _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     section = ResponsiveShellSection(lanes)
 
     lines = _render(section, width=48).splitlines()
@@ -403,11 +421,11 @@ def test_responsive_long_alias_chip_folds_under_value_column() -> None:
 
 
 def test_responsive_wide_width_matches_logical_text() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude"),
-        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"),
+        _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     section = ResponsiveShellSection(lanes)
 
     assert _render(section, width=200) == section.logical_text.plain
@@ -510,11 +528,11 @@ def test_monitor_empty_command_and_reason_renders_unavailable_placeholder() -> N
 
 
 def test_styles_label_and_member_label() -> None:
-    agent = _family(
-        _family_root(model="opus", llm_provider="claude"),
-        _family_member("--code", "code", model="sonnet", llm_provider="claude"),
+    agent = _agent_session(
+        _agent_session_root(model="opus", llm_provider="claude"),
+        _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
-    lanes = build_family_shell_lanes(agent)
+    lanes = build_agent_session_shell_lanes(agent)
     text = ResponsiveShellSection(lanes).logical_text
 
     assert "#FFD700" in _styles_covering(text, "--plan")

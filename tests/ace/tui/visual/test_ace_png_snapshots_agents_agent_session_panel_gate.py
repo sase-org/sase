@@ -1,4 +1,4 @@
-"""ACE PNG snapshots for family panel gate shell metadata and output."""
+"""ACE PNG snapshots for session panel gate shell metadata and output."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_session_members import concrete_agent_session_shell_rows
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import (
-    _gate_family_agents,
+from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_panel_fixtures import (
+    _gate_agent_session_agents,
     _selected_gate_agent,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -34,7 +34,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_family_gate_shells_png_snapshots(
+async def test_agent_session_gate_shells_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -42,7 +42,7 @@ async def test_family_gate_shells_png_snapshots(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_gate_family_agents(tmp_path),
+        agents=_gate_agent_session_agents(tmp_path),
     )
 
     async with AcePage(
@@ -83,12 +83,12 @@ async def test_family_gate_shells_png_snapshots(
         assert "failed" in combined
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_shells_gate_120x40",
-            title="ACE family panel shell metadata with gate rows",
+            "agents_session_panel_shells_gate_120x40",
+            title="ACE session panel shell metadata with gate rows",
         )
 
 
-async def test_family_gate_shells_narrow_png_snapshot(
+async def test_agent_session_gate_shells_narrow_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -96,7 +96,7 @@ async def test_family_gate_shells_narrow_png_snapshot(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_gate_family_agents(tmp_path),
+        agents=_gate_agent_session_agents(tmp_path),
     )
 
     async with AcePage(
@@ -114,8 +114,8 @@ async def test_family_gate_shells_narrow_png_snapshot(
         assert_page_svg_contains(page, "⋔")
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_shells_gate_90x40",
-            title="ACE family panel gate shells narrow",
+            "agents_session_panel_shells_gate_90x40",
+            title="ACE session panel gate shells narrow",
         )
 
 
@@ -163,6 +163,6 @@ async def test_selected_gate_shell_output_png_snapshot(
         assert_page_svg_contains(page, "truncated")
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_gate_output_120x40",
+            "agents_session_gate_output_120x40",
             title="ACE selected gate shell with long output",
         )

@@ -8,7 +8,7 @@ from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
 
 
-def _remote_family_summaries() -> tuple[dict[str, object], ...]:
+def _remote_agent_session_summaries() -> tuple[dict[str, object], ...]:
     root = fleet_summary(
         agent_id="remote-family",
         run_id="20260910120000",
@@ -72,10 +72,12 @@ def _tree_shape(agents: list[Agent]) -> list[tuple[object, ...]]:
     ]
 
 
-def test_project_fleet_agents_builds_a_remote_family_container_with_shells() -> None:
+def test_project_fleet_agents_builds_a_remote_agent_session_container_with_shells() -> (
+    None
+):
     response = fleet_host_response(
         alias="apollo",
-        summaries=_remote_family_summaries(),
+        summaries=_remote_agent_session_summaries(),
     )
 
     projection = project_fleet_agents(catalog_response=response)
@@ -204,7 +206,7 @@ def test_project_fleet_agents_drops_superseded_non_current_top_level_instances()
 
 
 def test_project_fleet_agents_nests_under_real_root_instead_of_synthesizing() -> None:
-    """Owner family identity is enough to attach members when run ids differ."""
+    """Owner session identity (legacy family_id) is enough to attach members when run ids differ."""
     root = fleet_summary(
         agent_id="crew",
         run_id="20260910120000",
@@ -275,7 +277,7 @@ def test_project_fleet_agents_synthesizes_a_stable_root_when_page_omits_it() -> 
 def test_project_fleet_agents_preserves_selection_identity_across_refresh() -> None:
     response = fleet_host_response(
         alias="apollo",
-        summaries=_remote_family_summaries(),
+        summaries=_remote_agent_session_summaries(),
     )
     first = project_fleet_agents(catalog_response=response)
     selected = next(
@@ -316,7 +318,7 @@ def test_project_mixed_agent_tree_matches_reproject_and_refilter_shapes() -> Non
         project_fleet_agents(
             catalog_response=fleet_host_response(
                 alias="apollo",
-                summaries=_remote_family_summaries(),
+                summaries=_remote_agent_session_summaries(),
             )
         ).fleet_rows
     )

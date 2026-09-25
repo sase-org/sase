@@ -1,4 +1,4 @@
-"""Family fixtures shared by family panel PNG visual snapshot tests."""
+"""Agent session fixtures shared by session panel PNG visual snapshot tests."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.gate_shell.state import gate_member_status_bucket
 from sase.monitor_state import monitor_state_bucket
 
-_FAMILY_NAME = "visual-family"
+_AGENT_SESSION_NAME = "visual-family"
 _STARTED = datetime(2026, 7, 18, 13, 0, 0)
 
 
@@ -32,7 +32,7 @@ def _write_phase_content(directory: Path, role: str) -> None:
     )
 
 
-def _family_agents(
+def _agent_session_agents(
     tmp_path: Path,
     *,
     member_count: int,
@@ -56,8 +56,8 @@ def _family_agents(
         artifacts_dir=str(root_dir) if with_content else None,
         response_path=str(root_dir / "response.md") if with_content else None,
         role_suffix="--plan",
-        agent_name=f"{_FAMILY_NAME}--plan",
-        agent_session=_FAMILY_NAME,
+        agent_name=f"{_AGENT_SESSION_NAME}--plan",
+        agent_session=_AGENT_SESSION_NAME,
         agent_session_role="plan",
         plan_chain_root=True,
         output_variables={"plan_path": "/workspace/sase/plans/family.md"},
@@ -88,8 +88,8 @@ def _family_agents(
                     str(phase_dir / "response.md") if with_content else None
                 ),
                 role_suffix=suffix,
-                agent_name=f"{_FAMILY_NAME}{suffix}",
-                agent_session=_FAMILY_NAME,
+                agent_name=f"{_AGENT_SESSION_NAME}{suffix}",
+                agent_session=_AGENT_SESSION_NAME,
                 agent_session_role=role,
                 activity=(
                     "implementing numbered navigation"
@@ -126,8 +126,8 @@ def _family_agents(
                 parent_timestamp=starter.raw_suffix,
                 artifacts_dir=str(mon_dir),
                 role_suffix="--mon",
-                agent_name=f"{_FAMILY_NAME}--mon",
-                agent_session=_FAMILY_NAME,
+                agent_name=f"{_AGENT_SESSION_NAME}--mon",
+                agent_session=_AGENT_SESSION_NAME,
                 agent_session_role="monitor",
                 monitor_id="gh6fddk5v3g9",
                 monitor_state="completed",
@@ -147,8 +147,8 @@ def _family_agents(
     return sort_and_reorder(rows, [])
 
 
-def _gate_family_agents(tmp_path: Path) -> list[Agent]:
-    rows = _family_agents(tmp_path, member_count=2, with_content=False)
+def _gate_agent_session_agents(tmp_path: Path) -> list[Agent]:
+    rows = _agent_session_agents(tmp_path, member_count=2, with_content=False)
     starter = next(row for row in rows if row.agent_session_role == "code")
     gate_root = tmp_path / "family-gates"
     gate_root.mkdir()
@@ -196,8 +196,8 @@ def _gate_family_agents(tmp_path: Path) -> list[Agent]:
             raw_suffix=f"2026071813{minutes:02d}00-family-gate-{slug}",
             parent_timestamp=starter.raw_suffix,
             role_suffix=f"--gate-{slug}",
-            agent_name=f"{_FAMILY_NAME}--gate-{slug}",
-            agent_session=_FAMILY_NAME,
+            agent_name=f"{_AGENT_SESSION_NAME}--gate-{slug}",
+            agent_session=_AGENT_SESSION_NAME,
             agent_session_role="gate",
             gate_id=f"gate-{slug}-visual-1234567890",
             gate_kind="approval",
@@ -264,7 +264,9 @@ def _gate_family_agents(tmp_path: Path) -> list[Agent]:
 
 def _selected_gate_agent(tmp_path: Path) -> Agent:
     gate = next(
-        row for row in _gate_family_agents(tmp_path) if row.cl_name == "visual-gate-run"
+        row
+        for row in _gate_agent_session_agents(tmp_path)
+        if row.cl_name == "visual-gate-run"
     )
     gate.cl_name = "visual-standalone-gate-run"
     gate.raw_suffix = "20260718130700-standalone-gate-run"

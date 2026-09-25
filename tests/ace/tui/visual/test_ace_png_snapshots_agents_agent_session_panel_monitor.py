@@ -1,4 +1,4 @@
-"""ACE PNG snapshots for family panel monitor shell metadata and conversation."""
+"""ACE PNG snapshots for session panel monitor shell metadata and conversation."""
 
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.monitor.models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME
 from sase.monitor.presentation import HOST_COMPLETED_OUTCOME
 from sase.monitor_state import monitor_state_bucket
-from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import (
-    _family_agents,
+from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_panel_fixtures import (
+    _agent_session_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -242,7 +242,7 @@ async def test_monitor_state_detail_png_snapshots(
         )
 
 
-async def test_family_panel_shells_monitor_metadata_png_snapshot(
+async def test_agent_session_panel_shells_monitor_metadata_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -251,7 +251,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
     pin_decks_paged(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
-        agents=_family_agents(
+        agents=_agent_session_agents(
             tmp_path,
             member_count=2,
             with_content=False,
@@ -298,8 +298,8 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
         assert "just check-full --include visual" in combined
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_shells_monitor_120x40",
-            title="ACE family panel shell metadata with monitor",
+            "agents_session_panel_shells_monitor_120x40",
+            title="ACE session panel shell metadata with monitor",
         )
 
         await page.press(".")
@@ -317,8 +317,8 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
         assert_page_svg_contains(page, "just check")
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_shells_monitor_roster_120x40",
-            title="ACE family panel SESSION SHELLS roster with monitor",
+            "agents_session_panel_shells_monitor_roster_120x40",
+            title="ACE session panel SESSION SHELLS roster with monitor",
         )
 
         await page.press("2")
@@ -328,7 +328,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
         assert page.app._agents[page.app.current_idx].identity == monitor.identity
 
 
-async def test_family_conversation_monitor_phase_png_snapshot(
+async def test_agent_session_conversation_monitor_phase_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -337,7 +337,7 @@ async def test_family_conversation_monitor_phase_png_snapshot(
     pin_decks_paged(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
-        agents=_family_agents(
+        agents=_agent_session_agents(
             tmp_path,
             member_count=2,
             with_content=False,
@@ -361,6 +361,6 @@ async def test_family_conversation_monitor_phase_png_snapshot(
         assert "⚙1" in Text.from_markup(panel.border_title).plain
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_conversation_monitor_120x40",
-            title="ACE family conversation with monitor phase",
+            "agents_session_conversation_monitor_120x40",
+            title="ACE session conversation with monitor phase",
         )

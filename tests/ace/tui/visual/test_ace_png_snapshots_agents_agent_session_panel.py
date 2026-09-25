@@ -1,4 +1,4 @@
-"""ACE PNG snapshots for fold-aware family detail panels and member jumps."""
+"""ACE PNG snapshots for fold-aware session detail panels and member jumps."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.fold_state import FoldLevel
-from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import (
-    _FAMILY_NAME,
-    _family_agents,
+from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_panel_fixtures import (
+    _AGENT_SESSION_NAME,
+    _agent_session_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -32,7 +32,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_family_panel_fold_levels_and_member_override_png_snapshots(
+async def test_agent_session_panel_fold_levels_and_member_override_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -41,7 +41,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
     pin_decks_paged(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
-        agents=_family_agents(tmp_path, member_count=3, with_content=True),
+        agents=_agent_session_agents(tmp_path, member_count=3, with_content=True),
     )
 
     async with AcePage(query='"visual-family"', patches=patches()) as page:
@@ -57,15 +57,15 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         assert len(page.app._member_jump_maps[container_identity].targets) == 3
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_level_1_120x40",
-            title="ACE family panel fold level 1",
+            "agents_session_panel_level_1_120x40",
+            title="ACE session panel fold level 1",
         )
 
         await scroll_main_section_to_top(page, "agent-xprompt")
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_conversation_level_1_120x40",
-            title="ACE family conversation at fold level 1",
+            "agents_session_conversation_level_1_120x40",
+            title="ACE session conversation at fold level 1",
         )
 
         await page.press("z", "z")
@@ -74,8 +74,8 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         assert resolved_main_section(page) == "agent-xprompt"
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_conversation_level_2_120x40",
-            title="ACE family conversation at fold level 2",
+            "agents_session_conversation_level_2_120x40",
+            title="ACE session conversation at fold level 2",
         )
         # Wrapping back to the top: the Main deck starts at its first section.
         scroll = main_deck_scroll(page)
@@ -85,8 +85,8 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         assert resolved_main_section(page) == "output-variables"
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_level_2_120x40",
-            title="ACE family panel fold level 2",
+            "agents_session_panel_level_2_120x40",
+            title="ACE session panel fold level 2",
         )
 
         await page.press("z", "z")
@@ -98,7 +98,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         await page.wait_for(
             lambda _state: (
                 page.app._agents[page.app.current_idx].agent_name
-                == f"{_FAMILY_NAME}--code"
+                == f"{_AGENT_SESSION_NAME}--code"
             )
         )
         await page.press("apostrophe", "apostrophe")
@@ -109,7 +109,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         )
 
 
-async def test_family_member_panel_shows_sibling_roster_png_snapshot(
+async def test_agent_session_member_panel_shows_sibling_roster_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -117,7 +117,7 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_family_agents(tmp_path, member_count=3, with_content=False),
+        agents=_agent_session_agents(tmp_path, member_count=3, with_content=False),
     )
 
     async with AcePage(query='"visual-family"', patches=patches()) as page:
@@ -134,7 +134,7 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
         await page.wait_for(
             lambda _state: (
                 page.app._agents[page.app.current_idx].agent_name
-                == f"{_FAMILY_NAME}--code"
+                == f"{_AGENT_SESSION_NAME}--code"
             )
         )
         member = page.app._agents[page.app.current_idx]
@@ -149,12 +149,12 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
         assert_page_svg_contains(page, "AGENT SHELL")
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_member_roster_120x40",
-            title="ACE family member panel roster",
+            "agents_session_panel_member_roster_120x40",
+            title="ACE session member panel roster",
         )
 
 
-async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
+async def test_agent_session_two_digit_roster_and_pending_footer_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -162,7 +162,7 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 30, 0))
     patch_startup_loaders(
         monkeypatch,
-        agents=_family_agents(tmp_path, member_count=11, with_content=False),
+        agents=_agent_session_agents(tmp_path, member_count=11, with_content=False),
     )
 
     async with AcePage(query='"visual-family"', patches=patches()) as page:
@@ -179,8 +179,8 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
         assert jump_map.targets[-1].number == "10"
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_two_digit_roster_120x40",
-            title="ACE family panel two-digit roster",
+            "agents_session_panel_two_digit_roster_120x40",
+            title="ACE session panel two-digit roster",
         )
 
         await page.press("1")
@@ -190,15 +190,15 @@ async def test_family_two_digit_roster_and_pending_footer_png_snapshots(
         assert_page_svg_contains(page, "second digit")
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_panel_pending_digit_120x40",
-            title="ACE family panel pending shell digit",
+            "agents_session_panel_pending_digit_120x40",
+            title="ACE session panel pending shell digit",
         )
 
         await page.press("0")
         await page.wait_for(
             lambda _state: (
                 page.app._agents[page.app.current_idx].agent_name
-                == f"{_FAMILY_NAME}--phase-10"
+                == f"{_AGENT_SESSION_NAME}--phase-10"
             )
         )
         await page.press("apostrophe", "apostrophe")

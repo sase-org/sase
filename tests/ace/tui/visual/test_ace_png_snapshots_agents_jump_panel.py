@@ -16,8 +16,8 @@ from sase.ace.tui.widgets import AgentDetail, AgentJumpPanel
 from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_module
 from sase.ace.tui.widgets.decks.model import DeckId
 from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel
-from tests.ace.tui.visual._ace_agents_png_snapshot_family_fixtures import (
-    family_and_lone_planner_agents,
+from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_fixtures import (
+    agent_session_and_lone_planner_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -36,9 +36,9 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _big_family_agents() -> list[Agent]:
-    """Proven family plus twelve dotted descendants for neighbor sections."""
-    agents = family_and_lone_planner_agents()
+def _big_agent_session_agents() -> list[Agent]:
+    """Proven agent session plus twelve dotted descendants for neighbor sections."""
+    agents = agent_session_and_lone_planner_agents()
     peers = [
         Agent(
             agent_type=AgentType.RUNNING,
@@ -95,7 +95,7 @@ async def test_jump_panel_collapsed_single_section_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 19, 9, 5, 5))
-    patch_startup_loaders(monkeypatch, agents=family_and_lone_planner_agents())
+    patch_startup_loaders(monkeypatch, agents=agent_session_and_lone_planner_agents())
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         detail = await _open_agents_on_jump_roster(page)
@@ -161,7 +161,7 @@ async def test_jump_panel_expanded_two_sections_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 23, 9, 30, 0))
-    patch_startup_loaders(monkeypatch, agents=_big_family_agents())
+    patch_startup_loaders(monkeypatch, agents=_big_agent_session_agents())
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         detail = await _open_agents_on_jump_roster(page)
@@ -204,7 +204,7 @@ async def test_jump_panel_narrowed_png_snapshot(
         )
 
 
-def _populate_family_tool_calls(artifacts_dir: Path) -> None:
+def _populate_agent_session_tool_calls(artifacts_dir: Path) -> None:
     records: list[dict[str, Any]] = [
         {
             "schema_version": 2,
@@ -245,8 +245,8 @@ def _populate_family_tool_calls(artifacts_dir: Path) -> None:
             handle.write("\n")
 
 
-def _llm_calls_family_agents(artifacts_dir: Path) -> list[Agent]:
-    agents = family_and_lone_planner_agents()
+def _llm_calls_agent_session_agents(artifacts_dir: Path) -> list[Agent]:
+    agents = agent_session_and_lone_planner_agents()
     root = agents[0]
     root.llm_provider = "codex"
     root.model = "gpt-5.5"
@@ -268,8 +268,10 @@ async def test_jump_panel_llm_calls_layout_png_snapshot(
     )
     llm_calls_panel_module._llm_calls_cache.clear()
     artifacts_dir = tmp_path / "ace-run" / "20260718120000"
-    _populate_family_tool_calls(artifacts_dir)
-    patch_startup_loaders(monkeypatch, agents=_llm_calls_family_agents(artifacts_dir))
+    _populate_agent_session_tool_calls(artifacts_dir)
+    patch_startup_loaders(
+        monkeypatch, agents=_llm_calls_agent_session_agents(artifacts_dir)
+    )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         detail = await _open_agents_on_jump_roster(page)

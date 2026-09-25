@@ -169,8 +169,8 @@ def _lane_neighbor_agents_with_plan(tmp_path: Path) -> list[Agent]:
     return sort_and_reorder(rows, [])
 
 
-def _family_lane_neighbor_agents() -> list[Agent]:
-    """A dotted family whose siblings share the enclosing ``visual`` hood."""
+def _agent_session_lane_neighbor_agents() -> list[Agent]:
+    """A dotted agent session whose siblings share the enclosing ``visual`` hood."""
     root = _lane_agent(
         "visual.worker--plan",
         index=0,
@@ -201,7 +201,7 @@ def _family_lane_neighbor_agents() -> list[Agent]:
     return sort_and_reorder(rows, [])
 
 
-def _family_container_index(page: AcePage) -> int:
+def _agent_session_container_index(page: AcePage) -> int:
     return next(
         index
         for index, agent in enumerate(page.app._agents)
@@ -383,12 +383,12 @@ async def test_agents_lane_neighbors_above_sase_context_png_snapshot(
         )
 
 
-async def test_agents_family_lane_neighbors_png_snapshot(
+async def test_agents_session_lane_neighbors_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, _LANE_NOW)
-    patch_startup_loaders(monkeypatch, agents=_family_lane_neighbor_agents())
+    patch_startup_loaders(monkeypatch, agents=_agent_session_lane_neighbor_agents())
 
     async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         await wait_for_startup(page)
@@ -396,12 +396,12 @@ async def test_agents_family_lane_neighbors_png_snapshot(
         await page.expect_state("tab", "agents")
         await wait_for_visual_idle(page)
 
-        page.app.current_idx = _family_container_index(page)
+        page.app.current_idx = _agent_session_container_index(page)
         await wait_for_svg_contains(page, "SESSION SHELLS")
         # Expanding inserts member rows above the container, so the selection
         # has to be re-resolved before the lane panel is captured.
         await page.press("l")
-        page.app.current_idx = _family_container_index(page)
+        page.app.current_idx = _agent_session_container_index(page)
         await page.press(".")
         await wait_for_svg_contains(page, "also listed under SESSION SHELLS")
         await wait_for_visual_idle(page)
@@ -422,6 +422,6 @@ async def test_agents_family_lane_neighbors_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_lane_neighbors_160x50",
-            title="ACE family neighbors section",
+            "agents_session_lane_neighbors_160x50",
+            title="ACE session neighbors section",
         )
