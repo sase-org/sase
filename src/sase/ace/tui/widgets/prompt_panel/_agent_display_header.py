@@ -29,6 +29,10 @@ from ._agent_bead_section import (
     ResponsiveBeadSection,
     bead_detail_level,
 )
+from ._agent_bead_touches import (
+    BEAD_TOUCHES_SECTION_ID,
+    ResponsiveBeadTouchesSection,
+)
 from ._agent_display_agent_session import (
     SESSION_IDENTITY_COLOR,
     append_agent_session_fold_heading,
@@ -317,6 +321,7 @@ def build_header_text(
     bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
     slow_tool_section: ResponsiveSlowToolCallsSection | None = None
+    bead_touches_section: ResponsiveBeadTouchesSection | None = None
     if summary is not None:
         # SASE CONTEXT renders whenever there is a summary at all, cheap or
         # not: `append_agent_context_section` already distinguishes ready
@@ -341,6 +346,7 @@ def build_header_text(
             )
         if summary.associated_plan is not None:
             plan_section = ResponsivePlanSection(summary.associated_plan)
+        bead_touches_captured: list[ResponsiveBeadTouchesSection] = []
         append_agent_context_section(
             header_text,
             memory_reads=summary.memory_reads,
@@ -362,6 +368,10 @@ def build_header_text(
             ),
             section_fold_overrides=lane_overrides,
             ready_lanes=summary.ready_lanes,
+            bead_touches_section_out=bead_touches_captured,
+        )
+        bead_touches_section = (
+            bead_touches_captured[0] if bead_touches_captured else None
         )
 
     if not cheap and summary is not None:
@@ -449,6 +459,7 @@ def build_header_text(
             None,
             None,
             None,
+            None,
         )
         expanded: AgentHeader
         if identity_sections:
@@ -486,6 +497,7 @@ def build_header_text(
             bead_section,
             plan_section,
             slow_tool_section,
+            bead_touches_section,
         )
         carrier = AgentHeaderRenderable(
             body_text,
@@ -515,6 +527,7 @@ def build_header_text(
         bead_section,
         plan_section,
         slow_tool_section,
+        bead_touches_section,
     )
     if responsive_sections:
         return (
@@ -535,12 +548,14 @@ def _assemble_responsive_sections(
     bead_section: ResponsiveBeadSection | None,
     plan_section: ResponsivePlanSection | None,
     slow_tool_section: ResponsiveSlowToolCallsSection | None,
+    bead_touches_section: ResponsiveBeadTouchesSection | None,
 ) -> tuple[
     tuple[
         int,
         int,
         ResponsiveAgentPageSection
         | ResponsiveBeadSection
+        | ResponsiveBeadTouchesSection
         | ResponsiveShellSection
         | ResponsivePlanSection
         | ResponsiveSlowToolCallsSection
@@ -555,6 +570,7 @@ def _assemble_responsive_sections(
             int,
             ResponsiveAgentPageSection
             | ResponsiveBeadSection
+            | ResponsiveBeadTouchesSection
             | ResponsiveShellSection
             | ResponsivePlanSection
             | ResponsiveSlowToolCallsSection
@@ -576,6 +592,12 @@ def _assemble_responsive_sections(
     if plan_section is not None and "PLAN" in responsive_ranges:
         start, end = responsive_ranges["PLAN"]
         responsive_sections.append((start, end, plan_section))
+    if (
+        bead_touches_section is not None
+        and BEAD_TOUCHES_SECTION_ID in responsive_ranges
+    ):
+        start, end = responsive_ranges[BEAD_TOUCHES_SECTION_ID]
+        responsive_sections.append((start, end, bead_touches_section))
     if slow_tool_section is not None and "slow-tool-calls" in responsive_ranges:
         start, end = responsive_ranges["slow-tool-calls"]
         responsive_sections.append((start, end, slow_tool_section))

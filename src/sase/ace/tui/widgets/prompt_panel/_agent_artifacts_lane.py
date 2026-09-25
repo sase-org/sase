@@ -11,7 +11,10 @@ from sase.ace.tui.bead_touches import BEAD_READ_REF_PREFIX, BeadTouchEntry
 from ...models.agent import Agent
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._agent_artifact_reads import append_agent_artifact_read_rows
-from ._agent_bead_touches import append_agent_bead_touch_rows
+from ._agent_bead_touches import (
+    ResponsiveBeadTouchesSection,
+    append_agent_bead_touch_rows,
+)
 from ._agent_commits import (
     agent_commit_groups,
     append_agent_commit_groups,
@@ -58,8 +61,14 @@ def append_agent_artifacts_lane(
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = (),
     bead_touch_entries: tuple[BeadTouchEntry, ...] = (),
     hint_state: HeaderHintState | None = None,
-) -> None:
-    """Append beads, reads, commits, deltas, and artifact files as one ranked lane."""
+    bead_touches_section: ResponsiveBeadTouchesSection | None = None,
+) -> tuple[int, int] | None:
+    """Append beads, reads, commits, deltas, and artifact files as one ranked lane.
+
+    When ``bead_touches_section`` is supplied, its logical 80-cell text is
+    spliced in and the relative range is returned so the header can reflow
+    note previews at the visible Context-card width.
+    """
     commit_groups = agent_commit_groups(agent) if agent is not None else ()
     deltas = visible_agent_delta_entries(delta_entries or ())
     linked_groups = visible_agent_linked_delta_groups(linked_delta_groups)
@@ -80,7 +89,7 @@ def append_agent_artifacts_lane(
     if artifact_files:
         details.append(count_phrase(len(artifact_files), "artifact file"))
     if not details:
-        return
+        return None
 
     append_context_lane_header(
         text,
@@ -88,13 +97,19 @@ def append_agent_artifacts_lane(
         label_style=COLOR_ARTIFACTS_SUBHEADER,
         details=" · ".join(details),
     )
+    beads_range: tuple[int, int] | None = None
     if bead_touch_entries:
         text.append("  Beads:\n", style=COLOR_SUMMARY)
-        append_agent_bead_touch_rows(
-            text,
-            entries=bead_touch_entries,
-            hint_state=hint_state,
-        )
+        if bead_touches_section is not None:
+            start = len(text)
+            text.append_text(bead_touches_section.logical_text)
+            beads_range = (start, len(text))
+        else:
+            append_agent_bead_touch_rows(
+                text,
+                entries=bead_touch_entries,
+                hint_state=hint_state,
+            )
     if reads:
         text.append("  Reads:\n", style=COLOR_SUMMARY)
         append_agent_artifact_read_rows(
@@ -127,3 +142,4 @@ def append_agent_artifacts_lane(
             hint_state=hint_state,
             indent="    ",
         )
+    return beads_range

@@ -20,10 +20,9 @@ from sase.core.time import get_timezone
 
 from ._helpers import PROMPT_PANEL_LINE_CELL_LIMIT, wrap_text_by_cells
 
-# Strict total rendered-cell budget for any reason line, including the leading
-# indentation, glyph prefix, and (for attributed rows) the role column. The
-# available payload width is derived per row from the actual prefix width so
-# wider attributed prefixes still honor the same 80-column contract.
+# Maximum rendered-cell budget for a wrapped reason or note line, including
+# leading indentation and prefixes. Callers may pass a tighter card width so
+# split Context cards keep the same three-line note body in fewer columns.
 REASON_LINE_CELL_LIMIT = PROMPT_PANEL_LINE_CELL_LIMIT
 
 COLOR_MEMORY_SUBHEADER = "bold #5FD7FF"
@@ -188,6 +187,7 @@ def append_context_reason(
     reason: str,
     *,
     indent: int,
+    line_cell_limit: int = REASON_LINE_CELL_LIMIT,
 ) -> None:
     reason = normalize_context_display(reason)
     prefix = f"{' ' * indent}{REASON_GLYPH} "
@@ -197,7 +197,7 @@ def append_context_reason(
         text.append(f"{prefix}\n", style=COLOR_REASON)
         return
 
-    available = max(1, REASON_LINE_CELL_LIMIT - prefix_cells)
+    available = max(1, line_cell_limit - prefix_cells)
     lines = wrap_text_by_cells(reason, available)
     text.append(prefix, style=COLOR_REASON)
     text.append(lines[0] + "\n", style=COLOR_REASON)

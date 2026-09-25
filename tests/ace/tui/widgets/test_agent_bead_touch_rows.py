@@ -132,6 +132,15 @@ def _render(header: Text, *, width: int) -> list[str]:
     return output.getvalue().splitlines()
 
 
+def _collapsed_preview(text: str) -> str:
+    return " ".join(text.replace("│", " ").split())
+
+
+def _contains_folded(haystack: str, needle: str) -> bool:
+    compact = haystack.replace(" ", "").replace("│", "")
+    return needle.replace(" ", "") in compact
+
+
 # --- glyphs ------------------------------------------------------------------
 
 
@@ -327,6 +336,85 @@ def test_no_reason_line_without_reason_or_title() -> None:
         ),
     )
     assert "↳" not in text.plain
+
+
+def test_note_preview_wraps_to_passed_line_cell_limit() -> None:
+    body = " ".join(f"wide界word-{index:02d}" for index in range(40))
+    preview = BeadNotePreview(
+        id="sase-14j.5:7",
+        author="owner.machine.coder.with-a-very-long-role-label",
+        timestamp="2026-05-24T14:02:00+00:00",
+        text=body,
+        truncated=True,
+    )
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14j.5",
+                "2026-05-24T14:00:00+00:00",
+                verbs={"noted": 2},
+                current_note_count=2,
+                note_preview=preview,
+                note_label="coder",
+            ),
+        ),
+        line_cell_limit=40,
+    )
+
+    plain = text.plain
+    collapsed = _collapsed_preview(plain)
+    body_lines = [line for line in plain.splitlines() if "wide界word" in line]
+    assert len(body_lines) == 3
+    assert "… full note in bead detail" in collapsed
+    assert "+1 earlier note in bead detail" in collapsed
+    assert _contains_folded(
+        collapsed, "owner.machine.coder.with-a-very-long-role-label"
+    )
+    for line in plain.splitlines():
+        assert cell_len(line) <= 40
+
+
+def test_note_preview_physical_body_stays_three_lines_at_card_widths() -> None:
+    body = " ".join(f"word-{index:02d}" for index in range(80))
+    preview = BeadNotePreview(
+        id="sase-14j.5:7",
+        author="owner.machine.coder",
+        timestamp="2026-05-24T14:02:00+00:00",
+        text=f"{body} 界終",
+        truncated=True,
+    )
+    header, _ = build_header_text(
+        make_agent(agent_name="worker"),
+        summary=DetailHeaderSummary(
+            bead_touch_entries=(
+                _entry(
+                    "sase-14j.5",
+                    "2026-05-24T14:00:00+00:00",
+                    verbs={"noted": 2},
+                    title="Fallback title must not repeat",
+                    current_note_count=3,
+                    note_preview=preview,
+                    note_label="coder",
+                    read_reasons=("Inspect the regression",),
+                ),
+            ),
+        ),
+        hint_state=_hint_state(start=4),
+    )
+
+    for width in (120, 56, 40):
+        lines = _render(header, width=width)
+        collapsed = _collapsed_preview("\n".join(lines))
+        body_lines = [line for line in lines if "word-" in line or "界終" in line]
+        assert 1 <= len(body_lines) <= 3, width
+        assert "full note in bead detail" in collapsed
+        assert "earlier notes in bead detail" in collapsed
+        assert _contains_folded(collapsed, "owner.machine.coder")
+        assert "sase-14j.5" in collapsed
+        for line in lines:
+            assert cell_len(line) <= width, line
 
 
 def test_note_preview_is_attributed_bounded_and_keeps_read_reason() -> None:

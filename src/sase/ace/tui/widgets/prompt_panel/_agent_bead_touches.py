@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
+
 from rich.cells import cell_len
+from rich.console import Console, ConsoleOptions, RenderResult
 from rich.text import Text
 
 from sase.ace.tui.bead_hint_targets import bead_hint_target as _bead_hint_target
@@ -25,12 +29,16 @@ from ._agent_display_state import HeaderHintState
 from ._helpers import wrap_text_by_cells
 
 MAX_VISIBLE_BEADS = 5
+BEAD_TOUCHES_SECTION_ID = "artifacts-beads"
 _SUBSECTION_ROW_PREFIX = "  "
 _MAX_NOTE_TEXT_LINES = 3
 
 __all__ = [
+    "BEAD_TOUCHES_SECTION_ID",
     "MAX_VISIBLE_BEADS",
+    "ResponsiveBeadTouchesSection",
     "append_agent_bead_touch_rows",
+    "bead_touches_section_for",
 ]
 
 
@@ -88,13 +96,16 @@ def _append_bead_note_preview(
     current_note_count: int,
     indent: int,
     role_label: str | None = None,
+    line_cell_limit: int = REASON_LINE_CELL_LIMIT,
 ) -> None:
     """Render one bounded, attributed note block beneath its bead row.
 
     This is intentionally a pure Text helper: the loader has already read the
     cached touch index off the event loop, and rendering performs no bead
     lookup.  The note text is data, never Rich markup, and its display limit
-    is independent from the cache's Unicode-safe prefix limit.
+    is independent from the cache's Unicode-safe prefix limit. Wrapping uses
+    the available Context-card width so at most three physical body lines
+    appear in spread, paged, narrow, and split layouts.
     """
     body = _safe_note_text(preview.text)
     if not body:
@@ -110,7 +121,7 @@ def _append_bead_note_preview(
         metadata += " · edited"
 
     prefix_cells = cell_len(" " * indent + "│ ")
-    available = max(1, REASON_LINE_CELL_LIMIT - prefix_cells)
+    available = max(1, line_cell_limit - prefix_cells)
     for line in wrap_text_by_cells(metadata, available):
         _append_note_line(text, indent=indent, content=line, style=COLOR_SUMMARY)
 
@@ -118,22 +129,50 @@ def _append_bead_note_preview(
     for line in body_lines[:_MAX_NOTE_TEXT_LINES]:
         _append_note_line(text, indent=indent, content=line, style="")
 
-    if len(body_lines) > _MAX_NOTE_TEXT_LINES or preview.truncated:
-        _append_note_line(
-            text,
-            indent=indent,
-            content="… full note in bead detail",
-            style=COLOR_TRUNCATION,
-        )
+    overflow_needed = len(body_lines) > _MAX_NOTE_TEXT_LINES or preview.truncated
+    if overflow_needed:
+        overflow = "… full note in bead detail"
+        for line in wrap_text_by_cells(overflow, available):
+            _append_note_line(
+                text,
+                indent=indent,
+                content=line,
+                style=COLOR_TRUNCATION,
+            )
     earlier = max(current_note_count - 1, 0)
     if earlier:
         noun = "note" if earlier == 1 else "notes"
-        _append_note_line(
-            text,
-            indent=indent,
-            content=f"+{earlier} earlier {noun} in bead detail",
-            style=COLOR_TRUNCATION,
-        )
+        earlier_line = f"+{earlier} earlier {noun} in bead detail"
+        for line in wrap_text_by_cells(earlier_line, available):
+            _append_note_line(
+                text,
+                indent=indent,
+                content=line,
+                style=COLOR_TRUNCATION,
+            )
+
+
+def _bead_touch_hint_labels(
+    entries: tuple[BeadTouchEntry, ...],
+    hint_state: HeaderHintState | None,
+) -> tuple[Text | None, ...]:
+    """Assign numbered bead hints once so logical and card renders stay aligned."""
+    labels: list[Text | None] = []
+    for item in entries[:MAX_VISIBLE_BEADS]:
+        label: Text | None = None
+        if hint_state is not None:
+            target = _bead_hint_target(item.bead_id)
+            if target is not None:
+                hint_number = hint_state.hint_counter
+                hint_state.hint_mappings[hint_number] = target
+                hint_state.hint_counter += 1
+                label = Text(f"[{hint_number}] ", style="bold #FFFF00")
+        labels.append(label)
+    return tuple(labels)
+
+
+def _copied_hint_label(hint_label: Text | None) -> Text | None:
+    return hint_label.copy() if hint_label is not None else None
 
 
 def append_agent_bead_touch_rows(
@@ -141,6 +180,8 @@ def append_agent_bead_touch_rows(
     *,
     entries: tuple[BeadTouchEntry, ...],
     hint_state: HeaderHintState | None = None,
+    hint_labels: Sequence[Text | None] | None = None,
+    line_cell_limit: int = REASON_LINE_CELL_LIMIT,
 ) -> None:
     """Append newest-first bead rows under an ARTIFACTS ``Beads:`` header.
 
@@ -149,22 +190,22 @@ def append_agent_bead_touch_rows(
     footer. The bead id is never truncated; the ``↳`` line shows the newest
     audited read reason when present, otherwise the bead title, and is
     omitted when both are empty. The reason/title wraps via
-    ``append_context_reason``.
+    ``append_context_reason``. Note wrapping honors ``line_cell_limit`` so a
+    split Context card can keep three physical body lines.
     """
     visible = entries[:MAX_VISIBLE_BEADS]
+    if hint_labels is None:
+        resolved_hints = _bead_touch_hint_labels(entries, hint_state)
+    else:
+        padded = list(hint_labels[: len(visible)])
+        if len(padded) < len(visible):
+            padded.extend([None] * (len(visible) - len(padded)))
+        resolved_hints = tuple(padded)
     show_role_column = any(item.agent_label for item in visible)
     extra_indent = len(_SUBSECTION_ROW_PREFIX)
-    for item in visible:
+    for item, stored_hint in zip(visible, resolved_hints, strict=True):
         glyph = _bead_touch_glyph(item)
         assert cell_len(glyph) == 1, f"bead glyph must stay single-cell: {glyph!r}"
-        hint_label = None
-        if hint_state is not None:
-            target = _bead_hint_target(item.bead_id)
-            if target is not None:
-                hint_number = hint_state.hint_counter
-                hint_state.hint_mappings[hint_number] = target
-                hint_state.hint_counter += 1
-                hint_label = Text(f"[{hint_number}] ", style="bold #FFFF00")
         text.append(_SUBSECTION_ROW_PREFIX)
         reason_indent = (
             append_lane_row(
@@ -176,7 +217,7 @@ def append_agent_bead_touch_rows(
                 primary_style=COLOR_BEAD_PRIMARY,
                 role_label=item.agent_label,
                 show_role_column=show_role_column,
-                hint_label=hint_label,
+                hint_label=_copied_hint_label(stored_hint),
             )
             + extra_indent
         )
@@ -191,6 +232,7 @@ def append_agent_bead_touch_rows(
                 current_note_count=item.current_note_count,
                 indent=reason_indent,
                 role_label=item.note_agent_label,
+                line_cell_limit=line_cell_limit,
             )
         reason_text = (
             f"read: {item.read_reasons[0]}"
@@ -198,7 +240,12 @@ def append_agent_bead_touch_rows(
             else (item.read_reasons[0] if item.read_reasons else item.title)
         )
         if reason_text.strip():
-            append_context_reason(text, reason_text, indent=reason_indent)
+            append_context_reason(
+                text,
+                reason_text,
+                indent=reason_indent,
+                line_cell_limit=line_cell_limit,
+            )
 
     overflow = len(entries) - len(visible)
     if overflow > 0:
@@ -208,3 +255,52 @@ def append_agent_bead_touch_rows(
             f"{format_local_hhmm(earliest.last_at or earliest.first_at)} earliest\n",
             style=COLOR_TRUNCATION,
         )
+
+
+def _line_cell_limit_for_width(width: int) -> int:
+    return max(1, min(width, REASON_LINE_CELL_LIMIT))
+
+
+@dataclass(slots=True)
+class ResponsiveBeadTouchesSection:
+    """Bead rows that re-wrap note previews to the visible Context-card width."""
+
+    entries: tuple[BeadTouchEntry, ...]
+    hint_labels: tuple[Text | None, ...] = ()
+
+    @property
+    def logical_text(self) -> Text:
+        """Return the 80-cell inspection text used by search and header ranges."""
+        text = Text()
+        append_agent_bead_touch_rows(
+            text,
+            entries=self.entries,
+            hint_labels=self.hint_labels,
+            line_cell_limit=REASON_LINE_CELL_LIMIT,
+        )
+        return text
+
+    def __rich_console__(
+        self,
+        console: Console,
+        options: ConsoleOptions,
+    ) -> RenderResult:
+        text = Text(end="")
+        append_agent_bead_touch_rows(
+            text,
+            entries=self.entries,
+            hint_labels=self.hint_labels,
+            line_cell_limit=_line_cell_limit_for_width(options.max_width),
+        )
+        yield from console.render(text, options)
+
+
+def bead_touches_section_for(
+    entries: tuple[BeadTouchEntry, ...],
+    hint_state: HeaderHintState | None,
+) -> ResponsiveBeadTouchesSection:
+    """Build a width-aware beads section and assign hints a single time."""
+    return ResponsiveBeadTouchesSection(
+        entries=entries,
+        hint_labels=_bead_touch_hint_labels(entries, hint_state),
+    )

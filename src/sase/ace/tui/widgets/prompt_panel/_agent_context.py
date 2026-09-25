@@ -19,6 +19,11 @@ from ...models.fold_state import FoldLevel
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
 from ._agent_artifacts_lane import append_agent_artifacts_lane
+from ._agent_bead_touches import (
+    BEAD_TOUCHES_SECTION_ID,
+    ResponsiveBeadTouchesSection,
+    bead_touches_section_for,
+)
 from ._agent_bead_section import BEAD_SECTION_ID, ResponsiveBeadSection
 from ._agent_context_common import (
     COLOR_ARTIFACTS_SUBHEADER,
@@ -102,6 +107,7 @@ def append_agent_context_section(
     fold_level: FoldLevel | None = None,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     ready_lanes: frozenset[DetailContextLane] | None = None,
+    bead_touches_section_out: list[ResponsiveBeadTouchesSection] | None = None,
 ) -> tuple[int, int] | None:
     """Append present SASE CONTEXT lanes in the declared narrative order.
 
@@ -139,6 +145,30 @@ def append_agent_context_section(
             plan_section.hint_number = hint_number
         lane.append_text(plan_section.logical_text)
 
+    captured_beads_range: list[tuple[int, int]] = []
+
+    def append_artifacts_lane(lane: Text) -> None:
+        section = (
+            bead_touches_section_for(bead_touch_entries, hint_state)
+            if bead_touch_entries
+            else None
+        )
+        if section is not None and bead_touches_section_out is not None:
+            bead_touches_section_out.append(section)
+        relative = append_agent_artifacts_lane(
+            lane,
+            agent=agent,
+            delta_entries=delta_entries,
+            linked_delta_groups=linked_delta_groups,
+            artifact_file_paths=artifact_file_paths,
+            artifact_reads=artifact_reads,
+            bead_touch_entries=bead_touch_entries,
+            hint_state=hint_state,
+            bead_touches_section=section,
+        )
+        if relative is not None:
+            captured_beads_range.append(relative)
+
     lane_renderers: dict[str, Callable[[Text], None]] = {
         "BEAD": append_bead_lane,
         "PLAN": append_plan_lane,
@@ -160,16 +190,7 @@ def append_agent_context_section(
             lane,
             events=opened_workspaces,
         ),
-        "ARTIFACTS": lambda lane: append_agent_artifacts_lane(
-            lane,
-            agent=agent,
-            delta_entries=delta_entries,
-            linked_delta_groups=linked_delta_groups,
-            artifact_file_paths=artifact_file_paths,
-            artifact_reads=artifact_reads,
-            bead_touch_entries=bead_touch_entries,
-            hint_state=hint_state,
-        ),
+        "ARTIFACTS": append_artifacts_lane,
     }
     rendered_lanes: list[tuple[str, Text]] = []
     for label in CONTEXT_LANE_ORDER:
@@ -250,6 +271,16 @@ def append_agent_context_section(
         text.append_text(lane)
         if responsive_ranges is not None and label in {"BEAD", "PLAN"}:
             responsive_ranges[label] = (lane_start, len(text))
+        if (
+            responsive_ranges is not None
+            and label == "ARTIFACTS"
+            and captured_beads_range
+        ):
+            relative_start, relative_end = captured_beads_range[0]
+            responsive_ranges[BEAD_TOUCHES_SECTION_ID] = (
+                lane_start + relative_start,
+                lane_start + relative_end,
+            )
         if label == "PLAN":
             plan_range = (lane_start, len(text))
     return plan_range
