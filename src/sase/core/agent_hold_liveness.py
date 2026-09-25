@@ -189,7 +189,10 @@ def agent_session_settled(
     root = index.artifacts_by_dir.get(str(Path(artifact_dir)))
     if root is None:
         return True
-    session = index.agent_session_candidate_for_root(root)
+    # Hold settlement intentionally ignores runner-slot-queued members,
+    # because a hold armer's own later members may be parked behind that very
+    # hold, and this preserves pre-fix hold semantics.
+    session = index.agent_session_candidate_for_root(root, exclude_slot_queued=True)
     return session is not None and session.is_resolved
 
 

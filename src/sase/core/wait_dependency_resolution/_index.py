@@ -34,6 +34,7 @@ from ._artifact_state import (
     done_outcome_from_data,
     shell_followup_handoff_agent,
     shell_member_kind_for_meta,
+    waiting_marker_crossed_dependency_barrier,
 )
 from ._index_queries import WaitDependencyIndexQueries
 from ._json_io import read_json_dict
@@ -240,6 +241,10 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             and not done_path.exists()
             and archived_completion is None
         )
+        is_dependency_parked = (
+            is_queued
+            and not waiting_marker_crossed_dependency_barrier(artifact_dir, meta)
+        )
         timestamp = artifact_dir.name
 
         name = meta.get("name")
@@ -317,6 +322,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             is_identity_success=is_identity_success,
             is_failed=is_failed,
             is_queued=is_queued,
+            is_dependency_parked=is_dependency_parked,
             clan_name=clan_name,
             clan_generation=generation,
             clan_tribe=clan_tribe,

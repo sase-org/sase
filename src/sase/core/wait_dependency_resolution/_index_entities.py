@@ -380,6 +380,7 @@ class WaitDependencyEntityQueries:
         *,
         exclude_artifact_dir: str | Path | None,
         exclude_queued: bool = True,
+        exclude_slot_queued: bool = True,
     ) -> list[ArtifactCandidate]:
         if not candidates:
             return []
@@ -391,7 +392,11 @@ class WaitDependencyEntityQueries:
         return [
             candidate
             for candidate in candidates
-            if (not exclude_queued or not candidate.is_queued)
+            if (
+                not exclude_queued
+                or not candidate.is_queued
+                or (not exclude_slot_queued and not candidate.is_dependency_parked)
+            )
             and (
                 exclude_key is None
                 or artifact_dir_key(candidate.artifact_dir) != exclude_key

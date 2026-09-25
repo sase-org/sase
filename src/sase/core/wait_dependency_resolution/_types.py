@@ -44,6 +44,10 @@ class ArtifactCandidate:
     is_identity_success: bool
     is_failed: bool = False
     is_queued: bool = False
+    # ``is_queued`` means the artifact has a pre-run ``waiting.json`` marker (a
+    # dependency wait or a runner-slot queue). ``is_dependency_parked`` is the
+    # subset still behind its own dependency barrier.
+    is_dependency_parked: bool = False
     clan_name: str | None = None
     clan_generation: str | None = None
     clan_tribe: str | None = None

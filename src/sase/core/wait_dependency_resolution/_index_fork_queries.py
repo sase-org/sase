@@ -19,6 +19,7 @@ class _ForkQueryIndex(Protocol):
         *,
         exclude_artifact_dir: str | Path | None,
         exclude_queued: bool = True,
+        exclude_slot_queued: bool = True,
     ) -> list[ArtifactCandidate]: ...
 
     def _clan_entity(
@@ -45,6 +46,7 @@ class _ForkQueryIndex(Protocol):
         root: ArtifactCandidate,
         *,
         exclude_artifact_dir: str | Path | None = None,
+        exclude_slot_queued: bool = False,
     ) -> AgentSessionCandidate | None: ...
 
     def is_resolved(

@@ -45,6 +45,32 @@ _TERMINAL_STATES_BY_SHELL_KIND = {
 _PENDING_SHELL_FOLLOWUP_AGENT = "<pending-shell-followup>"
 
 
+def waiting_marker_crossed_dependency_barrier(
+    artifact_dir: Path,
+    meta: Mapping[str, Any],
+) -> bool:
+    """Return whether a pre-run ``waiting.json`` is a runner-slot queue marker.
+
+    A ``wait_completed_at`` stamp means the agent already crossed its own
+    dependency barrier: ``record_wait_completed_at`` stamps it durably before
+    the runner removes its dependency marker and before runner-slot admission
+    publishes a queue marker. The key is present in both the on-disk meta dict
+    and ``asdict(AgentMetaWire)`` rows from the artifact index, so both
+    index-build paths see it. Agents that never had a dependency wait carry no
+    stamp, so fall back to the marker's ``slot_requested_at``: only the
+    runner-slot queue marker sets it.
+    """
+
+    wait_completed_at = meta.get("wait_completed_at")
+    if isinstance(wait_completed_at, str) and wait_completed_at:
+        return True
+    marker = read_json_dict(artifact_dir / "waiting.json")
+    if marker is None:
+        return False
+    slot_requested_at = marker.get("slot_requested_at")
+    return isinstance(slot_requested_at, str) and bool(slot_requested_at)
+
+
 def done_outcome(artifact_dir: Path) -> str | None:
     done_data = read_json_dict(artifact_dir / "done.json")
     return done_outcome_from_data(done_data)

@@ -393,7 +393,12 @@ session wait follows `--mon-0` and the other members instead of staying blocked 
 `--mon`. The newer shell only replaces the older failure; it still has to finish
 successfully (or hand off) before the session can settle. Kinds never mix: a newer gate
 does not excuse a failed monitor, or vice versa. An exact wait on the old shell's full
-name still reports that shell's own failed outcome.
+name still reports that shell's own failed outcome. A session member that has crossed
+its own dependency waits and is only queued for a runner slot is still a live member, so
+bare-session `%wait` and `#fork` targets stay blocked until it finishes. Members still
+parked on their own dependency waits stay out of the session aggregate so sibling waits
+cannot deadlock. A failed shell that handed off to a follow-up does not release a
+`#fork` wait while that follow-up is still pending.
 
 `#fork:<session>` contributes every known concrete shell — agent, monitor, and gate
 shells alike — in chain order, oldest first, including shells that ended unsuccessfully

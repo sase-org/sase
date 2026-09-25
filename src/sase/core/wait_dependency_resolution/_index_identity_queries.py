@@ -18,6 +18,7 @@ class _IdentityQueryIndex(Protocol):
         root: ArtifactCandidate,
         *,
         exclude_artifact_dir: str | Path | None = None,
+        exclude_slot_queued: bool = False,
     ) -> AgentSessionCandidate | None: ...
 
     def is_resolved(

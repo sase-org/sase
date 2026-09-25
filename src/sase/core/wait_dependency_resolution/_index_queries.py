@@ -27,6 +27,15 @@ from ._types import (
 )
 
 
+def _member_is_pending(candidate: ArtifactCandidate) -> bool:
+    """Return whether a session member may still run or change its outcome."""
+    return not (
+        candidate.has_done_marker
+        or candidate.archived_completion is not None
+        or candidate.is_resolved
+    )
+
+
 class WaitDependencyIndexQueries(
     WaitDependencyForkQueries,
     WaitDependencyIdentityQueries,
@@ -212,7 +221,17 @@ class WaitDependencyIndexQueries(
         root: ArtifactCandidate,
         *,
         exclude_artifact_dir: str | Path | None = None,
+        exclude_slot_queued: bool = False,
     ) -> AgentSessionCandidate | None:
+        """Return the root-session aggregate that fork and identity waits use.
+
+        Slot-queued members are live: they already crossed their own
+        dependency barrier and are only waiting for runner capacity, so they
+        stay in the aggregate by default. Dependency-parked members stay
+        excluded to avoid wait cycles. A session reports failed only once it
+        has settled: every declared shell follow-up is present and no
+        effective member may still run or change its outcome.
+        """
         if root.parent_timestamp:
             return None
         agent_session_name = root.agent_session_name or root.name
@@ -221,6 +240,7 @@ class WaitDependencyIndexQueries(
         session_agents = self._aggregate_candidates(
             self.agent_sessions.get(agent_session_name),
             exclude_artifact_dir=exclude_artifact_dir,
+            exclude_slot_queued=exclude_slot_queued,
         )
         if not session_agents:
             return None
@@ -232,6 +252,9 @@ class WaitDependencyIndexQueries(
             extra_present_names=self._excluded_present_names(exclude_artifact_dir),
         )
         newest_timestamp = max(candidate.timestamp for candidate in generation)
+        settled = handoffs_present and not any(
+            _member_is_pending(candidate) for candidate in effective_generation
+        )
         return AgentSessionCandidate(
             timestamp=newest_timestamp,
             is_resolved=(
@@ -242,7 +265,8 @@ class WaitDependencyIndexQueries(
             is_identity_success=any(
                 candidate.is_identity_success for candidate in effective_generation
             ),
-            is_failed=any(candidate.is_failed for candidate in effective_generation),
+            is_failed=settled
+            and any(candidate.is_failed for candidate in effective_generation),
         )
 
     def workflow_candidate(
