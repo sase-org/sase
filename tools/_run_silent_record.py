@@ -230,6 +230,7 @@ def finish_stage(
     output_bytes: int,
     *,
     started_at_epoch: float | None = None,
+    output_source: pathlib.Path | None = None,
 ) -> dict[str, Any]:
     """Write a finished JSONL record using the start state's stage id."""
 
@@ -259,6 +260,12 @@ def finish_stage(
     state["elapsed_ms"] = elapsed_ms
     state["exit_code"] = exit_code
     state["output_bytes"] = output_bytes
+    output_path, output_truncated = _capture_failed_stage_output(
+        events_path=events_path,
+        state=state,
+        exit_code=exit_code,
+        output_source=output_source,
+    )
     _write_state(state_path, state)
     if events_path is None:
         return state
@@ -280,8 +287,35 @@ def finish_stage(
         "exit_code": int(exit_code),
         "output_bytes": int(output_bytes),
     }
+    if output_path is not None:
+        record["output_path"] = output_path
+        record["output_truncated"] = output_truncated
     append_jsonl_record(events_path, record)
     return state
+
+
+def _capture_failed_stage_output(
+    *,
+    events_path: pathlib.Path | None,
+    state: dict[str, Any],
+    exit_code: int,
+    output_source: pathlib.Path | None,
+) -> tuple[str | None, bool]:
+    """Retain bounded failed-stage output beside the parent event stream."""
+
+    if events_path is None or exit_code == 0 or output_source is None:
+        return None, False
+    stage_id = str(state.get("stage_id") or "").strip()
+    if not stage_id:
+        return None, False
+    try:
+        output = output_source.read_bytes()
+        retained, _ranges, truncated = _bounded_output(output, DEFAULT_STAGE_MAX_BYTES)
+        target = events_path.parent / "stage_output" / f"{stage_id}.log"
+        _atomic_write(target, retained)
+        return target.relative_to(events_path.parent).as_posix(), truncated
+    except OSError:
+        return None, False
 
 
 def _continuation_summary(events_path: pathlib.Path, run_id: str) -> tuple[int, int | None]:
@@ -597,6 +631,7 @@ def main(argv: list[str] | None = None) -> int:
             args.exit_code,
             output_bytes,
             started_at_epoch=started_at,
+            output_source=output_path,
         )
         started_epoch = started_at
         if started_epoch is None:

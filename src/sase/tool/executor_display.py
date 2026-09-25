@@ -11,6 +11,7 @@ from sase.tool.stage_protocol import (
     format_unattributed_line,
     unattributed_from_stages,
 )
+from sase.tool.triage_display import footer_triage_lines
 
 
 def write_run_footer(
@@ -25,6 +26,8 @@ def write_run_footer(
     stderr_sink: BoundedLogSink | None,
     stages: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
     truncation: list[str] | None = None,
+    triage: dict[str, Any] | None = None,
+    triage_enabled: bool = False,
 ) -> None:
     dropped = 0
     if stdout_sink is not None:
@@ -52,11 +55,20 @@ def write_run_footer(
                     write_display(sys.stderr, b"\n")
         for line in truncation or ():
             write_display(sys.stderr, f"{line}\n".encode())
+        triage_lines, verdict = (
+            footer_triage_lines(triage, exit_code=exit_code)
+            if triage_enabled
+            else ([], None)
+        )
+        for line in triage_lines:
+            write_display(sys.stderr, f"{line}\n".encode())
         if durable_id:
             write_display(
                 sys.stderr,
                 f"sase tool show {durable_id} -l\n".encode(),
             )
+        if verdict is not None:
+            write_display(sys.stderr, f"{verdict}\n".encode())
         return
     extra = f"  dropped={dropped}B" if dropped else ""
     write_display(
@@ -65,6 +77,12 @@ def write_run_footer(
     )
     if attribution is not None:
         write_display(sys.stderr, f"{format_unattributed_line(attribution)}\n".encode())
+    if triage_enabled:
+        _lines, verdict = footer_triage_lines(triage, exit_code=exit_code)
+        for line in _lines:
+            write_display(sys.stderr, f"{line}\n".encode())
+        if verdict is not None:
+            write_display(sys.stderr, f"{verdict}\n".encode())
 
 
 def _compact_tail_text(

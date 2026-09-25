@@ -14,7 +14,8 @@ import pytest
 import yaml
 
 from sase.config.core import clear_config_cache
-from sase.core.tool_run import tool_run_list, tool_run_show
+from sase.core.tool_run import tool_run_list, tool_run_show, tool_run_triage_show
+from sase.feature_flags.snapshot import override_flags
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 
 
@@ -145,6 +146,58 @@ def test_missing_finish_cannot_turn_a_continued_failure_green(
     assert "continuation_unfinished" in shown["run"]["diagnostics"]
     assert any(record["kind"] == "continued" for record in records)
     assert not any(record["kind"] == "recipe_finished" for record in records)
+
+
+def test_named_failed_stage_retains_output_and_settles_triage(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _home(monkeypatch, tmp_path)
+    root = _project(
+        tmp_path,
+        _stage(
+            "lint (mypy)",
+            "sh -c 'printf \"src/foo.py:1: error: boom  [attr-defined]\\n\"; exit 1'",
+        ),
+    )
+    (root / ".git").rmdir()
+    subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "user.name=Fixture",
+            "commit",
+            "-m",
+            "fixture",
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.chdir(root)
+
+    assert _run() == 1
+    assert "verdict:" not in capsys.readouterr().err
+    with override_flags(tool_failure_triage=True):
+        assert _run() == 1
+    captured = capsys.readouterr()
+    assert "triage unavailable:" not in captured.err, captured.err
+    shown, records = _newest()
+    finished = next(record for record in records if record["kind"] == "finished")
+    retained = (
+        Path(str(shown["run"]["logs"]["events_path"])).parent / finished["output_path"]
+    )
+    assert retained.read_text(encoding="utf-8").startswith("src/foo.py")
+    triage = tool_run_triage_show({"run_id": shown["run"]["run_id"]})
+    assert triage["triaged"] is True, triage["diagnostics"]
+    assert triage["items"][0]["stage_key"] == "lint (mypy)"
+
+    assert "verdict:" in captured.err
 
 
 def test_fail_fast_stops_at_the_first_failed_stage(

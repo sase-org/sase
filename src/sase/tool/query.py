@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 from sase.config.tools import DEFAULT_TOOL_RUNS_DETAIL_DAYS, tool_project_identity
-from sase.core.tool_run import tool_run_list, tool_run_show
+from sase.core.tool_run import tool_run_list, tool_run_show, tool_run_triage_show
 from sase.tool.liveness import reconcile_unsettled_tool_runs
 from sase.tool.logs import log_policy, read_truncation_messages, replay_retained_bytes
 from sase.tool.owner import owner_retention
@@ -27,6 +27,7 @@ from sase.tool.render import (
     format_tool_name,
 )
 from sase.tool.stage_protocol import attach_timeline, format_stage_progress
+from sase.tool.triage_display import show_triage_lines
 
 
 _RUN_STATES = frozenset(
@@ -136,6 +137,7 @@ def handle_show(request: ToolShowCliRequest) -> int:
     if request.logs:
         return _replay_logs(run)
     attach_timeline(envelope)
+    envelope["triage"] = _show_triage(run_id)
     envelope["output_truncation"] = _output_truncation(run)
     envelope["detail_retention"] = _detail_retention(run)
     envelope["owner_retention"] = owner_retention(run)
@@ -220,6 +222,7 @@ def _handle_follow(request: ToolShowCliRequest, run_id: str) -> int:
             print(line, file=sys.stderr)
     _notice_unretained_output(run, notified)
     attach_timeline(final)
+    final["triage"] = _show_triage(run_id)
     final["output_truncation"] = _output_truncation(run)
     final["detail_retention"] = _detail_retention(run)
     final["owner_retention"] = owner_retention(run)
@@ -230,6 +233,23 @@ def _handle_follow(request: ToolShowCliRequest, run_id: str) -> int:
     for diagnostic in final.get("diagnostics") or ():
         print(str(diagnostic), file=sys.stderr)
     return 0
+
+
+def _show_triage(run_id: str) -> dict[str, Any]:
+    """Read durable triage without making explicit show depend on the footer flag."""
+
+    try:
+        return tool_run_triage_show({"run_id": run_id})
+    except Exception as exc:  # noqa: BLE001 - preserve ordinary show for old stores.
+        return {
+            "schema_version": 1,
+            "run_id": run_id,
+            "run_found": True,
+            "triaged": False,
+            "stages": [],
+            "items": [],
+            "diagnostics": [f"triage unavailable: {exc}"],
+        }
 
 
 def _notice_unretained_output(run: dict[str, Any], notified: list[bool]) -> None:
@@ -578,6 +598,8 @@ def _print_show(envelope: dict[str, Any]) -> None:
             if not isinstance(sample, dict):
                 continue
             print(f"  {_format_sample(sample)}")
+    for line in show_triage_lines(envelope.get("triage")):
+        print(line)
 
 
 def _format_owner_retention(run: dict[str, Any], retention: object) -> str | None:

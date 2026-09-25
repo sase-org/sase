@@ -35,6 +35,7 @@ class FeatureFlag(StrEnum):
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
+    tool_failure_triage = "tool_failure_triage"
     typed_launch_units = "typed_launch_units"
 
 
@@ -182,6 +183,17 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "caps with lenient old-reader skip for the omitted-files shape."
         ),
         bead="sase-11p",
+    ),
+    FeatureFlag.tool_failure_triage: FeatureFlagDefinition(
+        key=FeatureFlag.tool_failure_triage,
+        kind="beta",
+        description=(
+            "Agent-visible failure triage: the sase tool run footer shows labeled "
+            "items and a verdict line, agent runs of stages: run_silent tools "
+            "continue past all-KNOWN/FLAKY stages, and verify-monitor follow-ups "
+            "include the triage section"
+        ),
+        bead="sase-19a",
     ),
     FeatureFlag.typed_launch_units: FeatureFlagDefinition(
         key=FeatureFlag.typed_launch_units,

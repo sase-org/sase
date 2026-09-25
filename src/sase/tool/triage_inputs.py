@@ -79,7 +79,6 @@ def _git(
     return completed.stdout, []
 
 
-# symvision: tools/tool_triage_backtest
 def gather_ancestry(repo_root: Path, base: str) -> tuple[list[str], list[str]]:
     """Read a bounded, first-parent ancestry list, newest commit first."""
 
@@ -111,7 +110,6 @@ def _active_baseline_nodeids(text: str) -> list[str]:
     return [nodeid for nodeid in active if nodeid not in retired]
 
 
-# symvision: tools/tool_triage_backtest
 def gather_flake_baseline(
     repo_root: Path, base: str
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -183,7 +181,6 @@ def _selection_dir(project_key: str) -> Path:
     return sase_home() / "test-selection" / key
 
 
-# symvision: tools/tool_triage_backtest
 def gather_selection_records(
     project_key: str,
     *,

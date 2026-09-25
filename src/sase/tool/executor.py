@@ -6,14 +6,23 @@ from collections.abc import Callable
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import queue
 import secrets
 import signal
 import sys
+import threading
 import time
 from typing import Any
 
 from sase.core.process_identity import process_identity_token
-from sase.core.tool_run import tool_run_observe, tool_run_show
+from sase.core.tool_run import (
+    tool_run_observe,
+    tool_run_show,
+    tool_run_triage_settle,
+    tool_run_triage_show,
+)
+from sase.feature_flags.registry import FeatureFlag
+from sase.feature_flags.snapshot import current_flags
 from sase.telemetry.metrics import (
     TOOL_RUN_ATTEMPTS,
     TOOL_RUN_RECORDING_ERRORS,
@@ -58,11 +67,22 @@ from sase.tool.ownership import (
 )
 from sase.tool.sample import LoadSampler
 from sase.tool.stage_protocol import StageIngestor
+from sase.tool.triage_inputs import (
+    gather_ancestry,
+    gather_flake_baseline,
+    gather_owner_candidates,
+    gather_selection_records,
+    triage_knobs,
+)
+from sase.tool.triage_display import footer_triage_lines
 
 # tools/_run_silent_record.py appends JSONL; this executor only tails and ingests.
 
 _WARN_NOT_RECORDED = "sase: run not recorded"
 _WARN_INCOMPLETE = "sase: recording incomplete"
+_TRIAGE_BUDGET_SECONDS = 5.0
+_TRIAGE_GATHERER_SECONDS = 1.0
+_TRIAGE_OUTPUT_BYTES = 256 * 1024
 
 
 @dataclass(frozen=True)
@@ -565,6 +585,12 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             warn_once(_WARN_INCOMPLETE)
             inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="finish")
         inc_tool_metric(TOOL_RUN_SETTLEMENTS, state=state)
+        triage = _settle_failure_triage(
+            ctx=ctx,
+            fingerprint_before=fingerprint_before,
+            ingestor=ingestor,
+            state=state,
+        )
         write_run_footer(
             durable_id=durable_id,
             state=state,
@@ -578,8 +604,245 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             stderr_sink=stderr_sink,
             stages=list(ingestor.stages.values()) if ingestor is not None else (),
             truncation=truncation,
+            triage=triage,
+            triage_enabled=_failure_triage_enabled(),
         )
     return cli_code
+
+
+def _failure_triage_enabled() -> bool:
+    """Read the beta gate at use time; never resolve flags at import time."""
+
+    try:
+        return current_flags().enabled(FeatureFlag.tool_failure_triage)
+    except Exception:  # noqa: BLE001 - a display gate must fail closed.
+        return False
+
+
+def _settle_failure_triage(
+    *,
+    ctx: RecordedRunContext,
+    fingerprint_before: dict[str, Any] | None,
+    ingestor: StageIngestor | None,
+    state: str,
+) -> dict[str, Any] | None:
+    """Persist bounded failure triage without changing the child outcome.
+
+    This sits after ``tool_run_finish`` so foreground and adopted workers use
+    the same settled ledger row.  It deliberately returns diagnostics for the
+    optional footer rather than raising into the process-result path.
+    """
+
+    if ctx.resolved.adhoc or not ctx.resolved.tool_name:
+        return None
+    deadline = time.monotonic() + _TRIAGE_BUDGET_SECONDS
+    root = Path(ctx.resolved.cwd or os.getcwd())
+    diagnostics: list[str] = []
+    stages = _failed_stage_inputs(ingestor, ctx.events_path, diagnostics)
+    run_output: str | None = None
+    run_output_truncated = False
+    if state != "succeeded" and not stages:
+        run_output, run_output_truncated = _output_of_record(ctx, diagnostics)
+    base = _fingerprint_base_head(fingerprint_before)
+    project = ctx.resolved.resolved_project_identity()
+    extra_args = ""
+    if isinstance(fingerprint_before, dict):
+        extra_args = str(fingerprint_before.get("extra_args_digest") or "")
+    ancestry, ancestry_notes = (
+        _gather_triage("ancestry", lambda: gather_ancestry(root, base), deadline)
+        if base
+        else ([], ["triage ancestry unavailable: base head missing"])
+    )
+    flake_baseline, baseline_notes = (
+        _gather_triage(
+            "flake baseline", lambda: gather_flake_baseline(root, base), deadline
+        )
+        if base
+        else ([], ["triage flake baseline unavailable: base head missing"])
+    )
+    selection, selection_notes = _gather_triage(
+        "selection records",
+        lambda: gather_selection_records(
+            project,
+            project=project,
+            tool=ctx.resolved.tool_name,
+            extra_args_digest=extra_args,
+        ),
+        deadline,
+    )
+    owners, owner_notes = _gather_triage(
+        "owner candidates", lambda: gather_owner_candidates(root), deadline
+    )
+    diagnostics.extend(
+        str(note)
+        for notes in (ancestry_notes, baseline_notes, selection_notes, owner_notes)
+        for note in notes
+    )
+    if time.monotonic() >= deadline:
+        return {
+            "triaged": False,
+            "diagnostics": [*diagnostics, "triage budget exceeded"],
+        }
+    request = {
+        "run_id": ctx.run_id,
+        "stages": stages,
+        "run_output": run_output,
+        "run_output_truncated": run_output_truncated,
+        "project_root": str(root),
+        "workspace_roots": [str(root)],
+        "ancestry": ancestry,
+        "flake_baseline": flake_baseline,
+        "selection_records": selection,
+        "owner_candidates": owners,
+        "knobs": triage_knobs(),
+        "continuation_mode": ctx.continuation_mode,
+        "recipe_finished_ts": _recipe_finished_ts(ingestor),
+        "now_ts": int(time.time()),
+    }
+    try:
+        tool_run_triage_settle(
+            request,
+            busy_timeout_ms=max(1, int((deadline - time.monotonic()) * 1000)),
+        )
+        # The settle response intentionally omits stage facts. Read back the
+        # stored shape so the footer and explicit show surface share it.
+        triage = tool_run_triage_show(
+            {"run_id": ctx.run_id},
+            busy_timeout_ms=max(1, int((deadline - time.monotonic()) * 1000)),
+        )
+        triage["diagnostics"] = [
+            *_string_items(triage.get("diagnostics")),
+            *diagnostics,
+        ]
+        return triage
+    except Exception as exc:  # noqa: BLE001 - triage must always fail open.
+        return {"triaged": False, "diagnostics": [str(exc), *diagnostics]}
+
+
+def _gather_triage(
+    name: str, callback: Callable[[], tuple[Any, list[str]]], deadline: float
+) -> tuple[Any, list[str]]:
+    """Await one optional gatherer only within its slice of the total budget."""
+
+    remaining = min(_TRIAGE_GATHERER_SECONDS, deadline - time.monotonic())
+    if remaining <= 0:
+        return [], [f"triage {name} skipped: budget exhausted"]
+    result: queue.Queue[object] = queue.Queue(maxsize=1)
+
+    def run() -> None:
+        try:
+            result.put(callback())
+        except Exception as exc:  # noqa: BLE001 - gatherers are optional evidence.
+            result.put(exc)
+
+    thread = threading.Thread(target=run, daemon=True, name=f"sase-triage-{name}")
+    thread.start()
+    try:
+        value = result.get(timeout=remaining)
+    except queue.Empty:
+        return [], [f"triage {name} timed out"]
+    if isinstance(value, Exception):
+        return [], [f"triage {name} failed: {value}"]
+    if not isinstance(value, tuple) or len(value) != 2:
+        return [], [f"triage {name} returned malformed evidence"]
+    items, diagnostics = value
+    return items, _string_items(diagnostics)
+
+
+def _failed_stage_inputs(
+    ingestor: StageIngestor | None,
+    events_path: Path | None,
+    diagnostics: list[str],
+) -> list[dict[str, Any]]:
+    if ingestor is None:
+        return []
+    inputs: list[dict[str, Any]] = []
+    for stage_id, stage in ingestor.stages.items():
+        if type(stage.get("exit_code")) is not int or int(stage["exit_code"]) == 0:
+            continue
+        metadata = ingestor.stage_outputs.get(stage_id) or {}
+        output, missing = _read_stage_output(events_path, metadata.get("output_path"))
+        if missing:
+            diagnostics.append(
+                f"triage stage output unavailable: {stage.get('description') or stage_id}"
+            )
+        inputs.append(
+            {
+                "stage_key": str(stage.get("description") or "*"),
+                "stage_id": stage_id,
+                "output": output,
+                "truncated": bool(metadata.get("truncated")),
+                "output_path": metadata.get("output_path"),
+            }
+        )
+    return inputs
+
+
+def _read_stage_output(
+    events_path: Path | None, raw_path: object
+) -> tuple[str | None, bool]:
+    if events_path is None or not isinstance(raw_path, str) or not raw_path:
+        return None, True
+    try:
+        root = events_path.parent.resolve()
+        path = (root / raw_path).resolve()
+        path.relative_to(root)
+        data = path.read_bytes()
+    except (OSError, ValueError):
+        return None, True
+    return data[-_TRIAGE_OUTPUT_BYTES:].decode("utf-8", "replace"), False
+
+
+def _output_of_record(
+    ctx: RecordedRunContext, diagnostics: list[str]
+) -> tuple[str | None, bool]:
+    chunks: list[bytes] = []
+    for path in (ctx.stdout_path, ctx.stderr_path):
+        if path is None:
+            continue
+        try:
+            chunks.append(path.read_bytes())
+        except OSError as exc:
+            diagnostics.append(f"triage output of record unavailable: {exc}")
+    if not chunks:
+        return None, False
+    joined = b"".join(chunks)
+    return joined[-_TRIAGE_OUTPUT_BYTES:].decode("utf-8", "replace"), len(
+        joined
+    ) > _TRIAGE_OUTPUT_BYTES
+
+
+def _fingerprint_base_head(fingerprint: dict[str, Any] | None) -> str:
+    if not isinstance(fingerprint, dict):
+        return ""
+    for repo in _dict_items(fingerprint.get("repos")):
+        head = repo.get("head")
+        if isinstance(head, str) and head:
+            return head
+    return ""
+
+
+def _recipe_finished_ts(ingestor: StageIngestor | None) -> int | None:
+    if ingestor is None:
+        return None
+    for record in reversed(ingestor.continuation_records):
+        if record.get("kind") == "recipe_finished":
+            value = record.get("decided_ts")
+            if type(value) is int:
+                return value // 1000
+    return None
+
+
+def _dict_items(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _string_items(value: object) -> list[str]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(item) for item in value if str(item)]
 
 
 def _observe_spawned_child(run_id: str, *, child_pid: int, child_pgid: int) -> None:

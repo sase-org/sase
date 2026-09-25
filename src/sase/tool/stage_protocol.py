@@ -53,6 +53,7 @@ class StageIngestor:
     diagnostics: list[str] = field(default_factory=list)
     stages: dict[str, dict[str, Any]] = field(default_factory=dict)
     compact_lines: list[str] = field(default_factory=list)
+    stage_outputs: dict[str, dict[str, Any]] = field(default_factory=dict)
     continuation_records: list[dict[str, Any]] = field(default_factory=list)
     continuation_event_ids: set[str] = field(default_factory=set)
     queued: deque[tuple[dict[str, Any] | None, str | None]] = field(
@@ -144,6 +145,8 @@ class StageIngestor:
         if record.get("kind") in CONTINUATION_KINDS:
             self._record_continuation(record)
             return None
+        if record.get("kind") == KIND_FINISHED:
+            self._record_stage_output(record)
         events = _jsonl_to_core_events(record)
         compact_line: str | None = None
         for event in events:
@@ -176,6 +179,18 @@ class StageIngestor:
                         self.announced.add(stage_id)
                         self.compact_lines.append(compact_line)
         return compact_line
+
+    def _record_stage_output(self, record: dict[str, Any]) -> None:
+        """Keep optional output metadata outside the existing core event wire."""
+
+        stage_id = str(record.get("stage_id") or "").strip()
+        output_path = record.get("output_path")
+        if not stage_id or not isinstance(output_path, str) or not output_path:
+            return
+        self.stage_outputs[stage_id] = {
+            "output_path": output_path,
+            "truncated": bool(record.get("output_truncated")),
+        }
 
     def _record_continuation(self, record: dict[str, Any]) -> None:
         event_id = str(record.get("event_id") or "")

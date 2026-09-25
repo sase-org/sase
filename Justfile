@@ -364,20 +364,16 @@ _lint-patch-stitch-terminology: _setup
 # that first consumes its symbols (sase-17x.9 consumed ensure_command_line_spec
 # and CompletionSpecCacheError; sase-18g.3 consumed the agent-header preview
 # symbols keyed to the sase-18g epic). The sase-18j entries wait on E3's
-# record-and-render, known-gated-continuation, and failures-and-followups
-# phases. Never put a comment line inside the continued command below: just
-# joins the lines, so the comment would swallow every later argument.
+# known-gated-continuation and failures-and-followups phases. Never put a
+# comment line inside the continued command below: just joins the lines, so
+# the comment would swallow every later argument.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-18j(tool_run_triage_record)' \
-        --epic-symbol 'sase-18j(tool_run_triage_show)' \
         --epic-symbol 'sase-18j(tool_run_triage_stage)' \
-        --epic-symbol 'sase-18j(tool_run_triage_settle)' \
         --epic-symbol 'sase-18j(tool_run_failures)' \
-        --epic-symbol 'sase-18j(gather_owner_candidates)' \
-        --epic-symbol 'sase-18j(triage_knobs)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(PlanGateHistory)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
