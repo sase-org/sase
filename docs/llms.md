@@ -3070,7 +3070,7 @@ share the same artifact hooks for live replies and usage files.
 When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
 `<SASE_ARTIFACTS_DIR>/live_reply.md`. This file is used by sase's TUI Agents tab to
 display the agent's reply as it streams in, and remains available after execution
-completes for the metadata panel's AGENT REPLY section.
+completes for the Main deck's Reply card.
 
 Providers that support richer streams may write sidecar artifacts. Codex and Grok both
 write reasoning content to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl` (the filename is

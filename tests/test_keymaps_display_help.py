@@ -56,7 +56,7 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
     }
     filters_key = key_display_name(reg.app.agents_filters)
     assert (f"f5 / {filters_key}", "Filter agents by query") in agent_pairs
-    assert ("gf", "Start metadata search forward") in agent_pairs
+    assert ("gf", "Start deck search forward") in agent_pairs
     assert ("f6", "Show this help") in agent_pairs
     assert ("gh", "Show this help") not in agent_pairs
 

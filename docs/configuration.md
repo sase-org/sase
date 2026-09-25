@@ -847,7 +847,7 @@ ace:
 | `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                   |
 | `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                   |
 | `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                           |
-| `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab (only when agent decks are enabled).                                               |
+| `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab.                                                                                   |
 | `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel XPROMPT preview budget.                                                                                                    |
 | `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                    |
 | `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`).   |
@@ -1360,26 +1360,28 @@ when the Agents tab and selected remote row support that action.
 
 The top-level Agents query editor is available as the app-level `edit_query` binding,
 default `/`, and the direct `agents_filters` binding, default `f`. The leader-mode
-`search_forward` chord, default `,/`, starts inline metadata search on Agents only.
+`search_forward` chord, default `,/`, starts inline deck search on Agents only.
 
-| Field                           | Default   | Action                                                                                                                                               |
-| ------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agents_filters`                | `f`       | Open the top-level Agents `agents-live` filter bar.                                                                                                  |
-| `agents_refresh`                | `r`       | Refresh the Agents tab, or open the Refresh panel while the `refresh_panel` sunset flag is on.                                                       |
-| `agents_retry`                  | `R`       | Retry the selected local or remote agent.                                                                                                            |
-| `choose_agent_grouping`         | `o`       | Open the Agents grouping picker (`p`/`d`/`s`/`m` modes; local `o` toggles split/merged panels).                                                      |
-| `choose_agent_view`             | `p`       | Open the Agents view/layout picker (`f` File, `t` LLM Calls, `[` metadata only, `1`/`=`/`2` split layouts, `]` secondary only, `p`/`P` split cycle). |
-| `view_agent_metadata`           | `V`       | Open the selected local agent's metadata panel in the SASE pager.                                                                                    |
-| `connect_agent_machine`         | `unbound` | Open the Admin Center Machines tab.                                                                                                                  |
-| `setup_agent_machine`           | `unbound` | Open the Admin Center Machines tab for enrollment guidance.                                                                                          |
-| `retry_remote_agent`            | `unbound` | Compatibility id: retry the selected row on its owning host.                                                                                         |
-| `view_remote_agent_content`     | `unbound` | Fetch bounded remote chat, output, or diff content.                                                                                                  |
-| `answer_remote_attention`       | `unbound` | Answer a pending remote question or approve a pending gate.                                                                                          |
-| `check_dispatch_launch_outcome` | `unbound` | Reconcile the selected provisional remote dispatch-launch row with its operation outcome.                                                            |
+| Field                           | Default   | Action                                                                                          |
+| ------------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
+| `agents_filters`                | `f`       | Open the top-level Agents `agents-live` filter bar.                                             |
+| `agents_refresh`                | `r`       | Refresh the Agents tab, or open the Refresh panel while the `refresh_panel` sunset flag is on.  |
+| `agents_retry`                  | `R`       | Retry the selected local or remote agent.                                                       |
+| `choose_agent_grouping`         | `o`       | Open the Agents grouping picker (`p`/`d`/`s`/`m` modes; local `o` toggles split/merged panels). |
+| `view_agent_metadata`           | `V`       | Open the selected local agent's metadata panel in the SASE pager.                               |
+| `connect_agent_machine`         | `unbound` | Open the Admin Center Machines tab.                                                             |
+| `setup_agent_machine`           | `unbound` | Open the Admin Center Machines tab for enrollment guidance.                                     |
+| `retry_remote_agent`            | `unbound` | Compatibility id: retry the selected row on its owning host.                                    |
+| `view_remote_agent_content`     | `unbound` | Fetch bounded remote chat, output, or diff content.                                             |
+| `answer_remote_attention`       | `unbound` | Answer a pending remote question or approve a pending gate.                                     |
+| `check_dispatch_launch_outcome` | `unbound` | Reconcile the selected provisional remote dispatch-launch row with its operation outcome.       |
 
-The former `toggle_layout`, `toggle_thinking`, and `toggle_thinking_reverse` app-key
-settings are retired. Existing overrides for those names are ignored; configure
-`choose_agent_view` instead.
+The former `toggle_layout`, `toggle_thinking`, `toggle_thinking_reverse`,
+`choose_agent_view`, `next_agent_metadata_section`, and `prev_agent_metadata_section`
+app-key settings are retired. Existing overrides for those names are ignored; the Agents
+tab now uses deck keys instead (`next_deck_card` / `prev_deck_card` for cards,
+`next_deck` / `prev_deck` for decks, `toggle_deck_split_below` /
+`toggle_deck_split_right` for splits).
 
 On the Agents tab, `r` refreshes and `R` retries; every other tab keeps `r` for
 `run_workflow` and `R` for `refresh`, which is why those pairs share keys (see the
@@ -1454,7 +1456,7 @@ rejects every other duplicate app binding:
 | `r`                   | `r`                   | `agents_refresh` / `run_workflow`                       | Agents vs Patches/Services                             |
 | `R`                   | `R`                   | `agents_retry` / `refresh`                              | Agents vs every other tab                              |
 | `o`                   | `o`                   | `choose_agent_grouping` / `cycle_grouping_mode`         | Agents vs Artifacts                                    |
-| `p`                   | `p`                   | `choose_agent_view` / `pick_artifacts_project`          | Agents vs Artifacts                                    |
+| `p`                   | `p`                   | (retired on Agents) / `pick_artifacts_project`          | Agents vs Artifacts                                    |
 | configurable then `o` | varies                | `choose_agent_grouping` local panel-layout toggle       | Agents picker-local `o`; `oo` with defaults            |
 | configurable          | varies                | `choose_agent_grouping` / `cycle_grouping_mode_reverse` | Agents vs Artifacts                                    |
 
@@ -1715,8 +1717,7 @@ Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py
 #### `ace.agent_decks`
 
 Controls whether a multi-card agent data deck renders spread (every card on one
-scrollable page) or paged (one card at a time) on the Agents tab. Only affects the
-Agents tab when agent decks are enabled.
+scrollable page) or paged (one card at a time) on the Agents tab deck panels.
 
 ```yaml
 ace:
@@ -4800,23 +4801,23 @@ unknown keys at runtime.
 and keep a fallback path reachable until the flag is removed. The schema marks sunset
 flags deprecated. The currently registered flags are:
 
-| Flag                           | Kind   | Default | Controls                                                                                                                                                                                                        |
-| ------------------------------ | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ace_refresh_tokens`           | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                                                                                |
-| `admin_center_flags`           | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                                                                           |
-| `agent_decks`                  | beta   | `false` | The Agents tab replaces the metadata panel and its File/LLM Calls panel with one deck panel (Main, Files, Tools decks of cards); restart sase's TUI after toggling. See [Agent Decks](ace.md#agent-decks-beta). |
-| `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                                                                             |
-| `agents_unified_query`         | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                                                                      |
-| `axe_routine_job_contract`     | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                                                                           |
-| `bgcmd_legacy_slots`           | sunset | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                                                                                  |
-| `monitor_continuation_records` | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                                                                         |
-| `muse_synchronous_shell`       | sunset | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).                                                                   |
-| `provider_drain`               | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                                                                                 |
-| `queue_capacity_budget`        | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                                                                       |
-| `ref_sync_gesture`             | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                                                                       |
-| `refresh_panel`                | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                                                                      |
-| `slim_agents_manifest`         | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                                                                             |
-| `typed_launch_units`           | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                                                                          |
+| Flag                           | Kind    | Default | Controls                                                                                                                                                   |
+| ------------------------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ace_refresh_tokens`           | sunset  | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                                                           |
+| `admin_center_flags`           | sunset  | `true`  | The Admin Center Config catalog shows the Flags pane.                                                                                                      |
+| `agent_decks`                  | retired | —       | The Agents tab always shows agent data decks and cards now; the beta flag is removed. See [Agent data decks and cards](ace.md#agent-data-decks-and-cards). |
+| `agent_sudo_requests`          | beta    | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                                                                        |
+| `agents_unified_query`         | sunset  | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                                                                 |
+| `axe_routine_job_contract`     | sunset  | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                                                                      |
+| `bgcmd_legacy_slots`           | sunset  | `true`  | Legacy `~/.sase/axe/bgcmd` slot directories stay readable in the Services tab oneshot section.                                                             |
+| `monitor_continuation_records` | sunset  | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.                                                    |
+| `muse_synchronous_shell`       | sunset  | `true`  | `muse exec` runs with `--enable-shell-tool`, so Muse runs commands synchronously; see [Muse Code Integration](llms.md#muse-code-integration).              |
+| `provider_drain`               | beta    | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`).                                            |
+| `queue_capacity_budget`        | sunset  | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).                                                  |
+| `ref_sync_gesture`             | sunset  | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.                                                  |
+| `refresh_panel`                | sunset  | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                                                                 |
+| `slim_agents_manifest`         | sunset  | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                                                                        |
+| `typed_launch_units`           | beta    | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                                                                     |
 
 Run `sase flag list` for the live registry with effective and saved state.
 

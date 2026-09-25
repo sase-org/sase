@@ -477,7 +477,7 @@ valid queries.
 
 The top-level Agents tab uses the same Boolean grammar through the live `agents-live`
 profile, but keeps zero idle screen-space cost: when no query is active, no filter row
-is visible; when a query is active, the metadata panel shows the canonical highlighted
+is visible; when a query is active, the detail column shows the canonical highlighted
 query and match count. Press `/` or `f` to open the auto-hiding filter bar. Live Agent
 fields include the shared identity and runtime fields (`name`, `session`, `clan`,
 `project`, `kind`, `role`, `workflow`, `model`, `provider`, `status`, `attempt`,
@@ -1291,21 +1291,25 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 ### Navigation
 
 | Key                       | Action                                                                                                                                                           |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead      |
 | `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                |
 | `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                  |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                     |
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
-| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                              |
+| `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                          |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
 | `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
 | `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                          |
 | `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                    |
-| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                               |
-| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                            |
-| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                      |
-| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                                    |
+| `g`                       | Scroll to top (focused deck panel)                                                                                                                               |
+| `G`                       | Scroll to bottom (focused deck panel)                                                                                                                            |
+| `Ctrl+D` / `Ctrl+U`       | Scroll focused deck panel down / up (half page)                                                                                                                  |
+| `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                          |
+| `\` / `                   | `                                                                                                                                                                | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
+| `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                        |
+| `Ctrl+F`                  | Move focus to the other deck panel (split layouts only)                                                                                                          |
+| `Ctrl+S`                  | Collapse / expand the node panel                                                                                                                                 |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -1328,24 +1332,24 @@ ancestor. Dotless names can still have descendants such as `foo.child`. A digit 
 target is resolved by stable identity and revealed through any clan, session, workflow,
 or grouping folds before focus moves.
 
-When a clan or a sase agent is selected, its metadata panel assigns a fixed number to
-each numbered row, up to 100 targets. A sase agent is a multi-member session container
-or a single agent; sase-agent panels number their `SESSION SHELLS` roster (when present)
-and then their `NEIGHBORS` section from one continuous ladder. A selected session
-**shell** row numbers its enclosing session's `SESSION SHELLS` roster the same way,
-listing every sibling except itself from the same ladder; a shell row owns no sase
-agent, so it has no `NEIGHBORS` rows to follow the roster. Documents with at most ten
-numbered rows use `0`–`9`; larger documents number the first 100 rows with two-key
-values `00`–`99` and show any remaining entries as an unnumbered count. Every live
-numbered target lives in the sticky jump panel below the file / LLM Calls panel, so the
-digit answers stay on screen while the metadata body scrolls. The metadata body no
-longer contains these roster sections. After the first digit of a two-key jump, the
-panel narrows to the matching candidates; press `Esc` to cancel or any non-digit key to
-cancel and continue with that key's normal action. A successful jump expands only the
-target's ancestor chain, switches tribe panels when needed, and participates in the
-normal `Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent
-instead of jumping. If the roster or the neighbor relationship changed since the panel
-was drawn, the jump is cancelled with a warning rather than landing somewhere stale.
+When a clan or a sase agent is selected, its jump panel assigns a fixed number to each
+numbered row, up to 100 targets. A sase agent is a multi-member session container or a
+single agent; sase-agent panels number their `SESSION SHELLS` roster (when present) and
+then their `NEIGHBORS` section from one continuous ladder. A selected session **shell**
+row numbers its enclosing session's `SESSION SHELLS` roster the same way, listing every
+sibling except itself from the same ladder; a shell row owns no sase agent, so it has no
+`NEIGHBORS` rows to follow the roster. Documents with at most ten numbered rows use
+`0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and
+show any remaining entries as an unnumbered count. Every live numbered target lives in
+the sticky jump panel below the deck panels, so the digit answers stay on screen while
+the deck body scrolls. The deck body no longer contains these roster sections. After the
+first digit of a two-key jump, the panel narrows to the matching candidates; press `Esc`
+to cancel or any non-digit key to cancel and continue with that key's normal action. A
+successful jump expands only the target's ancestor chain, switches tribe panels when
+needed, and participates in the normal `Ctrl+O` jump-back history. A digit on a
+dismissed neighbor revives that agent instead of jumping. If the roster or the neighbor
+relationship changed since the panel was drawn, the jump is cancelled with a warning
+rather than landing somewhere stale.
 
 ### Agent Actions
 
@@ -1375,19 +1379,16 @@ was drawn, the jump is cancelled with a warning rather than landing somewhere st
 | `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                                                                                       |
 | `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                                                                               |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                                                                             |
-| `E`                 | Edit panel content in editor                                                                                                                                               |
+| `E`                 | Edit focused deck content in editor (Files opens the real path; Main/Tools open the active card text as a temporary `.md`)                                                 |
 | `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)                                                                        |
 | `T`                 | Open tmux window in the agent's primary project workspace                                                                                                                  |
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it; on a clan row or clan member it sets the clan's recorded tribe) |
-| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `[` metadata only, `1`/`=`/`2` split sizes, `]` secondary only                                                            |
-| `pp`                | Next split layout; from either fullscreen layout, return to equal split                                                                                                    |
-| `pP`                | Previous split layout; from either fullscreen layout, return to equal split                                                                                                |
 | `z`                 | Start metadata fold mode for clan, agent node (session or single agent), or selected whole-tribe detail panels                                                             |
-| `Z`                 | Zoom the active agent or tribe detail panel                                                                                                                                |
+| `Z`                 | Zoom the focused deck panel in place (and collapse the node panel); press again to restore                                                                                 |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                            |
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                     |
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                  |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                                                                              |
+| `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                                    |
 
 When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
 target immediately, even if other rows are already marked. `m` marks or unmarks the
@@ -1538,16 +1539,16 @@ for the wrong target.
 ### Clan and Session Detail Panels
 
 Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member session
-root titles the sticky [header panel](#agents-tab-metadata-panel) `SESSION` (cyan,
-matching the name), then shows the session's normal agent metadata, with its
-`SESSION SHELLS` roster in the jump panel. A selected agent shell — standalone or
-session member — titles the header panel `AGENT SHELL` (gold, matching the name). Both
-rosters use the numbered member jumps described above. Clan direct members in the Agents
-list sort by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done
-— with launch recency breaking ties. The clan's `CLAN MEMBERS` jump-panel roster instead
-keeps chronological launch order so its numbers do not change as statuses change; a
-nested session remains one direct entry with its chain indented beneath it. Session
-rosters retain sequential chain order.
+root titles the sticky [header panel](#agents-tab-main-deck) `SESSION` (cyan, matching
+the name), then shows the session's normal Main deck cards, with its `SESSION SHELLS`
+roster in the jump panel. A selected agent shell — standalone or session member — titles
+the header panel `AGENT SHELL` (gold, matching the name). Both rosters use the numbered
+member jumps described above. Clan direct members in the Agents list sort by status
+priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done — with launch
+recency breaking ties. The clan's `CLAN MEMBERS` jump-panel roster instead keeps
+chronological launch order so its numbers do not change as statuses change; a nested
+session remains one direct entry with its chain indented beneath it. Session rosters
+retain sequential chain order.
 
 Selecting a session **shell** row (not the container) also shows its `SESSION SHELLS`
 roster in the jump panel: the same enclosing session's members, in the same chain order,
@@ -1598,9 +1599,9 @@ The default fold chords are:
 
 | Key       | Action                                                                                                                                 |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `zz`      | Cycle the whole metadata panel forward through its active scale                                                                        |
+| `zz`      | Cycle the whole Main deck document forward through its active scale                                                                    |
 | `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum                                                |
-| `za`      | Cycle the foldable section, tribe `CLAN SUMMARIES`/`PROMPTS` entry, or session `SASE CONTEXT` lane at the top of the metadata viewport |
+| `za`      | Cycle the foldable section, tribe `CLAN SUMMARIES`/`PROMPTS` entry, or session `SASE CONTEXT` lane at the top of the focused Main view |
 | `zA`      | Toggle that foldable section or entry between collapsed and fully expanded                                                             |
 | `z1`-`z2` | Set a session directly to level 1 or 2                                                                                                 |
 | `z1`-`z3` | Set a clan or single-agent scope directly to level 1-3                                                                                 |
@@ -1612,7 +1613,7 @@ that header line; a single sase agent relies on the `SLOW TOOL CALLS` heading gl
 (and, with the jump panel expanded, the `NEIGHBORS` heading glyph) instead. On a session
 conversation heading, `za` and `zA` refresh normally but do not create or change a
 section override. A valid panel-level cycle, extreme toggle, or direct selection clears
-real per-section overrides. Fold state is shared by the Agents metadata panel: an
+real per-section overrides. Fold state is shared by the Agents detail documents: an
 ordinary agent's own three-level scale shapes its `NEIGHBORS` and `SLOW TOOL CALLS`
 sections, so `z*` chords have a visible effect on a regular sase agent, and the same
 clan/agent scope carries over to the next selected clan or session container. Most other
@@ -1683,8 +1684,8 @@ their own hanging-indented line. The order and diamond glyph describe static pla
 structure, not execution state or live bead progress. Tales retain the compact four-row
 form (`Title`, `Goal`, `Size`, `Path`). The chip remains visible while the title and
 other long ASCII or wide-Unicode values fold completely without ellipses; the lane caps
-content at 80 terminal cells on wide panels and reflows to the normal metadata panel or
-metadata zoom width. Logical header text contains the same size labels for search, copy,
+content at 80 terminal cells on wide panels and reflows to the normal deck panel or
+zoomed deck width. Logical header text contains the same size labels for search, copy,
 and style inspection. In hint mode only `Path` receives a numbered file hint, allocated
 in the plan's visual reading order. Missing or damaged plans keep their known lane and
 path visible; when epic context is known, validation failure renders one quiet
@@ -1778,7 +1779,7 @@ relative to their group, so a `myclan` hood neighbor reads `.code` and a descend
 reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
 `folded` marks a prospective row that currently lives inside a collapsed clan. In the
 jump panel the section sits after `SESSION SHELLS` when both exist, so a sase agent's
-numbered neighbors stay reachable without scrolling the metadata body.
+numbered neighbors stay reachable without scrolling the Main deck body.
 
 Every neighbor always renders and gets a digit whatever the fold level. The fold level
 only changes the heading glyph and each row's annotation detail, both visible once the
@@ -1916,10 +1917,10 @@ every marked agent's artifacts, each row labeled with its agent's name.
 The prompt/detail header includes those non-chat entries in the plan-adjacent
 `SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Beads`, `Reads`, `Commits`,
 `Deltas`, and `Files` stay in that order when present. `Beads` lists the beads the agent
-touched, read, or viewed, plus its assigned beads (see the metadata panel description
-below); audited `bead:` reads appear there rather than under `Reads`. `Reads` lists
-audited `sase artifact read` invocations (newest first, with reasons); prompt citations
-and silent `show` / `path` / `open` inspection do not appear. Paths are made
+touched, read, or viewed, plus its assigned beads (see the Main deck description below);
+audited `bead:` reads appear there rather than under `Reads`. `Reads` lists audited
+`sase artifact read` invocations (newest first, with reasons); prompt citations and
+silent `show` / `path` / `open` inspection do not appear. Paths are made
 workspace-relative when possible, and hint mode assigns numbers to filesystem-backed
 reads and output paths so they can be opened with the normal file-hint flow.
 
@@ -2042,9 +2043,9 @@ panels stay pinned to their natural height; when the panels overflow, space is w
 by each panel's rendered row count.
 
 A selected tribe panel's `TRIBE` identity fields (`Name`, `Status`, `Composition`,
-`Runtime`, `Fold`) render in the sticky [header panel](#agents-tab-metadata-panel) above
-the metadata; collapsed, it shows the tribe name, status, and counts on one row and the
-composition, runtime, and fold on the next. The scrolling metadata opens with an
+`Runtime`, `Fold`) render in the sticky [header panel](#agents-tab-main-deck) above the
+Main deck; collapsed, it shows the tribe name, status, and counts on one row and the
+composition, runtime, and fold on the next. The scrolling Main deck opens with an
 unlabeled description row only when the tribe has a configured
 [`description`](configuration.md#acetribes). That row is set off by a blank line and
 wrapped at a fixed 80-cell measure (no hanging indent — there is no label to indent
@@ -2063,8 +2064,8 @@ directly on a row. Whole-panel focus is available only in the split layout. Lowe
 `h` walks from any agent or workflow-step row to its validated immediate workflow,
 session, clan, and finally tribe parent without changing structural or grouping folds.
 It also selects a lone split panel after the structural chain is exhausted. A selected
-panel has a `❖` title and shows a fold-aware `TRIBE` summary in the metadata pane. While
-it is selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` returns to
+panel has a `❖` title and shows a fold-aware `TRIBE` summary in the Main deck. While it
+is selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` returns to
 the remembered row. A second `h` collapses the selected panel when another panel remains
 visible. On a collapsed panel, the first `l` expands it while keeping whole-panel focus
 and the second returns to the remembered row; `L` on a collapsed panel does not expand
@@ -2103,7 +2104,7 @@ job. A panel with nothing expanded warns without arming hint mode; an already co
 panel keeps the usual already-collapsed notification. The merged layout has no
 whole-panel focus and keeps the row-focused group scope across the merged roster.
 
-Press `Z` with a whole tribe panel selected to zoom that tribe's metadata document.
+Press `Z` with a whole tribe panel selected to zoom that tribe's Summary card in place.
 Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
 every sibling panel. If that changes the layout, sase's TUI remembers the prior
 collapsed-panel set for one session-local restore. Panels whose state would change back
@@ -2187,7 +2188,7 @@ and ancestor folds first. These metadata-member numbers are separate from ordina
 apostrophe entry hints, whose adaptive target keys may use two characters in a large
 list.
 
-`PROMPTS` sits after `CLAN SUMMARIES` in the metadata body (the `TRIBE MEMBERS` roster
+`PROMPTS` sits after `CLAN SUMMARIES` in the Main deck body (the `TRIBE MEMBERS` roster
 itself lives in the jump panel): it maps what each agent in the tribe was asked to do.
 Its number chips are the same digits as the roster jump targets. Identical prompt bodies
 are listed once with a `×N` badge and a shared-by list. `za`/`zA` on a prompt entry
@@ -2198,7 +2199,7 @@ the tribe's prompts target more than one known project, each entry ends with tha
 project's accent-colored `+<project>` chip (or its `#<workflow>:<name>` spelling when
 the name is not tag-shaped); unknown targets and Patch refs get no chip.
 
-`CLAN SUMMARIES` sits before `PROMPTS` in the metadata body (the `TRIBE MEMBERS` roster
+`CLAN SUMMARIES` sits before `PROMPTS` in the Main deck body (the `TRIBE MEMBERS` roster
 itself lives in the jump panel): it maps the curated summary of every clan in the tribe,
 because clan intent reads before raw prompts. Each entry line carries the clan's roster
 digit as a number chip, the clan label, a banner-kind kicker (`EPIC`, …) when present, a
@@ -2718,15 +2719,16 @@ directives that create it.
 ### Agent Search
 
 Press `/` or `f` on the Agents tab to open the auto-hiding filter bar. `,/` (leader
-mode) starts forward inline metadata search over the selected agent's metadata: type to
-jump to matches, `Ctrl+R` reverses the search direction, `Enter` keeps the matches
-(`Esc` or `Ctrl+C` cancels), `n` / `N` move between them, `y` / `Y` yank the current
-match or selection / its whole line, and `Esc` or `q` closes a committed search. The
-filter bar uses the same **structured Boolean Agent dialect** as Artifacts -> Agent and
-[`sase agent search`](configuration.md#sase-agent), evaluated against the live
-`agents-live` profile. Bare words match an agent's `cl_name`, `display_name`,
-`agent_name`, and `status`, plus its **xprompt, live reply/response, chat transcript,
-and prior attempt replies** through the `text` corpus. When
+mode) starts forward inline deck search over the focused deck panel — the text of all
+Main cards (with card titles as separators), the Files view content, or the Tools LLM
+Calls text: type to jump to matches, `Ctrl+R` reverses the search direction, `Enter`
+keeps the matches (`Esc` or `Ctrl+C` cancels), `n` / `N` move between them, `y` / `Y`
+yank the current match or selection / its whole line, and `Esc` or `q` closes a
+committed search. The filter bar uses the same **structured Boolean Agent dialect** as
+Artifacts -> Agent and [`sase agent search`](configuration.md#sase-agent), evaluated
+against the live `agents-live` profile. Bare words match an agent's `cl_name`,
+`display_name`, `agent_name`, and `status`, plus its **xprompt, live reply/response,
+chat transcript, and prior attempt replies** through the `text` corpus. When
 `ace.current_project.seed_agents_query` is on, sase's TUI seeds this query with the
 current project's exact `project:` term on first load and marks it `seeded` until you
 edit it. That setting defaults **off** because the same query also drives unread jumps
@@ -2740,7 +2742,7 @@ accepts completions, and `^` / `_` walk query history while the bar is open. Eac
 successful `Enter` commit is remembered in machine-local SASE state and restored in the
 next sase's TUI session; submitting an empty or whitespace-only query remembers the
 unfiltered view. Typing, `Escape`, invalid submits, history preview, saved-slot
-commands, and `,/` metadata search do not replace the remembered query.
+commands, and `,/` deck search do not replace the remembered query.
 
 Restored Agents queries are applied before provider filtering and before current-project
 seeding. A restored query does not push history, change saved-query slots, or write back
@@ -3319,7 +3321,7 @@ cancels, with configured target keys taking precedence.
 `/` is the app-level query key on every Artifacts pane and on the top-level Agents tab.
 Every pane with a filter session keeps a persistent idle filter row; `/` (or the local
 `f`) focuses it for editing. On Agents, `/` (or `f`) opens the auto-hiding filter bar,
-and `,/` starts forward inline metadata search. Help is the app-level `?` on every tab.
+and `,/` starts forward inline deck search. Help is the app-level `?` on every tab.
 
 | Context            | Default query key  |
 | ------------------ | ------------------ |
@@ -4944,46 +4946,21 @@ falls back to plain text for large content. Pathological outputs above the file-
 safety limit show the first 5,000 lines and an explicit editor notice; press `E` to open
 the complete content.
 
-## Agents Zoom Panel
+## Agents Zoom and Node-Panel Collapse
 
-Press `Z` on an agent row in the Agents tab to open a near-fullscreen view of the active
-detail panel. With a whole tribe panel selected, `Z` opens that tribe's metadata
-document instead. Press `=` to isolate the focused tribe panel or restore the previously
-remembered panel layout (see [Tribe Side Panels](#tribe-side-panels) above). In the
-detail modal, the header shows the available panel tabs (`METADATA`, `FILE`,
-`LLM CALLS`) with the active panel highlighted; use `]` / `[` to cycle those panels with
-wrap-around. A tribe zoom exposes only the `METADATA` target, so panel cycling and file
-paging are inert there while search, copy, edit, and refresh continue to work.
+`Z` zooms the focused deck panel in place: it snapshots the deck-area state (layout,
+panels, focus, ratio, collapse), then shows only the focused panel and collapses the
+node panel. The panel keeps its widget, card, and scroll position, and search, `E`,
+cards, and decks all work normally while zoomed. A second `Z` restores the snapshot
+exactly. Using a layout key (`\`, `|`) or `Ctrl+S` while zoomed drops the snapshot and
+applies to the current state instead.
 
-| Key                  | Action                                           |
-| -------------------- | ------------------------------------------------ |
-| `j` / `k`, `↓` / `↑` | Scroll one line                                  |
-| `Ctrl+D` / `Ctrl+U`  | Scroll half a page                               |
-| `g` / `G`            | Scroll to the top / bottom                       |
-| `]` / `[`            | Cycle the zoomed panel                           |
-| `Ctrl+N` / `Ctrl+P`  | Cycle files                                      |
-| `l` / `h`            | Show more / less LLM Calls detail                |
-| `L` / `H`            | Jump to full / compact LLM Calls detail          |
-| `/` / `?`, `n` / `N` | Search forward / backward; next / previous match |
-| `y`                  | Copy the zoomed content                          |
-| `E`                  | Open the zoomed content in `$EDITOR`             |
-| `r`                  | Refresh the zoomed content                       |
-| `q` / `Esc` / `z`    | Close the zoom                                   |
-
-When the zoom modal shows files, the file list is fixed for the life of that modal so
-refreshes cannot add, remove, reorder, or jump the selected file. Use `Ctrl+N` /
-`Ctrl+P` to cycle files with first-to-last wrap-around. Multi-file views show a left
-rail listing every frozen file entry and marking the active one; single-file views use
-the full width for content.
-
-Inside the zoom modal, `/` starts forward search, `?` starts backward search, and typed
-queries jump to the first match as you type. Press `Enter` to keep the highlighted
-matches, then use `n` / `N` to move to the next / previous match with wrap-around
-feedback.
-
-Search covers the complete text behind the zoomed panel, including content beyond the
-pathological render cap. `Esc` or `Ctrl+C` cancels an in-progress search; after a search
-is committed, `Esc` leaves search and returns to the normal zoomed panel.
+`Ctrl+S` collapses the left node-panel column into a slim node spine without unmounting
+it, so `j` / `k` keep moving the selection and the header follows it. The spine shows a
+scroll thumb positioned by the selected row, and an info-row chip reports the selected
+position (for example `nodes 12/47`); clicking the spine or pressing `Ctrl+S` again
+restores the panel. Whole-panel focus is not cleared by collapsing, so `Z` plus `j` /
+`k` steps whole tribe summaries.
 
 ## Image Preview Foundation
 
@@ -5282,81 +5259,83 @@ top-level/workflow-child identity. Older dismissed bundles may still contain
 compatibility helpers for reading those bundles. Bare `%wait` (no target) intentionally
 skips legacy dismissal-prefixed candidates so it anchors on a live, visible agent.
 
-### Agents Detail View Picker
+### Agents Detail View Picker (retired)
 
-Press `p` on an agent row to choose the detail view without cycling through hidden
-panels. A fresh session starts in metadata-only: File and LLM Calls stay hidden until
-the user selects a visible layout in this picker, even when that content is already
-available. Inside the picker, `f` shows the selected file, `t` shows the LLM Calls
-timeline, `[` shows metadata only, and `]` shows only the selected File or LLM Calls
-panel with the sticky header panel staying above it. `1` makes metadata larger, `=`
-makes metadata and the selected secondary panel equal height, and `2` makes the File/LLM
-Calls side larger. The picker-local `p` key moves to the next layout and `P` moves to
-the previous layout only within the circular split order metadata-larger -> equal ->
-secondary-larger -> metadata-larger. From either fullscreen endpoint, including the
-metadata-only default, both `p` and `P` return directly to equal split.
+The `p` view picker is retired. The Agents tab now always shows
+[agent data decks and cards](#agent-data-decks-and-cards): `Ctrl+N` / `Ctrl+P` move the
+focused deck panel between the Main, Files, and Tools decks, and `\` / `|` open a second
+deck panel beside the first. `p` keeps its unrelated Artifacts meaning there.
 
-The layout choice is session-local and independent from the view mode: switching between
-file and LLM Calls keeps the same saved fullscreen or split layout. Split and
-secondary-only layout options are disabled when the selected secondary panel has no
-content to resize, such as a file view with no selected file content, summaries, or
-pinned historical attempts. Bare `[` and `]` remain inert on the Agents tab outside the
-picker; their existing uses in help, zoom, and other surface-local panels are unchanged.
+### Agent Data Decks and Cards
 
-### Agent Decks (beta)
+The Agents tab detail column shows one or two deck panels between the sticky header
+panel and the jump panel. Each deck panel shows one agent data deck, a named ordered set
+of agent data cards about the selected node. `Ctrl+N` / `Ctrl+P` cycle the focused panel
+through the Main, Files, and Tools decks (wrapping, nothing skipped); `Ctrl+J` /
+`Ctrl+K` move to the next / previous card in the focused panel.
 
-The `agent_decks` beta flag (default off) previews a deck-based Agents detail column.
-Enable it with `sase flag enable agent_decks` or from the
-[Config Flags pane](#config-flags-pane), then restart sase's TUI, since the detail
-column picks its layout when it is built. With the flag on, the metadata panel and its
-single File or LLM Calls panel are replaced by one deck panel between the sticky header
-panel and the jump panel. The deck panel's border title names the deck (`◆ MAIN`) and
-lists its cards — `Context` (details and prompt), `Reply` (`Output` for a workflow step;
-either card is led by any `TRACEBACK`), and `Summary` for clan and tribe documents —
-with the active card highlighted and, when the deck has more than one card, an `N/M`
-position. The border subtitle is a `main · files · tools` switcher that shows each
-deck's card, file, or LLM-call count when known and dims decks with no content. In this
-early phase the panel always shows the Main deck's default card (`Context`, or `Summary`
-for a clan or tribe); keys for switching decks and cards are not wired yet. While the
-flag is on, the `p` view picker, `Z` zoom, and `,/` metadata search are disabled on the
-Agents tab (the keys do nothing), and the Agents header omits its `view:` element. The
-Files and Tools decks correspond to the File and LLM Calls panels; the metadata, sticky
-header, and jump panels they sit beside are described in
-[Agents Tab Metadata Panel](#agents-tab-metadata-panel).
+- **Main deck.** `Context` (details and prompt; the default card) and `Reply` — titled
+  `Output` for proc shells, monitors, gates, and workflow steps — plus a leading
+  `TRACEBACK` section at the top of Reply when the agent failed. Clan rows and
+  whole-panel tribe focus show a single `Summary` card instead. A paged deck keeps the
+  card last chosen with `Ctrl+J` / `Ctrl+K` (for example Reply) as the selection moves
+  between nodes.
+- **Files deck.** One card per file page (commit diffs, the live diff, linked-repo
+  diffs, then extra files), titled by file. The default card is the same default page
+  the file view always chose.
+- **Tools deck.** The `LLM Calls` card with the selected agent's tool-call timeline (see
+  [Agents Tab LLM Calls Panel](#agents-tab-llm-calls-panel)).
 
-## Agents Tab Metadata Panel
+A multi-card deck renders **spread** — every card on one scrollable page separated by
+titled rules — when its cards fit within `ace.agent_decks.spread_max_screens` panel
+viewport heights (default `1.5`; `0` means always paged), and **paged** — one card at a
+time — otherwise. In spread mode `Ctrl+J` / `Ctrl+K` scroll the next / previous card's
+header to the top. The deck panel's border title names the deck and its cards with the
+active card highlighted (and an `N/M` position when there is more than one card); the
+border subtitle is a `main · files · tools` switcher showing each deck's card, file, or
+LLM-call count when known, dimming decks with no content. A deck with no content for the
+selection shows an empty-state card instead, so the layout never jumps.
 
-The Agents tab metadata panel (choose `[` from the Agent view picker) shows structured
-information about the selected agent:
+`\` opens a second panel below the first (top-bottom) and `|` opens one to its right
+(left-right); the new panel takes focus and shows the next deck with content, or a
+duplicate deck when every other deck is empty or already shown. Pressing the same split
+key again closes the second panel; pressing the other split key rotates the layout.
+`Ctrl+F` moves focus to the other panel (split layouts only) and every deck, card,
+scroll, search, and fold key acts on the focused panel. `}` / `{` grow / shrink the
+focused panel (split layouts only). `Ctrl+B` has no Agents behavior.
+
+The layout, split ratio, focus, node-panel collapse, and each panel's deck and preferred
+card persist across restarts in `~/.sase/ace_agents_deck_state.json`. See the
+[key tables](#navigation) for the full deck keymap and
+[configuration](configuration.md#aceagent_decks) for the spread setting.
+
+## Agents Tab Main Deck
+
+The Agents tab Main deck shows structured information about the selected agent as
+`Context` and `Reply` cards (see
+[Agent data decks and cards](#agent-data-decks-and-cards)):
 
 Pressing `V` on any local Agents-tab row (running or done) opens that same agent's
 metadata full-screen in the [pager](pager.md) instead, as a sectioned document —
 IDENTITY, MODEL, WORKSPACE, TIMELINE, CONTENT, SASE CONTEXT, and BEAD (skipping any that
 would be empty) — with `/` search, `;` goto, `Ctrl+N`/`Ctrl+P` section jumps, and `y`
-copy, on top of the panel's own `Ctrl+J`/`Ctrl+K` navigation. `r` inside the pager
-re-snapshots the agent, which matters for a still-running one. `V` is unavailable for
-remote fleet rows and when no agent is selected; other tabs keep `V` bound to the Agent
-Run Log modal.
+copy. `r` inside the pager re-snapshots the agent, which matters for a still-running
+one. `V` is unavailable for remote fleet rows and when no agent is selected; other tabs
+keep `V` bound to the Agent Run Log modal.
 
-`Ctrl+J` and `Ctrl+K` cycle forward and backward through the rendered titled sections in
-this pane, with the true top of the metadata document as a waypoint before the first
-title. On a fresh agent document, the first forward jump selects the first title and the
-first reverse jump selects the final title. From the final title, `Ctrl+J` jumps to the
-document top and another press selects the first title; from the first title, `Ctrl+K`
-jumps to the document top and another press selects the final title. Both directions
-share one cursor. Each selected title is aligned with the first visible metadata row,
-including a short final section, while the top waypoint reveals the top of the scrolling
-body before the first title (identity fields live in the sticky header panel above).
-Only rendered ALL-CAPS underlined section titles participate; matching text inside
-prompts or replies does not. Numbered roster rows (`SESSION SHELLS`, `CLAN MEMBERS`,
-`TRIBE MEMBERS`, `NEIGHBORS`) live in the jump panel and are not `Ctrl+J`/`Ctrl+K`
-stops; within a session container's `SASE CONTEXT` region, its lane sub-headings
-(`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold
-anchors, not titles — `za`/`zA` still reach them when they own the viewport's top row,
-but they are never `Ctrl+J`/`Ctrl+K` stops. Roster rows are also not `za`/`zA` targets
-and are not covered by `,/` metadata search. The shortcuts continue to target the
-metadata pane when a file or LLM Calls pane is also visible, and changing agents or
-entering/leaving a pinned attempt view resets the cursor.
+`Ctrl+J` and `Ctrl+K` move to the next / previous card in the focused deck panel
+(wrapping). In a paged Main deck this swaps the visible card; in a spread Main deck it
+scrolls the next / previous card's header to the top. The chosen card is the panel's
+preferred card: on a new selection the panel shows the preferred card when the node has
+it, otherwise the default card (`Context`, or `Summary` for clan and tribe documents),
+while the preference itself is kept. Numbered roster rows (`SESSION SHELLS`,
+`CLAN MEMBERS`, `TRIBE MEMBERS`, `NEIGHBORS`) live in the jump panel and are not cards;
+within a session container's `SASE CONTEXT` region, its lane sub-headings (`BEAD`,
+`PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not
+cards — `za`/`zA` still reach them when they own the viewport's top row. Roster rows are
+also not `za`/`zA` targets and are not covered by `,/` search. The shortcuts act on the
+focused deck panel, and changing agents or entering/leaving a pinned attempt view keeps
+the preferred card.
 
 - **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
@@ -5381,75 +5360,73 @@ entering/leaving a pinned attempt view resets the cursor.
   launch order (earliest first), which keeps their numbers stable while statuses change.
   Each numbered row shows the hood-relative suffix, kind, status, model, and duration;
   members of a nested sequential session are indented under its aggregate row. `Ctrl+J`
-  / `Ctrl+K` navigate the rendered section headings, and pressing the row's number jumps
-  to that member in the Agents list. At most 100 members receive numbers.
+  / `Ctrl+K` move between the Main deck's cards, and pressing the row's number jumps to
+  that member in the Agents list. At most 100 members receive numbers.
 - **SESSION**: Shown when a real multi-member session root is selected. The cyan kind
   label renders as the header panel title and the cyan `Name:` value matches the session
-  row's identity block. The title is header chrome, not a `Ctrl+J` title; the
-  `SESSION SHELLS` roster lives in the jump panel and is not a navigable section. On a
-  session container, its `SASE CONTEXT` heading is the navigable title for that region;
-  its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`,
-  `SKILLS`, `WORKSPACES`) stay fold anchors only.
+  row's identity block. The title is header chrome, not a card; the `SESSION SHELLS`
+  roster lives in the jump panel and is not a navigable section. On a session container,
+  its `SASE CONTEXT` heading opens the Context card region; its per-lane sub-headings
+  (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) stay fold
+  anchors only.
 - **AGENT SHELL**: Shown when a standalone sase agent or session member row is selected.
   The gold kind label renders as the header panel title and the gold `Name:` value
-  matches the list-row name annotation. The title is header chrome, not a `Ctrl+J`
-  title. Monitor members and workflow step children (`bash` / `python` / `parallel`) do
-  not get this heading.
+  matches the list-row name annotation. The title is header chrome, not a card. Monitor
+  members and workflow step children (`bash` / `python` / `parallel`) do not get this
+  heading.
 - **Header panel**: The selected node's identity header (every field from the kind line
   through Timestamps, plus Fold where present) renders in its own always-visible panel
-  at the top of the detail column in every layout, including the file-only and LLM
-  Calls-only layouts, where it sits above the secondary panel. Collapsed, it keeps the
-  two chip rows — who and how on row 1, what and state on row 2 — and previews the
-  agent's `AGENT XPROMPT` below them. Every preview row carries the `▎` quote bar in the
-  XPROMPT accent; hard-wrapped prose reflows into wrapped rows, hard breaks render as a
-  dim `¶`, and the highlighting matches the expanded prompt. The preview fills the panel
-  width and takes as many rows as the `ace.agent_header.collapsed_max_share` budget
-  allows (about a third of the column by default; `0` turns the preview off). On
-  overflow the last row ends in `…` and the border subtitle becomes
-  `+N lines · ▾ d more`. `d` expands the panel to the full field list plus the complete
-  `AGENT XPROMPT` under its own heading (or collapses it back). The kind label moves
-  into the panel's border title in the node's accent color — `AGENT`, `AGENT SHELL`,
-  `SESSION`, `CLAN`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a
-  selected whole tribe panel, `TRIBE` — and the border subtitle shows what `d` will do
-  (`▾ d more` / `▴ d less`, naming the configured `toggle_agent_header` key). The panel
-  is hidden only for "No agent selected". `AGENT XPROMPT` no longer renders in the
-  scrolling body and is not a `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words
-  through `AGENT PROMPT`. A clan's collapsed rows mirror the tribe layout: name, status,
-  and count chip on row 1; tribes, member totals, runtime, and the fold chip on row 2.
-  Collapsed/expanded state is per session and holds across row moves, tribe focus, and
-  layout changes. While file-hint markers (`[N]`) are visible the panel renders expanded
-  so every hint stays selectable. Attempt-pinned views never rendered `AGENT XPROMPT`
-  and show no preview, and nodes without an xprompt show exactly the two chip rows
-  inside the border. Metadata search (`,/`) covers the scrolling body only, since header
-  fields stay on screen.
+  at the top of the detail column, above the deck panels in every deck layout.
+  Collapsed, it keeps the two chip rows — who and how on row 1, what and state on row 2
+  — and previews the agent's `AGENT XPROMPT` below them. Every preview row carries the
+  `▎` quote bar in the XPROMPT accent; hard-wrapped prose reflows into wrapped rows,
+  hard breaks render as a dim `¶`, and the highlighting matches the expanded prompt. The
+  preview fills the panel width and takes as many rows as the
+  `ace.agent_header.collapsed_max_share` budget allows (about a third of the column by
+  default; `0` turns the preview off). On overflow the last row ends in `…` and the
+  border subtitle becomes `+N lines · ▾ d more`. `d` expands the panel to the full field
+  list plus the complete `AGENT XPROMPT` under its own heading (or collapses it back).
+  The kind label moves into the panel's border title in the node's accent color —
+  `AGENT`, `AGENT SHELL`, `SESSION`, `CLAN`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`,
+  `PROC SHELL`, or, for a selected whole tribe panel, `TRIBE` — and the border subtitle
+  shows what `d` will do (`▾ d more` / `▴ d less`, naming the configured
+  `toggle_agent_header` key). The panel is hidden only for "No agent selected".
+  `AGENT XPROMPT` no longer renders in the scrolling body and is not a `Ctrl+J`/`Ctrl+K`
+  stop; `,/` still finds the user's words through `AGENT PROMPT`. A clan's collapsed
+  rows mirror the tribe layout: name, status, and count chip on row 1; tribes, member
+  totals, runtime, and the fold chip on row 2. Collapsed/expanded state is per session
+  and holds across row moves, tribe focus, and layout changes. While file-hint markers
+  (`[N]`) are visible the panel renders expanded so every hint stays selectable.
+  Attempt-pinned views never rendered `AGENT XPROMPT` and show no preview, and nodes
+  without an xprompt show exactly the two chip rows inside the border. Deck search
+  (`,/`) covers the focused panel's deck only, since header fields stay on screen.
 - **Jump panel**: Every live numbered roster target (session shells, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
-  detail column, below the file / LLM Calls panel, in every layout; the metadata body
-  does not contain these sections, although the zoom view (`Z`) shows them inline in its
-  metadata document. The panel is shown only while the current document has numbered
-  targets — never for "No agent selected", nodes without rosters, fully unnumbered
-  rosters, or file-hint documents — and it stays visible during metadata search (`,/`),
-  since the digits keep working there. It is collapsed by default to at most two packed
-  rows, where each visible number carries its roster label, shortened with a middle
-  ellipsis only as far as it stays distinct from every other label (the packer shows
-  fewer targets rather than ambiguous ones). When targets do not fit, the last cell is a
-  dim `+N` count; digits still reach every numbered target, including those counted in
-  `+N`. `.` expands the panel to the full roster sections, with their fold-driven
-  annotations; expanded, it grows to at most 40% of the detail column, scrolls, and
-  returns to its top when you select a different row. The border title is the color
-  legend (`JUMP`, then one entry per section with its number range), and the border
-  subtitle names the configured `toggle_agent_jump_panel` key (`▴ . more` / `▾ . less`).
-  Each collapsed cell echoes its roster row: the number chip in the roster style, the
-  label, and the status glyph; a dismissed neighbor renders dim with a `⊘` prefix (and a
-  `revive` note when narrowed), since its digit revives the agent instead of jumping.
-  After the first digit of a two-key jump, the panel narrows to the matching candidates
-  (`JUMP · 1▁`, `esc cancel`), or shows `no targets start with <digit>`; completing or
-  cancelling the jump restores the collapsed or expanded view. Collapsed/expanded state
-  is per session and holds across row moves, tribe focus, and layout changes. Toggling
-  never rebuilds the document, and a bottom-pinned body stays pinned. Roster headings
-  are not `Ctrl+J`/`Ctrl+K` stops; `za`/`zA` cannot target a roster section or roster
-  row (rosters follow the global panel fold keys `zz`, `zZ`, and the direct level keys);
-  and `,/` metadata search does not cover roster rows.
+  detail column, below the deck panels in every deck layout; the Main deck body does not
+  contain these sections. The panel is shown only while the current document has
+  numbered targets — never for "No agent selected", nodes without rosters, fully
+  unnumbered rosters, or file-hint documents — and it stays visible during deck search
+  (`,/`), since the digits keep working there. It is collapsed by default to at most two
+  packed rows, where each visible number carries its roster label, shortened with a
+  middle ellipsis only as far as it stays distinct from every other label (the packer
+  shows fewer targets rather than ambiguous ones). When targets do not fit, the last
+  cell is a dim `+N` count; digits still reach every numbered target, including those
+  counted in `+N`. `.` expands the panel to the full roster sections, with their
+  fold-driven annotations; expanded, it grows to at most 40% of the detail column,
+  scrolls, and returns to its top when you select a different row. The border title is
+  the color legend (`JUMP`, then one entry per section with its number range), and the
+  border subtitle names the configured `toggle_agent_jump_panel` key (`▴ . more` /
+  `▾ . less`). Each collapsed cell echoes its roster row: the number chip in the roster
+  style, the label, and the status glyph; a dismissed neighbor renders dim with a `⊘`
+  prefix (and a `revive` note when narrowed), since its digit revives the agent instead
+  of jumping. After the first digit of a two-key jump, the panel narrows to the matching
+  candidates (`JUMP · 1▁`, `esc cancel`), or shows `no targets start with <digit>`;
+  completing or cancelling the jump restores the collapsed or expanded view.
+  Collapsed/expanded state is per session and holds across row moves, tribe focus, and
+  layout changes. Toggling never rebuilds the document, and a bottom-pinned body stays
+  pinned. Roster headings are not cards; `za`/`zA` cannot target a roster section or
+  roster row (rosters follow the global panel fold keys `zz`, `zZ`, and the direct level
+  keys); and `,/` deck search does not cover roster rows.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title
@@ -5487,13 +5464,13 @@ entering/leaving a pinned attempt view resets the cursor.
   progress indicators. Launch-consumption validation normalizes only an omitted
   historical size to `small`; explicit invalid sizes remain unavailable. The chip stays
   visible while the title and every other value wrap without truncation in the normal
-  panel and metadata zoom view, and logical text exposes the same labels to metadata
-  search and copy. Only the path participates in file hint mode. Invalid known epics
-  show `phases unavailable` in the lane header without leaking partial entries; tales do
-  not show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every
-  combination of present lanes, the full order is `PLAN`, `BEAD`, `ARTIFACTS`, `MEMORY`,
-  `GLOSSARY`, `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve
-  and still-resolving lanes holding their slot with a dim `resolving…` row.
+  panel and zoomed deck view, and logical text exposes the same labels to deck search
+  and copy. Only the path participates in file hint mode. Invalid known epics show
+  `phases unavailable` in the lane header without leaking partial entries; tales do not
+  show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every combination of
+  present lanes, the full order is `PLAN`, `BEAD`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`,
+  `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve and
+  still-resolving lanes holding their slot with a dim `resolving…` row.
 - **SASE CONTEXT / GLOSSARY**: Shown directly after `MEMORY` whenever the selected agent
   or session has at least one audited event under the retired, pre-web
   `sase glossary read` command's legacy log. Current
@@ -5624,14 +5601,13 @@ entering/leaving a pinned attempt view resets the cursor.
   original launch prompt (stored under `~/.sase/.../multi_prompts/`), so the exact text
   that fanned out into every segment stays recoverable.
 
-When the file or LLM Calls panel is empty, the `g`/`G` keys automatically fall back to
-scrolling the metadata panel.
+`g` / `G`, `Ctrl+D` / `Ctrl+U`, and the bottom pin act on the focused deck panel.
 
 ## Agents Tab LLM Calls Panel
 
-Choose `t` from the Agent view picker to open the LLM Calls panel. It shows a
-chronological timeline of the LLM tool calls the selected agent has made — file reads,
-edits, bash invocations, web fetches, sub-agent launches, and so on.
+The Tools deck's `LLM Calls` card shows a chronological timeline of the LLM tool calls
+the selected agent has made — file reads, edits, bash invocations, web fetches,
+sub-agent launches, and so on.
 
 Entries are read from the `tool_calls.jsonl` artifact in the agent's run directory. Each
 call renders as one timeline row:
@@ -5653,10 +5629,9 @@ timestamp. The body shows `No provider tool-call artifact available` when the fi
 not yet exist for this agent and `No tool calls recorded` when the file exists but
 contains zero records.
 
-The timeline has three detail levels: compact, expanded, and full. While the LLM Calls
-panel is showing, `l` adds one level of detail and `H` returns to compact, taking
-priority over their usual fold actions. In the [zoom view](#agents-zoom-panel), `l` /
-`h` step the level up or down and `L` / `H` jump to full or compact.
+The timeline has three detail levels: compact, expanded, and full. While the focused
+deck panel shows the Tools deck, `l` / `h` step the level up / down and `L` / `H` jump
+to full / compact, taking priority over their usual fold actions.
 
 For retry chains and planner-to-coder follow-up sessions, the panel aggregates
 `tool_calls.jsonl` from related artifact directories so the selected logical agent shows
@@ -5997,7 +5972,7 @@ ace:
       show_notifications: "N" # Remap i → N
 ```
 
-Agents metadata search is independent: remap
+Agents deck search is independent: remap
 `ace.keymaps.modes.leader_mode.keys.search_forward` to change the subkey after the
 configured leader prefix. Structured query editing on every query-capable surface,
 including Agents, is `ace.keymaps.app.edit_query`. Stale `app.search_forward` and
@@ -7790,8 +7765,8 @@ it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
   between the agent name and the secondary text (`acme--mon · TESTING · Working...`),
   and again on the output header's `agent` line.
 - **Live `live_reply.md`.** The output pane streams the monitor's artifacts-owned log
-  (`<artifacts_dir>/live_reply.md`) the same way the agent metadata panel does, so a
-  running monitor is not an empty `Working...`.
+  (`<artifacts_dir>/live_reply.md`) the same way the agent Main deck does, so a running
+  monitor is not an empty `Working...`.
 - **`<enter>` jumps to the agent.** On a monitor whose agent row is loaded, `<enter>`
   (or a click) closes Admin Center and reveals that agent on the Agents tab. The hints
   line shows `⏎: agent` only when that jump is possible. If the agent is not on the

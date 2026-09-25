@@ -153,8 +153,8 @@ def test_agents_help_documents_inline_metadata_search() -> None:
             "Filter agents by query",
         ),
     ]
-    assert sections["Metadata Search"] == [
-        (leader_key_display(reg, "search_forward"), "Start metadata search forward"),
+    assert sections["Deck Search"] == [
+        (leader_key_display(reg, "search_forward"), "Start deck search forward"),
         ("Ctrl+R", "Reverse active search order"),
         ("n / N", "Next / previous match"),
         ("Enter / Esc / Ctrl+C", "Accept / cancel search query"),

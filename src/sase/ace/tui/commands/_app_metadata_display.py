@@ -54,7 +54,7 @@ DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "search_reverse",
-        "Reverse metadata search order",
+        "Reverse deck search order",
         "Queries",
         AGENTS_ONLY,
         ("find", "reverse", "search direction", "ctrl+r"),

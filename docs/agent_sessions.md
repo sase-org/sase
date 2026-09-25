@@ -410,7 +410,7 @@ parents in one multi-parent fork.
 
 ### Session detail folding
 
-Selecting a real multi-member session root in sase's TUI opens the metadata panel with
+Selecting a real multi-member session root in sase's TUI opens the Main deck with
 underlined `SESSION` (cyan, matching the name), with a numbered `SESSION SHELLS` roster
 in the jump panel in stable chain order: agent shells in chain order, with each monitor
 spliced in directly after its starter shell. The original member and each follow-up are

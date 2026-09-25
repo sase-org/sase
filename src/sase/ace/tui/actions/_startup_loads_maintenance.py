@@ -11,6 +11,27 @@ log = logging.getLogger(__name__)
 class StartupLoadsMaintenanceMixin:
     """Mixin for deferred maintenance, post-roster warmups, and prunes."""
 
+    def _maybe_show_agent_decks_toast(self: Any) -> None:
+        """Show the agent data decks cut-over notice once, ever."""
+        from .._agent_decks_notice import (
+            has_shown_agent_decks_notice,
+            mark_agent_decks_notice_shown,
+        )
+
+        if has_shown_agent_decks_notice():
+            return
+        mark_agent_decks_notice_shown()
+        self.notify(
+            "The Agents detail column now shows agent data decks (Main, Files, "
+            "Tools) made of cards. Ctrl+J/K move between cards, Ctrl+N/P between "
+            "decks, \\ and | split panels, Ctrl+F moves focus, Ctrl+S collapses "
+            "the node list, and Z zooms in place. The p view picker is retired. "
+            "Press '?' for the full keymap.",
+            title="Agents tab uses decks and cards",
+            severity="information",
+            timeout=15.0,
+        )
+
     def _maybe_show_keymap_unification_toast(self: Any) -> None:
         """Show the sase-m6.9 ``y``/``R`` flip notice once, ever."""
         from .._keymap_unification_notice import (
@@ -85,6 +106,10 @@ class StartupLoadsMaintenanceMixin:
                 self._maybe_show_keymap_unification_toast()
             except Exception:
                 log.debug("Failed to show keymap unification toast", exc_info=True)
+            try:
+                self._maybe_show_agent_decks_toast()
+            except Exception:
+                log.debug("Failed to show agent decks toast", exc_info=True)
         try:
             schedule_usage_refresh = getattr(
                 self, "_schedule_usage_refresh_fallback", None

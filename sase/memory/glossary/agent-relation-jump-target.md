@@ -14,14 +14,13 @@ dismissed ones included), `CLAN MEMBERS` (an agent clan's direct members), or
 rosters shown for one selection share a single number sequence: `0`–`9`, or `00`–`99`
 past ten targets, capped at 100. Typing a number selects its target and reveals it
 through any folds; a dismissed target is revived instead. The jump panel, the sticky
-footer below the Agents detail panels, lists every live agent relation jump target.
+footer below the deck panels, lists every live agent relation jump target.
 
 Only numbered rows are agent relation jump targets. Rows behind a `… +N more` tail,
 unnumbered child rows, `… also listed under SESSION SHELLS` duplicates, and tribe
 `CLAN SUMMARIES` / `PROMPTS` chips that reuse a member's number are not. Plain "jump
 target" is ambiguous, and none of its other uses is an agent relation jump target: `'`
-entry hints (including the `AgentJumpTarget` type in `jump_hints.py`), `Ctrl+J`/`Ctrl+K`
-metadata section stops, `,j`/`,J` unread and stopped-agent jumps, `Ctrl+]`
-prompt-definition jumps, and Admin Center section and `,L` error-log jumps. The
-Artifacts tab's relation panel `<`/`>` keys follow artifact relations, not agent
-relations.
+entry hints (including the `AgentJumpTarget` type in `jump_hints.py`), `,j`/`,J` unread
+and stopped-agent jumps, `Ctrl+]` prompt-definition jumps, and Admin Center section and
+`,L` error-log jumps. The Artifacts tab's relation panel `<`/`>` keys follow artifact
+relations, not agent relations.

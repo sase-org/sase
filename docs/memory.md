@@ -165,7 +165,7 @@ strand the batch requested, and `--path` matches any of them — for example
 `--path glossary:stitch` finds a batch that also read other strands. Strands pulled in
 only by link or mention closure count as context, not as requested reads. The same
 per-file counting drives the `SASE CONTEXT` / `MEMORY` lane of the
-[agent metadata panel](ace.md#agents-tab-metadata-panel), including clan aggregates.
+[agent Main deck](ace.md#agents-tab-main-deck), including clan aggregates.
 
 ## Memory Webs
 
@@ -262,9 +262,9 @@ Every audited read requires a non-empty reason via `-r`/`--reason` and agent att
 the same way as [Audited Reads](#audited-reads) above, and the event records the
 requested selectors, every related strand the closure added, the depth limit, and the
 total bytes served. A `glossary:<keyword>` read also appears in the `GLOSSARY` lane of
-the agent metadata panel in [sase's TUI](ace.md#agents-tab-metadata-panel) alongside any
-legacy pre-migration events; selecting that lane's numbered hint pages a generated
-report of the read's output.
+the agent Main deck in [sase's TUI](ace.md#agents-tab-main-deck) alongside any legacy
+pre-migration events; selecting that lane's numbered hint pages a generated report of
+the read's output.
 
 `sase memory log --include glossary` folds in audit events recorded under the retired
 pre-web `sase glossary read` command, so historical reads stay visible; that legacy

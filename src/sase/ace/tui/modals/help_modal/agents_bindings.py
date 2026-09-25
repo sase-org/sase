@@ -106,11 +106,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
-                    "Scroll detail top / bottom; metadata follows",
+                    "Scroll detail top / bottom; deck follows",
                 ),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
-                    "Scroll file panel down / up",
+                    "Scroll focused deck down / up",
                 ),
                 *link_follow_row,
             ],
@@ -152,7 +152,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.clear_marks), "Clear all agent marks"),
                 (d(a.open_agent_cleanup_panel), "Open cleanup panel"),
                 (d(a.edit_spec), "Edit chat(s) / open remote content"),
-                (d(a.edit_panel), "Edit panel content in editor"),
+                (d(a.edit_panel), "Edit focused deck in editor"),
                 (d(a.view_files), "Hint files/tool calls/commits/clans"),
                 (d(a.view_agent_metadata), "Page metadata, prompts & reply"),
                 ("p (commit view)", "Toggle attached local plan / commit"),
@@ -194,11 +194,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Metadata Search",
+            "Deck Search",
             [
                 (
                     leader_key_display(km, "search_forward"),
-                    "Start metadata search forward",
+                    "Start deck search forward",
                 ),
                 (d(a.search_reverse), "Reverse active search order"),
                 ("n / N", "Next / previous match"),
