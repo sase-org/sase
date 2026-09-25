@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
     BeadCompletionMetadata,
@@ -161,7 +163,7 @@ def test_wait_arg_completion_orders_kinds_and_matches_bare_tribe() -> None:
                 "review", "review", "RUNNING", kind="clan", member_count=2
             ),
             AgentCompletionCandidate(
-                "ship", "ship", "RUNNING", kind="family", member_count=2
+                "ship", "ship", "RUNNING", kind="session", member_count=2
             ),
             tribe,
         ],
@@ -194,7 +196,7 @@ def test_wait_arg_completion_excludes_groups_and_deduplicates_insertions() -> No
         agent_candidates=[
             AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
             AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
-            AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+            AgentCompletionCandidate("ship", "ship", "RUNNING", kind="session"),
             AgentCompletionCandidate("ship", "ship", "RUNNING"),
             AgentCompletionCandidate("coder", "coder", "RUNNING"),
         ],
@@ -596,7 +598,7 @@ def test_repeat_offers_positive_count_examples() -> None:
     assert [candidate.insertion for candidate in candidates] == ["2", "3"]
 
 
-def test_id_conflict_omits_family_and_tribe_after_clan() -> None:
+def test_id_conflict_omits_session_and_tribe_after_clan() -> None:
     line = "%id(worker, clan=builders, )"
     clause = classify_directive_completion(line, line.index(")"))
     assert clause is not None
@@ -622,12 +624,30 @@ def test_id_clan_value_filters_to_clan_kind() -> None:
         clause,
         agent_candidates=[
             AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
-            AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+            AgentCompletionCandidate("ship", "ship", "RUNNING", kind="session"),
             agent_candidate("coder"),
         ],
     )
 
     assert [candidate.insertion for candidate in candidates] == ["review"]
+
+
+@pytest.mark.parametrize("keyword", ["session", "family"])
+def test_id_session_value_filters_to_session_kind(keyword: str) -> None:
+    # Core still emits value_role "family" for both spellings until core-contract.
+    line = f"%id(worker, {keyword}=sh"
+    clause = classify_directive_completion(line, len(line))
+    assert clause is not None
+    candidates, _ = build_directive_clause_candidates(
+        clause,
+        agent_candidates=[
+            AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
+            AgentCompletionCandidate("ship", "ship", "RUNNING", kind="session"),
+            AgentCompletionCandidate("shell", "shell", "RUNNING"),
+        ],
+    )
+
+    assert [candidate.insertion for candidate in candidates] == ["ship"]
 
 
 def test_wait_bead_values_use_core_ranked_inventory() -> None:

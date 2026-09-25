@@ -26,7 +26,7 @@ from ...models.agent_runner_slots import (
 from ...models.agent_owner_badge import agent_owner_badge_label
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
-    _FAMILY_NAME_STYLE,
+    _AGENT_SESSION_NAME_STYLE,
     _OWNER_BADGE_STYLE,
     _PROC_SHELL_ID_STYLE,
 )
@@ -116,7 +116,7 @@ def _append_identity_fields(
     presented_name = agent.presented_agent_name or agent.agent_name
     if presented_name:
         name_style = (
-            _FAMILY_NAME_STYLE
+            _AGENT_SESSION_NAME_STYLE
             if agent.is_agent_session_container_row
             else _PROC_SHELL_ID_STYLE
             if agent.is_proc_shell

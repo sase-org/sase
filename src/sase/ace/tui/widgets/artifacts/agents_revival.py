@@ -92,7 +92,7 @@ class AgentsRevivalMixin(_MixinBase):
                 preferred_target=ArtifactEntryTarget("agents", (related[0].name,)),
             )
         if len(related) > 1:
-            query = _revivable_family_query(entry)
+            query = _revivable_agent_session_query(entry)
             return AgentsRevivalRequest(
                 seed_query=query,
                 message=(
@@ -212,7 +212,7 @@ def _parse_seed_query(query: str) -> Mapping[str, str] | None:
         key, value = part.split(":", 1)
         key = key.strip()
         value = value.strip()
-        if key not in {"state", "revivable", "family", "clan"}:
+        if key not in {"state", "revivable", "session", "clan"}:
             return None
         terms[key] = value
     return terms
@@ -233,13 +233,13 @@ def _row_matches_terms(row: AgentCatalogRow, terms: Mapping[str, str]) -> bool:
             if row.state != value:
                 return False
             continue
-        row_value = getattr(row, key)
+        row_value = row.agent_session if key == "session" else getattr(row, key)
         if row_value != value:
             return False
     return True
 
 
-def _revivable_family_query(entry: AgentCatalogRow) -> str:
+def _revivable_agent_session_query(entry: AgentCatalogRow) -> str:
     if "session" in entry.kind:
         return f"{AGENTS_REVIVABLE_QUERY} AND session:{entry.name}"
     if "clan" in entry.kind:

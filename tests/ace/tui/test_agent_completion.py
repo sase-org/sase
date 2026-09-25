@@ -8,7 +8,7 @@ from typing import Any
 from rich.console import Console
 from rich.style import Style
 
-import sase.ace.tui.models.agent_session_preview_cache as family_preview_cache
+import sase.ace.tui.models.agent_session_preview_cache as agent_session_preview_cache
 from sase.agent_session_plan_preview import AgentSessionPlanPreview
 from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
@@ -83,7 +83,7 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
         lambda workflow_type: "GitHub" if workflow_type == "gh" else None,
     )
 
-    family = _agent(
+    agent_session_root = _agent(
         tmp_path,
         agent_name="completion.plan",
         agent_session="completion",
@@ -100,7 +100,7 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     other = _agent(tmp_path, agent_name="verifier", raw_suffix="260624_120003")
 
     candidates = build_agent_completion_candidates(
-        [family, duplicate, unnamed, other],
+        [agent_session_root, duplicate, unnamed, other],
         exclude_identity=other.identity,
     )
 
@@ -108,7 +108,7 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     assert candidates[0].kind == "tribe"
     assert candidates[0].member_count == 1
     candidate = candidates[1]
-    assert candidate.kind == "family"
+    assert candidate.kind == "session"
     assert candidate.member_count == 1
     assert candidate.label == "completion.plan"
     assert candidate.model == "codex / gpt-5@high"
@@ -121,12 +121,12 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     assert candidate.vcs_workflow.provider_display == "GitHub"
 
 
-def test_family_completion_candidate_attaches_cached_plan_preview(
+def test_agent_session_completion_candidate_attaches_cached_plan_preview(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    preview = _plan_preview("Plan-aware family preview")
-    family = _agent(
+    preview = _plan_preview("Plan-aware session preview")
+    agent_session_root = _agent(
         tmp_path,
         agent_name="completion.plan",
         agent_session="completion",
@@ -140,19 +140,19 @@ def test_family_completion_candidate_attaches_cached_plan_preview(
         lambda _agent: preview,
     )
 
-    candidates = build_agent_completion_candidates([family])
+    candidates = build_agent_completion_candidates([agent_session_root])
     candidate = candidates[0]
 
     assert candidate.plan_preview is preview
-    assert "Plan-aware family preview" in candidate.search_aliases
+    assert "Plan-aware session preview" in candidate.search_aliases
     assert filter_agent_completion_candidates(candidates, "Plan-aware") == [candidate]
-    assert "plan-aware family preview" in candidate.search_text
+    assert "plan-aware session preview" in candidate.search_text
 
 
-def test_family_completion_candidate_uses_first_member_prompt_when_root_is_empty(
+def test_agent_session_completion_candidate_uses_first_member_prompt_when_root_is_empty(
     tmp_path: Path,
 ) -> None:
-    family = _agent(
+    agent_session_root = _agent(
         tmp_path,
         agent_name="ship--plan",
         raw_suffix="20260718110000",
@@ -166,22 +166,22 @@ def test_family_completion_candidate_uses_first_member_prompt_when_root_is_empty
         raw_suffix="20260718110001",
         agent_session="ship",
         agent_session_role="code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         raw_prompt="Implement initial agent prompt fallback",
     )
-    family.followup_agents.append(code)
+    agent_session_root.followup_agents.append(code)
 
-    candidates = build_agent_completion_candidates([family, code])
+    candidates = build_agent_completion_candidates([agent_session_root, code])
     candidate = next(candidate for candidate in candidates if candidate.name == "ship")
 
     assert candidate.prompt_snippet == "Implement initial agent prompt fallback"
 
 
-def test_family_completion_candidate_build_does_not_resolve_plan_or_bead_io(
+def test_agent_session_completion_candidate_build_does_not_resolve_plan_or_bead_io(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    family = _agent(
+    agent_session_root = _agent(
         tmp_path,
         agent_name="ship--plan",
         agent_session="ship",
@@ -194,12 +194,12 @@ def test_family_completion_candidate_build_does_not_resolve_plan_or_bead_io(
         raise AssertionError("completion candidate build must not resolve previews")
 
     monkeypatch.setattr(
-        family_preview_cache,
+        agent_session_preview_cache,
         "resolve_agent_plan_enrichment",
         fail_resolver,
     )
 
-    candidates = build_agent_completion_candidates([family])
+    candidates = build_agent_completion_candidates([agent_session_root])
 
     assert candidates[0].name == "ship"
     assert candidates[0].plan_preview is None
@@ -362,7 +362,7 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         agent_clan_generation="20260718100000",
         status="DONE",
     )
-    family = _agent(
+    agent_session_root = _agent(
         tmp_path,
         agent_name="ship--plan",
         raw_suffix="20260718110000",
@@ -377,9 +377,9 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         raw_suffix="20260718110001",
         agent_session="ship",
         agent_session_role="code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
     )
-    family.followup_agents.append(code)
+    agent_session_root.followup_agents.append(code)
     solo = _agent(
         tmp_path,
         agent_name="solo",
@@ -388,14 +388,14 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
     )
 
     candidates = build_agent_completion_candidates(
-        [*project_clan_tree([old, alpha, beta]), family, code, solo]
+        [*project_clan_tree([old, alpha, beta]), agent_session_root, code, solo]
     )
 
     assert [(candidate.kind, candidate.name) for candidate in candidates[:4]] == [
         ("tribe", "@builders"),
         ("tribe", "@makers"),
         ("clan", "review"),
-        ("family", "ship"),
+        ("session", "ship"),
     ]
     by_name = {candidate.name: candidate for candidate in candidates}
     assert by_name["@builders"].member_count == 3
@@ -448,10 +448,10 @@ def test_proc_shell_is_not_also_offered_as_a_plain_agent_candidate(
     assert [candidate.kind for candidate in candidates] == ["proc"]
 
 
-def test_family_completion_candidate_counts_monitor_shell_member(
+def test_agent_session_completion_candidate_counts_monitor_shell_member(
     tmp_path: Path,
 ) -> None:
-    family = _agent(
+    agent_session_root = _agent(
         tmp_path,
         agent_name="alpha--plan",
         raw_suffix="20260718110000",
@@ -466,18 +466,18 @@ def test_family_completion_candidate_counts_monitor_shell_member(
         agent_session="alpha",
         agent_session_role="monitor",
         role_suffix="--mon",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         status="MONITORED",
         status_bucket="Done",
     )
     monitor.monitor_id = "m-123"
     monitor.monitor_state = "completed"
-    family.followup_agents.append(monitor)
+    agent_session_root.followup_agents.append(monitor)
 
-    candidates = build_agent_completion_candidates([family, monitor])
+    candidates = build_agent_completion_candidates([agent_session_root, monitor])
     candidate = next(candidate for candidate in candidates if candidate.name == "alpha")
 
-    assert candidate.kind == "family"
+    assert candidate.kind == "session"
     assert candidate.member_count == 2
     assert "alpha--mon" in candidate.member_names
 

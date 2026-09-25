@@ -19,7 +19,7 @@ from ...models.fold_state import FoldLevel
 from ...models.tribe_display import tribe_identity_style
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
-    _FAMILY_NAME_STYLE,
+    _AGENT_SESSION_NAME_STYLE,
     _PROC_SHELL_ID_STYLE,
 )
 from ._agent_display_header_metadata import _UNASSIGNED_AGENT_NAME_DISPLAY
@@ -78,7 +78,7 @@ def _name_chip(agent: Agent) -> Text:
         chip.append(_UNASSIGNED_AGENT_NAME_DISPLAY, style=_NAME_FALLBACK_STYLE)
         return chip
     if agent.is_agent_session_container_row:
-        style = _FAMILY_NAME_STYLE
+        style = _AGENT_SESSION_NAME_STYLE
     elif agent.is_proc_shell:
         style = _PROC_SHELL_ID_STYLE
     else:

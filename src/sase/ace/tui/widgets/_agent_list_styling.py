@@ -228,8 +228,8 @@ _TREE_DEPTH_COLORS: tuple[str, ...] = (
 # grouping kind without adding a trailing marker to the displayed name.
 _CLAN_IDENTITY_COLOR = "#D75FFF"
 _CLAN_NAME_STYLE = _CLAN_IDENTITY_COLOR
-_FAMILY_IDENTITY_COLOR = "#00AFFF"
-_FAMILY_NAME_STYLE = _FAMILY_IDENTITY_COLOR
+_AGENT_SESSION_IDENTITY_COLOR = "#00AFFF"
+_AGENT_SESSION_NAME_STYLE = _AGENT_SESSION_IDENTITY_COLOR
 _OWNER_BADGE_STYLE = "bold #AF87D7"
 
 # Type glyphs for the small set of non-``RUNNING`` top-level rows.  The
@@ -265,7 +265,7 @@ def monitor_status_presentation(
 
     A row uses monitor-status styling when its ``status`` equals either
     half of its recorded pair. That covers the monitor member itself and a
-    family container currently mirroring one. Rows with no recorded pair,
+    session container currently mirroring one. Rows with no recorded pair,
     or whose status matches neither half, return ``None`` so ordinary
     status styling applies.
 

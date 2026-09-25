@@ -27,8 +27,9 @@ if TYPE_CHECKING:
     from sase.ace.tui.models import Agent
     from sase.ace.tui.models.agent_wait_beads import WaitBeadStatusSnapshot
 
-# When a family wait resolves to multiple agents, active work takes precedence
-# over terminal states, and a successful terminal attempt satisfies the family.
+# When an agent-session wait resolves to multiple agents, active work takes
+# precedence over terminal states, and a successful terminal attempt satisfies
+# the agent session.
 _WAIT_DEPENDENCY_BUCKET_PRECEDENCE: tuple[str, ...] = (
     "Running",
     "Starting",
@@ -211,7 +212,7 @@ def collect_agent_wait_status_maps(
     clan_member_statuses: dict[str, tuple[tuple[str, str], ...]] = {}
     for group in visible_clan_completion_groups(all_agents):
         # Clan names are reserved in current data. If legacy rows collide,
-        # retain the real agent/family wait-target behavior.
+        # retain the real agent/session wait-target behavior.
         if group.name in buckets:
             continue
         aggregate_bucket = aggregate_agent_group_bucket(
@@ -418,7 +419,7 @@ def missing_wait_dependency_names(
     """Return ordered agent wait targets absent from a usable status snapshot.
 
     ``None`` preserves the distinction between an unavailable snapshot and a
-    usable snapshot where every target is known. Synthetic family, clan, and
+    usable snapshot where every target is known. Synthetic session, clan, and
     root rows inherit the effective wait source used by the rest of the TUI.
     """
     from sase.ace.tui.models.agent_time import wait_display_agent

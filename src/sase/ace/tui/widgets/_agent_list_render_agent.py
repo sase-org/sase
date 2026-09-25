@@ -45,7 +45,7 @@ from ._agent_list_styling import (
     _BEAD_LINKED_AGENT_GLYPH,
     _BEAD_LINKED_AGENT_GLYPH_STYLE,
     _CLAN_NAME_STYLE,
-    _FAMILY_NAME_STYLE,
+    _AGENT_SESSION_NAME_STYLE,
     _FILE_CHANGE_GLYPH,
     _FILE_CHANGE_GLYPH_STYLE,
     _FOLD_RESTORE_GLYPH,
@@ -279,7 +279,7 @@ def format_agent_option(
     else:
         presented_name = agent.presented_agent_name or agent.agent_name
         if is_agent_session_container_row:
-            identity_name_style = _FAMILY_NAME_STYLE
+            identity_name_style = _AGENT_SESSION_NAME_STYLE
 
     if presented_name:
         text.append(" ")

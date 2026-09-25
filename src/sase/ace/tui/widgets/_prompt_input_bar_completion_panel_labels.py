@@ -309,16 +309,16 @@ def agent_completion_subtitle(
     selected_index: int,
     inner_width: int,
 ) -> Text:
-    """Return contextual detail for a selected family completion candidate."""
+    """Return contextual detail for a selected session completion candidate."""
     if not 0 <= selected_index < len(rows):
         return Text()
     metadata = rows[selected_index].metadata
-    if not isinstance(metadata, AgentCompletionCandidate) or metadata.kind != "family":
+    if not isinstance(metadata, AgentCompletionCandidate) or metadata.kind != "session":
         return Text()
 
     preview = metadata.plan_preview
     if preview is None or preview.kind is None:
-        subtitle = _family_members_subtitle(metadata)
+        subtitle = _agent_session_members_subtitle(metadata)
     elif preview.kind == "epic":
         subtitle = _epic_phase_subtitle(metadata)
     elif preview.kind in {"tale", "plan"}:
@@ -352,7 +352,7 @@ def _epic_phase_subtitle(metadata: AgentCompletionCandidate) -> Text:
     return text
 
 
-def _family_members_subtitle(metadata: AgentCompletionCandidate) -> Text:
+def _agent_session_members_subtitle(metadata: AgentCompletionCandidate) -> Text:
     member_count = metadata.member_count or len(metadata.member_names)
     return Text(
         _limited_join(metadata.member_names, member_count, separator=", "),

@@ -40,7 +40,7 @@ class AgentCompletionCandidate:
     plan_preview: AgentSessionPlanPreview | None = None
     prompt_snippet: str = ""
     search_aliases: tuple[str, ...] = ()
-    kind: Literal["agent", "family", "clan", "hood", "tribe", "proc"] = "agent"
+    kind: Literal["agent", "session", "clan", "hood", "tribe", "proc"] = "agent"
     member_count: int | None = None
     aggregate_status: str | None = None
     member_names: tuple[str, ...] = ()

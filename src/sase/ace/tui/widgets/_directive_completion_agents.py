@@ -11,9 +11,20 @@ from sase.ace.tui.agent_completion import (
 from sase.ace.tui.widgets._directive_completion_candidates import shared_extension
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
-IDENTITY_ROLES = frozenset({"clan", "family", "tribe"})
-_TARGET_KIND_ORDER = ("hood", "tribe", "clan", "family", "agent", "proc")
+# legacy agent-family spelling: core emits value_role "family" until core-contract
+_LEGACY_AGENT_FAMILY_VALUE_ROLE = "family"
+IDENTITY_ROLES = frozenset(
+    {"clan", "session", _LEGACY_AGENT_FAMILY_VALUE_ROLE, "tribe"}
+)
+_TARGET_KIND_ORDER = ("hood", "tribe", "clan", "session", "agent", "proc")
 _PRE_RUN_STATUS_RANK = {"WAITING": 0, "QUEUED": 1}
+
+
+def identity_role_target_kind(value_role: str) -> str:
+    """Return the candidate kind an identity directive ``value_role`` targets."""
+    if value_role == _LEGACY_AGENT_FAMILY_VALUE_ROLE:
+        return "session"
+    return value_role
 
 
 def build_agent_arg_completion_candidates(

@@ -2,7 +2,7 @@
 
 Covers the sase-tj.6 phase's own new logic — the parts the pane-phase's
 conformance sweep exercises structurally but not semantically: which rows
-actually become which relation edges, how grouping buckets family
+actually become which relation edges, how grouping buckets session
 containers with their members, how ``_known_target_for_ref`` resolves both
 the bare and owner-qualified spellings of an ``agent:`` ref, and how the
 lazy detail loader degrades for a row with no live artifacts directory.
@@ -53,7 +53,7 @@ def _snapshot(*rows: AgentCatalogRow) -> AgentsSnapshot:
     )
 
 
-def test_family_relation_links_member_to_container_not_itself() -> None:
+def test_session_relation_links_member_to_container_not_itself() -> None:
     container = _agent_row("0b4", kind=("session",), agent_session=None)
     member = _agent_row("0b4--0", kind=("member",), agent_session="0b4", role="code")
     index = build_agents_relation_index(
@@ -62,10 +62,10 @@ def test_family_relation_links_member_to_container_not_itself() -> None:
 
     member_target = ArtifactEntryTarget("agents", ("0b4--0",))
     container_target = ArtifactEntryTarget("agents", ("0b4",))
-    edges = index.edges_for_relation(member_target, "family")
+    edges = index.edges_for_relation(member_target, "session")
     assert any(edge.target == container_target for edge in edges)
-    # The container itself has no self-referential family edge.
-    assert not index.edges_for_relation(container_target, "family")
+    # The container itself has no self-referential session edge.
+    assert not index.edges_for_relation(container_target, "session")
 
 
 def test_clan_relation_links_member_to_clan_container() -> None:
@@ -144,27 +144,27 @@ def test_known_target_for_ref_returns_none_for_unknown_agent() -> None:
     assert _known_target_for_ref("agent", "not-a-row", known) is None
 
 
-def test_by_family_grouping_clusters_container_with_its_members() -> None:
+def test_by_session_grouping_clusters_container_with_its_members() -> None:
     container = _agent_row("0b4", kind=("session",), agent_session=None)
     member_a = _agent_row("0b4--0", agent_session="0b4")
     member_b = _agent_row("0b4--1", agent_session="0b4")
     standalone = _agent_row("solo-agent", agent_session=None)
     snapshot = _snapshot(container, member_a, member_b, standalone)
-    mode = PaneGroupingModeDecl(id="by_family", label="Family", keys=("session",))
+    mode = PaneGroupingModeDecl(id="by_session", label="Session", keys=("session",))
 
     result = build_grouped_agent_rows(
         snapshot, mode=mode, fold_registry=GroupFoldRegistry()
     )
 
     banners = {row.banner.group_key: row.banner for row in result.rows if row.banner}
-    family_banner = banners[("0b4",)]
-    assert family_banner.member_count == 3  # container + both members
-    assert ArtifactEntryTarget("agents", ("0b4",)) in family_banner.member_targets
-    assert ArtifactEntryTarget("agents", ("0b4--0",)) in family_banner.member_targets
-    assert ArtifactEntryTarget("agents", ("0b4--1",)) in family_banner.member_targets
+    session_banner = banners[("0b4",)]
+    assert session_banner.member_count == 3  # container + both members
+    assert ArtifactEntryTarget("agents", ("0b4",)) in session_banner.member_targets
+    assert ArtifactEntryTarget("agents", ("0b4--0",)) in session_banner.member_targets
+    assert ArtifactEntryTarget("agents", ("0b4--1",)) in session_banner.member_targets
     assert (
         ArtifactEntryTarget("agents", ("solo-agent",))
-        not in family_banner.member_targets
+        not in session_banner.member_targets
     )
 
 

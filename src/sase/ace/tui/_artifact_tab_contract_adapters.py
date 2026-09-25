@@ -354,10 +354,10 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         has_detail=True,
         relations=(
             PaneRelationDecl(
-                name="family",
+                name="session",
                 kind=RelationKind.HIERARCHY,
-                label="Family",
-                source="agent_family_container",
+                label="Session",
+                source="agent_session_container",
                 target_pane=None,
                 inverse=None,
                 directed=True,
@@ -397,8 +397,8 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         grouping=PaneGroupingDecl(
             modes=(
                 PaneGroupingModeDecl(
-                    id="by_family",
-                    label="Family",
+                    id="by_session",
+                    label="Session",
                     keys=("session",),
                 ),
                 PaneGroupingModeDecl(
@@ -412,7 +412,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
                     keys=("project",),
                 ),
             ),
-            default_mode="by_family",
+            default_mode="by_session",
         ),
         status_counters=(PaneStatusCounter(name="status", field="status"),),
         copy_group="artifacts_agents",

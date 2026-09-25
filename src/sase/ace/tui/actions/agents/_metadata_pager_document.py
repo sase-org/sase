@@ -20,7 +20,7 @@ from ...models.agent import Agent
 from ...models.agent_owner_badge import agent_owner_badge_label
 from ...widgets._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
-    _FAMILY_NAME_STYLE,
+    _AGENT_SESSION_NAME_STYLE,
     _OWNER_BADGE_STYLE,
     _PROC_SHELL_ID_STYLE,
 )
@@ -48,7 +48,7 @@ def _label(text: Text, label: str) -> None:
 
 def _name_style(agent: Agent) -> str:
     if agent.is_agent_session_container_row:
-        return _FAMILY_NAME_STYLE
+        return _AGENT_SESSION_NAME_STYLE
     if agent.is_proc_shell:
         return _PROC_SHELL_ID_STYLE
     return _AGENT_NAME_ANNOTATION_STYLE
@@ -66,7 +66,7 @@ def _identity_section(agent: Agent) -> PagerSection | None:
         text.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
     if agent.agent_session:
         _label(text, "Session")
-        text.append(f"{agent.agent_session}\n", style=_FAMILY_NAME_STYLE)
+        text.append(f"{agent.agent_session}\n", style=_AGENT_SESSION_NAME_STYLE)
     if agent.agent_clan:
         _label(text, "Clan")
         text.append(f"{agent.agent_clan}\n")

@@ -12,6 +12,7 @@ from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets._directive_completion_agents import (
     IDENTITY_ROLES,
     build_agent_arg_completion_candidates,
+    identity_role_target_kind,
 )
 from sase.ace.tui.widgets._directive_completion_candidates import (
     build_bead_clause_candidates,
@@ -144,7 +145,7 @@ def build_directive_clause_candidates(
             clause.token,
             agent_candidates,
             excluded_names=frozenset(clause.selected_values),
-            required_kind=clause.value_role,
+            required_kind=identity_role_target_kind(clause.value_role),
         )
 
     if clause.value_role == "hood":

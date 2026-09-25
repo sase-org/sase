@@ -48,11 +48,11 @@ def _catalog_hood(name: str) -> str | None:
     return hood
 
 
-def _effective_family(row: AgentCatalogRow) -> str | None:
+def _effective_agent_session(row: AgentCatalogRow) -> str | None:
     """Return the ``session:`` value the query index carries for *row*."""
-    family, _role = agent_session_and_role(row.name)
-    if family is not None:
-        return family
+    agent_session, _role = agent_session_and_role(row.name)
+    if agent_session is not None:
+        return agent_session
     if row.agent_session is not None:
         return row.agent_session
     if "session" in row.kind:
@@ -306,7 +306,7 @@ class AgentsNavigationMixin(_MixinBase):
         return None
 
     def host_reveal_context(self, target: ArtifactEntryTarget) -> RevealContext | None:
-        """Return the Agent hood/family context query for *target*.
+        """Return the Agent hood/session context query for *target*.
 
         Hood members land on ``name:<hood>.*`` (plus ``OR name:<hood>``
         when the hood root itself is a catalog row), agent-session shells
@@ -334,18 +334,18 @@ class AgentsNavigationMixin(_MixinBase):
         )
         if row is None:
             return None
-        family = _effective_family(row)
-        if family is None:
-            family, _role = agent_session_and_role(name)
-        if family is not None:
+        agent_session = _effective_agent_session(row)
+        if agent_session is None:
+            agent_session, _role = agent_session_and_role(name)
+        if agent_session is not None:
             count = sum(
                 1
                 for candidate in snapshot.rows
-                if _effective_family(candidate) == family
+                if _effective_agent_session(candidate) == agent_session
             )
             return RevealContext(
-                alternatives=(("session", family),),
-                label=f"family {family}",
+                alternatives=(("session", agent_session),),
+                label=f"session {agent_session}",
                 member_count=count or 1,
             )
         hood = _catalog_hood(name)

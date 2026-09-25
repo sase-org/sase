@@ -158,7 +158,7 @@ async def test_fork_target_menu_renders_all_four_aligned_kinds() -> None:
         ),
         agent_candidate(
             "ship",
-            kind="family",
+            kind="session",
             member_count=2,
             member_names=("ship--plan", "ship--code"),
         ),
@@ -178,7 +178,7 @@ async def test_fork_target_menu_renders_all_four_aligned_kinds() -> None:
     assert panel.border_title == "fork targets"
     assert "@ @builders" in rendered and "tribe · 4" in rendered
     assert "C review" in rendered and "clan · 2" in rendered
-    assert "F ship" in rendered and "family · 2" in rendered
+    assert "S ship" in rendered and "session · 2" in rendered
     assert "● coder" in rendered and "#gh:sase" in rendered
 
 

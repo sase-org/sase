@@ -25,7 +25,7 @@ _KIND_WIDTH = 8
 _PROJECT_WIDTH = 16
 
 #: Sentinel bucket key for rows a grouping mode has no real value for
-#: (no family/clan membership, no recorded state, no project). Sorts first
+#: (no session/clan membership, no recorded state, no project). Sorts first
 #: so ungrouped rows anchor at the top rather than scattering alphabetically.
 _UNGROUPED = "!ungrouped"
 
@@ -66,7 +66,7 @@ def _agent_row_text(entry: AgentCatalogRow) -> Text:
 
 
 def _agent_key_value(entry: AgentCatalogRow, mode_id: str) -> str:
-    if mode_id == "by_family":
+    if mode_id == "by_session":
         if entry.agent_session:
             return entry.agent_session
         if "session" in entry.kind:
@@ -81,8 +81,8 @@ def _agent_key_value(entry: AgentCatalogRow, mode_id: str) -> str:
 
 def _agent_group_label(mode_id: str, value: str) -> str:
     if value == _UNGROUPED:
-        if mode_id == "by_family":
-            return "(no family)"
+        if mode_id == "by_session":
+            return "(no session)"
         if mode_id == "by_state":
             return "(no state)"
         return "(no project)"

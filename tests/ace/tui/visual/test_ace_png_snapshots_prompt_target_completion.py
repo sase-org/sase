@@ -31,7 +31,7 @@ pytestmark = pytest.mark.visual
 def _target(
     name: str,
     *,
-    kind: Literal["agent", "family", "clan", "tribe"],
+    kind: Literal["agent", "session", "clan", "tribe"],
     status: str,
     members: tuple[str, ...] = (),
     plan_preview: AgentSessionPlanPreview | None = None,
@@ -115,7 +115,7 @@ _TARGET_ROWS = [
     ),
     _target(
         "ship",
-        kind="family",
+        kind="session",
         status="DONE",
         members=("ship--plan", "ship--code"),
         plan_preview=_preview(
@@ -128,7 +128,7 @@ _TARGET_ROWS = [
     ),
     _target(
         "common",
-        kind="family",
+        kind="session",
         status="RUNNING",
         members=("common--plan", "common--code"),
         plan_preview=_preview(
@@ -139,7 +139,7 @@ _TARGET_ROWS = [
     ),
     _target(
         "fallback",
-        kind="family",
+        kind="session",
         status="WAITING",
         members=("fallback--plan", "fallback--code"),
         prompt_snippet="Fix the flaky selection-health test",

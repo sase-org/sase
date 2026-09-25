@@ -1,4 +1,4 @@
-"""Agents relation source: family, clan, retry chain, and workflow parent."""
+"""Agents relation source: session, clan, retry chain, and workflow parent."""
 
 from __future__ import annotations
 
@@ -84,18 +84,18 @@ class _AgentsRelationSource(RelationSource):
 
     def raw_edges(self) -> tuple[RelationEdge, ...]:
         edges: list[RelationEdge] = []
-        family_decl = self._decls.get("family")
+        session_decl = self._decls.get("session")
         clan_decl = self._decls.get("clan")
         parent_decl = self._decls.get("parent")
         retry_decl = self._decls.get("retry_chain")
 
         for row in self._rows:
             source = _agent_target(row.name)
-            if family_decl is not None and row.agent_session:
+            if session_decl is not None and row.agent_session:
                 container = self._by_name.get(row.agent_session)
                 if container is not None and container.name != row.name:
                     edges.append(
-                        emit_edge(family_decl, source, _agent_target(container.name))
+                        emit_edge(session_decl, source, _agent_target(container.name))
                     )
             if clan_decl is not None and row.clan:
                 container = self._by_name.get(row.clan)

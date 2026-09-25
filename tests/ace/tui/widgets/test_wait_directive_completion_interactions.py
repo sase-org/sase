@@ -19,7 +19,7 @@ async def test_colon_after_wait_auto_opens_wait_targets_panel() -> None:
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
         AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
         AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
-        AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+        AgentCompletionCandidate("ship", "ship", "RUNNING", kind="session"),
         AgentCompletionCandidate("coder", "coder", "RUNNING"),
     ]
     async with app.run_test() as pilot:
@@ -93,7 +93,7 @@ async def test_wait_arg_completion_excludes_selected_agent_and_groups() -> None:
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
         AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
         AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
-        AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+        AgentCompletionCandidate("ship", "ship", "RUNNING", kind="session"),
         AgentCompletionCandidate("planner", "planner", "RUNNING"),
         AgentCompletionCandidate("coder", "coder", "RUNNING"),
     ]

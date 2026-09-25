@@ -249,14 +249,14 @@ def agent_query_entry(
         status=row.status,
         state=row.state,
     )
-    family = row.agent_session or (row.name if "session" in row.kind else None)
+    agent_session = row.agent_session or (row.name if "session" in row.kind else None)
     project_labels = _project_labels(row.project, project_ref_display)
     provider = _normalized_lower(row.llm_provider)
     link_facet = (link_facets or {}).get(row.name)
     fields: dict[str, object] = {
         "name": _dedupe_text((row.name, row.canonical_global_name)),
         "kind": row.kind,
-        "session": family,
+        "session": agent_session,
         "clan": row.clan,
         "tribe": row.tribe,
         "role": row.role,
@@ -293,7 +293,7 @@ def agent_query_entry(
             row.name,
             row.canonical_global_name,
             *row.kind,
-            family,
+            agent_session,
             row.clan,
             row.tribe,
             row.role,

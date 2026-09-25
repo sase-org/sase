@@ -133,7 +133,7 @@ def agent_candidate(
     vcs_tag: str = "#gh:sase",
     snippet: str = "Fix prompt completion",
     tribe: str | None = None,
-    kind: Literal["agent", "family", "clan", "tribe"] = "agent",
+    kind: Literal["agent", "session", "clan", "tribe"] = "agent",
     member_count: int | None = None,
     member_names: tuple[str, ...] = (),
 ) -> AgentCompletionCandidate:

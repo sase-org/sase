@@ -135,9 +135,9 @@ if operation == "agent-catalog":
                 "name": "ship",
                 "status": "RUNNING",
                 "project": "sase",
-                "kind": "family",
+                "kind": "session",
                 "member_count": 1,
-                "detail": "family",
+                "detail": "session",
                 "documentation": "",
             },
             {

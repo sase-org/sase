@@ -1,4 +1,4 @@
-"""Prompt target completion rendering for agent-family plan previews."""
+"""Prompt target completion rendering for agent-session plan previews."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def _candidate(
         name="ship",
         label="ship",
         status="RUNNING",
-        kind="family",
+        kind="session",
         member_count=len(member_names),
         aggregate_status="RUNNING",
         member_names=member_names,
@@ -81,12 +81,12 @@ def _render(candidate: AgentCompletionCandidate, *, budget: int = 80) -> str:
     return text.plain
 
 
-def test_family_row_renders_epic_preview_instead_of_member_names() -> None:
+def test_session_row_renders_epic_preview_instead_of_member_names() -> None:
     rendered = _render(
         _candidate(
             plan_preview=_preview(
                 "epic",
-                "Plan-aware agent-family completion previews",
+                "Plan-aware agent-session completion previews",
                 phase_count=6,
                 wave_count=3,
             )
@@ -96,11 +96,11 @@ def test_family_row_renders_epic_preview_instead_of_member_names() -> None:
     assert "Epic" in rendered
     assert "6 phases" in rendered
     assert "3 waves" in rendered
-    assert "Plan-aware agent-family completion previews" in rendered
+    assert "Plan-aware agent-session completion previews" in rendered
     assert "ship--plan" not in rendered
 
 
-def test_family_row_renders_tale_phase_and_prompt_rungs() -> None:
+def test_session_row_renders_tale_phase_and_prompt_rungs() -> None:
     assert "Tale" in _render(
         _candidate(plan_preview=_preview("tale", "Complete common words"))
     )
@@ -113,7 +113,7 @@ def test_family_row_renders_tale_phase_and_prompt_rungs() -> None:
     assert "ship--plan" not in snippet_row
 
 
-def test_family_row_degrades_structure_before_ellipsizing_title() -> None:
+def test_session_row_degrades_structure_before_ellipsizing_title() -> None:
     candidate = _candidate(
         plan_preview=_preview(
             "epic",
@@ -152,7 +152,7 @@ def test_clan_and_tribe_rows_keep_member_preview() -> None:
         assert "review.alpha, review.beta" in rendered
 
 
-def test_family_subtitle_uses_epic_phase_titles_with_overflow_count() -> None:
+def test_session_subtitle_uses_epic_phase_titles_with_overflow_count() -> None:
     candidate = _candidate(
         plan_preview=_preview(
             "epic",
@@ -167,7 +167,7 @@ def test_family_subtitle_uses_epic_phase_titles_with_overflow_count() -> None:
     assert subtitle.plain == "◆ Preview · Rows · Editor +1"
 
 
-def test_family_subtitle_uses_goal_parent_description_or_members() -> None:
+def test_session_subtitle_uses_goal_parent_description_or_members() -> None:
     tale = _candidate(
         plan_preview=_preview("tale", "Tale title", goal="Write the tale")
     )

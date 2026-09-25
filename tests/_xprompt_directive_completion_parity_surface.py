@@ -39,7 +39,7 @@ _AGENT_ROWS = (
     AgentCompletionCandidate("coder", "coder", "QUEUED"),
     AgentCompletionCandidate("sase-11l", "sase-11l", "RUNNING", kind="hood"),
     AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
-    AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
+    AgentCompletionCandidate("ship", "ship", "RUNNING", kind="session"),
     AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
     AgentCompletionCandidate(
         "proc-build-123",

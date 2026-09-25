@@ -1,7 +1,7 @@
 """Off-thread enrichment loading and detail rendering for the Agent pane.
 
 Everything :class:`~.agents_data.AgentsSnapshot` already carries (identity,
-kind, lifecycle, timing, model/provider, family/clan/tribe, retry pointers,
+kind, lifecycle, timing, model/provider, session/clan/tribe, retry pointers,
 provenance) is local truth and renders with zero I/O. This module owns the
 handful of fields that genuinely need a filesystem read for the selected
 row only: the raw prompt, the chat path, and (best-effort) the published
@@ -150,8 +150,8 @@ def build_agent_detail(
     _field(text, "Provider", row.llm_provider)
     _field(text, "Patch", row.patch)
 
-    _heading(text, "FAMILY & LINEAGE")
-    _field(text, "Family", row.agent_session)
+    _heading(text, "SESSION & LINEAGE")
+    _field(text, "Session", row.agent_session)
     _field(text, "Role", row.role)
     _field(text, "Clan", row.clan)
     _field(text, "Tribe", row.tribe)

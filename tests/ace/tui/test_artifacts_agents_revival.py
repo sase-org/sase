@@ -66,23 +66,37 @@ def test_single_revivable_selected_row_revives_directly() -> None:
 
 
 def test_session_row_with_many_revivable_members_seeds_narrow_query() -> None:
-    family = _row("feature-family", kind=("session",), dismissed=False)
+    session = _row("feature-session", kind=("session",), dismissed=False)
     first = _row(
-        "first", agent_session="feature-family", dismissed=True, revivable=True
+        "first", agent_session="feature-session", dismissed=True, revivable=True
     )
     second = _row(
-        "second", agent_session="feature-family", dismissed=True, revivable=True
+        "second", agent_session="feature-session", dismissed=True, revivable=True
     )
-    pane = _Pane((family, first, second))
-    pane.select(family)
+    pane = _Pane((session, first, second))
+    pane.select(session)
 
     request = pane.revive_request(())
 
     assert request.rows == ()
     assert request.seed_query == (
-        f"{AGENTS_REVIVABLE_QUERY} AND session:feature-family"
+        f"{AGENTS_REVIVABLE_QUERY} AND session:feature-session"
     )
     assert request.severity == "information"
+
+
+def test_session_seed_query_narrows_to_the_session_members() -> None:
+    session = _row("feature-session", kind=("session",), dismissed=False)
+    member = _row(
+        "member", agent_session="feature-session", dismissed=True, revivable=True
+    )
+    other = _row("other", agent_session="other-session", dismissed=True, revivable=True)
+    pane = _Pane((session, member, other))
+
+    pane.apply_seed_query(f"{AGENTS_REVIVABLE_QUERY} AND session:feature-session")
+
+    assert pane._current_snapshot() is not None
+    assert tuple(row.name for row in pane._current_snapshot().rows) == ("member",)
 
 
 def test_marked_rows_revive_only_revivable_visible_targets() -> None:

@@ -74,12 +74,12 @@ def _comparison_detail(detail: str) -> str:
         "agent",
         "bead",
         "clan",
-        "family",
         "hood",
         "keyword",
         "model",
         "proc",
         "role",
+        "session",
         "tribe",
         "value",
     }:

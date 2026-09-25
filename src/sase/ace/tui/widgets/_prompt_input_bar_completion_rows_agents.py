@@ -21,7 +21,7 @@ from sase.ace.tui.models.tribe_display import (
 )
 from sase.ace.tui.widgets._agent_list_styling import (
     _CLAN_NAME_STYLE,
-    _FAMILY_NAME_STYLE,
+    _AGENT_SESSION_NAME_STYLE,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_utils import (
     truncate_cell,
@@ -83,10 +83,10 @@ def _append_group_completion_row(
     tribe_colors: dict[str, str] | None = None,
     inner_width: int = 0,
 ) -> None:
-    """Append one family, clan, or tribe using the shared row anatomy."""
-    glyphs = {"family": "F", "clan": "C", "tribe": "@"}
+    """Append one session, clan, or tribe using the shared row anatomy."""
+    glyphs = {"session": "S", "clan": "C", "tribe": "@"}
     styles = {
-        "family": _FAMILY_NAME_STYLE,
+        "session": _AGENT_SESSION_NAME_STYLE,
         "clan": _CLAN_NAME_STYLE,
     }
     if metadata.kind == "tribe":
@@ -115,8 +115,10 @@ def _append_group_completion_row(
         badge = truncate_cell(f"tribe · {carrier_counts}", 14)
     else:
         badge = truncate_cell(f"{metadata.kind} · {count}", 14)
-    if metadata.kind == "family":
-        preview = _family_preview(metadata, _family_preview_budget(inner_width))
+    if metadata.kind == "session":
+        preview = _agent_session_preview(
+            metadata, _agent_session_preview_budget(inner_width)
+        )
     else:
         preview = Text(_member_preview(metadata.member_names, count), style="dim")
 
@@ -148,13 +150,13 @@ def _member_preview(member_names: tuple[str, ...], member_count: int) -> str:
     return truncate_cell(preview, 58)
 
 
-def _family_preview_budget(inner_width: int) -> int:
+def _agent_session_preview_budget(inner_width: int) -> int:
     if inner_width <= 0:
         return 58
     return max(24, inner_width - 50)
 
 
-def _family_preview(
+def _agent_session_preview(
     metadata: AgentCompletionCandidate,
     budget: int,
 ) -> Text:
@@ -165,7 +167,7 @@ def _family_preview(
     fallback = metadata.prompt_snippet
     title = preview.title or fallback
     if not title:
-        return _family_preview_line(
+        return _agent_session_preview_line(
             preview,
             structure=agent_session_plan_structure_text(preview, compact=True),
             title="",
@@ -176,7 +178,7 @@ def _family_preview(
 
     title_style = "" if preview.title else "dim"
     for structure in _structure_degradation(preview):
-        line = _family_preview_line(
+        line = _agent_session_preview_line(
             preview,
             structure=structure,
             title=title,
@@ -187,7 +189,7 @@ def _family_preview(
         if line.cell_len <= budget:
             return line
 
-    return _family_preview_line(
+    return _agent_session_preview_line(
         preview,
         structure="",
         title=title,
@@ -217,7 +219,7 @@ def _phase_count_structure(preview: AgentSessionPlanPreview) -> str:
     return f"{preview.phase_count} {noun}"
 
 
-def _family_preview_line(
+def _agent_session_preview_line(
     preview: AgentSessionPlanPreview,
     *,
     structure: str,

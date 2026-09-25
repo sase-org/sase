@@ -147,49 +147,51 @@ def test_visible_agent_completion_agents_adds_collapsed_clan_lanes(
         agent_clan="crew",
         agent_clan_generation="generation",
     )
-    family = _agent(
+    agent_session_root = _agent(
         tmp_path,
-        agent_name="crew.family--plan",
+        agent_name="crew.session--plan",
         raw_suffix="260624_120051",
         cl_name="",
         agent_clan="crew",
         agent_clan_generation="generation",
-        agent_session="crew.family",
+        agent_session="crew.session",
         agent_session_role="root",
         plan_chain_root=True,
     )
-    family_member = _agent(
+    agent_session_member = _agent(
         tmp_path,
-        agent_name="crew.family--code",
+        agent_name="crew.session--code",
         raw_suffix="260624_120052",
         cl_name="",
-        agent_session="crew.family",
+        agent_session="crew.session",
         agent_session_role="code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
     )
-    family.followup_agents.append(family_member)
+    agent_session_root.followup_agents.append(agent_session_member)
     unrelated = _agent(
         tmp_path,
         agent_name="unrelated",
         raw_suffix="260624_120053",
         cl_name="",
     )
-    complete = project_clan_tree([standalone, family, family_member, unrelated])
+    complete = project_clan_tree(
+        [standalone, agent_session_root, agent_session_member, unrelated]
+    )
     fold_manager = FoldStateManager()
     rendered, _fold_counts = filter_agents_by_fold_state(complete, fold_manager)
     clan = next(agent for agent in complete if agent.is_clan_container)
     clan_fold_key = agent_fold_key(clan)
     assert clan_fold_key is not None
-    assert family.raw_suffix is not None
+    assert agent_session_root.raw_suffix is not None
     app = _CompletionApp(rendered, None)
     app._agents_with_children = complete
     app._fold_manager = fold_manager
 
     roster = visible_agent_completion_agents(app)
 
-    assert roster == [clan, standalone, family, unrelated]
+    assert roster == [clan, standalone, agent_session_root, unrelated]
     assert fold_manager.get(clan_fold_key) is FoldLevel.COLLAPSED
-    assert fold_manager.get(family.raw_suffix) is FoldLevel.COLLAPSED
+    assert fold_manager.get(agent_session_root.raw_suffix) is FoldLevel.COLLAPSED
     candidates = build_agent_completion_candidates(roster)
     clan_candidates = [
         candidate
@@ -203,12 +205,12 @@ def test_visible_agent_completion_agents_adds_collapsed_clan_lanes(
         ).kind
         == "agent"
     )
-    family_candidate = next(
-        candidate for candidate in candidates if candidate.name == "crew.family"
+    agent_session_candidate = next(
+        candidate for candidate in candidates if candidate.name == "crew.session"
     )
-    assert family_candidate.kind == "family"
-    assert family_candidate.member_count == 2
-    assert all(candidate.name != "crew.family--code" for candidate in candidates)
+    assert agent_session_candidate.kind == "session"
+    assert agent_session_candidate.member_count == 2
+    assert all(candidate.name != "crew.session--code" for candidate in candidates)
 
 
 def test_visible_agent_completion_agents_deduplicates_expanded_clan(

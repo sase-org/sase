@@ -51,7 +51,7 @@ def build_agent_completion_candidates(
         clan_groups,
         exclude_identity=exclude_identity,
     )
-    families = _build_family_completion_candidates(
+    sessions = _build_agent_session_completion_candidates(
         all_agents,
         exclude_identity=exclude_identity,
     )
@@ -64,7 +64,7 @@ def build_agent_completion_candidates(
         exclude_identity=exclude_identity,
     )
     tribes = _build_tribe_completion_candidates(all_agents, clan_groups)
-    return _dedupe_completion_candidates([*tribes, *clans, *families, *agents, *procs])
+    return _dedupe_completion_candidates([*tribes, *clans, *sessions, *agents, *procs])
 
 
 def _dedupe_completion_candidates(
@@ -298,7 +298,7 @@ def _build_clan_completion_candidates(
     return candidates
 
 
-def _build_family_completion_candidates(
+def _build_agent_session_completion_candidates(
     all_agents: Sequence[Agent],
     *,
     exclude_identity: object | None,
@@ -323,7 +323,7 @@ def _build_family_completion_candidates(
             continue
         seen_names.add(name)
         status = _aggregate_completion_status(members)
-        plan_preview = _cached_plan_preview_for_family(agent)
+        plan_preview = _cached_plan_preview_for_agent_session(agent)
         preview_aliases = (
             (plan_preview.title,)
             if plan_preview is not None and plan_preview.title
@@ -334,7 +334,7 @@ def _build_family_completion_candidates(
                 agent,
                 name,
                 all_agents,
-                kind="family",
+                kind="session",
                 member_count=len(members),
                 aggregate_status=status,
                 member_names=_member_names(members),
@@ -345,7 +345,7 @@ def _build_family_completion_candidates(
     return candidates
 
 
-def _cached_plan_preview_for_family(
+def _cached_plan_preview_for_agent_session(
     agent: Agent,
 ) -> AgentSessionPlanPreview | None:
     cached = cached_agent_session_plan_preview(agent)
@@ -465,7 +465,7 @@ def _candidate_from_agent(
     name: str,
     all_agents: Sequence[Agent],
     *,
-    kind: Literal["agent", "family", "clan", "tribe"] = "agent",
+    kind: Literal["agent", "session", "clan", "tribe"] = "agent",
     member_count: int | None = None,
     aggregate_status: str | None = None,
     member_names: tuple[str, ...] = (),
@@ -510,15 +510,15 @@ def _completion_label(agent: Agent, fallback: str) -> str:
     """Return the concrete row label while keeping the local hood hidden."""
     presented = agent.presented_agent_name
     raw_name = agent.agent_name
-    raw_family = agent.agent_session
+    raw_agent_session = agent.agent_session
     if (
         agent.is_agent_session_root_entry
         and presented
         and raw_name
-        and raw_family
-        and raw_name.startswith(raw_family)
+        and raw_agent_session
+        and raw_name.startswith(raw_agent_session)
     ):
-        return presented + raw_name[len(raw_family) :]
+        return presented + raw_name[len(raw_agent_session) :]
     return presented or agent.display_name or agent.cl_name or fallback
 
 
