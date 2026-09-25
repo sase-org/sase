@@ -33,6 +33,7 @@ from sase.agent.names.registry_freshness import (
 from sase.agent.names._registry_scan import (
     collect_artifact_entries as _collect_artifact_entries,
     collect_dismissed_bundle_entries as _collect_dismissed_bundle_entries,
+    collect_inflight_claim_entries as _collect_inflight_claim_entries,
     collect_owner_namespace_entries as _collect_owner_namespace_entries,
     collect_planned_reservation_entries as _collect_planned_reservation_entries,
     reset_registry_scan_caches as _reset_registry_scan_caches,
@@ -219,9 +220,10 @@ def rebuild_name_registry() -> dict[str, Any]:
     """Rebuild the registry by scanning existing artifacts and dismissed bundles.
 
     Source parsing happens outside the allocation lock. The lock covers only
-    the merge of in-flight planned reservations and the registry write. A
-    concurrent writer invalidates the attempt; a bounded retry rescans, and a
-    last-resort locked rebuild preserves correctness under sustained races.
+    the merge of in-flight reservations and the registry write. A rebuild never
+    discards a live claim it cannot disprove. A concurrent writer invalidates
+    the attempt; a bounded retry rescans, and a last-resort locked rebuild
+    preserves correctness under sustained races.
     """
     from sase.agent.launch_timing import active_launch_timing_recorder
 
@@ -278,9 +280,11 @@ def _commit_rebuild_locked(
         after_sig = None
     if after_sig != before_sig:
         return None
+    existing = _read_registry(path)
     entries: dict[str, dict[str, Any]] = {}
-    _collect_planned_reservation_entries(entries, _read_registry(path), identity)
+    _collect_planned_reservation_entries(entries, existing, identity)
     entries.update(scanned)
+    _collect_inflight_claim_entries(entries, existing, identity)
     data = _registry_data(entries)
     _write_registry(path, data)
     _set_cache(path, data)
@@ -290,14 +294,15 @@ def _commit_rebuild_locked(
 
 def _rebuild_name_registry_locked() -> dict[str, Any]:
     identity = AgentIdentitySnapshot.current()
+    path = _registry_path()
+    existing = _read_registry(path)
     entries: dict[str, dict[str, Any]] = {}
-    _collect_planned_reservation_entries(
-        entries, _read_registry(_registry_path()), identity
-    )
+    _collect_planned_reservation_entries(entries, existing, identity)
     entries.update(_collect_rebuild_source_entries(identity))
+    _collect_inflight_claim_entries(entries, existing, identity)
     data = _registry_data(entries)
-    _write_registry(_registry_path(), data)
-    _set_cache(_registry_path(), data)
+    _write_registry(path, data)
+    _set_cache(path, data)
     invalidate_agent_name_registry_freshness()
     return data
 

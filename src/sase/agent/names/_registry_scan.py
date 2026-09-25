@@ -9,6 +9,7 @@ import re
 from sase.agent.names._registry_scan_collectors import (
     collect_artifact_entries as collect_artifact_entries,
     collect_dismissed_bundle_entries as collect_dismissed_bundle_entries,
+    collect_inflight_claim_entries as collect_inflight_claim_entries,
     collect_owner_namespace_entries as collect_owner_namespace_entries,
     collect_planned_reservation_entries as collect_planned_reservation_entries,
 )
