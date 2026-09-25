@@ -245,6 +245,33 @@ def mutate_registered_name_reservations(
     )
 
 
+def plan_registered_name_reservations(
+    hooks: RegisteredNameRegistryBatchHooks,
+    reservations: Sequence[RegisteredNameReservation | Mapping[str, Any]],
+) -> RegisteredNameReservationBatchResult:
+    """Plan registry reservations without applying them.
+
+    Uses the same Rust ownership planner as
+    :func:`mutate_registered_name_reservations`. Never writes the registry and
+    never raises on blocked items.
+    """
+    materialized = tuple(_coerce_reservation(item) for item in reservations)
+    if not materialized:
+        return _result_from_plan(
+            {
+                "schema_version": agent_ownership_batch_wire_schema_version(),
+                "reservation_decisions": [],
+                "reservation_blocked": [],
+                "registry_merge_plan": [],
+                "cleanup_reservations": [],
+                "diagnostics": [],
+            }
+        )
+
+    snapshot = registered_name_reservation_snapshot(hooks)
+    return _result_from_plan(_plan_reservation_batch(snapshot, materialized))
+
+
 def reserve_registered_names(
     hooks: RegisteredNameRegistryBatchHooks,
     reservations: Sequence[tuple[str, str | Path]],
@@ -622,6 +649,7 @@ __all__ = [
     "claim_exact_planned_registered_name",
     "claim_registered_names",
     "mutate_registered_name_reservations",
+    "plan_registered_name_reservations",
     "planned_registered_name_belongs_to_artifact",
     "registered_name_reservation_snapshot",
     "reserve_registered_names",

@@ -64,6 +64,17 @@ class _RegistryBatchFacade:
             max_retries=max_retries,
         )
 
+    def plan_registered_name_reservations(
+        self,
+        reservations: Sequence[RegisteredNameReservation | Mapping[str, Any]],
+    ) -> RegisteredNameReservationBatchResult:
+        """Plan a core reservation batch without applying it."""
+        from sase.agent.names._registry_batch import (
+            plan_registered_name_reservations as _impl,
+        )
+
+        return _impl(self._reservation_batch_hooks(), reservations)
+
     def registered_name_reservation_snapshot(
         self,
     ) -> RegisteredNameReservationSnapshot:

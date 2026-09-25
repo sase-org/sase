@@ -30,6 +30,10 @@ from sase.bead.cli_work_context import (
     resolve_patch_launch_context,
 )
 from sase.bead.cli_work_launch import launch_bead_work_agents
+from sase.bead.cli_work_name_preflight import (
+    explain_bead_work_launch_name_collision,
+    preflight_bead_work_launch_names,
+)
 from sase.bead.cli_work_plan import (
     bead_work_slots,
     confirm_cleanup,
@@ -473,6 +477,15 @@ def launch_epic_bead_work(
         except ForcedReuseCleanupError as e:
             raise BeadWorkError(str(e)) from e
 
+    try:
+        preflight_bead_work_launch_names(
+            selection.launch_names,
+            resume_command=_resume_command(epic_id, capacity=capacity),
+            timer=timer,
+        )
+    except ForcedReuseCleanupError as e:
+        raise BeadWorkError(str(e)) from e
+
     with timer.stage("plan_snapshot"):
         plan_snapshot = _snapshot_epic_plan(
             proj,
@@ -656,8 +669,16 @@ def launch_epic_bead_work(
             launched_pids=launched_pids,
             launched_results=launched_results,
         )
+        resume_command = _resume_command(epic_id, capacity=capacity)
+        collision_detail = explain_bead_work_launch_name_collision(
+            e,
+            selection.launch_names,
+            resume_command=resume_command,
+            timer=timer,
+        )
+        detail = collision_detail if collision_detail is not None else str(e)
         raise BeadWorkError(
-            f"agent launch failed for epic {epic_id}: {e}\n"
+            f"agent launch failed for epic {epic_id}: {detail}\n"
             "For broader diagnostics, run `sase doctor -v`.",
             agents_spawned=bool(launched_results or launched_pids),
             graph_published=graph_published,

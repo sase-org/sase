@@ -497,6 +497,7 @@ _batches = bind_registry_batch(_reservation_batch_hooks)
 reserve_registered_names = _batches.reserve_registered_names
 claim_registered_names = _batches.claim_registered_names
 mutate_registered_name_reservations = _batches.mutate_registered_name_reservations
+plan_registered_name_reservations = _batches.plan_registered_name_reservations
 registered_name_reservation_snapshot = _batches.registered_name_reservation_snapshot
 planned_registered_name_belongs_to_artifact = (
     _batches.planned_registered_name_belongs_to_artifact

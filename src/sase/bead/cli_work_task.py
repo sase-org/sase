@@ -24,6 +24,10 @@ from sase.bead.cli_work_commit import (
 )
 from sase.bead.cli_work_context import resolve_task_vcs_launch_context
 from sase.bead.cli_work_launch import launch_bead_work_agents
+from sase.bead.cli_work_name_preflight import (
+    explain_bead_work_launch_name_collision,
+    preflight_bead_work_launch_names,
+)
 from sase.bead.cli_work_plan import (
     confirm_cleanup,
     confirm_launch,
@@ -283,6 +287,15 @@ def launch_task_bead_work(
         except ForcedReuseCleanupError as exc:
             raise TaskBeadWorkError(str(exc)) from exc
 
+    try:
+        preflight_bead_work_launch_names(
+            selection.launch_names,
+            resume_command=f"sase bead work {task_id}",
+            timer=timer,
+        )
+    except ForcedReuseCleanupError as exc:
+        raise TaskBeadWorkError(str(exc)) from exc
+
     prior_status = issue.status
     prior_assignee = issue.assignee
     try:
@@ -390,8 +403,16 @@ def launch_task_bead_work(
             launched_pids=launched_pids,
             launched_results=launched_results,
         )
+        resume_command = f"sase bead work {task_id}"
+        collision_detail = explain_bead_work_launch_name_collision(
+            exc,
+            selection.launch_names,
+            resume_command=resume_command,
+            timer=timer,
+        )
+        detail = collision_detail if collision_detail is not None else str(exc)
         raise TaskBeadWorkError(
-            f"agent launch failed for task {task_id}: {exc}\n"
+            f"agent launch failed for task {task_id}: {detail}\n"
             "For broader diagnostics, run `sase doctor -v`."
         ) from exc
 
