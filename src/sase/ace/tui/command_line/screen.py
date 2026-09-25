@@ -95,7 +95,6 @@ from sase.ace.tui.command_line.popup import (
 )
 from sase.ace.tui.command_line.restore import (
     block_from_proc,
-    ensure_block_for_proc,
     load_block_tail_text,
     read_command_line_store_rows,
     refresh_pruned_flags,
@@ -422,11 +421,20 @@ class CommandLineScreen(
                 )
             except Exception:  # noqa: BLE001 - unmounted screen cannot render.
                 return
-            try:
-                mark_palette_moved_tip_shown()
-            except Exception:  # noqa: BLE001 - marker writes are best effort.
-                pass
+            # Cache first so a reopen does no disk I/O; the write lands
+            # off-thread below.
             session.palette_tip_show = False
+            run_worker = getattr(self.app, "run_worker", None)
+            if callable(run_worker):
+                try:
+                    run_worker(self._persist_palette_tip_worker(), exclusive=False)
+                except Exception:  # noqa: BLE001 - marker writes are best effort.
+                    pass
+            else:
+                try:
+                    mark_palette_moved_tip_shown()
+                except Exception:  # noqa: BLE001 - marker writes are best effort.
+                    pass
             return
         run_worker = getattr(self.app, "run_worker", None)
         if not callable(run_worker):
@@ -453,6 +461,17 @@ class CommandLineScreen(
         if shown:
             return
         self._maybe_show_palette_moved_tip()
+
+    async def _persist_palette_tip_worker(self) -> None:
+        """Persist the tip marker off-thread; the loop never touches disk."""
+        from sase.ace.tui.command_line.palette_moved_tip import (
+            mark_palette_moved_tip_shown,
+        )
+
+        try:
+            await asyncio.to_thread(mark_palette_moved_tip_shown)
+        except Exception:  # noqa: BLE001 - marker writes are best effort.
+            pass
 
     def _on_grammar_ready_from_worker(self) -> None:
         """Refresh after the loop-owned grammar loader has completed."""
@@ -503,9 +522,19 @@ class CommandLineScreen(
 
     async def _ensure_focus_worker(self, proc_id: str) -> None:
         """Add a store-backed block for a Procs jump, then select it."""
+        from sase.ace.tui.command_line.restore import (
+            append_proc_block,
+            read_proc_for_block,
+        )
+
         session = self.session
         try:
-            await asyncio.to_thread(ensure_block_for_proc, session, proc_id)
+            # The store read runs off-thread; the block build and append
+            # stay on the UI thread, which owns session.blocks.
+            if session.block_for_proc(proc_id) is None:
+                proc = await asyncio.to_thread(read_proc_for_block, proc_id)
+                if proc is not None:
+                    append_proc_block(session, proc)
         except Exception:  # noqa: BLE001 - focus is best effort.
             pass
         if session.block_for_proc(proc_id) is None:

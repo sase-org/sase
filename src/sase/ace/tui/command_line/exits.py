@@ -127,7 +127,9 @@ def _record_history_async(app: Any, block: Any) -> None:
             if holder is None:
                 holder = CommandLineHistory()
                 session.command_history = holder
-            holder.remember(
+            # The submit already remembered this run: the exit only
+            # refreshes last_exit/last_used so one run counts once.
+            holder.note_exit(
                 block.line,
                 cwd=context.cwd,
                 project=context.project,

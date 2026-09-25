@@ -89,6 +89,48 @@ class CommandLineHistory:
         )
         self.cursor = None
 
+    def note_exit(
+        self,
+        line: str,
+        *,
+        cwd: str = "",
+        project: str | None = None,
+        exit_code: int | None = None,
+    ) -> None:
+        """Record a proc exit without bumping ``count`` (call on the loop).
+
+        A submission is already remembered at submit time while the store
+        sees a single ``record_command_line`` at exit, so the exit only
+        refreshes ``last_exit``/``last_used``: one run counts once in both.
+        A line with no remembered submission inserts at ``count`` 1.
+        """
+        text = line.strip()
+        if not text:
+            return
+        now = generate_timestamp()
+        for entry in self.entries:
+            if entry.line == text:
+                if exit_code is not None:
+                    entry.last_exit = exit_code
+                entry.last_used = now
+                entry.cwd = cwd or entry.cwd
+                entry.project = project if project is not None else entry.project
+                self.entries.remove(entry)
+                self.entries.insert(0, entry)
+                self.cursor = None
+                return
+        self.entries.insert(
+            0,
+            CommandLineHistoryEntry(
+                line=text,
+                cwd=cwd,
+                project=project,
+                last_exit=exit_code,
+                last_used=now,
+            ),
+        )
+        self.cursor = None
+
     def walk(self, typed: str, *, direction: int, cwd: str | None = None) -> str | None:
         """Step the ``↑``/``↓`` prefix walk; ``None`` restores the typed text."""
         if self.anchor != typed:

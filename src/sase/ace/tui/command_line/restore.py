@@ -173,18 +173,14 @@ def restore_missing_blocks(
     return added
 
 
-def ensure_block_for_proc(
-    session: CommandLineSession, proc_id: str
-) -> CommandLineBlock | None:
-    """Return the block tracking *proc_id*, adding it when the store has it.
+def read_proc_for_block(proc_id: str) -> Any | None:
+    """Read the store row for a Procs-jump *proc_id* (no session mutation).
 
-    Used by the Procs-pane ``⏎`` jump: the transcript gains the block when it
-    lacks it. Returns ``None`` when the proc record was pruned (or is not a
-    command-line proc); the caller then reports the pruned record.
+    Safe to call off-thread: it only reads the proc store and checks the
+    command-line tag. Returns ``None`` when the record was pruned or is not
+    a command-line proc. The caller builds and appends the block on the UI
+    thread with :func:`append_proc_block`.
     """
-    block = session.block_for_proc(proc_id)
-    if block is not None:
-        return block
     try:
         from sase.procs.store import get_proc
 
@@ -195,13 +191,51 @@ def ensure_block_for_proc(
         return None
     if COMMAND_LINE_PROC_TAG not in list(proc.tags or []):
         return None
+    return proc
+
+
+def append_proc_block(
+    session: CommandLineSession, proc: Any
+) -> CommandLineBlock | None:
+    """Build and append the transcript block for a store row (UI thread only).
+
+    *proc* is a row previously read off-thread with
+    :func:`read_proc_for_block`. Appending and the 200-block trim mutate
+    ``session.blocks``, which the UI thread iterates, so callers must run
+    this on the UI thread. Returns ``None`` when the row carries no
+    recoverable command line.
+    """
     block = block_from_proc(proc)
     if block is None:
         return None
+    if session.block_for_proc(block.proc_id or "") is not None:
+        return session.block_for_proc(block.proc_id or "")
     session.blocks.append(block)
     while len(session.blocks) > 200:
         session.blocks.pop(0)
     return block
+
+
+def ensure_block_for_proc(
+    session: CommandLineSession, proc_id: str
+) -> CommandLineBlock | None:
+    """Return the block tracking *proc_id*, adding it when the store has it.
+
+    Used by the Procs-pane ``⏎`` jump: the transcript gains the block when it
+    lacks it. Returns ``None`` when the proc record was pruned (or is not a
+    command-line proc); the caller then reports the pruned record.
+
+    Runs entirely on the caller thread: worker-thread callers must use
+    :func:`read_proc_for_block` off-thread plus :func:`append_proc_block`
+    on the UI thread instead.
+    """
+    block = session.block_for_proc(proc_id)
+    if block is not None:
+        return block
+    proc = read_proc_for_block(proc_id)
+    if proc is None:
+        return None
+    return append_proc_block(session, proc)
 
 
 def refresh_pruned_flags(
@@ -271,10 +305,12 @@ def read_command_line_store_rows() -> list[Any]:
 __all__ = [
     "RESTORE_LIMIT",
     "RESTORE_WINDOW_SECONDS",
+    "append_proc_block",
     "block_from_proc",
     "ensure_block_for_proc",
     "load_block_tail_text",
     "read_command_line_store_rows",
+    "read_proc_for_block",
     "refresh_pruned_flags",
     "restore_missing_blocks",
 ]

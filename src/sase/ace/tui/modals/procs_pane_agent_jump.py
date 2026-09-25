@@ -178,10 +178,19 @@ def _focus_and_open(app: Any, session: Any, proc_id: str, *, pruned: bool) -> bo
 
 async def _ensure_and_open(app: Any, session: Any, proc_id: str) -> None:
     """Read the store off-thread, then open the panel on the ensured block."""
-    from sase.ace.tui.command_line.restore import ensure_block_for_proc
+    from sase.ace.tui.command_line.restore import (
+        append_proc_block,
+        read_proc_for_block,
+    )
 
     try:
-        block = await asyncio.to_thread(ensure_block_for_proc, session, proc_id)
+        # The store read runs off-thread; the block build and append stay
+        # on the UI thread, which owns session.blocks.
+        block = session.block_for_proc(proc_id)
+        if block is None:
+            proc = await asyncio.to_thread(read_proc_for_block, proc_id)
+            if proc is not None:
+                block = append_proc_block(session, proc)
     except Exception:  # noqa: BLE001 - store reads are best effort.
         block = None
     try:
