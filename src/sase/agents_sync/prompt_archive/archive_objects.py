@@ -27,7 +27,7 @@ _OBJECT_PATH_RE = re.compile(
 )
 
 
-def _is_valid_archive_object(repo: Path, relpath: str) -> bool:
+def is_valid_archive_object(repo: Path, relpath: str) -> bool:
     """Whether ``relpath`` is a canonical object whose bytes match its name."""
 
     match = _OBJECT_PATH_RE.match(relpath)
@@ -71,7 +71,7 @@ def quarantine_invalid_pending_objects(
     pending = _pending_archive_objects(repo, git_runner)
     if isinstance(pending, str):
         return pending
-    valid = tuple(path for path in pending if _is_valid_archive_object(repo, path))
+    valid = tuple(path for path in pending if is_valid_archive_object(repo, path))
     if len(valid) == len(pending):
         return valid
     valid_set = frozenset(valid)

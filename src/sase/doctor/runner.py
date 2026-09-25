@@ -55,6 +55,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
     from sase.doctor.checks_agent_holds import agent_hold_check_specs
     from sase.doctor.checks_agent_index import agent_index_check_specs
     from sase.doctor.checks_agent_publication import agent_publication_check_specs
+    from sase.doctor.checks_agents_sidecar import agents_sidecar_check_specs
     from sase.doctor.checks_agent_publication_digest import (
         agent_publication_digest_check_specs,
     )
@@ -105,6 +106,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *agent_hold_check_specs(context),
             *agent_index_check_specs(context),
             *agent_publication_check_specs(context),
+            *agents_sidecar_check_specs(context),
             *agent_publication_digest_check_specs(context),
             *bead_check_specs(context),
             *referenced_by_check_specs(context),

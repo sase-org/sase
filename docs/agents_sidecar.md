@@ -162,7 +162,9 @@ for the complete ordering and recovery boundary.
 
 Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>`
 prints the archived Markdown document. `sase agent prompts validate` verifies headers,
-artifact links, digest-bearing filenames, local manifests, and plan cross-links.
+legacy artifact links, and content-addressed `files/objects/` links. It reports missing,
+untracked, and digest-mismatched objects as errors, and tracked objects no prompt links
+as warnings, alongside local manifests and plan cross-links.
 `sase agent prompts migrate` reports historical plans-sidecar prompts by default and
 moves them to this archive only with `--write`.
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 import sase_core_rs
@@ -48,6 +49,20 @@ def _write_prompt(repo: Path, content: str, name: str = "example.md") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+
+
+def _init_git(repo: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "sase-test@example.com")
+    _git(repo, "config", "user.name", "SASE Test")
+    (repo / "README.md").write_text("# agents\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "-q", "-m", "seed")
 
 
 def _codes(validation: object) -> list[str]:
@@ -228,8 +243,46 @@ def test_inline_artifact_link_is_validated_outside_code_fences(tmp_path: Path) -
     assert "aaaaaaaaaaaa-one.txt" in missing[0].message
 
 
+def test_content_addressed_objects_report_missing_untracked_digest_and_orphans(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "agents"
+    _init_git(repo)
+    untracked_payload = b"untracked object"
+    untracked_digest = hashlib.sha256(untracked_payload).hexdigest()
+    untracked = repo / sase_core_rs.artifact_object_relpath(untracked_digest)
+    untracked.parent.mkdir(parents=True)
+    untracked.write_bytes(untracked_payload)
+    bad = repo / "files/objects/sha256/aa" / ("a" * 64)
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"wrong bytes")
+    orphan_payload = b"orphan object"
+    orphan_digest = hashlib.sha256(orphan_payload).hexdigest()
+    orphan = repo / sase_core_rs.artifact_object_relpath(orphan_digest)
+    orphan.parent.mkdir(parents=True, exist_ok=True)
+    orphan.write_bytes(orphan_payload)
+    _git(repo, "add", str(bad.relative_to(repo)), str(orphan.relative_to(repo)))
+    _git(repo, "commit", "-q", "-m", "tracked objects")
+    missing_digest = "b" * 64
+    _write_prompt(
+        repo,
+        _prompt_document(
+            artifact_target=f"../../{untracked.relative_to(repo).as_posix()}"
+        )
+        + f"Use [missing](../../files/objects/sha256/bb/{missing_digest}).\n",
+    )
+
+    validation = validate_prompt_archive(repo)
+
+    assert _codes(validation).count("artifact-missing") == 1
+    assert _codes(validation).count("artifact-untracked") == 1
+    assert _codes(validation).count("artifact-digest") == 1
+    assert _codes(validation).count("artifact-orphan") == 2
+
+
 _ERROR_CODES = (
     "artifact-missing",
+    "artifact-untracked",
     "artifact-digest",
     "prompt-parse",
 )

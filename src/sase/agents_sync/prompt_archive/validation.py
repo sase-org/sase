@@ -10,6 +10,7 @@ import re
 from typing import Any, Literal, cast
 from urllib.parse import unquote, urlsplit
 
+from sase.agents_sync.prompt_archive.archive_objects import ARCHIVE_OBJECT_ROOT
 from sase.core.prompt_archive_facade import (
     PromptArchiveDocument,
     prompt_archive_inventory,
@@ -29,6 +30,7 @@ from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX
 PromptArchiveSeverity = Literal["error", "warning"]
 
 _ARTIFACT_FILENAME_RE = re.compile(r"^([0-9a-fA-F]{12})-")
+_OBJECT_FILENAME_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]\n]*\]\(([^\s)]+)(?:\s+[^)]*)?\)")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 
@@ -116,6 +118,8 @@ def validate_prompt_archive(
     files: list[_PromptArchiveFile] = []
     issues: list[_PromptArchiveIssue] = []
     referenced_artifacts: set[Path] = set()
+    referenced_objects: set[Path] = set()
+    tracked_objects = _tracked_object_paths(root)
     agents_by_month: dict[str, set[str]] = {}
 
     for document in prompt_archive_inventory(root, month=month):
@@ -169,6 +173,32 @@ def validate_prompt_archive(
                         f"published artifact target does not exist: {target}",
                     )
                 )
+                continue
+            if _is_object_path(root, artifact_path):
+                referenced_objects.add(artifact_path)
+                object_relpath = artifact_path.relative_to(root).as_posix()
+                untracked = (
+                    tracked_objects is not None
+                    and object_relpath not in tracked_objects
+                )
+                if untracked:
+                    issues.append(
+                        _PromptArchiveIssue(
+                            "error",
+                            "artifact-untracked",
+                            object_relpath,
+                            "prompt-linked archive object is not tracked by git",
+                        )
+                    )
+                if untracked and not _object_digest_matches(artifact_path):
+                    issues.append(
+                        _PromptArchiveIssue(
+                            "error",
+                            "artifact-digest",
+                            object_relpath,
+                            "archive object bytes do not match its digest filename",
+                        )
+                    )
 
     for artifact in _artifact_paths(root, month):
         relpath = artifact.relative_to(root).as_posix()
@@ -194,6 +224,30 @@ def validate_prompt_archive(
                     "published artifact is referenced by no prompt",
                 )
             )
+
+    if tracked_objects is not None:
+        for object_relpath in sorted(tracked_objects):
+            object_path = root / object_relpath
+            if not object_path.is_file():
+                continue
+            if not _object_digest_matches(object_path):
+                issues.append(
+                    _PromptArchiveIssue(
+                        "error",
+                        "artifact-digest",
+                        object_relpath,
+                        "archive object bytes do not match its digest filename",
+                    )
+                )
+            if object_path.resolve(strict=False) not in referenced_objects:
+                issues.append(
+                    _PromptArchiveIssue(
+                        "warning",
+                        "artifact-orphan",
+                        object_relpath,
+                        "published archive object is referenced by no prompt",
+                    )
+                )
 
     issues.extend(
         _unpublished_manifest_issues(
@@ -371,12 +425,51 @@ def _local_artifact_path(root: Path, prompt: Path, target: str) -> Path | None:
     if not raw_path:
         return None
     candidate = (prompt.parent / raw_path).resolve(strict=False)
-    artifacts_root = (root / "artifacts").resolve(strict=False)
+    for archive_root in (root / "artifacts", root / ARCHIVE_OBJECT_ROOT):
+        try:
+            candidate.relative_to(archive_root.resolve(strict=False))
+        except ValueError:
+            continue
+        return candidate
+    return None
+
+
+def _tracked_object_paths(root: Path) -> set[str] | None:
+    """Return the one Git index listing needed for archive-object validation."""
+
+    import subprocess
+
     try:
-        candidate.relative_to(artifacts_root)
-    except ValueError:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--", ARCHIVE_OBJECT_ROOT],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except OSError:
         return None
-    return candidate
+    if result.returncode != 0:
+        return None
+    return {
+        path
+        for path in result.stdout.splitlines()
+        if path.startswith(f"{ARCHIVE_OBJECT_ROOT}/")
+    }
+
+
+def _is_object_path(root: Path, path: Path) -> bool:
+    try:
+        path.relative_to((root / ARCHIVE_OBJECT_ROOT).resolve(strict=False))
+    except ValueError:
+        return False
+    return True
+
+
+def _object_digest_matches(path: Path) -> bool:
+    return bool(_OBJECT_FILENAME_RE.fullmatch(path.name)) and (
+        _sha256(path).casefold() == path.name.casefold()
+    )
 
 
 def _sha256(path: Path) -> str:

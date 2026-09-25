@@ -232,6 +232,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "workspace.occupancy_conflicts",
         "state.agent_index",
         "state.agent_publication_outbox",
+        "project.agents_sidecar_dirt",
         "project.beads",
         "project.referenced_by_index",
         "project.artifact_links_aggregate",
