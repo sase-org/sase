@@ -128,7 +128,7 @@ def test_restart_result_uses_existing_restart_when_ready_flow(
 
     monkeypatch.setattr("time.time", lambda: _NOW)
     monkeypatch.setattr(
-        "sase.ace.tui.actions.base.restart_after_update_when_ready",
+        "sase.ace.tui.actions._base_updates.restart_after_update_when_ready",
         restart,
     )
     harness = _ShortcutHarness()
@@ -172,7 +172,7 @@ def test_update_everything_shortcut_submits_auto_approved_request_without_panel(
 
     monkeypatch.setattr("time.time", fail)
     monkeypatch.setattr(
-        "sase.ace.tui.actions.base.build_update_panel_state",
+        "sase.ace.tui.actions._base_updates.build_update_panel_state",
         fail,
     )
     harness = _ShortcutHarness()
