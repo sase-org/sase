@@ -32,9 +32,6 @@ _OUTER_PADDING = " "
 _PROVIDER_GAP = "  "
 _WINDOW_SEPARATOR = " · "
 _DISCLOSURE_GAP = "  "
-# Dim micro-label matching the status-row `<type>: ` labels (e.g. `load: `).
-_USAGE_LABEL = "usage: "
-_USAGE_LABEL_STYLE = "dim"
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,31 +117,17 @@ def build_usage_indicator_segment(
     budget: int | None = None,
     dark: bool = True,
 ) -> Text:
-    """Return the labeled full cluster when it fits, else the richest unlabeled prefix.
-
-    The dim ``usage: `` label is dropped first: only the labeled full segment
-    carries it, and it never appears with a ``+N`` overflow or a fallback rung.
-    """
+    """Return the richest complete-window prefix of *groups* that fits *budget*."""
     total = _window_count(groups)
     if not total or budget is not None and budget <= 0:
         return Text("")
-    labeled = _render_visible_windows(
-        groups,
-        visible_count=total,
-        hidden_count=0,
-        dark=dark,
-        labeled=True,
-    )
-    if budget is None or labeled.cell_len <= budget:
-        return labeled
     full = _render_visible_windows(
         groups,
         visible_count=total,
         hidden_count=0,
         dark=dark,
-        labeled=False,
     )
-    if full.cell_len <= budget:
+    if budget is None or full.cell_len <= budget:
         return full
     prefix_widths = _prefix_cell_widths(groups)
     for keep in range(total - 1, 0, -1):
@@ -155,7 +138,6 @@ def build_usage_indicator_segment(
                 visible_count=keep,
                 hidden_count=hidden,
                 dark=dark,
-                labeled=False,
             )
     return _fallback_segment(
         total,
@@ -192,17 +174,13 @@ def _render_visible_windows(
     visible_count: int,
     hidden_count: int,
     dark: bool,
-    labeled: bool = False,
 ) -> Text:
     visible_groups = _visible_groups(groups, visible_count)
     text = Text()
     if not visible_groups:
         return text
 
-    if labeled:
-        text.append(_USAGE_LABEL, style=_USAGE_LABEL_STYLE)
-    else:
-        text.append(_OUTER_PADDING, style=usage_gap_style(dark=dark))
+    text.append(_OUTER_PADDING, style=usage_gap_style(dark=dark))
 
     for group_index, (group, fragments) in enumerate(visible_groups):
         if group_index:

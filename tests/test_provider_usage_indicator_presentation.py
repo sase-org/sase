@@ -132,7 +132,7 @@ from tests._provider_usage_indicator_presentation_helpers import (
 def test_compact_window_names(entry: dict[str, object], expected: str) -> None:
     segment = build_usage_indicator_segment(_groups(entry))
 
-    assert segment.plain.strip() == f"usage: {expected}"
+    assert segment.plain.strip() == expected
 
 
 def test_model_family_compact_name_drops_prefix_but_tooltip_keeps_it() -> None:
@@ -188,9 +188,7 @@ def test_grouped_default_first_text_order_icons_gaps_and_dots() -> None:
 
     segment = build_usage_indicator_segment(_groups(codex, session, fable, all_model))
 
-    assert segment.plain == (
-        "usage: 🎭 62% 3d4h · 5h 18% 2h9m · fable 7% 1d8h  🤖 81% 5d2h "
-    )
+    assert segment.plain == (" 🎭 62% 3d4h · 5h 18% 2h9m · fable 7% 1d8h  🤖 81% 5d2h ")
     assert segment.plain.count("🎭") == 1
     assert segment.plain.count("🤖") == 1
     assert segment.plain.count("·") == 2
@@ -215,7 +213,7 @@ def test_hidden_default_starts_with_named_extra() -> None:
 
     segment = build_usage_indicator_segment(_groups(fable))
 
-    assert segment.plain.strip() == "usage: 🎭 fable 7% 1d8h"
+    assert segment.plain.strip() == "🎭 fable 7% 1d8h"
     assert "·" not in segment.plain
     assert "|" not in segment.plain
 
@@ -226,7 +224,7 @@ def test_multiple_default_classified_entries_keep_lowest_key_unnamed() -> None:
 
     segment = build_usage_indicator_segment(_groups(later, anchor))
 
-    assert segment.plain == "usage: 🎭 62% 3d4h · wk/all 55% 3d4h "
+    assert segment.plain == " 🎭 62% 3d4h · wk/all 55% 3d4h "
 
 
 def test_colliding_compact_names_receive_stable_key_suffixes() -> None:
@@ -278,7 +276,7 @@ def test_vendor_rejected_window_shows_marker_before_percentage() -> None:
 
     segment = build_usage_indicator_segment(_groups(entry))
 
-    assert segment.plain.strip() == "usage: 🚀 ! 4% 3d4h"
+    assert segment.plain.strip() == "🚀 ! 4% 3d4h"
 
 
 def test_collector_problem_entry_has_no_warning_marker_but_keeps_tooltip_prose() -> (
@@ -296,7 +294,7 @@ def test_collector_problem_entry_has_no_warning_marker_but_keeps_tooltip_prose()
     segment = build_usage_indicator_segment(groups)
     tooltip = usage_indicator_tooltip_lines(groups)
 
-    assert segment.plain.strip() == "usage: 🤖 ! 50% 3d4h"
+    assert segment.plain.strip() == "🤖 ! 50% 3d4h"
     assert "⚠" not in segment.plain
     assert any("collector is currently failing" in line for line in tooltip)
 
@@ -325,17 +323,15 @@ def test_stale_unknown_age_passed_unknown_reset_and_percent_edges() -> None:
         resets_at=None,
     )
 
-    assert build_usage_indicator_segment(_groups(stale)).plain.strip() == (
-        "usage: 🎭 62% 3d4h"
-    )
+    assert build_usage_indicator_segment(_groups(stale)).plain.strip() == "🎭 62% 3d4h"
     assert build_usage_indicator_segment(_groups(unknown_age)).plain.strip() == (
-        "usage: 🎭 62% 3d4h"
+        "🎭 62% 3d4h"
     )
     assert build_usage_indicator_segment(_groups(passed)).plain.strip() == (
-        "usage: 🎭 ?% 0h0m↻"
+        "🎭 ?% 0h0m↻"
     )
     assert build_usage_indicator_segment(_groups(unknown_reset)).plain.strip() == (
-        "usage: 🎭 62% ?"
+        "🎭 62% ?"
     )
     assert format_usage_percent_text(0.0) == "0%"
     assert format_usage_percent_text(0.4) == "<1%"
@@ -444,4 +440,4 @@ def test_unknown_provider_falls_back_to_id_marker() -> None:
 
     segment = build_usage_indicator_segment(_groups(entry))
 
-    assert segment.plain.strip() == "usage: ACME 62% 3d4h"
+    assert segment.plain.strip() == "ACME 62% 3d4h"

@@ -163,7 +163,7 @@ def test_rendered_positive_boundary_uses_displayed_percent_color(
     expected_color = _theme_bucket_colors(dark=dark)[bucket_index]
     badge_surface = _usage_badge_surface_color(dark=dark)
 
-    assert segment.plain.strip() == f"usage: 🎭 fable {percent_token} 1d8h"
+    assert segment.plain.strip() == f"🎭 fable {percent_token} 1d8h"
     for token in ("fable", percent_token, "1d8h"):
         style = _style_at_token(segment, token)
         assert style.bold is True
@@ -250,7 +250,7 @@ def test_named_rejected_zero_run_omits_marker_in_one_inverted_block(
     segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
     exhausted_color = usage_percent_color(0, dark=dark)
 
-    assert segment.plain.strip() == "usage: 🚀 grok-preview 0% 3d4h"
+    assert segment.plain.strip() == "🚀 grok-preview 0% 3d4h"
     start, end = _assert_style_run(
         segment,
         "grok-preview 0% 3d4h",
@@ -304,7 +304,7 @@ def test_zero_and_healthy_windows_stay_separated_by_normal_divider(
         _groups(healthy, exhausted, dark=dark), dark=dark
     )
 
-    assert segment.plain.strip() == "usage: 🎭 62% 3d4h · fable 0% 3d4h"
+    assert segment.plain.strip() == "🎭 62% 3d4h · fable 0% 3d4h"
     assert _dot_styles(segment) == [Style.parse(usage_divider_style(dark=dark))]
     _assert_style_run(
         segment,
@@ -392,7 +392,7 @@ def test_zero_percent_state_contract(
     badge_surface = _usage_badge_surface_color(dark=True)
     exhausted_color = usage_percent_color(0, dark=True)
 
-    assert segment.plain.strip() == f"usage: {expected}"
+    assert segment.plain.strip() == expected
     assert percent_style.bgcolor is not None
     if zero_emphasized:
         assert percent_style.color is not None

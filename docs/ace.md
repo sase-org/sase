@@ -3945,12 +3945,8 @@ The application header groups independently selected usage windows by provider o
 right of the existing title row, for example:
 
 ```text
-usage: 🎭 62% 3d4h · fable 0% 1d8h  🤖 81% 5d2h
+🎭 62% 3d4h · fable 0% 1d8h  🤖 81% 5d2h
 ```
-
-The cluster starts with a dim `usage:` label, in the same style as the `<type>: <body>`
-labels on the top bar and status rows. When the labeled cluster does not fit, the label
-is dropped first, before any window is hidden behind `+N`.
 
 The title is centered on the header line. Usage occupies a right-docked reserve sized so
 the complete title still fits centered; changing usage text never moves the title, and
@@ -3958,10 +3954,8 @@ the navigation and routing controls on the row below stay put. The complete titl
 priority: sase's TUI never truncates it merely to show more usage, and a clipped title
 keeps the full string in its tooltip.
 
-The labeled segment starts with the dim `usage:` label directly before the first
-provider icon, and owns one quiet space after the block. Once the label is dropped, the
-unlabeled segment owns one quiet space before the first provider icon and one after the
-block. Each provider icon appears once, followed by one space, and providers are
+The rendered segment owns one quiet space before the first provider icon and one after
+the block. Each provider icon appears once, followed by one space, and providers are
 separated by two quiet spaces with no inter-provider punctuation. Windows of the same
 provider are joined with a middle dot (`·`). A single visible window has no extra
 separator even when hidden windows remain.
@@ -4003,11 +3997,11 @@ visible, before adding a `+N` overflow count. If no complete window prefix plus
 disclosure fits, sase's TUI falls back through `usage N`, `N`, and `…`, relaxing the
 text-only padding at one-cell boundaries. Every selected and overflowed window's full
 identity, exact key, precise percentage, scope, effective display policy, and reset
-timestamp are in the tooltip. Clicking the usage cluster — including the `usage:` label,
-a window, `+N`, `usage N`, a bare count, or `…` — opens Providers · Usage at the first
-displayed provider and does not expand the header. Clicking the routing pill still opens
-Config > Launch. The Usage command is also reachable from Launch Control's `u` and the
-command palette when there is no display space at all.
+timestamp are in the tooltip. Clicking the usage cluster — including a window, `+N`,
+`usage N`, a bare count, or `…` — opens Providers · Usage at the first displayed
+provider and does not expand the header. Clicking the routing pill still opens Config >
+Launch. The Usage command is also reachable from Launch Control's `u` and the command
+palette when there is no display space at all.
 
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads
