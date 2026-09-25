@@ -72,7 +72,7 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
     }
     normalized = module.tool_run_normalize_definition(definition)
     digest = normalized["digest"]
-    fingerprint = {
+    fingerprint: dict[str, Any] = {
         "schema_version": 1,
         "project_identity": None,
         "definition_digest": None,

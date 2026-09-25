@@ -363,17 +363,19 @@ _lint-patch-stitch-terminology: _setup
 # Epic-symbol entries are self-cleaning: each entry goes away with the phase
 # that first consumes its symbols (sase-17x.9 consumed ensure_command_line_spec
 # and CompletionSpecCacheError; sase-18g.3 consumed the agent-header preview
-# symbols keyed to the sase-18g epic).
+# symbols keyed to the sase-18g epic). The sase-18j entries wait on its e3
+# record-and-render, known-gated-continuation, and failures-and-followups phases.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        # e3 record-and-render / known-gated-continuation / failures-and-followups. \
         --epic-symbol 'sase-18j(tool_run_triage_record)' \
         --epic-symbol 'sase-18j(tool_run_triage_show)' \
         --epic-symbol 'sase-18j(tool_run_triage_stage)' \
         --epic-symbol 'sase-18j(tool_run_triage_settle)' \
         --epic-symbol 'sase-18j(tool_run_failures)' \
+        --epic-symbol 'sase-18j(gather_owner_candidates)' \
+        --epic-symbol 'sase-18j(triage_knobs)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(PlanGateHistory)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
@@ -683,6 +685,13 @@ selection-health *args: _setup (_header "selection-health")
 [positional-arguments]
 selection-backtest *args: _setup (_header "selection-backtest")
     @{{ venv_bin }}/python tools/selection_backtest "$@"
+
+# Replay retained ToolRun logs through the pure triage bindings. Read-only
+# with respect to the ledger: it writes only `report.json` and an `audit.md`
+# worksheet under `--out-dir`. A measurement tool, not a gate.
+[positional-arguments]
+tool-triage-backtest *args: _setup (_header "tool-triage-backtest")
+    @{{ venv_bin }}/python tools/tool_triage_backtest "$@"
 
 # Agent default: whole-repo lint gates plus a diff-scoped test lane that never
 # queues behind another agent's run — it is serial and takes no suite-gate

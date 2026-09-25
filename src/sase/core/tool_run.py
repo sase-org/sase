@@ -62,12 +62,14 @@ def tool_run_triage_extract(request: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
+# symvision: tools/tool_triage_backtest
 def tool_run_triage_classify(request: Mapping[str, Any]) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_triage_classify")(_triage_payload(request))
     )
 
 
+# symvision: tools/tool_triage_backtest
 def tool_run_triage_verdict(request: Mapping[str, Any]) -> dict[str, Any]:
     return dict(
         require_rust_binding("tool_run_triage_verdict")(_triage_payload(request))

@@ -64,3 +64,9 @@ installed `sase_core_rs` wheel. `tools/smoke_sase_tool_runs` is the black-box ha
 it talks to the real store and CLI for catalog, foreground run, signals, lost-run
 recovery, fail-open recording, and query contracts. Later-phase live owner cases remain
 labeled phase-pending unless `--live` is passed.
+
+## Triage backtest
+
+`tools/tool_triage_backtest` replays retained ToolRun logs through the pure triage
+bindings. It is read-only with respect to the ledger; its only output is `report.json`
+and an `audit.md` worksheet under `--out-dir`.
