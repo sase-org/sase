@@ -3568,6 +3568,16 @@ TUI.
   current selection, ranks the selected entity first, and shows advisory grammar
   diagnostics. `Tab` completes, `Ctrl+F` accepts an active completion, `Ctrl+R` searches
   history, and `;` on an empty line hops back to the Command Palette.
+- The frame's borders carry the chrome: `❯ Command Line` and the working-context chip
+  (`⌂ +<project> · <path>`) on the top border, the key hints for the current context and
+  the `N running` count on the bottom one. Both borders recompose when the terminal
+  resizes, so their ends stay aligned: the chip is middle-truncated first, and the hints
+  give way to the running count. The frame is 96% of the terminal wide (at most 160
+  columns) and grows to 65% of its height; `Ctrl+T` toggles full height.
+- The completion popup floats over the transcript, just above the input row, with its
+  candidate text lined up under the slot being completed (clamped to the frame). Opening
+  and closing it never reflows the transcript. On terminals at least 140 columns wide
+  the doc peek sits beside it.
 - The completion popup shows an 8-row window that scrolls through every candidate; its
   footer counts the highlighted row (`N of M`) and shows the one key that fits the menu
   state. An empty line offers `RECENT` history and `FOR <selection>` suggestions under

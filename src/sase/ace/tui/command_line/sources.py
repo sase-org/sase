@@ -331,7 +331,7 @@ def selected_entity_values(app: Any) -> list[str]:
 
 
 @dataclass(frozen=True, slots=True)
-class PathCompletionRequest:
+class _PathCompletionRequest:
     """The pure UI-thread result used to scan one path directory off-thread."""
 
     scan_directory: str
@@ -339,7 +339,7 @@ class PathCompletionRequest:
     source_key: str
 
 
-def path_completion_request(prefix: str, cwd: str) -> PathCompletionRequest:
+def path_completion_request(prefix: str, cwd: str) -> _PathCompletionRequest:
     """Resolve a typed path to its scan directory without touching the disk."""
     typed = prefix or ""
     separator = "/"
@@ -357,7 +357,7 @@ def path_completion_request(prefix: str, cwd: str) -> PathCompletionRequest:
     # Keep this transformation lexical: even ``Path.resolve(strict=False)``
     # can touch the filesystem, and this function runs for every keypress.
     scan_directory = os.path.abspath(os.path.normpath(expanded))
-    return PathCompletionRequest(
+    return _PathCompletionRequest(
         scan_directory=scan_directory,
         display_prefix=display_prefix,
         source_key=f"path:{scan_directory}:{display_prefix}",
@@ -365,7 +365,7 @@ def path_completion_request(prefix: str, cwd: str) -> PathCompletionRequest:
 
 
 def path_candidates(
-    request: PathCompletionRequest,
+    request: _PathCompletionRequest,
     *,
     directories_only: bool,
     limit: int = PATH_COMPLETION_LIMIT,

@@ -2,12 +2,14 @@
 
 View-only composition over the app-held
 :class:`~sase.ace.tui.command_line.session.CommandLineSession`: transcript,
-completion popup, input row with the implicit ``❯ sase `` prefix, and a
-signature/hint row. Submission creates an optimistic block plus an observer
-placeholder at once, then submits in a thread worker; failures turn the
-block red and restore the line. Tailing and exit settling reuse the proc
-plumbing from the proc-plumbing phase (``ProcLogCursor``, exit watches,
-ref-counted tails).
+input row with the implicit ``❯ sase `` prefix, a signature/hint row, and the
+completion popup floating over the transcript. The title, working-context
+chip, key hints and running count live on the frame's borders (see
+:class:`~sase.ace.tui.command_line.chrome.CommandLineFrame`). Submission
+creates an optimistic block plus an observer placeholder at once, then
+submits in a thread worker; failures turn the block red and restore the
+line. Tailing and exit settling reuse the proc plumbing from the proc-plumbing
+phase (``ProcLogCursor``, exit watches, ref-counted tails).
 
 The completion-popup phase wires the frozen ``CommandLineGrammar`` into the
 input: every edit resolves synchronously (tokens, slot, diagnostics,
@@ -37,6 +39,7 @@ from textual.widgets import Static
 from sase.ace.tui.command_line.block_render import (
     BLOCK_SPINNER_FRAMES,  # noqa: F401 - re-exported for golden tests.
 )
+from sase.ace.tui.command_line.chrome import CommandLineFrame
 from sase.ace.tui.command_line.builtins import (
     BuiltinOutcome,
     builtin_name_for,
@@ -136,6 +139,9 @@ from sase.ace.tui.command_line.screen_constants import (
     COMMAND_LINE_SEARCH_HINT,
 )
 from sase.ace.tui.command_line.screen_navigation import CommandLineScreenNavigationMixin
+from sase.ace.tui.command_line.screen_popup_layout import (
+    CommandLineScreenPopupLayoutMixin,
+)
 from sase.ace.tui.command_line.screen_submission import CommandLineScreenSubmissionMixin
 
 
@@ -143,6 +149,7 @@ class CommandLineScreen(
     CommandLineScreenSubmissionMixin,
     CommandLineScreenNavigationMixin,
     CommandLineScreenCompletionMixin,
+    CommandLineScreenPopupLayoutMixin,
     ModalScreen[None],
 ):
     """Bottom-anchored ``:`` Command Line drawer."""
@@ -157,52 +164,25 @@ class CommandLineScreen(
         align: center bottom;
     }
     #command-line-frame {
+        layers: base overlay;
         width: 96%;
         max-width: 160;
         height: auto;
         max-height: 65%;
         border: round $primary;
+        border-title-color: $text;
+        border-subtitle-color: $text;
         background: $surface;
     }
     #command-line-frame.full-height {
         height: 100%;
         max-height: 100%;
     }
-    #command-line-title-row {
-        height: 1;
-    }
-    #command-line-title {
-        width: auto;
-    }
-    #command-line-chip {
-        width: 1fr;
-        text-align: right;
-    }
-    #command-line-popup-row {
-        height: auto;
-    }
-    #command-line-popup {
-        width: 1fr;
-        height: auto;
-        /* 8 candidates + 2 section headings + the border. */
-        max-height: 12;
-        border: round $primary;
-        margin: 0 2;
-    }
-    #command-line-doc-peek {
-        width: auto;
-        max-width: 60;
-        height: auto;
-        max-height: 12;
-        border: round $primary;
-        padding: 0 1;
-        margin: 0 2 0 0;
-    }
-    #command-line-popup-footer {
-        height: 1;
-        padding: 0 3;
+    #command-line-transcript {
+        layer: base;
     }
     #command-line-input-row {
+        layer: base;
         height: 3;
     }
     #command-line-prefix {
@@ -214,17 +194,45 @@ class CommandLineScreen(
         height: 3;
     }
     #command-line-hint-row {
+        layer: base;
         height: 1;
     }
-    #command-line-status-row {
-        height: 1;
-    }
-    #command-line-keys {
+    /* The popup floats over the transcript, docked above the input row; its
+       size, margin and offset are set from the geometry helpers at layout. */
+    #command-line-popup-float {
+        layer: overlay;
+        dock: bottom;
         width: auto;
+        height: auto;
     }
-    #command-line-running {
-        width: 1fr;
-        text-align: right;
+    #command-line-popup-card {
+        width: auto;
+        height: auto;
+        border: round $primary;
+        background: $surface;
+    }
+    #command-line-popup {
+        width: 100%;
+        height: 1fr;
+        border: none;
+        padding: 0;
+        background: $surface;
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
+    }
+    #command-line-popup-footer {
+        height: 1;
+        padding: 0 1;
+    }
+    #command-line-doc-peek {
+        width: auto;
+        max-width: 60;
+        height: auto;
+        max-height: 12;
+        border: round $primary;
+        background: $surface;
+        padding: 0 1;
+        margin: 0 0 0 1;
     }
     """
 
@@ -249,6 +257,7 @@ class CommandLineScreen(
         self._history_search_active = False
         self._empty_state_active = False
         self._last_completion_kind = ""
+        self._doc_peek_text = ""
 
     @property
     def session(self) -> CommandLineSession:
@@ -264,34 +273,36 @@ class CommandLineScreen(
         return session.command_history
 
     def compose(self) -> ComposeResult:
-        """Compose the frame: title, transcript, input, hint, status."""
-        with Vertical(id="command-line-frame"):
-            with Horizontal(id="command-line-title-row"):
-                yield Static(
-                    Text("❯ Command Line", style="bold #FFD700"),
-                    id="command-line-title",
-                )
-                yield Static("", id="command-line-chip")
+        """Compose the frame: transcript, input, hint, and the floating popup.
+
+        The title, chip, key hints and running count live on the frame's
+        borders (see :class:`CommandLineFrame`).
+        """
+        with CommandLineFrame(id="command-line-frame"):
             yield CommandLineTranscript(id="command-line-transcript")
-            with Horizontal(id="command-line-popup-row"):
-                popup = CommandLinePopup()
-                popup.display = False
-                yield popup
-                peek = Static("", id="command-line-doc-peek")
-                peek.display = False
-                yield peek
-            footer = Static("", id="command-line-popup-footer")
-            footer.display = False
-            yield footer
             with Horizontal(id="command-line-input-row"):
                 yield Static(
                     Text(COMMAND_LINE_PREFIX, style="dim"), id="command-line-prefix"
                 )
                 yield CommandLineInput()
             yield Static(COMMAND_LINE_IDLE_HINT, id="command-line-hint-row")
-            with Horizontal(id="command-line-status-row"):
-                yield Static(COMMAND_LINE_INPUT_HINTS, id="command-line-keys")
-                yield Static("0 running", id="command-line-running")
+            float_ = Horizontal(id="command-line-popup-float")
+            float_.display = False
+            with float_:
+                with Vertical(id="command-line-popup-card"):
+                    popup = CommandLinePopup()
+                    popup.display = False
+                    yield popup
+                    footer = Static("", id="command-line-popup-footer")
+                    footer.display = False
+                    yield footer
+                peek = Static("", id="command-line-doc-peek")
+                peek.display = False
+                yield peek
+
+    def on_command_line_frame_resized(self) -> None:
+        """Re-place the floating popup when the frame's size changes."""
+        self._layout_popup()
 
     async def on_mount(self) -> None:
         """Restore session state, resolve context, and start tailing."""
@@ -303,7 +314,7 @@ class CommandLineScreen(
         except Exception:  # noqa: BLE001 - binding refresh is best effort.
             pass
         session = self.session
-        frame = self.query_one("#command-line-frame", Vertical)
+        frame = self.query_one("#command-line-frame", CommandLineFrame)
         if session.full_height:
             frame.add_class("full-height")
         restored_input = self.query_one(CommandLineInput)

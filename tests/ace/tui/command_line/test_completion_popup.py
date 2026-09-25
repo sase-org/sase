@@ -420,6 +420,28 @@ def test_signature_shows_active_slot_diagnostic_and_chips() -> None:
     assert "asks to confirm · -y" in plain
 
 
+def test_every_chip_style_converts_to_textual_content() -> None:
+    """A chip whose style Rich cannot parse crashes the hint row on typing.
+
+    ``dim amber`` once did: ``amber`` is not a Rich color, and ``Static``
+    converts the row through ``Content.from_rich_text``, which raises on it,
+    so any writes command (``bead close``) failed in the text-changed handler.
+    """
+    from rich.console import Console
+    from textual.content import Content
+
+    contexts = [
+        _signature_context(),
+        dict(_signature_context(), run_policy={"policy": "foreground"}),
+        dict(_signature_context(), run_policy={"policy": "deny", "note": "no"}),
+        dict(_signature_context(), stdin=True),
+    ]
+    for context in contexts:
+        line = signature_hint_line(context)
+        content = Content.from_rich_text(line, console=Console())  # raises if bad
+        assert content.plain == line.plain
+
+
 def test_signature_option_swap_replaces_slots() -> None:
     """A highlighted option swaps its summary (choices, default) into the row."""
     summary = _option_summary_text(

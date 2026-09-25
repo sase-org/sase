@@ -469,18 +469,20 @@ async def test_block_keys_select_move_and_switch_hints(
 
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.chrome import CommandLineFrame
     from sase.ace.tui.command_line.screen import (
         COMMAND_LINE_BLOCK_HINTS,
         COMMAND_LINE_INPUT_HINTS,
     )
     from sase.ace.tui.command_line.session import command_line_session_for
-    from textual.widgets import Static
 
     with (
         mock_patch.object(AceApp, "_load_agents"),
         mock_patch.object(AceApp, "_load_axe_status"),
     ):
-        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+        async with AcePage(
+            query="test_feature", patches=[make_patch()], size=(200, 40)
+        ) as page:
             screen = await _open_seeded_panel(
                 page, monkeypatch, ["bead list", "bead show sase-1"]
             )
@@ -490,9 +492,9 @@ async def test_block_keys_select_move_and_switch_hints(
             selected = session.selected_block()
             assert selected is session.blocks[-1]
             assert selected is not None and selected.unseen is False
-            keys = screen.query_one("#command-line-keys", Static)
-            assert "o expand" in keys.content
-            assert COMMAND_LINE_BLOCK_HINTS in keys.content
+            frame = screen.query_one(CommandLineFrame)
+            assert "o expand" in frame.bottom_label.plain
+            assert COMMAND_LINE_BLOCK_HINTS in frame.bottom_label.plain
             screen.handle_block_nav_key("k")
             assert session.selected_block() is session.blocks[0]
             screen.handle_block_nav_key("G")
@@ -501,7 +503,7 @@ async def test_block_keys_select_move_and_switch_hints(
             assert session.selected_block() is session.blocks[0]
             screen.focus_input()
             assert session.selected_block() is None
-            assert COMMAND_LINE_INPUT_HINTS in keys.content
+            assert COMMAND_LINE_INPUT_HINTS in frame.bottom_label.plain
 
 
 async def test_forwarded_k_key_enters_transcript_selection(

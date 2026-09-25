@@ -87,7 +87,7 @@ def _build_chips(context: LineContext | None) -> Text:
     run_policy = context.get("run_policy") or {}
     policy = str(run_policy.get("policy", "") or "proc")
     if context.get("writes"):
-        _chip("⚠ writes", "dim amber")
+        _chip("⚠ writes", "dim #FFAF00")
     if policy == "foreground":
         _chip("↗ terminal", "dim")
     elif policy == "deny":

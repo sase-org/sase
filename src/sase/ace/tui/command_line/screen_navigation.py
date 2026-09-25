@@ -21,6 +21,7 @@ from sase.ace.tui.command_line.builtins import (
     run_cd,
     run_clear,
 )
+from sase.ace.tui.command_line.chrome import CommandLineFrame
 from sase.ace.tui.command_line.context import (
     CommandLineContext,
     resolve_launch_cwd,
@@ -128,7 +129,7 @@ class CommandLineScreenNavigationMixin:
         session = self.session
         session.full_height = not session.full_height
         try:
-            frame = self.query_one("#command-line-frame", Vertical)
+            frame = self.query_one("#command-line-frame", CommandLineFrame)
             frame.set_class(session.full_height, "full-height")
         except Exception:  # noqa: BLE001 - unmounted screen cannot restyle.
             pass
@@ -162,14 +163,14 @@ class CommandLineScreenNavigationMixin:
     def _update_hints(self) -> None:
         """Show block keys while a block is selected, input keys otherwise."""
         try:
-            keys = self.query_one("#command-line-keys", Static)
+            frame = self.query_one("#command-line-frame", CommandLineFrame)
         except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
             return
         keymaps = command_line_keymaps_for(self)
         if self.session.selected_block_id is not None:
-            keys.update(command_line_block_hints(keymaps))
+            frame.set_key_hints(command_line_block_hints(keymaps))
         else:
-            keys.update(command_line_input_hints(keymaps))
+            frame.set_key_hints(command_line_input_hints(keymaps))
 
     # -- NORMAL-mode block navigation --------------------------------------
 
@@ -540,20 +541,21 @@ class CommandLineScreenNavigationMixin:
     def _update_running(self) -> None:
         count = len(self.session.running_blocks())
         try:
-            running = self.query_one("#command-line-running", Static)
-            running.update(f"{count} running")
+            frame = self.query_one("#command-line-frame", CommandLineFrame)
         except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
-            pass
+            return
+        frame.set_running_count(count)
 
     def _update_chip(self) -> None:
         context = self._working_context
         if context is None:
             return
         try:
-            chip = self.query_one("#command-line-chip", Static)
-            chip.update(working_context_chip(context))
+            frame = self.query_one("#command-line-frame", CommandLineFrame)
         except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
-            pass
+            return
+        # The frame elides the chip to the room its title leaves on resize.
+        frame.set_chip(working_context_chip(context, max_width=None))
 
     def _update_ghost(self) -> None:
         try:

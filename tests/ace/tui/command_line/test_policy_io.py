@@ -45,15 +45,6 @@ async def _open_panel(
     return screen
 
 
-async def _wait_for(page: Any, predicate: Any, *, attempts: int = 200) -> None:
-    """Pause until *predicate* holds (async workers have landed)."""
-    for _ in range(attempts):
-        if predicate():
-            return
-        await page.pause()
-    assert predicate(), "timed out waiting for background worker"
-
-
 # -- remember() ------------------------------------------------------------------
 
 
@@ -108,9 +99,10 @@ async def test_reopen_reuses_session_history_without_disk_reads(
             assert isinstance(screen, CommandLineScreen)
             screen.transcript.stop_tail_task()
             session = command_line_session_for(page.app)
-            await _wait_for(
-                page,
-                lambda: session.history_loaded and session.palette_tip_show is not None,
+            await page.wait_for(
+                lambda _state: (
+                    session.history_loaded and session.palette_tip_show is not None
+                )
             )
             assert session.command_history is screen._history
             assert [e.line for e in session.command_history.entries] == ["bead list"]
@@ -206,8 +198,8 @@ async def test_submit_and_exit_update_memory_without_reopen(
                 proc_id="proc-mem-1", exit_code=0, status="done"
             )
             assert deliver_command_line_exit(page.app, completion) is True
-            await page.pause_until_cpu_idle()
-            assert history_file.exists()
+            # The store write runs off-thread: wait for its observable end state.
+            await page.wait_for(lambda _state: history_file.exists())
             assert session.command_history.entries[0].line == (
                 "bead list --status open"
             )

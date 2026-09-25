@@ -311,6 +311,11 @@ class CommandLinePopup(OptionList):
         #: toggling a flag that is long cleared by the time they arrive.
         self._pending_echoes: dict[int, int] = {}
 
+    @property
+    def items(self) -> list[dict[str, Any]]:
+        """Return every candidate the popup lists (not only the window)."""
+        return self._items
+
     def show_items(self, items: list[dict[str, Any]]) -> None:
         """Replace every candidate; the window resets to the top."""
         self._items = list(items)

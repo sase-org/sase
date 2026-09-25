@@ -21,6 +21,7 @@ from sase.ace.tui.command_line.builtins import (
     run_cd,
     run_clear,
 )
+from sase.ace.tui.command_line.chrome import CommandLineFrame
 from sase.ace.tui.command_line.context import (
     CommandLineContext,
     resolve_launch_cwd,
@@ -599,7 +600,9 @@ class CommandLineScreenCompletionMixin:
             peek = self.query_one("#command-line-doc-peek", Static)
             peek.display = False
         except Exception:  # noqa: BLE001 - unmounted screen cannot render.
-            pass
+            return
+        self._doc_peek_text = ""
+        self._layout_popup()
 
     def _render_doc_peek(self) -> None:
         """Show the doc-peek card for a highlighted subcommand or option."""
@@ -609,11 +612,11 @@ class CommandLineScreenCompletionMixin:
         except Exception:  # noqa: BLE001 - unmounted screen cannot render.
             return
         if not doc_peek_visible(width):
-            peek.display = False
+            self._hide_doc_peek()
             return
         highlighted = self._popup_state.highlighted
         if highlighted is None:
-            peek.display = False
+            self._hide_doc_peek()
             return
         path: list[str] = []
         if self._resolve_context is not None:
@@ -628,10 +631,12 @@ class CommandLineScreenCompletionMixin:
         except Exception:  # noqa: BLE001 - the peek never breaks typing.
             card = ""
         if not card:
-            peek.display = False
+            self._hide_doc_peek()
             return
         peek.update(card)
         peek.display = True
+        self._doc_peek_text = card
+        self._layout_popup()
 
     def _current_value_kind(self) -> str:
         """Return the value kind of the slot under the cursor, or ``""``."""
@@ -702,6 +707,7 @@ class CommandLineScreenCompletionMixin:
             # No rows to caption; an empty or failed provider still says so.
             footer.update(note or "")
             footer.display = bool(note)
+            self._layout_popup()
             return
         state = self._popup_state
         items = completion.get("items", [])
@@ -714,6 +720,7 @@ class CommandLineScreenCompletionMixin:
             )
         )
         footer.display = True
+        self._layout_popup()
 
     def _render_signature(self) -> None:
         """Repaint the signature/hint row from the resolver context."""
@@ -754,6 +761,7 @@ class CommandLineScreenCompletionMixin:
         else:
             hint_row.update(command_line_idle_hint(command_line_keymaps_for(self)))
         self._update_keys_hint()
+        self._layout_popup()
 
     def _highlighted_help_option(self) -> dict[str, Any] | None:
         """Return the help record for the menu-highlighted option, if any."""
@@ -910,13 +918,15 @@ class CommandLineScreenCompletionMixin:
     def _update_keys_hint(self) -> None:
         """Switch the bottom-border hints between input and menu sets."""
         try:
-            keys = self.query_one("#command-line-keys", Static)
+            frame = self.query_one("#command-line-frame", CommandLineFrame)
         except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
             return
         if self._popup_state.menu_active:
-            keys.update(COMMAND_LINE_MENU_HINTS)
+            frame.set_key_hints(COMMAND_LINE_MENU_HINTS)
         else:
-            keys.update(command_line_input_hints(command_line_keymaps_for(self)))
+            frame.set_key_hints(
+                command_line_input_hints(command_line_keymaps_for(self))
+            )
 
     def on_option_list_option_selected(self, event: Any) -> None:
         """Accept a popup row picked with the mouse while the menu is live."""

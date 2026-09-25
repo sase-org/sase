@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from rich.cells import cell_len
+
 
 @dataclass(frozen=True)
 class CommandLineContext:
@@ -91,8 +93,28 @@ def abbreviate_path(path: str) -> str:
     return path
 
 
-def working_context_chip(context: CommandLineContext, *, max_width: int = 48) -> str:
-    """Render the context chip: ``⌂ +<project> · <path>`` (or just the path)."""
+def middle_truncate(text: str, max_width: int) -> str:
+    """Shorten *text* to at most *max_width* cells, eliding its middle with ``…``."""
+    if max_width <= 0:
+        return ""
+    if cell_len(text) <= max_width:
+        return text
+    if max_width == 1:
+        return "…"
+    keep = max_width - 1
+    head = keep // 2
+    tail = keep - head
+    return text[:head] + "…" + (text[len(text) - tail :] if tail else "")
+
+
+def working_context_chip(
+    context: CommandLineContext, *, max_width: int | None = 48
+) -> str:
+    """Render the context chip: ``⌂ +<project> · <path>`` (or just the path).
+
+    ``max_width=None`` skips truncation so the border chrome can fit the chip
+    to the live frame width itself.
+    """
     path = abbreviate_path(context.cwd)
     if context.project:
         text = f"⌂ +{context.project} · {path}"
@@ -100,17 +122,15 @@ def working_context_chip(context: CommandLineContext, *, max_width: int = 48) ->
         text = f"⌂ {path}"
     if context.pinned:
         text += " (pinned)"
-    if len(text) <= max_width:
+    if max_width is None:
         return text
-    keep = max_width - 1
-    head = keep // 2
-    tail = keep - head
-    return text[:head] + "…" + text[len(text) - tail :]
+    return middle_truncate(text, max_width)
 
 
 __all__ = [
     "CommandLineContext",
     "abbreviate_path",
+    "middle_truncate",
     "resolve_launch_cwd",
     "resolve_working_context",
     "working_context_chip",

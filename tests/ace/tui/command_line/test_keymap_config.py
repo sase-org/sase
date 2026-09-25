@@ -12,7 +12,6 @@ import dataclasses
 from typing import Any
 
 import pytest
-from textual.widgets import Static
 
 from sase.ace.tui.keymaps import (
     build_command_line_bindings,
@@ -217,6 +216,7 @@ async def test_unbound_actions_are_inactive_and_missing_from_hints(
 
     from sase.ace.testing import AcePage, make_patch
     from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.chrome import CommandLineFrame
     from sase.ace.tui.command_line.input import CommandLineInput
     from sase.ace.tui.command_line.screen import CommandLineScreen
     from sase.ace.tui.command_line.session import command_line_session_for
@@ -245,8 +245,8 @@ async def test_unbound_actions_are_inactive_and_missing_from_hints(
             await page.pause()
             assert screen.handle_block_nav_key("j") is True
 
-            keys = screen.query_one("#command-line-keys", Static)
-            assert "remove" not in keys.content
+            frame = screen.query_one(CommandLineFrame)
+            assert "remove" not in frame.bottom_label.plain
 
             await page.press("x")
             assert widget.text == "bead list"
@@ -257,9 +257,7 @@ async def test_unbound_actions_are_inactive_and_missing_from_hints(
 
             screen.focus_input()
             await page.pause()
-            assert (
-                "search" not in screen.query_one("#command-line-keys", Static).content
-            )
+            assert "search" not in frame.bottom_label.plain
             await page.press("ctrl+r")
             await page.pause()
             assert screen._history_search_active is False

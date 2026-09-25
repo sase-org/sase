@@ -30,7 +30,7 @@ class BuiltinOutcome:
 
 
 @dataclass(frozen=True)
-class CdResolution:
+class _CdResolution:
     """Off-thread result of resolving one ``cd`` command."""
 
     outcome: BuiltinOutcome
@@ -70,13 +70,13 @@ def resolve_cd(
     *,
     cwd: str,
     resolve_project: Callable[[str], str | None] | None = None,
-) -> CdResolution:
+) -> _CdResolution:
     """Resolve a ``cd`` target without mutating UI-held session state."""
     if arg is None or not arg.strip():
-        return CdResolution(BuiltinOutcome("usage: cd <path|+project|->"), None, False)
+        return _CdResolution(BuiltinOutcome("usage: cd <path|+project|->"), None, False)
     target = arg.strip()
     if target == "-":
-        return CdResolution(
+        return _CdResolution(
             BuiltinOutcome("unpinned · following the TUI project"), None, True
         )
     if target.startswith("+"):
@@ -85,22 +85,22 @@ def resolve_cd(
         if resolved is None:
             resolved = _resolve_project_checkout(name)
         if resolved is None:
-            return CdResolution(
+            return _CdResolution(
                 BuiltinOutcome(f"error: no such project: {name}", exit_code=2),
                 None,
                 False,
             )
-        return CdResolution(BuiltinOutcome(f"pinned · {resolved}"), resolved, True)
+        return _CdResolution(BuiltinOutcome(f"pinned · {resolved}"), resolved, True)
     path = os.path.expanduser(target)
     if not os.path.isabs(path):
         path = os.path.normpath(os.path.join(cwd, path))
     if not os.path.isdir(path):
-        return CdResolution(
+        return _CdResolution(
             BuiltinOutcome(f"error: no such directory: {target}", exit_code=2),
             None,
             False,
         )
-    return CdResolution(BuiltinOutcome(f"pinned · {path}"), path, True)
+    return _CdResolution(BuiltinOutcome(f"pinned · {path}"), path, True)
 
 
 def run_clear(session: Any) -> BuiltinOutcome:
@@ -189,7 +189,6 @@ def _resolve_project_checkout(name: str) -> str | None:
 __all__ = [
     "BUILTIN_NAMES",
     "BuiltinOutcome",
-    "CdResolution",
     "builtin_name_for",
     "render_help",
     "render_history",
