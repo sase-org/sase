@@ -214,6 +214,10 @@ def test_empty_state_hint_counts_commands() -> None:
         empty_state_hint(63)
         == "63 commands · type to search · ⇥ complete · ; Command Palette"
     )
+    assert (
+        empty_state_hint(1)
+        == "1 command · type to search · ⇥ complete · ; Command Palette"
+    )
     assert empty_state_hint() == "type to search · ⇥ complete · ; Command Palette"
 
 

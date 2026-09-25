@@ -184,7 +184,8 @@ class CommandLineScreen(
     #command-line-popup {
         width: 1fr;
         height: auto;
-        max-height: 9;
+        /* 8 candidates + 2 section headings + the border. */
+        max-height: 12;
         border: round $primary;
         margin: 0 2;
     }
@@ -244,7 +245,7 @@ class CommandLineScreen(
         self._popup_state = CompletionPopupState()
         self._provider_cache = ProviderCache()
         self._provider_task: asyncio.Task[None] | None = None
-        self._provider_note: str | None = None
+        self._popup_completion: dict[str, Any] = {}
         self._help_cache: dict[tuple[tuple[str, ...], str], dict[str, Any]] = {}
         self._history_search_active = False
         self._empty_state_active = False

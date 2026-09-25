@@ -334,6 +334,10 @@ class CommandLineInput(SingleLineVimTextArea):
             if callable(handler):
                 try:
                     if await handler(event):
+                        # Consumed keys must not bubble to the panel bindings:
+                        # an accepting Enter would otherwise also submit.
+                        event.stop()
+                        event.prevent_default()
                         return
                 except Exception:  # noqa: BLE001 - fall back to vim handling.
                     pass

@@ -454,7 +454,8 @@ async def test_command_line_empty_state_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    import sase.ace.tui.command_line.screen as screen_module
+    # The empty state renders from the completion mixin, so patch it there.
+    import sase.ace.tui.command_line.screen_completion as screen_module
 
     seed = _seed_history_file(tmp_path, "bead list --status open", "bead show sase-17x")
 

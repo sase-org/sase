@@ -301,7 +301,7 @@ def test_popup_row_marks_selected_and_highlights_runs() -> None:
 def test_popup_footer_format() -> None:
     """The footer reads ``<kind> · N of M · fuzzy`` plus the key hint."""
     footer = popup_footer("bead", 8, 410)
-    assert footer == "bead · 8 of 410 · fuzzy    ⇥ accept"
+    assert footer == "bead · 8 of 410 · fuzzy    ⇥ complete"
 
 
 # -- signature line --------------------------------------------------------------

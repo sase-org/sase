@@ -6,8 +6,9 @@ Priority order per the epic plan:
    instant, fresh, and read from app state without I/O.
 2. Static spec data (subcommands, options, choices): ranked in Rust.
 3. ``candidates_for`` providers in a debounced worker, cached per
-   ``(kind, project)`` with a short TTL. The provider limit is applied
-   before ranking, so callers fetch wide and rank in Rust.
+   ``(kind, project)`` with a short per-kind TTL (volatile kinds such as
+   ``pending_plan`` expire sooner). The provider limit is applied before
+   ranking, so callers fetch wide and rank in Rust.
 4. Paths: completed natively by the shell slots, never via a provider.
 
 All readers here are defensive: missing or half-initialized app state
@@ -19,11 +20,12 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 #: Debounce delay before a provider fetch starts, in seconds.
 PROVIDER_DEBOUNCE_SECONDS = 0.08
-#: How long a provider result stays fresh, in seconds.
+#: How long a provider result stays fresh, in seconds, unless the kind is
+#: volatile (see ``VOLATILE_KIND_TTL_SECONDS``).
 PROVIDER_CACHE_TTL_SECONDS = 15.0
 #: Width of the provider fetch: rank in Rust, so fetch wide.
 PROVIDER_FETCH_LIMIT = 2000
@@ -295,19 +297,37 @@ def selected_entity_values(app: Any) -> list[str]:
     return values
 
 
+#: Outcome of one provider fetch: rows found, nothing found, or a failure.
+ProviderHealth = Literal["ok", "empty", "failed"]
+
+
 @dataclass
 class _ProviderEntry:
     expires_at: float = 0.0
     items: list[dict[str, Any]] = field(default_factory=list)
+    health: ProviderHealth = "ok"
+
+
+def _kind_ttl_seconds(kind: str, default: float) -> float:
+    """Return the freshness window for *kind*, honoring volatile kinds."""
+    from sase.completion.kinds import VOLATILE_KIND_TTL_SECONDS, ValueKind
+
+    try:
+        return float(VOLATILE_KIND_TTL_SECONDS.get(ValueKind(kind), default))
+    except ValueError:  # Not a catalog kind: keep the default window.
+        return default
 
 
 class ProviderCache:
     """Debounced, last-wins provider cache keyed by ``(kind, project)``.
 
-    The screen bumps :meth:`next_generation` on every keystroke and hands
-    the worker its generation. :meth:`commit` stores the result only when
-    the generation is still the latest, so a slow fetch for a stale line
-    is dropped instead of flashing over fresher results.
+    The screen bumps :meth:`next_generation` whenever it schedules a fetch
+    and hands the worker its generation. :meth:`commit` stores the result
+    only when the generation is still the latest, so a slow fetch for a
+    stale line is dropped instead of flashing over fresher results. Each
+    entry lives for its kind's TTL (``VOLATILE_KIND_TTL_SECONDS`` overrides
+    the default) and remembers whether the fetch found rows, found none, or
+    failed so the footer can tell those apart.
     """
 
     def __init__(
@@ -332,12 +352,15 @@ class ProviderCache:
 
     def cached(self, kind: str, project: str | None) -> list[dict[str, Any]] | None:
         """Return the cached items for ``(kind, project)``, if still fresh."""
-        entry = self._entries.get((kind, project))
+        entry = self._fresh_entry(kind, project)
         if entry is None:
             return None
-        if entry.expires_at < self._clock():
-            return None
         return list(entry.items)
+
+    def health(self, kind: str, project: str | None) -> ProviderHealth | None:
+        """Return the fresh entry's fetch outcome, or ``None`` when uncached."""
+        entry = self._fresh_entry(kind, project)
+        return None if entry is None else entry.health
 
     def commit(
         self,
@@ -349,16 +372,32 @@ class ProviderCache:
         """Store a worker result; False means it was stale and dropped."""
         if not self.is_current(generation):
             return False
-        self._entries[(kind, project)] = _ProviderEntry(
-            expires_at=self._clock() + self._ttl_seconds,
-            items=list(items),
-        )
+        self._store(kind, project, items, "ok" if items else "empty")
         return True
 
     def note_unavailable(self, kind: str, project: str | None) -> None:
-        """Cache an empty result so a failing provider does not spin."""
+        """Cache a failed fetch so a failing provider does not spin."""
+        self._store(kind, project, [], "failed")
 
+    def invalidate(self) -> None:
+        """Forget every entry (a finished command may have changed them)."""
+        self._entries.clear()
+
+    def _fresh_entry(self, kind: str, project: str | None) -> _ProviderEntry | None:
+        entry = self._entries.get((kind, project))
+        if entry is None or entry.expires_at < self._clock():
+            return None
+        return entry
+
+    def _store(
+        self,
+        kind: str,
+        project: str | None,
+        items: list[dict[str, Any]],
+        health: ProviderHealth,
+    ) -> None:
         self._entries[(kind, project)] = _ProviderEntry(
-            expires_at=self._clock() + self._ttl_seconds,
-            items=[],
+            expires_at=self._clock() + _kind_ttl_seconds(kind, self._ttl_seconds),
+            items=list(items),
+            health=health,
         )

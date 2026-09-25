@@ -34,10 +34,12 @@ from sase.ace.tui.command_line.extras import (
     empty_state_rows,
     marked_insert_text,
     marked_values_for_kind,
+    provider_empty_note,
     provider_unavailable_note,
     rank_history_entries,
     selected_entity_kind,
     slot_is_variadic,
+    top_level_command_count,
 )
 from sase.ace.tui.command_line.grammar import (
     command_line_grammar_for,
@@ -92,7 +94,6 @@ class CommandLineScreenCompletionMixin:
     """Behavior mixed into the public command-line screen."""
 
     _history_search_active: bool
-    _provider_note: str | None
     _provider_task: asyncio.Task[None] | None
     _resolved_line: str | None
 
@@ -209,6 +210,32 @@ class CommandLineScreenCompletionMixin:
             self._provider_fetch_task(generation, value_kind, project, line, cursor)
         )
 
+    def invalidate_provider_cache(self) -> None:
+        """Drop cached provider rows after a command finished (UI thread).
+
+        A finished command may have changed what a slot offers (an approved
+        plan is no longer pending). The popup refetches right away when the
+        cursor sits in a provider-backed slot, unless a menu is active.
+        """
+        self._provider_cache.invalidate()
+        if self._popup_state.menu_active:
+            return
+        if needs_provider_fetch(self._current_value_kind()):
+            self._refresh_completion()
+
+    def _fetch_still_current(self, line: str, cursor: int) -> bool:
+        """Return True while the input still shows *line* with the cursor at *cursor*."""
+        try:
+            widget = self.query_one(CommandLineInput)
+        except Exception:  # noqa: BLE001 - teardown races degrade silently.
+            return False
+        if widget.text != line:
+            return False
+        try:
+            return bool(widget.cursor_location[1] == cursor)
+        except Exception:  # noqa: BLE001 - cursor read is best effort.
+            return bool(len(widget.text) == cursor)
+
     async def _provider_fetch_task(
         self,
         generation: int,
@@ -217,24 +244,16 @@ class CommandLineScreenCompletionMixin:
         line: str,
         cursor: int,
     ) -> None:
-        """Fetch provider candidates, dropping stale lines (last wins)."""
+        """Fetch provider candidates, dropping results for a moved line or cursor."""
         from sase.completion.candidates.providers import candidates_for
 
         await asyncio.sleep(PROVIDER_DEBOUNCE_SECONDS)
-        try:
-            widget = self.query_one(CommandLineInput)
-        except Exception:  # noqa: BLE001 - teardown races degrade silently.
-            return
-        if widget.text != line:
-            return
-        try:
-            current_cursor = widget.cursor_location[1]
-        except Exception:  # noqa: BLE001 - cursor read is best effort.
-            current_cursor = len(widget.text)
-        if current_cursor != cursor:
+        if not self._fetch_still_current(line, cursor):
             return
         if not self._provider_cache.is_current(generation):
             return
+        failed = False
+        fetched: list[Any] = []
         try:
             fetched = await asyncio.to_thread(
                 candidates_for, value_kind, "", project=project, limit=2000
@@ -242,14 +261,14 @@ class CommandLineScreenCompletionMixin:
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - provider failure is advisory.
-            self._provider_cache.note_unavailable(value_kind, project)
-            self._provider_note = provider_unavailable_note(value_kind)
-            self._render_popup(self._last_completion())
+            failed = True
+        # The await let the user keep typing or move the cursor: the result
+        # belongs to a line that no longer exists, so drop it (last wins).
+        if not self._fetch_still_current(line, cursor):
             return
-        if not fetched:
+        if failed:
             self._provider_cache.note_unavailable(value_kind, project)
-            self._provider_note = provider_unavailable_note(value_kind)
-            self._render_popup(self._last_completion())
+            self._render_popup_footer()
             return
         items = [
             {
@@ -261,28 +280,10 @@ class CommandLineScreenCompletionMixin:
         ]
         if not self._provider_cache.commit(generation, value_kind, project, items):
             return  # A newer keystroke already won; drop this result.
-        self._provider_note = None
-        try:
-            widget_now = self.query_one(CommandLineInput)
-        except Exception:  # noqa: BLE001 - teardown races degrade silently.
-            return
-        if widget_now.text != line:
-            return
-        self._refresh_completion()
-
-    def _last_completion(self) -> dict[str, Any]:
-        """Rebuild the last completion view from the popup state."""
-        value_kind = ""
-        if self._resolve_context is not None:
-            slot = self._resolve_context.get("slot") or {}
-            value_kind = str(slot.get("value_kind") or "")
-        return {
-            "items": self._popup_state.items,
-            "total": len(self._popup_state.items),
-            "kind": value_kind,
-            "replace_start": self._popup_state.replace_start,
-            "replace_end": self._popup_state.replace_end,
-        }
+        if items:
+            self._refresh_completion()
+        else:
+            self._render_popup_footer()  # Nothing new to rank: only the note changes.
 
     # -- completion extras (empty state, history search, doc peek) -------------
 
@@ -335,11 +336,7 @@ class CommandLineScreenCompletionMixin:
                 "replace_end": len(line),
             }
         )
-        try:
-            handle = command_line_grammar_for(self.app)
-            count: int | None = len(handle) if handle is not None else None
-        except Exception:  # noqa: BLE001 - count is best effort.
-            count = None
+        count = top_level_command_count(self._help_lookup)
         try:
             hint_row = self.query_one("#command-line-hint-row", Static)
             hint_row.update(empty_state_hint(count))
@@ -483,13 +480,38 @@ class CommandLineScreenCompletionMixin:
         peek.update(card)
         peek.display = True
 
+    def _current_value_kind(self) -> str:
+        """Return the value kind of the slot under the cursor, or ``""``."""
+        if self._resolve_context is None or self._history_search_active:
+            return ""
+        slot = self._resolve_context.get("slot") or {}
+        return str(slot.get("value_kind") or "")
+
+    def _provider_footer_note(self) -> str | None:
+        """Return the footer note for the current slot's provider, if any.
+
+        The note is derived from the fresh cache entry of the slot's own
+        value kind, so it can never leak onto another slot's popup: a failed
+        fetch reads ``⚠ <kind> unavailable``, an empty one ``no <kind>``.
+        """
+        value_kind = self._current_value_kind()
+        if not needs_provider_fetch(value_kind):
+            return None
+        project = self._working_context.project if self._working_context else None
+        health = self._provider_cache.health(value_kind, project)
+        if health == "failed":
+            return provider_unavailable_note(value_kind)
+        if health == "empty":
+            return provider_empty_note(value_kind)
+        return None
+
     def _render_popup(self, completion: dict[str, Any]) -> None:
         """Show or hide the floating popup and its footer."""
         try:
             popup = self.query_one(CommandLinePopup)
-            footer = self.query_one("#command-line-popup-footer", Static)
         except Exception:  # noqa: BLE001 - unmounted screen cannot render.
             return
+        self._popup_completion = completion
         items = completion.get("items", [])
         try:
             line = self.query_one(CommandLineInput).text
@@ -497,22 +519,37 @@ class CommandLineScreenCompletionMixin:
             line = "x"
         stored_rows = self._empty_state_active or self._history_search_active
         if not items or (not line.strip() and not stored_rows):
-            popup.display = False
-            footer.display = False
-            self._update_keys_hint()
+            popup.show_items([])
+        else:
+            popup.show_items(items)
+        self._render_popup_footer()
+        self._update_keys_hint()
+
+    def _render_popup_footer(self) -> None:
+        """Repaint the popup footer from the last rendered completion."""
+        try:
+            popup = self.query_one(CommandLinePopup)
+            footer = self.query_one("#command-line-popup-footer", Static)
+        except Exception:  # noqa: BLE001 - unmounted screen cannot render.
             return
-        popup.display = True
-        popup.show_items(items)
+        completion = self._popup_completion
+        note = self._provider_footer_note()
+        if not popup.display:
+            # No rows to caption; an empty or failed provider still says so.
+            footer.update(note or "")
+            footer.display = bool(note)
+            return
+        state = self._popup_state
+        items = completion.get("items", [])
         kind = str(completion.get("kind", "") or "commands")
         total = int(completion.get("total", len(items)) or len(items))
-        footer_text = popup_footer(kind, min(len(items), total), total)
-        if self._provider_note:
-            footer_text += f"  {self._provider_note}"
-        else:
-            footer_text += "  ⇥ complete"
-        footer.update(footer_text)
+        position = state.index + 1 if state.menu_active else min(len(items), total)
+        footer.update(
+            popup_footer(
+                kind, position, total, menu_active=state.menu_active, note=note
+            )
+        )
         footer.display = True
-        self._update_keys_hint()
 
     def _render_signature(self) -> None:
         """Repaint the signature/hint row from the resolver context."""
@@ -663,11 +700,13 @@ class CommandLineScreenCompletionMixin:
             return True
         if action == "activate":
             popup.highlight_index(self._popup_state.index)
+            self._render_popup_footer()
             self._render_signature()
             self._update_keys_hint()
             return True
         if action == "move":
             popup.highlight_index(self._popup_state.index)
+            self._render_popup_footer()
             self._render_signature()
             return True
         if action == "leave-menu":
@@ -677,9 +716,10 @@ class CommandLineScreenCompletionMixin:
             except Exception:  # noqa: BLE001 - teardown races degrade silently.
                 pass
             try:
-                popup.highlighted = None
+                popup.clear_highlight()
             except Exception:  # noqa: BLE001 - highlight clear is best effort.
                 pass
+            self._render_popup_footer()
             self._render_signature()
             self._update_keys_hint()
             return True
@@ -735,16 +775,20 @@ class CommandLineScreenCompletionMixin:
 
     def on_option_list_option_highlighted(self, event: Any) -> None:
         """Swap the signature row to the mouse-highlighted option's summary."""
+        popup: CommandLinePopup
         try:
             popup = self.query_one(CommandLinePopup)
         except Exception:  # noqa: BLE001 - unmounted screen ignores highlights.
             return
-        source = getattr(event, "option_list", getattr(event, "control", None))
-        if source is not popup or bool(getattr(popup, "echo_guarded", False)):
-            return  # Rule 12: programmatic highlights never echo back.
-        index = getattr(event, "option_index", None)
-        if isinstance(index, int) and self._popup_state.items:
-            self._popup_state.index = index % len(self._popup_state.items)
+        if getattr(event, "option_list", getattr(event, "control", None)) is not popup:
+            return
+        # Rule 12: the popup swallows echoes of its own programmatic highlights.
+        index = popup.user_highlight_index(event)
+        if index is None or not 0 <= index < len(self._popup_state.items):
+            return
+        if index != self._popup_state.index:
+            self._popup_state.index = index
+            self._render_popup_footer()
             self._render_signature()
 
     def _record_keystroke_probe(self, elapsed_seconds: float, indexed: bool) -> None:

@@ -3566,6 +3566,14 @@ TUI.
   current selection, ranks the selected entity first, and shows advisory grammar
   diagnostics. `Tab` completes, `Ctrl+F` accepts an active completion, `Ctrl+R` searches
   history, and `;` on an empty line hops back to the Command Palette.
+- The completion popup shows an 8-row window that scrolls through every candidate; its
+  footer counts the highlighted row (`N of M`) and shows the one key that fits the menu
+  state. An empty line offers `RECENT` history and `FOR <selection>` suggestions under
+  section headings. A slot whose provider failed reads `⚠ <kind> unavailable`, and one
+  with nothing to offer reads `no <kind>`; the note never carries over to another slot.
+  Provider results are cached briefly (pending plans for 5 seconds, everything else 15)
+  and forgotten when a command finishes. A result that arrives after you edited the line
+  or moved the cursor is dropped.
 - Every command runs as an ordinary durable proc (tagged `command-line`, visible by
   default in Admin Center → Procs), so hiding the panel never interrupts anything.
   Finished command-line procs keep their own retention bucket of 50.

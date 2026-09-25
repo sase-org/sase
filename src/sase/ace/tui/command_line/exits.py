@@ -34,6 +34,7 @@ def deliver_command_line_exit(app: Any, completion: Any) -> bool:
     _record_history_async(app, block)
     if not visible:
         _toast_completion(app, block)
+    _invalidate_provider_cache(app)
     _repaint_panel(app)
     return True
 
@@ -136,6 +137,25 @@ def _record_history_async(app: Any, block: Any) -> None:
         try:
             run_worker(_record(), exclusive=False)
         except Exception:  # noqa: BLE001 - history is best effort.
+            pass
+
+
+def _invalidate_provider_cache(app: Any) -> None:
+    """Forget cached completion rows: the finished command may have changed them.
+
+    ``plan approve X`` followed by ``plan approve <Tab>`` must not still offer
+    ``X``. A hidden panel has no cache to clear; a reopened one starts empty.
+    """
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+
+    try:
+        screen = app.screen
+    except Exception:  # noqa: BLE001 - screen reads always degrade.
+        return
+    if isinstance(screen, CommandLineScreen):
+        try:
+            screen.invalidate_provider_cache()
+        except Exception:  # noqa: BLE001 - invalidation is best effort.
             pass
 
 

@@ -1,9 +1,11 @@
 """Floating fuzzy completion popup for the ``:`` Command Line panel.
 
 The popup floats over the transcript, anchored just above the input (as in
-Helix), and shows at most :data:`POPUP_MAX_VISIBLE_ROWS` rows. Ranking is
-the Rust ``complete()`` response; this module owns the row rendering and
-the zsh menu-select key state machine:
+Helix), and shows a scrolling window of at most
+:data:`POPUP_MAX_VISIBLE_ROWS` candidates (plus the section headings among
+them) over every candidate. Ranking is the
+Rust ``complete()`` response; this module owns the row rendering, the
+window, and the zsh menu-select key state machine:
 
 - ``Tab`` inserts the unique candidate or the longest common prefix.
   Otherwise it activates the menu, and later presses cycle through it.
@@ -23,7 +25,8 @@ from rich.text import Text
 from textual.widgets import OptionList
 from textual.widgets._option_list import Option
 
-#: Maximum visible popup rows; the list scrolls past this.
+#: Maximum candidate rows in the popup window; the window scrolls past this.
+#: Section headings are extra, non-selectable rows on top of it.
 POPUP_MAX_VISIBLE_ROWS = 8
 
 PopupAction = Literal[
@@ -233,41 +236,164 @@ def _render_popup_row(item: dict[str, Any]) -> Text:
     return text
 
 
-def popup_footer(kind: str, shown: int, total: int) -> str:
-    """Render the popup footer: ``<kind> · N of M · fuzzy`` plus key hint."""
-    return f"{kind} · {shown} of {total} · fuzzy    ⇥ accept"
+def popup_footer(
+    kind: str,
+    position: int,
+    total: int,
+    *,
+    menu_active: bool = False,
+    note: str | None = None,
+) -> str:
+    """Render the popup footer: ``<kind> · N of M · fuzzy`` plus one key hint.
+
+    *position* is the highlighted row's 1-based index while the menu is
+    active and the loaded row count otherwise. The key hint follows the menu
+    state: Tab completes from the idle popup, Enter accepts inside the menu.
+    """
+    hint = "⏎ accept" if menu_active else "⇥ complete"
+    text = f"{kind} · {position} of {total} · fuzzy    {hint}"
+    if note:
+        text += f"  {note}"
+    return text
+
+
+@dataclass(frozen=True, slots=True)
+class _PopupEntry:
+    """One popup display row: a section heading or a completion item."""
+
+    #: Index into the popup's items; ``None`` marks a heading row.
+    item_index: int | None
+    #: Heading text (only for heading rows).
+    heading: str = ""
+
+
+def _build_entries(items: list[dict[str, Any]]) -> list[_PopupEntry]:
+    """Interleave non-selectable section headings between *items*.
+
+    A row carries its section in ``item["section"]``; a heading precedes the
+    first row of each new section (the empty-state ``RECENT`` and
+    ``FOR <selection>`` groups).
+    """
+    entries: list[_PopupEntry] = []
+    section = ""
+    for index, item in enumerate(items):
+        row_section = str(item.get("section", "") or "")
+        if row_section != section:
+            section = row_section
+            if section:
+                entries.append(_PopupEntry(None, section))
+        entries.append(_PopupEntry(index))
+    return entries
 
 
 class CommandLinePopup(OptionList):
-    """The floating completion list, anchored just above the input."""
+    """The floating completion list, anchored just above the input.
+
+    The widget renders only the window of :data:`POPUP_MAX_VISIBLE_ROWS`
+    display rows around the highlight, so per-keystroke cost stays bounded
+    while every candidate stays reachable: :meth:`highlight_index` scrolls
+    the window to keep the state machine's item index visible. Section
+    headings are disabled rows that never take the highlight and do not
+    count against the window's row budget.
+    """
 
     def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("id", "command-line-popup")
         super().__init__(**kwargs)
-        self._applying_programmatic_highlight = False
+        self._items: list[dict[str, Any]] = []
+        self._entries: list[_PopupEntry] = []
+        self._entry_for_item: list[int] = []
+        #: First item of the window, and the entry position its slice starts at.
+        self._window_first = 0
+        self._window_pos = 0
+        #: Rule 12: programmatic highlights echo later as queued messages, so
+        #: count the echoes still in flight per window row instead of
+        #: toggling a flag that is long cleared by the time they arrive.
+        self._pending_echoes: dict[int, int] = {}
 
     def show_items(self, items: list[dict[str, Any]]) -> None:
-        """Replace the visible rows (at most 8) without echoing highlights."""
-        self._applying_programmatic_highlight = True
-        try:
-            self.clear_options()
-            for item in items[:POPUP_MAX_VISIBLE_ROWS]:
-                self.add_option(Option(_render_popup_row(item)))
-        finally:
-            self._applying_programmatic_highlight = False
+        """Replace every candidate; the window resets to the top."""
+        self._items = list(items)
+        self._entries = _build_entries(self._items)
+        self._entry_for_item = [0] * len(self._items)
+        for position, entry in enumerate(self._entries):
+            if entry.item_index is not None:
+                self._entry_for_item[entry.item_index] = position
+        self._window_first = 0
+        self._rebuild_window()
         self.display = bool(items)
 
     def highlight_index(self, index: int) -> None:
-        """Move the highlight without tripping the echo guard."""
-        if not self._options:
+        """Highlight item *index*, scrolling the window to keep it visible."""
+        if not self._items:
             return
-        self._applying_programmatic_highlight = True
-        try:
-            self.highlighted = index % len(self._options)
-        finally:
-            self._applying_programmatic_highlight = False
+        target = index % len(self._items)
+        first = self._window_first
+        if target < first:
+            first = target
+        elif target >= first + POPUP_MAX_VISIBLE_ROWS:
+            first = target - POPUP_MAX_VISIBLE_ROWS + 1
+        if first != self._window_first:
+            self._window_first = first
+            self._rebuild_window()
+        self._set_highlight(self._entry_for_item[target] - self._window_pos)
 
-    @property
-    def echo_guarded(self) -> bool:
-        """Return True while a highlight change is programmatic (rule 12)."""
-        return self._applying_programmatic_highlight
+    def clear_highlight(self) -> None:
+        """Drop the highlight and scroll the window back to the top."""
+        if self._window_first:
+            self._window_first = 0
+            self._rebuild_window()
+        self.highlighted = None
+
+    def user_highlight_index(self, event: OptionList.OptionHighlighted) -> int | None:
+        """Return the item index for a user-driven highlight *event*.
+
+        Programmatic echoes, stale messages from a replaced row list, and
+        heading rows all return ``None`` so they never reset the state
+        machine's index.
+        """
+        row = event.option_index
+        if row >= len(self._options) or self._options[row] is not event.option:
+            return None  # A replaced list: the option is no longer ours.
+        pending = self._pending_echoes.get(row, 0)
+        if pending:
+            if pending == 1:
+                del self._pending_echoes[row]
+            else:
+                self._pending_echoes[row] = pending - 1
+            return None
+        position = self._window_pos + row
+        if position >= len(self._entries):
+            return None
+        return self._entries[position].item_index
+
+    def _set_highlight(self, row: int) -> None:
+        """Assign the highlight and record the echo it will post."""
+        if self.highlighted != row:
+            self._pending_echoes[row] = self._pending_echoes.get(row, 0) + 1
+        self.highlighted = row
+
+    def _rebuild_window(self) -> None:
+        """Render the window's rows (and the headings among them) as options."""
+        self._pending_echoes.clear()
+        options: list[Option] = []
+        self._window_pos = 0
+        if self._items:
+            last = (
+                min(self._window_first + POPUP_MAX_VISIBLE_ROWS, len(self._items)) - 1
+            )
+            start = self._entry_for_item[self._window_first]
+            if start > 0 and self._entries[start - 1].item_index is None:
+                start -= 1  # The first row opens its section: keep the heading.
+            self._window_pos = start
+            for entry in self._entries[start : self._entry_for_item[last] + 1]:
+                if entry.item_index is None:
+                    options.append(
+                        Option(Text(entry.heading, style="bold dim"), disabled=True)
+                    )
+                else:
+                    options.append(
+                        Option(_render_popup_row(self._items[entry.item_index]))
+                    )
+        self.clear_options()
+        self.add_options(options)

@@ -11,7 +11,8 @@ tests share the same code path:
 - ``ctrl+r`` history search: fuzzy history ranking through the shared Rust
   matcher;
 - marked rows: a first ``‹N marked›`` row that fills variadic slots;
-- provider health: the ``⚠ <kind> unavailable`` footer note.
+- provider health: the ``⚠ <kind> unavailable`` footer note for a failed
+  fetch and the neutral ``no <kind>`` note for an empty one.
 """
 
 from __future__ import annotations
@@ -42,6 +43,9 @@ DOC_PEEK_MIN_WIDTH = 140
 #: Maximum RECENT rows in the empty state.
 EMPTY_STATE_RECENT_LIMIT = 5
 
+#: Heading above the RECENT group in the empty state.
+EMPTY_STATE_RECENT_HEADING = "RECENT"
+
 #: Maximum derived ``FOR <selection>`` rows in the empty state.
 FOR_SELECTION_LIMIT = 5
 
@@ -64,11 +68,13 @@ __all__ = [
     "empty_state_rows",
     "marked_insert_text",
     "marked_values_for_kind",
+    "provider_empty_note",
     "provider_unavailable_note",
     "rank_history_entries",
     "relative_age",
     "selected_entity_kind",
     "slot_is_variadic",
+    "top_level_command_count",
 ]
 
 
@@ -84,6 +90,8 @@ class _EmptyStateRow:
     description: str = ""
     #: Popup badge column (``"recent"`` or ``"suggest"``).
     badge: str = ""
+    #: Section heading the popup shows above the first row of this group.
+    section: str = ""
 
     def to_item(self) -> dict[str, Any]:
         """Render as a completion-popup item dict."""
@@ -95,6 +103,7 @@ class _EmptyStateRow:
             "source": "history",
             "match_runs": [],
             "selected": False,
+            "section": self.section,
         }
 
 
@@ -151,7 +160,11 @@ def _recent_rows(
         detail = "  ".join(part for part in (age, mark) if part)
         rows.append(
             _EmptyStateRow(
-                insert_text=line, display=line, description=detail, badge="recent"
+                insert_text=line,
+                display=line,
+                description=detail,
+                badge="recent",
+                section=EMPTY_STATE_RECENT_HEADING,
             )
         )
     return rows
@@ -267,11 +280,13 @@ def _for_selection_rows(
             continue
         ranked.append((_leaf_usage(path, entries), path))
     ranked.sort(key=lambda item: (-item[0], item[1]))
+    heading = f"FOR {str(selected_value).strip()} · selected {selected_kind}"
     rows = [
         _EmptyStateRow(
             insert_text=f"{' '.join(path)} {selected_value}",
             display=f"{' '.join(path)} {selected_value}",
             badge="suggest",
+            section=heading,
         )
         for _, path in ranked[: max(0, limit)]
     ]
@@ -295,7 +310,25 @@ def empty_state_hint(command_count: int | None = None) -> str:
     """Return the hint row shown with the empty state."""
     if command_count is None:
         return "type to search · ⇥ complete · ; Command Palette"
-    return f"{command_count} commands · type to search · ⇥ complete · ; Command Palette"
+    noun = "command" if command_count == 1 else "commands"
+    return f"{command_count} {noun} · type to search · ⇥ complete · ; Command Palette"
+
+
+def top_level_command_count(
+    help_lookup: Callable[[list[str]], dict[str, Any] | None],
+) -> int | None:
+    """Return the number of top-level commands, or ``None`` when unknown.
+
+    The grammar handle counts every node (subcommands included); the idle
+    hint advertises only the commands a user can type first.
+    """
+    try:
+        root = help_lookup([])
+    except Exception:  # noqa: BLE001 - help lookup is best effort.
+        return None
+    if not root:
+        return None
+    return len(root.get("children") or [])
 
 
 def doc_peek_visible(width: int | None) -> bool:
@@ -567,5 +600,10 @@ def _is_bare_word(value: str) -> bool:
 
 
 def provider_unavailable_note(value_kind: str | None) -> str:
-    """Return the subtle footer note for an empty or failed provider."""
+    """Return the subtle footer note for a provider whose fetch failed."""
     return f"⚠ {value_kind or 'value'} unavailable"
+
+
+def provider_empty_note(value_kind: str | None) -> str:
+    """Return the neutral footer note for a fetch that succeeded but was empty."""
+    return f"no {value_kind or 'value'}"
