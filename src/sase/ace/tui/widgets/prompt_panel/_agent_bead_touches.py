@@ -74,6 +74,9 @@ def _chip(verb: str, count: int) -> str:
     return verb
 
 
+_MIN_NOTE_CONTENT_CELLS = 24
+
+
 def _safe_note_text(value: str) -> str:
     """Return display data with whitespace normalized and controls removed."""
     without_controls = "".join(
@@ -120,8 +123,14 @@ def _append_bead_note_preview(
     if preview.edited_at:
         metadata += " · edited"
 
-    prefix_cells = cell_len(" " * indent + "│ ")
-    available = max(1, line_cell_limit - prefix_cells)
+    # In a narrow Context card the lane-aligned indent would squeeze the note
+    # into a sliver, so give up indent before readable width.
+    gutter_cells = cell_len("│ ")
+    indent = max(
+        0,
+        min(indent, line_cell_limit - gutter_cells - _MIN_NOTE_CONTENT_CELLS),
+    )
+    available = max(1, line_cell_limit - indent - gutter_cells)
     for line in wrap_text_by_cells(metadata, available):
         _append_note_line(text, indent=indent, content=line, style=COLOR_SUMMARY)
 

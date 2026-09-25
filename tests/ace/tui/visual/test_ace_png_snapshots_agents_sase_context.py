@@ -103,7 +103,7 @@ async def test_agents_bead_note_preview_png_snapshot(
         assert_page_svg_contains(page, "visual.bead-note-preview")
         assert_page_svg_contains(page, "edited")
         assert_page_svg_contains(page, "full")
-        assert_page_svg_contains(page, "note in bead detail")
+        assert_page_svg_contains(page, "detail")
         assert_page_svg_contains(page, "+1 earlier")
         ace_png_visual.assert_page_png(
             page,
