@@ -12,7 +12,6 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
-from sase.ace.tui.widgets.decks.panel import DeckPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     zoom_multi_file_agent,
 )
@@ -88,33 +87,6 @@ def _long_reply_agent(tmp_path: Path) -> Agent:
 
 def _subtitle_plain(detail: AgentDetail, panel_index: int = 0) -> str:
     return detail.deck_area.panel(panel_index)._border_subtitle.plain
-
-
-async def _apply_files_spread_probe(page: AcePage, panel: DeckPanel) -> None:
-    """Apply the Files spread probe result synchronously.
-
-    ``DeckPanelFilesMixin.on_worker_state_changed`` gates on a
-    ``Worker.StateChanged.is_done`` attribute that Textual does not define, so
-    the real background probe result is never applied and a Files deck never
-    leaves paged mode in the live app (task sase-18m). Feed the identical probe
-    result through the same entry point so this golden still covers the spread
-    Files layout; drop this helper once that bug is fixed.
-    """
-    from sase.ace.tui.widgets.file_panel._spread_probe import probe_files_spread
-
-    view = panel.file_view
-    slots = tuple(view._file_list)
-    rows, width = panel._spread_viewport(DeckId.FILES)
-    probe = probe_files_spread(
-        view._current_agent,
-        slots,
-        width=width,
-        stop_after_rows=panel._spread_settings_max_screens() * rows * 1.10,
-    )
-    panel._on_files_probe_result(
-        probe, view._current_agent, slots, view._anchor_agent_identity
-    )
-    await wait_for_visual_idle(page)
 
 
 async def _goto_agents(page: AcePage, count: int) -> None:
@@ -326,7 +298,6 @@ async def test_agents_decks_single_files_spread_png_snapshot(
         detail.show_deck(0, DeckId.FILES)
         panel = detail.deck_area.panel(0)
         await wait_for_state(page, detail.is_file_visible, description="Files deck")
-        await _apply_files_spread_probe(page, panel)
         await wait_for_state(
             page,
             lambda: panel.is_spread(DeckId.FILES),

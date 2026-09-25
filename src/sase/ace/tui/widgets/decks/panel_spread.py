@@ -29,6 +29,7 @@ class DeckPanelSpreadMixin:
     _files_probe_subject: object | None
     _files_probe_slots: tuple[str, ...]
     _files_probe_agent: Any | None
+    _files_pending_probe: Any | None
     _resize_decision_pending: bool
     _one_shot_spread_card: str | None
 
@@ -45,6 +46,7 @@ class DeckPanelSpreadMixin:
         self._files_probe_subject = None
         self._files_probe_slots = ()
         self._files_probe_agent = None
+        self._files_pending_probe = None
         self._resize_decision_pending = False
         self._one_shot_spread_card = None
 

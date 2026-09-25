@@ -61,7 +61,7 @@ async def test_agent_session_panel_fold_levels_and_member_override_png_snapshots
             title="ACE session panel fold level 1",
         )
 
-        await scroll_main_section_to_top(page, "agent-xprompt")
+        await scroll_main_section_to_top(page, "agent-prompt")
         ace_png_visual.assert_page_png(
             page,
             "agents_session_conversation_level_1_120x40",
@@ -71,7 +71,7 @@ async def test_agent_session_panel_fold_levels_and_member_override_png_snapshots
         await page.press("z", "z")
         assert page.app.panel_fold_level is FoldLevel.FULLY_EXPANDED
         await wait_for_visual_idle(page)
-        assert resolved_main_section(page) == "agent-xprompt"
+        assert resolved_main_section(page) == "agent-prompt"
         ace_png_visual.assert_page_png(
             page,
             "agents_session_conversation_level_2_120x40",

@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from textual.containers import VerticalScroll
+from textual.worker import Worker, WorkerState
 
 from ..file_panel import (
     FileLineCountChanged,
     FileListChanged,
     FileVisibilityChanged,
 )
+from ..file_panel._spread_probe import FilesSpreadProbe
 from ..llm_calls_panel import LLMCallsVisibilityChanged
 from .availability import DeckAvailability
 from .model import DeckId, RenderMode
@@ -20,6 +22,7 @@ class DeckPanelFilesMixin:
     """Files rendering, probes, and message handlers for a deck panel."""
 
     _files_probe_agent: Any | None
+    _files_pending_probe: Any | None
 
     if TYPE_CHECKING:
 
@@ -121,6 +124,7 @@ class DeckPanelFilesMixin:
                 _task,
                 thread=True,
                 exclusive=True,
+                exit_on_error=False,
                 group=f"deck-files-spread-{self._panel_index}",
             )
             # Attach completion via worker state change.
@@ -143,31 +147,27 @@ class DeckPanelFilesMixin:
             except Exception:
                 pass
 
-    def on_worker_state_changed(self, event: Any) -> None:
-        """Handle Files spread probe completion."""
-        try:
-            pending = getattr(self, "_files_pending_probe", None)
-            if pending is None:
-                return
-            worker, agent, slots, subject = pending
-            if event.worker is not worker:
-                return
-            if not getattr(event, "is_done", False):
-                return
-            result = getattr(event.worker, "result", None)
-            if result is None:
-                try:
-                    result = worker.result()
-                except Exception:
-                    return
-            from ..file_panel._spread_probe import FilesSpreadProbe
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        """Apply the Files spread probe once its worker reaches a terminal state.
 
-            if not isinstance(result, FilesSpreadProbe):
-                return
-            self._files_pending_probe = None  # type: ignore[assignment]
-            self._on_files_probe_result(result, agent, slots, subject)
-        except Exception:
-            pass
+        ``Worker.StateChanged`` carries only ``worker`` and ``state``, so the
+        gate is the state itself. Events for any other worker on this panel are
+        ignored untouched, and a probe that errored or was cancelled leaves the
+        deck in whatever mode it already had (paged for a new subject).
+        """
+        pending = self._files_pending_probe
+        if pending is None:
+            return
+        worker, agent, slots, subject = pending
+        if event.worker is not worker:
+            return
+        if event.state is WorkerState.SUCCESS:
+            self._files_pending_probe = None
+            result = event.worker.result
+            if isinstance(result, FilesSpreadProbe):
+                self._on_files_probe_result(result, agent, slots, subject)
+        elif event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
+            self._files_pending_probe = None
 
     def _on_files_probe_result(
         self, probe: Any, agent: Any, slots: tuple[str, ...], subject: Any
@@ -178,10 +178,7 @@ class DeckPanelFilesMixin:
             current_slots = tuple(getattr(file_view, "_file_list", ()))
             current_subject = getattr(file_view, "_anchor_agent_identity", None)
             if tuple(slots) != tuple(current_slots) or subject != current_subject:
-                # Still store pages for future resizes keyed by current slots?
-                pass
-                if tuple(slots) != tuple(current_slots) or subject != current_subject:
-                    return
+                return
         except Exception:
             pass
         self._files_probe_pages = tuple(probe.pages)
