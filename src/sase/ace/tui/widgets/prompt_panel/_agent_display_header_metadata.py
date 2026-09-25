@@ -185,7 +185,13 @@ def _append_capacity_fields(text: Text, agent: Agent) -> None:
     if _suppress_capacity_fields(agent):
         return
     wait_agent = wait_display_agent(agent)
-    if format_queue_weight_badge_value(wait_agent.queue_weight) is not None:
+    if (
+        format_queue_weight_badge_value(
+            wait_agent.queue_weight,
+            explicit=wait_agent.queue_weight_explicit,
+        )
+        is not None
+    ):
         text.append("Weight: ", style="bold #87D7FF")
         text.append(
             f"{format_capacity_value(wait_agent.queue_weight)} capacity units\n",

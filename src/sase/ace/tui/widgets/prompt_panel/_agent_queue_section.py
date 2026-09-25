@@ -155,7 +155,12 @@ def append_runner_queue_section(
         (
             cell_len(f"w{weight}")
             for entry in queue
-            if (weight := format_queue_weight_badge_value(entry.requested_weight))
+            if (
+                weight := format_queue_weight_badge_value(
+                    entry.requested_weight,
+                    explicit=entry.requested_weight_explicit,
+                )
+            )
             is not None
         ),
         default=0,
@@ -254,13 +259,21 @@ def _append_queue_entry(
     name.truncate(_QUEUE_NAME_WIDTH, overflow="ellipsis", pad=True)
     text.append_text(name)
     if weight_width:
-        weight = format_queue_weight_badge_value(entry.requested_weight)
+        weight = format_queue_weight_badge_value(
+            entry.requested_weight,
+            explicit=entry.requested_weight_explicit,
+        )
         if weight is None:
             text.append(" " * (weight_width + 1))
         else:
             text.append(" ")
             start = len(text)
-            append_queue_weight_badge(text, entry.requested_weight, pad=False)
+            append_queue_weight_badge(
+                text,
+                entry.requested_weight,
+                explicit=entry.requested_weight_explicit,
+                pad=False,
+            )
             text.append(" " * max(0, weight_width - (len(text) - start)))
     if capacity_width:
         text.append(" ")
@@ -341,9 +354,10 @@ def _queue_entry_capacity_parts(entry: RunnerQueueEntry) -> tuple[str, ...]:
         and entry.wait_runners_explicit
         and free is not None
     )
-    if format_queue_weight_badge_value(entry.requested_weight) is None and not (
-        capacity_budget or _has_capacity_blocker(entry)
-    ):
+    if format_queue_weight_badge_value(
+        entry.requested_weight,
+        explicit=entry.requested_weight_explicit,
+    ) is None and not (capacity_budget or _has_capacity_blocker(entry)):
         return ()
     parts = [f"needs {format_capacity_value(entry.requested_weight)}"]
     if free is not None:

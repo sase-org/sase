@@ -7,7 +7,6 @@ from sase.plan_chain import (
 )
 
 import json
-import math
 import os
 import subprocess
 from collections.abc import Callable
@@ -17,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+from sase.core.runner_slots import QUEUE_WEIGHT_ERROR, valid_queue_weight
 from sase.logs._bounded import DEFAULT_MAX_BYTES, append_bytes_locked, log_file_lock
 
 GATE_SHELL_LOG_FILENAME = "gate.log"
@@ -123,28 +123,22 @@ def _read_gate_shell_meta(artifacts_dir: str) -> dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def _positive_finite_weight(value: object) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    weight = float(value)
-    if not math.isfinite(weight) or weight <= 0:
-        return None
-    return weight
-
-
 def _gate_shell_queue_weight(meta: dict[str, Any]) -> float:
     if meta.get("queue_weight_invalid") is True:
         raise RuntimeError(
-            "Invalid queue_weight in gate shell metadata: expected a positive "
-            f"finite number, got {meta.get('queue_weight')!r}."
+            "Invalid queue_weight in gate shell metadata: "
+            f"{QUEUE_WEIGHT_ERROR}; got {meta.get('queue_weight')!r}."
         )
     if "queue_weight" not in meta:
         return 1.0
-    queue_weight = _positive_finite_weight(meta.get("queue_weight"))
+    queue_weight = valid_queue_weight(
+        meta.get("queue_weight"),
+        explicit=meta.get("queue_weight_explicit") is True,
+    )
     if queue_weight is None:
         raise RuntimeError(
-            "Invalid queue_weight in gate shell metadata: expected a positive "
-            f"finite number, got {meta.get('queue_weight')!r}."
+            "Invalid queue_weight in gate shell metadata: "
+            f"{QUEUE_WEIGHT_ERROR}; got {meta.get('queue_weight')!r}."
         )
     return queue_weight
 

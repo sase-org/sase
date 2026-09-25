@@ -9,6 +9,11 @@ from sase.continuation_capture.rollout import (
     MONITOR_CONTINUATION_PROTOCOL_FIELD,
     MONITOR_CONTINUATION_PROTOCOL_LEGACY,
 )
+from sase.core.runner_slots import (
+    MONITOR_INHERITED_QUEUE_WEIGHT_EXPLICIT_KEY,
+    MONITOR_INHERITED_QUEUE_WEIGHT_KEY,
+    MONITOR_QUEUE_WEIGHT_OVERRIDDEN_KEY,
+)
 from sase.shells.member import create_agent_session_shell_member
 
 _MONITOR_INHERITED_METADATA_FIELDS = (
@@ -113,6 +118,14 @@ def create_monitor_member(
             str(node_id) for node_id in parent_node_ids if str(node_id)
         ]
     if queue_weight_override is not None:
+        monitor_metadata[MONITOR_QUEUE_WEIGHT_OVERRIDDEN_KEY] = True
+        if "queue_weight" in base_meta:
+            monitor_metadata[MONITOR_INHERITED_QUEUE_WEIGHT_KEY] = base_meta[
+                "queue_weight"
+            ]
+            monitor_metadata[MONITOR_INHERITED_QUEUE_WEIGHT_EXPLICIT_KEY] = (
+                base_meta.get("queue_weight_explicit") is True
+            )
         monitor_metadata["queue_weight"] = queue_weight_override
         monitor_metadata["queue_weight_explicit"] = True
 

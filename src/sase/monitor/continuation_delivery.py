@@ -15,6 +15,7 @@ from sase.monitor.delivery import (
     claim_dispatch_slot,
     delivery_key,
 )
+from sase.core.runner_slots import inheritable_queue_weight
 from sase.xprompt.queue_directive import (
     format_queue_directive,
     reauthor_capacity_for_prefix,
@@ -185,7 +186,7 @@ def continuation_delivery_env(
 def queue_launch_prefix(meta: Mapping[str, Any]) -> str:
     """Return a live ``%queue`` prefix carrying parent weight/priority/capacity."""
 
-    weight = _optional_float(meta.get("queue_weight"))
+    weight, _explicit = inheritable_queue_weight(meta)
     priority = _optional_int(_first_present(meta, "wait_priority", "queue_priority"))
     authored, explicit = resolve_authored_queue_capacity(meta)
     capacity = reauthor_capacity_for_prefix(
@@ -222,10 +223,10 @@ def launch_wire_extra(meta: Mapping[str, Any]) -> dict[str, Any]:
     """Return admission-journal extras from the monitor's launch wires."""
 
     extra: dict[str, Any] = {}
-    weight = _optional_float(meta.get("queue_weight"))
+    weight, explicit = inheritable_queue_weight(meta)
     if weight is not None:
         extra["queue_weight"] = weight
-        extra["queue_weight_explicit"] = bool(meta.get("queue_weight_explicit"))
+        extra["queue_weight_explicit"] = explicit
     capacity, explicit = resolve_authored_queue_capacity(meta)
     if capacity is not None:
         extra["queue_capacity"] = capacity
@@ -259,14 +260,6 @@ def _first_present(meta: Mapping[str, Any], *keys: str) -> object:
     for key in keys:
         if key in meta:
             return meta[key]
-    return None
-
-
-def _optional_float(value: object) -> float | None:
-    if isinstance(value, bool) or value is None:
-        return None
-    if isinstance(value, int | float):
-        return float(value)
     return None
 
 

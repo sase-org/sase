@@ -6,11 +6,10 @@ continuous-eligibility values ``_try_claim_runner_slot`` uses to decide
 admission.
 """
 
-import math
 from datetime import UTC, datetime
 from typing import Any
 
-from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
+from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY, valid_queue_weight
 
 
 class RunnerSlotAdmissionError(RuntimeError):
@@ -19,8 +18,8 @@ class RunnerSlotAdmissionError(RuntimeError):
 
 def invalid_queue_weight_error(source: str, value: object) -> RunnerSlotAdmissionError:
     return RunnerSlotAdmissionError(
-        f"Invalid queue_weight in {source}: expected a positive finite number, "
-        f"got {value!r}."
+        f"Invalid queue_weight in {source}: expected a non-negative finite "
+        f"number (0 is valid only when explicit), got {value!r}."
     )
 
 
@@ -76,15 +75,6 @@ def marker_priority_state(
     return DEFAULT_WAIT_PRIORITY, False
 
 
-def valid_queue_weight(value: object) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    weight = float(value)
-    if not math.isfinite(weight) or weight <= 0:
-        return None
-    return weight
-
-
 def marker_queue_weight_state(
     waiting_data: dict[str, Any] | None,
     directive_weight: float,
@@ -97,14 +87,18 @@ def marker_queue_weight_state(
                 waiting_data.get("queue_weight"),
             )
         if "queue_weight" in waiting_data:
-            marker_weight = valid_queue_weight(waiting_data.get("queue_weight"))
+            marker_explicit = waiting_data.get("queue_weight_explicit") is True
+            marker_weight = valid_queue_weight(
+                waiting_data.get("queue_weight"),
+                explicit=marker_explicit,
+            )
             if marker_weight is None:
                 raise invalid_queue_weight_error(
                     "waiting marker",
                     waiting_data.get("queue_weight"),
                 )
-            return marker_weight, waiting_data.get("queue_weight_explicit") is True
-    weight = valid_queue_weight(directive_weight)
+            return marker_weight, marker_explicit
+    weight = valid_queue_weight(directive_weight, explicit=directive_explicit)
     if weight is None:
         raise invalid_queue_weight_error("agent metadata", directive_weight)
     return weight, directive_explicit

@@ -12,6 +12,7 @@ from sase.axe import run_agent_wait_slots
 from sase.gate_shell.log import (
     _append_gate_shell_log_text as append_gate_shell_log_text,
     _gate_shell_log_path as gate_shell_log_path,
+    _gate_shell_queue_weight as gate_shell_queue_weight,
     bind_gate_shell_execution_callbacks,
     gate_shell_output_tail,
 )
@@ -23,6 +24,18 @@ def artifacts_dir(tmp_path: Path) -> str:
     directory.mkdir()
     (directory / "agent_meta.json").write_text(json.dumps({"name": "lane--gate"}))
     return str(directory)
+
+
+def test_gate_shell_queue_weight_accepts_explicit_zero() -> None:
+    assert (
+        gate_shell_queue_weight({"queue_weight": 0.0, "queue_weight_explicit": True})
+        == 0.0
+    )
+
+
+def test_gate_shell_queue_weight_rejects_implicit_zero() -> None:
+    with pytest.raises(RuntimeError, match="Invalid queue_weight"):
+        gate_shell_queue_weight({"queue_weight": 0.0, "queue_weight_explicit": False})
 
 
 def test_append_gate_shell_log_text_appends_bounded(artifacts_dir: str) -> None:

@@ -245,9 +245,10 @@ def _apply_runner_capacity_snapshot(
                 status=(
                     display_agent.status if display_agent is not None else agent.status
                 ),
-                requested_weight=(
-                    _finite_float(waiter.get("requested_weight"))
-                    or DEFAULT_QUEUE_WEIGHT
+                requested_weight=_requested_weight(waiter.get("requested_weight")),
+                requested_weight_explicit=_requested_weight_explicit(
+                    waiter.get("requested_weight"),
+                    waiter.get("queue_weight_explicit"),
                 ),
                 occupied_capacity=occupied_capacity,
                 admission_limit=_finite_float(waiter.get("admission_limit")),
@@ -300,6 +301,18 @@ def _apply_runner_capacity_snapshot(
         queue=tuple(queue_entries),
         occupied_capacity=occupied_capacity,
     )
+
+
+def _requested_weight(value: object) -> float:
+    weight = _finite_float(value)
+    return DEFAULT_QUEUE_WEIGHT if weight is None else weight
+
+
+def _requested_weight_explicit(value: object, explicit_flag: object) -> bool:
+    weight = _finite_float(value)
+    if weight is None:
+        return False
+    return explicit_flag is True or weight == 0.0
 
 
 def _lane_candidates(agents: list[Agent]) -> list[Agent]:

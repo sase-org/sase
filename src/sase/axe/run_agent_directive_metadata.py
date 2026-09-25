@@ -5,11 +5,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 import json
-import math
 import os
 from typing import Any, TYPE_CHECKING
 
 from sase.core.process_identity import process_identity_token
+from sase.core.runner_slots import (
+    QUEUE_WEIGHT_ERROR,
+    inheritable_queue_weight,
+    valid_queue_weight,
+)
 from sase.plan_chain import (
     AGENT_SESSION_KEY,
     AGENT_SESSION_PARALLEL_KEY,
@@ -42,7 +46,6 @@ EPIC_WORK_ENV_METADATA_NAMES = (
     (SASE_EPIC_CLAN_TRIBE_ENV, "clan_tribe"),
 )
 DEFAULT_QUEUE_WEIGHT = 1.0
-QUEUE_WEIGHT_ERROR = "queue_weight must be a positive finite number"
 
 
 @dataclass(frozen=True)
@@ -323,15 +326,6 @@ def build_agent_meta(
     return agent_meta
 
 
-def _coerce_queue_weight(value: object) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    weight = float(value)
-    if not math.isfinite(weight) or weight <= 0:
-        return None
-    return weight
-
-
 def _invalid_queue_weight_message(source: str, value: object) -> str:
     return f"Invalid queue_weight in {source}: {QUEUE_WEIGHT_ERROR}; got {value!r}."
 
@@ -343,7 +337,10 @@ def _existing_queue_weight(meta: Mapping[str, Any], *, source: str) -> float | N
         )
     if "queue_weight" not in meta:
         return None
-    queue_weight = _coerce_queue_weight(meta.get("queue_weight"))
+    queue_weight = valid_queue_weight(
+        meta.get("queue_weight"),
+        explicit=meta.get("queue_weight_explicit") is True,
+    )
     if queue_weight is None:
         raise RuntimeError(
             _invalid_queue_weight_message(source, meta.get("queue_weight"))
@@ -367,11 +364,18 @@ def _read_parent_agent_meta(
 
 def _parent_queue_weight(
     agent_session_attach_plan: AgentSessionAttachLaunchPlan,
-) -> float | None:
+) -> tuple[float | None, bool]:
     parent_meta = _read_parent_agent_meta(agent_session_attach_plan)
     if parent_meta is None:
-        return None
-    return _existing_queue_weight(parent_meta, source="agent-session parent metadata")
+        return None, False
+    if parent_meta.get("queue_weight_invalid") is True:
+        raise RuntimeError(
+            _invalid_queue_weight_message(
+                "agent-session parent metadata",
+                parent_meta.get("queue_weight"),
+            )
+        )
+    return inheritable_queue_weight(parent_meta)
 
 
 def _parent_runner_claim_owner_key(
@@ -450,10 +454,12 @@ def _add_agent_session_metadata(
         agent_meta["changespec_name"] = agent_session_attach_plan.parent_cl_name
         agent_meta["cl_name"] = agent_session_attach_plan.parent_cl_name
     if agent_meta.get("queue_weight_explicit") is not True:
-        parent_queue_weight = _parent_queue_weight(agent_session_attach_plan)
+        parent_queue_weight, parent_explicit = _parent_queue_weight(
+            agent_session_attach_plan
+        )
         if parent_queue_weight is not None:
             agent_meta["queue_weight"] = parent_queue_weight
-            agent_meta["queue_weight_explicit"] = False
+            agent_meta["queue_weight_explicit"] = parent_explicit
     parent_owner_key = _parent_runner_claim_owner_key(agent_session_attach_plan)
     if parent_owner_key is not None:
         agent_meta["runner_claim_owner_key"] = parent_owner_key

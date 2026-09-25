@@ -24,6 +24,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
+    DEFAULT_QUEUE_WEIGHT,
     runner_capacity_snapshot,
     runner_slot_queue_display_key,
 )
@@ -270,7 +271,11 @@ def _runner_slot_waiter_sort_key(
     return runner_slot_queue_display_key(
         running_count=running_count,
         threshold=entry.wait.queue_capacity,
-        requested_weight=entry.wait.queue_weight or 1.0,
+        requested_weight=(
+            DEFAULT_QUEUE_WEIGHT
+            if entry.wait.queue_weight is None
+            else float(entry.wait.queue_weight)
+        ),
         priority=entry.wait.wait_priority,
         slot_requested_at=entry.wait.slot_requested_at,
         timestamp=entry.timestamp,

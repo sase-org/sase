@@ -21,6 +21,8 @@ def _record(
     requested_at: str | None = None,
     wait_runners: int | None = None,
     wait_priority: int | None = None,
+    queue_weight: float | None = None,
+    queue_weight_explicit: bool = False,
     meta_wait_priority: int | None = None,
     parent_timestamp: str | None = None,
     agent_session: str | None = None,
@@ -51,6 +53,8 @@ def _record(
                 else None
             ),
             wait_priority=meta_wait_priority,
+            queue_weight=queue_weight,
+            queue_weight_explicit=queue_weight_explicit,
             run_started_at=("2026-07-12T12:00:00+00:00" if run_started else None),
             stopped_at=stopped_at,
         ),
@@ -61,6 +65,8 @@ def _record(
                 wait_runners=wait_runners,
                 wait_runners_explicit=wait_runners is not None,
                 wait_priority=wait_priority,
+                queue_weight=queue_weight,
+                queue_weight_explicit=queue_weight_explicit,
                 slot_requested_at=requested_at,
             )
             if requested_at is not None

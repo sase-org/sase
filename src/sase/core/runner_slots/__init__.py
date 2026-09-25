@@ -37,6 +37,14 @@ from ._admission_types import (
     HOLD_ARMER_WAIT_PRIORITY,
     RunnerSlotWaiter,
 )
+from ._queue_weight import (
+    MONITOR_INHERITED_QUEUE_WEIGHT_EXPLICIT_KEY,
+    MONITOR_INHERITED_QUEUE_WEIGHT_KEY,
+    MONITOR_QUEUE_WEIGHT_OVERRIDDEN_KEY,
+    QUEUE_WEIGHT_ERROR,
+    inheritable_queue_weight,
+    valid_queue_weight,
+)
 from ._scan_cache import load_or_refresh_runner_slot_scan
 from ._signal import (
     notify_runner_slot_state_changed,
@@ -47,7 +55,13 @@ __all__ = [
     "DEFAULT_QUEUE_WEIGHT",
     "DEFAULT_WAIT_PRIORITY",
     "HOLD_ARMER_WAIT_PRIORITY",
+    "MONITOR_INHERITED_QUEUE_WEIGHT_EXPLICIT_KEY",
+    "MONITOR_INHERITED_QUEUE_WEIGHT_KEY",
+    "MONITOR_QUEUE_WEIGHT_OVERRIDDEN_KEY",
+    "QUEUE_WEIGHT_ERROR",
     "RunnerSlotWaiter",
+    "inheritable_queue_weight",
+    "valid_queue_weight",
     "better_priority_agent_pending",
     "deference_satisfied",
     "deference_window_seconds",

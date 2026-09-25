@@ -444,7 +444,11 @@ def candidate_scan_queue_weight_error(
                 )
             if (
                 waiting.queue_weight is not None
-                and valid_queue_weight(waiting.queue_weight) is None
+                and valid_queue_weight(
+                    waiting.queue_weight,
+                    explicit=waiting.queue_weight_explicit,
+                )
+                is None
             ):
                 return invalid_queue_weight_error(
                     "waiting marker",
@@ -457,7 +461,11 @@ def candidate_scan_queue_weight_error(
             return invalid_queue_weight_error("agent metadata", meta.queue_weight)
         if (
             meta.queue_weight is not None
-            and valid_queue_weight(meta.queue_weight) is None
+            and valid_queue_weight(
+                meta.queue_weight,
+                explicit=meta.queue_weight_explicit,
+            )
+            is None
         ):
             return invalid_queue_weight_error("agent metadata", meta.queue_weight)
         return None

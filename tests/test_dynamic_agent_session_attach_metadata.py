@@ -439,6 +439,157 @@ def test_agent_session_attach_child_preserves_queue_weight_provenance(
     assert child_meta["queue_weight_explicit"] is expected_explicit
 
 
+def test_agent_session_attach_child_inherits_explicit_zero_from_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "foo--0",
+                "queue_weight": 0.0,
+                "queue_weight_explicit": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    child_dir = tmp_path / "child"
+    child_dir.mkdir()
+    plan = AgentSessionAttachLaunchPlan(
+        parent_arg="foo",
+        suffix_arg="reviewer",
+        parent_name="foo--0",
+        parent_base="foo",
+        parent_timestamp="20260701010101",
+        parent_artifacts_dir=str(parent_dir),
+        role_suffix="--reviewer",
+        agent_name="foo--reviewer",
+        agent_session_role="reviewer",
+        parent_agent_session_member_name="foo--0",
+        parent_agent_session_role_suffix="--0",
+        parent_needs_rename=False,
+        parent_project_name="sase",
+        parent_cl_name="feature",
+    )
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
+    prompt = "%i(reviewer, session=foo)\nReview"
+
+    with (
+        patch("sase.agent.names.ensure_historical_auto_name_migration"),
+        patch(
+            "sase.agent.names.agent_name_allocation_lock", return_value=nullcontext()
+        ),
+        patch("sase.agent.names.claim_agent_name"),
+        patch(
+            "sase.xprompt.process_xprompt_references",
+            side_effect=lambda prompt, **_: prompt,
+        ),
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch(
+            "sase.llm_provider.config.resolve_effective_effort",
+            return_value=(None, None),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+    ):
+        info = extract_directives_and_write_meta(
+            prompt,
+            workspace_dir="/tmp/workspace",
+            artifacts_dir=str(child_dir),
+            cl_name="feature",
+            raw_resolved_prompt=prompt,
+        )
+
+    child_meta = json.loads((child_dir / "agent_meta.json").read_text())
+    assert info.queue_weight == 0.0
+    assert info.queue_weight_explicit is True
+    assert child_meta["queue_weight"] == 0.0
+    assert child_meta["queue_weight_explicit"] is True
+
+
+def test_agent_session_attach_child_skips_epic_launch_monitor_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "foo--mon",
+                "queue_weight": 0.0,
+                "queue_weight_explicit": True,
+                "monitor_queue_weight_overridden": True,
+                "monitor_inherited_queue_weight": 3.0,
+                "monitor_inherited_queue_weight_explicit": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    child_dir = tmp_path / "child"
+    child_dir.mkdir()
+    plan = AgentSessionAttachLaunchPlan(
+        parent_arg="foo",
+        suffix_arg="reviewer",
+        parent_name="foo--mon",
+        parent_base="foo",
+        parent_timestamp="20260701010101",
+        parent_artifacts_dir=str(parent_dir),
+        role_suffix="--reviewer",
+        agent_name="foo--reviewer",
+        agent_session_role="reviewer",
+        parent_agent_session_member_name="foo--mon",
+        parent_agent_session_role_suffix="--mon",
+        parent_needs_rename=False,
+        parent_project_name="sase",
+        parent_cl_name="feature",
+    )
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
+    prompt = "%i(reviewer, session=foo)\nReview"
+
+    with (
+        patch("sase.agent.names.ensure_historical_auto_name_migration"),
+        patch(
+            "sase.agent.names.agent_name_allocation_lock", return_value=nullcontext()
+        ),
+        patch("sase.agent.names.claim_agent_name"),
+        patch(
+            "sase.xprompt.process_xprompt_references",
+            side_effect=lambda prompt, **_: prompt,
+        ),
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch(
+            "sase.llm_provider.config.resolve_effective_effort",
+            return_value=(None, None),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+    ):
+        info = extract_directives_and_write_meta(
+            prompt,
+            workspace_dir="/tmp/workspace",
+            artifacts_dir=str(child_dir),
+            cl_name="feature",
+            raw_resolved_prompt=prompt,
+        )
+
+    child_meta = json.loads((child_dir / "agent_meta.json").read_text())
+    assert info.queue_weight == 3.0
+    assert info.queue_weight_explicit is False
+    assert child_meta["queue_weight"] == 3.0
+    assert child_meta["queue_weight_explicit"] is False
+
+
 def test_agent_session_parent_meta_wait_happens_before_name_lock(
     tmp_path: Path,
 ) -> None:

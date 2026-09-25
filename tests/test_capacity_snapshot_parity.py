@@ -332,7 +332,13 @@ def test_explicit_zero_weight_monitor_occupies_nothing_across_runtime_and_tui() 
 
     zero_agent = next(a for a in tui_agents if a.cl_name == "zero-weight-monitor")
     assert zero_agent.runner_occupied_capacity == 0.75
-    assert format_queue_weight_badge_value(zero_agent.queue_weight) is None
+    assert (
+        format_queue_weight_badge_value(
+            zero_agent.queue_weight,
+            explicit=zero_agent.queue_weight_explicit,
+        )
+        == "0"
+    )
 
 
 def test_remote_weight_badge_never_charges_local_snapshot() -> None:

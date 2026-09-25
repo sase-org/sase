@@ -15,6 +15,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 from sase.core.process_identity import process_identity_token
+from sase.core.runner_slots import inheritable_queue_weight
 from sase.plan_chain import (
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
     agent_session_base,
@@ -185,9 +186,10 @@ def create_followup_artifacts(
     ):
         if base_meta.get(key):
             followup_meta[key] = base_meta[key]
-    if "queue_weight" in base_meta:
-        followup_meta["queue_weight"] = base_meta["queue_weight"]
-        followup_meta["queue_weight_explicit"] = False
+    inherited_weight, inherited_explicit = inheritable_queue_weight(base_meta)
+    if inherited_weight is not None:
+        followup_meta["queue_weight"] = inherited_weight
+        followup_meta["queue_weight_explicit"] = inherited_explicit
     runner_claim_owner_key = base_meta.get("runner_claim_owner_key")
     if isinstance(runner_claim_owner_key, str) and runner_claim_owner_key:
         # This follow-up always continues the predecessor's own serial

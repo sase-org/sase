@@ -29,6 +29,22 @@ def test_live_waiter_queue_is_fifo_and_filters_stale_processes() -> None:
     ]
 
 
+def test_live_waiter_queue_preserves_explicit_zero_requested_weight() -> None:
+    records = [
+        _record(
+            "/zero",
+            pid=1,
+            requested_at="2026-07-12T12:00:01+00:00",
+            queue_weight=0.0,
+            queue_weight_explicit=True,
+        ),
+    ]
+
+    queue = live_runner_slot_waiters(records, lambda _record: True)
+
+    assert queue[0].requested_weight == 0.0
+
+
 def test_live_waiter_queue_orders_priority_before_fifo() -> None:
     records = [
         _record(

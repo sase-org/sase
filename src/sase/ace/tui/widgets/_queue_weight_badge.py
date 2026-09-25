@@ -24,9 +24,15 @@ def queue_capacity_budget_display_enabled() -> bool:
     return current_flags().enabled(FeatureFlag.queue_capacity_budget)
 
 
-def append_queue_weight_badge(text: Text, weight: object, *, pad: bool = True) -> bool:
-    """Append ``wN`` for a non-default valid capacity weight."""
-    value = format_queue_weight_badge_value(weight)
+def append_queue_weight_badge(
+    text: Text,
+    weight: object,
+    *,
+    explicit: bool = False,
+    pad: bool = True,
+) -> bool:
+    """Append ``wN`` for a non-default valid capacity weight, including ``w0``."""
+    value = format_queue_weight_badge_value(weight, explicit=explicit)
     if value is None:
         return False
     if pad:
@@ -46,7 +52,12 @@ def _append_agent_queue_weight_badge(text: Text, agent: Agent) -> bool:
         or (agent.is_child_row and not agent.agent_session_parallel)
     ):
         return False
-    return append_queue_weight_badge(text, wait_display_agent(agent).queue_weight)
+    wait_agent = wait_display_agent(agent)
+    return append_queue_weight_badge(
+        text,
+        wait_agent.queue_weight,
+        explicit=wait_agent.queue_weight_explicit,
+    )
 
 
 def append_queue_capacity_badge(

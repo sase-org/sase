@@ -10,10 +10,12 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from ._admission_ordering import normalize_wait_priority
 from ._admission_snapshot import runner_capacity_snapshot
 from ._admission_types import (
+    DEFAULT_QUEUE_WEIGHT,
     RecordLiveness,
     RunnerSlotWaiter,
     finite_positive_float,
 )
+from ._queue_weight import valid_queue_weight
 
 _RUNNER_CAPACITY_HELPER_LIMIT = 1.0e300
 
@@ -75,7 +77,7 @@ def live_runner_slot_waiters(
             ),
             admission_limit=finite_positive_float(waiter.get("admission_limit")),
             priority=normalize_wait_priority(waiter.get("priority")),
-            requested_weight=float(waiter.get("requested_weight") or 1.0),
+            requested_weight=_requested_weight(waiter.get("requested_weight")),
             eligible=waiter.get("eligible") is True,
             blockers=tuple(
                 blocker
@@ -87,3 +89,8 @@ def live_runner_slot_waiters(
         if isinstance(waiter, dict)
     ]
     return tuple(waiters)
+
+
+def _requested_weight(value: object) -> float:
+    weight = valid_queue_weight(value, explicit=True)
+    return DEFAULT_QUEUE_WEIGHT if weight is None else weight

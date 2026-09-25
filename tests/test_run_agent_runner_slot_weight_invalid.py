@@ -15,7 +15,7 @@ from tests._runner_slot_fixtures import artifact, record
 
 @pytest.mark.parametrize(
     "queue_weight",
-    [None, 0, -1, True, "0.25", float("inf"), float("nan")],
+    [None, -1, True, "0.25", float("inf"), float("nan")],
 )
 def test_invalid_waiting_marker_queue_weight_fails_closed(
     tmp_path: Path,
@@ -28,6 +28,65 @@ def test_invalid_waiting_marker_queue_weight_fails_closed(
                 "slot_requested_at": "2026-09-10T13:40:00+00:00",
                 "queue_weight": queue_weight,
                 "queue_weight_explicit": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[record(waiter)],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=2),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+        pytest.raises(
+            run_agent_wait_slots.RunnerSlotAdmissionError,
+            match="Invalid queue_weight in waiting marker",
+        ),
+    ):
+        run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            claim=lambda: "unexpected",
+        )
+
+
+def test_explicit_zero_waiting_marker_queue_weight_is_accepted() -> None:
+    from sase.axe.run_agent_wait_slot_state import marker_queue_weight_state
+
+    weight, explicit = marker_queue_weight_state(
+        {
+            "slot_requested_at": "2026-09-10T13:41:00+00:00",
+            "queue_weight": 0.0,
+            "queue_weight_explicit": True,
+        },
+        1.0,
+        False,
+    )
+
+    assert weight == 0.0
+    assert explicit is True
+
+
+def test_implicit_zero_waiting_marker_queue_weight_fails_closed(
+    tmp_path: Path,
+) -> None:
+    waiter = artifact(tmp_path, "20260910134200", 101)
+    (waiter / "waiting.json").write_text(
+        json.dumps(
+            {
+                "slot_requested_at": "2026-09-10T13:42:00+00:00",
+                "queue_weight": 0.0,
+                "queue_weight_explicit": False,
             }
         ),
         encoding="utf-8",

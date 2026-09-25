@@ -98,6 +98,48 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     assert record.next_output == "results,tail"
 
 
+def test_create_gate_shell_member_inherits_explicit_zero_queue_weight() -> None:
+    shell = GateShellSpec.from_mapping(
+        {
+            "pending_status": "WAIT",
+            "settled_status": "DONE",
+            "accent": "#00D7AF",
+            "next": {
+                "prompt": "continue",
+                "fork": "shell",
+                "output": ["tail"],
+            },
+        },
+        branches=(("accept",),),
+    )
+
+    artifacts_dir = create_gate_shell_member(
+        "proj",
+        {
+            "name": "lane--0",
+            "agent_session": "lane",
+            "queue_weight": 0.0,
+            "queue_weight_explicit": True,
+        },
+        lane="lane",
+        suffix="--gate",
+        prev_artifacts_timestamp="20260812120000",
+        workspace_num=7,
+        gate_id="gate-zero",
+        gate_kind="custom",
+        label="Review deploy",
+        reason="wait for reviewer",
+        creator_agent="lane--0",
+        timeout_seconds=86400.0,
+        request_fingerprint="abc123",
+        shell=shell,
+    )
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["queue_weight"] == 0.0
+    assert meta["queue_weight_explicit"] is True
+
+
 def test_answered_handoff_gate_record_buckets_running() -> None:
     record = GateShellRecord(
         gate_id="gate-1",

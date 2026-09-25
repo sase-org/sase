@@ -321,7 +321,11 @@ def _runner_wait_has_detail(agent: Agent) -> bool:
         agent.wait_runners_explicit
         or agent.wait_priority_explicit
         or agent.queue_weight_invalid
-        or format_queue_weight_badge_value(agent.queue_weight) is not None
+        or format_queue_weight_badge_value(
+            agent.queue_weight,
+            explicit=agent.queue_weight_explicit,
+        )
+        is not None
         or _runner_capacity_explanation_blockers(agent)
     )
 
@@ -335,9 +339,10 @@ def _runner_capacity_parts(agent: Agent) -> tuple[str, ...]:
         and agent.wait_runners_explicit
         and free is not None
     )
-    if format_queue_weight_badge_value(agent.queue_weight) is None and not (
-        capacity_budget or _runner_capacity_explanation_blockers(agent)
-    ):
+    if format_queue_weight_badge_value(
+        agent.queue_weight,
+        explicit=agent.queue_weight_explicit,
+    ) is None and not (capacity_budget or _runner_capacity_explanation_blockers(agent)):
         return ()
     weight = (
         agent.queue_weight if agent.queue_weight is not None else DEFAULT_QUEUE_WEIGHT

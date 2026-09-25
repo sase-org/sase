@@ -21,6 +21,7 @@ class RunnerQueueEntry:
     slot_requested_at: str | None
     status: str
     requested_weight: float = DEFAULT_QUEUE_WEIGHT
+    requested_weight_explicit: bool = False
     occupied_capacity: float | None = None
     admission_limit: float | None = None
     eligible: bool = False
@@ -56,14 +57,18 @@ def format_capacity_value(value: object, *, minimum_decimal: bool = True) -> str
     return text
 
 
-def format_queue_weight_badge_value(value: object) -> str | None:
+def format_queue_weight_badge_value(
+    value: object, *, explicit: bool = False
+) -> str | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     weight = float(value)
-    if (
-        not math.isfinite(weight)
-        or weight <= 0.0
-        or math.isclose(weight, DEFAULT_QUEUE_WEIGHT, rel_tol=0.0, abs_tol=1e-9)
+    if not math.isfinite(weight):
+        return None
+    if weight == 0.0:
+        return "0" if explicit else None
+    if weight < 0.0 or math.isclose(
+        weight, DEFAULT_QUEUE_WEIGHT, rel_tol=0.0, abs_tol=1e-9
     ):
         return None
     return format_capacity_value(weight, minimum_decimal=False)

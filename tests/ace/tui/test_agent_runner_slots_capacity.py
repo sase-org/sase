@@ -6,6 +6,7 @@ from datetime import datetime
 
 from sase.ace.tui.models.agent_runner_slots import (
     RunnerCapacitySnapshot,
+    format_queue_weight_badge_value,
     refresh_runner_slot_context,
 )
 
@@ -133,3 +134,31 @@ def test_weight_exceeding_limit_is_parked_with_blocker() -> None:
     assert capacity.queue[0].parked is True
     assert capacity.queue[0].blockers[0]["code"] == "weight-exceeds-limit"
     assert heavy.runner_capacity_blockers[0]["code"] == "weight-exceeds-limit"
+
+
+def test_queue_weight_badge_shows_explicit_zero() -> None:
+    assert format_queue_weight_badge_value(0.0, explicit=True) == "0"
+    assert format_queue_weight_badge_value(0.0) is None
+    assert format_queue_weight_badge_value(1.0, explicit=True) is None
+
+
+def test_explicit_zero_waiter_keeps_requested_weight() -> None:
+    holder = _agent(
+        "holder",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+        queue_weight=1.0,
+        queue_weight_explicit=True,
+    )
+    waiter = _agent(
+        "zero",
+        queue_weight=0.0,
+        queue_weight_explicit=True,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+
+    capacity = refresh_runner_slot_context([holder, waiter], effective_limit=2)
+
+    assert capacity.queue[0].requested_weight == 0.0
+    assert capacity.queue[0].requested_weight_explicit is True
+    assert capacity.queue[0].parked is False

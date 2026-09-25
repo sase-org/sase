@@ -70,15 +70,10 @@ def test_project_fleet_agents_carries_remote_queue_weight_without_local_charge()
 
 
 def test_project_fleet_agents_carries_remote_explicit_zero_queue_weight() -> None:
-    """An explicit-zero remote weight (e.g. a remote epic-launch monitor) is
-
-    valid and non-occupying -- unlike an implicit zero, which stays
-    invalid/fail-closed like any other non-positive weight -- and never
-    renders a misleading ``w0`` badge or "Weight: 0" header text.
-    """
+    """An explicit-zero remote weight is valid, non-occupying, and renders ``w0``."""
     summary = fleet_summary(
-        agent_id="epic-launch-monitor",
-        agent_name="apollo.epic-launch-monitor",
+        agent_id="zero-load",
+        agent_name="apollo.zero-load",
         queue_weight=0.0,
         queue_weight_explicit=True,
     )
@@ -91,10 +86,10 @@ def test_project_fleet_agents_carries_remote_explicit_zero_queue_weight() -> Non
     assert row.queue_weight_explicit is True
     assert row.queue_weight_invalid is False
     text = Text()
-    assert append_agent_queue_badges(text, row) is False
-    assert text.plain == ""
+    assert append_agent_queue_badges(text, row) is True
+    assert "w0" in text.plain
     header, _ = build_header_text(row, cheap=True)
-    assert "Weight:" not in header.plain
+    assert "Weight: 0.0 capacity units" in header.plain
 
     local = Agent(
         agent_type=AgentType.RUNNING,

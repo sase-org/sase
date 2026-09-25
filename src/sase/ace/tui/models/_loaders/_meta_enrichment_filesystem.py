@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
@@ -13,7 +12,11 @@ from sase.plan_chain import (
     agent_session_role_value,
     agent_session_value,
 )
-from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
+from sase.core.runner_slots import (
+    DEFAULT_WAIT_PRIORITY,
+    QUEUE_WEIGHT_ERROR,
+    valid_queue_weight,
+)
 from sase.monitor_state import is_monitor_member_role
 from sase.gate_shell.state import is_real_gate_member
 from sase.sdd.plan_tiers import cached_plan_tier
@@ -43,21 +46,11 @@ from ._meta_enrichment_status import (
 )
 from ..agent import Agent
 
-
-_QUEUE_WEIGHT_ERROR = "queue_weight must be a positive finite number"
+_QUEUE_WEIGHT_ERROR = QUEUE_WEIGHT_ERROR
 
 
 def _coerce_queue_weight(value: object, *, explicit: bool) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    weight = float(value)
-    if not math.isfinite(weight):
-        return None
-    if weight == 0.0:
-        return 0.0 if explicit else None
-    if weight <= 0:
-        return None
-    return weight
+    return valid_queue_weight(value, explicit=explicit)
 
 
 def _apply_queue_weight_fields(agent: Agent, data: dict[str, object]) -> None:

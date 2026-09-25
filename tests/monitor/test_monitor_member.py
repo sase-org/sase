@@ -179,6 +179,9 @@ def test_create_monitor_member_queue_weight_override_replaces_inherited_weight()
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["queue_weight"] == 0.0
     assert meta["queue_weight_explicit"] is True
+    assert meta["monitor_queue_weight_overridden"] is True
+    assert meta["monitor_inherited_queue_weight"] == 3.0
+    assert meta["monitor_inherited_queue_weight_explicit"] is True
     # The override is only about weight; the inherited claim lineage is
     # untouched so the monitor still represents the same live owner.
     assert meta["runner_claim_owner_key"] == "owner-key-123"

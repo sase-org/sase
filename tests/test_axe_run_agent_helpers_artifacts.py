@@ -342,6 +342,32 @@ def test_create_followup_marks_parent_queue_weight_as_inherited(tmp_path) -> Non
     assert meta["queue_weight_explicit"] is False
 
 
+def test_create_followup_keeps_explicit_zero_queue_weight(tmp_path) -> None:
+    """User-authored zero stays explicit so the successor is still valid."""
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(new_dir),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {
+                "name": "a",
+                "model": "test",
+                "queue_weight": 0.0,
+                "queue_weight_explicit": True,
+            },
+            "--1",
+            "20260326120000",
+        )
+
+    meta = json.loads((new_dir / "agent_meta.json").read_text())
+    assert meta["queue_weight"] == 0.0
+    assert meta["queue_weight_explicit"] is True
+
+
 def test_create_followup_without_workspace_dir_omits_key(tmp_path) -> None:
     """No workspace_dir in base_meta leaves the key absent (graceful)."""
     new_dir = tmp_path / "new"

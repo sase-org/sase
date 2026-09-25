@@ -328,7 +328,67 @@ def test_launch_wire_extra_preserves_canonical_capacity() -> None:
     assert extra["queue_capacity"] == 100
     assert extra["queue_capacity_explicit"] is True
     assert extra["queue_weight"] == 0.25
+    assert extra["queue_weight_explicit"] is False
+
+
+def test_queue_launch_prefix_keeps_user_authored_zero() -> None:
+    prefix = queue_launch_prefix(
+        {
+            "queue_weight": 0.0,
+            "queue_weight_explicit": True,
+            "wait_priority": 0,
+        }
+    )
+
+    # The pinned core formatter still drops weight=0; the inheritable
+    # weight must at least not be replaced by the default 1.0.
+    assert "weight=1" not in prefix
+    assert "priority=0" in prefix
+
+
+def test_launch_wire_extra_keeps_user_authored_zero() -> None:
+    extra = launch_wire_extra(
+        {
+            "queue_weight": 0.0,
+            "queue_weight_explicit": True,
+        }
+    )
+
+    assert extra["queue_weight"] == 0.0
     assert extra["queue_weight_explicit"] is True
+
+
+def test_epic_launch_monitor_override_is_not_inherited_by_successors() -> None:
+    meta = {
+        "queue_weight": 0.0,
+        "queue_weight_explicit": True,
+        "monitor_queue_weight_overridden": True,
+        "monitor_inherited_queue_weight": 3.0,
+        "monitor_inherited_queue_weight_explicit": True,
+        "wait_priority": 0,
+    }
+
+    extra = launch_wire_extra(meta)
+    prefix = queue_launch_prefix(meta)
+
+    assert extra["queue_weight"] == 3.0
+    assert extra["queue_weight_explicit"] is False
+    assert "weight=0" not in prefix
+    assert "weight=3" in prefix
+
+
+def test_epic_launch_monitor_override_without_starter_weight_is_not_inherited() -> None:
+    meta = {
+        "queue_weight": 0.0,
+        "queue_weight_explicit": True,
+        "monitor_queue_weight_overridden": True,
+    }
+
+    extra = launch_wire_extra(meta)
+    prefix = queue_launch_prefix(meta)
+
+    assert "queue_weight" not in extra
+    assert "weight=" not in prefix
 
 
 @pytest.mark.parametrize(

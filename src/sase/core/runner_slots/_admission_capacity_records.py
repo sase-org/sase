@@ -9,20 +9,12 @@ from typing import Any
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 from ._admission_types import RecordLiveness, finite_positive_float
+from ._queue_weight import valid_queue_weight
 
 
 def _is_explicit_zero_weight(value: object) -> bool:
-    """Return whether *value* is a real (non-bool) numeric zero.
-
-    An authored ``queue_weight`` of ``0`` is only ever valid when it is
-    explicit -- a host-authored override such as the epic-launch
-    supervision monitor's quiet zero-weight start -- never an implicit
-    default, which stays invalid/fail-closed like any other non-positive
-    weight.
-    """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    return float(value) == 0.0
+    """Return whether *value* is a real (non-bool) numeric zero."""
+    return valid_queue_weight(value, explicit=True) == 0.0
 
 
 def _record_queue_weight(
