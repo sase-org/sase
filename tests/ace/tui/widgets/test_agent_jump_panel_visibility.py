@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 from rich.text import Text
-from textual.containers import VerticalScroll
 
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -161,13 +160,15 @@ async def test_search_overlay_keeps_jump_panel_visible(tmp_path: Path) -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await _show_agent(detail, root, pilot)
-        prompt_scroll = detail.query_one("#agent-prompt-scroll", VerticalScroll)
-        search_scroll = detail.query_one("#agent-search-scroll", VerticalScroll)
-        detail._show_active_metadata_scroll(search_scroll)  # noqa: SLF001
+        deck_panel = detail.deck_area.focused_panel()
+        assert deck_panel is not None
+        deck_panel.show_search_overlay()
+        await pilot.pause()
         panel = _jump_panel(detail)
         assert not panel.has_class("hidden")
         assert detail.jump_panel_toggle_available() is True
-        detail._show_active_metadata_scroll(prompt_scroll)  # noqa: SLF001
+        deck_panel.hide_search_overlay()
+        await pilot.pause()
         assert not panel.has_class("hidden")
 
 

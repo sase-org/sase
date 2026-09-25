@@ -61,6 +61,7 @@ def _fake_agent() -> SimpleNamespace:
         agent_type=SimpleNamespace(value="agent"),
         workspace_num=None,
         raw_suffix=None,
+        identity=("agent", "change", None),
         get_artifacts_dir=lambda: None,
     )
 

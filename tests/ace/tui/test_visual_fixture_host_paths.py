@@ -44,8 +44,10 @@ _VISUAL_ROOT = Path(__file__).parent / "visual"
 _FIXTURE_SUFFIXES = {".py", ".json", ".yml", ".yaml", ".diff", ".md", ".txt"}
 
 # Synthetic home owners the visual fixtures are allowed to name. Each belongs to
-# no real account, so every host renders them identically.
-_SYNTHETIC_HOME_OWNERS = frozenset({"visual", "user", "operator"})
+# no real account, so every host renders them identically. ``test`` is the
+# command-line context chip's frozen cwd (``/home/test/projects/sase``), which
+# the command-line goldens paint verbatim.
+_SYNTHETIC_HOME_OWNERS = frozenset({"visual", "user", "operator", "test"})
 # The lookbehind keeps ``/home`` anchored to a path root so an interior segment
 # such as ``chezmoi/home/dot_config`` is not read as owner ``dot_config``.
 _HOME_DIR_RE = re.compile(r"(?<![A-Za-z0-9._-])/home/([A-Za-z0-9._-]+)")

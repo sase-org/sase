@@ -11,6 +11,7 @@ from rich.console import Console, Group
 from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets.decks.card_part import flatten_card_document
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
 
@@ -68,7 +69,7 @@ def _render(agent: Agent) -> object:
     panel = AgentPromptPanel.__new__(AgentPromptPanel)
     with patch.object(panel, "update") as mock_update:
         panel.update_display(agent)
-    return mock_update.call_args.args[0]
+    return flatten_card_document(mock_update.call_args.args[0])
 
 
 def _iter_texts(renderable: object) -> list[Text]:

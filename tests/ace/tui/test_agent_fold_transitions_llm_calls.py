@@ -18,6 +18,9 @@ class _LLMCallsDetail:
     def is_llm_calls_visible(self) -> bool:
         return self.visible
 
+    def focused_tools_view(self) -> object | None:
+        return object() if self.visible else None
+
     def expand_tools_detail(self) -> bool:
         self.actions.append("expand")
         return self.changed
@@ -49,7 +52,8 @@ class _OtherTabExpandApp(AgentFoldingMixin):
         self.refresh_calls += 1
 
 
-def test_llm_calls_panel_h_navigates_while_capital_h_compacts_detail() -> None:
+def test_llm_calls_panel_routes_every_fold_key_to_detail_level() -> None:
+    """With a tools panel focused, h/H/l/L drive its detail level, not the folds."""
     agent = make_agent(agent_name="coder.claude", tribe="research")
     other = make_agent(agent_name="planner.codex", tribe="ops")
     detail = _LLMCallsDetail()
@@ -62,12 +66,12 @@ def test_llm_calls_panel_h_navigates_while_capital_h_compacts_detail() -> None:
     app.action_expand_all_folds()
     app.action_hooks_or_collapse_all()
 
-    assert detail.actions == ["expand", "set:0"]
-    assert app._expanded_panel_focus is True
-    assert app._panel_selection_memory["research"] == ("agent", 0)
-    assert app.fold_selector_calls == 1
+    assert detail.actions == ["expand", "collapse", "set:2", "set:0"]
+    assert app._expanded_panel_focus is False
+    assert app._panel_selection_memory == {}
+    assert app.fold_selector_calls == 0
     assert app.refilter_calls == 0
-    assert app.footer_refresh_calls == 2
+    assert app.footer_refresh_calls == 4
 
 
 def test_llm_calls_panel_detail_clamp_does_not_fall_through_to_folds() -> None:

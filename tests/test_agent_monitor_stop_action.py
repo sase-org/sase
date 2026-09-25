@@ -126,11 +126,32 @@ def test_action_kill_agent_on_done_monitor_starter_uses_cleanup_path(
     assert ("Monitor has already finished", "warning") not in app._notifications
 
 
+def test_confirming_stop_routes_running_monitor_through_planner_kill(
+    tmp_path: Path,
+) -> None:
+    agent = _monitor_agent(artifacts_dir=str(tmp_path), monitor_state="running")
+    app = _ActionApp(agent)
+    plan = cleanup_plan(agent, action="kill")
+
+    with (
+        patch.object(app, "_plan_focused_agent_cleanup", return_value=plan),
+        patch.object(app, "_do_kill_agent") as mock_kill,
+    ):
+        app.action_kill_agent()
+        assert len(app.pushed) == 1
+        _modal, callback = app.pushed[0]
+        callback(True)
+
+    mock_kill.assert_called_once_with(agent, plan)
+    assert app.submitted == []
+
+
 def test_confirming_stop_submits_background_task(tmp_path: Path) -> None:
     agent = _monitor_agent(artifacts_dir=str(tmp_path), monitor_state="running")
     app = _ActionApp(agent)
 
-    app.action_kill_agent()
+    with patch.object(app, "_plan_focused_agent_cleanup", return_value=None):
+        app.action_kill_agent()
     assert len(app.pushed) == 1
     _modal, callback = app.pushed[0]
     callback(True)
@@ -161,7 +182,8 @@ def test_stop_monitor_submission_includes_artifacts_context(
     agent = _monitor_agent(artifacts_dir=str(tmp_path), monitor_state="running")
     app = _ActionApp(agent)
 
-    app.action_kill_agent()
+    with patch.object(app, "_plan_focused_agent_cleanup", return_value=None):
+        app.action_kill_agent()
     _modal, callback = app.pushed[0]
     callback(True)
     _args, kwargs = app.submitted[0]
@@ -180,7 +202,8 @@ def test_stop_monitor_submission_uses_agent_name_when_monitor_id_missing(
     agent.monitor_id = None
     app = _ActionApp(agent)
 
-    app.action_kill_agent()
+    with patch.object(app, "_plan_focused_agent_cleanup", return_value=None):
+        app.action_kill_agent()
     _modal, callback = app.pushed[0]
     callback(True)
     args, kwargs = app.submitted[0]

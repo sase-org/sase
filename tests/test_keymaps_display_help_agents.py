@@ -33,7 +33,7 @@ def test_agents_help_describes_zoom_and_isolation_and_capital_h_collapsing() -> 
     assert ("H", "Then remaining sase agents in scope") in agent_pairs
     assert ("H", "Then selected clan / group clans") in agent_pairs
     assert ("H", "Compact expanded LLM Calls detail") in agent_pairs
-    assert ("Z", "Zoom agent/tribe detail") in agent_pairs
+    assert ("Z", "Zoom deck panel in place") in agent_pairs
     assert (
         "=",
         "Only panel ⇄ restore panels",
@@ -80,7 +80,7 @@ def test_all_tab_help_guides_show_forward_jump_and_agents_metadata_sections() ->
     assert jump_pair in cls_pairs
     assert jump_pair in agent_pairs
     assert jump_pair in axe_pairs
-    assert ("Ctrl+J / Ctrl+K", "Cycle metadata through top") in agent_pairs
+    assert ("Ctrl+J / Ctrl+K", "Cycle deck card (decks)") in agent_pairs
     assert not any(label == "Cycle metadata through top" for _key, label in cls_pairs)
     assert not any(label == "Cycle metadata through top" for _key, label in axe_pairs)
 

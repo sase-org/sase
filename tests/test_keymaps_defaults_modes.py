@@ -95,7 +95,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    assert ("Z", "Zoom agent/tribe detail") in agent_pairs
+    assert ("Z", "Zoom deck panel in place") in agent_pairs
     assert ("=", "Only panel ⇄ restore panels") in agent_pairs
     assert ("_", "All-panel folds ⇄ restore ▿") in agent_pairs
     assert ("zz", "Cycle panel fold level forward") in agent_pairs

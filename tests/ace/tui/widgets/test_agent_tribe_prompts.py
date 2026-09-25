@@ -285,7 +285,31 @@ def test_identical_bodies_with_different_preambles_coalesce_in_order() -> None:
     assert snapshot.groups[0].digest.launch == "%id(1)"
 
 
-def test_same_body_in_different_projects_does_not_coalesce() -> None:
+def test_same_body_in_different_projects_does_not_coalesce(monkeypatch: Any) -> None:
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+    # Only catalog-known targets count as a project, and a cold catalog yields
+    # no project at all, so warm one that knows both targets.
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=name,
+                name=name,
+                tag=f"+{name}",
+                workflow_type="gh",
+                accent=None,
+            )
+            for name in ("alpha", "beta")
+        ),
+        accent_palette=(),
+    )
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog", lambda: catalog
+    )
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog_signature",
+        lambda: catalog.signature,
+    )
     first = _agent("first", "first")
     second = _agent("second", "second")
     body = "Do the shared thing.\n"

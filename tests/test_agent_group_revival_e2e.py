@@ -198,7 +198,7 @@ async def test_agents_command_palette_exposes_save_marked_group(
         initial_tab="agents",
     ) as page:
         await wait_for_startup(page)
-        await page.press("colon")
+        await page.press("semicolon")
         await page.expect_modal("CommandPaletteModal")
         modal = page.app.screen
         assert isinstance(modal, CommandPaletteModal)
@@ -207,7 +207,7 @@ async def test_agents_command_palette_exposes_save_marked_group(
         await page.expect_no_modal()
 
         await page.press("m")
-        await page.press("colon")
+        await page.press("semicolon")
         await page.expect_modal("CommandPaletteModal")
         modal = page.app.screen
         assert isinstance(modal, CommandPaletteModal)

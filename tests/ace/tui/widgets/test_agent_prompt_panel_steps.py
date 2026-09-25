@@ -10,12 +10,16 @@ from textual.app import App, ComposeResult
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets.agent_detail import AgentDetail
+from sase.ace.tui.widgets.decks.card_part import flatten_card_document
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_header_text,
     get_prompt_content,
 )
-from tests.ace.tui.widgets._agent_display_helpers import make_workflow_agent
+from tests.ace.tui.widgets._agent_display_helpers import (
+    make_workflow_agent,
+    plain_of,
+)
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_rendered_section_is_compact,
 )
@@ -105,18 +109,15 @@ def test_parallel_step_does_not_show_agent_prompt(tmp_path: Path) -> None:
 
         assert mock_update.called
         call_args = mock_update.call_args[0]
-        rendered = call_args[0]
+        rendered = flatten_card_document(call_args[0])
 
-        # The rendered output should be a Group containing header_text + output_syntax
+        # The Context card holds the header and the Output card holds the step
+        # output; flattened, the document must show STEP OUTPUT but NOT
+        # AGENT PROMPT.
         assert isinstance(rendered, Group)
-        renderables = list(rendered.renderables)
-
-        # First renderable is the header Text - check it contains STEP OUTPUT
-        # but NOT AGENT PROMPT
-        header_text = renderables[0]
-        header_str = str(header_text)
-        assert "STEP OUTPUT" in header_str
-        assert "AGENT PROMPT" not in header_str
+        rendered_str = plain_of(rendered)
+        assert "STEP OUTPUT" in rendered_str
+        assert "AGENT PROMPT" not in rendered_str
         assert_rendered_section_is_compact(
             rendered,
             "STEP OUTPUT",

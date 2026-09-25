@@ -162,14 +162,12 @@ class LinkFollowTargetsMixin:
         (the default sub-tab). The exact descriptor lookup distinguishes a
         configured provider from a missing one; fixed panes never count.
         """
-        if not pane_id.startswith("ref:"):
-            return False
         try:
-            from ..artifact_tabs import descriptor_for_artifacts_pane_id
+            from ..artifact_tabs import is_unconfigured_ref_pane
         except Exception:  # noqa: BLE001 - fail open to the old Stitches path
             return False
         try:
-            return descriptor_for_artifacts_pane_id(pane_id) is None
+            return is_unconfigured_ref_pane(pane_id)
         except Exception:  # noqa: BLE001 - discovery errors are not unconfigured
             return False
 

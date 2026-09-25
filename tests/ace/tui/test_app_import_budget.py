@@ -9,7 +9,11 @@ import textwrap
 from typing import Any
 
 _MAX_ELAPSED_SECONDS = 5.0
-_MAX_MODULE_COUNT = 3290
+# Feature growth and mechanical toobig splits (the agent-deck cutover, the
+# command line, launch-cwd and usage-refresh helpers) added ~110 small modules
+# since the closure measured 3246. The deferred-module probe below is the
+# heavy-edge guard; this count only catches a wholesale closure regression.
+_MAX_MODULE_COUNT = 3400
 
 
 def _measure_tui_app_import() -> dict[str, Any]:

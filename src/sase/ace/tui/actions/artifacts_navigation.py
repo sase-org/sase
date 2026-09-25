@@ -23,6 +23,19 @@ from ..widgets.artifacts import (
 )
 
 
+def _is_unconfigured_ref_pane(pane_id: str) -> bool:
+    """Return whether *pane_id* is a ``ref:<kind>`` pane with no provider."""
+
+    try:
+        from ..artifact_tabs import is_unconfigured_ref_pane
+    except Exception:  # noqa: BLE001 - fail open to the old path
+        return False
+    try:
+        return is_unconfigured_ref_pane(pane_id)
+    except Exception:  # noqa: BLE001 - discovery errors are not unconfigured
+        return False
+
+
 class ArtifactsNavigationActionsMixin:
     """Navigate, mark, and switch between non-PR Artifacts entries."""
 
@@ -109,16 +122,8 @@ class ArtifactsNavigationActionsMixin:
         pane_key: ArtifactsPaneKey | None = None,
     ) -> ArtifactEntryNavigator | None:
         target_pane = pane_key or self.current_artifacts_pane_key
-        if isinstance(target_pane, str) and target_pane.startswith("ref:"):
-            try:
-                from ..artifact_tabs import descriptor_for_artifacts_pane_id
-            except Exception:  # noqa: BLE001 - fail open to the old path
-                descriptor_for_artifacts_pane_id = None  # type: ignore[assignment]
-            if (
-                descriptor_for_artifacts_pane_id is not None
-                and descriptor_for_artifacts_pane_id(target_pane) is None
-            ):
-                return None
+        if isinstance(target_pane, str) and _is_unconfigured_ref_pane(target_pane):
+            return None
         view = self._artifacts_view()
         if view is None:
             return None
@@ -143,16 +148,8 @@ class ArtifactsNavigationActionsMixin:
         """Switch to the target's owning pane and select it when ready."""
 
         pane_key = target.pane_id
-        if pane_key.startswith("ref:"):
-            try:
-                from ..artifact_tabs import descriptor_for_artifacts_pane_id
-            except Exception:  # noqa: BLE001 - fail open to the old path
-                descriptor_for_artifacts_pane_id = None  # type: ignore[assignment]
-            if (
-                descriptor_for_artifacts_pane_id is not None
-                and descriptor_for_artifacts_pane_id(pane_key) is None
-            ):
-                return LinkRequestState.MISSING
+        if _is_unconfigured_ref_pane(pane_key):
+            return LinkRequestState.MISSING
         self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
         pane = self._artifacts_entry_navigator(pane_key)
         if pane is None:

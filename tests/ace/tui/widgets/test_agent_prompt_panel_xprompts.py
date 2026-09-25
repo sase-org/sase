@@ -18,7 +18,10 @@ from sase.ace.tui.widgets.prompt_panel._agent_xprompts import (
     _COLOR_SWARM,
     _COLOR_WORKFLOW,
 )
-from tests.ace.tui.widgets._agent_display_helpers import make_workflow_agent
+from tests.ace.tui.widgets._agent_display_helpers import (
+    make_workflow_agent,
+    plain_of,
+)
 
 
 def _styles_over(header: Text, substring: str) -> set[str]:
@@ -282,12 +285,12 @@ def test_update_display_renders_xprompts_after_detail_settles(
     with patch.object(panel, "update") as mock_update:
         panel.update_display(agent)
         rendered = mock_update.call_args[0][0]
-        assert "Xprompts: 1 workflow" not in str(rendered)
+        assert "Xprompts: 1 workflow" not in plain_of(rendered)
 
         cache_detail_header_summary(panel, agent, build_detail_header_summary(agent))
         panel.update_display(agent)
 
     assert mock_update.called
     rendered = mock_update.call_args[0][0]
-    assert "Xprompts: 1 workflow" in str(rendered)
-    assert "⌘ #propose" in str(rendered)
+    assert "Xprompts: 1 workflow" in plain_of(rendered)
+    assert "⌘ #propose" in plain_of(rendered)

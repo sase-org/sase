@@ -417,7 +417,7 @@ class TestPromptFileCompletion:
     ) -> None:
         monkeypatch.setenv("HOME", str(tmp_path))
         (tmp_path / "aaa.txt").write_text("x", encoding="utf-8")
-        (tmp_path / "bbb.txt").write_text("x", encoding="utf-8")
+        (tmp_path / "aab.txt").write_text("x", encoding="utf-8")
         app = CompletionTestApp()
         submitted = False
         async with app.run_test() as pilot:
@@ -430,8 +430,8 @@ class TestPromptFileCompletion:
                 original_submit()
 
             ta.action_submit_prompt = _track_submit  # type: ignore[assignment]
-            ta.load_text("~/ extra")
-            ta.cursor_location = (0, 2)
+            ta.load_text("~/aa")
+            ta.cursor_location = (0, 3)
             with patch.object(
                 type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
             ):
@@ -440,7 +440,7 @@ class TestPromptFileCompletion:
                 first = ta._file_completion_candidates[0].insertion
                 await pilot.press("ctrl+e")
 
-            assert ta.text == "~/ extra"
+            assert ta.text == "~/aa"
             assert ta.cursor_location == (0, len(ta.text))
             assert ta._file_completion_active is True
             assert ta._file_completion_candidates[0].insertion == first

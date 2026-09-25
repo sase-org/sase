@@ -212,6 +212,18 @@ def descriptor_for_artifacts_pane_id(pane_id: str) -> ArtifactsTabDescriptor | N
     )
 
 
+def is_unconfigured_ref_pane(pane_id: str) -> bool:
+    """Return whether *pane_id* names a ``ref:<kind>`` pane with no provider.
+
+    Fixed panes (Stitches, Beads, ...) never count: only a document pane whose
+    exact descriptor is missing does.
+    """
+
+    return (
+        pane_id.startswith("ref:") and descriptor_for_artifacts_pane_id(pane_id) is None
+    )
+
+
 def artifacts_pane_contract(pane_id: str) -> ArtifactsPaneContract | None:
     """Exact contract lookup for diagnostics and CLI use."""
 

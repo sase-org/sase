@@ -10,6 +10,7 @@ from rich.text import Text
 
 from sase.ace.tui.util.lazy_syntax import CachedRenderable
 from sase.ace.tui.util.xprompt_syntax import XPROMPT_TOKEN_STYLES
+from sase.ace.tui.widgets.decks.card_part import flatten_card_document
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
     AgentHeaderRenderable,
 )
@@ -43,11 +44,11 @@ def _unwrap(renderable: object) -> object:
 
 
 def _header_text(renderable: object) -> Text | AgentHeaderRenderable:
-    renderable = _unwrap(renderable)
+    renderable = _unwrap(flatten_card_document(renderable))
     if isinstance(renderable, (Text, AgentHeaderRenderable)):
         return renderable
     assert isinstance(renderable, Group)
-    header = renderable.renderables[0]
+    header = _unwrap(renderable.renderables[0])
     assert isinstance(header, (Text, AgentHeaderRenderable))
     return header
 
@@ -73,7 +74,7 @@ def _has_role_underline(styles: set[str]) -> bool:
 
 
 def _prompt_body(renderable: object) -> Text:
-    renderable = _unwrap(renderable)
+    renderable = _unwrap(flatten_card_document(renderable))
     assert isinstance(renderable, Group)
     for child in renderable.renderables[1:]:
         if isinstance(child, Text) and "Agent Clan" in child.plain:
@@ -184,7 +185,7 @@ def test_agent_xprompt_and_prompt_receive_roles_replies_do_not(
     )
 
     panel.update_display(agent)
-    rendered = panel.captured[-1]
+    rendered = flatten_card_document(panel.captured[-1])
     header = _header_text(rendered)
     assert XPROMPT_TOKEN_STYLES["invocation"] in _styles_at(header, "#git")
     assert _has_role_underline(_styles_at(header, "Agent Clan"))

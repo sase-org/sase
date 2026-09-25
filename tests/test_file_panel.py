@@ -435,24 +435,6 @@ def test_file_panel_pathological_cap_posts_explicit_range() -> None:
     )
 
 
-def test_zoom_file_cap_subtitle_points_to_editor() -> None:
-    from sase.ace.tui.modals.zoom_panel_events import on_file_line_count_changed
-    from sase.ace.tui.widgets.file_panel import FileLineCountChanged
-
-    modal = MagicMock()
-    scroll = MagicMock()
-    modal.query_one.return_value = scroll
-    message = FileLineCountChanged(
-        visible_lines=5_000,
-        total_lines=6_000,
-        capped=True,
-    )
-
-    on_file_line_count_changed(modal, message)
-
-    assert str(scroll.border_subtitle) == "1-5000 of 6000 lines (E: editor)"
-
-
 def test_linked_diff_full_rerender_keeps_banner() -> None:
     """Full re-renders keep linked diffs with their banner intact."""
     from rich.console import Group

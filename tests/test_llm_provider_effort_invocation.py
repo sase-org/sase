@@ -194,10 +194,11 @@ def test_codex_appends_reasoning_effort_config(
     )
 
     cmd = mock_popen.call_args.args[0]
-    assert "-c" in cmd
     # Mirrors the SASE_CODEX_LARGE_ARGS escape hatch exactly (quotes included).
+    # Other ``-c`` overrides (e.g. the single-turn developer instructions) may
+    # precede it, so anchor on the effort value rather than the first ``-c``.
     assert 'model_reasoning_effort="xhigh"' in cmd
-    assert cmd[cmd.index("-c") + 1] == 'model_reasoning_effort="xhigh"'
+    assert cmd[cmd.index('model_reasoning_effort="xhigh"') - 1] == "-c"
 
 
 @patch("sase.llm_provider.codex.stream_and_parse_codex_json_output")

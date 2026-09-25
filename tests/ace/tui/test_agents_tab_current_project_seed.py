@@ -201,7 +201,6 @@ def test_update_state_rebuilds_when_seeded_flag_changes() -> None:
         "starting": 0,
         "countdown": 5,
         "interval": 5,
-        "view_mode": "",
         "grouping_mode": "by project",
         "search_query": "project:sase",
         "search_query_seeded": False,
