@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import time
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -20,7 +19,15 @@ from sase.ace.tui.command_line.builtins import (
     run_cd,
     run_clear,
 )
-from sase.ace.tui.command_line.chrome import CommandLineFrame
+from sase.ace.tui.command_line.cd_completion import (
+    cd_completion_context,
+    complete_cd,
+    path_request_for_slot,
+    source_key_for_slot,
+)
+from sase.ace.tui.command_line.completion_probe import (
+    schedule_command_line_keystroke_probe,
+)
 from sase.ace.tui.command_line.context import (
     CommandLineContext,
     resolve_launch_cwd,
@@ -32,13 +39,11 @@ from sase.ace.tui.command_line.extras import (
     doc_peek_visible,
     empty_state_hint,
     empty_state_rows,
-    marked_insert_text,
-    marked_values_for_kind,
+    prepend_marked_row,
     provider_empty_note,
     provider_unavailable_note,
     rank_history_entries,
     selected_entity_kind,
-    slot_is_variadic,
     top_level_command_count,
 )
 from sase.ace.tui.command_line.grammar import (
@@ -46,29 +51,20 @@ from sase.ace.tui.command_line.grammar import (
     is_command_line_grammar_pending,
     resolve_command_line,
 )
-from sase.ace.tui.command_line.input import (
-    CommandLineInput,
-    binding_matches_key,
-    command_line_keymaps_for,
-)
+from sase.ace.tui.command_line.input import CommandLineInput, command_line_keymaps_for
 from sase.ace.tui.command_line.policies import (
     append_confirm_flag,
     deny_note_for,
     run_in_terminal,
     submit_route_for,
 )
-from sase.ace.tui.command_line.popup import (
-    CommandLinePopup,
-    PopupDecision,
-    popup_footer,
-)
+from sase.ace.tui.command_line.popup import CommandLinePopup, popup_footer
 from sase.ace.tui.command_line.restore import load_block_tail_text
+from sase.ace.tui.command_line.screen_completion_keys import CommandLineScreenKeysMixin
 from sase.ace.tui.command_line.screen_constants import (
     COMMAND_LINE_INDEXING_HINT,
-    COMMAND_LINE_MENU_HINTS,
     COMMAND_LINE_SEARCH_HINT,
     command_line_idle_hint,
-    command_line_input_hints,
 )
 from sase.ace.tui.command_line.session import CommandLineBlock, tokenize_command_line
 from sase.ace.tui.command_line.signature import signature_hint_line
@@ -77,7 +73,6 @@ from sase.ace.tui.command_line.sources import (
     collect_dynamic_candidates,
     needs_provider_fetch,
     path_candidates,
-    path_completion_request,
     selected_entity_values,
 )
 from sase.ace.tui.command_line.submit import (
@@ -89,41 +84,10 @@ from sase.ace.tui.command_line.submit import (
     prepare_submit,
     submit_in_worker,
 )
-from sase.ace.tui.util.perf import is_enabled as tui_perf_enabled
-from sase.ace.tui.util.perf import perf_log_path
 from sase.completion.command_line_grammar import LineContext
 
 
-def _command_line_probe_sample(
-    keypress_at: float, model_updated_at: float, painted_at: float, indexed: bool
-) -> dict[str, object]:
-    """Build one command-line key-to-paint perf sample."""
-    return {
-        "action": "command_line.complete",
-        "tab": "command_line",
-        "t_keypress": keypress_at,
-        "model_ms": round((model_updated_at - keypress_at) * 1000, 3),
-        "paint_ms": round((painted_at - keypress_at) * 1000, 3),
-        "indexed": indexed,
-    }
-
-
-def _append_command_line_probe(sample: dict[str, object]) -> None:
-    """Append a completed probe from a worker, never from the UI thread."""
-    if not tui_perf_enabled():
-        return
-    try:
-        path = perf_log_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(sample) + "\n")
-    except OSError:
-        # Probe output is diagnostic only: a read-only or full disk must never
-        # affect typing.
-        pass
-
-
-class CommandLineScreenCompletionMixin:
+class CommandLineScreenCompletionMixin(CommandLineScreenKeysMixin):
     """Behavior mixed into the public command-line screen."""
 
     _history_search_active: bool
@@ -161,7 +125,7 @@ class CommandLineScreenCompletionMixin:
             self._record_keystroke_probe(started, True)
             return
         self._empty_state_active = False
-        context = self._cd_completion_context(line, cursor) or resolve_command_line(
+        context = cd_completion_context(line, cursor) or resolve_command_line(
             self.app, line, cursor
         )
         self._resolve_context = context
@@ -172,7 +136,9 @@ class CommandLineScreenCompletionMixin:
             self._record_keystroke_probe(started, False)
             return
         completion = self._complete_line(line, cursor, context)
-        completion = self._maybe_prepend_marked_row(context, completion)
+        completion = prepend_marked_row(
+            context, completion, help_lookup=self._help_lookup, app=self.app
+        )
         self._last_completion_kind = str(completion.get("kind", "") or "")
         slot = context.get("slot") or {}
         self._popup_state.reset(
@@ -202,7 +168,7 @@ class CommandLineScreenCompletionMixin:
             source_key=source_key,
         )
         if context.get("builtin") == "cd":
-            return self._complete_cd(line, cursor, context, dynamic)
+            return complete_cd(line, cursor, context, dynamic)
         handle = command_line_grammar_for(self.app)
         if handle is None:
             return {
@@ -229,118 +195,17 @@ class CommandLineScreenCompletionMixin:
                 "replace_end": cursor,
             }
 
-    def _cd_completion_context(self, line: str, cursor: int) -> LineContext | None:
-        """Resolve the ``cd`` built-in's single completion slot in memory."""
-        before_cursor = line[:cursor]
-        leading = len(before_cursor) - len(before_cursor.lstrip())
-        command_end = leading + 2
-        if before_cursor[leading:command_end] != "cd":
-            return None
-        if len(before_cursor) == command_end:
-            return None
-        if not before_cursor[command_end].isspace():
-            return None
-        replace_start = command_end
-        while (
-            replace_start < len(before_cursor)
-            and before_cursor[replace_start].isspace()
-        ):
-            replace_start += 1
-        token = before_cursor[replace_start:]
-        # ``cd`` accepts exactly one argument.  Leave editing later text to the
-        # normal input rather than replacing a surprising span.
-        if any(char.isspace() for char in token):
-            return None
-        value_kind = "project" if token.startswith("+") else "dir"
-        return cast(
-            LineContext,
-            {
-                "builtin": "cd",
-                "path": ["cd"],
-                "argv": ["cd", token],
-                "slot": {
-                    "value_kind": value_kind,
-                    "replace_start": replace_start,
-                    "replace_end": cursor,
-                },
-            },
-        )
-
-    @staticmethod
-    def _slot_prefix(line: str, cursor: int, context: LineContext) -> str:
-        """Return the current slot text without resolving or touching disk."""
-        slot = context.get("slot") or {}
-        try:
-            start = int(slot.get("replace_start", cursor))
-        except (TypeError, ValueError):
-            start = cursor
-        return line[max(0, min(start, cursor)) : max(0, cursor)]
+    def _working_cwd(self) -> str:
+        """Return the pinned cwd, or empty when the panel has no context."""
+        return self._working_context.cwd if self._working_context else ""
 
     def _path_request(self, line: str, cursor: int, context: LineContext) -> Any | None:
         """Build the pure path scan request for a path/dir slot, if applicable."""
-        slot = context.get("slot") or {}
-        value_kind = str(slot.get("value_kind") or "")
-        if value_kind not in {"path", "dir"}:
-            return None
-        cwd = self._working_context.cwd if self._working_context else ""
-        return path_completion_request(self._slot_prefix(line, cursor, context), cwd)
+        return path_request_for_slot(line, cursor, context, self._working_cwd())
 
     def _source_key(self, line: str, cursor: int, context: LineContext) -> str | None:
         """Return a directory-specific cache key for native path rows."""
-        request = self._path_request(line, cursor, context)
-        return None if request is None else request.source_key
-
-    def _complete_cd(
-        self,
-        line: str,
-        cursor: int,
-        context: LineContext,
-        dynamic: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        """Render ``cd``'s directory, project, and unpin candidates."""
-        slot = context.get("slot") or {}
-        value_kind = str(slot.get("value_kind") or "dir")
-        typed = self._slot_prefix(line, cursor, context)
-        items: list[dict[str, Any]] = []
-        seen: set[str] = set()
-        if typed.startswith("-"):
-            items.append(
-                {
-                    "insert_text": "-",
-                    "display": "-",
-                    "description": "unpin and follow the TUI project",
-                    "badge": "dir",
-                    "source": "builtin",
-                    "match_runs": [],
-                    "selected": False,
-                }
-            )
-        for candidate in dynamic:
-            raw_value = str(candidate.get("value", "") or "")
-            if not raw_value:
-                continue
-            insert = f"+{raw_value}" if value_kind == "project" else raw_value
-            if not insert.casefold().startswith(typed.casefold()) or insert in seen:
-                continue
-            seen.add(insert)
-            items.append(
-                {
-                    "insert_text": insert,
-                    "display": str(candidate.get("display") or insert),
-                    "description": str(candidate.get("description") or ""),
-                    "badge": str(candidate.get("badge") or value_kind),
-                    "source": str(candidate.get("source") or "provider"),
-                    "match_runs": [],
-                    "selected": False,
-                }
-            )
-        return {
-            "items": items,
-            "total": len(items),
-            "kind": value_kind,
-            "replace_start": int(slot.get("replace_start", cursor)),
-            "replace_end": int(slot.get("replace_end", cursor)),
-        }
+        return source_key_for_slot(line, cursor, context, self._working_cwd())
 
     def _maybe_fetch_providers(
         self, line: str, cursor: int, context: LineContext
@@ -593,37 +458,6 @@ class CommandLineScreenCompletionMixin:
         self._apply_popup_insert(str(item.get("insert_text", "")))
         return True
 
-    def _maybe_prepend_marked_row(
-        self, context: Any, completion: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Prepend a ``‹N marked›`` row for variadic slots with TUI marks."""
-        slot = context.get("slot") or {}
-        value_kind = str(slot.get("value_kind") or "")
-        if not value_kind:
-            return completion
-        try:
-            path = [str(part) for part in context.get("path", [])]
-            if not slot_is_variadic(slot, self._help_lookup, path):
-                return completion
-            values = marked_values_for_kind(self.app, value_kind)
-        except Exception:  # noqa: BLE001 - marked rows are best effort.
-            return completion
-        insert = marked_insert_text(values)
-        if not insert:
-            return completion
-        row = {
-            "insert_text": insert,
-            "display": f"‹{len(values)} marked›",
-            "description": "insert all marked",
-            "badge": value_kind,
-            "source": "tui",
-            "match_runs": [],
-            "selected": False,
-        }
-        items = [row, *completion.get("items", [])]
-        total = int(completion.get("total", len(items) - 1) or 0) + 1
-        return {**completion, "items": items, "total": total}
-
     def _hide_doc_peek(self) -> None:
         """Hide the right-hand doc-peek card."""
         try:
@@ -837,203 +671,11 @@ class CommandLineScreenCompletionMixin:
         argv = self._resolve_context.get("argv") or []
         return [str(token) for token in argv] or None
 
-    def command_line_handle_key(self, event: Any) -> bool:
-        """Apply the zsh menu-select key rules; True when the key is consumed.
-
-        The fixed menu keys (Tab, Shift-Tab, ``ctrl+n``/``ctrl+p``,
-        ``ctrl+f``/Enter accept, Esc-leaves-menu) follow the zsh
-        menu-select contract. History prev/next/search come from the live
-        ``ace.keymaps.command_line`` scope instead of literals.
-        """
-        key = getattr(event, "key", None) or ""
-        keymaps = command_line_keymaps_for(self)
-        state = self._popup_state
-        try:
-            widget = self.query_one(CommandLineInput)
-        except Exception:  # noqa: BLE001 - unmounted screen cannot complete.
-            return False
-        if state.typed_text != widget.text:
-            # TextArea.Changed is queued separately from Key. A fast typist can
-            # therefore press Tab after the widget has accepted text but before
-            # its popup state has caught up. Resolve synchronously so Tab never
-            # inserts a stale whole-command suggestion at the wrong span.
-            self._refresh_completion()
-            state = self._popup_state
-        decision: PopupDecision | None = None
-        prev_match = binding_matches_key(keymaps.history_prev, key)
-        next_match = binding_matches_key(keymaps.history_next, key)
-        if key == "tab":
-            decision = state.on_tab()
-        elif key == "shift+tab":
-            decision = state.on_shift_tab()
-        elif key == "ctrl+n":
-            decision = state.on_ctrl_n()
-        elif key == "ctrl+p":
-            decision = state.on_ctrl_p()
-        elif prev_match or next_match:
-            if state.menu_active:
-                decision = state.on_ctrl_n() if next_match else state.on_ctrl_p()
-            else:
-                self.history_step(1 if prev_match else -1)
-                return True
-        elif key == "ctrl+f":
-            if not state.menu_active:
-                return False
-            decision = state.on_enter()
-        elif key == "enter":
-            if self._empty_state_active or self._history_search_active:
-                return self._accept_stored_row()
-            if not state.menu_active:
-                return False
-            decision = state.on_enter()
-        elif key == "escape":
-            if self._history_search_active:
-                self._history_search_active = False
-                self._refresh_completion()
-                return True
-            if not state.menu_active:
-                return False
-            decision = state.on_escape()
-        elif binding_matches_key(keymaps.history_search, key):
-            self.toggle_history_search()
-            return True
-        else:
-            return False
-        return self._apply_popup_decision(decision)
-
-    def _apply_popup_decision(self, decision: PopupDecision) -> bool:
-        """Apply a popup state-machine decision; always consumes the key."""
-        action = decision.action
-        if action in ("accept", "complete-prefix"):
-            self._apply_popup_insert(decision.text or "")
-            return True
-        try:
-            popup = self.query_one(CommandLinePopup)
-        except Exception:  # noqa: BLE001 - unmounted screen cannot move.
-            return True
-        if action == "activate":
-            popup.highlight_index(self._popup_state.index)
-            self._render_popup_footer()
-            self._render_signature()
-            self._update_keys_hint()
-            return True
-        if action == "move":
-            popup.highlight_index(self._popup_state.index)
-            self._render_popup_footer()
-            self._render_signature()
-            return True
-        if action == "leave-menu":
-            try:
-                widget = self.query_one(CommandLineInput)
-                widget.set_line(decision.text or "")
-            except Exception:  # noqa: BLE001 - teardown races degrade silently.
-                pass
-            try:
-                popup.clear_highlight()
-            except Exception:  # noqa: BLE001 - highlight clear is best effort.
-                pass
-            self._render_popup_footer()
-            self._render_signature()
-            self._update_keys_hint()
-            return True
-        return False
-
-    def _apply_popup_insert(self, insert_text: str) -> None:
-        """Replace the active slot span with the accepted completion."""
-        state = self._popup_state
-        try:
-            widget = self.query_one(CommandLineInput)
-        except Exception:  # noqa: BLE001 - unmounted screen cannot insert.
-            return
-        line = widget.text
-        start = max(0, min(state.replace_start, len(line)))
-        end = max(start, min(state.replace_end, len(line)))
-        widget.text = line[:start] + insert_text + line[end:]
-        try:
-            widget.move_cursor((0, start + len(insert_text)))
-        except Exception:  # noqa: BLE001 - cursor restore is best effort.
-            pass
-        state.menu_active = False
-        state.index = 0
-
-    def _update_keys_hint(self) -> None:
-        """Switch the bottom-border hints between input and menu sets."""
-        try:
-            frame = self.query_one("#command-line-frame", CommandLineFrame)
-        except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
-            return
-        if self._popup_state.menu_active:
-            frame.set_key_hints(COMMAND_LINE_MENU_HINTS)
-        else:
-            frame.set_key_hints(
-                command_line_input_hints(command_line_keymaps_for(self))
-            )
-
-    def on_option_list_option_selected(self, event: Any) -> None:
-        """Accept a popup row picked with the mouse while the menu is live."""
-        try:
-            popup = self.query_one(CommandLinePopup)
-        except Exception:  # noqa: BLE001 - unmounted screen ignores picks.
-            return
-        source = getattr(event, "option_list", getattr(event, "control", None))
-        if source is not popup or not self._popup_state.menu_active:
-            return
-        highlighted = self._popup_state.highlighted
-        if highlighted is None:
-            return
-        try:
-            event.stop()
-            event.prevent_default()
-        except Exception:  # noqa: BLE001 - event control is best effort.
-            pass
-        self._apply_popup_insert(str(highlighted.get("insert_text", "")))
-
-    def on_option_list_option_highlighted(self, event: Any) -> None:
-        """Swap the signature row to the mouse-highlighted option's summary."""
-        popup: CommandLinePopup
-        try:
-            popup = self.query_one(CommandLinePopup)
-        except Exception:  # noqa: BLE001 - unmounted screen ignores highlights.
-            return
-        if getattr(event, "option_list", getattr(event, "control", None)) is not popup:
-            return
-        # Rule 12: the popup swallows echoes of its own programmatic highlights.
-        index = popup.user_highlight_index(event)
-        if index is None or not 0 <= index < len(self._popup_state.items):
-            return
-        if index != self._popup_state.index:
-            self._popup_state.index = index
-            self._render_popup_footer()
-            self._render_signature()
-
     def _record_keystroke_probe(self, keypress_at: float, indexed: bool) -> None:
-        """Schedule a key-to-popup-paint sample when ``SASE_TUI_PERF=1``.
-
-        ``_refresh_completion`` has already rendered by the time it calls us.
-        Capturing the finish from ``call_after_refresh`` therefore measures the
-        visible popup, not merely synchronous resolver work. The JSONL append
-        goes through ``asyncio.to_thread`` so this diagnostic never puts disk
-        I/O on the input event path.
-        """
-        if not tui_perf_enabled():
-            return
-        model_updated_at = time.perf_counter()
-
-        def _after_paint() -> None:
-            sample = _command_line_probe_sample(
-                keypress_at, model_updated_at, time.perf_counter(), indexed
-            )
-            try:
-                asyncio.get_running_loop().create_task(
-                    asyncio.to_thread(_append_command_line_probe, sample)
-                )
-            except RuntimeError:  # teardown has no live loop.
-                pass
-
-        try:
-            self.call_after_refresh(_after_paint)
-        except Exception:  # noqa: BLE001 - an unmounted panel cannot paint.
-            pass
+        """Schedule a key-to-popup-paint sample when ``SASE_TUI_PERF=1``."""
+        schedule_command_line_keystroke_probe(
+            self.call_after_refresh, keypress_at, indexed
+        )
 
 
 __all__ = ["CommandLineScreenCompletionMixin"]

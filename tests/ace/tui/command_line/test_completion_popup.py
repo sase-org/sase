@@ -20,10 +20,17 @@ from sase.ace.tui.command_line.popup import (
     popup_footer,
     _render_popup_row,
 )
-from sase.ace.tui.command_line.screen_completion import (
-    CommandLineScreenCompletionMixin,
+from sase.ace.tui.command_line.cd_completion import (
+    cd_completion_context,
+    complete_cd,
+)
+from sase.ace.tui.command_line.completion_probe import (
     _append_command_line_probe,
     _command_line_probe_sample,
+)
+from sase.ace.tui.command_line.extras import prepend_marked_row
+from sase.ace.tui.command_line.screen_completion import (
+    CommandLineScreenCompletionMixin,
 )
 from sase.ace.tui.command_line.signature import (
     _build_chips,
@@ -342,10 +349,9 @@ def test_path_candidates_scan_one_requested_directory(tmp_path: Path) -> None:
 
 def test_cd_completion_includes_project_and_unpin_values() -> None:
     """The built-in ``cd`` slot uses project rows and exposes ``-`` unpinning."""
-    screen = object.__new__(CommandLineScreenCompletionMixin)
-    project_context = screen._cd_completion_context("cd +sa", len("cd +sa"))
+    project_context = cd_completion_context("cd +sa", len("cd +sa"))
     assert project_context is not None
-    project_items = screen._complete_cd(
+    project_items = complete_cd(
         "cd +sa",
         len("cd +sa"),
         project_context,
@@ -353,9 +359,9 @@ def test_cd_completion_includes_project_and_unpin_values() -> None:
     )
     assert [item["insert_text"] for item in project_items["items"]] == ["+sase"]
 
-    unpin_context = screen._cd_completion_context("cd -", len("cd -"))
+    unpin_context = cd_completion_context("cd -", len("cd -"))
     assert unpin_context is not None
-    unpin_items = screen._complete_cd("cd -", len("cd -"), unpin_context, [])
+    unpin_items = complete_cd("cd -", len("cd -"), unpin_context, [])
     assert [item["insert_text"] for item in unpin_items["items"]] == ["-"]
 
 
@@ -381,22 +387,22 @@ def test_screen_prepends_marked_row_for_variadic_slot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The screen injects the all-marks row before ordinary resolver rows."""
-    import sase.ace.tui.command_line.screen_completion as screen_module
+    import sase.ace.tui.command_line.extras as extras_module
 
-    screen = object.__new__(CommandLineScreenCompletionMixin)
-    screen.app = SimpleNamespace()
-    screen._help_lookup = lambda path: None
-    monkeypatch.setattr(screen_module, "slot_is_variadic", lambda *args: True)
+    monkeypatch.setattr(extras_module, "slot_is_variadic", lambda *args: True)
     monkeypatch.setattr(
-        screen_module, "marked_values_for_kind", lambda app, kind: ["sase-1", "sase-2"]
+        extras_module, "marked_values_for_kind", lambda app, kind: ["sase-1", "sase-2"]
     )
 
     completion = {
         "items": [{"insert_text": "sase-3", "display": "sase-3"}],
         "total": 1,
     }
-    rendered = screen._maybe_prepend_marked_row(
-        {"path": ["bead", "close"], "slot": {"value_kind": "bead"}}, completion
+    rendered = prepend_marked_row(
+        {"path": ["bead", "close"], "slot": {"value_kind": "bead"}},
+        completion,
+        help_lookup=lambda path: None,
+        app=SimpleNamespace(),
     )
 
     assert rendered["items"][0]["display"] == "‹2 marked›"

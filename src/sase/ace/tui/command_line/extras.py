@@ -625,6 +625,42 @@ def marked_insert_text(values: list[str]) -> str:
     return f"{quoted} " if quoted else ""
 
 
+def prepend_marked_row(
+    context: Any,
+    completion: dict[str, Any],
+    *,
+    help_lookup: Callable[[list[str]], dict[str, Any] | None],
+    app: Any,
+) -> dict[str, Any]:
+    """Prepend a ``‹N marked›`` row for variadic slots with TUI marks."""
+    slot = context.get("slot") or {}
+    value_kind = str(slot.get("value_kind") or "")
+    if not value_kind:
+        return completion
+    try:
+        path = [str(part) for part in context.get("path", [])]
+        if not slot_is_variadic(slot, help_lookup, path):
+            return completion
+        values = marked_values_for_kind(app, value_kind)
+    except Exception:  # noqa: BLE001 - marked rows are best effort.
+        return completion
+    insert = marked_insert_text(values)
+    if not insert:
+        return completion
+    row = {
+        "insert_text": insert,
+        "display": f"‹{len(values)} marked›",
+        "description": "insert all marked",
+        "badge": value_kind,
+        "source": "tui",
+        "match_runs": [],
+        "selected": False,
+    }
+    items = [row, *completion.get("items", [])]
+    total = int(completion.get("total", len(items) - 1) or 0) + 1
+    return {**completion, "items": items, "total": total}
+
+
 def _is_bare_word(value: str) -> bool:
     return bool(value) and all(char.isalnum() or char in "-_./:@" for char in value)
 
