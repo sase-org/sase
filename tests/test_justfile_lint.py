@@ -395,10 +395,22 @@ def test_rust_install_also_refreshes_the_xprompt_lsp_binary() -> None:
 def test_rust_install_consults_sase_core_wheel_cache() -> None:
     output = _dry_run("rust-install", "/tmp/fake-venv")
 
-    assert 'sase_core_wheel_cache" lookup' in output
+    assert 'cache_tool="' in output
+    assert 'sase_core_wheel_cache"; cached_wheel=' in output
+    assert '"$cache_tool" lookup' in output
     assert "--reinstall-package sase-core-rs" in output
-    assert 'sase_core_wheel_cache" store' in output
+    assert '"$cache_tool" store' in output
     assert 'maturin" develop --release' in output
+
+
+def test_rust_lsp_install_consults_sase_core_artifact_cache() -> None:
+    output = _dry_run("rust-lsp-install", "/tmp/fake-venv")
+
+    assert 'cache_tool="' in output
+    assert '"$cache_tool" lookup --kind lsp --profile "$profile"' in output
+    assert '"$cache_tool" store --kind lsp --profile "$profile"' in output
+    assert '--cargo-target-dir "$lsp_target_dir"' in output
+    assert "[rust-lsp-install] Installing cached sase-xprompt-lsp from %s." in output
 
 
 def test_rust_install_is_fatal_on_a_behind_status() -> None:

@@ -955,7 +955,12 @@ rust-install VENV=venv_dir_abs: _venv
     # install (wheel-cache hit or `maturin develop` alike), so an edit made
     # during the build still reads as stale on the next check.
     @source_identity="$("{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/_sase_core_source_identity.py" --sase-core-dir "{{ sase_core_dir }}")"; \
-    cached_wheel="$("{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/sase_core_wheel_cache" lookup --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" || true)"; \
+    cache_tool="{{ justfile_directory() }}/tools/sase_core_wheel_cache"; \
+    cached_wheel="$("{{ VENV }}/bin/python" "$cache_tool" lookup --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" || true)"; \
+    if [ -z "$cached_wheel" ]; then \
+        "{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin; \
+        cached_wheel="$("{{ VENV }}/bin/python" "$cache_tool" store --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" --maturin "{{ VENV }}/bin/maturin" || true)"; \
+    fi; \
     if [ -n "$cached_wheel" ]; then \
         printf "[rust-install] Installing cached sase_core_rs wheel from %s.\n" "$cached_wheel"; \
         uv pip install --python "{{ VENV }}/bin/python" --reinstall-package sase-core-rs "$cached_wheel"; \
@@ -1109,18 +1114,26 @@ rust-lsp-install VENV=venv_dir_abs: _venv
     @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     lsp_target_dir="$sase_core_abs/target/uv-tool-lsp"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
-    cd "$sase_core_abs" && \
-        CARGO_TARGET_DIR="$lsp_target_dir" \
-        CARGO_BUILD_BUILD_DIR="$lsp_target_dir/build" \
-        CARGO_INCREMENTAL=0 \
-        CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
-        CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        cargo build --profile "$profile" -p sase_xprompt_lsp && \
-    rm -rf "$lsp_target_dir/build/$profile/incremental" "$lsp_target_dir/$profile/incremental"
-    @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
-    sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
-    profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
-    src="$sase_core_abs/target/uv-tool-lsp/$profile/sase-xprompt-lsp"; \
+    cache_tool="{{ justfile_directory() }}/tools/sase_core_wheel_cache"; \
+    cached_lsp="$("{{ VENV }}/bin/python" "$cache_tool" lookup --kind lsp --profile "$profile" --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" || true)"; \
+    if [ -z "$cached_lsp" ]; then \
+        cached_lsp="$("{{ VENV }}/bin/python" "$cache_tool" store --kind lsp --profile "$profile" --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" --cargo-target-dir "$lsp_target_dir" || true)"; \
+    fi; \
+    if [ -n "$cached_lsp" ]; then \
+        src="$cached_lsp"; \
+        printf "[rust-lsp-install] Installing cached sase-xprompt-lsp from %s.\n" "$src"; \
+    else \
+        cd "$sase_core_abs" && \
+            CARGO_TARGET_DIR="$lsp_target_dir" \
+            CARGO_BUILD_BUILD_DIR="$lsp_target_dir/build" \
+            CARGO_INCREMENTAL=0 \
+            CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
+            CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
+            cargo build --profile "$profile" -p sase_xprompt_lsp && \
+        rm -rf "$lsp_target_dir/build/$profile/incremental" "$lsp_target_dir/$profile/incremental"; \
+        src="$lsp_target_dir/$profile/sase-xprompt-lsp"; \
+    fi; \
+    dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
     tmp="$dest.tmp.$$"; \
     trap 'rm -f "$tmp"' EXIT; \
     cp "$src" "$tmp"; \

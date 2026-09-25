@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Host-local cache for clean ``sase-core`` release wheels."""
+"""Host-local cache for clean ``sase-core`` build artifacts.
+
+The cache holds both the release wheel used by ``rust-install`` and the
+``sase-xprompt-lsp`` binary used by ``rust-lsp-install``.  Entries are content
+addressed and include the artifact kind, so both artifacts can share pruning,
+root discovery, and per-identity build locks safely.
+"""
 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -18,9 +26,10 @@ from pathlib import Path
 from typing import Any
 
 
-CACHE_SCHEMA_VERSION = 1
+CACHE_SCHEMA_VERSION = 2
 DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024
 DEFAULT_MAX_ENTRIES = 12
+DEFAULT_LOCK_TIMEOUT_SECONDS = 15 * 60
 MISS_EXIT = 1
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -47,10 +56,12 @@ class CacheEntry:
 
 
 def _default_cache_root() -> Path:
-    configured = os.environ.get("SASE_CORE_WHEEL_CACHE_DIR")
+    configured = os.environ.get("SASE_CORE_ARTIFACT_CACHE_DIR") or os.environ.get(
+        "SASE_CORE_WHEEL_CACHE_DIR"
+    )
     if configured:
         return Path(configured).expanduser()
-    return Path.home() / ".sase" / "cache" / "sase-core-wheels"
+    return Path.home() / ".sase" / "cache" / "sase-core-artifacts"
 
 
 def _env_int(name: str, default: int) -> int:
@@ -59,6 +70,17 @@ def _env_int(name: str, default: int) -> int:
         return default
     try:
         parsed = int(raw)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        parsed = float(raw)
     except ValueError:
         return default
     return parsed if parsed > 0 else default
@@ -195,24 +217,38 @@ print(json.dumps({
     return loaded
 
 
+def _rustc_details(rustc: str) -> tuple[str, str]:
+    rustc_version = _run_text((rustc, "-vV"), timeout=15.0).strip()
+    for line in rustc_version.splitlines():
+        if line.startswith("host: "):
+            return rustc_version, line.removeprefix("host: ")
+    raise CacheUnavailable("rustc -vV did not report a host target triple")
+
+
 def _cache_identity(
     *,
     core_dir: Path,
     python: Path,
     rustc: str,
+    artifact_kind: str,
+    profile: str,
 ) -> CacheIdentity:
     core_dir = core_dir.resolve()
     _ensure_clean_git_checkout(core_dir)
     commit = _git(core_dir, "rev-parse", "HEAD").strip()
-    rustc_version = _run_text((rustc, "-vV"), timeout=15.0).strip()
+    rustc_version, target_triple = _rustc_details(rustc)
     payload: dict[str, Any] = {
         "schema_version": CACHE_SCHEMA_VERSION,
+        "artifact_kind": artifact_kind,
+        "cargo_profile": profile,
         "sase_core_commit": commit,
         "dirty_state": "clean",
         "rustc": rustc_version,
-        "python_abi": _python_abi(python),
+        "target_triple": target_triple,
         "sase_core_py_inputs": _crate_input_digest(core_dir),
     }
+    if artifact_kind == "wheel":
+        payload["python_abi"] = _python_abi(python)
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return CacheIdentity(
         digest=hashlib.sha256(encoded).hexdigest(),
@@ -254,7 +290,12 @@ def _wheel_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _cached_wheel(cache_root: Path, identity: CacheIdentity) -> Path | None:
+def _cached_artifact(
+    cache_root: Path,
+    identity: CacheIdentity,
+    *,
+    artifact_kind: str,
+) -> Path | None:
     entry_dir = _entry_dir(cache_root, identity.digest)
     metadata = _read_json(_metadata_path(entry_dir))
     if metadata is None:
@@ -265,18 +306,23 @@ def _cached_wheel(cache_root: Path, identity: CacheIdentity) -> Path | None:
         return None
     if metadata.get("key") != identity.payload:
         return None
-    wheel_filename = metadata.get("wheel_filename")
-    if not isinstance(wheel_filename, str) or "/" in wheel_filename:
+    if metadata.get("artifact_kind") != artifact_kind:
         return None
-    wheel = entry_dir / wheel_filename
-    if not wheel.is_file():
+    artifact_filename = metadata.get("artifact_filename")
+    if (
+        not isinstance(artifact_filename, str)
+        or Path(artifact_filename).name != artifact_filename
+    ):
+        return None
+    artifact = entry_dir / artifact_filename
+    if not artifact.is_file():
         return None
     metadata["last_used"] = time.time()
     try:
         _write_json_atomic(_metadata_path(entry_dir), metadata)
     except OSError:
         pass
-    return wheel
+    return artifact
 
 
 def lookup_cache(
@@ -285,9 +331,17 @@ def lookup_cache(
     core_dir: Path,
     python: Path,
     rustc: str,
+    artifact_kind: str,
+    profile: str,
 ) -> Path | None:
-    identity = _cache_identity(core_dir=core_dir, python=python, rustc=rustc)
-    return _cached_wheel(cache_root, identity)
+    identity = _cache_identity(
+        core_dir=core_dir,
+        python=python,
+        rustc=rustc,
+        artifact_kind=artifact_kind,
+        profile=profile,
+    )
+    return _cached_artifact(cache_root, identity, artifact_kind=artifact_kind)
 
 
 def _venv_from_python(python: Path) -> Path | None:
@@ -376,6 +430,52 @@ def _cache_entries(cache_root: Path) -> list[CacheEntry]:
     return entries
 
 
+@contextlib.contextmanager
+def _identity_lock(
+    cache_root: Path,
+    identity: CacheIdentity,
+    *,
+    timeout_seconds: float,
+) -> object:
+    """Hold a bounded exclusive ``flock`` for a single artifact identity.
+
+    A timeout deliberately yields ``False`` instead of failing.  The caller can
+    build without the lock rather than making setup permanently unavailable if
+    a crashed process leaves an unexpectedly long-running holder.
+    """
+    lock_dir = cache_root / ".locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / f"{identity.digest}.lock"
+    with lock_path.open("a+") as lock_file:
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(
+                "[sase-core-wheel-cache] Waiting for the shared build lock "
+                f"for {identity.digest[:12]} (up to {timeout_seconds:.0f}s).",
+                file=sys.stderr,
+            )
+            deadline = time.monotonic() + timeout_seconds
+            while True:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        print(
+                            "[sase-core-wheel-cache] Shared build lock timed out; "
+                            "building without it.",
+                            file=sys.stderr,
+                        )
+                        yield False
+                        return
+                    time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        try:
+            yield True
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def prune_cache(
     cache_root: Path,
     *,
@@ -410,56 +510,160 @@ def prune_cache(
         shutil.rmtree(entry.path, ignore_errors=True)
 
 
-def store_cache(
+def _copy_into_cache(
     *,
     cache_root: Path,
-    core_dir: Path,
-    python: Path,
-    maturin: Path,
-    rustc: str,
+    identity: CacheIdentity,
+    artifact: Path,
+    artifact_kind: str,
     max_entries: int,
     max_bytes: int,
 ) -> Path:
-    identity = _cache_identity(core_dir=core_dir, python=python, rustc=rustc)
-    cache_root.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".build-", dir=cache_root) as raw_tmp_dir:
-        wheel = _run_maturin_build(
-            core_dir=core_dir.resolve(),
-            python=python,
-            maturin=maturin,
-            out_dir=Path(raw_tmp_dir),
-        )
-        rebuilt_identity = _cache_identity(core_dir=core_dir, python=python, rustc=rustc)
-        if rebuilt_identity != identity:
-            raise CacheUnavailable("sase-core inputs changed while building the wheel")
-        entry_dir = _entry_dir(cache_root, identity.digest)
-        entry_dir.mkdir(parents=True, exist_ok=True)
-        final_wheel = entry_dir / wheel.name
-        temporary = entry_dir / f".{wheel.name}.{os.getpid()}.tmp"
-        shutil.copy2(wheel, temporary)
-        os.replace(temporary, final_wheel)
-        metadata = {
-            "schema_version": CACHE_SCHEMA_VERSION,
-            "created_at": time.time(),
-            "last_used": time.time(),
-            "key_digest": identity.digest,
-            "key": identity.payload,
-            "wheel_filename": wheel.name,
-            "wheel_sha256": _wheel_sha256(final_wheel),
-            "wheel_size": final_wheel.stat().st_size,
-        }
-        _write_json_atomic(_metadata_path(entry_dir), metadata)
-        for stale_wheel in entry_dir.glob("*.whl"):
-            if stale_wheel != final_wheel:
-                stale_wheel.unlink(missing_ok=True)
-
+    entry_dir = _entry_dir(cache_root, identity.digest)
+    entry_dir.mkdir(parents=True, exist_ok=True)
+    final_artifact = entry_dir / artifact.name
+    temporary = entry_dir / f".{artifact.name}.{os.getpid()}.tmp"
+    shutil.copy2(artifact, temporary)
+    os.replace(temporary, final_artifact)
+    metadata = {
+        "schema_version": CACHE_SCHEMA_VERSION,
+        "artifact_kind": artifact_kind,
+        "created_at": time.time(),
+        "last_used": time.time(),
+        "key_digest": identity.digest,
+        "key": identity.payload,
+        "artifact_filename": artifact.name,
+        "artifact_sha256": _wheel_sha256(final_artifact),
+        "artifact_size": final_artifact.stat().st_size,
+    }
+    _write_json_atomic(_metadata_path(entry_dir), metadata)
+    for stale_artifact in entry_dir.iterdir():
+        if stale_artifact in {final_artifact, _metadata_path(entry_dir)}:
+            continue
+        if stale_artifact.is_file():
+            stale_artifact.unlink(missing_ok=True)
     prune_cache(
         cache_root,
         keep_digest=identity.digest,
         max_entries=max_entries,
         max_bytes=max_bytes,
     )
-    return final_wheel
+    return final_artifact
+
+
+def _run_lsp_build(*, core_dir: Path, target_dir: Path, profile: str, cargo: str) -> Path:
+    env = os.environ.copy()
+    env["CARGO_TARGET_DIR"] = str(target_dir)
+    env["CARGO_BUILD_BUILD_DIR"] = str(target_dir / "build")
+    env["CARGO_INCREMENTAL"] = "0"
+    env.setdefault("CARGO_NET_RETRY", "10")
+    env.setdefault("CARGO_HTTP_MULTIPLEXING", "false")
+    completed = subprocess.run(
+        [cargo, "build", "--profile", profile, "-p", "sase_xprompt_lsp"],
+        cwd=core_dir,
+        env=env,
+        check=False,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise CacheUnavailable(f"cargo build failed with exit {completed.returncode}")
+    artifact = target_dir / profile / "sase-xprompt-lsp"
+    if not artifact.is_file():
+        raise CacheUnavailable(f"cargo build did not produce {artifact}")
+    shutil.rmtree(target_dir / "build" / profile / "incremental", ignore_errors=True)
+    shutil.rmtree(target_dir / profile / "incremental", ignore_errors=True)
+    return artifact
+
+
+def store_cache(
+    *,
+    cache_root: Path,
+    core_dir: Path,
+    python: Path,
+    rustc: str,
+    artifact_kind: str,
+    profile: str,
+    maturin: Path | None,
+    cargo: str,
+    cargo_target_dir: Path | None,
+    max_entries: int,
+    max_bytes: int,
+) -> Path:
+    identity = _cache_identity(
+        core_dir=core_dir,
+        python=python,
+        rustc=rustc,
+        artifact_kind=artifact_kind,
+        profile=profile,
+    )
+    cache_root.mkdir(parents=True, exist_ok=True)
+    timeout_seconds = _env_float(
+        "SASE_CORE_ARTIFACT_CACHE_LOCK_TIMEOUT_SECONDS",
+        DEFAULT_LOCK_TIMEOUT_SECONDS,
+    )
+    with _identity_lock(
+        cache_root, identity, timeout_seconds=timeout_seconds
+    ) as acquired_lock:
+        if acquired_lock:
+            cached = _cached_artifact(
+                cache_root, identity, artifact_kind=artifact_kind
+            )
+            if cached is not None:
+                return cached
+
+        if artifact_kind == "wheel":
+            if maturin is None:
+                raise CacheUnavailable("--maturin is required for wheel cache stores")
+            with tempfile.TemporaryDirectory(prefix=".build-", dir=cache_root) as raw_tmp_dir:
+                artifact = _run_maturin_build(
+                    core_dir=core_dir.resolve(),
+                    python=python,
+                    maturin=maturin,
+                    out_dir=Path(raw_tmp_dir),
+                )
+                rebuilt_identity = _cache_identity(
+                    core_dir=core_dir,
+                    python=python,
+                    rustc=rustc,
+                    artifact_kind=artifact_kind,
+                    profile=profile,
+                )
+                if rebuilt_identity != identity:
+                    raise CacheUnavailable("sase-core inputs changed while building the wheel")
+                return _copy_into_cache(
+                    cache_root=cache_root,
+                    identity=identity,
+                    artifact=artifact,
+                    artifact_kind=artifact_kind,
+                    max_entries=max_entries,
+                    max_bytes=max_bytes,
+                )
+
+        if cargo_target_dir is None:
+            raise CacheUnavailable("--cargo-target-dir is required for lsp cache stores")
+        artifact = _run_lsp_build(
+            core_dir=core_dir.resolve(),
+            target_dir=cargo_target_dir,
+            profile=profile,
+            cargo=cargo,
+        )
+        rebuilt_identity = _cache_identity(
+            core_dir=core_dir,
+            python=python,
+            rustc=rustc,
+            artifact_kind=artifact_kind,
+            profile=profile,
+        )
+        if rebuilt_identity != identity:
+            raise CacheUnavailable("sase-core inputs changed while building the LSP")
+        return _copy_into_cache(
+            cache_root=cache_root,
+            identity=identity,
+            artifact=artifact,
+            artifact_kind=artifact_kind,
+            max_entries=max_entries,
+            max_bytes=max_bytes,
+        )
 
 
 def _positive_int(raw: str) -> int:
@@ -474,6 +678,8 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--python", type=Path, required=True)
     parser.add_argument("--cache-dir", type=Path, default=_default_cache_root())
     parser.add_argument("--rustc", default="rustc")
+    parser.add_argument("--kind", choices=("wheel", "lsp"), default="wheel")
+    parser.add_argument("--profile", default="release")
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -489,7 +695,9 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 
     store_parser = subparsers.add_parser("store", help="build and store a wheel")
     _add_common_arguments(store_parser)
-    store_parser.add_argument("--maturin", type=Path, required=True)
+    store_parser.add_argument("--maturin", type=Path)
+    store_parser.add_argument("--cargo", default="cargo")
+    store_parser.add_argument("--cargo-target-dir", type=Path)
     store_parser.add_argument(
         "--max-entries",
         type=_positive_int,
@@ -511,6 +719,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 core_dir=namespace.sase_core_dir,
                 python=namespace.python,
                 rustc=namespace.rustc,
+                artifact_kind=namespace.kind,
+                profile=namespace.profile,
             )
             if namespace.json:
                 print(
@@ -528,6 +738,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 core_dir=namespace.sase_core_dir,
                 python=namespace.python,
                 rustc=namespace.rustc,
+                artifact_kind=namespace.kind,
+                profile=namespace.profile,
             )
             if wheel is None:
                 print("[sase-core-wheel-cache] miss: no exact cached wheel", file=sys.stderr)
@@ -541,6 +753,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 python=namespace.python,
                 maturin=namespace.maturin,
                 rustc=namespace.rustc,
+                artifact_kind=namespace.kind,
+                profile=namespace.profile,
+                cargo=namespace.cargo,
+                cargo_target_dir=namespace.cargo_target_dir,
                 max_entries=namespace.max_entries,
                 max_bytes=namespace.max_bytes,
             )
