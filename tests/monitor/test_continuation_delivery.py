@@ -16,6 +16,7 @@ import sase.procs.spawn as spawn_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.continuation_facade import transition_continuation_delivery
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
+from sase.feature_flags import override_flags
 from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 from sase.llm_provider.types import InvokeResult
 from sase.llm_provider.types import LLMInvocationError
@@ -244,6 +245,23 @@ def test_queue_launch_prefix_omits_implicit_zero() -> None:
         )
 
     assert prefix == "%queue(weight=2)\n"
+
+
+def test_queue_launch_prefix_reauthors_capacity_multiplier() -> None:
+    with override_flags(queue_capacity_budget=True):
+        meta = {
+            "queue_capacity_multiplier": 1.5,
+            "wait_priority": 0,
+            "queue_weight": 0.25,
+        }
+        prefix = queue_launch_prefix(meta)
+
+    assert prefix == "%queue(capacity=1.5x, priority=0, weight=0.25)\n"
+    assert launch_wire_extra(meta) == {
+        "queue_capacity_multiplier": 1.5,
+        "queue_weight": 0.25,
+        "queue_weight_explicit": False,
+    }
 
 
 @pytest.mark.parametrize(

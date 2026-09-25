@@ -44,6 +44,7 @@ from sase.axe.run_agent_wait_slot_state import (
     RunnerSlotAdmissionError,
     continuous_eligibility_start,
     marker_priority_state,
+    marker_queue_capacity_multiplier_state,
     marker_queue_weight_state,
     marker_runner_condition_state,
 )
@@ -164,6 +165,7 @@ def _try_claim_runner_slot(
     cl_name: str,
     timestamp: str,
     directive_threshold: int | None,
+    directive_queue_capacity_multiplier: float | None = None,
     directive_priority: int | None = None,
     directive_priority_implied: int | None = None,
     directive_queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
@@ -202,9 +204,15 @@ def _try_claim_runner_slot(
         )
         queue_capacity: int | None = None
         queue_capacity_explicit = False
+        queue_capacity_multiplier: float | None = None
         try:
             queue_capacity, queue_capacity_explicit = marker_runner_condition_state(
                 waiting_data, directive_threshold
+            )
+            queue_capacity_multiplier = marker_queue_capacity_multiplier_state(
+                waiting_data,
+                directive_queue_capacity_multiplier,
+                integer_capacity=queue_capacity,
             )
             effective_limit = float(get_max_running_agents())
         except Exception as error:  # noqa: BLE001 - admission fails closed.
@@ -221,6 +229,7 @@ def _try_claim_runner_slot(
                 queue_weight_explicit=queue_weight_explicit,
                 queue_capacity=queue_capacity,
                 queue_capacity_explicit=queue_capacity_explicit,
+                queue_capacity_multiplier=queue_capacity_multiplier,
                 error=error,
             )
         requested_at = (
@@ -237,6 +246,7 @@ def _try_claim_runner_slot(
             slot_requested_at=requested_at,
             queue_capacity=queue_capacity,
             queue_capacity_explicit=queue_capacity_explicit,
+            queue_capacity_multiplier=queue_capacity_multiplier,
             wait_priority=priority,
             queue_weight=queue_weight,
             queue_weight_explicit=queue_weight_explicit,
@@ -340,8 +350,11 @@ def _try_claim_runner_slot(
                     "cl_name": cl_name,
                     "timestamp": timestamp,
                     **queue_capacity_marker_fields(
-                        queue_capacity if queue_capacity is not None else 0,
+                        queue_capacity
+                        if queue_capacity is not None
+                        else (None if queue_capacity_multiplier is not None else 0),
                         explicit=queue_capacity_explicit,
+                        queue_capacity_multiplier=queue_capacity_multiplier,
                     ),
                     "wait_priority": priority,
                     "wait_priority_explicit": priority_explicit,
@@ -460,6 +473,7 @@ def try_claim_runner_slot_without_parking(
     agent_meta: dict[str, Any],
     *,
     wait_runners: int | None,
+    queue_capacity_multiplier: float | None = None,
     wait_priority: int | None = None,
     wait_priority_implied: int | None = None,
     queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
@@ -477,6 +491,7 @@ def try_claim_runner_slot_without_parking(
         cl_name=cl_name,
         timestamp=timestamp,
         directive_threshold=wait_runners,
+        directive_queue_capacity_multiplier=queue_capacity_multiplier,
         directive_priority=wait_priority,
         directive_priority_implied=wait_priority_implied,
         directive_queue_weight=queue_weight,
@@ -495,6 +510,7 @@ def wait_for_runner_slot(
     agent_meta: dict[str, Any],
     *,
     wait_runners: int | None,
+    queue_capacity_multiplier: float | None = None,
     wait_priority: int | None = None,
     wait_priority_implied: int | None = None,
     queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
@@ -516,6 +532,7 @@ def wait_for_runner_slot(
             cl_name=cl_name,
             timestamp=timestamp,
             directive_threshold=wait_runners,
+            directive_queue_capacity_multiplier=queue_capacity_multiplier,
             directive_priority=wait_priority,
             directive_priority_implied=wait_priority_implied,
             directive_queue_weight=queue_weight,

@@ -187,6 +187,7 @@ class AgentUnitWire:
     auto_mode: str | None = None
     finalizers: list[str] = field(default_factory=list)
     queue_capacity: int | None = None
+    queue_capacity_multiplier: float | None = None
     wait_runners: int | None = None
     wait_priority: int | None = None
     queue_weight: float | None = None
@@ -217,6 +218,7 @@ class ProcUnitWire:
     workspace_explicit: bool = False
     selected_project: str | None = None
     queue_capacity: int | None = None
+    queue_capacity_multiplier: float | None = None
     wait_priority: int | None = None
     queue_weight: float | None = None
     queue_weight_explicit: bool = False
@@ -225,6 +227,7 @@ class ProcUnitWire:
     def has_authored_queue_fields(self) -> bool:
         return (
             self.queue_capacity is not None
+            or self.queue_capacity_multiplier is not None
             or self.wait_priority is not None
             or self.queue_weight is not None
             or self.queue_weight_explicit

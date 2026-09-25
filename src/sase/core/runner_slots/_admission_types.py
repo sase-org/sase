@@ -36,6 +36,7 @@ class RunnerSlotWaiter:
     timestamp: str
     threshold: int = 0
     queue_capacity: int | None = None
+    queue_capacity_multiplier: float | None = None
     queue_capacity_explicit: bool = False
     admission_limit: float | None = None
     priority: int = DEFAULT_WAIT_PRIORITY

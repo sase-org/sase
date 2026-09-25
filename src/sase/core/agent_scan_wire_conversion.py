@@ -97,6 +97,7 @@ _PATCH_METADATA_KEYS = frozenset(
 _QUEUE_CAPACITY_KEYS = frozenset(
     {
         "queue_capacity",
+        "queue_capacity_multiplier",
         "queue_capacity_explicit",
         "wait_runners",
         "wait_runners_explicit",
@@ -104,6 +105,9 @@ _QUEUE_CAPACITY_KEYS = frozenset(
 )
 _resolve_authored_queue_capacity: (
     Callable[[Mapping[str, Any]], tuple[int | None, bool]] | None
+) = None
+_resolve_authored_queue_capacity_multiplier: (
+    Callable[[Mapping[str, Any]], float | None] | None
 ) = None
 _UNKNOWN_FIELD = object()
 _REQUIRED_FIELD = object()
@@ -119,6 +123,19 @@ def _resolve_queue_capacity(data: Mapping[str, Any]) -> tuple[int | None, bool]:
 
         _resolve_authored_queue_capacity = resolve_authored_queue_capacity
     return _resolve_authored_queue_capacity(data)
+
+
+def _resolve_queue_capacity_multiplier(data: Mapping[str, Any]) -> float | None:
+    global _resolve_authored_queue_capacity_multiplier
+    if _resolve_authored_queue_capacity_multiplier is None:
+        from sase.xprompt.queue_directive import (
+            resolve_authored_queue_capacity_multiplier,
+        )
+
+        _resolve_authored_queue_capacity_multiplier = (
+            resolve_authored_queue_capacity_multiplier
+        )
+    return _resolve_authored_queue_capacity_multiplier(data)
 
 
 def _field_defaults(cls: type[Any]) -> dict[str, object]:
@@ -444,6 +461,7 @@ def _queue_capacity_alias_payload(data: dict[str, Any]) -> dict[str, Any]:
     if data.keys().isdisjoint(_QUEUE_CAPACITY_KEYS) or (
         data.get("queue_capacity") is None
         and data.get("wait_runners") is None
+        and data.get("queue_capacity_multiplier") is None
         and not data.get("queue_capacity_explicit")
         and not data.get("wait_runners_explicit")
     ):
@@ -451,10 +469,15 @@ def _queue_capacity_alias_payload(data: dict[str, Any]) -> dict[str, Any]:
     payload = dict(data)
 
     capacity, explicit = _resolve_queue_capacity(payload)
+    multiplier = _resolve_queue_capacity_multiplier(payload)
     payload["queue_capacity"] = capacity
     payload["queue_capacity_explicit"] = explicit
     payload["wait_runners"] = capacity
     payload["wait_runners_explicit"] = explicit
+    if multiplier is not None:
+        payload["queue_capacity_multiplier"] = multiplier
+    else:
+        payload.pop("queue_capacity_multiplier", None)
     return payload
 
 

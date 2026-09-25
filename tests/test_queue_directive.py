@@ -19,7 +19,10 @@ from sase.feature_flags import override_flags
 from sase.xprompt.directives import DirectiveError, extract_prompt_directives
 from sase.xprompt.queue_directive import (
     collect_queue_fields,
+    format_queue_capacity_multiplier,
     format_queue_directive,
+    parse_queue_capacity_value,
+    resolve_queue_capacity_multiplier,
     validate_queue_capacity,
 )
 
@@ -107,6 +110,32 @@ def test_queue_weight_extracts_unconditionally() -> None:
     assert cleaned == "Do work"
     assert directives.queue_weight == 0.25
     assert directives.queue_weight_explicit is True
+
+
+def test_capacity_multiplier_extracts_formats_and_rebuilds() -> None:
+    with override_flags(queue_capacity_budget=True, typed_launch_units=True):
+        parsed = parse_queue_capacity_value("1.50x")
+        cleaned, directives = extract_prompt_directives("%q(1.5x, w=0.25)\nDo work")
+        plan = plan_typed_launch_units(
+            "%q(1.5x, w=0.25)\nDo work",
+            selected_project="sase",
+        )
+        agent = plan.units[0].payload
+        assert isinstance(agent, AgentUnitWire)
+        rebuilt = agent_unit_dispatch_prompt(agent)
+
+    assert parsed == {"queue_capacity_multiplier": 1.5}
+    assert format_queue_capacity_multiplier(1.5) == "1.5x"
+    assert resolve_queue_capacity_multiplier(1.5, 5) == 7.5
+    assert format_queue_directive(capacity_multiplier=1.5, weight=0.25) == (
+        "%queue(capacity=1.5x, weight=0.25)"
+    )
+    assert cleaned == "Do work"
+    assert directives.queue_capacity is None
+    assert directives.queue_capacity_multiplier == 1.5
+    assert agent.queue_capacity is None
+    assert agent.queue_capacity_multiplier == 1.5
+    assert "%queue(capacity=1.5x, weight=0.25)" in rebuilt
 
 
 def test_queue_weight_alias_duplicate_errors() -> None:

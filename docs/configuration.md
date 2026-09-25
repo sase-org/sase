@@ -3975,6 +3975,12 @@ launch's own admission budget, replacing the global budget for that launch only.
 admitted, the launch holds an ordinary weighted claim, so occupied capacity can honestly
 exceed the global budget until work drains.
 
+An authored `%queue(capacity=<M>x)` instead scales from this effective value, including
+an active override: `%q:1.5x` resolves to `7.5` when the effective limit is `5`. It is
+resolved again while the launch is queued, rather than freezing the configured value at
+launch time. Multipliers accept up to two decimal places and affect admission only while
+`queue_capacity_budget` is enabled.
+
 When upgrading from an unweighted scheduler build, restart sase's TUI and the service
 host and let already running agent processes finish or relaunch them under the new
 binary. Legacy records without `queue_weight` still read as `1.0`, but mixed old and new

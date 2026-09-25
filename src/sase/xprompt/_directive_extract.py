@@ -123,6 +123,7 @@ def extract_prompt_directives(
     )
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
     wait_runners: int | None = None
+    queue_capacity_multiplier: float | None = None
     wait_priority: int | None = None
     queue_weight: float | None = None
     hold_fields: dict[str, object] | None = None
@@ -146,6 +147,10 @@ def extract_prompt_directives(
             )
             priority = fields.get("priority")
             wait_runners = int(capacity) if capacity is not None else None
+            multiplier = fields.get("queue_capacity_multiplier")
+            queue_capacity_multiplier = (
+                float(multiplier) if multiplier is not None else None
+            )
             wait_priority = int(priority) if priority is not None else None
             weight = fields.get("weight")
             queue_weight = float(weight) if weight is not None else None
@@ -293,6 +298,7 @@ def extract_prompt_directives(
         wait_duration=wait_duration,
         wait_until=wait_until,
         queue_capacity=wait_runners,
+        queue_capacity_multiplier=queue_capacity_multiplier,
         wait_runners=wait_runners,
         wait_priority=wait_priority,
         queue_weight=queue_weight,

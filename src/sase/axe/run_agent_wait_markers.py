@@ -31,15 +31,16 @@ def queue_capacity_marker_fields(
     queue_capacity: int | None,
     *,
     explicit: bool,
+    queue_capacity_multiplier: float | None = None,
 ) -> dict[str, Any]:
     """Return canonical ``waiting.json`` capacity fields.
 
     Readers still accept legacy ``wait_runners`` spellings. Writers emit only
     ``queue_capacity`` now that the scanner projects the canonical keys.
     """
-    fields: dict[str, Any] = {
-        "queue_capacity_explicit": explicit,
-    }
+    if queue_capacity is None and queue_capacity_multiplier is not None:
+        return {"queue_capacity_multiplier": queue_capacity_multiplier}
+    fields: dict[str, Any] = {"queue_capacity_explicit": explicit}
     if queue_capacity is not None:
         fields["queue_capacity"] = queue_capacity
     return fields

@@ -89,9 +89,12 @@ To diagnose a wait:
    tab. A row that ends with `held by …` is waiting on a hold, not on capacity; see
    [Held agents](#held-agents).
 2. Inspect the launch's `waiting.json`. `queue_capacity` is the persisted spelling of an
-   authored per-launch capacity budget, and `queue_capacity_explicit` says whether it
-   was authored; older `wait_runners` records still read as the legacy spelling. A
-   waiter without an authored budget records `queue_capacity: 0` with
+   authored integer per-launch capacity budget, and `queue_capacity_explicit` says
+   whether it was authored; `queue_capacity_multiplier` instead records an authored
+   `<M>x` multiplier of the effective `max_running_agents` value. Older `wait_runners`
+   records still read as the legacy spelling. A `1.5x` multiplier resolves to `7.5`
+   against an effective limit of `5` and is recalculated on each queue poll. A waiter
+   without an authored budget records `queue_capacity: 0` with
    `queue_capacity_explicit: false`, and `runner_admission_limit` in
    `sase agent list -j` shows the admission limit that applies to that waiter.
    `slot_requested_at` is the FIFO request time, and `runner_slot_queue_position` in

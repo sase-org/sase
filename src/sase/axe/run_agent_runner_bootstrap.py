@@ -199,6 +199,7 @@ def _wait_flags(info: AgentInfo) -> tuple[bool, bool]:
     has_wait = (
         has_dependency_wait
         or info.wait_runners is not None
+        or info.queue_capacity_multiplier is not None
         or info.wait_priority is not None
         or info.queue_weight_explicit
     )

@@ -151,6 +151,8 @@ class PromptDirectives:
         queue_capacity: Authored ``%queue(capacity=...)`` budget. Writers
             persist this as ``queue_capacity``; ``wait_runners`` remains the
             read alias at marker boundaries.
+        queue_capacity_multiplier: Authored ``%queue(capacity=<M>x)`` budget
+            multiplier, resolved against the effective machine limit at admission.
         wait_runners: Legacy alias of ``queue_capacity`` kept for existing
             launch/wait metadata readers.
         wait_priority: Runner-slot queue priority from the
@@ -210,6 +212,7 @@ class PromptDirectives:
     wait_duration: float | None = None
     wait_until: str | None = None
     queue_capacity: int | None = None
+    queue_capacity_multiplier: float | None = None
     wait_runners: int | None = None
     wait_priority: int | None = None
     queue_weight: float | None = None

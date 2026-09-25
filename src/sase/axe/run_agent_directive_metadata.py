@@ -245,6 +245,11 @@ def build_agent_meta(
     if directives.queue_capacity is not None:
         agent_meta["queue_capacity"] = directives.queue_capacity
         agent_meta["queue_capacity_explicit"] = True
+        agent_meta.pop("queue_capacity_multiplier", None)
+    elif directives.queue_capacity_multiplier is not None:
+        agent_meta["queue_capacity_multiplier"] = directives.queue_capacity_multiplier
+        agent_meta.pop("queue_capacity", None)
+        agent_meta.pop("queue_capacity_explicit", None)
     if directives.wait_priority is not None:
         agent_meta["wait_priority"] = directives.wait_priority
     authored_queue_weight = (

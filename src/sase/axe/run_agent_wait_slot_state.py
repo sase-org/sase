@@ -43,6 +43,25 @@ def marker_runner_condition_state(
     return None, False
 
 
+def marker_queue_capacity_multiplier_state(
+    waiting_data: dict[str, Any] | None,
+    directive_multiplier: float | None,
+    *,
+    integer_capacity: int | None,
+) -> float | None:
+    """Return marker-preferred authored multiplier when no integer wins."""
+    from sase.xprompt.queue_directive import resolve_authored_queue_capacity_multiplier
+
+    if waiting_data is not None and "slot_requested_at" in waiting_data:
+        if integer_capacity is not None:
+            return None
+        if "queue_capacity_multiplier" in waiting_data:
+            return resolve_authored_queue_capacity_multiplier(waiting_data)
+    if integer_capacity is not None:
+        return None
+    return directive_multiplier
+
+
 def _legacy_marker_priority_explicit(waiting_data: dict[str, Any]) -> bool:
     marker_value = waiting_data.get("wait_priority")
     # Legacy markers had no explicitness flag. A non-default priority almost

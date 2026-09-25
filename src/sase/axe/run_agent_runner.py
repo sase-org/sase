@@ -191,6 +191,7 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
         state.timestamp,
         bootstrap.agent_meta,
         wait_runners=bootstrap.info.wait_runners,
+        queue_capacity_multiplier=bootstrap.info.queue_capacity_multiplier,
         wait_priority=bootstrap.info.wait_priority,
         wait_priority_implied=(
             HOLD_ARMER_WAIT_PRIORITY

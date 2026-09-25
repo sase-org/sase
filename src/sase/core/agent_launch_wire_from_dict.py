@@ -59,6 +59,13 @@ def _optional_queue_capacity(data: dict[str, Any]) -> int | None:
     return None if raw is None else int(raw)
 
 
+def _optional_queue_capacity_multiplier(data: dict[str, Any]) -> float | None:
+    raw = data.get("queue_capacity_multiplier")
+    if raw is None or isinstance(raw, bool):
+        return None
+    return float(raw)
+
+
 def _hold_fields_from_dict(data: Any) -> HoldFieldsWire | None:
     if data is None:
         return None
@@ -242,6 +249,7 @@ def _launch_unit_payload_from_dict(
             auto_mode=_optional_str(data.get("auto_mode")),
             finalizers=[str(item) for item in data.get("finalizers", [])],
             queue_capacity=_optional_queue_capacity(data),
+            queue_capacity_multiplier=_optional_queue_capacity_multiplier(data),
             wait_runners=_optional_queue_capacity(data),
             wait_priority=(
                 None
@@ -283,6 +291,7 @@ def _launch_unit_payload_from_dict(
                 if data.get("queue_capacity") is None
                 else int(data["queue_capacity"])
             ),
+            queue_capacity_multiplier=_optional_queue_capacity_multiplier(data),
             wait_priority=(
                 None
                 if data.get("wait_priority") is None

@@ -193,6 +193,7 @@ class AgentMetaWire:
     wait_duration: float | None = None
     wait_until: str | None = None
     queue_capacity: int | None = None
+    queue_capacity_multiplier: float | None = None
     queue_capacity_explicit: bool = False
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
@@ -267,6 +268,7 @@ class WaitingMarkerWire:
     wait_duration: float | None = None
     wait_until: str | None = None
     queue_capacity: int | None = None
+    queue_capacity_multiplier: float | None = None
     queue_capacity_explicit: bool = False
     wait_runners: int | None = None
     wait_runners_explicit: bool = False

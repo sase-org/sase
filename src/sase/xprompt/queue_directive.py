@@ -104,6 +104,7 @@ def _normalize_queue_error(error: Any) -> Any:
 def format_queue_directive(
     *,
     capacity: int | None = None,
+    capacity_multiplier: float | None = None,
     priority: int | None = None,
     weight: float | None = None,
 ) -> str | None:
@@ -111,6 +112,8 @@ def format_queue_directive(
     payload: dict[str, int | float] = {}
     if capacity is not None:
         payload["capacity"] = capacity
+    if capacity_multiplier is not None:
+        payload["queue_capacity_multiplier"] = capacity_multiplier
     if priority is not None:
         payload["priority"] = priority
     if weight is not None:
@@ -140,6 +143,46 @@ def format_queue_directive(
             .replace("runners=", "capacity=")
         )
     return str(formatted) if formatted else None
+
+
+def parse_queue_capacity_value(value: object) -> dict[str, Any]:
+    """Parse an integer capacity or ``<M>x`` multiplier through Rust."""
+    binding = require_rust_binding("parse_queue_capacity_value")
+    raw = str(value).strip()
+    try:
+        parsed = binding(raw, launch_feature_flag_keys())
+    except TypeError:
+        parsed = binding(raw)
+    return dict(parsed) if isinstance(parsed, Mapping) else {}
+
+
+def format_queue_capacity_multiplier(value: object) -> str | None:
+    """Format a persisted multiplier canonically (for example ``1.5x``)."""
+    if isinstance(value, bool):
+        return None
+    try:
+        numeric = float(str(value))
+    except (TypeError, ValueError):
+        return None
+    formatted = require_rust_binding("format_queue_capacity_multiplier")(numeric)
+    return str(formatted) if formatted else None
+
+
+def resolve_queue_capacity_multiplier(
+    multiplier: object,
+    effective_limit: object,
+) -> float | None:
+    """Resolve a valid authored multiplier against a live capacity limit."""
+    if isinstance(multiplier, bool) or isinstance(effective_limit, bool):
+        return None
+    try:
+        resolved = require_rust_binding("resolve_queue_capacity_multiplier")(
+            float(str(multiplier)),
+            float(str(effective_limit)),
+        )
+    except (TypeError, ValueError):
+        return None
+    return float(resolved) if resolved is not None else None
 
 
 def validate_queue_capacity(value: object) -> int:
@@ -221,6 +264,26 @@ def resolve_authored_queue_capacity(
     return None, explicit
 
 
+def resolve_authored_queue_capacity_multiplier(
+    data: Mapping[str, Any],
+) -> float | None:
+    """Return the valid multiplier unless this source carries an integer capacity.
+
+    The persisted pair is deliberately mutually exclusive.  Integer capacity wins
+    during compatibility reads when an older writer left both keys behind.
+    """
+    if "queue_capacity" in data or "wait_runners" in data:
+        return None
+    raw = data.get("queue_capacity_multiplier")
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if format_queue_capacity_multiplier(value) is not None else None
+
+
 def reauthor_capacity_for_prefix(
     capacity: int | None,
     *,
@@ -255,6 +318,46 @@ def reauthor_capacity_for_prefix(
     if budget_enabled and capacity == 0:
         return None
     return capacity
+
+
+def reauthor_capacity_multiplier_for_prefix(
+    multiplier: float | None,
+    *,
+    capacity: int | None = None,
+    explicit: bool = False,
+    weight: float | None = None,
+    budget_enabled: bool | None = None,
+) -> float | None:
+    """Return the Rust-normalized multiplier safe to put in a continuation."""
+    if capacity is not None or multiplier is None:
+        return None
+    if budget_enabled is None:
+        budget_enabled = "queue_capacity_budget" in launch_feature_flag_keys()
+    effective_weight = 1.0 if weight is None else float(weight)
+    try:
+        binding = getattr(
+            import_module("sase_core_rs"),
+            "normalize_persisted_queue_capacity",
+            None,
+        )
+    except ImportError:
+        binding = None
+    if callable(binding):
+        payload = binding(
+            None,
+            explicit,
+            effective_weight,
+            1.0,
+            budget_enabled,
+            queue_capacity_multiplier=multiplier,
+        )
+        if isinstance(payload, Mapping):
+            value = payload.get("reauthor_multiplier")
+            if format_queue_capacity_multiplier(value) is not None:
+                return float(str(value))
+    return (
+        multiplier if format_queue_capacity_multiplier(multiplier) is not None else None
+    )
 
 
 def launch_feature_flag_keys() -> list[str]:

@@ -19,6 +19,7 @@ from sase.core.agent_launch_wire import (
     launch_plan_from_dict,
 )
 from sase.feature_flags import override_flags
+from sase.xprompt.code_value import make_code_value
 from sase.xprompt.directives import DirectiveError
 
 
@@ -124,6 +125,54 @@ def test_agent_unit_queue_weight_round_trips_json_shape() -> None:
     assert restored.wait_runners == 2
     assert restored.queue_weight == 0.25
     assert restored.queue_weight_explicit is True
+
+
+def test_capacity_multiplier_round_trips_agent_and_proc_wire_shapes() -> None:
+    agent_payload = agent_launch_wire_to_json_dict(
+        AgentUnitWire(prompt="Do work", queue_capacity_multiplier=1.5)
+    )
+    proc_payload = agent_launch_wire_to_json_dict(
+        ProcUnitWire(
+            code=make_code_value("just check", "bash"),
+            queue_capacity_multiplier=1.5,
+        )
+    )
+
+    assert agent_payload["queue_capacity_multiplier"] == 1.5
+    assert "queue_capacity" not in agent_payload
+    assert proc_payload["queue_capacity_multiplier"] == 1.5
+    assert ProcUnitWire(
+        code=make_code_value("just check", "bash"), queue_capacity_multiplier=1.5
+    ).has_authored_queue_fields()
+
+    plan = launch_plan_from_dict(
+        {
+            "schema_version": 1,
+            "launch_kind": "mixed",
+            "selected_project": "sase",
+            "content_digest": "a" * 64,
+            "units": [
+                {
+                    "logical_id": "agent",
+                    "source_order": 0,
+                    "waits": [],
+                    "payload": agent_payload,
+                },
+                {
+                    "logical_id": "proc",
+                    "source_order": 1,
+                    "waits": [],
+                    "payload": proc_payload,
+                },
+            ],
+        }
+    )
+
+    agent, proc = (unit.payload for unit in plan.units)
+    assert isinstance(agent, AgentUnitWire)
+    assert isinstance(proc, ProcUnitWire)
+    assert agent.queue_capacity_multiplier == 1.5
+    assert proc.queue_capacity_multiplier == 1.5
 
 
 def test_agent_unit_omits_default_queue_weight_provenance_from_json() -> None:

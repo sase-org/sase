@@ -19,7 +19,9 @@ from sase.core.runner_slots import inheritable_queue_weight
 from sase.xprompt.queue_directive import (
     format_queue_directive,
     reauthor_capacity_for_prefix,
+    reauthor_capacity_multiplier_for_prefix,
     resolve_authored_queue_capacity,
+    resolve_authored_queue_capacity_multiplier,
 )
 
 DELIVERY_ARTIFACTS_ENV = "SASE_MONITOR_DELIVERY_ARTIFACTS_DIR"
@@ -194,10 +196,19 @@ def queue_launch_prefix(meta: Mapping[str, Any]) -> str:
         explicit=explicit,
         weight=weight,
     )
-    if weight is None and priority is None and capacity is None:
+    multiplier = reauthor_capacity_multiplier_for_prefix(
+        resolve_authored_queue_capacity_multiplier(meta),
+        capacity=authored,
+        explicit=explicit,
+        weight=weight,
+    )
+    if weight is None and priority is None and capacity is None and multiplier is None:
         return ""
     formatted = format_queue_directive(
-        capacity=capacity, priority=priority, weight=weight
+        capacity=capacity,
+        capacity_multiplier=multiplier,
+        priority=priority,
+        weight=weight,
     )
     return f"{formatted}\n" if formatted else ""
 
@@ -231,6 +242,10 @@ def launch_wire_extra(meta: Mapping[str, Any]) -> dict[str, Any]:
     if capacity is not None:
         extra["queue_capacity"] = capacity
         extra["queue_capacity_explicit"] = explicit
+    else:
+        multiplier = resolve_authored_queue_capacity_multiplier(meta)
+        if multiplier is not None:
+            extra["queue_capacity_multiplier"] = multiplier
     target = _optional_text(meta.get("dispatch_target"))
     if target:
         extra["dispatch_target"] = target

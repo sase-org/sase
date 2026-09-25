@@ -89,6 +89,7 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             "bead_id",
             "auto_mode",
             "queue_capacity",
+            "queue_capacity_multiplier",
             "wait_priority",
             "queue_weight",
             "workspace_provider",
@@ -123,6 +124,8 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             proc_payload["selected_project"] = record.selected_project
         if record.queue_capacity is not None:
             proc_payload["queue_capacity"] = record.queue_capacity
+        if record.queue_capacity_multiplier is not None:
+            proc_payload["queue_capacity_multiplier"] = record.queue_capacity_multiplier
         if record.wait_priority is not None:
             proc_payload["wait_priority"] = record.wait_priority
         if record.queue_weight is not None:

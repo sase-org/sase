@@ -110,6 +110,53 @@ def test_agent_meta_queue_weight_round_trip() -> None:
     assert record.waiting.queue_weight_explicit is True
 
 
+def test_capacity_multiplier_round_trips_and_integer_wins_conflicts() -> None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "records": [
+                {
+                    "project_name": "proj",
+                    "project_dir": "/tmp/projects/proj",
+                    "project_file": "/tmp/projects/proj/proj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/proj/artifacts/ace-run/1",
+                    "timestamp": "1",
+                    "agent_meta": {"queue_capacity_multiplier": 1.5},
+                    "waiting": {"queue_capacity_multiplier": 1.25},
+                },
+                {
+                    "project_name": "proj",
+                    "project_dir": "/tmp/projects/proj",
+                    "project_file": "/tmp/projects/proj/proj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/proj/artifacts/ace-run/2",
+                    "timestamp": "2",
+                    "agent_meta": {
+                        "queue_capacity": 4,
+                        "queue_capacity_explicit": True,
+                        "queue_capacity_multiplier": 1.5,
+                    },
+                },
+            ],
+        }
+    )
+
+    multiplier_record, integer_record = snapshot.records
+    assert multiplier_record.agent_meta is not None
+    assert multiplier_record.waiting is not None
+    assert multiplier_record.agent_meta.queue_capacity_multiplier == 1.5
+    assert multiplier_record.waiting.queue_capacity_multiplier == 1.25
+    assert integer_record.agent_meta is not None
+    assert integer_record.agent_meta.queue_capacity == 4
+    assert integer_record.agent_meta.queue_capacity_multiplier is None
+
+    serialized = agent_scan_wire_to_json_dict(snapshot)
+    assert serialized["records"][0]["waiting"]["queue_capacity_multiplier"] == 1.25
+    assert serialized["records"][1]["agent_meta"]["queue_capacity_multiplier"] is None
+
+
 def test_agent_meta_output_variables_round_trip_with_legacy_parallel_meta() -> None:
     snapshot = agent_scan_wire_from_dict(
         {

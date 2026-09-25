@@ -90,6 +90,37 @@ def _record_queue_capacity(record: AgentArtifactRecordWire) -> int | None:
     return None
 
 
+def _record_queue_capacity_multiplier(record: AgentArtifactRecordWire) -> float | None:
+    """Return the marker-preferred multiplier unless an integer shares its source."""
+    from sase.xprompt.queue_directive import resolve_authored_queue_capacity_multiplier
+
+    waiting = record.waiting
+    if waiting is not None and (
+        waiting.queue_capacity is not None
+        or waiting.wait_runners is not None
+        or waiting.queue_capacity_multiplier is not None
+    ):
+        source: dict[str, Any] = {}
+        if waiting.queue_capacity is not None:
+            source["queue_capacity"] = waiting.queue_capacity
+        elif waiting.wait_runners is not None:
+            source["wait_runners"] = waiting.wait_runners
+        if waiting.queue_capacity_multiplier is not None:
+            source["queue_capacity_multiplier"] = waiting.queue_capacity_multiplier
+        return resolve_authored_queue_capacity_multiplier(source)
+    meta = record.agent_meta
+    if meta is None:
+        return None
+    source = {}
+    if meta.queue_capacity is not None:
+        source["queue_capacity"] = meta.queue_capacity
+    elif meta.wait_runners is not None:
+        source["wait_runners"] = meta.wait_runners
+    if meta.queue_capacity_multiplier is not None:
+        source["queue_capacity_multiplier"] = meta.queue_capacity_multiplier
+    return resolve_authored_queue_capacity_multiplier(source)
+
+
 def with_queue_capacity_alias(record: Mapping[str, Any]) -> dict[str, Any]:
     item = dict(record)
     if "queue_capacity" not in item and "wait_runners" in item:
@@ -199,6 +230,7 @@ def capacity_record_from_scan(
             "queue_weight_invalid": queue_weight_invalid,
             "slot_requested_at": None if waiting is None else waiting.slot_requested_at,
             "queue_capacity": _record_queue_capacity(record),
+            "queue_capacity_multiplier": _record_queue_capacity_multiplier(record),
             "queue_capacity_explicit": (
                 waiting.queue_capacity_explicit or waiting.wait_runners_explicit
                 if waiting is not None
@@ -248,6 +280,7 @@ def _synthetic_capacity_record(
     slot_requested_at: str,
     queue_capacity: int | None,
     queue_capacity_explicit: bool,
+    queue_capacity_multiplier: float | None,
     wait_priority: int,
     queue_weight: float,
     queue_weight_explicit: bool,
@@ -299,6 +332,7 @@ def _synthetic_capacity_record(
             "queue_weight_invalid": False,
             "slot_requested_at": slot_requested_at,
             "queue_capacity": queue_capacity,
+            "queue_capacity_multiplier": queue_capacity_multiplier,
             "queue_capacity_explicit": queue_capacity_explicit,
             "wait_priority": wait_priority,
             "eligible_since": eligible_since,
@@ -324,6 +358,7 @@ def runner_slot_candidate_record(
     slot_requested_at: str,
     queue_capacity: int | None = None,
     queue_capacity_explicit: bool = False,
+    queue_capacity_multiplier: float | None = None,
     wait_runners: int | None = None,
     wait_runners_explicit: bool = False,
     wait_priority: int,
@@ -351,6 +386,7 @@ def runner_slot_candidate_record(
         slot_requested_at=slot_requested_at,
         queue_capacity=queue_capacity,
         queue_capacity_explicit=queue_capacity_explicit,
+        queue_capacity_multiplier=queue_capacity_multiplier,
         wait_priority=wait_priority,
         queue_weight=queue_weight,
         queue_weight_explicit=queue_weight_explicit,

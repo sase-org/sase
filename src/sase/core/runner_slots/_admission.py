@@ -71,6 +71,9 @@ def live_runner_slot_waiters(
                 "queue_capacity",
                 "wait_runners",
             ),
+            queue_capacity_multiplier=finite_positive_float(
+                waiter.get("queue_capacity_multiplier")
+            ),
             queue_capacity_explicit=(
                 waiter.get("queue_capacity") is not None
                 or waiter.get("wait_runners") is not None

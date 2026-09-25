@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
     is_runner_slot_user_agent_record,
+    live_runner_slot_waiters,
+    runner_capacity_snapshot,
     running_agent_slot_count,
     runner_slot_candidate_record,
 )
@@ -58,6 +62,30 @@ def test_running_agent_slot_count_uses_live_started_agent_session_occupancy() ->
         running_agent_slot_count(records, lambda record: record.agent_meta.pid != 6)
         == 3
     )  # type: ignore[union-attr]
+
+
+def test_multiplier_waiter_projects_resolved_admission_limit() -> None:
+    """A multiplier survives the scan projection into the live waiter view."""
+    record = _record(
+        "/multiplier",
+        requested_at="2026-09-25T12:00:00Z",
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+    )
+    assert record.waiting is not None
+    record = replace(
+        record,
+        waiting=replace(record.waiting, queue_capacity_multiplier=1.5),
+    )
+
+    snapshot = runner_capacity_snapshot([record], _always_live, effective_limit=5.0)
+    (waiter,) = live_runner_slot_waiters([record], _always_live, effective_limit=5.0)
+
+    assert snapshot["waiters"][0]["queue_capacity_multiplier"] == 1.5
+    assert snapshot["waiters"][0]["admission_limit"] == 7.5
+    assert waiter.queue_capacity is None
+    assert waiter.queue_capacity_multiplier == 1.5
+    assert waiter.admission_limit == 7.5
 
 
 def test_runner_slot_user_agent_record_predicate_covers_admission_cases() -> None:

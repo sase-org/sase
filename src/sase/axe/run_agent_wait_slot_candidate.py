@@ -55,6 +55,7 @@ def park_for_unavailable_limit(
     queue_weight_explicit: bool,
     queue_capacity: int | None,
     queue_capacity_explicit: bool,
+    queue_capacity_multiplier: float | None,
     error: Exception,
 ) -> tuple[None, bool]:
     """Republish the queue marker when the runner limit cannot be read."""
@@ -64,15 +65,17 @@ def park_for_unavailable_limit(
     if not isinstance(requested_at, str) or not requested_at:
         requested_at = datetime.now(UTC).isoformat()
     marker = dict(waiting_data or {})
-    marker_queue_capacity = queue_capacity if queue_capacity is not None else 0
     marker.update(
         {
             "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
             **queue_capacity_marker_fields(
-                marker_queue_capacity,
+                queue_capacity
+                if queue_capacity is not None
+                else (None if queue_capacity_multiplier is not None else 0),
                 explicit=queue_capacity_explicit,
+                queue_capacity_multiplier=queue_capacity_multiplier,
             ),
             "wait_priority": priority,
             "wait_priority_explicit": priority_explicit,

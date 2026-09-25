@@ -76,6 +76,19 @@ class TestExtractDirectivesMetadata:
         assert result["meta"]["queue_capacity"] == 1
         assert result["meta"]["queue_capacity_explicit"] is True
 
+    def test_persists_capacity_multiplier_metadata(self, tmp_path: Path) -> None:
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%queue(capacity=1.5x)\ndo stuff",
+        )
+
+        assert result["info"].wait_runners is None
+        assert result["info"].queue_capacity_multiplier == 1.5
+        assert result["meta"]["queue_capacity_multiplier"] == 1.5
+        assert "queue_capacity" not in result["meta"]
+        assert "queue_capacity_explicit" not in result["meta"]
+
     def test_persists_explicit_wait_priority_metadata(self, tmp_path: Path) -> None:
         result = run_extract(
             tmp_path,

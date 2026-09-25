@@ -88,6 +88,7 @@ def evaluate_proc_capacity_admission(
         slot_requested_at=requested_at,
         queue_capacity=payload.queue_capacity,
         queue_capacity_explicit=payload.queue_capacity is not None,
+        queue_capacity_multiplier=payload.queue_capacity_multiplier,
         wait_priority=priority,
         queue_weight=queue_weight,
         queue_weight_explicit=payload.queue_weight_explicit or queue_weight == 0.0,
