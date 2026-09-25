@@ -144,6 +144,7 @@ def test_legacy_unversioned_payload_still_rehydrates() -> None:
             "project_file": "/tmp/legacy.sase",
             "status": "DONE",
             "from_patch": True,
+            # legacy agent-family spelling: LEGACY_AGENT_FIELD_NAMES still reads it
             "agent_family": "crew",
         }
     )

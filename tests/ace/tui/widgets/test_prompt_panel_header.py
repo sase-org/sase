@@ -439,7 +439,7 @@ def test_no_events_omits_agent_context_section(tmp_path: Path) -> None:
     assert "AGENT CONTEXT" not in header.plain
 
 
-def test_family_header_renders_followup_role_attribution(tmp_path: Path) -> None:
+def test_agent_session_header_renders_followup_role_attribution(tmp_path: Path) -> None:
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     plan_dir = tmp_path / "artifacts" / "plan"

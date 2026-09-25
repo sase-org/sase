@@ -97,14 +97,14 @@ def _single_slow_tool_lane_case() -> _SlowToolFoldContractCase:
     )
 
 
-def _family_slow_tool_lane_case(tmp_path: Path) -> _SlowToolFoldContractCase:
+def _agent_session_slow_tool_lane_case(tmp_path: Path) -> _SlowToolFoldContractCase:
     lane = make_agent_session(
         tmp_path,
-        suffix="slow-family",
+        suffix="slow-session",
         with_prompt_content=False,
     )
     return _SlowToolFoldContractCase(
-        kind="family-sase-agent",
+        kind="session-sase-agent",
         scale=AGENT_SESSION_FOLD_SCALE,
         rendered={
             level: _render_slow_tool_lane(lane, level)
@@ -113,14 +113,14 @@ def _family_slow_tool_lane_case(tmp_path: Path) -> _SlowToolFoldContractCase:
     )
 
 
-@pytest.fixture(params=("single-sase-agent", "family-sase-agent"))
+@pytest.fixture(params=("single-sase-agent", "session-sase-agent"))
 def slow_tool_fold_case(
     request: pytest.FixtureRequest,
     tmp_path: Path,
 ) -> _SlowToolFoldContractCase:
     if request.param == "single-sase-agent":
         return _single_slow_tool_lane_case()
-    return _family_slow_tool_lane_case(tmp_path)
+    return _agent_session_slow_tool_lane_case(tmp_path)
 
 
 def test_slow_tool_rows_follow_the_positional_lane_ladder(

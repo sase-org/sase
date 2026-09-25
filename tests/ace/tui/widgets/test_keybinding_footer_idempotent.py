@@ -121,7 +121,7 @@ async def test_numbered_member_binding_is_conditional_on_container_rows() -> Non
             is_clan_container=True,
             is_agent_session_container_row=False,
         )
-        family = SimpleNamespace(
+        agent_session = SimpleNamespace(
             **common,
             is_clan_container=False,
             is_agent_session_container_row=True,
@@ -133,8 +133,8 @@ async def test_numbered_member_binding_is_conditional_on_container_rows() -> Non
         )
 
         assert ("0-9", "member") in footer._compute_agent_bindings(clan)
-        assert ("0-9", "shell") in footer._compute_agent_bindings(family)
-        assert ("0-9", "member") not in footer._compute_agent_bindings(family)
+        assert ("0-9", "shell") in footer._compute_agent_bindings(agent_session)
+        assert ("0-9", "member") not in footer._compute_agent_bindings(agent_session)
         assert ("0-9", "member") not in footer._compute_agent_bindings(regular)
         assert ("0-9", "shell") not in footer._compute_agent_bindings(regular)
         assert ("0-9", "neighbor") in footer._compute_agent_bindings(

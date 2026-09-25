@@ -176,15 +176,15 @@ def _render_tribe(
     return RenderedSummary(detail.plain, single_jump_map(published))
 
 
-def _family_case(tmp_path: Path) -> _FoldContractCase:
+def _agent_session_case(tmp_path: Path) -> _FoldContractCase:
     populated_agent = make_agent_session(
         tmp_path,
-        suffix="family-populated",
+        suffix="session-populated",
         with_prompt_content=True,
     )
     empty_agent = make_agent_session(
         tmp_path,
-        suffix="family-empty",
+        suffix="session-empty",
         with_prompt_content=False,
     )
     populated = {
@@ -192,7 +192,7 @@ def _family_case(tmp_path: Path) -> _FoldContractCase:
         for level in AGENT_SESSION_FOLD_SCALE
     }
     return _FoldContractCase(
-        kind="family",
+        kind="session",
         scale=AGENT_SESSION_FOLD_SCALE,
         populated=populated,
         empty={
@@ -310,13 +310,13 @@ def _tribe_case() -> _FoldContractCase:
     )
 
 
-@pytest.fixture(params=("family", "clan", "tribe"))
+@pytest.fixture(params=("session", "clan", "tribe"))
 def fold_contract_case(
     request: pytest.FixtureRequest,
     tmp_path: Path,
 ) -> _FoldContractCase:
-    if request.param == "family":
-        return _family_case(tmp_path)
+    if request.param == "session":
+        return _agent_session_case(tmp_path)
     if request.param == "clan":
         return _clan_case()
     return _tribe_case()
@@ -376,10 +376,10 @@ def test_adjacent_levels_change_non_empty_section_bodies(
 def test_agent_session_conversation_bodies_do_not_change_across_scale(
     tmp_path: Path,
 ) -> None:
-    family = _family_case(tmp_path)
+    agent_session = _agent_session_case(tmp_path)
     documents = []
-    for level in family.scale:
-        rendered = family.populated[level].plain
+    for level in agent_session.scale:
+        rendered = agent_session.populated[level].plain
         documents.append(rendered[rendered.index("AGENT XPROMPT") :])
 
     assert documents == [documents[0]] * len(documents)

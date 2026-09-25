@@ -54,7 +54,9 @@ def test_append_kind_header_does_not_mark_a_section() -> None:
     assert _section_ids(text) == []
 
 
-def test_family_container_header_opens_with_family_kind_line(tmp_path: Path) -> None:
+def test_agent_session_container_header_opens_with_agent_session_kind_line(
+    tmp_path: Path,
+) -> None:
     root, _child = make_agent_session(tmp_path)
 
     cheap, _ = build_header_text(
@@ -73,11 +75,11 @@ def test_family_container_header_opens_with_family_kind_line(tmp_path: Path) -> 
         assert header.plain.startswith("SESSION\nName:")
         assert header.plain.index("Name:") < header.plain.index("Fold:")
         assert header.plain.index("Fold:") < header.plain.index("SESSION SHELLS")
-        assert "family" not in _section_ids(header)
+        assert "session" not in _section_ids(header)
         assert _section_ids(header)[0] == "members"
 
 
-def test_family_member_header_opens_with_agent_shell(
+def test_agent_session_member_header_opens_with_agent_shell(
     tmp_path: Path,
 ) -> None:
     _root, child = make_agent_session(tmp_path)
@@ -92,8 +94,8 @@ def test_family_member_header_opens_with_agent_shell(
     assert header.plain.startswith("AGENT SHELL\nName:")
     assert "SESSION SHELLS · 1 · alpha" in header.plain
     prefix, _, _ = header.plain.partition("SESSION SHELLS")
-    assert "FAMILY\n" not in prefix
-    assert "family" not in _section_ids(header)
+    assert "SESSION\n" not in prefix
+    assert "session" not in _section_ids(header)
     assert "agent-shell" not in _section_ids(header)
     assert _section_ids(header)[0] == "members"
 
@@ -120,7 +122,7 @@ def test_update_header_only_includes_kind_heading_on_first_paint() -> None:
     assert plain.startswith("AGENT SHELL\nName: solo\n")
 
 
-def test_unattached_family_root_opens_with_agent_shell() -> None:
+def test_unattached_agent_session_root_opens_with_agent_shell() -> None:
     root = make_agent(
         agent_name="alpha--plan",
         agent_session="alpha",
@@ -134,7 +136,7 @@ def test_unattached_family_root_opens_with_agent_shell() -> None:
     header, _ = build_header_text(root, cheap=True)
 
     assert_kind_header(header, "AGENT SHELL", "#FFD700")
-    assert not header.plain.startswith("FAMILY\n")
+    assert not header.plain.startswith("SESSION\n")
 
 
 def test_monitor_member_has_no_kind_heading() -> None:

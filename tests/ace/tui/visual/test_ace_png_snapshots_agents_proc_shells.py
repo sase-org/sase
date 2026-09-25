@@ -1,7 +1,7 @@
 """sase's TUI PNG visual snapshots for stand-alone proc shells in the Agents tab.
 
 Stand-alone `%proc` launch units are top-level work rows backed only by the proc
-store: they never indent under a family, never take an agent slot, and never
+store: they never indent under a session, never take an agent slot, and never
 change agent counts. These goldens pin that presentation for mixed agent/proc
 rosters, both code languages, every active and terminal state, a long label, a
 narrow terminal, and the proc-shell detail composition.

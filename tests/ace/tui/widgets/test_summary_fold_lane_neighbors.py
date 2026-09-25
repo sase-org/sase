@@ -120,15 +120,15 @@ def _single_sase_agent_case() -> _LaneNeighborContractCase:
     )
 
 
-def _family_lane_case(tmp_path: Path) -> _LaneNeighborContractCase:
+def _agent_session_lane_case(tmp_path: Path) -> _LaneNeighborContractCase:
     lane = make_agent_session(
         tmp_path,
-        suffix="lane-family",
+        suffix="lane-session",
         with_prompt_content=False,
     )
     projection = _lane_projection(lane, lane.presented_identity_name or "")
     return _LaneNeighborContractCase(
-        kind="family-sase-agent",
+        kind="session-sase-agent",
         scale=AGENT_SESSION_FOLD_SCALE,
         leading_member_count=2,
         rendered={
@@ -138,14 +138,14 @@ def _family_lane_case(tmp_path: Path) -> _LaneNeighborContractCase:
     )
 
 
-@pytest.fixture(params=("single-sase-agent", "family-sase-agent"))
+@pytest.fixture(params=("single-sase-agent", "session-sase-agent"))
 def lane_neighbor_case(
     request: pytest.FixtureRequest,
     tmp_path: Path,
 ) -> _LaneNeighborContractCase:
     if request.param == "single-sase-agent":
         return _single_sase_agent_case()
-    return _family_lane_case(tmp_path)
+    return _agent_session_lane_case(tmp_path)
 
 
 def _shown_neighbor_count(case: _LaneNeighborContractCase, level: FoldLevel) -> int:

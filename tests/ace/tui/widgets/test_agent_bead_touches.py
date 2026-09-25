@@ -290,7 +290,7 @@ def test_merge_takes_first_available_title() -> None:
     assert entry.title == "Kept title"
 
 
-def test_merge_sums_verbs_across_family_producers() -> None:
+def test_merge_sums_verbs_across_agent_session_producers() -> None:
     first = _touch("a", "sase-1", verbs={"noted": 1})
     second = _touch("b", "sase-1", verbs={"noted": 2, "closed": 1})
     (entry,) = merge_bead_touch_entries(
@@ -300,7 +300,7 @@ def test_merge_sums_verbs_across_family_producers() -> None:
     assert entry.agent_label is None
 
 
-def test_merge_keeps_shared_family_label() -> None:
+def test_merge_keeps_shared_agent_session_label() -> None:
     touch = _touch("a", "sase-1", verbs={"noted": 1})
     read = _read("bead:sase-1", "2026-09-20T16:00:00Z", read_id="r1", label="plan")
     (entry,) = merge_bead_touch_entries((_display(touch, "plan"),), (read,), ())
@@ -470,7 +470,7 @@ def test_loader_caps_at_max_kept_touches(
     assert len(load_bead_touches_for_agent_context(agent)) == MAX_KEPT_TOUCHES
 
 
-def test_family_loader_attributes_touches_with_role_labels(
+def test_agent_session_loader_attributes_touches_with_role_labels(
     monkeypatch: pytest.MonkeyPatch,
     _loader_env: dict[str, object],
 ) -> None:
@@ -498,7 +498,7 @@ def test_family_loader_attributes_touches_with_role_labels(
     ]
 
 
-def test_single_member_family_takes_per_agent_path(
+def test_single_member_agent_session_takes_per_agent_path(
     monkeypatch: pytest.MonkeyPatch,
     _loader_env: dict[str, object],
 ) -> None:

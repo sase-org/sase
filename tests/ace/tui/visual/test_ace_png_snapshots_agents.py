@@ -1,6 +1,6 @@
 """sase's TUI PNG visual snapshots for general Agents-tab list states.
 
-Family and clan list snapshots live in the sibling ``*_families`` and
+Session and clan list snapshots live in the sibling ``*_agent_sessions`` and
 ``*_clans`` modules. Agents-tab modal and detail snapshots live in the other
 ``test_ace_png_snapshots_agents_*`` modules.
 """
@@ -17,7 +17,7 @@ from sase.ace.tui.widgets.agent_load_indicator import AgentLoadIndicator
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     capacity_budget_accent_agents,
-    output_variable_family_agents,
+    output_variable_agent_session_agents,
     plan_handoff_status_agents,
     reserved_tribe_wait_agents,
     runner_slot_queue_window_agents,
@@ -395,7 +395,7 @@ async def test_agent_output_variables_multi_agent_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 8, 9, 9, 0))
-    patch_startup_loaders(monkeypatch, agents=output_variable_family_agents())
+    patch_startup_loaders(monkeypatch, agents=output_variable_agent_session_agents())
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)

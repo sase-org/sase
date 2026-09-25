@@ -41,7 +41,7 @@ def make_clan_agent(
     stop: datetime | None = None,
     model: str | None = "gpt-5",
     parent_timestamp: str | None = None,
-    family: str | None = None,
+    agent_session: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -54,7 +54,7 @@ def make_clan_agent(
         raw_suffix=start.strftime("%Y%m%d%H%M%S") + name,
         agent_name=name,
         parent_timestamp=parent_timestamp,
-        agent_session=family,
+        agent_session=agent_session,
         agent_clan="research",
         agent_clan_generation=_GENERATION,
         model=model,

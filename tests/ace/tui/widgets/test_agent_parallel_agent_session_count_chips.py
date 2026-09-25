@@ -14,8 +14,8 @@ from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
 def _agent(*, suffix: str, status: str = "RUNNING") -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="family",
-        project_file="/tmp/family.sase",
+        cl_name="session",
+        project_file="/tmp/session.sase",
         status=status,
         start_time=datetime(2026, 7, 17, 12, 0, 0),
         raw_suffix=suffix,
@@ -162,25 +162,25 @@ def test_clan_row_renders_direct_member_count_chip() -> None:
 
 
 def test_agent_session_inside_clan_omits_chip_and_member_unread_suffix() -> None:
-    family = _agent(suffix="family", status="DONE")
-    family.cl_name = "research.writer"
-    family.agent_name = "research.writer"
-    family.agent_session = "research.writer"
-    family.agent_session_role = "root"
-    family.agent_clan = "research"
-    family.agent_clan_generation = "gen"
+    agent_session = _agent(suffix="session", status="DONE")
+    agent_session.cl_name = "research.writer"
+    agent_session.agent_name = "research.writer"
+    agent_session.agent_session = "research.writer"
+    agent_session.agent_session_role = "root"
+    agent_session.agent_clan = "research"
+    agent_session.agent_clan_generation = "gen"
     member = _agent(suffix="member", status="DONE")
     member.cl_name = "research.writer--code"
     member.agent_name = "research.writer--code"
     member.agent_session = "research.writer"
     member.agent_session_role = "code"
-    member.parent_timestamp = family.raw_suffix
+    member.parent_timestamp = agent_session.raw_suffix
     member.agent_clan = "research"
     member.agent_clan_generation = "gen"
-    family.runtime_children = [member]
-    family.followup_agents = [member]
+    agent_session.runtime_children = [member]
+    agent_session.followup_agents = [member]
     _clan, projected_agent_session, projected_member = project_clan_tree(
-        [family, member]
+        [agent_session, member]
     )
 
     agent_session_left, agent_session_suffix, _ = format_agent_option(

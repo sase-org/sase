@@ -247,7 +247,7 @@ def test_hint_mode_restores_file_hints_after_semantics(
     assert _has_role_underline(_styles_at(rendered, "Agent Clan"))
 
 
-def test_family_pinned_and_workflow_authored_prompt_paths(
+def test_agent_session_pinned_and_workflow_authored_prompt_paths(
     tmp_path: Path,
 ) -> None:
     panel = FakePromptPanel()
@@ -263,11 +263,11 @@ def test_family_pinned_and_workflow_authored_prompt_paths(
     )
     Path(root.artifacts_dir, "01_prompt.md").write_text(source + "\n", encoding="utf-8")
     panel.update_display(root)
-    family_plain = plain_of(panel.captured[-1])
-    assert "AGENT XPROMPT" in family_plain
-    assert "Agent Clan" in family_plain
-    family_header = _header_text(panel.captured[-1])
-    assert _has_role_underline(_styles_at(family_header, "Agent Clan"))
+    agent_session_plain = plain_of(panel.captured[-1])
+    assert "AGENT XPROMPT" in agent_session_plain
+    assert "Agent Clan" in agent_session_plain
+    agent_session_header = _header_text(panel.captured[-1])
+    assert _has_role_underline(_styles_at(agent_session_header, "Agent Clan"))
 
     pinned = FakePromptPanel()
     install_panel_semantics(pinned, glossary=glossary, repo=repo)

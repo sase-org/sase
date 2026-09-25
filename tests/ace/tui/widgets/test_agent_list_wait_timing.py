@@ -195,7 +195,7 @@ class TestRelativeWaitDurationRendering:
         assert "Wait: [time] 5m (" in header.plain
         assert " left)" in header.plain
 
-    def test_family_child_header_renders_waiting_for_like_root_waiting_row(
+    def test_agent_session_child_header_renders_waiting_for_like_root_waiting_row(
         self,
     ) -> None:
         agent = make_agent(

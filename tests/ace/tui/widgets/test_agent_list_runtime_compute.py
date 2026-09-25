@@ -298,7 +298,7 @@ def test_compute_row_runtime_settled_starter_ignores_settled_monitor() -> None:
     assert expected == (("", "14:35:00"), "5m")
 
 
-def test_compute_row_runtime_family_container_spans_running_monitor() -> None:
+def test_compute_row_runtime_agent_session_container_spans_running_monitor() -> None:
     now = datetime(2026, 4, 25, 14, 40, 0)
     starter = agent(
         status="DONE",
@@ -338,7 +338,7 @@ def _planner_and_pending_gate() -> tuple[Agent, Agent]:
     return planner, gate
 
 
-def test_family_container_excludes_pending_gate_review_window() -> None:
+def test_agent_session_container_excludes_pending_gate_review_window() -> None:
     planner, gate = _planner_and_pending_gate()
     container = agent_session_container(planner)
     container.runtime_children.append(gate)
@@ -351,7 +351,7 @@ def test_family_container_excludes_pending_gate_review_window() -> None:
     assert runtime_suffix_ticks(container) is False
 
 
-def test_family_container_excludes_settled_gate_after_coder_starts() -> None:
+def test_agent_session_container_excludes_settled_gate_after_coder_starts() -> None:
     planner, _pending = _planner_and_pending_gate()
     gate = gate_shell(
         status="ANSWERED",
@@ -378,7 +378,7 @@ def test_family_container_excludes_settled_gate_after_coder_starts() -> None:
     assert runtime_suffix_ticks(container) is True
 
 
-def test_family_container_finish_timestamp_ignores_settled_gate() -> None:
+def test_agent_session_container_finish_timestamp_ignores_settled_gate() -> None:
     planner, _pending = _planner_and_pending_gate()
     gate = gate_shell(
         status="ANSWERED",
@@ -412,7 +412,7 @@ def test_gate_shell_own_row_still_reports_leaf_runtime() -> None:
     assert compute_row_runtime(gate, now=now) == (ts, elapsed)
 
 
-def test_family_container_includes_agent_attached_beneath_gate() -> None:
+def test_agent_session_container_includes_agent_attached_beneath_gate() -> None:
     planner, gate = _planner_and_pending_gate()
     coder = agent(
         status="RUNNING",
@@ -432,7 +432,7 @@ def test_family_container_includes_agent_attached_beneath_gate() -> None:
     assert elapsed == "40m"
 
 
-def test_family_container_includes_monitor_but_not_gate() -> None:
+def test_agent_session_container_includes_monitor_but_not_gate() -> None:
     starter = agent(
         status="DONE",
         start=datetime(2026, 4, 25, 14, 30, 0),
@@ -462,7 +462,7 @@ def test_family_container_includes_monitor_but_not_gate() -> None:
     assert runtime_suffix_ticks(container) is True
 
 
-def test_family_container_counts_monitor_starter_and_monitor() -> None:
+def test_agent_session_container_counts_monitor_starter_and_monitor() -> None:
     planner = agent(
         status="DONE",
         start=datetime(2026, 4, 25, 14, 0, 0),
@@ -503,7 +503,7 @@ def test_family_container_counts_monitor_starter_and_monitor() -> None:
     assert runtime_suffix_ticks(container) is True
 
 
-def test_monitor_only_family_container_counts_own_interval() -> None:
+def test_monitor_only_agent_session_container_counts_own_interval() -> None:
     root = agent(
         status="DONE",
         start=datetime(2026, 4, 25, 14, 0, 0),
@@ -562,7 +562,7 @@ def test_workflow_aggregate_runtime_uses_steps_not_parent_interval() -> None:
     assert elapsed == "2m"
 
 
-def test_family_container_chained_gates_do_not_resurrect_intervals() -> None:
+def test_agent_session_container_chained_gates_do_not_resurrect_intervals() -> None:
     planner, outer = _planner_and_pending_gate()
     inner = gate_shell(
         status="PLAN",
@@ -583,7 +583,7 @@ def test_family_container_chained_gates_do_not_resurrect_intervals() -> None:
     assert ts == ("", "14:30:00")
 
 
-def test_lowest_row_runtime_drops_family_parked_on_pending_gate() -> None:
+def test_lowest_row_runtime_drops_agent_session_parked_on_pending_gate() -> None:
     planner, gate = _planner_and_pending_gate()
     container = agent_session_container(planner)
     container.runtime_children.append(gate)

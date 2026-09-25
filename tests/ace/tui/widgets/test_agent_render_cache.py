@@ -26,20 +26,20 @@ from ._agent_render_cache_helpers import bead_key as _bead_key
 from ._agent_render_cache_helpers import style_at as _style_at
 
 
-def _running_family_for_cache() -> tuple[Agent, Agent]:
-    root = _agent(cl_name="family", status="DONE", agent_name="family--0")
-    root.agent_session = "family"
+def _running_agent_session_for_cache() -> tuple[Agent, Agent]:
+    root = _agent(cl_name="session", status="DONE", agent_name="session--0")
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.role_suffix = "--0"
     root.stop_time = datetime(2026, 4, 25, 14, 29, 0)
     child = _agent(
-        cl_name="family--code",
+        cl_name="session--code",
         status="RUNNING",
         raw_suffix="code",
-        agent_name="family--code",
+        agent_name="session--code",
     )
     child.parent_timestamp = root.raw_suffix
-    child.agent_session = "family"
+    child.agent_session = "session"
     child.agent_session_role = "code"
     child.role_suffix = "--code"
     child.run_start_time = datetime(2026, 4, 25, 14, 30, 0)
@@ -254,7 +254,9 @@ def test_cached_format_agent_option_invalidates_on_unresolvable_wait_flag() -> N
     assert unresolvable[0].plain.endswith("(WAITING !)")
 
 
-def test_cached_family_root_invalidates_when_first_real_member_is_added() -> None:
+def test_cached_agent_session_root_invalidates_when_first_real_member_is_added() -> (
+    None
+):
     cache = AgentRenderCache()
     root = _agent(agent_name="demo")
     root.agent_session = "demo"
@@ -275,9 +277,9 @@ def test_cached_family_root_invalidates_when_first_real_member_is_added() -> Non
     assert "[agent]" not in after[0].plain
 
 
-def test_cached_family_root_ignores_member_unread_count_changes() -> None:
+def test_cached_agent_session_root_ignores_member_unread_count_changes() -> None:
     cache = AgentRenderCache()
-    root = _agent(cl_name="build", agent_name="build", raw_suffix="family")
+    root = _agent(cl_name="build", agent_name="build", raw_suffix="session")
     root.agent_session = "build"
     root.agent_session_role = "root"
     member = _agent(
@@ -311,9 +313,9 @@ def test_cached_family_root_ignores_member_unread_count_changes() -> None:
     assert "[U1]" not in stale_shell_unread[0].plain
 
 
-def test_cached_family_runtime_invalidates_when_active_shell_changes() -> None:
+def test_cached_agent_session_runtime_invalidates_when_active_shell_changes() -> None:
     cache = AgentRenderCache()
-    root, child = _running_family_for_cache()
+    root, child = _running_agent_session_for_cache()
     now = datetime(2026, 4, 25, 14, 35, 0)
 
     before = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
@@ -321,13 +323,13 @@ def test_cached_family_runtime_invalidates_when_active_shell_changes() -> None:
     child.status = "DONE"
     child.stop_time = datetime(2026, 4, 25, 14, 33, 0)
     next_child = _agent(
-        cl_name="family--review",
+        cl_name="session--review",
         status="RUNNING",
         raw_suffix="review",
-        agent_name="family--review",
+        agent_name="session--review",
     )
     next_child.parent_timestamp = root.raw_suffix
-    next_child.agent_session = "family"
+    next_child.agent_session = "session"
     next_child.agent_session_role = "review"
     next_child.role_suffix = "--review"
     next_child.start_time = datetime(2026, 4, 25, 14, 34, 0)
@@ -342,9 +344,11 @@ def test_cached_family_runtime_invalidates_when_active_shell_changes() -> None:
     assert before[1] is not after[1]
 
 
-def test_cached_family_runtime_invalidates_when_active_shell_timing_changes() -> None:
+def test_cached_agent_session_runtime_invalidates_when_active_shell_timing_changes() -> (
+    None
+):
     cache = AgentRenderCache()
-    root, child = _running_family_for_cache()
+    root, child = _running_agent_session_for_cache()
     now = datetime(2026, 4, 25, 14, 35, 0)
 
     before = cached_format_agent_option(cache, root, 0, is_selected=False, now=now)
@@ -357,10 +361,10 @@ def test_cached_family_runtime_invalidates_when_active_shell_timing_changes() ->
     assert before[1] is not after[1]
 
 
-def test_cached_family_row_invalidates_when_gate_settles() -> None:
+def test_cached_agent_session_row_invalidates_when_gate_settles() -> None:
     cache = AgentRenderCache()
-    planner = _agent(cl_name="family--plan", status="DONE", agent_name="family--plan")
-    planner.agent_session = "family"
+    planner = _agent(cl_name="session--plan", status="DONE", agent_name="session--plan")
+    planner.agent_session = "session"
     planner.agent_session_role = "plan"
     planner.role_suffix = "--plan"
     planner.start_time = datetime(2026, 4, 25, 14, 0, 0)
@@ -372,9 +376,9 @@ def test_cached_family_row_invalidates_when_gate_settles() -> None:
         stop=None,
         gate_state="pending",
         raw_suffix="gate",
-        cl_name="family--gate",
+        cl_name="session--gate",
     )
-    gate.agent_session = "family"
+    gate.agent_session = "session"
     root = agent_session_container(planner)
     root.runtime_children.append(gate)
     root.followup_agents.append(gate)

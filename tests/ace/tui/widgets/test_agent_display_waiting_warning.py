@@ -260,7 +260,7 @@ def test_unknown_clan_wait_keeps_unknown_badge() -> None:
     assert _wait_block(header) == "Wait: [agents] archived-clan ?"
 
 
-def test_collect_agent_status_buckets_includes_family_and_raw_names() -> None:
+def test_collect_agent_status_buckets_includes_agent_session_and_raw_names() -> None:
     root = make_agent(
         agent_name="research.plan",
         agent_session="research",
@@ -280,8 +280,8 @@ def test_collect_agent_status_buckets_includes_family_and_raw_names() -> None:
     }
 
 
-def test_collect_agent_status_buckets_applies_family_precedence() -> None:
-    def family_agent(agent_name: str, status: str):
+def test_collect_agent_status_buckets_applies_agent_session_precedence() -> None:
+    def member(agent_name: str, status: str):
         return make_agent(
             agent_name=agent_name,
             agent_session="foo",
@@ -292,31 +292,31 @@ def test_collect_agent_status_buckets_applies_family_precedence() -> None:
 
     assert (
         _collect_agent_status_buckets(
-            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "DONE")]
+            [member("foo.1", "FAILED"), member("foo.2", "DONE")]
         )["foo"]
         == "Done"
     )
     assert (
         _collect_agent_status_buckets(
-            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "RUNNING")]
+            [member("foo.1", "FAILED"), member("foo.2", "RUNNING")]
         )["foo"]
         == "Running"
     )
     assert (
         _collect_agent_status_buckets(
-            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "PLAN")]
+            [member("foo.1", "FAILED"), member("foo.2", "PLAN")]
         )["foo"]
         == "Stopped"
     )
     assert (
         _collect_agent_status_buckets(
-            [family_agent("foo.1", "WAITING"), family_agent("foo.2", "STARTING")]
+            [member("foo.1", "WAITING"), member("foo.2", "STARTING")]
         )["foo"]
         == "Starting"
     )
     assert (
         _collect_agent_status_buckets(
-            [family_agent("foo.1", "FAILED"), family_agent("foo.2", "FAILED")]
+            [member("foo.1", "FAILED"), member("foo.2", "FAILED")]
         )["foo"]
         == "Failed"
     )
@@ -381,33 +381,33 @@ def test_collect_agent_status_buckets_uses_newest_clan_generation() -> None:
     assert clan_members["sase-7g"] == ((".new-0", "Done"), (".new-1", "Done"))
 
 
-def test_real_agent_and_family_names_win_clan_name_collisions() -> None:
+def test_real_agent_and_agent_session_names_win_clan_name_collisions() -> None:
     agent_collision = make_agent(
         agent_name="legacy-agent",
         status="WAITING",
     )
-    family_collision = make_agent(
-        agent_name="legacy-family.plan",
-        agent_session="legacy-family",
+    agent_session_collision = make_agent(
+        agent_name="legacy-session.plan",
+        agent_session="legacy-session",
         agent_session_role="root",
         plan_chain_root=True,
         status="FAILED",
     )
     clans = [
         *_clan_rows("legacy-agent", "20260719120000", [("done", "DONE")]),
-        *_clan_rows("legacy-family", "20260719120000", [("done", "DONE")]),
+        *_clan_rows("legacy-session", "20260719120000", [("done", "DONE")]),
     ]
 
     status_maps = _collect_agent_wait_status_maps(
-        [agent_collision, family_collision, *clans]
+        [agent_collision, agent_session_collision, *clans]
     )
     buckets = status_maps.buckets
     clan_members = status_maps.clan_member_statuses
 
     assert buckets["legacy-agent"] == "Waiting"
-    assert buckets["legacy-family"] == "Failed"
+    assert buckets["legacy-session"] == "Failed"
     assert "legacy-agent" not in clan_members
-    assert "legacy-family" not in clan_members
+    assert "legacy-session" not in clan_members
 
 
 def test_agent_status_buckets_for_app_uses_full_agent_set_and_falls_back() -> None:

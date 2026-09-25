@@ -217,7 +217,7 @@ def test_responsive_lanes_render_at_widths_in_identity_and_body() -> None:
         assert body_lines == [] or all(len(line) <= width + 1 for line in body_lines)
 
 
-def test_family_fold_line_moves_into_identity(tmp_path: Path) -> None:
+def test_agent_session_fold_line_moves_into_identity(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     plain, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.COLLAPSED)
     assert "Fold:" in plain.plain

@@ -106,11 +106,11 @@ def test_mixed_unit_replies_are_attributed_and_member_cache_is_reused(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
-    family = _reply_agent(
+    agent_session = _reply_agent(
         tmp_path,
         "build--plan",
-        "family",
-        "Family root reply",
+        "session",
+        "Session root reply",
         agent_session="build",
         agent_session_role="root",
         plan_chain_root=True,
@@ -122,16 +122,16 @@ def test_mixed_unit_replies_are_attributed_and_member_cache_is_reused(
         "Child reply",
         agent_session="build",
         agent_session_role="code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session.raw_suffix,
     )
-    family.followup_agents = [child]
+    agent_session.followup_agents = [child]
     standalone = _reply_agent(
         tmp_path,
         "standalone",
         "standalone",
         "Standalone reply",
     )
-    agents = [family, child, standalone]
+    agents = [agent_session, child, standalone]
     summary = build_agent_tribe_summary_snapshot(
         "epic",
         agents,
@@ -152,7 +152,7 @@ def test_mixed_unit_replies_are_attributed_and_member_cache_is_reused(
         (item.unit_label, item.entry.member_label, item.entry.preview)
         for item in cast(_TribeDiskSnapshot, first.disk).replies
     ] == [
-        ("build", "build", "Family root reply"),
+        ("build", "build", "Session root reply"),
         ("build", "--code", "Child reply"),
         ("standalone", "standalone", "Standalone reply"),
     ]
@@ -232,10 +232,10 @@ def test_clan_unit_reuses_fresh_clan_snapshot(
 
 
 def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
-    family = _prompt_agent(
+    agent_session = _prompt_agent(
         tmp_path,
         "build--plan",
-        "family",
+        "session",
         xprompt="%id(1)\n#bd/work_phase_bead:sase-16t.1\n",
         agent_session="build",
         agent_session_role="root",
@@ -248,9 +248,9 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         xprompt="%id(2)\n#bd/work_phase_bead:sase-16t.2\n",
         agent_session="build",
         agent_session_role="code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session.raw_suffix,
     )
-    family.followup_agents = [child]
+    agent_session.followup_agents = [child]
     first_standalone = _prompt_agent(
         tmp_path,
         "first",
@@ -274,7 +274,7 @@ def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
         parent_timestamp=child.raw_suffix,
     )
     assert monitor.is_monitor
-    agents = [family, child, monitor, first_standalone, second_standalone]
+    agents = [agent_session, child, monitor, first_standalone, second_standalone]
     summary = build_agent_tribe_summary_snapshot(
         "epic",
         agents,

@@ -71,7 +71,7 @@ def _auto_approve_agents() -> list[Agent]:
 
 
 def _auto_approve_workflow_child_agents() -> list[Agent]:
-    """Expanded workflow family for auto-approve child-row alignment coverage."""
+    """Expanded workflow session for auto-approve child-row alignment coverage."""
     root_timestamp = "20260509-100000-workflow"
     project_file = "/workspace/sase/visual_project.sase"
     started = datetime(2026, 5, 9, 10, 0, 0)

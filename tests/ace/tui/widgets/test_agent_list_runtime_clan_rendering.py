@@ -95,16 +95,18 @@ def test_format_agent_option_active_clan_orders_lanes_by_seconds_not_string() ->
     assert suffix.plain == "🏃‍♂️ 45m / 1h05m"
 
 
-def test_format_agent_option_clan_single_family_lane_matches_family_total() -> None:
+def test_format_agent_option_clan_single_agent_session_lane_matches_agent_session_total() -> (
+    None
+):
     root = agent(
         status="RUNNING",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         raw_suffix="root",
-        cl_name="family",
+        cl_name="session",
     )
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.role_suffix = "--0"
     waiting_child = agent(
@@ -112,10 +114,10 @@ def test_format_agent_option_clan_single_family_lane_matches_family_total() -> N
         start=datetime(2026, 7, 19, 9, 1, 0),
         run_start=None,
         raw_suffix="waiting",
-        cl_name="family--review",
+        cl_name="session--review",
     )
     waiting_child.parent_timestamp = root.raw_suffix
-    waiting_child.agent_session = "family"
+    waiting_child.agent_session = "session"
     waiting_child.agent_session_role = "review"
     waiting_child.role_suffix = "--review"
     root.followup_agents = [waiting_child]
@@ -126,27 +128,31 @@ def test_format_agent_option_clan_single_family_lane_matches_family_total() -> N
     clan.runtime_children = [root]
 
     now = datetime(2026, 7, 19, 9, 3, 5)
-    _, family_suffix, _ = format_agent_option(root, 0, is_selected=False, now=now)
+    _, agent_session_suffix, _ = format_agent_option(
+        root, 0, is_selected=False, now=now
+    )
     _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
 
-    assert family_suffix.plain == "🏃‍♂️ 3m05s / 3m05s"
+    assert agent_session_suffix.plain == "🏃‍♂️ 3m05s / 3m05s"
     assert (
         clan_suffix.plain.split(" / ")[0]
-        == "🏃‍♂️ " + family_suffix.plain.split(" / ")[1]
+        == "🏃‍♂️ " + agent_session_suffix.plain.split(" / ")[1]
     )
 
 
-def test_format_agent_option_clan_family_lane_contributes_family_total() -> None:
+def test_format_agent_option_clan_agent_session_lane_contributes_agent_session_total() -> (
+    None
+):
     root = agent(
         agent_type=AgentType.WORKFLOW,
         status="WORKING TALE",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         raw_suffix="root",
-        cl_name="family-workflow",
+        cl_name="session-workflow",
     )
-    root.agent_name = "family--plan"
-    root.agent_session = "family"
+    root.agent_name = "session--plan"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.plan_chain_root = True
     planner = workflow_child(
@@ -163,10 +169,10 @@ def test_format_agent_option_clan_family_lane_contributes_family_total() -> None
         start=datetime(2026, 7, 19, 9, 4, 0),
         run_start=datetime(2026, 7, 19, 9, 4, 0),
         raw_suffix="coder",
-        cl_name="family--code",
+        cl_name="session--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_session = "family"
+    coder.agent_session = "session"
     coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     root.runtime_children = [planner, coder]
@@ -188,41 +194,43 @@ def test_format_agent_option_clan_family_lane_contributes_family_total() -> None
     clan.runtime_children = [root, solo]
 
     now = datetime(2026, 7, 19, 9, 5, 5)
-    _, family_suffix, _ = format_agent_option(root, 0, is_selected=False, now=now)
+    _, agent_session_suffix, _ = format_agent_option(
+        root, 0, is_selected=False, now=now
+    )
     _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
 
-    assert family_suffix.plain == "🏃‍♂️ 1m05s / 3m05s"
+    assert agent_session_suffix.plain == "🏃‍♂️ 1m05s / 3m05s"
     assert clan_suffix.plain == "🏃‍♂️ 3m05s / 5m05s"
     assert "1m05s" not in clan_suffix.plain  # the coder shell's own runtime
 
 
-def test_format_agent_option_clan_family_lane_falls_back_when_total_is_not_live() -> (
+def test_format_agent_option_clan_agent_session_lane_falls_back_when_total_is_not_live() -> (
     None
 ):
-    # The family aggregate collapses to an inactive "0s" while a queued-only
-    # child sits in runtime_children -- see plan Follow-up 1 ("a family
+    # The session aggregate collapses to an inactive "0s" while a queued-only
+    # child sits in runtime_children -- see plan Follow-up 1 ("a session
     # total can collapse to 0s"), tracked as a pre-existing bug in
     # `_aggregate_runtime()`. Re-evaluate this test once that bug is fixed:
-    # the family row's own "0s" total pinned below should no longer occur.
+    # the session row's own "0s" total pinned below should no longer occur.
     root = agent(
         status="RUNNING",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         raw_suffix="root",
-        cl_name="family",
+        cl_name="session",
     )
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     queued_child = agent(
         status="WAITING",
         start=datetime(2026, 7, 19, 9, 1, 0),
         run_start=None,
         raw_suffix="queued",
-        cl_name="family--review",
+        cl_name="session--review",
     )
     queued_child.parent_timestamp = root.raw_suffix
-    queued_child.agent_session = "family"
+    queued_child.agent_session = "session"
     queued_child.agent_session_role = "review"
     queued_child.role_suffix = "--review"
     root.runtime_children = [queued_child]
@@ -234,10 +242,12 @@ def test_format_agent_option_clan_family_lane_falls_back_when_total_is_not_live(
     clan.runtime_children = [root]
 
     now = datetime(2026, 7, 19, 9, 3, 5)
-    _, family_suffix, _ = format_agent_option(root, 0, is_selected=False, now=now)
+    _, agent_session_suffix, _ = format_agent_option(
+        root, 0, is_selected=False, now=now
+    )
     _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
 
-    assert family_suffix.plain == "🏃‍♂️ 3m05s / 0s"
+    assert agent_session_suffix.plain == "🏃‍♂️ 3m05s / 0s"
     assert " / " in clan_suffix.plain  # never an empty left value
     assert clan_suffix.plain.split(" / ")[0] == "🏃‍♂️ 3m05s"  # never 0s
 
@@ -369,11 +379,11 @@ def test_clan_excludes_pending_gate_and_does_not_pin_lowest_lane() -> None:
         gate_state="pending",
         raw_suffix="20260425143000",
     )
-    family = agent_session_container(planner)
-    family.runtime_children.append(gate)
-    family.followup_agents.append(gate)
-    family.agent_clan = "research"
-    family.agent_clan_generation = "gen-1"
+    agent_session = agent_session_container(planner)
+    agent_session.runtime_children.append(gate)
+    agent_session.followup_agents.append(gate)
+    agent_session.agent_clan = "research"
+    agent_session.agent_clan_generation = "gen-1"
 
     running = agent(
         status="RUNNING",
@@ -386,11 +396,11 @@ def test_clan_excludes_pending_gate_and_does_not_pin_lowest_lane() -> None:
     running.agent_clan_generation = "gen-1"
 
     clan = _clan_container()
-    clan.runtime_children = [family, running]
+    clan.runtime_children = [agent_session, running]
     now = datetime(2026, 4, 25, 16, 0, 0)
 
     _, clan_suffix, _ = format_agent_option(clan, 0, is_selected=False, now=now)
 
     assert clan_suffix.plain == "🏃‍♂️ 10m / 40m"
-    assert compute_lowest_row_runtime([family], now=now) is None
-    assert compute_lowest_row_runtime([family, running], now=now) == "10m"
+    assert compute_lowest_row_runtime([agent_session], now=now) is None
+    assert compute_lowest_row_runtime([agent_session, running], now=now) == "10m"

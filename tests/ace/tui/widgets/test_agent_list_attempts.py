@@ -119,7 +119,7 @@ def test_fold_annotation_empty_when_no_attempts_and_no_workflow() -> None:
     assert annotation == ""
 
 
-def test_fold_annotation_keeps_parallel_family_counts_out_of_structure() -> None:
+def test_fold_annotation_keeps_parallel_agent_session_counts_out_of_structure() -> None:
     root = _make_agent()
     root.agent_session_parallel = True
     root.runtime_children.extend(

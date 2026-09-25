@@ -155,9 +155,9 @@ def _marked_spans(renderable: object) -> list[tuple[str, bool, str]]:
 def test_only_title_anchors_carry_nonempty_all_caps_underlined_text(
     tmp_path: Path,
 ) -> None:
-    family, _child = make_agent_session(tmp_path)
-    family_header, _ = build_header_text(
-        family, cheap=True, lane_fold_level=FoldLevel.EXPANDED
+    agent_session, _child = make_agent_session(tmp_path)
+    agent_session_header, _ = build_header_text(
+        agent_session, cheap=True, lane_fold_level=FoldLevel.EXPANDED
     )
 
     clan_container = Agent(
@@ -229,7 +229,7 @@ def test_only_title_anchors_carry_nonempty_all_caps_underlined_text(
     workflow_renderable = build_workflow_detail_renderable(workflow, workflow_snapshot)
 
     documents = [
-        family_header,
+        agent_session_header,
         clan_header,
         tribe_detail,
         regular_renderable,
@@ -275,7 +275,7 @@ def test_agent_session_conversation_headings_remain_navigation_targets(
         if identity in {"agent-xprompt", "agent-prompt", "agent-reply"}
     ]
     assert conversation_ids == ["agent-xprompt", "agent-prompt", "agent-reply"]
-    assert "family" not in identities
+    assert "session" not in identities
     assert "agent-shell" not in identities
     assert identities[0] == "members"
 
@@ -292,7 +292,7 @@ def test_agent_session_kind_header_is_not_a_section_title(tmp_path: Path) -> Non
 
     assert agent_session.is_agent_session_container_row is True
     assert header.plain.startswith("SESSION\n")
-    assert "family" not in identities
+    assert "session" not in identities
     assert identities[0] == "members"
 
 
@@ -304,5 +304,5 @@ def test_agent_shell_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
 
     assert header.plain.startswith("AGENT SHELL\n")
     assert "agent-shell" not in identities
-    assert "family" not in identities
+    assert "session" not in identities
     assert identities[0] == "members"

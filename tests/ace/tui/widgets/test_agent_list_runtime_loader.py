@@ -41,7 +41,7 @@ def test_workflow_step_loader_marks_appears_as_agent_parent(tmp_path: Path) -> N
     assert agents[0].parent_appears_as_agent is True
 
 
-def _write_family_root_workflow(
+def _write_agent_session_root_workflow(
     timestamp_dir: Path,
     *,
     step_status: str,
@@ -84,13 +84,13 @@ def _write_family_root_workflow(
     (timestamp_dir / "agent_meta.json").write_text(json.dumps(meta))
 
 
-def test_workflow_step_loader_marks_stuck_plan_done_when_family_advanced(
+def test_workflow_step_loader_marks_stuck_plan_done_when_agent_session_advanced(
     tmp_path: Path,
 ) -> None:
     """A stuck in_progress plan step flips to DONE under EPIC APPROVED root."""
     project_dir = tmp_path / "demo"
     timestamp_dir = project_dir / "artifacts" / "ace-run" / "20260523143000"
-    _write_family_root_workflow(
+    _write_agent_session_root_workflow(
         timestamp_dir,
         step_status="in_progress",
         plan_approved=True,
@@ -107,11 +107,11 @@ def test_workflow_step_loader_marks_stuck_plan_done_when_family_advanced(
 def test_workflow_step_loader_marks_stuck_plan_done_for_tale_epic_commit(
     tmp_path: Path,
 ) -> None:
-    """tale / epic / commit all qualify as 'family advanced past plan'."""
+    """tale / epic / commit all qualify as 'session advanced past plan'."""
     for action in ("tale", "epic", "commit"):
         project_dir = tmp_path / f"demo_{action}"
         timestamp_dir = project_dir / "artifacts" / "ace-run" / "20260523143000"
-        _write_family_root_workflow(
+        _write_agent_session_root_workflow(
             timestamp_dir,
             step_status="in_progress",
             plan_approved=True,
@@ -123,13 +123,13 @@ def test_workflow_step_loader_marks_stuck_plan_done_for_tale_epic_commit(
         assert agents[0].status == "DONE", f"action={action}"
 
 
-def test_workflow_step_loader_keeps_running_plan_without_family_signal(
+def test_workflow_step_loader_keeps_running_plan_without_agent_session_signal(
     tmp_path: Path,
 ) -> None:
     """No plan_approved flag → plan step keeps its live RUNNING display."""
     project_dir = tmp_path / "demo"
     timestamp_dir = project_dir / "artifacts" / "ace-run" / "20260523143000"
-    _write_family_root_workflow(
+    _write_agent_session_root_workflow(
         timestamp_dir,
         step_status="in_progress",
         plan_approved=False,
@@ -141,13 +141,13 @@ def test_workflow_step_loader_keeps_running_plan_without_family_signal(
     assert agents[0].status == "RUNNING"
 
 
-def test_workflow_step_loader_promotes_waiting_input_plan_under_advanced_family(
+def test_workflow_step_loader_promotes_waiting_input_plan_under_advanced_agent_session(
     tmp_path: Path,
 ) -> None:
     """waiting_hitl also qualifies as a non-terminal stuck plan status."""
     project_dir = tmp_path / "demo"
     timestamp_dir = project_dir / "artifacts" / "ace-run" / "20260523143000"
-    _write_family_root_workflow(
+    _write_agent_session_root_workflow(
         timestamp_dir,
         step_status="waiting_hitl",
         plan_approved=True,
@@ -162,10 +162,10 @@ def test_workflow_step_loader_promotes_waiting_input_plan_under_advanced_family(
 def test_workflow_step_loader_does_not_override_non_plan_step(
     tmp_path: Path,
 ) -> None:
-    """A non-plan step under an advanced family must not be marked DONE."""
+    """A non-plan step under an advanced session must not be marked DONE."""
     project_dir = tmp_path / "demo"
     timestamp_dir = project_dir / "artifacts" / "ace-run" / "20260523143000"
-    _write_family_root_workflow(
+    _write_agent_session_root_workflow(
         timestamp_dir,
         step_status="in_progress",
         plan_approved=True,

@@ -15,22 +15,22 @@ from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 
 
 def test_clan_members_render_agent_session_aggregate_and_every_member() -> None:
-    family_name = "research.writer"
+    agent_session_name = "research.writer"
     planner = make_clan_agent(
-        f"{family_name}--plan-0",
+        f"{agent_session_name}--plan-0",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 0, 0),
         stop=datetime(2026, 7, 17, 12, 1, 0),
-        family=family_name,
+        agent_session=agent_session_name,
     )
     coder = make_clan_agent(
-        f"{family_name}--code",
+        f"{agent_session_name}--code",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 2, 0),
         stop=datetime(2026, 7, 17, 12, 3, 0),
         model="sonnet",
         parent_timestamp=planner.raw_suffix,
-        family=family_name,
+        agent_session=agent_session_name,
     )
     planner.runtime_children = [coder]
     container = project_clan_tree([planner, coder])[0]
@@ -65,19 +65,19 @@ def test_clan_members_render_agent_session_aggregate_and_every_member() -> None:
 
 
 def test_clan_agent_session_roster_renders_settled_planner_as_done() -> None:
-    family_name = "research.writer"
+    agent_session_name = "research.writer"
     planner = make_clan_agent(
-        f"{family_name}--plan",
+        f"{agent_session_name}--plan",
         status="TALE APPROVED",
         start=datetime(2026, 7, 17, 12, 0, 0),
-        family=family_name,
+        agent_session=agent_session_name,
     )
     coder = make_clan_agent(
-        f"{family_name}--code",
+        f"{agent_session_name}--code",
         status="WORKING TALE",
         start=datetime(2026, 7, 17, 12, 2, 0),
         parent_timestamp=planner.raw_suffix,
-        family=family_name,
+        agent_session=agent_session_name,
     )
     planner.runtime_children = [coder]
     container = project_clan_tree([planner, coder])[0]

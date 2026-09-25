@@ -18,7 +18,7 @@ from sase.ace.tui.widgets._agent_list_styling import (
 from ._agent_render_cache_helpers import style_at as _style_at
 
 
-def _family_container_with_running_monitor() -> tuple[Agent, Agent]:
+def _agent_session_container_with_running_monitor() -> tuple[Agent, Agent]:
     started = datetime(2026, 4, 25, 14, 30, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
@@ -140,7 +140,7 @@ def test_agent_render_key_differs_for_running_and_settled_monitor_rows() -> None
 
 def test_cached_container_row_invalidates_when_monitor_settles() -> None:
     cache = AgentRenderCache()
-    root, monitor = _family_container_with_running_monitor()
+    root, monitor = _agent_session_container_with_running_monitor()
 
     running_parts = cached_format_agent_option(
         cache, root, 0, is_selected=False, now=None
@@ -169,7 +169,7 @@ def test_cached_container_row_invalidates_when_settled_monitor_arrives() -> None
     incorrectly reuse the stale cached entry.
     """
     cache = AgentRenderCache()
-    root, running_monitor = _family_container_with_running_monitor()
+    root, running_monitor = _agent_session_container_with_running_monitor()
 
     before = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
     assert before[0].plain.count("⚙1") == 1

@@ -16,7 +16,7 @@ from tests.ace.tui.widgets._agent_display_bead_section_helpers import (
     bead_field_labels,
     bead_header,
     bead_summary,
-    family_container_agent,
+    agent_session_container_agent,
     pin_bead_created_clock,  # noqa: F401 (registers the autouse fixture)
 )
 
@@ -109,9 +109,9 @@ def test_bead_summary_foldable_predicate_matches_log_rows() -> None:
     assert bead_summary_has_foldable_rows(task_summary)
 
 
-def test_family_bead_section_override_expands_folded_logs() -> None:
-    notes = "first family note\nsecond family note"
-    agent = family_container_agent()
+def test_agent_session_bead_section_override_expands_folded_logs() -> None:
+    notes = "first session note\nsecond session note"
+    agent = agent_session_container_agent()
 
     folded = bead_header(
         bead_summary(notes=notes),
@@ -126,6 +126,6 @@ def test_family_bead_section_override_expands_folded_logs() -> None:
     )
 
     assert "Notes: ▸ 2 lines (zz to show)" in folded.plain
-    assert "second family note" not in folded.plain
+    assert "second session note" not in folded.plain
     assert notes in expanded.plain
     assert "Notes: ▸" not in expanded.plain

@@ -167,7 +167,7 @@ def test_presentation_helper_ignores_status_that_is_not_a_pair_half() -> None:
     )
 
 
-def test_mirrored_family_container_uses_the_same_style_as_the_monitor() -> None:
+def test_mirrored_agent_session_container_uses_the_same_style_as_the_monitor() -> None:
     monitor = _custom_monitor(status="TESTING", monitor_state="running")
     container = Agent(
         agent_type=AgentType.RUNNING,

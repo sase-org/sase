@@ -9,7 +9,7 @@ from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
-def test_family_planner_agent_step_omits_main_title() -> None:
+def test_agent_session_planner_agent_step_omits_main_title() -> None:
     agent = make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="main",
@@ -29,7 +29,7 @@ def test_family_planner_agent_step_omits_main_title() -> None:
     assert "08b--plan" in left.plain
 
 
-def test_family_coder_project_child_omits_project_display_name() -> None:
+def test_agent_session_coder_project_child_omits_project_display_name() -> None:
     agent = make_agent(
         cl_name="sase",
         project_file="/workspace/sase/sase.sase",
@@ -108,7 +108,7 @@ def test_bash_and_python_children_keep_step_name_and_glyph() -> None:
     assert "❯ prepare (DONE)" in python_left.plain
 
 
-def test_family_container_and_standalone_root_keep_titles() -> None:
+def test_agent_session_container_and_standalone_root_keep_titles() -> None:
     root = make_agent(
         cl_name="08b",
         agent_name="08b--0",
@@ -133,11 +133,11 @@ def test_family_container_and_standalone_root_keep_titles() -> None:
         llm_provider=None,
     )
 
-    family_left, _, _ = format_agent_option(root, 0, is_selected=False)
+    agent_session_left, _, _ = format_agent_option(root, 0, is_selected=False)
     standalone_left, _, _ = format_agent_option(standalone, 1, is_selected=False)
 
     assert root.is_agent_session_container_row
-    assert "08b" in family_left.plain
+    assert "08b" in agent_session_left.plain
     assert standalone.display_name == "sase"
     assert "sase" in standalone_left.plain
 

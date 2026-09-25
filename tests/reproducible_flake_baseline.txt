@@ -83,7 +83,7 @@ tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_ma
 # fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_new_trigger_returns_empty_starting_body
 # fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_elsewhere_collision_loads_other_template_but_keeps_destination
 # sase-le
-tests/ace/tui/widgets/test_prompt_panel_header.py::test_family_header_renders_followup_role_attribution
+tests/ace/tui/widgets/test_prompt_panel_header.py::test_agent_session_header_renders_followup_role_attribution
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_header_renders_skill_uses_without_memory_reads
 # sase-kw
 tests/main/test_project_handler_list_show.py::TestListAndShow::test_project_handler_imports_in_fresh_interpreter

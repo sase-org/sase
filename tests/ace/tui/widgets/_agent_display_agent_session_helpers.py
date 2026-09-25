@@ -1,4 +1,4 @@
-"""Shared helpers for family-container detail panel tests."""
+"""Shared helpers for session-container detail panel tests."""
 
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ def make_agent_session(
 
     root = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="family-test",
-        project_file="/tmp/family.sase",
+        cl_name="session-test",
+        project_file="/tmp/session.sase",
         status="DONE",
         start_time=started,
         stop_time=started + timedelta(minutes=2),
@@ -42,8 +42,8 @@ def make_agent_session(
     )
     child = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="family-test",
-        project_file="/tmp/family.sase",
+        cl_name="session-test",
+        project_file="/tmp/session.sase",
         status="DONE",
         start_time=started + timedelta(minutes=2),
         stop_time=started + timedelta(minutes=5),

@@ -16,7 +16,7 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_span_covers,
 )
 
-_AGENT_SESSION_NAME = "family"
+_AGENT_SESSION_NAME = "session"
 _ROOT_SUFFIX = "20260805130000"
 
 

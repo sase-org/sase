@@ -225,17 +225,17 @@ def test_clan_summary_empty_yields_no_summary_section() -> None:
 
 
 def test_agent_session_header_recolors_only_real_container_name() -> None:
-    family = make_clan_agent(
+    agent_session = make_clan_agent(
         "research.writer",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 0, 0),
-        family="research.writer",
+        agent_session="research.writer",
     )
-    family.agent_clan = None
-    family.agent_session_role = "root"
-    family.refresh_presented_agent_name()
+    agent_session.agent_clan = None
+    agent_session.agent_session_role = "root"
+    agent_session.refresh_presented_agent_name()
 
-    lone_header, _ = build_header_text(family, cheap=True)
+    lone_header, _ = build_header_text(agent_session, cheap=True)
 
     assert isinstance(lone_header, Text)
     assert style_at(lone_header, lone_header.plain.index("research.writer")) == (
@@ -246,16 +246,16 @@ def test_agent_session_header_recolors_only_real_container_name() -> None:
         "research.writer--code",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 2, 0),
-        family="research.writer",
+        agent_session="research.writer",
     )
-    family.followup_agents.append(member)
+    agent_session.followup_agents.append(member)
 
-    family_header, _ = build_header_text(family, cheap=True)
+    agent_session_header, _ = build_header_text(agent_session, cheap=True)
 
     assert (
         style_at(
-            family_header,
-            family_header.plain.index("research.writer"),
+            agent_session_header,
+            agent_session_header.plain.index("research.writer"),
         )
         == "#00AFFF"
     )
@@ -302,22 +302,22 @@ def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
 
 
 def test_clan_agent_session_and_standalone_render_as_two_direct_lanes() -> None:
-    family_name = "research.writer"
+    agent_session_name = "research.writer"
     planner = make_clan_agent(
-        f"{family_name}--plan",
+        f"{agent_session_name}--plan",
         status="RUNNING",
         start=datetime(2026, 7, 17, 12, 0, 0),
-        family=family_name,
+        agent_session=agent_session_name,
     )
     planner.agent_session_role = "root"
     planner.role_suffix = "--plan"
     planner.plan_chain_root = True
     coder = make_clan_agent(
-        f"{family_name}--code",
+        f"{agent_session_name}--code",
         status="DONE",
         start=datetime(2026, 7, 17, 12, 1, 0),
         parent_timestamp=planner.raw_suffix,
-        family=family_name,
+        agent_session=agent_session_name,
     )
     coder.agent_session_role = "code"
     coder.role_suffix = "--code"

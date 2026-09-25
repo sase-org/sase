@@ -1,4 +1,4 @@
-"""Family and clan container monitor-badge tests."""
+"""Session and clan container monitor-badge tests."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def _gate_lane_counts(agent: Agent):
     return shell_lane_counts(agent).gate
 
 
-def test_family_container_with_running_monitor_renders_badge() -> None:
+def test_agent_session_container_with_running_monitor_renders_badge() -> None:
     left, _suffix, _option_id = format_agent_option(
         make_agent_session_container("running"),
         0,
@@ -42,7 +42,9 @@ def test_family_container_with_running_monitor_renders_badge() -> None:
     assert "⚙1" in left.plain
 
 
-def test_family_container_with_only_settled_monitors_renders_grey_badge_only() -> None:
+def test_agent_session_container_with_only_settled_monitors_renders_grey_badge_only() -> (
+    None
+):
     left, _suffix, _option_id = format_agent_option(
         make_agent_session_container("completed"),
         0,
@@ -54,7 +56,7 @@ def test_family_container_with_only_settled_monitors_renders_grey_badge_only() -
     assert style_at(left, glyph_index) == _MONITOR_SETTLED_COUNT_GLYPH_STYLE
 
 
-def test_family_container_with_running_and_settled_monitors_renders_both_badges() -> (
+def test_agent_session_container_with_running_and_settled_monitors_renders_both_badges() -> (
     None
 ):
     left, _suffix, _option_id = format_agent_option(
@@ -112,7 +114,7 @@ def test_non_container_row_never_renders_monitor_badge() -> None:
     assert "⚙" not in left.plain
 
 
-def test_family_container_badge_does_not_alter_status_chip() -> None:
+def test_agent_session_container_badge_does_not_alter_status_chip() -> None:
     counts = ParallelAgentSessionStatusCounts(running=2, awaiting=1)
     container = make_agent_session_container("running", "completed")
     container.is_clan_container = True
@@ -185,7 +187,7 @@ def test_clan_container_with_nested_running_monitor_renders_badge() -> None:
         agent_clan="workers",
         agent_clan_generation="gen",
     )
-    family = Agent(
+    agent_session = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="alpha",
         project_file="/tmp/monitor.sase",
@@ -204,7 +206,7 @@ def test_clan_container_with_nested_running_monitor_renders_badge() -> None:
         status="TALE DONE",
         start_time=started,
         raw_suffix="20260812090000",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session.raw_suffix,
         agent_name="alpha--2",
         agent_session="alpha",
         agent_session_role="code",
@@ -227,16 +229,16 @@ def test_clan_container_with_nested_running_monitor_renders_badge() -> None:
         monitor_label="just check",
     )
     starter.runtime_children = [monitor]
-    family.runtime_children = [starter]
-    family.followup_agents = [starter]
-    clan.runtime_children = [family]
+    agent_session.runtime_children = [starter]
+    agent_session.followup_agents = [starter]
+    clan.runtime_children = [agent_session]
 
     left, _suffix, _option_id = format_agent_option(clan, 0, is_selected=False)
 
     assert "⚙1" in left.plain
 
 
-def test_clan_container_aggregates_settled_lane_across_member_families() -> None:
+def test_clan_container_aggregates_settled_lane_across_member_agent_sessions() -> None:
     started = datetime(2026, 8, 12, 9, 0, 0)
     clan = Agent(
         agent_type=AgentType.RUNNING,
@@ -249,8 +251,8 @@ def test_clan_container_aggregates_settled_lane_across_member_families() -> None
         agent_clan_generation="gen",
     )
 
-    def _settled_family(name: str) -> Agent:
-        family = Agent(
+    def _settled_agent_session(name: str) -> Agent:
+        agent_session = Agent(
             agent_type=AgentType.RUNNING,
             cl_name=name,
             project_file="/tmp/monitor.sase",
@@ -270,7 +272,7 @@ def test_clan_container_aggregates_settled_lane_across_member_families() -> None
             start_time=started,
             stop_time=started + timedelta(minutes=3),
             raw_suffix=f"{name}-mon",
-            parent_timestamp=family.raw_suffix,
+            parent_timestamp=agent_session.raw_suffix,
             agent_name=f"{name}--mon",
             agent_session=name,
             agent_session_role="monitor",
@@ -279,10 +281,13 @@ def test_clan_container_aggregates_settled_lane_across_member_families() -> None
             monitor_state="completed",
             monitor_label="just check",
         )
-        family.followup_agents = [monitor]
-        return family
+        agent_session.followup_agents = [monitor]
+        return agent_session
 
-    clan.runtime_children = [_settled_family("alpha"), _settled_family("beta")]
+    clan.runtime_children = [
+        _settled_agent_session("alpha"),
+        _settled_agent_session("beta"),
+    ]
 
     left, _suffix, _option_id = format_agent_option(clan, 0, is_selected=False)
 
@@ -336,9 +341,9 @@ def test_non_container_row_with_settled_monitors_renders_no_badge() -> None:
     assert "⚙" not in left.plain
 
 
-def test_family_container_with_gate_lanes_renders_state_badges() -> None:
+def test_agent_session_container_with_gate_lanes_renders_state_badges() -> None:
     started = datetime(2026, 8, 12, 9, 0, 0)
-    family = Agent(
+    agent_session = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="alpha",
         project_file="/tmp/gate.sase",
@@ -360,7 +365,7 @@ def test_family_container_with_gate_lanes_renders_state_badges() -> None:
             start_time=started,
             stop_time=started + timedelta(minutes=3) if state != "pending" else None,
             raw_suffix=f"2026081209{name}",
-            parent_timestamp=family.raw_suffix,
+            parent_timestamp=agent_session.raw_suffix,
             agent_name=name,
             agent_session="alpha",
             agent_session_role="gate",
@@ -373,12 +378,12 @@ def test_family_container_with_gate_lanes_renders_state_badges() -> None:
     pending = _gate("alpha--gate-pending", "pending")
     settled = _gate("alpha--gate-done", "answered")
     failed = _gate("alpha--gate-failed", "failed")
-    family.followup_agents = [pending, settled, failed]
-    assert _gate_lane_counts(family).running == 1
-    assert _gate_lane_counts(family).settled == 1
-    assert _gate_lane_counts(family).failed == 1
+    agent_session.followup_agents = [pending, settled, failed]
+    assert _gate_lane_counts(agent_session).running == 1
+    assert _gate_lane_counts(agent_session).settled == 1
+    assert _gate_lane_counts(agent_session).failed == 1
 
-    left, _suffix, _option_id = format_agent_option(family, 0, is_selected=False)
+    left, _suffix, _option_id = format_agent_option(agent_session, 0, is_selected=False)
 
     assert "⋔1 ⋔1 ⋔1" in left.plain
     first = left.plain.index("⋔1")

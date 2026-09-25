@@ -136,7 +136,7 @@ def bead_field_labels(header: AgentHeader) -> list[str]:
     ]
 
 
-def family_container_agent() -> Agent:
+def agent_session_container_agent() -> Agent:
     child = make_agent(
         agent_name="worker--code",
         agent_session="worker",

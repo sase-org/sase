@@ -157,9 +157,9 @@ def test_fold_limit_tail_hint() -> None:
 
 def test_merged_map_concatenates_sections_in_order() -> None:
     identity = (AgentType.RUNNING, "lane", None)
-    family_text = Text()
-    family_map = append_member_roster(
-        family_text,
+    agent_session_text = Text()
+    agent_session_map = append_member_roster(
+        agent_session_text,
         container_identity=identity,
         entries=tuple(_entry(index, label=f"--plan-{index}") for index in range(2)),
         title="SESSION SHELLS",
@@ -177,14 +177,14 @@ def test_merged_map_concatenates_sections_in_order() -> None:
         panel_level=FoldLevel.COLLAPSED,
         numbering=MemberJumpNumbering(total=5),
     )
-    # Exhaust the shared ladder manually: family took 0-1, neighbors continue.
-    assert [t.number for t in family_map.targets] == ["0", "1"]
-    merged = merged_member_jump_map(identity, family_map, neighbors_map)
+    # Exhaust the shared ladder manually: session took 0-1, neighbors continue.
+    assert [t.number for t in agent_session_map.targets] == ["0", "1"]
+    merged = merged_member_jump_map(identity, agent_session_map, neighbors_map)
     assert [s.title for s in merged.sections] == ["SESSION SHELLS", "NEIGHBORS"]
     assert sum(s.numbered_count for s in merged.sections) == len(merged.targets)
 
 
-def test_family_container_map_has_labels_and_sections(tmp_path: Path) -> None:
+def test_agent_session_container_map_has_labels_and_sections(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     published: list[MemberJumpMap] = []
     _header, _ = build_header_text(
@@ -413,7 +413,7 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     from sase.ace.tui.models._agent_tree import project_clan_tree
 
     root, child = make_agent_session(tmp_path)
-    # Family container.
+    # Session container.
     container_doc, _ = build_header_text(
         root,
         cheap=True,
@@ -428,7 +428,7 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     assert not container_roster.plain.startswith("\n")
     assert not container_roster.plain.endswith("\n")
 
-    # Family member shell.
+    # Session member shell.
     shell_doc, _ = build_header_text(
         child,
         cheap=True,

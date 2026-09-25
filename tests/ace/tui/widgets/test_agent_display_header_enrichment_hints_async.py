@@ -86,7 +86,7 @@ def test_cold_hint_render_schedules_enrichment_without_sync_build(
     assert "Deltas:" not in plain_of(panel.captured[-1])
 
 
-def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
+def test_cold_agent_session_hint_render_stays_active_and_gains_enriched_mapping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = make_agent_session_agent()
@@ -96,8 +96,8 @@ def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
     summary = _DetailHeaderSummary(
         artifact_file_paths=[
             ArtifactFilePath(
-                display_path="family-report.txt",
-                actual_path="/tmp/family-report.txt",
+                display_path="session-report.txt",
+                actual_path="/tmp/session-report.txt",
             )
         ]
     )
@@ -129,9 +129,9 @@ def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
 
     enriched = panel.update_display_with_hints(agent)
 
-    assert enriched.file_hints == {1: "/tmp/family-report.txt"}
+    assert enriched.file_hints == {1: "/tmp/session-report.txt"}
     assert not enriched.header_enrichment_pending
-    assert "[1] family-report.txt" in plain_of(panel.captured[-1])
+    assert "[1] session-report.txt" in plain_of(panel.captured[-1])
 
 
 def test_hint_request_replaces_same_agent_in_flight_render_context(

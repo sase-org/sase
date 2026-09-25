@@ -156,17 +156,17 @@ def make_phase_summary(bead_id: str, *, notes: str | None = None) -> PhaseBeadSu
 
 def make_agent_session_agent() -> Agent:
     root = make_agent(
-        raw_suffix="family-root",
-        agent_name="family--plan",
-        agent_session="family",
+        raw_suffix="session-root",
+        agent_name="session--plan",
+        agent_session="session",
         agent_session_role="plan",
         role_suffix="--plan",
         plan_chain_root=True,
     )
     child = make_agent(
-        raw_suffix="family-child",
-        agent_name="family--code",
-        agent_session="family",
+        raw_suffix="session-child",
+        agent_name="session--code",
+        agent_session="session",
         agent_session_role="code",
         role_suffix="--code",
     )

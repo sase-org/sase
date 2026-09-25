@@ -88,7 +88,7 @@ async def test_all_unnumbered_document_hides_jump_panel() -> None:
         assert detail.jump_panel_toggle_available() is False
 
 
-async def test_family_container_shows_collapsed_panel(tmp_path: Path) -> None:
+async def test_agent_session_container_shows_collapsed_panel(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:

@@ -20,7 +20,7 @@ from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui._member_jump_navigation_helpers import (
     JumpHarness,
     make_agent as make_nav_agent,
-    make_agent_session as make_nav_family,
+    make_agent_session,
 )
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 
@@ -48,7 +48,7 @@ def _press_each_number(
 
 
 def test_panel_numbers_land_through_real_jump_path() -> None:
-    complete, root, child = make_nav_family(in_clan=False)
+    complete, root, child = make_agent_session(in_clan=False)
     app = JumpHarness(complete, root)
     entries = (
         MemberRosterEntry(

@@ -383,7 +383,7 @@ async def test_agents_task_bead_notes_png_snapshot(
         )
 
 
-async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
+async def test_agents_phase_agent_session_bead_and_plan_context_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -505,13 +505,13 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
                 and "▸ ARTIFACTS · resolving…" not in metadata
                 and "▸ MEMORY · resolving…" not in metadata
             ),
-            description="phase-family PLAN plus resolved ARTIFACTS and MEMORY lanes",
+            description="phase-session PLAN plus resolved ARTIFACTS and MEMORY lanes",
         )
         await wait_for_visual_idle(page)
 
         metadata = renderable_to_text(panel.content) or ""
         assert metadata.index("▸ PLAN") < metadata.index("▸ BEAD")
-        svg = page.export_svg(title="ACE phase family dual context assertion")
+        svg = page.export_svg(title="ACE phase session dual context assertion")
         svg_plain = svg.replace("&#160;", " ")
         assert "SASE CONTEXT" in svg_plain
         assert "BEAD" in svg_plain

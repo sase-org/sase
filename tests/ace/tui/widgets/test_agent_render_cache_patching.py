@@ -106,7 +106,7 @@ async def test_patch_agent_row_reflects_unread_change() -> None:
 
 
 @pytest.mark.asyncio
-async def test_patch_family_root_recolors_name_with_first_real_member() -> None:
+async def test_patch_agent_session_root_recolors_name_with_first_real_member() -> None:
     app = _Harness()
     async with app.run_test() as pilot:
         widget = app.query_one(AgentList)

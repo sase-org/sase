@@ -132,7 +132,7 @@ def test_entry_heading_covers_every_destination_kind(
     assert all(
         line.startswith(("❯ ", "  "))
         for line in rendered.splitlines()
-        if " · family · " in line or "failed · agent" in line
+        if " · session · " in line or "failed · agent" in line
     )
 
 
@@ -192,19 +192,19 @@ def test_hidden_tail_target_keeps_heading_clause_without_a_row_cursor() -> None:
     assert "… +1 more members (not numbered)" in rendered
 
 
-def test_tribe_family_children_use_effective_status_glyphs() -> None:
+def test_tribe_agent_session_children_use_effective_status_glyphs() -> None:
     root = make_tribe_agent(
         "build--plan",
         "WORKING TALE",
         suffix="root",
-        family="build",
+        agent_session="build",
         role="plan",
     )
     planner = make_tribe_agent(
         "build--plan-step",
         "TALE APPROVED",
         suffix="planner",
-        family="build",
+        agent_session="build",
         role="plan",
         parent="root",
     )
@@ -215,7 +215,7 @@ def test_tribe_family_children_use_effective_status_glyphs() -> None:
         "build--code",
         "WORKING TALE",
         suffix="coder",
-        family="build",
+        agent_session="build",
         role="code",
         parent="root",
     )

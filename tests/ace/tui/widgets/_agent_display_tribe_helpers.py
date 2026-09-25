@@ -18,7 +18,7 @@ def make_tribe_agent(
     status: str,
     *,
     suffix: str,
-    family: str | None = None,
+    agent_session: str | None = None,
     role: str | None = None,
     parent: str | None = None,
 ) -> Agent:
@@ -32,7 +32,7 @@ def make_tribe_agent(
         stop_time=NOW if status == "FAILED" else None,
         raw_suffix=suffix,
         agent_name=name,
-        agent_session=family,
+        agent_session=agent_session,
         agent_session_role="root" if role == "plan" else role,
         role_suffix=f"--{role}" if role else None,
         plan_chain_root=role == "plan",
@@ -46,14 +46,14 @@ def make_tribe_snapshot() -> AgentTribeSummarySnapshot:
         "build--plan",
         "RUNNING",
         suffix="root",
-        family="build",
+        agent_session="build",
         role="plan",
     )
     child = make_tribe_agent(
         "build--code",
         "WAITING",
         suffix="child",
-        family="build",
+        agent_session="build",
         role="code",
         parent="root",
     )

@@ -1,4 +1,4 @@
-"""Tests for AgentList live and family runtime suffix rendering."""
+"""Tests for AgentList live and session runtime suffix rendering."""
 
 from __future__ import annotations
 
@@ -122,16 +122,18 @@ def test_format_agent_option_aggregate_parent_does_not_double_count_overlap() ->
     assert suffix.plain == "10:15:00 · 15m"
 
 
-def test_format_agent_option_active_family_shows_current_root_and_total() -> None:
+def test_format_agent_option_active_agent_session_shows_current_root_and_total() -> (
+    None
+):
     root = agent(
         status="RUNNING",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         raw_suffix="root",
-        cl_name="family",
+        cl_name="session",
     )
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.role_suffix = "--0"
     waiting_child = agent(
@@ -139,10 +141,10 @@ def test_format_agent_option_active_family_shows_current_root_and_total() -> Non
         start=datetime(2026, 7, 19, 9, 1, 0),
         run_start=None,
         raw_suffix="waiting",
-        cl_name="family--review",
+        cl_name="session--review",
     )
     waiting_child.parent_timestamp = root.raw_suffix
-    waiting_child.agent_session = "family"
+    waiting_child.agent_session = "session"
     waiting_child.agent_session_role = "review"
     waiting_child.role_suffix = "--review"
     root.followup_agents = [waiting_child]
@@ -157,17 +159,19 @@ def test_format_agent_option_active_family_shows_current_root_and_total() -> Non
     assert suffix.plain == "🏃‍♂️ 3m05s / 3m05s"
 
 
-def test_format_agent_option_active_family_shows_current_continuation_first() -> None:
+def test_format_agent_option_active_agent_session_shows_current_continuation_first() -> (
+    None
+):
     root = agent(
         agent_type=AgentType.WORKFLOW,
         status="WORKING TALE",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         raw_suffix="root",
-        cl_name="family-workflow",
+        cl_name="session-workflow",
     )
-    root.agent_name = "family--plan"
-    root.agent_session = "family"
+    root.agent_name = "session--plan"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.plan_chain_root = True
     planner = workflow_child(
@@ -184,10 +188,10 @@ def test_format_agent_option_active_family_shows_current_continuation_first() ->
         start=datetime(2026, 7, 19, 9, 4, 0),
         run_start=datetime(2026, 7, 19, 9, 4, 0),
         raw_suffix="coder",
-        cl_name="family--code",
+        cl_name="session--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_session = "family"
+    coder.agent_session = "session"
     coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     root.runtime_children = [planner, coder]
@@ -203,17 +207,17 @@ def test_format_agent_option_active_family_shows_current_continuation_first() ->
     assert suffix.plain == "🏃‍♂️ 1m05s / 3m05s"
 
 
-def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None:
+def test_format_agent_option_active_agent_session_uses_nested_monitor_runtime() -> None:
     root = agent(
         status="DONE",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         stop=datetime(2026, 7, 19, 9, 1, 0),
         raw_suffix="root",
-        cl_name="family",
+        cl_name="session",
     )
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     coder = agent(
         status="DONE",
@@ -221,23 +225,23 @@ def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None
         run_start=datetime(2026, 7, 19, 9, 1, 0),
         stop=datetime(2026, 7, 19, 9, 2, 0),
         raw_suffix="coder",
-        cl_name="family--code",
+        cl_name="session--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_session = "family"
+    coder.agent_session = "session"
     coder.agent_session_role = "code"
     monitor = agent(
         status="MONITORING",
         start=datetime(2026, 7, 19, 9, 3, 0),
         run_start=datetime(2026, 7, 19, 9, 3, 0),
         raw_suffix="monitor",
-        cl_name="family--mon",
+        cl_name="session--mon",
     )
     monitor.parent_timestamp = coder.raw_suffix
-    monitor.agent_session = "family"
+    monitor.agent_session = "session"
     monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
-    monitor.monitor_id = "m-family"
+    monitor.monitor_id = "m-session"
     monitor.monitor_state = "running"
     root.runtime_children = [coder]
     root.followup_agents = [coder]
@@ -254,17 +258,19 @@ def test_format_agent_option_active_family_uses_nested_monitor_runtime() -> None
     assert suffix.plain == "🏃‍♂️ 2m / 3m"
 
 
-def test_format_agent_option_completed_family_keeps_single_total_suffix() -> None:
+def test_format_agent_option_completed_agent_session_keeps_single_total_suffix() -> (
+    None
+):
     root = agent(
         status="DONE",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         stop=datetime(2026, 7, 19, 9, 1, 0),
         raw_suffix="root",
-        cl_name="family",
+        cl_name="session",
     )
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     child = agent(
         status="DONE",
@@ -272,10 +278,10 @@ def test_format_agent_option_completed_family_keeps_single_total_suffix() -> Non
         run_start=datetime(2026, 7, 19, 9, 1, 0),
         stop=datetime(2026, 7, 19, 9, 2, 0),
         raw_suffix="child",
-        cl_name="family--code",
+        cl_name="session--code",
     )
     child.parent_timestamp = root.raw_suffix
-    child.agent_session = "family"
+    child.agent_session = "session"
     child.agent_session_role = "code"
     root.runtime_children = [child]
     root.followup_agents = [child]

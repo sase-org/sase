@@ -212,7 +212,7 @@ def test_artifacts_lane_groups_output_fields_and_counts() -> None:
     assert section_marker_ids(text) == ["sase-context"]
 
 
-def test_family_context_marks_heading_title_and_lanes_fold_only() -> None:
+def test_agent_session_context_marks_heading_title_and_lanes_fold_only() -> None:
     text = Text()
 
     append_agent_context_section(
@@ -231,7 +231,7 @@ def test_family_context_marks_heading_title_and_lanes_fold_only() -> None:
     assert "sase-context" not in fold_only_section_marker_ids(text)
 
 
-def test_non_family_context_still_marks_only_sase_context() -> None:
+def test_non_agent_session_context_still_marks_only_sase_context() -> None:
     text = Text()
 
     append_agent_context_section(text, plan_section=plan_section())

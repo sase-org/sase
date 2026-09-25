@@ -93,7 +93,7 @@ class TestAgentXPromptRendering:
         assert "Response echoes #gh:widgets now." in plain
         assert "#gh:gh_acme__widgets" not in plain
 
-    def test_custom_family_reply_summaries_include_member_ids(
+    def test_custom_agent_session_reply_summaries_include_member_ids(
         self,
         tmp_path: Path,
     ) -> None:

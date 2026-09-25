@@ -1,4 +1,4 @@
-"""Family detail-panel hint and link tests."""
+"""Session detail-panel hint and link tests."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def test_agent_session_hint_render_returns_cached_plan_delta_artifact_and_commit
     root.step_output = {
         "meta_commits": [
             {
-                "message": "feat: preserve family hints\n\nBody line",
+                "message": "feat: preserve session hints\n\nBody line",
                 "sha": "abcdef1234567890",
                 "cwd": str(workspace),
             }
@@ -60,7 +60,7 @@ def test_agent_session_hint_render_returns_cached_plan_delta_artifact_and_commit
             ),
             delta_entries=[
                 DeltaEntry(
-                    path="src/family.py",
+                    path="src/session.py",
                     change_type="M",
                     line_stats=DeltaLineStats(modified=2),
                 )
@@ -79,15 +79,15 @@ def test_agent_session_hint_render_returns_cached_plan_delta_artifact_and_commit
 
     assert result.file_hints == {
         1: str(plan_path),
-        3: str(workspace / "src/family.py"),
+        3: str(workspace / "src/session.py"),
         4: str(artifact_path),
     }
     assert list(result.commit_views) == [2]
     assert result.commit_views[2].sha == "abcdef1234567890"
     assert result.commit_views[2].cwd == str(workspace)
     assert "Path: [1] sase/repos/plans/approved-plan.md" in plain
-    assert "[2] abcdef123456 feat: preserve family hints" in plain
-    assert "[3] src/family.py" in plain
+    assert "[2] abcdef123456 feat: preserve session hints" in plain
+    assert "[3] src/session.py" in plain
     assert "[4] report.txt" in plain
     assert not result.header_enrichment_pending
 

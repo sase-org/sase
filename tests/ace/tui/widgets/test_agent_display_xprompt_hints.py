@@ -63,7 +63,7 @@ class TestAgentXPromptHintMode:
         assert "#gh:widgets response" in plain
         assert "#gh:gh_acme__widgets" not in plain
 
-    def test_hint_mode_custom_family_reply_summaries_include_member_ids(
+    def test_hint_mode_custom_agent_session_reply_summaries_include_member_ids(
         self,
         tmp_path: Path,
     ) -> None:

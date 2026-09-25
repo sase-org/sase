@@ -48,10 +48,10 @@ def test_preview_rendering_includes_stable_time_and_status_text() -> None:
 
 def test_preview_labels_agents_sidecar_groups() -> None:
     summary = SavedAgentGroupSummaryWire(
-        group_id="agents-sidecar-family",
+        group_id="agents-sidecar-session",
         created_at="2026-05-27T12:00:00Z",
         source="agents_sidecar",
-        title="2 agents in family",
+        title="2 agents in session",
         agent_count=2,
         top_level_agent_count=2,
         status_counts={"DONE": 2},

@@ -72,7 +72,7 @@ def _single_section_map(
 
 def _two_section_map() -> MemberJumpMap:
     numbering = MemberJumpNumbering(total=12)
-    family = append_member_roster(
+    agent_session = append_member_roster(
         Text(),
         container_identity=_LANE_IDENTITY,
         entries=_entries(["--plan-0", "--plan-1", "--plan-2"]),
@@ -93,7 +93,7 @@ def _two_section_map() -> MemberJumpMap:
         hidden_tail_label="neighbors",
         hidden_tail_hint="zz to show more",
     )
-    return merged_member_jump_map(_LANE_IDENTITY, family, neighbors)
+    return merged_member_jump_map(_LANE_IDENTITY, agent_session, neighbors)
 
 
 def _render_lines(renderable: JumpLegendRenderable, width: int) -> list[str]:
@@ -262,7 +262,7 @@ def test_narrow_widths_keep_spans_inside_clipped_cells() -> None:
     Rich rendering (StopIteration) once a panel squeezed below one cell.
     """
     numbering = MemberJumpNumbering(total=4)
-    family = append_member_roster(
+    agent_session = append_member_roster(
         Text(),
         container_identity=_LANE_IDENTITY,
         entries=_entries(["--plan", "--code"]),
@@ -274,13 +274,13 @@ def test_narrow_widths_keep_spans_inside_clipped_cells() -> None:
     neighbors = append_member_roster(
         Text(),
         container_identity=_LANE_IDENTITY,
-        entries=_entries(["visual-real-family.peer00", "visual-real-family.peer01"]),
+        entries=_entries(["visual-real-session.peer00", "visual-real-session.peer01"]),
         title="NEIGHBORS",
         accent="#00D7AF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=numbering,
     )
-    jump_map = merged_member_jump_map(_LANE_IDENTITY, family, neighbors)
+    jump_map = merged_member_jump_map(_LANE_IDENTITY, agent_session, neighbors)
     for mode in ("collapsed", "1"):
         for width in (9, 12, 16, 20, 30):
             renderable = JumpLegendRenderable(jump_map, mode=mode)

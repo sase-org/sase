@@ -1,4 +1,4 @@
-"""Family roster and header tests."""
+"""Session roster and header tests."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ def test_loaded_plan_agent_session_roster_uses_concrete_member_state_and_content
     root = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="ep",
-        project_file="/tmp/family.sase",
+        project_file="/tmp/session.sase",
         status="DONE",
         start_time=started,
         run_start_time=started,
@@ -94,7 +94,7 @@ def test_loaded_plan_agent_session_roster_uses_concrete_member_state_and_content
     planner = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="ep-planner-step",
-        project_file="/tmp/family.sase",
+        project_file="/tmp/session.sase",
         status="DONE",
         start_time=started,
         run_start_time=started,
@@ -117,7 +117,7 @@ def test_loaded_plan_agent_session_roster_uses_concrete_member_state_and_content
     coder = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="ep-coder",
-        project_file="/tmp/family.sase",
+        project_file="/tmp/session.sase",
         status="RUNNING",
         start_time=started + timedelta(minutes=3),
         run_start_time=started + timedelta(minutes=3),

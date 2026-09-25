@@ -10,7 +10,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 
 def clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
     generation = "20260717100000"
-    family = Agent(
+    agent_session = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-research-family",
         project_file="/workspace/sase/visual_project.sase",
@@ -28,7 +28,7 @@ def clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
-    family_member = Agent(
+    agent_session_member = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-research-family-code",
         project_file="/workspace/sase/visual_project.sase",
@@ -36,7 +36,7 @@ def clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
         start_time=datetime(2026, 7, 17, 10, 4, 0),
         run_start_time=datetime(2026, 7, 17, 10, 4, 0),
         raw_suffix="20260717100400-family-code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session.raw_suffix,
         role_suffix="--code",
         agent_name="research.family--code",
         agent_session="research.family",
@@ -113,20 +113,20 @@ def clan_tree_agents(*, clan_summary: str | None = None) -> list[Agent]:
         model="gemini-pro",
     )
     return sort_and_reorder(
-        [family, family_member, workflow, waiting],
+        [agent_session, agent_session_member, workflow, waiting],
         [workflow_step, hidden_step],
     )
 
 
 def running_clan_runtime_agents() -> list[Agent]:
-    """Return a clan with two running lanes -- one a family -- and one settled.
+    """Return a clan with two running lanes -- one a session -- and one settled.
 
-    ``solo`` and the family lane are both live at snapshot time with
+    ``solo`` and the session lane are both live at snapshot time with
     different run starts, so the clan's live suffix carries the lower of
-    the two. The family lane has a settled ``family_review`` shell in
-    addition to the running ``family_coder`` shell, so the family's total
-    runtime diverges from the coder's own runtime -- this is what makes the
-    clan lane's contribution (the family *total*) distinguishable from the
+    the two. The session lane has a settled ``agent_session_review`` shell in
+    addition to the running ``agent_session_coder`` shell, so the session's
+    total runtime diverges from the coder's own runtime -- this is what makes
+    the clan lane's contribution (the session *total*) distinguishable from the
     bug this fixture regression-tests (the coder's own runtime).
     ``settled`` is finished and contributes nothing.
     """
@@ -146,7 +146,7 @@ def running_clan_runtime_agents() -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
-    family_root = Agent(
+    agent_session_root = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-runtime-clan-family",
         project_file="/workspace/sase/visual_project.sase",
@@ -165,7 +165,7 @@ def running_clan_runtime_agents() -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
-    family_review = Agent(
+    agent_session_review = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-runtime-clan-family-review",
         project_file="/workspace/sase/visual_project.sase",
@@ -174,7 +174,7 @@ def running_clan_runtime_agents() -> list[Agent]:
         run_start_time=datetime(2026, 7, 19, 9, 6, 0),
         stop_time=datetime(2026, 7, 19, 9, 9, 0),
         raw_suffix="20260719090600-family-review",
-        parent_timestamp=family_root.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--review",
         agent_name="runtime-clan.family--review",
         agent_session="runtime-clan.family",
@@ -184,7 +184,7 @@ def running_clan_runtime_agents() -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
-    family_coder = Agent(
+    agent_session_coder = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-runtime-clan-family-code",
         project_file="/workspace/sase/visual_project.sase",
@@ -192,7 +192,7 @@ def running_clan_runtime_agents() -> list[Agent]:
         start_time=datetime(2026, 7, 19, 9, 10, 0),
         run_start_time=datetime(2026, 7, 19, 9, 10, 0),
         raw_suffix="20260719091000-family-code",
-        parent_timestamp=family_root.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--code",
         agent_name="runtime-clan.family--code",
         agent_session="runtime-clan.family",
@@ -219,7 +219,7 @@ def running_clan_runtime_agents() -> list[Agent]:
         model="gemini-pro",
     )
     return sort_and_reorder(
-        [solo, family_root, family_review, family_coder, settled],
+        [solo, agent_session_root, agent_session_review, agent_session_coder, settled],
         [],
     )
 

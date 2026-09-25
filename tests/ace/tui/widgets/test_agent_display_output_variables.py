@@ -29,11 +29,11 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 
 def _agent_session_root(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
-        "cl_name": "output-var-family",
+        "cl_name": "output-var-session",
         "raw_suffix": "20260708090000",
-        "agent_name": "output-var-family",
+        "agent_name": "output-var-session",
         "role_suffix": "--plan",
-        "agent_session": "output-var-family",
+        "agent_session": "output-var-session",
         "agent_session_role": "root",
         "plan_chain_root": True,
     }
@@ -52,12 +52,12 @@ def _agent_session_child(
     artifacts_dir = tmp_path / name
     artifacts_dir.mkdir()
     return make_agent(
-        cl_name=f"output-var-family--{name}",
+        cl_name=f"output-var-session--{name}",
         raw_suffix=f"20260708090{name}",
         parent_timestamp="20260708090000",
         artifacts_dir=str(artifacts_dir),
-        agent_name=f"output-var-family--{name}",
-        agent_session="output-var-family",
+        agent_name=f"output-var-session--{name}",
+        agent_session="output-var-session",
         agent_session_role=agent_session_role,
         role_suffix=role_suffix,
         output_variables=output_variables,
@@ -312,7 +312,7 @@ def test_output_variables_single_contributor_stays_flat(
     tmp_path: Path,
 ) -> None:
     root_only = _agent_session_root(output_variables={"only": "root"})
-    child_only_root = _agent_session_root(agent_name="child-only-family")
+    child_only_root = _agent_session_root(agent_name="child-only-session")
     coder = _agent_session_child(
         tmp_path,
         "coder",

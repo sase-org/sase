@@ -276,7 +276,7 @@ def test_shared_numbering_is_contiguous_across_rosters(
                 text,
                 container_identity=(
                     AgentType.RUNNING,
-                    "family:research",
+                    "session:research",
                     "generation",
                 ),
                 entries=tuple(

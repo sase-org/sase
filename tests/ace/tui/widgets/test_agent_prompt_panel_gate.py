@@ -155,7 +155,7 @@ def test_gate_row_renders_output_as_ansi_not_markdown(tmp_path: Path) -> None:
     assert "`still not markdown`" in text
 
 
-def test_gate_phase_text_flattens_family_phase(tmp_path: Path) -> None:
+def test_gate_phase_text_flattens_agent_session_phase(tmp_path: Path) -> None:
     agent = _gate_agent(
         tmp_path,
         status="APPROVED",

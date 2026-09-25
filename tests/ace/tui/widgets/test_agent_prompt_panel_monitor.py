@@ -86,7 +86,7 @@ def _iter_texts(renderable: object) -> list[Text]:
     return []
 
 
-def _family_with_monitor(
+def _agent_session_with_monitor(
     tmp_path: Path,
     *,
     output: str | None = None,
@@ -111,7 +111,7 @@ def _family_with_monitor(
     started = datetime(2026, 8, 12, 8, 59, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="code-family",
+        cl_name="code-session",
         project_file="/tmp/monitor.sase",
         status="DONE",
         status_bucket="Done",
@@ -394,9 +394,9 @@ def test_monitor_row_truncated_output_shows_elision_notice(tmp_path) -> None:
     assert "truncated" in text.lower()
 
 
-def test_family_container_renders_monitor_phase_fields_and_log(tmp_path) -> None:
+def test_agent_session_container_renders_monitor_phase_fields_and_log(tmp_path) -> None:
     log = "✓ lint (ruff)\nFAILED tests/ace/tui/test_x.py::test_y\n"
-    rendered = _render(_family_with_monitor(tmp_path, output=log))
+    rendered = _render(_agent_session_with_monitor(tmp_path, output=log))
     text = "\n".join(_console_lines(rendered))
 
     _assert_monitor_phase(text, expect_output=log.strip())
@@ -411,9 +411,9 @@ def test_starter_followup_renders_monitor_phase_fields_and_log(tmp_path) -> None
     _assert_monitor_phase(text, expect_output=log.strip())
 
 
-def test_family_monitor_phase_decodes_ansi_and_drops_escapes(tmp_path) -> None:
+def test_agent_session_monitor_phase_decodes_ansi_and_drops_escapes(tmp_path) -> None:
     rendered = _render(
-        _family_with_monitor(
+        _agent_session_with_monitor(
             tmp_path,
             output="\x1b[31mFAILED\x1b[0m tests/x.py\n",
         )
@@ -439,9 +439,9 @@ def test_starter_monitor_phase_decodes_ansi_and_drops_escapes(tmp_path) -> None:
     _assert_failed_is_ansi_styled(rendered)
 
 
-def test_family_truncated_monitor_keeps_elision_notice(tmp_path) -> None:
+def test_agent_session_truncated_monitor_keeps_elision_notice(tmp_path) -> None:
     rendered = _render(
-        _family_with_monitor(
+        _agent_session_with_monitor(
             tmp_path,
             output="some output\n",
             output_truncated=True,
@@ -465,8 +465,8 @@ def test_starter_truncated_monitor_keeps_elision_notice(tmp_path) -> None:
     _assert_monitor_phase(text, expect_output="some output", expect_truncated=True)
 
 
-def test_family_outputless_monitor_shows_placeholder(tmp_path) -> None:
-    rendered = _render(_family_with_monitor(tmp_path))
+def test_agent_session_outputless_monitor_shows_placeholder(tmp_path) -> None:
+    rendered = _render(_agent_session_with_monitor(tmp_path))
     text = "\n".join(_console_lines(rendered))
 
     _assert_monitor_phase(text, expect_no_output=True)
@@ -479,12 +479,12 @@ def test_starter_outputless_monitor_shows_placeholder(tmp_path) -> None:
     _assert_monitor_phase(text, expect_no_output=True)
 
 
-def test_family_hint_mode_annotates_command_and_log_paths(tmp_path) -> None:
+def test_agent_session_hint_mode_annotates_command_and_log_paths(tmp_path) -> None:
     workspace = tmp_path / "mon-workspace"
     log_path = workspace / "tests" / "ace" / "tui" / "test_x.py"
     log_path.parent.mkdir(parents=True)
     log_path.write_text("def test_y() -> None:\n    assert False\n", encoding="utf-8")
-    root = _family_with_monitor(
+    root = _agent_session_with_monitor(
         tmp_path,
         output="FAILED tests/ace/tui/test_x.py::test_y\n",
         workspace_dir=str(workspace),

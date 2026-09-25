@@ -142,7 +142,7 @@ def test_refresh_replaces_placeholders_and_keeps_section_identity(
     assert _bodies(after)["AGENT PROMPT"] == "New prompt"
 
 
-def test_family_replies_are_attributed_and_keep_identity_when_members_are_added(
+def test_agent_session_replies_are_attributed_and_keep_identity_when_members_are_added(
     tmp_path: Path,
 ) -> None:
     root = _agent(tmp_path)

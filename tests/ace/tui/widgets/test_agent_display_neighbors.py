@@ -228,7 +228,7 @@ def test_header_places_neighbors_below_workflow_variables_and_above_sase_context
     ]
 
 
-def test_family_header_publishes_one_contiguous_shared_width_jump_map() -> None:
+def test_agent_session_header_publishes_one_contiguous_shared_width_jump_map() -> None:
     root = _agent(
         "lane--plan",
         agent_session="lane",
@@ -268,7 +268,7 @@ def test_family_header_publishes_one_contiguous_shared_width_jump_map() -> None:
     assert [target.role for target in published[0].targets[2:]] == ["neighbor"] * 9
 
 
-def test_neighbors_section_renders_for_a_top_level_family_lane() -> None:
+def test_neighbors_section_renders_for_a_top_level_agent_session_lane() -> None:
     root = _agent(
         "fam--plan",
         agent_session="fam",
@@ -327,17 +327,17 @@ def test_neighbors_are_absent_for_empty_projection_and_non_lane_rows() -> None:
         lane_neighbors=_projection(lane, ()),
     )
 
-    family_child = _agent(
+    agent_session_child = _agent(
         "lane--code",
         parent_timestamp="lane--plan",
         agent_session="lane",
     )
     invalid_projection = _projection(
-        family_child,
+        agent_session_child,
         (_row(_agent("lane.peer"), prefix="lane"),),
     )
     child_header, _ = build_header_text(
-        family_child,
+        agent_session_child,
         cheap=True,
         lane_fold_level=FoldLevel.COLLAPSED,
         lane_neighbors=invalid_projection,

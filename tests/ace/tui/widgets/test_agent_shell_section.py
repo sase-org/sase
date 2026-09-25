@@ -19,7 +19,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_shell_section import (
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
-_AGENT_SESSION_NAME = "family"
+_AGENT_SESSION_NAME = "session"
 _ROOT_SUFFIX = "20260805130000"
 
 

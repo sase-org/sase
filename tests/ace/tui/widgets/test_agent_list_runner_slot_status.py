@@ -310,7 +310,7 @@ class TestRunnerSlotWaitRendering:
         assert "Weight:" not in explicit_default_header.plain
         assert "Weight:" not in serial_child_header.plain
 
-    def test_capacity_header_matches_row_suppression_and_family_member_rules(
+    def test_capacity_header_matches_row_suppression_and_agent_session_member_rules(
         self,
     ) -> None:
         serial_child = make_agent(
@@ -328,7 +328,7 @@ class TestRunnerSlotWaitRendering:
             wait_runners=3,
             wait_runners_explicit=True,
         )
-        family_root = make_agent(
+        agent_session_root = make_agent(
             agent_name="epic",
             cl_name="epic",
             agent_session="epic",
@@ -337,15 +337,15 @@ class TestRunnerSlotWaitRendering:
             wait_runners=3,
             wait_runners_explicit=True,
         )
-        family_root.followup_agents.append(serial_child)
+        agent_session_root.followup_agents.append(serial_child)
 
         serial_header, _ = build_header_text(serial_child, cheap=True)
         parallel_header, _ = build_header_text(parallel_child, cheap=True)
-        family_header, _ = build_header_text(family_root, cheap=True)
+        agent_session_header, _ = build_header_text(agent_session_root, cheap=True)
 
         assert "Capacity:" not in serial_header.plain
         assert "Capacity: 3 capacity units" in parallel_header.plain
-        assert "Capacity: 3 capacity units" in family_header.plain
+        assert "Capacity: 3 capacity units" in agent_session_header.plain
 
     def test_capacity_blocker_detail_distinguishes_weight_from_free_capacity(
         self,

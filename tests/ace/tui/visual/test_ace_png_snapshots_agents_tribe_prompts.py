@@ -29,7 +29,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
 
-_FAMILY_NAME = "visual-prompts-build"
+_AGENT_SESSION_NAME = "visual-prompts-build"
 _STARTED = datetime(2026, 7, 18, 14, 0, 0)
 
 
@@ -56,8 +56,8 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
         run_start_time=_STARTED,
         raw_suffix="visual-prompts-plan",
         artifacts_dir=str(plan_dir),
-        agent_name=f"{_FAMILY_NAME}--plan",
-        agent_session=_FAMILY_NAME,
+        agent_name=f"{_AGENT_SESSION_NAME}--plan",
+        agent_session=_AGENT_SESSION_NAME,
         agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
@@ -79,8 +79,8 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
         raw_suffix="visual-prompts-code",
         parent_timestamp=root.raw_suffix,
         artifacts_dir=str(code_dir),
-        agent_name=f"{_FAMILY_NAME}--code",
-        agent_session=_FAMILY_NAME,
+        agent_name=f"{_AGENT_SESSION_NAME}--code",
+        agent_session=_AGENT_SESSION_NAME,
         agent_session_role="code",
         role_suffix="--code",
         model="gpt-5",
@@ -154,8 +154,8 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
             parent_timestamp=child.raw_suffix,
             artifacts_dir=str(mon_dir),
             role_suffix="--mon",
-            agent_name=f"{_FAMILY_NAME}--mon",
-            agent_session=_FAMILY_NAME,
+            agent_name=f"{_AGENT_SESSION_NAME}--mon",
+            agent_session=_AGENT_SESSION_NAME,
             agent_session_role="monitor",
             monitor_id="gh6fddk5v3g9",
             monitor_state="completed",

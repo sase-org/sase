@@ -22,17 +22,17 @@ from .agent_list_runtime_helpers import (
 )
 
 
-def _active_plan_family() -> tuple[Agent, Agent, Agent]:
+def _active_plan_agent_session() -> tuple[Agent, Agent, Agent]:
     root = agent(
         agent_type=AgentType.WORKFLOW,
         status="WORKING TALE",
         start=datetime(2026, 7, 19, 9, 0, 0),
         run_start=datetime(2026, 7, 19, 9, 0, 0),
         raw_suffix="root",
-        cl_name="family-workflow",
+        cl_name="session-workflow",
     )
-    root.agent_name = "family--plan"
-    root.agent_session = "family"
+    root.agent_name = "session--plan"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.plan_chain_root = True
     planner = workflow_child(
@@ -49,10 +49,10 @@ def _active_plan_family() -> tuple[Agent, Agent, Agent]:
         start=datetime(2026, 7, 19, 9, 4, 0),
         run_start=datetime(2026, 7, 19, 9, 4, 0),
         raw_suffix="coder",
-        cl_name="family--code",
+        cl_name="session--code",
     )
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_session = "family"
+    coder.agent_session = "session"
     coder.agent_session_role = "code"
     coder.role_suffix = "--code"
     root.runtime_children = [planner, coder]
@@ -92,11 +92,13 @@ async def test_patch_active_runtime_rows_advances_running_row() -> None:
 
 
 @pytest.mark.asyncio
-async def test_patch_active_runtime_rows_advances_family_current_and_total() -> None:
+async def test_patch_active_runtime_rows_advances_agent_session_current_and_total() -> (
+    None
+):
     app = AgentListHarness()
     async with app.run_test() as pilot:
         widget = app.query_one(AgentList)
-        root, _planner, _coder = _active_plan_family()
+        root, _planner, _coder = _active_plan_agent_session()
         widget.update_list(
             [root],
             current_idx=0,
@@ -122,11 +124,13 @@ async def test_patch_active_runtime_rows_advances_family_current_and_total() -> 
 
 
 @pytest.mark.asyncio
-async def test_family_runtime_suffix_matches_collapsed_and_expanded_container() -> None:
+async def test_agent_session_runtime_suffix_matches_collapsed_and_expanded_container() -> (
+    None
+):
     app = AgentListHarness()
     async with app.run_test() as pilot:
         widget = app.query_one(AgentList)
-        root, planner, coder = _active_plan_family()
+        root, planner, coder = _active_plan_agent_session()
         now = datetime(2026, 7, 19, 9, 5, 5)
 
         widget.update_list([root], current_idx=0, now=now)

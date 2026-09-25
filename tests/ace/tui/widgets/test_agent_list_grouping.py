@@ -61,7 +61,7 @@ def test_named_agents_share_name_root_banner() -> None:
     assert widget._row_entries == [BR, BR, BR, (0, None), (1, None)]
 
 
-def test_dotted_agent_family_renders_under_root_family_heading() -> None:
+def test_dotted_agent_session_renders_under_root_agent_session_heading() -> None:
     root = make_agent(cl_name="demo", agent_name="a9f")
     root.raw_suffix = "ts-root"
     root.role_suffix = "-plan"

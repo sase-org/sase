@@ -121,7 +121,7 @@ def test_settled_starter_with_running_monitor_does_not_tick(
 
 
 @pytest.mark.parametrize("ticks", _TICK_DECISIONS)
-def test_family_container_ticks_through_settled_starter_to_monitor(
+def test_agent_session_container_ticks_through_settled_starter_to_monitor(
     ticks: Callable[[Agent], bool],
 ) -> None:
     starter = agent(
@@ -178,7 +178,7 @@ def test_settled_starter_with_running_non_monitor_child_still_ticks(
 
 @pytest.mark.parametrize("ticks", _TICK_DECISIONS)
 @pytest.mark.parametrize("gate_state", ["pending", "settling"])
-def test_family_container_does_not_tick_for_gate(
+def test_agent_session_container_does_not_tick_for_gate(
     ticks: Callable[[Agent], bool],
     gate_state: str,
 ) -> None:

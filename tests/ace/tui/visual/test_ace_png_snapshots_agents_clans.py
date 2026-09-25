@@ -109,11 +109,11 @@ async def test_running_clan_runtime_png_snapshots(
         assert_page_svg_contains(page, "runtime-clan")
         assert_page_svg_contains(page, "38m")
         assert_page_svg_contains(page, "45m")
-        # The collapsed clan lane must show the family's total (38m), never
+        # The collapsed clan lane must show the session's total (38m), never
         # the running coder shell's own runtime (35m) -- that single
         # absence is what fails loudly if the clan lane regresses. Scoped to
         # the live-marker-prefixed form so it doesn't false-positive on the
-        # family roster detail panel, which legitimately lists the coder
+        # session roster detail panel, which legitimately lists the coder
         # shell's own 35m runtime alongside the clan row.
         assert_page_svg_styled_text_absent(page, "🏃‍♂️ 35m")
         ace_png_visual.assert_page_png(
@@ -157,8 +157,8 @@ async def test_clan_tree_fold_levels_png_snapshots(
         assert_page_svg_styled_text_contains(page, "[R1 W1 D1]")
         assert_page_svg_contains(page, "@epic")
         assert_page_svg_contains(page, "@review")
-        # The clan has three direct lanes (family, workflow, standalone), and
-        # the status buckets retain the loaded concrete family member.
+        # The clan has three direct lanes (session, workflow, standalone), and
+        # the status buckets retain the loaded concrete session member.
         assert page.app._agent_info_metrics() == (0, 0, 1, 1, 0, 1, 3, 0, 0)
         ace_png_visual.assert_page_png(
             page,

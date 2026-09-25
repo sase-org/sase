@@ -306,8 +306,11 @@ async def test_swarm_clan_panel_png_snapshots(
         assert_page_svg_contains(page, "RESEARCH PROMPT:")
         assert_page_svg_contains(page, "across every fold level?")
         assert_page_svg_contains(page, "3 agents")
-        assert_page_svg_contains(page, "1 family")
-        # The compact CLAN MEMBERS jump panel lists the family lane as
+        # The Composition chip wraps between the count and ``session`` in the
+        # compact header, so the two halves are asserted separately.
+        assert_page_svg_contains(page, "3 agents · 1")
+        assert_page_svg_contains(page, "session")
+        # The compact CLAN MEMBERS jump panel lists the session lane as
         # ``.family``; its ``--code`` member appears only in the expanded roster.
         ace_png_visual.assert_page_png(
             page,

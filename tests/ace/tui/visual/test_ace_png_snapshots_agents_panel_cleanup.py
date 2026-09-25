@@ -91,7 +91,7 @@ def _cleanup_confirmation_agents() -> list[Agent]:
     ]
     for step in workflow_steps:
         step.parent_appears_as_agent = True
-    family = done(
+    agent_session = done(
         "lane-cleanup-family",
         "20260724-100200-family",
         agent_name="lane.cleanup.family--plan",
@@ -100,12 +100,12 @@ def _cleanup_confirmation_agents() -> list[Agent]:
         agent_session_role="root",
         role_suffix="--plan",
     )
-    family_members = [
+    agent_session_members = [
         done(
             "lane-cleanup-family",
             f"20260724-10020{index}-family",
             agent_name=f"lane.cleanup.family--phase-{index}",
-            parent_timestamp=family.raw_suffix,
+            parent_timestamp=agent_session.raw_suffix,
             agent_session="lane.cleanup.family",
             role_suffix=f"--phase-{index}",
         )
@@ -121,8 +121,8 @@ def _cleanup_confirmation_agents() -> list[Agent]:
         standalone,
         workflow,
         *workflow_steps,
-        family,
-        *family_members,
+        agent_session,
+        *agent_session_members,
     ]
 
 

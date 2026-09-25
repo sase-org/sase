@@ -175,7 +175,7 @@ def test_level1_shows_headlines_without_unit_labels_or_tags() -> None:
     assert "▸ PROMPTS · 2" in rendered
     assert " 0  First headline." in rendered
     assert " 1  Second headline." in rendered
-    assert "build · family" not in rendered.split("PROMPTS")[1]
+    assert "build · session" not in rendered.split("PROMPTS")[1]
     assert "lines" not in rendered.split("PROMPTS")[1]
 
 

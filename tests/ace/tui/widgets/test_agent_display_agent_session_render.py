@@ -1,4 +1,4 @@
-"""Family detail-panel section rendering tests."""
+"""Session detail-panel section rendering tests."""
 
 from __future__ import annotations
 
@@ -250,7 +250,7 @@ def test_root_monitor_phase_follows_planner_step_divider(tmp_path: Path) -> None
     assert started is not None
     monitor = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="family-monitor",
+        cl_name="session-monitor",
         project_file=root.project_file,
         status="MONITORED",
         status_bucket="Done",

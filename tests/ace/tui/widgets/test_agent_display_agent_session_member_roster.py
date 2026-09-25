@@ -1,4 +1,4 @@
-"""Tests for the SESSION SHELLS roster on family-member detail panels."""
+"""Tests for the SESSION SHELLS roster on session-member detail panels."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def test_member_panel_lists_only_sibling_and_publishes_jump_map(
 
     assert_kind_header(header, "AGENT SHELL", "#FFD700")
     assert header.plain.startswith("AGENT SHELL\nName:")
-    assert "FAMILY\n" not in header.plain.split("SESSION SHELLS", 1)[0]
+    assert "SESSION\n" not in header.plain.split("SESSION SHELLS", 1)[0]
     assert "▾ ❖ SESSION SHELLS · 1 · alpha" in header.plain
     entries = agent_session_roster_entries(root, exclude=child)
     assert [entry.label for entry in entries] == ["--plan"]
@@ -52,7 +52,7 @@ def test_plan_workflow_agent_session_member_panels_list_each_other() -> None:
     root = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="ep",
-        project_file="/tmp/family.sase",
+        project_file="/tmp/session.sase",
         status="DONE",
         start_time=started,
         run_start_time=started,
@@ -72,7 +72,7 @@ def test_plan_workflow_agent_session_member_panels_list_each_other() -> None:
     planner = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="ep-planner-step",
-        project_file="/tmp/family.sase",
+        project_file="/tmp/session.sase",
         status="DONE",
         start_time=started,
         run_start_time=started,
@@ -91,7 +91,7 @@ def test_plan_workflow_agent_session_member_panels_list_each_other() -> None:
     coder = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="ep-coder",
-        project_file="/tmp/family.sase",
+        project_file="/tmp/session.sase",
         status="RUNNING",
         start_time=started + timedelta(minutes=3),
         run_start_time=started + timedelta(minutes=3),
@@ -213,7 +213,7 @@ def test_agent_session_roster_labels_monitor_members() -> None:
     started = datetime(2026, 8, 12, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="DONE",
         start_time=started,
@@ -226,7 +226,7 @@ def test_agent_session_roster_labels_monitor_members() -> None:
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="MONITORING",
         status_bucket="Running",
@@ -268,7 +268,7 @@ def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_
     started = datetime(2026, 8, 12, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="DONE",
         start_time=started,
@@ -282,7 +282,7 @@ def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_
     )
     coder = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="DONE",
         start_time=started + timedelta(minutes=1),
@@ -297,7 +297,7 @@ def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="MONITORED",
         start_time=started + timedelta(minutes=2),
@@ -314,7 +314,7 @@ def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_
     )
     review = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="RUNNING",
         start_time=started + timedelta(minutes=3),
@@ -367,7 +367,7 @@ def test_agent_session_roster_monitor_descriptor_falls_back_to_command() -> None
     started = datetime(2026, 8, 12, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="DONE",
         start_time=started,
@@ -379,7 +379,7 @@ def test_agent_session_roster_monitor_descriptor_falls_back_to_command() -> None
     )
     unlabeled = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="monitor-family",
+        cl_name="monitor-session",
         project_file="/tmp/monitor.sase",
         status="MONITORING",
         start_time=started + timedelta(minutes=1),

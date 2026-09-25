@@ -111,17 +111,17 @@ def test_sort_reorder_runtime_children_ignore_step_suffix_collision() -> None:
     assert planner.runtime_children == []
 
 
-def test_sort_and_reorder_keeps_agent_family_children_nested_under_root() -> None:
+def test_sort_and_reorder_keeps_agent_session_children_nested_under_root() -> None:
     parent_suffix = "20260517085500"
     parent = agent(
         agent_type=AgentType.WORKFLOW,
         status="PLAN DONE",
         start=datetime(2026, 5, 17, 8, 55, 0),
         raw_suffix=parent_suffix,
-        cl_name="agent-family",
+        cl_name="agent-session",
         role_suffix="-plan",
     )
-    parent.workflow = "agent-family"
+    parent.workflow = "agent-session"
     parent.agent_name = "ap5"
     parent.agent_session = "ap5"
     parent.agent_session_role = "root"
@@ -177,7 +177,9 @@ def test_sort_and_reorder_keeps_agent_family_children_nested_under_root() -> Non
     assert ordered == [parent, planner, coder, bash, python]
 
 
-def test_waiting_family_child_orders_under_running_parent_and_buckets_waiting() -> None:
+def test_waiting_agent_session_child_orders_under_running_parent_and_buckets_waiting() -> (
+    None
+):
     parent = agent(
         status="RUNNING",
         start=datetime(2026, 7, 5, 21, 0, 0),
@@ -202,7 +204,7 @@ def test_waiting_family_child_orders_under_running_parent_and_buckets_waiting() 
     assert status_bucket_for(child) == "Waiting"
 
 
-def test_sort_and_reorder_attaches_family_container_for_workflow_shaped_family() -> (
+def test_sort_and_reorder_attaches_agent_session_container_for_workflow_shaped_agent_session() -> (
     None
 ):
     parent_suffix = "20260517085500"
@@ -211,10 +213,10 @@ def test_sort_and_reorder_attaches_family_container_for_workflow_shaped_family()
         status="PLAN DONE",
         start=datetime(2026, 5, 17, 8, 55, 0),
         raw_suffix=parent_suffix,
-        cl_name="agent-family",
+        cl_name="agent-session",
         role_suffix="-plan",
     )
-    parent.workflow = "agent-family"
+    parent.workflow = "agent-session"
     parent.agent_name = "ap5"
     parent.agent_session = "ap5"
     parent.agent_session_role = "root"
@@ -260,7 +262,7 @@ def test_sort_and_reorder_attaches_family_container_for_workflow_shaped_family()
     assert coder == coder
 
 
-def test_sort_and_reorder_attaches_family_container_for_rename_on_attach_family() -> (
+def test_sort_and_reorder_attaches_agent_session_container_for_rename_on_attach_agent_session() -> (
     None
 ):
     parent = agent(
@@ -291,7 +293,7 @@ def test_sort_and_reorder_attaches_family_container_for_rename_on_attach_family(
     assert parent.agent_session_container is None
 
 
-def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
+def test_sort_and_reorder_clears_stale_agent_session_container_pointer() -> None:
     parent = agent(
         status="RUNNING",
         start=datetime(2026, 8, 2, 10, 0, 0),
@@ -316,7 +318,7 @@ def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
     sort_and_reorder([child, parent], [])
     assert child.agent_session_container is parent
 
-    # The family dissolves (e.g. the follow-up is dismissed); a re-run must
+    # The session dissolves (e.g. the follow-up is dismissed); a re-run must
     # not leave a stale pointer even though ``child`` is still passed in.
     parent.followup_agents = []
     sort_and_reorder([child, parent], [])
@@ -325,7 +327,7 @@ def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
     assert child.agent_session_container is None
 
 
-def test_sort_and_reorder_skips_parallel_family_rows() -> None:
+def test_sort_and_reorder_skips_parallel_agent_session_rows() -> None:
     parent = agent(
         status="RUNNING",
         start=datetime(2026, 8, 2, 11, 0, 0),
@@ -370,13 +372,13 @@ def test_sort_and_reorder_emits_followup_of_followup_once_after_parent() -> None
         status="DONE",
         start=datetime(2026, 8, 17, 7, 0, 0),
         raw_suffix="20260817070000",
-        cl_name="family",
+        cl_name="session",
     )
     child = agent(
         status="DONE",
         start=datetime(2026, 8, 17, 7, 8, 0),
         raw_suffix="20260817070800",
-        cl_name="family--2",
+        cl_name="session--2",
         role_suffix="--2",
     )
     child.parent_timestamp = parent.raw_suffix
@@ -384,7 +386,7 @@ def test_sort_and_reorder_emits_followup_of_followup_once_after_parent() -> None
         status="MONITORING",
         start=datetime(2026, 8, 17, 7, 15, 0),
         raw_suffix="20260817071500",
-        cl_name="family--mon-1",
+        cl_name="session--mon-1",
         role_suffix="--mon-1",
     )
     grandchild.parent_timestamp = child.raw_suffix

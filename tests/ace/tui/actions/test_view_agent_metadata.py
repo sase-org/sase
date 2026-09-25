@@ -118,7 +118,9 @@ async def test_v_is_a_no_op_with_no_selection() -> None:
     "sase.ace.tui.actions.agents._metadata_pager_document.build_detail_header_summary",
     return_value=DetailHeaderSummary(),
 )
-async def test_v_on_a_family_container_row_does_not_crash(_mock: object) -> None:
+async def test_v_on_an_agent_session_container_row_does_not_crash(
+    _mock: object,
+) -> None:
     child = make_agent(cl_name="child", raw_suffix="20250101120500")
     root = make_agent(cl_name="root", raw_suffix="20250101120000")
     root.agent_session = "root"

@@ -55,7 +55,7 @@ async def _settle_tribe_visual(page: AcePage) -> None:
 
 def _tribe_agents() -> list[Agent]:
     started = datetime(2026, 7, 18, 14, 0, 0)
-    family_root = Agent(
+    agent_session_root = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-tribe-build--plan",
         project_file="/workspace/sase/visual_project.sase",
@@ -71,7 +71,7 @@ def _tribe_agents() -> list[Agent]:
         model="gpt-5",
         tribe="epic",
     )
-    family_child = Agent(
+    agent_session_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-tribe-build--code",
         project_file="/workspace/sase/visual_project.sase",
@@ -79,7 +79,7 @@ def _tribe_agents() -> list[Agent]:
         start_time=datetime(2026, 7, 18, 14, 2, 0),
         run_start_time=datetime(2026, 7, 18, 14, 2, 0),
         raw_suffix="visual-tribe-code",
-        parent_timestamp=family_root.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         agent_name="visual-tribe-build--code",
         agent_session="visual-tribe-build",
         agent_session_role="code",
@@ -89,7 +89,7 @@ def _tribe_agents() -> list[Agent]:
         activity="waiting for verification",
         tribe="epic",
     )
-    family_root.followup_agents = [family_child]
+    agent_session_root.followup_agents = [agent_session_child]
     failed = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-tribe-review",
@@ -117,7 +117,7 @@ def _tribe_agents() -> list[Agent]:
         raw_suffix="visual-home",
         agent_name="visual-home",
     )
-    return [home, family_root, family_child, failed]
+    return [home, agent_session_root, agent_session_child, failed]
 
 
 def _fold_restore_preview_agents() -> list[Agent]:
@@ -133,7 +133,7 @@ def _fold_restore_preview_agents() -> list[Agent]:
         raw_suffix="visual-home",
         agent_name="visual-home",
     )
-    family_root = Agent(
+    agent_session_root = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-fold-build--plan",
         project_file="/workspace/sase/visual_project.sase",
@@ -148,7 +148,7 @@ def _fold_restore_preview_agents() -> list[Agent]:
         plan_chain_root=True,
         tribe="epic",
     )
-    family_child = Agent(
+    agent_session_child = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-fold-build--code",
         project_file="/workspace/sase/visual_project.sase",
@@ -156,14 +156,14 @@ def _fold_restore_preview_agents() -> list[Agent]:
         start_time=datetime(2026, 7, 18, 14, 3, 0),
         run_start_time=datetime(2026, 7, 18, 14, 3, 0),
         raw_suffix="visual-fold-code",
-        parent_timestamp=family_root.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         agent_name="visual-fold-build--code",
         agent_session="visual-fold-build",
         agent_session_role="code",
         role_suffix="--code",
         tribe="epic",
     )
-    family_root.followup_agents = [family_child]
+    agent_session_root.followup_agents = [agent_session_child]
     clan_members = [
         Agent(
             agent_type=AgentType.RUNNING,
@@ -183,7 +183,7 @@ def _fold_restore_preview_agents() -> list[Agent]:
             ("beta", "QUEUED", 5),
         )
     ]
-    return [home, family_root, family_child, *clan_members]
+    return [home, agent_session_root, agent_session_child, *clan_members]
 
 
 def _tribe_display_agents() -> list[Agent]:
@@ -322,7 +322,7 @@ async def test_tribe_panel_fold_sweep_armed_png_snapshot(
         await page.expect_state("tab", "agents")
         await wait_for_visual_idle(page)
 
-        family = next(
+        agent_session = next(
             agent
             for agent in page.app._agents_with_children
             if agent.agent_session == "visual-fold-build"
@@ -333,10 +333,10 @@ async def test_tribe_panel_fold_sweep_armed_png_snapshot(
             for agent in page.app._agents_with_children
             if agent.is_clan_container and agent.agent_clan == "visual-fold-clan"
         )
-        family_key = agent_fold_key(family)
+        agent_session_key = agent_fold_key(agent_session)
         clan_key = agent_fold_key(clan)
-        assert family_key is not None and clan_key is not None
-        page.app._fold_manager.expand(family_key)
+        assert agent_session_key is not None and clan_key is not None
+        page.app._fold_manager.expand(agent_session_key)
         page.app._fold_manager.expand(clan_key)
         page.app._refilter_agents(refresh_content_index=False)
         page.app._refresh_agents_display(list_changed=True)

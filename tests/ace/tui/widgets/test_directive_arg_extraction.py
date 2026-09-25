@@ -61,13 +61,13 @@ def test_directive_arg_extraction_accepts_model_alias_and_special_chars() -> Non
 
 
 def test_wait_arg_extraction_uses_active_comma_fragment_and_alias() -> None:
-    line = "%w:planner, family.cod"
+    line = "%w:planner, session.cod"
     col = len(line)
     assert extract_directive_arg_token_around_cursor(line, col) == (
-        line.index("family"),
+        line.index("session"),
         col,
         "wait",
-        "family.cod",
+        "session.cod",
     )
 
 

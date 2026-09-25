@@ -50,7 +50,7 @@ def plan_handoff_status_agents() -> list[Agent]:
 
 
 def group_lane_collapse_precedence_agents() -> list[Agent]:
-    """Return three Running lanes with workflow and family descendants."""
+    """Return three Running lanes with workflow and session descendants."""
     project_file = "/workspace/sase/visual_project.sase"
     started = datetime(2026, 7, 22, 7, 0, 0)
 
@@ -244,7 +244,7 @@ def runner_slot_queue_window_agents() -> list[Agent]:
 
 
 def weighted_runner_capacity_agents() -> list[Agent]:
-    """Return weighted capacity rows covering families, terminals, and waiters."""
+    """Return weighted capacity rows covering sessions, terminals, and waiters."""
     project_file = "/workspace/sase/visual_project.sase"
     root_started = datetime(2026, 7, 30, 12, 0, 0)
     default_started = datetime(2026, 7, 30, 12, 1, 0)
@@ -441,7 +441,7 @@ def capacity_budget_accent_agents() -> list[Agent]:
     return [occupant, quiet_waiter, gold_admitted]
 
 
-def output_variable_family_agents() -> list[Agent]:
+def output_variable_agent_session_agents() -> list[Agent]:
     parent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-output-vars",

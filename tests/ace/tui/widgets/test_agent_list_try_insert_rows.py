@@ -136,8 +136,8 @@ def test_insert_leaves_the_widget_as_a_rebuild_would(
     assert widget._insert_decline_reason is None
 
 
-def _family_base() -> list[Agent]:
-    """Plain rows around one workflow family (a parent row and one step)."""
+def _agent_session_base() -> list[Agent]:
+    """Plain rows around one workflow session (a parent row and one step)."""
     parent = _agent("flow", 3, agent_type=AgentType.WORKFLOW, workflow="wf")
     step = _agent(
         "flow-step",
@@ -156,13 +156,13 @@ def _family_base() -> list[Agent]:
 
 
 @pytest.mark.parametrize("mode", [STANDARD, BY_STATUS])
-@pytest.mark.parametrize("position", [0, 3, 5], ids=["front", "mid-family", "end"])
-def test_insert_beside_an_existing_workflow_family_is_a_rebuild(
+@pytest.mark.parametrize("position", [0, 3, 5], ids=["front", "mid-session", "end"])
+def test_insert_beside_an_existing_workflow_agent_session_is_a_rebuild(
     monkeypatch: pytest.MonkeyPatch, mode: GroupingMode, position: int
 ) -> None:
-    # The refresh no longer names a workflow-tree change for a family that an
+    # The refresh no longer names a workflow-tree change for a session that an
     # arrival merely shifts, so this is the contract that keeps that safe.
-    base = _family_base()
+    base = _agent_session_base()
     arrival = _agent("node-2b", 2, second=30)
     new = [*base[:position], arrival, *base[position:]]
     widget = _built(monkeypatch, base, mode=mode)
@@ -366,14 +366,14 @@ def test_clan_and_workflow_rows_are_declined(
     _declines(monkeypatch, [*_base(), arrival], "workflow_tree_change")
 
 
-def _arriving_workflow_family() -> list[Agent]:
-    """A loader-faithful workflow family arriving whole (sase-142.5.2).
+def _arriving_workflow_agent_session() -> list[Agent]:
+    """A loader-faithful workflow session arriving whole (sase-142.5.2).
 
     The parent carries the agent's name; each step carries its workflow
-    block's step name (generic across families: ``git``, ``gh``), the
+    block's step name (generic across sessions: ``git``, ``gh``), the
     ``WORKFLOW`` type, and the parent linkage the snapshot loader writes.
     Structural descendants inherit the parent's grouping anchor, so the
-    whole family lands under the parent's name root.
+    whole session lands under the parent's name root.
     """
     parent = _agent("home", 30, agent_type=AgentType.WORKFLOW, workflow="wf-home")
     steps = [
@@ -396,16 +396,16 @@ def _arriving_workflow_family() -> list[Agent]:
 
 
 @pytest.mark.parametrize("mode", [STANDARD, BY_STATUS])
-def test_an_arriving_workflow_family_adds_its_own_banner_and_declines(
+def test_an_arriving_workflow_agent_session_adds_its_own_banner_and_declines(
     monkeypatch: pytest.MonkeyPatch, mode: GroupingMode
 ) -> None:
-    # sase-142.5.2: a family that arrives whole is not separable from the
+    # sase-142.5.2: a session that arrives whole is not separable from the
     # tree mutation the insert gate is written against. Its fresh name root
     # crosses the banner threshold by itself, so the arrival adds exactly
     # one name-root subgroup banner — and the in-place insert never mounts
     # new banner rows.
     base = _base()
-    new = [*base, *_arriving_workflow_family()]
+    new = [*base, *_arriving_workflow_agent_session()]
 
     before = rendered_group_keys(base, mode)
     after = rendered_group_keys(new, mode)
@@ -417,7 +417,7 @@ def test_an_arriving_workflow_family_adds_its_own_banner_and_declines(
 
 
 @pytest.mark.parametrize("mode", [STANDARD, BY_STATUS])
-def test_the_family_banner_blocks_the_insert_below_the_type_gate(
+def test_the_agent_session_banner_blocks_the_insert_below_the_type_gate(
     monkeypatch: pytest.MonkeyPatch, mode: GroupingMode
 ) -> None:
     # sase-142.5.2: even with the plain-leaf type gate held open, the same
@@ -431,7 +431,7 @@ def test_the_family_banner_blocks_the_insert_below_the_type_gate(
 
     _declines(
         monkeypatch,
-        [*base, *_arriving_workflow_family()],
+        [*base, *_arriving_workflow_agent_session()],
         "status_membership_change",
         base=base,
         mode=mode,
