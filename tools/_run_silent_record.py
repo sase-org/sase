@@ -14,6 +14,8 @@ import os
 import pathlib
 import re
 import secrets
+import signal
+import subprocess
 import sys
 import time
 from typing import Any
@@ -32,6 +34,23 @@ MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_DESCRIPTION_CHARS = 1024
 DEFAULT_STAGE_MAX_BYTES = 256 * 1024
 DEFAULT_TOTAL_MAX_BYTES = 2 * 1024 * 1024
+# Hard bound for one mid-run triage decision. Only an explicit ``continue``
+# from the verb continues the recipe; the timeout, a crash, or unparseable
+# output all stop. ``SASE_TOOL_TRIAGE_TIMEOUT_S`` is a test seam that only
+# shortens the bound; production always waits the full default.
+TRIAGE_TIMEOUT_S_DEFAULT = 10
+TRIAGE_DECISION_REASONS = frozenset(
+    {
+        "mode_always",
+        "all_known_or_flaky",
+        "new_item",
+        "unknown_item",
+        "no_items",
+        "helper_timeout",
+        "helper_error",
+        "mode_never",
+    }
+)
 
 
 def _int_env(name: str, default: int) -> int:
@@ -358,6 +377,7 @@ def _append_continuation(
     exit_code: int | None = None,
     reason: str | None = None,
     elapsed_ms: int | None = None,
+    description: str | None = None,
 ) -> tuple[bool, int | None]:
     """Append one continuation fact, returning its prior first failure code."""
 
@@ -387,6 +407,8 @@ def _append_continuation(
         record["reason"] = reason
     if elapsed_ms is not None:
         record["elapsed_ms"] = max(0, int(elapsed_ms))
+    if description is not None:
+        record["description"] = str(description)
     if kind == KIND_RECIPE_FINISHED:
         record["first_continued_exit_code"] = first_code
     return append_jsonl_record(events_path, record), first_code
@@ -414,11 +436,29 @@ def decide_stage(
             exit_code=exit_code,
             reason="mode_always",
             elapsed_ms=int((_monotonic_ns() - started) / 1_000_000),
+            description=description,
         )
         return 0 if recorded else exit_code
 
-    # ``known`` is intentionally fail-closed until its triage subprocess
-    # lands. An unknown value follows the same safe stop behavior.
+    if mode == "known":
+        decision, reason = _spawn_triage_decision(state_path, description)
+        kind = KIND_CONTINUED if decision == "continue" else KIND_STOPPED
+        recorded, first_code = _append_continuation(
+            kind,
+            state_path=state_path,
+            mode=mode,
+            exit_code=exit_code,
+            reason=reason,
+            elapsed_ms=int((_monotonic_ns() - started) / 1_000_000),
+            description=description,
+        )
+        if kind == KIND_CONTINUED:
+            return 0 if recorded else exit_code
+        if not recorded:
+            return exit_code
+        return first_code if first_code is not None else exit_code
+
+    # An unknown value follows the same safe stop behavior as ``never``.
     reason = "mode_never" if mode == "never" else "helper_error"
     recorded, first_code = _append_continuation(
         KIND_STOPPED,
@@ -427,10 +467,113 @@ def decide_stage(
         exit_code=exit_code,
         reason=reason,
         elapsed_ms=int((_monotonic_ns() - started) / 1_000_000),
+        description=description,
     )
     if not recorded:
         return exit_code
     return first_code if first_code is not None else exit_code
+
+
+def _triage_timeout_s() -> int:
+    """Return the hard bound for one mid-run triage decision in seconds."""
+
+    raw = (os.environ.get("SASE_TOOL_TRIAGE_TIMEOUT_S") or "").strip()
+    try:
+        value = int(raw) if raw else TRIAGE_TIMEOUT_S_DEFAULT
+    except ValueError:
+        return TRIAGE_TIMEOUT_S_DEFAULT
+    if value < 1:
+        return 1
+    return min(value, TRIAGE_TIMEOUT_S_DEFAULT)
+
+
+def _parse_triage_answer(raw: bytes) -> tuple[str, str]:
+    """Reduce the verb's stdout to a ``(decision, reason)`` pair."""
+
+    try:
+        text = raw.decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001 - undecodable output stops.
+        return "stop", "helper_error"
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            answer = json.loads(stripped)
+        except json.JSONDecodeError:
+            return "stop", "helper_error"
+        if not isinstance(answer, dict):
+            return "stop", "helper_error"
+        reason = answer.get("reason")
+        if reason not in TRIAGE_DECISION_REASONS:
+            reason = "helper_error"
+        if answer.get("decision") == "continue" and reason == "all_known_or_flaky":
+            return "continue", reason
+        if answer.get("decision") == "stop":
+            return "stop", reason
+        return "stop", "helper_error"
+    return "stop", "helper_error"
+
+
+def _spawn_triage_decision(
+    state_path: pathlib.Path, description: str
+) -> tuple[str, str]:
+    """Ask the hidden triage verb whether a failed stage may continue.
+
+    Returns a ``(decision, reason)`` pair. Only an explicit ``continue``
+    continues; the timeout, a crash, unparseable output, or a missing
+    handshake all stop.
+    """
+
+    events_path = _events_path()
+    run_id = _run_id()
+    python = (os.environ.get("SASE_TOOL_PYTHON") or "").strip()
+    state = _load_state(state_path)
+    stage_id = str(state.get("stage_id") or "").strip()
+    if events_path is None or not run_id or not python or not stage_id:
+        return "stop", "helper_error"
+    output = events_path.parent / "stage_output" / f"{stage_id}.log"
+    argv = [
+        python,
+        "-m",
+        "sase",
+        "tool",
+        "_triage-stage",
+        run_id,
+        "--stage-id",
+        stage_id,
+        "--description",
+        description,
+        "--output",
+        str(output),
+    ]
+    try:
+        proc = subprocess.Popen(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        return "stop", "helper_error"
+    try:
+        raw, _ = proc.communicate(timeout=_triage_timeout_s())
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except OSError:
+            try:
+                proc.kill()
+            except OSError:
+                pass
+        proc.wait()
+        return "stop", "helper_timeout"
+    except Exception:  # noqa: BLE001 - a failed wait stops.
+        return "stop", "helper_error"
+    decision, reason = _parse_triage_answer(raw or b"")
+    if decision == "continue" and proc.returncode == 0:
+        return "continue", reason
+    return "stop", reason
 
 
 def finish_recipe() -> int:

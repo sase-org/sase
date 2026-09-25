@@ -106,6 +106,14 @@ def _claim_and_run(
     logs = run.get("logs") if isinstance(run, dict) else None
     events_raw = logs.get("events_path") if isinstance(logs, dict) else None
     events_path = Path(str(events_raw)) if events_raw else None
+    # The worker inherits the reservation's recorded attribution — the
+    # starter agent for a monitor reservation — so an agent-attributed
+    # run defaults to known-gated continuation behind the flag.
+    recorded_agent = ""
+    if isinstance(run, dict):
+        recorded_agent = str(run.get("agent") or "").strip()
+
+    from sase.tool.executor import agent_default_continuation_mode
 
     ctx = RecordedRunContext(
         run_id=run_id,
@@ -120,6 +128,7 @@ def _claim_and_run(
         stderr_path=None,
         stop_recorded=_stop_probe(run_id, owner_kind, owner_id, proc_id),
         timeout_recorded=_timeout_probe(proc_id),
+        continuation_mode=agent_default_continuation_mode(resolved, recorded_agent),
     )
     code = run_recorded_body(ctx, signals)
     if owner_kind == "proc":

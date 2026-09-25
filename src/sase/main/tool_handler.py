@@ -46,6 +46,17 @@ def handle_tool_command(args: argparse.Namespace) -> None:
         from sase.tool.adopt import execute_adopted_run
 
         sys.exit(execute_adopted_run(str(getattr(args, "adopt_run_id", "") or "")))
+    if subcommand == "_triage-stage":
+        from sase.tool.triage_stage import execute_triage_stage
+
+        sys.exit(
+            execute_triage_stage(
+                str(getattr(args, "triage_stage_run_id", "") or ""),
+                stage_id=str(getattr(args, "triage_stage_id", "") or ""),
+                description=str(getattr(args, "triage_stage_description", "") or ""),
+                output=getattr(args, "triage_stage_output", None),
+            )
+        )
     if subcommand == "run":
         tail_raw = getattr(args, "tail_lines", None)
         sys.exit(

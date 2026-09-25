@@ -143,6 +143,38 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         help=argparse.SUPPRESS,
     )
 
+    triage_stage_parser = tool_subparsers.add_parser(
+        "_triage-stage",
+        help=argparse.SUPPRESS,
+        description="Classify one failed stage mid-run (internal).",
+    )
+    triage_stage_parser.add_argument(
+        "triage_stage_run_id",
+        metavar="RUN",
+        help=argparse.SUPPRESS,
+    )
+    triage_stage_parser.add_argument(
+        "--stage-id",
+        required=True,
+        dest="triage_stage_id",
+        metavar="ID",
+        help=argparse.SUPPRESS,
+    )
+    triage_stage_parser.add_argument(
+        "--description",
+        required=True,
+        dest="triage_stage_description",
+        metavar="TEXT",
+        help=argparse.SUPPRESS,
+    )
+    triage_stage_parser.add_argument(
+        "--output",
+        default=None,
+        dest="triage_stage_output",
+        metavar="PATH",
+        help=argparse.SUPPRESS,
+    )
+
     runs_parser = tool_subparsers.add_parser(
         "runs",
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -18,6 +18,7 @@ from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import (
     tool_run_observe,
     tool_run_show,
+    tool_run_triage_record,
     tool_run_triage_settle,
     tool_run_triage_show,
 )
@@ -291,6 +292,39 @@ def _default_continuation_mode(resolved: ResolvedToolArgv) -> str | None:
     return "never" if is_run_silent else None
 
 
+def _recorded_agent_attribution() -> str:
+    """Return the agent name this run would record, or an empty string.
+
+    This mirrors the attribution ``build_begin_request`` persists: the
+    foreground ``SASE_AGENT_NAME``, or ``SASE_TOOL_RUN_AGENT`` for an
+    E1.5-wrapped run inside a monitor-owned proc.
+    """
+
+    return (os.environ.get("SASE_AGENT_NAME") or "").strip() or (
+        os.environ.get("SASE_TOOL_RUN_AGENT") or ""
+    ).strip()
+
+
+def agent_default_continuation_mode(
+    resolved: ResolvedToolArgv, agent: str | None
+) -> str | None:
+    """Return the handshake mode for a recorded run with *agent* attribution.
+
+    With the failure-triage flag on, an agent-attributed run of a
+    ``stages: run_silent`` named tool continues past all-KNOWN/FLAKY
+    stages; every other run keeps fail-fast. Adopted monitor workers
+    pass the run's stored agent so a starter-agent reservation inherits
+    the same default through its recorded attribution.
+    """
+
+    default_mode = _default_continuation_mode(resolved)
+    if default_mode is None:
+        return None
+    if agent and agent.strip() and _failure_triage_enabled():
+        return "known"
+    return default_mode
+
+
 def _continuation_mode(
     request: ToolRunCliRequest, resolved: ResolvedToolArgv
 ) -> str | None:
@@ -304,7 +338,9 @@ def _continuation_mode(
                 "tool with stages: run_silent"
             )
         return "always" if request.keep_going else "never"
-    return default_mode
+    if default_mode is None:
+        return None
+    return agent_default_continuation_mode(resolved, _recorded_agent_attribution())
 
 
 def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
@@ -427,7 +463,12 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         child_pgid = proc.pid
     signals.bind_pgid(child_pgid)
     if recorded:
-        _observe_spawned_child(run_id, child_pid=child_pid, child_pgid=child_pgid)
+        _observe_spawned_child(
+            run_id,
+            child_pid=child_pid,
+            child_pgid=child_pgid,
+            fingerprint_before=fingerprint_before,
+        )
 
     policy = log_policy()
     budget = RunLogBudget(int(policy.get("run_log_max_bytes") or 0))
@@ -710,13 +751,206 @@ def _settle_failure_triage(
             {"run_id": ctx.run_id},
             busy_timeout_ms=max(1, int((deadline - time.monotonic()) * 1000)),
         )
+        triage, record_notes = _persist_continuation_decisions(
+            ctx, ingestor, triage, deadline
+        )
         triage["diagnostics"] = [
             *_string_items(triage.get("diagnostics")),
             *diagnostics,
+            *record_notes,
         ]
         return triage
     except Exception as exc:  # noqa: BLE001 - triage must always fail open.
         return {"triaged": False, "diagnostics": [str(exc), *diagnostics]}
+
+
+_DECISION_RECORD_MIN_SECONDS = 0.3
+_EXTRACTION_STATUSES = frozenset(
+    {"parsed", "generic", "output_missing", "output_truncated"}
+)
+
+
+def _continuation_decision_entries(
+    ingestor: StageIngestor | None,
+) -> list[dict[str, Any]]:
+    """Project helper continuation records onto stored stage identities."""
+
+    if ingestor is None:
+        return []
+    entries: list[dict[str, Any]] = []
+    for record in ingestor.continuation_records:
+        kind = str(record.get("kind") or "")
+        if kind == "continued":
+            decision = "continue"
+        elif kind == "stopped":
+            decision = "stop"
+        else:
+            continue
+        stage_id = str(record.get("stage_id") or "")
+        stage = ingestor.stages.get(stage_id) if stage_id else None
+        stage_key = ""
+        if isinstance(stage, dict):
+            stage_key = str(stage.get("description") or "")
+        if not stage_key:
+            stage_key = str(record.get("description") or "")
+        if not stage_id or not stage_key:
+            continue
+        elapsed = record.get("elapsed_ms")
+        decided = record.get("decided_ts")
+        entries.append(
+            {
+                "stage_id": stage_id,
+                "stage_key": stage_key,
+                "mode": str(record.get("mode") or ""),
+                "decision": decision,
+                "reason": str(record.get("reason") or ""),
+                "elapsed_ms": elapsed if type(elapsed) is int else None,
+                "decided_ts": decided if type(decided) is int else None,
+            }
+        )
+    return entries
+
+
+def _continuation_run_cost(
+    records: list[dict[str, Any]],
+) -> tuple[int | None, int | None]:
+    """Return ``(first_continued_exit_code, extra_ms)`` for a run.
+
+    The extra cost of continuing is the wall time from the first
+    continued failure to the recipe finish marker, or to settlement
+    when the finish marker is missing.
+    """
+
+    continued = [r for r in records if r.get("kind") == "continued"]
+    if not continued:
+        return None, None
+    first_code: int | None = None
+    first_ts: int | None = None
+    first = continued[0]
+    if type(first.get("exit_code")) is int:
+        first_code = int(first["exit_code"])
+    if type(first.get("decided_ts")) is int:
+        first_ts = int(first["decided_ts"])
+    finished = [r for r in records if r.get("kind") == "recipe_finished"]
+    if finished:
+        last = finished[-1]
+        if type(last.get("first_continued_exit_code")) is int:
+            first_code = int(last["first_continued_exit_code"])
+        end = last.get("decided_ts")
+        end_ts = int(end) if type(end) is int else int(time.time() * 1000)
+    else:
+        end_ts = int(time.time() * 1000)
+    extra_ms = None if first_ts is None else max(0, end_ts - first_ts)
+    return first_code, extra_ms
+
+
+def _persist_continuation_decisions(
+    ctx: RecordedRunContext,
+    ingestor: StageIngestor | None,
+    triage: dict[str, Any],
+    deadline: float,
+) -> tuple[dict[str, Any], list[str]]:
+    """Persist helper continuation decisions and run cost facts.
+
+    Settle stores items and labels but never sees the helper's
+    ``continued``/``stopped`` records, so without this call a
+    ``show -j`` stage would carry no decision and no continuation cost.
+    Stored rows win on replay: an entry only fills a decision that is
+    still NULL, and run facts only fill columns that are still NULL.
+    """
+
+    notes: list[str] = []
+    if ingestor is None or not ctx.continuation_mode:
+        return triage, notes
+    entries = _continuation_decision_entries(ingestor)
+    first_code, extra_ms = _continuation_run_cost(ingestor.continuation_records)
+    if not entries and first_code is None and extra_ms is None:
+        return triage, notes
+    by_id: dict[str, dict[str, Any]] = {}
+    by_key: dict[str, dict[str, Any]] = {}
+    for stage in _dict_items(triage.get("stages")):
+        stage_id = stage.get("stage_id")
+        if isinstance(stage_id, str) and stage_id:
+            by_id.setdefault(stage_id, stage)
+        stage_key = stage.get("stage_key")
+        if isinstance(stage_key, str) and stage_key:
+            by_key.setdefault(stage_key, stage)
+    stages: list[dict[str, Any]] = []
+    for entry in entries:
+        if entry["decided_ts"] is None:
+            notes.append(
+                f"triage decision unmatched: {entry['stage_key']} (missing timestamp)"
+            )
+            continue
+        stored = by_id.get(entry["stage_id"]) or by_key.get(entry["stage_key"])
+        if stored is None:
+            notes.append(f"triage decision unmatched: {entry['stage_key']}")
+            continue
+        if stored.get("extraction_status") not in _EXTRACTION_STATUSES:
+            notes.append(
+                f"triage decision unmatched: {entry['stage_key']} "
+                "(unknown extraction status)"
+            )
+            continue
+        stages.append(
+            {
+                "stage_key": stored.get("stage_key"),
+                "stage_id": stored.get("stage_id") or entry["stage_id"],
+                "extraction_status": stored.get("extraction_status"),
+                "output_path": stored.get("output_path"),
+                "decision": {
+                    "mode": entry["mode"] or ctx.continuation_mode,
+                    "decision": entry["decision"],
+                    "reason": entry["reason"],
+                    "elapsed_ms": entry["elapsed_ms"],
+                    "decided_ts": entry["decided_ts"],
+                },
+                "items": [],
+            }
+        )
+    if not stages and first_code is None and extra_ms is None:
+        return triage, notes
+    remaining = deadline - time.monotonic()
+    if remaining <= _DECISION_RECORD_MIN_SECONDS:
+        notes.append("triage decision record skipped: budget exhausted")
+        return triage, notes
+    try:
+        tool_run_triage_record(
+            {
+                "run_id": ctx.run_id,
+                "stages": stages,
+                "run_facts": {
+                    "continuation_mode": ctx.continuation_mode,
+                    "recipe_finished_ts": _recipe_finished_ts(ingestor),
+                    "first_continued_exit_code": first_code,
+                    "continuation_extra_ms": extra_ms,
+                    "repeat_of_run_id": None,
+                    "triaged_ts": None,
+                    "diagnostics": [],
+                },
+                "now_ts": int(time.time()),
+            },
+            busy_timeout_ms=max(1, int(remaining * 1000)),
+        )
+    except Exception as exc:  # noqa: BLE001 - decisions must fail open.
+        notes.append(f"triage decision record failed: {exc}")
+        return triage, notes
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        notes.append("triage decision re-read skipped: budget exhausted")
+        return triage, notes
+    try:
+        refreshed = tool_run_triage_show(
+            {"run_id": ctx.run_id},
+            busy_timeout_ms=max(1, int(remaining * 1000)),
+        )
+    except Exception as exc:  # noqa: BLE001 - the first read still stands.
+        notes.append(f"triage decision re-read failed: {exc}")
+        return triage, notes
+    if not isinstance(refreshed, dict):
+        notes.append("triage decision re-read failed: malformed envelope")
+        return triage, notes
+    return refreshed, notes
 
 
 def _gather_triage(
@@ -845,29 +1079,38 @@ def _string_items(value: object) -> list[str]:
     return [str(item) for item in value if str(item)]
 
 
-def _observe_spawned_child(run_id: str, *, child_pid: int, child_pgid: int) -> None:
+def _observe_spawned_child(
+    run_id: str,
+    *,
+    child_pid: int,
+    child_pgid: int,
+    fingerprint_before: dict[str, Any] | None = None,
+) -> None:
     """Persist the child's pid, pgid, and start identity right after spawn.
 
     Child facts used to reach the ledger only through ``finish_tool_run``, so
     a run killed seconds later settled ``lost`` with no reapable group.
-    Recording stays fail-open: an observe failure warns at most once and never
-    changes the child's result.
+    The pre-spawn fingerprint rides along so a mid-run stage triage can
+    read ``base(R)`` and dirty paths before the run settles; finish
+    resends the same value. Recording stays fail-open: an observe failure
+    warns at most once and never changes the child's result.
     """
 
     try:
         identity = process_identity_token(child_pid)
     except Exception:  # noqa: BLE001 - identity is best-effort metadata.
         identity = ""
+    request: dict[str, Any] = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "child_pid": child_pid,
+        "child_pgid": child_pgid,
+        "child_process_start_identity": identity or None,
+    }
+    if fingerprint_before is not None:
+        request["fingerprint_before"] = fingerprint_before
     try:
-        tool_run_observe(
-            {
-                "schema_version": 1,
-                "run_id": run_id,
-                "child_pid": child_pid,
-                "child_pgid": child_pgid,
-                "child_process_start_identity": identity or None,
-            }
-        )
+        tool_run_observe(request)
     except Exception as exc:  # noqa: BLE001 - never change the child result.
         warn_once(f"sase: child facts not recorded ({exc})")
         inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="observe")
@@ -876,6 +1119,7 @@ def _observe_spawned_child(run_id: str, *, child_pid: int, child_pgid: int) -> N
 __all__ = [
     "RecordedRunContext",
     "ToolRunCliRequest",
+    "agent_default_continuation_mode",
     "execute_tool_run",
     "run_recorded_body",
 ]

@@ -34,7 +34,7 @@ def test_explicit_tool_list_prints_no_delegation_notice() -> None:
 
 
 def test_tool_help_advertises_implemented_verbs() -> None:
-    """``sase tool --help`` advertises its public verbs, hiding ``_adopt``."""
+    """``sase tool --help`` advertises its public verbs, hiding internals."""
     tool_parser = parser_for(("sase", "tool"))
     raw_help = tool_parser.format_help()
     help_text = flat_help(raw_help)
@@ -42,6 +42,7 @@ def test_tool_help_advertises_implemented_verbs() -> None:
 
     assert list(subcommands.choices) == [
         "_adopt",
+        "_triage-stage",
         "list",
         "run",
         "runs",
@@ -54,6 +55,7 @@ def test_tool_help_advertises_implemented_verbs() -> None:
         line for line in raw_help.splitlines() if line.startswith("usage:")
     )
     assert "_adopt" not in usage_line
+    assert "_triage-stage" not in usage_line
     assert "-j, --json" in flat_help(subcommands.choices["list"].format_help())
 
 
@@ -62,6 +64,28 @@ def test_tool_adopt_is_hidden_but_reachable() -> None:
     args = create_parser().parse_args(["tool", "_adopt", "abc123"])
     assert args.tool_subcommand == "_adopt"
     assert args.adopt_run_id == "abc123"
+
+
+def test_tool_triage_stage_is_hidden_but_reachable() -> None:
+    """``_triage-stage`` parses even though it is suppressed from help."""
+    args = create_parser().parse_args(
+        [
+            "tool",
+            "_triage-stage",
+            "abc123",
+            "--stage-id",
+            "stage-1",
+            "--description",
+            "lint (mypy)",
+            "--output",
+            "stage_output/stage-1.log",
+        ]
+    )
+    assert args.tool_subcommand == "_triage-stage"
+    assert args.triage_stage_run_id == "abc123"
+    assert args.triage_stage_id == "stage-1"
+    assert args.triage_stage_description == "lint (mypy)"
+    assert args.triage_stage_output == "stage_output/stage-1.log"
 
 
 def test_tool_run_preserves_remainder_after_separator() -> None:
