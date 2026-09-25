@@ -10,6 +10,8 @@ from ._clan_cleanup import clan_members_for_container
 from ._dismiss_cleanup import agent_identity_from_wire
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
 from ._kill_termination import (
+    AgentSurvivorsError,
+    Survivor,
     live_dismissed_agents,
     survivor_agents,
     survivors_error,
@@ -98,7 +100,7 @@ def persist_single_kill_transaction(
     kill_agents = [
         target for target, target_kind in targets if target_kind != "monitor"
     ]
-    survivors = terminate_agents(
+    survivors: list[Survivor] = terminate_agents(
         [
             *kill_agents,
             *live_dismissed_agents(
@@ -123,7 +125,8 @@ def persist_single_kill_transaction(
                 *args, register_expected_deletion=register_expected_deletion
             )
     if survivors:
-        raise survivors_error(survivors)
+        error: AgentSurvivorsError = survivors_error(survivors)
+        raise error
 
 
 def persist_bulk_kill_transaction(
@@ -161,7 +164,7 @@ def persist_bulk_kill_transaction(
     _execute_member_stop_intents(proc_stops, gate_cancels)
 
     kill_agents = [item.agent for item in kill_items if item.kind != "monitor"]
-    survivors = terminate_agents(
+    survivors: list[Survivor] = terminate_agents(
         [
             *kill_agents,
             *live_dismissed_agents(
@@ -198,7 +201,8 @@ def persist_bulk_kill_transaction(
         kwargs["register_expected_deletion"] = register_expected_deletion
     killing_compat.persist_bulk_kill_side_effects(*args, **kwargs)
     if survivors:
-        raise survivors_error(survivors)
+        error: AgentSurvivorsError = survivors_error(survivors)
+        raise error
 
 
 def _execute_member_stop_intents(

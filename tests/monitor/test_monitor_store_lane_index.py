@@ -8,11 +8,9 @@ import pytest
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
-    query_agent_artifact_index,
     rebuild_agent_artifact_index,
 )
 from sase.core.agent_scan_wire import (
-    AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
@@ -57,8 +55,6 @@ def test_lane_monitor_records_push_the_lane_into_the_index_query(
         sase_projects_dir(),
         AgentArtifactScanOptionsWire(),
     )
-    _skip_unless_core_has_agent_session_filter()
-
     scans: list[AgentArtifactScanWire] = []
     real_query = store.query_agent_artifact_index
 
@@ -79,28 +75,3 @@ def test_lane_monitor_records_push_the_lane_into_the_index_query(
     # hydrated, not the bystanders or the other lane.
     assert scans[0].stats.record_json_decoded == 3
     assert store.lane_monitor_records("proj", "lane-missing") == []
-
-
-def _skip_unless_core_has_agent_session_filter() -> None:
-    """Skip while the pinned sase-core predates the ``agent_session`` field.
-
-    ``store.lane_monitor_records`` degrades to a full scan on such a core, which is
-    correct but not what this test pins. Drop this guard once
-    ``sase-core-revision.txt`` is at or past the sase-core commit that added
-    ``AgentArtifactCandidateFieldWire::AgentSession``.
-    """
-    try:
-        query_agent_artifact_index(
-            default_agent_artifact_index_path(),
-            sase_projects_dir(),
-            AgentArtifactIndexQueryWire(
-                candidate_filter={
-                    "kind": "equals",
-                    "field": "agent_session",
-                    "value": "probe",
-                }
-            ),
-            AgentArtifactScanOptionsWire(),
-        )
-    except (RuntimeError, ValueError):
-        pytest.skip("pinned sase-core lacks the agent_session candidate filter")

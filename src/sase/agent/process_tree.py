@@ -117,7 +117,7 @@ def process_is_running(pid: int) -> bool:
     return True
 
 
-def environ_has_launch_key(pid: int, scratch_key: str) -> bool:
+def _environ_has_launch_key(pid: int, scratch_key: str) -> bool:
     """Whether *pid* was launched with ``SASE_LAUNCH_SCRATCH_KEY=<scratch_key>``.
 
     ``/proc/<pid>/environ`` is the environment the process started with, which
@@ -213,7 +213,7 @@ def discover_strong_members(
             if row.sid == root_pid:
                 found[pid] = REASON_SESSION
                 continue
-        if scratch_key and environ_has_launch_key(pid, scratch_key):
+        if scratch_key and _environ_has_launch_key(pid, scratch_key):
             found[pid] = REASON_SCRATCH_KEY
     return found
 
@@ -254,7 +254,6 @@ __all__ = [
     "descendants_of",
     "discover_strong_members",
     "discover_weak_members",
-    "environ_has_launch_key",
     "proc_available",
     "process_is_running",
     "read_process_row",

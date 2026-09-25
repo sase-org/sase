@@ -35,6 +35,8 @@ from ._dismiss_persistence import (
     persist_dismiss_side_effects,
 )
 from ._kill_termination import (
+    AgentSurvivorsError,
+    Survivor,
     live_dismissed_agents,
     survivor_agents,
     survivors_error,
@@ -471,7 +473,7 @@ def _persist_single_dismiss_transaction(
 
     # Safety net: a row dismissed without a kill whose runner is provably still
     # alive (for example a FAILED row in retry backoff) must not keep running.
-    survivors = terminate_agents(
+    survivors: list[Survivor] = terminate_agents(
         live_dismissed_agents(
             agents_related_to_dismissal(agent, agents_with_children_snapshot)
         )
@@ -512,7 +514,8 @@ def _persist_single_dismiss_transaction(
             raise
         _raise_on_dismissed_agent_artifact_index_sync_failure(synced)
     if survivors:
-        raise survivors_error(survivors)
+        error: AgentSurvivorsError = survivors_error(survivors)
+        raise error
 
 
 def _unique_related_agents_for_dismissal(
@@ -548,7 +551,7 @@ def _persist_bulk_dismiss_transaction(
     )
 
     # Safety net: see ``_persist_single_dismiss_transaction``.
-    survivors = terminate_agents(
+    survivors: list[Survivor] = terminate_agents(
         live_dismissed_agents(
             _unique_related_agents_for_dismissal(agents, agents_with_children_snapshot)
         )
@@ -599,7 +602,8 @@ def _persist_bulk_dismiss_transaction(
             raise
         _raise_on_dismissed_agent_artifact_index_sync_failure(synced)
     if survivors:
-        raise survivors_error(survivors)
+        error: AgentSurvivorsError = survivors_error(survivors)
+        raise error
 
 
 persist_bulk_dismiss_transaction = _persist_bulk_dismiss_transaction
