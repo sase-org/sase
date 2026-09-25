@@ -2793,14 +2793,16 @@ policy.
 Claude:
 
 - **error patterns**: `"Prompt is too long"`,
-  `"socket connection was closed unexpectedly"`, and `"API Error"`
+  `"socket connection was closed unexpectedly"`, `"API Error"`, and
+  `"another Claude Code process is refreshing it"` — the last covers transient OAuth
+  refresh-lock contention; expired or revoked logins stay terminal
 - **max_retries**: 3
 - **wait_times**: `[0]` — used only when no config layer supplies `wait_times`; the
   bundled Claude policy supplies `[60, 300, 1800]`, so that is the out-of-the-box
   backoff
 - **continuation_prompt**: A short nudge that tells the coder to inspect `git status` /
   `git diff` before resuming, since prior edits are preserved on disk after a
-  context-limit, socket-close, or API-error retry
+  context-limit, socket-close, API-error, or OAuth refresh-contention retry
 - **preserve_workspace**: `true`
 
 Codex:

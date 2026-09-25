@@ -13,6 +13,26 @@ _CLAUDE_SOCKET_CLOSE_ERROR = (
     "information, pass verbose: true in the second argument to fetch()"
 )
 
+_CLAUDE_OAUTH_REFRESH_LOCK_ERROR = (
+    "WorkflowExecutionError: Step 'main' failed: Error running LLM provider "
+    "command (exit code 1)\nstderr: [result] Failed to refresh OAuth token: "
+    "another Claude Code process is refreshing it or exited mid-refresh. This "
+    "is usually transient; retry in a minute, and if it persists close other "
+    "Claude Code processes or sign in again"
+)
+
+_CLAUDE_OAUTH_REFRESH_LOCK_INTERACTIVE = (
+    "Could not refresh your login because another Claude Code process is "
+    "refreshing it (or exited mid-refresh) · Try again in a minute; if it "
+    "persists, close other Claude Code processes or sign in again"
+)
+
+_CLAUDE_EXPIRED_LOGIN_ERRORS = (
+    "Failed to authenticate: OAuth session expired and could not be refreshed",
+    "Login expired · Please run /login",
+    "OAuth token revoked · Please run /login",
+)
+
 # The literal terminal output observed for Codex agent `0s`: a websocket 403
 # storm that exhausts the CLI's own reconnects and ends in a 429.
 _CODEX_TRANSIENT_FAILURE = (
@@ -62,6 +82,7 @@ class TestBuiltInDefaults:
         assert "Prompt is too long" in config.error_patterns
         assert "socket connection was closed unexpectedly" in config.error_patterns
         assert "API Error" in config.error_patterns
+        assert "another Claude Code process is refreshing it" in config.error_patterns
         assert config.wait_times == [0]
         assert config.continuation_prompt is not None
         assert "context limit" in config.continuation_prompt
@@ -79,6 +100,42 @@ class TestBuiltInDefaults:
         config = get_retry_config("claude")
         assert config is not None
         assert is_retryable_error(_CLAUDE_SOCKET_CLOSE_ERROR, config) is True
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_claude_built_in_matches_oauth_refresh_lock_errors(
+        self, mock_config: object
+    ) -> None:
+        """Claude retries OAuth refresh-lock contention in both CLI wordings."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("claude")
+        assert config is not None
+        assert is_retryable_error(_CLAUDE_OAUTH_REFRESH_LOCK_ERROR, config) is True
+        assert (
+            is_retryable_error(_CLAUDE_OAUTH_REFRESH_LOCK_INTERACTIVE, config) is True
+        )
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_claude_oauth_refresh_lock_error_found_by_finder(
+        self, mock_config: object
+    ) -> None:
+        """The retry finder recognizes Claude OAuth refresh-lock contention."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = find_retry_config_for_error(_CLAUDE_OAUTH_REFRESH_LOCK_ERROR)
+        assert config is not None
+        assert config.max_retries == 3
+        assert "another Claude Code process is refreshing it" in config.error_patterns
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_claude_expired_or_revoked_login_is_not_retried(
+        self, mock_config: object
+    ) -> None:
+        """Only refresh-lock contention, not permanent Claude auth failures, retries."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("claude")
+        assert config is not None
+        for error in _CLAUDE_EXPIRED_LOGIN_ERRORS:
+            assert is_retryable_error(error, config) is False
+            assert find_retry_config_for_error(error) is None
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_built_in_returned_when_exception(self, mock_config: object) -> None:
@@ -108,6 +165,7 @@ class TestBuiltInDefaults:
             "Prompt is too long",
             "socket connection was closed unexpectedly",
             "API Error",
+            "another Claude Code process is refreshing it",
             "my custom pattern",
         ]
 

@@ -216,6 +216,11 @@ class ClaudeCodeProvider(LLMProvider):
                 "Prompt is too long",
                 "socket connection was closed unexpectedly",
                 "API Error",
+                # Claude Code's OAuthRefreshLockTimeoutError signals transient
+                # refresh-lock contention between concurrent processes. Do not
+                # match broader "Failed to refresh OAuth token": expired or
+                # revoked logins must remain terminal.
+                "another Claude Code process is refreshing it",
             ],
             wait_times=[0],
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,
