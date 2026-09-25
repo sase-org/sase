@@ -38,6 +38,9 @@ def test_installed_core_tool_runs_round_trip() -> None:
     assert result["run_count"] == 1
     assert result["typical_duration_ms"] == 12
     assert result["unknown_complete"] is False
+    assert result["triage_items"] == 1
+    assert result["triage_settled"] is True
+    assert result["failure_groups"] >= 0
     if not hasattr(module, "tool_run_claim"):
         pytest.skip("tool_run_claim is not in this wheel")
     assert result["handoff_outcome"] == "claimed"

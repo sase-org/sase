@@ -1,0 +1,597 @@
+#!/usr/bin/env python3
+"""Replay historical ToolRun failures against the pure triage classifier.
+
+The backtest is deliberately read-only: it reads a ToolRun ledger, git history,
+selection-health records, and retained logs, then writes a report plus an audit
+worksheet beneath ``--out-dir``.  It never records an item or label in the
+ledger it is evaluating.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import random
+import re
+import subprocess
+import sys
+import time
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from sase.core.paths import sase_home  # noqa: E402
+from sase.core.tool_run import (  # noqa: E402
+    tool_run_canonicalize_fingerprint,
+    tool_run_list,
+    tool_run_store_path,
+    tool_run_triage_classify,
+    tool_run_triage_extract,
+    tool_run_triage_verdict,
+)
+from sase.tool.triage_inputs import (  # noqa: E402
+    MIN_WITNESSES,
+    TOUCHED_REQUIRES_CLEAN_WITNESS,
+    gather_ancestry,
+    gather_flake_baseline,
+    gather_selection_records,
+)
+
+
+LOG_TAIL_BYTES = 256 * 1024
+MAX_EVIDENCE = 500
+MARKER = re.compile(r"(?m)^[^\S\r\n]*([✓✗])\s+(.+?)\s*$")
+RUN_SILENT = re.compile(r'tools/run_silent\s+"([^"]+)"')
+
+
+def _git(root: Path, args: list[str], *, text: bool = True) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=text,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return completed.stdout if completed.returncode == 0 else None
+
+
+def _git_ok(root: Path, args: list[str]) -> bool:
+    try:
+        return (
+            subprocess.run(
+                ["git", *args], cwd=root, check=False, capture_output=True, timeout=10
+            ).returncode
+            == 0
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _repo_root(value: str | Path | None) -> Path:
+    root = Path(value or REPO_ROOT).expanduser().resolve()
+    if not (root / ".git").exists():
+        raise ValueError(f"--repo-root is not a git checkout: {root}")
+    return root
+
+
+def _stage_list(root: Path, base: str, cache: dict[str, list[str]]) -> list[str]:
+    if base in cache:
+        return cache[base]
+    justfile = _git(root, ["show", f"{base}:Justfile"])
+    if justfile is None:
+        cache[base] = []
+        return []
+    lines = justfile.splitlines()
+    in_check = False
+    stages: list[str] = []
+    for line in lines:
+        if re.match(r"^check(?:\s|:)", line):
+            in_check = True
+            continue
+        if in_check and line and not line[0].isspace() and re.match(r"^[\w-]+", line):
+            break
+        if in_check:
+            matched = RUN_SILENT.search(line)
+            if matched is not None:
+                stages.append(matched.group(1))
+    cache[base] = stages
+    return stages
+
+
+def _read_log(run: Mapping[str, Any]) -> str | None:
+    logs = run.get("logs")
+    if not isinstance(logs, Mapping):
+        return None
+    candidates = [logs.get("stdout_path"), logs.get("owner_log_path")]
+    for value in candidates:
+        if not isinstance(value, str) or not value:
+            continue
+        try:
+            return Path(value).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    return None
+
+
+def _sections(
+    log: str, stages: Iterable[str]
+) -> tuple[list[tuple[str, bool, str]], list[str]]:
+    allowed = set(stages)
+    markers = [match for match in MARKER.finditer(log) if match.group(2) in allowed]
+    seen: set[str] = set()
+    sections: list[tuple[str, bool, str]] = []
+    completed: list[str] = []
+    for index, match in enumerate(markers):
+        name = match.group(2)
+        if name in seen:
+            continue
+        seen.add(name)
+        output = log[
+            match.end() : markers[index + 1].start()
+            if index + 1 < len(markers)
+            else None
+        ]
+        failed = match.group(1) == "✗"
+        if failed:
+            sections.append((name, True, output))
+        else:
+            completed.append(name)
+    return sections, completed
+
+
+def _fingerprint_parts(
+    run: Mapping[str, Any], project: str
+) -> tuple[str | None, list[dict[str, str]], bool, str | None]:
+    fingerprint = run.get("fingerprint_before")
+    if not isinstance(fingerprint, Mapping):
+        return None, [], False, None
+    complete = bool((fingerprint.get("completeness") or {}).get("complete"))
+    base: str | None = None
+    dirty: list[dict[str, str]] = []
+    for repo in fingerprint.get("repos") or []:
+        if not isinstance(repo, Mapping) or repo.get("identity") != project:
+            continue
+        raw_head = repo.get("head")
+        base = raw_head if isinstance(raw_head, str) else None
+        for item in repo.get("dirty_paths") or []:
+            if isinstance(item, Mapping) and isinstance(item.get("path"), str):
+                dirty.append(
+                    {"path": str(item["path"]), "status": str(item.get("status") or "")}
+                )
+        break
+    try:
+        digest = tool_run_canonicalize_fingerprint(fingerprint).get("digest")
+    except Exception:  # noqa: BLE001 - incomplete historical witness.
+        digest = None
+    return base, dirty, complete, digest if isinstance(digest, str) else None
+
+
+def _workspace_map(root: Path) -> dict[str, list[tuple[int, str]]]:
+    out: dict[str, list[tuple[int, str]]] = defaultdict(list)
+    try:
+        paths = root.rglob("agent_meta.json")
+    except OSError:
+        return out
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            agent = payload.get("name")
+            workspace = payload.get("workspace_num")
+            timestamp = payload.get("created_ts") or payload.get("started_ts")
+            if not isinstance(timestamp, (int, float)):
+                timestamp = int(path.stat().st_mtime)
+            if isinstance(agent, str) and workspace is not None:
+                out[agent].append((int(timestamp), str(workspace)))
+        except (OSError, ValueError, TypeError):
+            continue
+    for values in out.values():
+        values.sort()
+    return out
+
+
+def _workspace_for(
+    agent: object, created_ts: object, mapping: Mapping[str, list[tuple[int, str]]]
+) -> str | None:
+    if not isinstance(agent, str) or not isinstance(created_ts, int):
+        return None
+    candidate: str | None = None
+    for timestamp, workspace in mapping.get(agent, []):
+        if timestamp > created_ts:
+            break
+        candidate = workspace
+    return candidate
+
+
+def _selection_items(record: dict[str, Any], root: Path) -> dict[str, Any]:
+    failures = record.pop("failures", [])
+    if not failures:
+        record["items"] = []
+        return record
+    try:
+        extracted = tool_run_triage_extract(
+            {
+                "stage_key": "test (scoped)",
+                "output": "\n".join(f"FAILED {node}" for node in failures),
+                "project_root": str(root),
+            }
+        )
+    except Exception:  # noqa: BLE001 - selection input remains absent.
+        record["items"] = []
+        return record
+    record["items"] = [
+        {
+            "extractor": item["extractor"],
+            "extractor_version": item["extractor_version"],
+            "signature": item["signature"],
+            "stage_key": "test (scoped)",
+        }
+        for item in extracted.get("items") or []
+        if isinstance(item, Mapping)
+    ]
+    return record
+
+
+def _dirty_touch(locators: Iterable[str], dirty: Iterable[Mapping[str, str]]) -> bool:
+    paths = [entry["path"] for entry in dirty]
+    return any(
+        locator == path
+        or locator.startswith(f"{path}/")
+        or path.startswith(f"{locator}/")
+        for locator in locators
+        for path in paths
+    )
+
+
+def _item_audit(
+    item: Mapping[str, Any], run: Mapping[str, Any], root: Path, base: str
+) -> dict[str, Any]:
+    locators = [str(path) for path in item.get("locator_paths") or []]
+    _, dirty, _, _ = _fingerprint_parts(run, str(run.get("project") or ""))
+    evidence = (
+        (item.get("label") or {}).get("evidence")
+        if isinstance(item.get("label"), Mapping)
+        else {}
+    )
+    witness_bases = []
+    witnesses = []
+    if isinstance(evidence, Mapping):
+        witnesses = list(evidence.get("witnesses") or [])
+        witness_bases = [
+            str(witness.get("base_head"))
+            for witness in witnesses
+            if isinstance(witness, Mapping) and witness.get("base_head")
+        ]
+    newest = witness_bases[-1] if witness_bases else None
+    unchanged = bool(
+        newest
+        and locators
+        and _git_ok(root, ["diff", "--quiet", newest, base, "--", *locators])
+    )
+    return {
+        "display": item.get("display"),
+        "locators": locators,
+        "stage": item.get("stage_key"),
+        "subject_run": run.get("run_id"),
+        "agent": run.get("agent"),
+        "base": base,
+        "dirty_paths": dirty,
+        "witnesses": witnesses,
+        "locator_in_subject_diff": _dirty_touch(locators, dirty),
+        "locator_unchanged_since_witness": unchanged,
+    }
+
+
+def _runs(store: str, project: str, tool: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while True:
+        request: dict[str, Any] = {
+            "schema_version": 1,
+            "project": project,
+            "tool": tool,
+            "limit": 1_000,
+        }
+        if cursor:
+            request["cursor"] = cursor
+        page = tool_run_list(request, store_path=store)
+        page_rows = [row for row in page.get("runs") or [] if isinstance(row, dict)]
+        rows.extend(page_rows)
+        next_cursor = page.get("next_cursor") or page.get("cursor")
+        if not page_rows or not isinstance(next_cursor, str) or next_cursor == cursor:
+            break
+        cursor = next_cursor
+    return rows
+
+
+def replay(namespace: argparse.Namespace) -> dict[str, Any]:
+    root = _repo_root(namespace.repo_root)
+    now_ts = int(time.time())
+    artifact_root = Path(namespace.artifacts_root).expanduser()
+    workspaces = _workspace_map(artifact_root)
+    all_runs = _runs(namespace.store, namespace.project, namespace.tool)
+    excluded: Counter[str] = Counter()
+    stage_cache: dict[str, list[str]] = {}
+    candidates: list[dict[str, Any]] = []
+    for run in all_runs:
+        if run.get("source") == "adhoc" or run.get("ad_hoc"):
+            continue
+        settled = run.get("settled_ts")
+        base, _, complete, _ = _fingerprint_parts(run, namespace.project)
+        if not isinstance(settled, int) or not complete:
+            excluded["incomplete_fingerprint"] += 1
+            continue
+        if not base or not _git_ok(root, ["cat-file", "-e", f"{base}^{{commit}}"]):
+            excluded["unresolvable_head"] += 1
+            continue
+        log = _read_log(run)
+        if log is None:
+            excluded["missing_log"] += 1
+            continue
+        stages = _stage_list(root, base, stage_cache)
+        failed, completed = _sections(log, stages)
+        if run.get("state") == "failed" and not failed:
+            tail = log[-LOG_TAIL_BYTES:]
+            if not tail:
+                excluded["missing_failed_stage"] += 1
+                continue
+            failed = [("*", True, tail)]
+        run["_failed_sections"] = failed
+        run["_completed_stages"] = completed
+        run["workspace"] = _workspace_for(
+            run.get("agent"), run.get("created_ts"), workspaces
+        )
+        candidates.append(run)
+    candidates.sort(key=lambda row: (int(row["settled_ts"]), str(row["run_id"])))
+    classified_items: list[dict[str, Any]] = []
+    label_counts: Counter[str] = Counter()
+    stage_counts: dict[str, Counter[str]] = defaultdict(Counter)
+    reasons: Counter[str] = Counter()
+    verdicts: Counter[str] = Counter()
+    evidence: list[dict[str, Any]] = []
+    for run in candidates:
+        base, dirty, complete, digest = _fingerprint_parts(run, namespace.project)
+        assert base is not None
+        extracted_items: list[dict[str, Any]] = []
+        for stage, _failed, output in run["_failed_sections"]:
+            extracted = tool_run_triage_extract(
+                {"stage_key": stage, "output": output, "project_root": str(root)}
+            )
+            extracted_items.extend(
+                item for item in extracted.get("items") or [] if isinstance(item, dict)
+            )
+        subjects = [
+            {
+                "stage_key": item["stage_key"],
+                "extractor": item["extractor"],
+                "extractor_version": item["extractor_version"],
+                "signature": item["signature"],
+                "locator_paths": item.get("locator_paths") or [],
+            }
+            for item in extracted_items
+        ]
+        previous = [row for row in evidence if row["settled_ts"] < run["settled_ts"]][
+            -MAX_EVIDENCE:
+        ]
+        ancestry, _ = gather_ancestry(root, base)
+        baseline, _ = gather_flake_baseline(root, base)
+        selection, _ = gather_selection_records(
+            namespace.project,
+            before_ts=run["settled_ts"],
+            now_ts=now_ts,
+            project=namespace.project,
+            tool=namespace.tool,
+            extra_args_digest=str(run.get("extra_args_digest") or ""),
+            selection_dir=Path(namespace.selection_dir).expanduser()
+            if namespace.selection_dir
+            else None,
+        )
+        selection = [_selection_items(row, root) for row in selection]
+        result = tool_run_triage_classify(
+            {
+                "subject_run": {
+                    "run_id": run["run_id"],
+                    "project": namespace.project,
+                    "tool": namespace.tool,
+                    "extra_args_digest": str(run.get("extra_args_digest") or ""),
+                    "workspace": run.get("workspace"),
+                    "base_head": base,
+                    "dirty_paths": [entry["path"] for entry in dirty],
+                    "complete_fingerprint": complete,
+                    "fingerprint_digest": digest,
+                    "ad_hoc": False,
+                },
+                "subjects": subjects,
+                "evidence_runs": previous,
+                "selection_records": selection,
+                "ancestry": ancestry,
+                "flake_baseline": baseline,
+                "owner_candidates": [],
+                "knobs": {
+                    "min_witnesses": namespace.min_witnesses,
+                    "touched_requires_clean_witness": namespace.touched_requires_clean_witness,
+                },
+                "now_ts": run["settled_ts"],
+            }
+        )
+        labels = result.get("labels") or []
+        labels_by_signature = {
+            (label["extractor"], label["extractor_version"], label["signature"]): label
+            for label in labels
+            if isinstance(label, dict)
+        }
+        rendered_items: list[dict[str, Any]] = []
+        for item in extracted_items:
+            label = labels_by_signature.get(
+                (item["extractor"], item["extractor_version"], item["signature"])
+            )
+            if label is None:
+                continue
+            item = {**item, "label": label}
+            rendered_items.append(item)
+            label_name = str(label.get("class") or "unknown")
+            label_counts[label_name] += 1
+            stage_counts[str(item["stage_key"])][label_name] += 1
+            if label_name == "unknown":
+                for reason in (label.get("evidence") or {}).get(
+                    "rejection_reasons"
+                ) or []:
+                    reasons[str(reason)] += 1
+            if label_name == "known":
+                classified_items.append(_item_audit(item, run, root, base))
+        verdict = tool_run_triage_verdict(
+            {
+                "exit_code": run.get("exit_code"),
+                "terminal_cause": run.get("terminal_cause"),
+                "legacy_state": run.get("state"),
+                "legacy_exit_code": run.get("exit_code"),
+                "has_completed_stage": bool(run["_completed_stages"]),
+                "has_failed_stage": bool(run["_failed_sections"]),
+                "all_stages_complete": False,
+                "recipe_finished": True,
+                "is_stageful_tool": True,
+                "triaged": True,
+                "has_unparsed_failed_stage": not bool(extracted_items)
+                and bool(run["_failed_sections"]),
+                "items": [{"class": item["label"]["class"]} for item in rendered_items],
+            }
+        )
+        verdicts[str(verdict.get("verdict") or "undetermined")] += 1
+        evidence.append(
+            {
+                "run_id": run["run_id"],
+                "project": namespace.project,
+                "tool": namespace.tool,
+                "extra_args_digest": str(run.get("extra_args_digest") or ""),
+                "workspace": run.get("workspace"),
+                "agent": run.get("agent"),
+                "settled_ts": run["settled_ts"],
+                "base_head": base,
+                "complete_fingerprint": complete,
+                "fingerprint_digest": digest,
+                "dirty_paths": [entry["path"] for entry in dirty],
+                "dirty_unknown": False,
+                "clean_tree": not dirty,
+                "ad_hoc": False,
+                "failed": run.get("state") != "succeeded",
+                "stage_completions": run["_completed_stages"],
+                "items": [
+                    {
+                        key: item[key]
+                        for key in (
+                            "extractor",
+                            "extractor_version",
+                            "signature",
+                            "stage_key",
+                        )
+                    }
+                    for item in rendered_items
+                ],
+                "selection_source": False,
+            }
+        )
+    added_known = sum(
+        1
+        for item in classified_items
+        if any(
+            entry["status"] in {"added", "untracked"} for entry in item["dirty_paths"]
+        )
+    )
+    touched = [item for item in classified_items if item["locator_in_subject_diff"]]
+    sample_count = min(len(classified_items), max(50, namespace.sample))
+    sample = (
+        random.Random(namespace.seed).sample(classified_items, sample_count)
+        if sample_count
+        else []
+    )
+    report = {
+        "schema_version": 1,
+        "knobs": {
+            "min_witnesses": namespace.min_witnesses,
+            "touched_requires_clean_witness": namespace.touched_requires_clean_witness,
+        },
+        "counts": {
+            "selected_runs": len(candidates),
+            "known_items": len(classified_items),
+            "known_on_added_or_untracked": added_known,
+        },
+        "label_distribution": dict(sorted(label_counts.items())),
+        "label_distribution_by_stage": {
+            stage: dict(sorted(counts.items()))
+            for stage, counts in sorted(stage_counts.items())
+        },
+        "unknown_reason_histogram": dict(sorted(reasons.items())),
+        "verdict_distribution": dict(sorted(verdicts.items())),
+        "excluded_runs": dict(sorted(excluded.items())),
+        "known_but_touched": touched,
+        "sample": sample,
+    }
+    output = Path(namespace.out_dir).expanduser()
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "report.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
+    rows = [
+        "# Triage backtest audit",
+        "",
+        "| Item | Stage | Base | Justification |",
+        "| --- | --- | --- | --- |",
+    ]
+    rows.extend(
+        f"| `{item['display']}` | `{item['stage']}` | `{item['base']}` | |"
+        for item in sample
+    )
+    rows.extend(["", "## KNOWN-but-touched", ""])
+    rows.extend(f"- `{item['display']}` ({item['subject_run']})" for item in touched)
+    (output / "audit.md").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return report
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--store", default=str(tool_run_store_path()))
+    parser.add_argument("--repo-root", default=str(REPO_ROOT))
+    parser.add_argument("--project", default="gh_sase-org__sase")
+    parser.add_argument("--tool", default="check", choices=["check"])
+    parser.add_argument(
+        "--artifacts-root",
+        default=str(sase_home() / "projects" / "gh_sase-org__sase" / "artifacts"),
+    )
+    parser.add_argument("--selection-dir")
+    parser.add_argument(
+        "--out-dir", default=str(sase_home() / "tools" / "triage_backtest" / stamp)
+    )
+    parser.add_argument("--sample", type=int, default=60)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--min-witnesses", type=int, default=MIN_WITNESSES)
+    parser.add_argument(
+        "--touched-requires-clean-witness",
+        action="store_true",
+        default=TOUCHED_REQUIRES_CLEAN_WITNESS,
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    namespace = _parse_args(argv)
+    if namespace.min_witnesses < 1:
+        raise SystemExit("--min-witnesses must be >= 1")
+    report = replay(namespace)
+    print(json.dumps(report["counts"], sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

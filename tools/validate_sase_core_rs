@@ -376,6 +376,14 @@ REQUIRED_BINDINGS = (
     "project_tag_apply_selection",
     "tool_run_claim",
     "tool_run_request_stop",
+    "tool_run_triage_extract",
+    "tool_run_triage_record",
+    "tool_run_triage_show",
+    "tool_run_triage_classify",
+    "tool_run_triage_verdict",
+    "tool_run_triage_stage",
+    "tool_run_triage_settle",
+    "tool_run_failures",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
@@ -695,7 +703,9 @@ def _validate_bead_link_projection_batch(module: ModuleType) -> bool:
         _error("bead-link projection batch bindings missing; cannot probe")
         return False
 
-    with tempfile.TemporaryDirectory(prefix="sase-core-rs-bead-projection-probe-") as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix="sase-core-rs-bead-projection-probe-"
+    ) as tmp:
         try:
             init_store(tmp, "beads", "sase", "owner")
             beads_dir = str(Path(tmp) / "beads")
@@ -2646,6 +2656,99 @@ def _validate_axe_chop_guard_providers(
     return valid
 
 
+def _validate_tool_run_triage_contract(module: ModuleType) -> bool:
+    """Probe the v1 triage wires with real extraction and a temporary store."""
+
+    definition = {
+        "schema_version": 1,
+        "name": "check",
+        "argv": ["just", "check"],
+        "description": "check",
+        "stages": "run_silent",
+        "inputs": ["Justfile"],
+        "env": [],
+        "args": "deny",
+        "fingerprint": {"repos": [], "toolchain": {}},
+    }
+    try:
+        extracted = module.tool_run_triage_extract(
+            {
+                "schema_version": 1,
+                "stage_key": "lint (mypy)",
+                "output": "src/sase/example.py:1: error: boom  [arg-type]",
+            }
+        )
+        items = extracted.get("items") if isinstance(extracted, dict) else None
+        item = items[0] if isinstance(items, list) and len(items) == 1 else None
+        signature = item.get("signature") if isinstance(item, dict) else None
+        verdict = module.tool_run_triage_verdict({"schema_version": 1, "exit_code": 0})
+    except Exception as exc:
+        _error(f"tool-run triage pure probe failed: {exc}")
+        return False
+    if (
+        extracted.get("status") != "parsed"
+        or not isinstance(signature, str)
+        or len(signature) != 64
+        or any(character not in "0123456789abcdef" for character in signature)
+    ):
+        _error(f"tool-run triage extraction contract changed: {extracted!r}")
+        return False
+    if not isinstance(verdict, dict) or verdict.get("verdict") != "pass":
+        _error(f"tool-run triage verdict contract changed: {verdict!r}")
+        return False
+    with tempfile.TemporaryDirectory(
+        prefix="sase-core-rs-tool-run-triage-probe-"
+    ) as tmp:
+        store_path = str(Path(tmp) / "tools" / "runs.sqlite")
+        try:
+            started = module.tool_run_begin(
+                store_path,
+                {
+                    "schema_version": 1,
+                    "tool_name": "check",
+                    "definition": definition,
+                    "display_argv": ["just", "check"],
+                    "project": "sase",
+                    "now_ts": 10,
+                    "commit_running": True,
+                },
+                1_000,
+            )
+            run_id = started["run"]["run_id"]
+            recorded = module.tool_run_triage_record(
+                store_path,
+                {
+                    "schema_version": 1,
+                    "run_id": run_id,
+                    "stages": [
+                        {
+                            "schema_version": 1,
+                            "stage_key": "lint (mypy)",
+                            "extraction_status": extracted["status"],
+                            "items": items,
+                        }
+                    ],
+                },
+                1_000,
+            )
+            shown = module.tool_run_triage_show(
+                store_path, {"schema_version": 1, "run_id": run_id}, 1_000
+            )
+            failures = module.tool_run_failures(
+                store_path, {"schema_version": 1, "project": "sase"}, 1_000
+            )
+        except Exception as exc:
+            _error(f"tool-run triage store probe failed: {exc}")
+            return False
+    if recorded.get("items_inserted") != 1 or len(shown.get("items") or []) != 1:
+        _error(f"tool-run triage record/show contract changed: {recorded!r} {shown!r}")
+        return False
+    if not isinstance(failures, dict) or not isinstance(failures.get("groups"), list):
+        _error(f"tool-run failures contract changed: {failures!r}")
+        return False
+    return True
+
+
 def _validate_tool_run_handoff_contract(module: ModuleType) -> bool:
     """Probe hand-off reservation behavior beyond binding names.
 
@@ -2873,6 +2976,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_provider_disable_first_writer(module):
         return 1
     if not _validate_provider_priority_routing_contract(module):
+        return 1
+    if not _validate_tool_run_triage_contract(module):
         return 1
     if not _validate_tool_run_handoff_contract(module):
         return 1

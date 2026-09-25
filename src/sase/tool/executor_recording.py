@@ -15,6 +15,7 @@ from sase.tool.argv import ResolvedToolArgv
 from sase.tool.liveness import current_boot_id
 from sase.tool.observe import fingerprints_mutated, inc_tool_metric
 from sase.tool.ownership import ToolRunOwnership
+from sase.tool.triage_inputs import workspace_identity
 from sase.telemetry.metrics import TOOL_RUN_RECORDING_ERRORS
 
 
@@ -45,7 +46,11 @@ def build_begin_request(
         "display_argv": list(resolved.display_argv),
         "project": resolved.resolved_project_identity(),
         "agent": agent,
-        "workspace": (os.environ.get("SASE_WORKSPACE_NUM") or "").strip() or None,
+        "workspace": (
+            (os.environ.get("SASE_WORKSPACE_NUM") or "").strip()
+            or (os.environ.get("SASE_AGENT_WORKSPACE_NUM") or "").strip()
+            or workspace_identity(resolved.cwd or os.getcwd())
+        ),
         "bead": (
             (
                 os.environ.get("SASE_BEAD_ID") or os.environ.get("SASE_BEAD") or ""

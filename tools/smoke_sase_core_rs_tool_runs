@@ -29,6 +29,14 @@ TOOL_RUN_BINDINGS = (
     "tool_run_summary",
     "tool_run_retention_preview",
     "tool_run_retention_apply",
+    "tool_run_triage_extract",
+    "tool_run_triage_record",
+    "tool_run_triage_show",
+    "tool_run_triage_classify",
+    "tool_run_triage_verdict",
+    "tool_run_triage_stage",
+    "tool_run_triage_settle",
+    "tool_run_failures",
     "tool_run_store_stats",
 )
 
@@ -64,6 +72,26 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
     }
     normalized = module.tool_run_normalize_definition(definition)
     digest = normalized["digest"]
+    fingerprint = {
+        "schema_version": 1,
+        "project_identity": None,
+        "definition_digest": None,
+        "extra_args_digest": None,
+        "repos": [
+            {
+                "identity": "sase",
+                "head": "triage-smoke-head",
+                "index_tree": None,
+                "dirty_paths": [],
+                "incomplete": None,
+            }
+        ],
+        "inputs": [],
+        "env": {},
+        "toolchain": {},
+        "completeness": {"complete": True, "missing": []},
+        "diagnostics": [],
+    }
     with tempfile.TemporaryDirectory(prefix="sase-core-rs-tool-runs-smoke-") as tmp:
         store_path = str(Path(tmp) / "tools" / "runs.sqlite")
         started = module.tool_run_begin(
@@ -91,6 +119,7 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
                 "child_pid": 4242,
                 "child_pgid": 4242,
                 "child_process_start_identity": "boot-1:12345",
+                "fingerprint_before": fingerprint,
             },
             1_000,
         )
@@ -106,6 +135,7 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
                 "child_pid": 4242,
                 "child_pgid": 4242,
                 "child_process_start_identity": "boot-1:12345",
+                "fingerprint_before": fingerprint,
             },
             1_000,
         )
@@ -126,9 +156,66 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
         if finished["run"].get("state") != "succeeded":
             raise RuntimeError(f"unexpected finish: {finished!r}")
         if finished["run"].get("child_pgid") != 4242:
-            raise RuntimeError(
-                f"finish dropped observed child facts: {finished!r}"
-            )
+            raise RuntimeError(f"finish dropped observed child facts: {finished!r}")
+        extracted = module.tool_run_triage_extract(
+            {
+                "schema_version": 1,
+                "stage_key": "lint (mypy)",
+                "output": "src/sase/example.py:1: error: boom  [arg-type]",
+            }
+        )
+        items = extracted.get("items") or []
+        if extracted.get("status") != "parsed" or len(items) != 1:
+            raise RuntimeError(f"triage extraction did not parse: {extracted!r}")
+        recorded = module.tool_run_triage_record(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "stages": [
+                    {
+                        "schema_version": 1,
+                        "stage_key": "lint (mypy)",
+                        "extraction_status": extracted["status"],
+                        "items": items,
+                    }
+                ],
+            },
+            1_000,
+        )
+        if recorded.get("items_inserted") != 1:
+            raise RuntimeError(f"triage record did not insert: {recorded!r}")
+        triage_shown = module.tool_run_triage_show(
+            store_path,
+            {"schema_version": 1, "run_id": run_id},
+            1_000,
+        )
+        if not triage_shown.get("triaged") or len(triage_shown.get("items") or []) != 1:
+            raise RuntimeError(f"triage show did not round-trip: {triage_shown!r}")
+        settled = module.tool_run_triage_settle(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "ancestry": ["triage-smoke-head"],
+                "knobs": {
+                    "min_witnesses": 1,
+                    "touched_requires_clean_witness": False,
+                },
+                "recipe_finished_ts": 23,
+                "now_ts": 23,
+            },
+            1_000,
+        )
+        if not settled.get("triaged"):
+            raise RuntimeError(f"triage settle did not complete: {settled!r}")
+        failures = module.tool_run_failures(
+            store_path,
+            {"schema_version": 1, "project": "sase"},
+            1_000,
+        )
+        if not isinstance(failures.get("groups"), list):
+            raise RuntimeError(f"triage failures omitted groups: {failures!r}")
         listed = module.tool_run_list(
             store_path,
             {"schema_version": 1, "limit": 10, "project": "sase"},
@@ -266,18 +353,17 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
         )
         if handoff_finished["run"].get("terminal_cause") != "stop_requested":
             raise RuntimeError(f"finish must persist cause: {handoff_finished!r}")
-        if "stopped by request" not in handoff_finished["run"].get(
-            "diagnostics", []
-        ):
-            raise RuntimeError(
-                f"finish must persist diagnostics: {handoff_finished!r}"
-            )
+        if "stopped by request" not in handoff_finished["run"].get("diagnostics", []):
+            raise RuntimeError(f"finish must persist diagnostics: {handoff_finished!r}")
     return {
         "schema_version": 1,
         "run_state": finished["run"]["state"],
         "run_count": stats["run_count"],
         "typical_duration_ms": summary["typical_duration_ms"],
         "unknown_complete": unknown["completeness"]["complete"],
+        "triage_items": len(triage_shown["items"]),
+        "triage_settled": settled["triaged"],
+        "failure_groups": len(failures["groups"]),
         "handoff_outcome": claimed["outcome"],
         "handoff_replayed": replayed_claim["replayed"],
         "handoff_stop": stopped["outcome"],

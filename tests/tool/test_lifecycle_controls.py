@@ -20,6 +20,7 @@ from sase.tool.control import (
     handle_stop,
     handle_wait,
 )
+from sase.tool.executor_recording import build_begin_request
 from sase.tool.handoff import reserve_handoff_run
 from sase.tool.liveness import current_boot_id
 from sase.tool.query import ToolShowCliRequest, handle_show
@@ -463,8 +464,6 @@ def test_stop_live_inline_run_settles_stop_requested(
 def test_begin_records_owner_log_for_enclosed_run(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from sase.tool.executor_recording import build_begin_request
-
     _clean_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_PROC_ID", "proc-enclosing")
     monkeypatch.setenv("SASE_PROC_LOG_PATH", "/tmp/owner-test.log")
@@ -480,3 +479,25 @@ def test_begin_records_owner_log_for_enclosed_run(
         stderr_path=None,
     )
     assert request["owner_log_path"] == "/tmp/owner-test.log"
+
+
+def test_begin_uses_agent_workspace_number_before_cwd_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _clean_env(monkeypatch, tmp_path)
+    monkeypatch.delenv("SASE_WORKSPACE_NUM", raising=False)
+    monkeypatch.setenv("SASE_AGENT_WORKSPACE_NUM", "42")
+    resolved = resolve_run_argv(["--", "true"])
+
+    request = build_begin_request(
+        "run-id-for-agent-workspace",
+        resolved=resolved,
+        owner_kind=None,
+        owner_id=None,
+        parent_run_id=None,
+        events_path=None,
+        stdout_path=None,
+        stderr_path=None,
+    )
+
+    assert request["workspace"] == "42"

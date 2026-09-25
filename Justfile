@@ -368,6 +368,12 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        # e3 record-and-render / known-gated-continuation / failures-and-followups. \
+        --epic-symbol 'sase-18j(tool_run_triage_record)' \
+        --epic-symbol 'sase-18j(tool_run_triage_show)' \
+        --epic-symbol 'sase-18j(tool_run_triage_stage)' \
+        --epic-symbol 'sase-18j(tool_run_triage_settle)' \
+        --epic-symbol 'sase-18j(tool_run_failures)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(PlanGateHistory)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
