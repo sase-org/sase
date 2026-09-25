@@ -39,10 +39,7 @@ def _logical_locator(
     installation_id: str,
     *,
     agent_id: str = "agent-1",
-    # legacy agent-family spelling: sase-core's logical locator still names the
-    # agent-session key ``family_id`` (callers outside this module pass it by
-    # keyword).
-    family_id: str | None = "session-1",
+    agent_session_id: str | None = "session-1",
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -52,7 +49,7 @@ def _logical_locator(
             "project_id": "sase-main",
         },
         "agent_id": agent_id,
-        "family_id": family_id,
+        "agent_session_id": agent_session_id,
     }
 
 

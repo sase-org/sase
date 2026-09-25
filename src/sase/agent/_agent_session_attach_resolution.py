@@ -15,6 +15,10 @@ from sase.plan_chain import AGENT_SESSION_SEPARATOR, canonical_plan_chain_suffix
 _AgentSessionSnapshot = Callable[[str], Any]
 _DismissedIdentityDicts = Callable[[], list[dict[str, str | None]]]
 
+# Mirrors sase-core's AGENT_SESSION_RESOLUTION_WIRE_SCHEMA_VERSION; core
+# rejects parent-resolution requests stamped with any other version.
+AGENT_SESSION_RESOLUTION_WIRE_SCHEMA_VERSION = 2
+
 
 def resolve_agent_session_attach_plan(
     directive: _types.AgentSessionAttachDirective,
@@ -34,7 +38,7 @@ def resolve_agent_session_attach_plan(
         if sibling.can_attach_parent
     ]
     request = {
-        "schema_version": 1,
+        "schema_version": AGENT_SESSION_RESOLUTION_WIRE_SCHEMA_VERSION,
         "parent_name": directive.parent,
         "project_name": project_name,
         "candidates": [

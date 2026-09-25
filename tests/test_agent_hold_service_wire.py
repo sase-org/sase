@@ -38,9 +38,7 @@ def test_hold_selectors_wire_normalizes_tribes_and_defaults() -> None:
     )
     assert selectors["artifact_dirs"] == ["/a/w1"]
     assert selectors["names"] == ["a.b--code"]
-    # legacy agent-family spelling: sase-core still names this selector key
-    # ``families``.
-    assert selectors["families"] == []
+    assert selectors["agent_sessions"] == []
     assert selectors["clans"] == ["a.b--code"]
     assert selectors["workflows"] == ["a.b--code"]
     assert selectors["hoods"] == ["fi"]
@@ -51,9 +49,7 @@ def test_hold_selectors_wire_normalizes_tribes_and_defaults() -> None:
 def test_hold_selectors_wire_expands_agent_session_names() -> None:
     selectors = _hold_selectors_wire(names=["team"])
     assert selectors["names"] == ["team"]
-    # legacy agent-family spelling: sase-core still names this selector key
-    # ``families``.
-    assert selectors["families"] == ["team"]
+    assert selectors["agent_sessions"] == ["team"]
     assert selectors["clans"] == ["team"]
     assert selectors["workflows"] == ["team"]
 
@@ -62,9 +58,7 @@ def test_hold_selectors_wire_defaults_are_empty() -> None:
     selectors = _hold_selectors_wire()
     assert selectors["artifact_dirs"] == []
     assert selectors["names"] == []
-    # legacy agent-family spelling: sase-core still names this selector key
-    # ``families``.
-    assert selectors["families"] == []
+    assert selectors["agent_sessions"] == []
     assert selectors["clans"] == []
     assert selectors["workflows"] == []
     assert selectors["hoods"] == []
@@ -95,7 +89,7 @@ def test_current_armer_wire_uses_agent_metadata_when_artifacts_dir_set(
     assert armer["display"] == "worker.a--code"
     assert armer["project"] == "proj"
     assert armer["agent_name"] == "worker.a--code"
-    assert armer["session"] == "worker.a"
+    assert armer["agent_session"] == "worker.a"
     assert "family" not in armer
     assert armer["clan"] == "builders"
     assert armer["pid"] == 4242

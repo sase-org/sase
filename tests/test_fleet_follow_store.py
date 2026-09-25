@@ -47,9 +47,7 @@ def _logical_locator(
             "project_id": "sase-main",
         },
         "agent_id": agent_id,
-        # legacy agent-family spelling: core normalizes locators back to its
-        # ``family_id`` key, so round-trip equality needs the legacy key.
-        "family_id": agent_session_id,
+        "agent_session_id": agent_session_id,
     }
 
 

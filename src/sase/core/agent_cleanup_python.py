@@ -466,8 +466,8 @@ def plan_agent_cleanup_python(
                         target,
                         SKIPPED_NOT_DISMISSABLE,
                         # Byte-identical to the Rust planner's skip reason
-                        # (parity tests) until core-contract.
-                        "parallel family still active",
+                        # (parity tests).
+                        "parallel session still active",
                     )
                     continue
                 dismiss_items.append(

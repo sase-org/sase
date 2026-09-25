@@ -40,8 +40,7 @@ def test_count_contract_deduplicates_current_instances_and_buckets() -> None:
         installation_id, agent_id="agent-monitor", run_id="run-1", revision=5
     )
     monitor["row_kind"] = "monitor"
-    # legacy agent-family spelling: core summaries still carry ``family_role``.
-    monitor["family_role"] = "monitor"
+    monitor["agent_session_role"] = "monitor"
 
     counts = _binding("fleet_count_logical_agents")(
         {
@@ -73,10 +72,10 @@ def test_count_contract_deduplicates_current_instances_and_buckets() -> None:
 
 def test_follow_reconciliation_promotes_and_honors_tombstones() -> None:
     installation_id = _known_installation_id("a")
-    # legacy agent-family spelling: the shared locator helper still takes
-    # core's ``family_id`` keyword.
-    singleton = _logical_locator(installation_id, family_id=None)
-    agent_session = _logical_locator(installation_id, family_id="agent-session-1")
+    singleton = _logical_locator(installation_id, agent_session_id=None)
+    agent_session = _logical_locator(
+        installation_id, agent_session_id="agent-session-1"
+    )
     reconcile = _binding("fleet_reconcile_follow_records")
 
     promoted = reconcile(

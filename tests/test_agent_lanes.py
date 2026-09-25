@@ -53,7 +53,7 @@ def test_agent_session_member_shell_projects_to_its_agent_session_container() ->
         is_agent_session=True,
         member_local_name="pc--code",
     )
-    assert sase_agent_page_path(ref, _OWNER) == "families/alice.athena.pc.md"
+    assert sase_agent_page_path(ref, _OWNER) == "sessions/alice.athena.pc.md"
     assert (
         AgentLaneRef(
             local_name="pc",
@@ -71,7 +71,7 @@ def test_nested_agent_session_member_keeps_its_dotted_agent_session_name() -> No
     assert ref.local_name == "foo.bar"
     assert ref.global_name == "alice.athena.foo.bar"
     assert ref.is_agent_session
-    assert sase_agent_page_path(ref, _OWNER) == "families/alice.athena.foo.bar.md"
+    assert sase_agent_page_path(ref, _OWNER) == "sessions/alice.athena.foo.bar.md"
 
 
 def test_legacy_machine_qualified_member_normalizes_to_the_bare_sase_agent() -> None:

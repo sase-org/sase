@@ -231,7 +231,7 @@ def test_agent_url_links_agent_session_member_without_anchor(
 
     assert resolver.agent_url("foo.bar--code") == (
         "https://github.com/sase-org/sase--agents/blob/main/"
-        "families/alice.athena.foo.bar.md"
+        "sessions/alice.athena.foo.bar.md"
     )
 
 

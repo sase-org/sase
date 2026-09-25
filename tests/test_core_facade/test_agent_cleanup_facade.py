@@ -43,7 +43,7 @@ def _require_schema_5_cleanup_binding() -> None:
     assert int(rust_module.agent_cleanup_wire_schema_version()) == (
         AGENT_CLEANUP_WIRE_SCHEMA_VERSION
     )
-    assert AGENT_CLEANUP_WIRE_SCHEMA_VERSION == 5
+    assert AGENT_CLEANUP_WIRE_SCHEMA_VERSION == 6
 
 
 def _fail_if_python_cleanup_planner_runs(monkeypatch: pytest.MonkeyPatch) -> None:

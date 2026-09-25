@@ -7,7 +7,7 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-GATE_FOLLOWUP_WIRE_SCHEMA_VERSION = 1
+GATE_FOLLOWUP_WIRE_SCHEMA_VERSION = 2
 
 
 class _GateFollowupWireError(ValueError):

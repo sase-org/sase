@@ -280,14 +280,14 @@ def test_hold_armer_wire_emits_session_for_either_spelling(
             json.dumps({**meta, "pid": 4242}), encoding="utf-8"
         )
         wire = agent_armer_wire_for_artifacts(str(artifacts_dir))
-        assert wire["session"] == "holder"
+        assert wire["agent_session"] == "holder"
         assert "family" not in wire
 
 
 def test_hold_pending_identities_send_session_key(
     monkeypatch: Any,
 ) -> None:
-    """Identities sent to core carry ``session``, never ``family``."""
+    """Identities sent to core carry ``agent_session``, never ``family``."""
     import sase.core.agent_hold_pending as pending
 
     captured: dict[str, Any] = {}
@@ -321,7 +321,7 @@ def test_hold_pending_identities_send_session_key(
     capture = pending.capture_pending_targets(project="scratch", scope="project")
     assert capture.waiting_count == 1
     assert len(captured["identities"]) == 1
-    assert "session" in captured["identities"][0]
+    assert "agent_session" in captured["identities"][0]
     assert "family" not in captured["identities"][0]
 
 
@@ -354,8 +354,7 @@ def test_fleet_locator_wire_emits_new_and_matches_core_key() -> None:
     assert legacy is not None and legacy["agent_session_id"] == "session-1"
     assert "family_id" not in legacy
     key = require_rust_binding("fleet_logical_locator_key")(legacy)
-    # legacy agent-family spelling: core still keys the locator as ``family:``
-    assert "|family:9:session-1|" in key
+    assert "|session:9:session-1|" in key
 
 
 def _launch_plan_with_attach(parent_key: str, suffix_key: str) -> dict[str, Any]:
@@ -432,5 +431,4 @@ def test_launch_unit_real_round_trip_accepts_new_attach_spelling() -> None:
         payload, "req-attach", "sase", 4242, "/tmp/done.json"
     )
     assert armer["agent_name"] == "parent--reviewer"
-    # legacy agent-family spelling: the core armer struct still names it ``family``
-    assert armer["family"] == "parent"
+    assert armer["agent_session"] == "parent"

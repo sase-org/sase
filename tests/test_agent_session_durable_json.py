@@ -374,12 +374,13 @@ def test_follows_store_loads_legacy_family_and_session_keys(tmp_path: Path) -> N
             "project_id": "sase-main",
         },
         "agent_id": "agent-1",
-        # legacy agent-family spelling: core keys a ``family_id`` locator as "family:"
+        # legacy agent-family spelling: pre-rename locators carry ``family_id``
         "family_id": "family-1",
     }
-    legacy_family_key = key_binding(dict(locator))
-    assert "family:" in legacy_family_key
-    session_key = legacy_family_key.replace("family:", "session:", 1)
+    session_key = key_binding(dict(locator))
+    assert "|session:" in session_key
+    # Pre-rename follows.json files keyed the same locator with "family:".
+    legacy_family_key = session_key.replace("session:", "family:", 1)
 
     def record(key: str) -> dict[str, Any]:
         return {

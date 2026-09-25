@@ -280,9 +280,9 @@ def agent_armer_wire_for_artifacts(
         "display": name,
         "project": _project_for_artifacts_dir(artifacts_dir),
         "agent_name": name,
-        # Hold payload key ``session`` (core accepts it as an alias of the
-        # legacy ``family`` key).
-        "session": session if isinstance(session, str) and session else None,
+        # Canonical hold payload key; core dropped the short ``session`` alias
+        # in the agent-session contract flip and rejects it as unknown.
+        "agent_session": session if isinstance(session, str) and session else None,
         "clan": clan if isinstance(clan, str) and clan else None,
         "pid": pid,
         "done_marker_path": str(Path(artifacts_dir) / "done.json"),

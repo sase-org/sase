@@ -12,6 +12,7 @@ from typing import Any
 from .models import (
     DISPATCH_SCHEMA_VERSION,
     FLEET_API_BASE_PATH,
+    FLEET_API_WIRE_SCHEMA_VERSION,
     FLEET_PROTOCOL_VERSION,
     BootstrapBundle,
     CredentialRecord,
@@ -59,7 +60,7 @@ class FleetGatewayClient:
         requested_scopes: Sequence[str] = (),
     ) -> Mapping[str, Any]:
         body = {
-            "schema_version": DISPATCH_SCHEMA_VERSION,
+            "schema_version": FLEET_API_WIRE_SCHEMA_VERSION,
             "bootstrap_id": bundle.bootstrap_id,
             "bootstrap_secret": bundle.bootstrap_secret,
             "pinned_installation_id": bundle.pinned_installation_id,

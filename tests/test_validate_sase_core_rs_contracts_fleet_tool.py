@@ -11,7 +11,7 @@ from tests._validate_sase_core_rs_tool_helpers import load_validate_sase_core_rs
 pytestmark = pytest.mark.contract
 
 
-def test_validate_sase_core_rs_requires_stats_v6_commit_and_truncation_fields() -> None:
+def test_validate_sase_core_rs_requires_stats_v7_commit_and_truncation_fields() -> None:
     validator = load_validate_sase_core_rs()
 
     def module_with_payload(payload: object) -> SimpleNamespace:
@@ -21,7 +21,7 @@ def test_validate_sase_core_rs_requires_stats_v6_commit_and_truncation_fields() 
         )
 
     valid_payload = {
-        "schema_version": 6,
+        "schema_version": 7,
         "work": {"projects": [], "changespecs": []},  # legacy wire key
         "commits": {"committing_runs": 0, "committing_agents": 0},
         "xprompts": {
@@ -67,6 +67,9 @@ def test_validate_sase_core_rs_requires_stats_v6_commit_and_truncation_fields() 
                 "xprompts": {"rows": []},
             }
         )
+    )
+    assert not validator._validate_agent_stats_work_schema(
+        module_with_payload({**valid_payload, "schema_version": 6})
     )
     assert not validator._validate_agent_stats_work_schema(
         module_with_payload(

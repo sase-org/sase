@@ -58,7 +58,7 @@ def test_family_member_commit_tag_links_to_lane_page_without_member_anchor(
     assert value == LinkedCommitTagValue(
         "alice.athena.foo.bar",
         "https://github.com/acme/project--agents/blob/main/"
-        "families/alice.athena.foo.bar.md",
+        "sessions/alice.athena.foo.bar.md",
     )
 
 

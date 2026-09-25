@@ -51,10 +51,10 @@ def capture_pending_targets(
                 "bucket": bucket,
                 "artifact_dir": getattr(entry, "artifacts_dir", None),
                 "agent_name": getattr(entry, "name", None),
-                # Hold payload key ``session`` (core accepts it as an alias of
-                # the legacy ``family`` key). The entry field stays until its
-                # owning phase renames it.
-                "session": getattr(entry, "agent_session", None),
+                # Canonical hold payload key; core dropped the short
+                # ``session`` alias in the agent-session contract flip and
+                # rejects it as unknown.
+                "agent_session": getattr(entry, "agent_session", None),
                 "clan": getattr(entry, "agent_clan", None),
             }
         )

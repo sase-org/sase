@@ -48,7 +48,7 @@ def _canonical_locator(
     installation_id: str,
     *,
     agent_id: str,
-    family_id: str | None,
+    agent_session_id: str | None,
 ) -> dict[str, object]:
     """Return the locator shape promotion output always carries.
 
@@ -69,9 +69,7 @@ def _canonical_locator(
             "project_id": "sase-main",
         },
         "agent_id": agent_id,
-        # legacy agent-family spelling: the core echoes promotion output
-        # with "family_id" until core-contract.
-        "family_id": family_id,
+        "agent_session_id": agent_session_id,
     }
 
 
@@ -101,10 +99,10 @@ def test_fleet_followed_batch_agent_session_promotions_promote_explicit_singleto
         {
             "schema_version": fleet_contract_schema_version(),
             "from": _canonical_locator(
-                installation_id, agent_id="worker", family_id=None
+                installation_id, agent_id="worker", agent_session_id=None
             ),
             "to": _canonical_locator(
-                installation_id, agent_id="worker", family_id="family-1"
+                installation_id, agent_id="worker", agent_session_id="family-1"
             ),
         },
     )
@@ -121,8 +119,7 @@ def test_fleet_followed_batch_agent_session_promotions_skip_ambiguous_agent_sess
     )
     first = fleet_summary(installation_id=installation_id, agent_id="worker")
     second = copy.deepcopy(first)
-    # legacy agent-family spelling: core emits "family_id" until core-contract.
-    second["logical_locator"]["family_id"] = "session-2"
+    second["logical_locator"]["agent_session_id"] = "session-2"
     response = fleet_host_response(
         installation_id=installation_id,
         summaries=(first, second),

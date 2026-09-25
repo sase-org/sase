@@ -10,7 +10,11 @@ import pytest
 from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.credentials import LocalCredentialStore
 from sase.dispatch.machine_service import MachineService, _parse_enrollment_bundle
-from sase.dispatch.models import CredentialRecord
+from sase.dispatch.models import (
+    FLEET_API_WIRE_SCHEMA_VERSION,
+    FLEET_PROTOCOL_VERSION,
+    CredentialRecord,
+)
 from tests.conftest import redirect_sase_home
 
 
@@ -24,7 +28,7 @@ def _bundle(pin: str) -> str:
             "bootstrap_id": "boot-1",
             "bootstrap_secret": "one-time-secret",
             "pinned_installation_id": pin,
-            "supported_protocol_versions": [1],
+            "supported_protocol_versions": [FLEET_PROTOCOL_VERSION],
         }
     )
 
@@ -38,7 +42,7 @@ def _fleet_hello_payload(
     """Serialized shape matching ``FleetHelloResponseWire`` from the gateway."""
     payload: dict[str, Any] = {
         "schema_version": 1,
-        "protocol_version": 1,
+        "protocol_version": FLEET_PROTOCOL_VERSION,
         "gateway_version": {
             "service": "sase-gateway",
             "package_version": gateway_package_version,
@@ -114,7 +118,7 @@ class _FakeGateway:
             },
             "machine_selector": "athena",
             "outcome": "enrolled",
-            "protocol_version": 1,
+            "protocol_version": FLEET_PROTOCOL_VERSION,
             "quarantine": None,
             "token": "stored-token",
             "token_type": "bearer",
@@ -229,7 +233,7 @@ def test_issue_bootstrap_builds_parseable_bundle_with_injected_binding(
             "expires_at_unix": 1_060.0,
             "allowed_scopes": ["fleet.hello"],
             "pinned_installation_id": pin,
-            "protocol_versions": [1],
+            "protocol_versions": [FLEET_PROTOCOL_VERSION],
         }
 
     result = MachineService(
@@ -245,9 +249,9 @@ def test_issue_bootstrap_builds_parseable_bundle_with_injected_binding(
         (
             str(credential_path.parent / ".sase"),
             {
-                "schema_version": 1,
+                "schema_version": FLEET_API_WIRE_SCHEMA_VERSION,
                 "requested_scopes": ["fleet.summary.read"],
-                "supported_protocol_versions": [1],
+                "supported_protocol_versions": [FLEET_PROTOCOL_VERSION],
                 "expires_at_unix": 1_060.0,
                 "installation_pin": None,
             },
@@ -278,7 +282,7 @@ def test_issue_bootstrap_omits_expiry_for_store_default(
             "expires_at_unix": 1_600.0,
             "allowed_scopes": [],
             "pinned_installation_id": pin,
-            "protocol_versions": [1],
+            "protocol_versions": [FLEET_PROTOCOL_VERSION],
         }
 
     MachineService(

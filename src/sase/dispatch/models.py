@@ -8,7 +8,10 @@ import re
 from typing import Any, Literal
 
 DISPATCH_SCHEMA_VERSION = 1
-FLEET_PROTOCOL_VERSION = 1
+# Mirrors sase-core's gateway FLEET_API_WIRE_SCHEMA_VERSION, which the
+# gateway requires on bootstrap-issue, enroll, and revoke requests.
+FLEET_API_WIRE_SCHEMA_VERSION = 2
+FLEET_PROTOCOL_VERSION = 2
 FLEET_API_BASE_PATH = "/api/fleet/v1"
 FLEET_INSTALLATION_ID_PREFIX = "sase_inst_v1_"
 
@@ -507,6 +510,7 @@ __all__ = [
     "EnrollmentBundleError",
     "EnrollmentResult",
     "FLEET_API_BASE_PATH",
+    "FLEET_API_WIRE_SCHEMA_VERSION",
     "FLEET_INSTALLATION_ID_PREFIX",
     "FLEET_PROTOCOL_VERSION",
     "GatewayServiceVersion",

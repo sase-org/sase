@@ -96,9 +96,7 @@ def test_create_positional_selectors_arm_an_agent_session_hold(
     holds = list_current_agent_holds()
     assert len(holds) == 1
     assert holds[0]["selectors"]["names"] == ["team"]
-    # legacy agent-family spelling: sase-core still names this selector key
-    # ``families``.
-    assert holds[0]["selectors"]["families"] == ["team"]
+    assert holds[0]["selectors"]["agent_sessions"] == ["team"]
     assert "ops" in holds[0]["selectors"]["tribes"]
 
 

@@ -23,7 +23,7 @@ from sase.xprompt.directives import DirectiveError
 
 
 def test_agent_launch_schema_version_pinned() -> None:
-    assert AGENT_LAUNCH_WIRE_SCHEMA_VERSION == 1
+    assert AGENT_LAUNCH_WIRE_SCHEMA_VERSION == 2
 
 
 def test_typed_launch_plan_from_dict_rehydrates_proc_payload() -> None:

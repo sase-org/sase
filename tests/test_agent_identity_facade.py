@@ -186,7 +186,7 @@ def test_owner_agent_session_integration() -> None:
     assert facade.agent_name_in_hood("foo.bar--code", "foo", identity)
     assert not facade.agent_name_in_hood("foobar", "foo", identity)
     assert facade.agent_link_target("foo.bar--code", target, identity).path == (
-        "families/alice.athena.foo.bar.md"
+        "sessions/alice.athena.foo.bar.md"
     )
 
 
@@ -388,7 +388,7 @@ def test_current_snapshot_known_owner_roots_are_deduplicated_union(
 
 def test_relationship_validation_integration() -> None:
     summary = facade.validate_agent_relationship_batch(_batch())
-    assert summary.schema_version == 2
+    assert summary.schema_version == 3
     assert summary.run_order == ("run-1", "run-2")
 
     malformed = _batch()

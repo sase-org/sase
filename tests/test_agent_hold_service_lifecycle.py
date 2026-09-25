@@ -165,7 +165,7 @@ def _launch_armer(
         "display": f"{agent_name or key} (launch req)",
         "project": "scratch",
         "agent_name": agent_name,
-        "session": None,
+        "agent_session": None,
         "clan": None,
         "pid": os.getpid(),
         "done_marker_path": "/tmp/does-not-exist/receipt.json",

@@ -10,6 +10,7 @@ from sase.dispatch.credentials import LocalCredentialStore
 from sase.dispatch.machine_init import MachineInitService
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import (
+    FLEET_PROTOCOL_VERSION,
     DiscoveryCandidate,
     DiscoveryResult,
     DispatchConfig,
@@ -28,7 +29,7 @@ def _bundle(pin: str) -> str:
             "bootstrap_id": "boot-1",
             "bootstrap_secret": "one-time-secret",
             "pinned_installation_id": pin,
-            "supported_protocol_versions": [1],
+            "supported_protocol_versions": [FLEET_PROTOCOL_VERSION],
         }
     )
 
@@ -106,7 +107,7 @@ class _FakeGateway:
             },
             "machine_selector": "fleet",
             "outcome": "enrolled",
-            "protocol_version": 1,
+            "protocol_version": FLEET_PROTOCOL_VERSION,
             "quarantine": None,
             "token": "stored-token",
             "token_type": "bearer",

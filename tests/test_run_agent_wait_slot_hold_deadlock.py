@@ -16,9 +16,7 @@ from sase.xprompt.hold_directive import HoldFields, hold_fields_to_selectors
 
 pytest.importorskip("sase_core_rs")
 
-# legacy agent-family spelling: sase-core's hold selectors still key the agent
-# session names under ``families``.
-_LEGACY_AGENT_FAMILY_SELECTORS_KEY = "families"
+_AGENT_SESSION_SELECTORS_KEY = "agent_sessions"
 
 
 def _record(
@@ -353,8 +351,8 @@ def test_agent_session_wait_name_matches_role_suffixed_candidate() -> None:
 def test_cli_and_directive_holds_exercise_agent_session_identity() -> None:
     cli_selectors = _hold_selectors_wire(names=["team"])
     directive_selectors = hold_fields_to_selectors(HoldFields(names=("team",)))
-    assert cli_selectors[_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
-    assert directive_selectors[_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
+    assert cli_selectors[_AGENT_SESSION_SELECTORS_KEY] == ["team"]
+    assert directive_selectors[_AGENT_SESSION_SELECTORS_KEY] == ["team"]
 
     armer_dir = "/proj/artifacts/ace-run/20260910120001"
     armer_record = _record(armer_dir, agent_name="armer.agent", waiting_for=["team"])
@@ -414,8 +412,8 @@ def test_cli_and_directive_holds_exercise_agent_session_identity() -> None:
 
     assert cli_result is armer_record
     assert directive_result is armer_record
-    assert cli_hold["selectors"][_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
-    assert directive_hold["selectors"][_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
+    assert cli_hold["selectors"][_AGENT_SESSION_SELECTORS_KEY] == ["team"]
+    assert directive_hold["selectors"][_AGENT_SESSION_SELECTORS_KEY] == ["team"]
 
 
 def test_hood_cutoff_ignores_members_launched_after_the_waiter() -> None:

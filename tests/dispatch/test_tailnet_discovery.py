@@ -10,6 +10,7 @@ import pytest
 
 from sase.dispatch import tailnet_discovery as tailnet_module
 from sase.dispatch.config import load_dispatch_config
+from sase.dispatch.models import FLEET_PROTOCOL_VERSION
 from sase.dispatch.providers import discover_dispatch_result
 
 FIXTURES = Path(__file__).with_name("fixtures")
@@ -66,7 +67,10 @@ def test_tailnet_discovery_parses_status_and_probes_candidates(
         if "apollo" in endpoint:
             return tailnet_module._HealthObservation(
                 endpoint=endpoint,
-                payload={"status": "ok", "fleet": {"supported_protocol_versions": [1]}},
+                payload={
+                    "status": "ok",
+                    "fleet": {"supported_protocol_versions": [FLEET_PROTOCOL_VERSION]},
+                },
             )
         return tailnet_module._HealthObservation(
             endpoint=endpoint,
@@ -117,7 +121,10 @@ def test_tailnet_discovery_defensively_handles_missing_and_extra_fields(
         "_collect_tailnet_health_observation",
         lambda endpoint, **kwargs: tailnet_module._HealthObservation(
             endpoint=endpoint,
-            payload={"status": "ok", "fleet": {"supported_protocol_versions": [1]}},
+            payload={
+                "status": "ok",
+                "fleet": {"supported_protocol_versions": [FLEET_PROTOCOL_VERSION]},
+            },
         ),
     )
 
@@ -199,7 +206,10 @@ def test_tailnet_command_runner_enforces_output_size_and_timeout() -> None:
 
 def test_tailnet_health_classifies_fleet_advertisement() -> None:
     compatible = tailnet_module._classify_tailnet_health_payload(
-        {"status": "ok", "fleet": {"supported_protocol_versions": [1]}},
+        {
+            "status": "ok",
+            "fleet": {"supported_protocol_versions": [FLEET_PROTOCOL_VERSION]},
+        },
         alias="apollo",
     )
     unknown = tailnet_module._classify_tailnet_health_payload(

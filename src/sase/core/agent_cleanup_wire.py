@@ -13,7 +13,7 @@ from typing import Any
 
 from sase.core.wire import known_field_kwargs
 
-AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 5
+AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 6
 
 CLEANUP_SCOPE_FOCUSED_PANEL = "focused_panel"
 CLEANUP_SCOPE_ALL_PANELS = "all_panels"

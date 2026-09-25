@@ -1119,10 +1119,10 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     if not isinstance(snapshot, dict):
         _error("scan_agent_artifacts probe returned a non-dict payload")
         return False
-    if snapshot.get("schema_version") != 9:
+    if snapshot.get("schema_version") != 10:
         _error(
             "scan_agent_artifacts probe returned stale schema: "
-            f"got {snapshot.get('schema_version')!r}, expected 9"
+            f"got {snapshot.get('schema_version')!r}, expected 10"
         )
         return False
 
@@ -1285,9 +1285,9 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     if not isinstance(payload, dict):
         _error("agent statistics work-schema probe returned a non-dict payload")
         return False
-    if payload.get("schema_version") != 6:
+    if payload.get("schema_version") != 7:
         _error(
-            "agent statistics work-schema probe requires schema version 6: "
+            "agent statistics work-schema probe requires schema version 7: "
             f"got {payload.get('schema_version')!r}"
         )
         return False
@@ -1936,14 +1936,14 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         "effective_limit": 2.0,
         "holds": [
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "armer": {
                     "kind": "agent",
                     "key": "agent:hold-a",
                     "display": "Hold Agent",
                     "project": "proj",
                     "agent_name": "holder.agent--code",
-                    "session": "holder.agent",
+                    "agent_session": "holder.agent",
                     "pid": 123,
                 },
                 "scope": {"kind": "project", "project": "proj"},

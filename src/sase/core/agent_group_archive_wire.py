@@ -7,8 +7,10 @@ from typing import Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
-AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 2
-_LEGACY_AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 1
+AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 3
+# Saved groups are durable: v1 and the pre-agent-session-contract v2 files
+# keep loading and normalize to the current version.
+_LEGACY_AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 @dataclass(frozen=True)
@@ -244,10 +246,10 @@ def _optional_nonblank_str(value: Any) -> str | None:
 
 
 def _check_schema(schema: int) -> None:
-    if schema not in {
-        _LEGACY_AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
-        AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION,
-    }:
+    if (
+        schema != AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION
+        and schema not in _LEGACY_AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSIONS
+    ):
         raise ValueError(
             f"saved agent group wire schema mismatch: got {schema}, "
             f"expected {AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION}"

@@ -38,6 +38,7 @@ from .models import (
     DiscoveryResult,
     EnrollmentBundleError,
     EnrollmentResult,
+    FLEET_API_WIRE_SCHEMA_VERSION,
     FLEET_PROTOCOL_VERSION,
     GatewayServiceVersion,
     MachineRecord,
@@ -103,7 +104,7 @@ class MachineService:
             expires_at_unix = self.time_fn() + expires_seconds
 
         request: dict[str, object] = {
-            "schema_version": 1,
+            "schema_version": FLEET_API_WIRE_SCHEMA_VERSION,
             "requested_scopes": [str(scope) for scope in scopes],
             "supported_protocol_versions": [FLEET_PROTOCOL_VERSION],
             "expires_at_unix": expires_at_unix,
