@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 from rich.cells import cell_len
+from rich.style import Style
 
 from sase.ace.tui.widgets._provider_usage_indicator import (
     build_usage_indicator_segment,
@@ -73,11 +74,16 @@ def test_budget_packing_falls_back_through_the_full_ladder() -> None:
     claude = _entry(provider="claude", remaining_percent=62.0)
     groups = _groups(grok, codex, claude)
 
-    full = build_usage_indicator_segment(groups)
-    assert cell_len(full.plain) == full.cell_len
+    labeled = build_usage_indicator_segment(groups)
+    assert cell_len(labeled.plain) == labeled.cell_len
+    assert labeled.plain.startswith("usage: ")
 
-    overflow = build_usage_indicator_segment(groups, budget=full.cell_len - 1)
-    assert overflow.cell_len <= full.cell_len - 1
+    unlabeled = build_usage_indicator_segment(groups, budget=labeled.cell_len - 1)
+    assert unlabeled.plain.startswith(" ")
+    assert "usage:" not in unlabeled.plain
+
+    overflow = build_usage_indicator_segment(groups, budget=unlabeled.cell_len - 1)
+    assert overflow.cell_len <= unlabeled.cell_len - 1
     assert overflow.plain.strip().endswith("+1")
     assert "🎭" in overflow.plain
     assert "🚀" not in overflow.plain
@@ -138,11 +144,13 @@ def test_fallback_ladder_uses_ellipsis_when_total_digits_do_not_fit() -> None:
 
 def test_provider_badge_requires_owned_outer_margin() -> None:
     groups = _groups(_entry(provider="claude", remaining_percent=62.0))
-    full = build_usage_indicator_segment(groups)
+    labeled = build_usage_indicator_segment(groups)
+    unlabeled = build_usage_indicator_segment(groups, budget=labeled.cell_len - 1)
 
-    segment = build_usage_indicator_segment(groups, budget=full.cell_len - 1)
+    segment = build_usage_indicator_segment(groups, budget=unlabeled.cell_len - 1)
 
-    assert full.plain == " 🎭 62% 3d4h "
+    assert labeled.plain == "usage: 🎭 62% 3d4h "
+    assert unlabeled.plain == " 🎭 62% 3d4h "
     assert "🎭" not in segment.plain
 
 
@@ -154,12 +162,15 @@ def test_overflow_and_fallback_disclosure_render_bold_neutral_on_badge_surface(
     codex = _entry(provider="codex", remaining_percent=50.0)
     claude = _entry(provider="claude", remaining_percent=62.0)
     groups = _groups(grok, codex, claude, dark=dark)
-    full = build_usage_indicator_segment(groups, dark=dark)
+    labeled = build_usage_indicator_segment(groups, dark=dark)
+    unlabeled = build_usage_indicator_segment(
+        groups, budget=labeled.cell_len - 1, dark=dark
+    )
     neutral = usage_neutral_color(dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
 
     overflow = build_usage_indicator_segment(
-        groups, budget=full.cell_len - 1, dark=dark
+        groups, budget=unlabeled.cell_len - 1, dark=dark
     )
     plus_one_style = _style_for(overflow, "+1")
 
@@ -262,3 +273,66 @@ def test_real_projection_selection_boundary_and_renderer_integration() -> None:
         ).plain
         == ""
     )
+
+
+def test_labeled_full_starts_with_dim_usage_prefix() -> None:
+    groups = _groups(_entry(provider="claude", remaining_percent=62.0))
+
+    for segment in (
+        build_usage_indicator_segment(groups),
+        build_usage_indicator_segment(
+            groups,
+            budget=build_usage_indicator_segment(groups).cell_len,
+        ),
+    ):
+        assert segment.plain == "usage: 🎭 62% 3d4h "
+        assert segment.plain[7] == "🎭"
+        label_spans = [
+            span
+            for span in segment.spans
+            if span.start < 7 <= span.end or span.start == 0
+        ]
+        assert label_spans
+        first = segment.spans[0]
+        assert first.start == 0
+        assert first.end == len("usage: ")
+        assert str(first.style) == "dim"
+        resolved = Style.parse("dim")
+        assert resolved.dim is True
+        assert resolved.color is None
+        assert resolved.bgcolor is None
+
+
+def test_label_dropped_before_any_window_hidden() -> None:
+    groups = _groups(_entry(provider="claude", remaining_percent=62.0))
+    labeled = build_usage_indicator_segment(groups)
+
+    unlabeled = build_usage_indicator_segment(groups, budget=labeled.cell_len - 1)
+
+    assert unlabeled.plain == " 🎭 62% 3d4h "
+    assert "usage:" not in unlabeled.plain
+
+
+def test_label_only_with_complete_windows_across_budgets() -> None:
+    groups = _groups(
+        _entry(provider="claude", remaining_percent=62.0),
+        _entry(provider="codex", remaining_percent=81.0),
+    )
+    labeled = build_usage_indicator_segment(groups)
+
+    for budget in range(labeled.cell_len + 1):
+        segment = build_usage_indicator_segment(groups, budget=budget)
+        assert segment.cell_len <= budget
+        if "usage:" in segment.plain:
+            assert segment.plain.startswith("usage: ")
+            assert "+" not in segment.plain
+            assert "🎭" in segment.plain
+            assert "🤖" in segment.plain
+            assert segment.cell_len == labeled.cell_len
+        if budget < labeled.cell_len:
+            assert not segment.plain.startswith("usage: ")
+
+
+def test_empty_groups_render_no_bare_label() -> None:
+    assert build_usage_indicator_segment(()).plain == ""
+    assert build_usage_indicator_segment((), budget=80).plain == ""

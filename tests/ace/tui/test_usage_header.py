@@ -339,6 +339,26 @@ async def test_pilot_clicks_open_usage_without_expanding_header(
         await page.expect_no_modal()
 
 
+async def test_usage_label_click_opens_usage_without_expanding_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_usage(monkeypatch, *_claude_windows())
+    async with AcePage(size=(160, 24)) as page:
+        await _settle(page)
+        header, _icon, _title, usage = _header_widgets(page)
+        rendered = usage.render().plain
+        assert rendered.startswith("usage: ")
+        content_start = usage.region.width - usage.rendered_content_width
+        assert await page._pilot.click(  # noqa: SLF001
+            usage, offset=(content_start + 2, 0)
+        )
+        await page.pause()
+        await page.expect_modal("ProviderUsageModal")
+        assert not header.has_class("-tall")
+        await page.press("escape")
+        await page.expect_no_modal()
+
+
 async def test_fallback_clicks_open_usage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
