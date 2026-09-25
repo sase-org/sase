@@ -15,12 +15,20 @@ def _is_workspace_variant(component: str, project_name: str) -> bool:
     return component == project_name or component.startswith(f"{project_name}_")
 
 
-def cwd_matches_project_workspace(cwd: str, primary: Path, project_name: str) -> bool:
-    """Check if *cwd* is under *primary* or one of its project workspace variants."""
+def cwd_matches_project_workspace(
+    cwd: str, primary: Path, project_name: str, *, exact: bool = False
+) -> bool:
+    """Check if *cwd* is under *primary* or one of its project workspace variants.
+
+    With ``exact`` the match is limited to the workspace root itself, so a
+    repository nested inside a workspace is not claimed by that workspace.
+    """
     primary_parts = primary.parts
     cwd_parts = Path(cwd).parts
 
-    if len(cwd_parts) < len(primary_parts):
+    if len(cwd_parts) < len(primary_parts) or (
+        exact and len(cwd_parts) != len(primary_parts)
+    ):
         return False
 
     for i, primary_component in enumerate(primary_parts):
@@ -39,7 +47,7 @@ def cwd_matches_project_workspace(cwd: str, primary: Path, project_name: str) ->
     return True
 
 
-def scan_projects_for_cwd(cwd: str) -> tuple[str, Path] | None:
+def scan_projects_for_cwd(cwd: str, *, exact: bool = False) -> tuple[str, Path] | None:
     """Find ``(project_name, primary_workspace)`` for *cwd* by scanning projects."""
     projects_dir = sase_projects_dir()
     if not projects_dir.is_dir():
@@ -58,13 +66,15 @@ def scan_projects_for_cwd(cwd: str) -> tuple[str, Path] | None:
 
         primary = Path(workspace_dir.rstrip("/"))
 
-        if cwd_matches_project_workspace(cwd, primary, project_name):
+        if cwd_matches_project_workspace(cwd, primary, project_name, exact=exact):
             return project_name, primary
 
     return None
 
 
-def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
+def infer_project_name_from_cwd(
+    cwd: str | None = None, *, exact: bool = False
+) -> str | None:
     """Infer current project name from *cwd* (defaults to ``os.getcwd()``).
 
     Resolution order:
@@ -72,10 +82,14 @@ def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
          (set by managed checkouts);
       2. workspace provider ``ws_get_workspace_name`` hook;
       3. scan ``~/.sase/projects/`` for a project whose workspace matches.
+
+    With ``exact``, *cwd* is a repository root that owns its own identity: a
+    marker or workspace directory of an enclosing checkout never claims it
+    (a linked clone under a workspace is not that workspace's project).
     """
     cwd_abs = os.path.abspath(cwd or os.getcwd())
 
-    marker_project = _project_name_from_marker(cwd_abs)
+    marker_project = _project_name_from_marker(cwd_abs, exact=exact)
     if marker_project is not None:
         return marker_project
 
@@ -94,14 +108,14 @@ def infer_project_name_from_cwd(cwd: str | None = None) -> str | None:
     except Exception:
         pass
 
-    scanned = scan_projects_for_cwd(cwd_abs)
+    scanned = scan_projects_for_cwd(cwd_abs, exact=exact)
     if scanned is not None:
         return scanned[0]
 
     return None
 
 
-def _project_name_from_marker(cwd_abs: str) -> str | None:
+def _project_name_from_marker(cwd_abs: str, *, exact: bool = False) -> str | None:
     """Resolve project name via the nearest managed-checkout marker."""
     try:
         from sase.workspace_provider import find_marker_from_cwd
@@ -114,7 +128,9 @@ def _project_name_from_marker(cwd_abs: str) -> str | None:
         return None
     if found is None:
         return None
-    _, marker = found
+    marker_dir, marker = found
+    if exact and os.path.realpath(marker_dir) != os.path.realpath(cwd_abs):
+        return None
     project_name = marker.project_name.strip()
     if not project_name or not is_valid_sase_project_name(project_name):
         return None

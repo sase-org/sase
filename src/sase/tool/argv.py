@@ -14,6 +14,7 @@ from sase.config.tools import (
     ToolCatalogError,
     load_project_tool_catalog,
     load_project_tool_catalog_at,
+    tool_project_identity,
 )
 from sase.content_layout import discover_project_root
 
@@ -49,6 +50,15 @@ class ResolvedToolArgv:
     digest: str | None
     cwd: str | None
     adhoc: bool
+    project_identity: str | None = None
+
+    def resolved_project_identity(self) -> str:
+        """The identity this run is recorded under (see ``tool_project_identity``).
+
+        Named tools carry the identity of the catalog's repo from resolution;
+        anything else is derived from ``cwd`` (the process cwd when ``None``).
+        """
+        return self.project_identity or tool_project_identity(self.cwd)
 
 
 def _parse_run_words(words: Sequence[str]) -> tuple[bool, str | None, tuple[str, ...]]:
@@ -129,6 +139,7 @@ def resolve_run_argv(
             digest=None,
             cwd=cwd_value,
             adhoc=True,
+            project_identity=tool_project_identity(cwd_value),
         )
 
     try:
@@ -162,6 +173,7 @@ def resolve_run_argv(
         digest=entry.digest,
         cwd=str(root) if root is not None else None,
         adhoc=False,
+        project_identity=catalog.project,
     )
 
 

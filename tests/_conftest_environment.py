@@ -33,6 +33,26 @@ def _clear_ambient_console_color_override_env_vars() -> None:
 
 _clear_ambient_console_color_override_env_vars()
 
+# Variables a ToolRun stage or monitor exports so ``tools/run_silent`` records
+# its stage into the enclosing run. A suite launched under either inherits them,
+# and any test that then runs ``tools/run_silent`` (often with an intentionally
+# failing stage) would append that stage to the real run and its monitor
+# diagnostics. Tests that need them set them explicitly.
+TOOL_RUN_RECORDING_ENV_VARS = (
+    "SASE_TOOL_RUN_EVENTS",
+    "SASE_TOOL_RUN_ID",
+    "SASE_MONITOR_DIAGNOSTICS_DIR",
+)
+
+
+def clear_ambient_tool_run_recording_env_vars() -> None:
+    """Scrub enclosing-run recording variables at session start."""
+    for key in TOOL_RUN_RECORDING_ENV_VARS:
+        os.environ.pop(key, None)
+
+
+clear_ambient_tool_run_recording_env_vars()
+
 
 def _is_sase_config_layer_name(name: str) -> bool:
     return name in {"sase.yml", "sase.yaml"} or (

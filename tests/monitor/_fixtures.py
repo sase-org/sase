@@ -11,6 +11,7 @@ markers written by real supervisor subprocesses.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import json
 import tempfile
 import time
@@ -26,10 +27,28 @@ from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
 from sase.core.wire import known_field_kwargs, with_agent_session_keys
 from sase.running_field import WorkspaceClaim
+from tests._conftest_environment import TOOL_RUN_RECORDING_ENV_VARS
 
 DEAD_PID = 99_999_999
 POLL_TIMEOUT = 60.0
 POLL_INTERVAL = 0.1
+
+
+def without_tool_run_recording(env: Mapping[str, str]) -> dict[str, str]:
+    """*env* minus the variables that make ``tools/run_silent`` record into an
+    enclosing ToolRun or monitor.
+
+    A fixture that runs ``tools/run_silent`` with an intentionally failing stage
+    must not build its child environment from ``os.environ`` without this, or
+    the fixture's stage leaks into the real run that launched the suite.
+    """
+    return {k: v for k, v in env.items() if k not in TOOL_RUN_RECORDING_ENV_VARS}
+
+
+def isolate_from_enclosing_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drop the enclosing run's recording variables from this process's env."""
+    for name in TOOL_RUN_RECORDING_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
 
 
 def make_starter_agent(

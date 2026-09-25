@@ -7,7 +7,8 @@ precedence.
 
 from __future__ import annotations
 
-import os
+import re
+import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,10 @@ DEFAULT_TOOL_RUNS_LOG_DAYS = 14
 DEFAULT_TOOL_RUNS_LOG_MAX_BYTES = 2 * 1024 * 1024 * 1024
 DEFAULT_TOOL_RUNS_RUN_LOG_MAX_BYTES = 256 * 1024 * 1024
 DEFAULT_TOOL_RUNS_EVENT_MAX_BYTES = 16 * 1024 * 1024
+
+_GIT_REMOTE_TIMEOUT_SECONDS = 5.0
+_WORKSPACE_SUFFIX = re.compile(r"_\d+$")
+_UNSAFE_KEY_CHARACTERS = re.compile(r"[^A-Za-z0-9._-]+")
 
 _TOOL_RUNS_FIELDS = (
     "summary_days",
@@ -64,30 +69,69 @@ class ToolCatalog:
     diagnostics: tuple[str, ...]
 
 
-def tool_project_identity() -> str:
-    """Return the stable project identity used for LAST/TYPICAL queries.
+def tool_project_identity(root: Path | str | None = None) -> str:
+    """Return the project identity a ToolRun is recorded and queried under.
 
-    Cheap by design: unlike :func:`load_project_tool_catalog` it reads no config
-    layers, so a foreground run can resolve it once per process without paying
-    for plugin discovery.
+    *root* is the repository that owns the resolved tool catalog (or, for an
+    ad-hoc run, the repository of its working directory); ``None`` means the
+    current directory's repository. The identity comes from that repository,
+    never from ``SASE_PROJECT``: that variable names the agent's own project,
+    so a run from a linked repo checkout must not inherit it. A registered
+    project keeps its registry key; any other repository gets a stable key
+    derived from its origin remote or directory name. Failures degrade to
+    ``"unknown"`` because recording is fail-open.
     """
-    env = (
-        os.environ.get("SASE_PROJECT") or os.environ.get("SASE_PROJECT_NAME") or ""
-    ).strip()
-    if env:
-        return env
     try:
-        from sase.bead.project_name import infer_project_name_from_cwd
+        project_root = discover_project_root(root)
+        if project_root is None:
+            return "unknown"
+        return _registered_project_name(project_root) or _derived_project_key(
+            project_root
+        )
+    except Exception:  # noqa: BLE001 - attribution still works without a registry hit.
+        return "unknown"
 
-        inferred = infer_project_name_from_cwd()
-        if inferred:
-            return inferred
-    except Exception:  # noqa: BLE001 - listing still works without a registry hit.
-        pass
-    root = discover_project_root()
-    if root is not None:
-        return root.name
-    return "unknown"
+
+def _registered_project_name(root: Path) -> str | None:
+    from sase.bead.project_name import infer_project_name_from_cwd
+
+    try:
+        return infer_project_name_from_cwd(str(root), exact=True)
+    except Exception:  # noqa: BLE001 - an unregistered repo still has an identity.
+        return None
+
+
+def _derived_project_key(root: Path) -> str:
+    """Key an unregistered repo the way ProjectSpec directories are keyed.
+
+    A GitHub origin yields ``gh_<owner>__<repo>``; otherwise the directory
+    name with any ``_<N>`` workspace suffix stripped, so every numbered
+    checkout of one repo shares an identity.
+    """
+    from sase._git_remote import parse_hosted_git_remote
+
+    remote = ""
+    # Only a repo's own remote counts; git would otherwise walk up to a parent.
+    if (root / ".git").exists():
+        try:
+            completed = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=_GIT_REMOTE_TIMEOUT_SECONDS,
+            )
+            remote = completed.stdout.strip() if completed.returncode == 0 else ""
+        except (OSError, subprocess.SubprocessError):
+            pass
+    parsed = parse_hosted_git_remote(remote) if remote else None
+    if parsed is not None and parsed.host == "github.com":
+        owner, _, repo = parsed.repo.partition("/")
+        if owner and repo and "/" not in repo:
+            return f"gh_{owner}__{repo}"
+    name = _WORKSPACE_SUFFIX.sub("", root.name)
+    return _UNSAFE_KEY_CHARACTERS.sub("-", name).strip("-") or "unknown"
 
 
 def load_project_tool_catalog() -> ToolCatalog:
@@ -99,7 +143,9 @@ def load_project_tool_catalog() -> ToolCatalog:
     """
     diagnostics = list(_non_project_tools_diagnostics())
     local_path = get_local_config_path()
-    return _load_catalog_from_path(local_path, diagnostics=diagnostics)
+    return _load_catalog_from_path(
+        local_path, root=discover_project_root(), diagnostics=diagnostics
+    )
 
 
 def load_project_tool_catalog_at(start: Path | str | None) -> ToolCatalog:
@@ -119,7 +165,7 @@ def load_project_tool_catalog_at(start: Path | str | None) -> ToolCatalog:
     root = discover_project_root(start)
     if root is None:
         return ToolCatalog(
-            project=tool_project_identity(),
+            project=tool_project_identity(start),
             path=None,
             entries=(),
             diagnostics=(),
@@ -128,13 +174,13 @@ def load_project_tool_catalog_at(start: Path | str | None) -> ToolCatalog:
         local_path = resolve_project_config_read_path(root)
     except Exception as exc:
         raise ToolCatalogError(f"{root}: {exc}") from exc
-    return _load_catalog_from_path(local_path, diagnostics=[])
+    return _load_catalog_from_path(local_path, root=root, diagnostics=[])
 
 
 def _load_catalog_from_path(
-    local_path: Path | None, *, diagnostics: list[str]
+    local_path: Path | None, *, root: Path | None, diagnostics: list[str]
 ) -> ToolCatalog:
-    project = tool_project_identity()
+    project = tool_project_identity(root)
     if local_path is None:
         return ToolCatalog(
             project=project,

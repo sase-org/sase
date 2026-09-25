@@ -34,6 +34,37 @@ the [field reference](configuration.md#sase-tool).
 `tool_runs:` (retention and log caps) is separate operational policy and follows
 ordinary config precedence.
 
+## Project identity
+
+Every run is recorded under the project identity of the repository that owns its
+catalog, and an ad-hoc run under the identity of its working directory's repository.
+That one identity fills `runs.project`, `fingerprint_before/after.project_identity`, and
+`fingerprint.repos[0].identity`, and it is what `sase tool runs` (without `-a`) scopes
+to. So `sase tool run check` from a linked repo checkout such as
+`sase/repos/linked/sase-core` is recorded as that repo's `check`, not as the host
+project's, and the two never share history, LAST, or flake evidence.
+
+A repo that is a registered project keeps its registry key (`sase-core`,
+`gh_sase-org__sase`). Any other repo gets a stable key derived from it:
+`gh_<owner>__<repo>` from a GitHub `origin`, otherwise its directory name with a `_<N>`
+workspace suffix stripped, so every numbered checkout of one repo shares an identity. A
+repo nested inside another checkout is never claimed by it. `SASE_PROJECT` names the
+agent's own project and is not consulted.
+
+Rows recorded before this rule keep the identity they were recorded with; they are not
+rewritten. Linked-repo `check` runs from that period carry the host project's identity
+and are told apart only by `definition_digest`.
+
+## Stage recording
+
+A stage recorded by `tools/run_silent` is one row of the enclosing run. The stage
+command runs without `SASE_TOOL_RUN_EVENTS` and `SASE_MONITOR_DIAGNOSTICS_DIR`, so a
+nested `tools/run_silent` (or a test that invokes one) records nothing into the
+enclosing run's stage timeline or monitor diagnostics. `SASE_TOOL_RUN_ID` stays, so a
+nested `sase tool run` keeps its parent link. The test suite scrubs those variables and
+`SASE_TOOL_RUN_ID` at session start, which covers `stages: none` tools such as `test`; a
+test that needs them sets them explicitly.
+
 ## Run output versus retained output
 
 A human at a terminal gets the child's stdout and stderr passed through unchanged; the

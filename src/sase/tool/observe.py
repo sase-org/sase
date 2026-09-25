@@ -20,7 +20,6 @@ import subprocess
 import time
 from typing import Any
 
-from sase.config.tools import tool_project_identity
 from sase.content_layout import discover_project_root
 from sase.core.tool_run import (
     tool_run_canonicalize_fingerprint,
@@ -106,7 +105,7 @@ def fingerprints_mutated(
 
 def _observe_raw(resolved: ResolvedToolArgv) -> dict[str, Any]:
     missing: list[str] = []
-    project = _project_identity()
+    project = resolved.resolved_project_identity()
     definition = resolved.definition if isinstance(resolved.definition, dict) else {}
     raw_spec = definition.get("fingerprint")
     spec: dict[str, Any] = raw_spec if isinstance(raw_spec, dict) else {}
@@ -641,17 +640,6 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 def _canonical_digest(value: object) -> str:
     encoded = json.dumps(value, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-
-
-def _project_identity() -> str:
-    try:
-        return tool_project_identity()
-    except Exception:  # noqa: BLE001 - observation still works without a registry hit.
-        return (
-            os.environ.get("SASE_PROJECT")
-            or os.environ.get("SASE_PROJECT_NAME")
-            or "unknown"
-        ).strip() or "unknown"
 
 
 __all__ = [

@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from sase.config.tools import tool_project_identity
 from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import tool_run_begin, tool_run_finish, tool_run_show
 from sase.tool.argv import ResolvedToolArgv
@@ -44,7 +43,7 @@ def build_begin_request(
         "definition": resolved.definition,
         "extra_args": list(resolved.extra_args),
         "display_argv": list(resolved.display_argv),
-        "project": _current_project_identity(),
+        "project": resolved.resolved_project_identity(),
         "agent": agent,
         "workspace": (os.environ.get("SASE_WORKSPACE_NUM") or "").strip() or None,
         "bead": (
@@ -173,17 +172,6 @@ def _already_settled(run_id: str) -> bool:
         return False
     state = str(run.get("state") or "")
     return bool(state) and state not in {"created", "running"}
-
-
-def _current_project_identity() -> str:
-    try:
-        return tool_project_identity()
-    except Exception:  # noqa: BLE001 - attribution still works without a registry hit.
-        return (
-            os.environ.get("SASE_PROJECT")
-            or os.environ.get("SASE_PROJECT_NAME")
-            or "unknown"
-        ).strip() or "unknown"
 
 
 __all__ = ["begin_tool_run", "build_begin_request", "finish_tool_run"]

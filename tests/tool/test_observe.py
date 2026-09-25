@@ -148,6 +148,12 @@ def test_identical_contents_in_two_checkout_paths(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     left = _git_init(tmp_path / "left")
+    # Two checkouts of one project share its origin, and so its identity.
+    subprocess.run(
+        ["git", "remote", "add", "origin", "git@github.com:acme/widgets.git"],
+        cwd=left,
+        check=True,
+    )
     (left / "note.txt").write_text("same\n", encoding="utf-8")
     right = tmp_path / "right"
     shutil.copytree(left, right)

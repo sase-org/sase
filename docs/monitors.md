@@ -356,7 +356,10 @@ the follow-up agent rather than preserving unlimited bytes.
 The command does not inherit the starter agent's `SASE_AGENT*` identity or
 `SASE_ARTIFACTS_DIR`, so tools run by the command cannot accidentally write artifacts or
 variables into the dead starter's directory. It receives `SASE_MONITOR_ID`,
-`SASE_MONITOR_ARTIFACTS_DIR`, and `SASE_MONITOR_DIAGNOSTICS_DIR` instead.
+`SASE_MONITOR_ARTIFACTS_DIR`, and `SASE_MONITOR_DIAGNOSTICS_DIR` instead. Only the
+command's own `tools/run_silent` stages record into that diagnostics directory: a
+stage's children never inherit it, so a nested `tools/run_silent` cannot add stages of
+its own.
 
 ### Surviving the starter's teardown
 

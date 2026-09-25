@@ -13,6 +13,8 @@ from sase.continuation_baseline import measure_fork_render, _measure_prompt_comp
 from sase.history.chat import build_fork_injected_history
 from sase.monitor.followup_prompt import compose_followup_prompt
 
+from ._fixtures import without_tool_run_recording
+
 
 _COMMON = {
     "command": "just check-full",
@@ -102,8 +104,9 @@ def test_run_silent_records_failed_stage_and_preserves_early_exit(
 ) -> None:
     artifacts = tmp_path / "artifacts"
     run_silent = Path.cwd() / "tools" / "run_silent"
-    env = {**os.environ, "SASE_ARTIFACTS_DIR": str(artifacts)}
-    env.pop("SASE_MONITOR_DIAGNOSTICS_DIR", None)
+    env = without_tool_run_recording(
+        {**os.environ, "SASE_ARTIFACTS_DIR": str(artifacts)}
+    )
     fail_code = "print('boom'); raise SystemExit(7)"
     skipped_code = "print('must not run')"
     first = (

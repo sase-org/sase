@@ -17,6 +17,7 @@ from sase.monitor.diagnostics import (
 )
 from sase.monitor.supervise import run_supervisor
 
+from ._fixtures import isolate_from_enclosing_run, without_tool_run_recording
 from ._supervise import _make_member, _restore_signal_handlers, _sandbox_home
 
 
@@ -26,7 +27,7 @@ def _run_silent_path() -> Path:
 
 def test_run_silent_writes_isolated_monitor_stage_report(tmp_path: Path) -> None:
     diagnostics_dir = tmp_path / "artifacts" / "diagnostics"
-    env = os.environ.copy()
+    env = without_tool_run_recording(os.environ)
     env["SASE_MONITOR_DIAGNOSTICS_DIR"] = str(diagnostics_dir)
     env["SASE_MONITOR_ID"] = "monitor-test"
 
@@ -89,6 +90,7 @@ def test_supervisor_freezes_stage_manifest_and_retained_log_metadata(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    isolate_from_enclosing_run(monkeypatch)
     monkeypatch.setenv("SASE_MONITOR_LOG_MAX_BYTES", "64")
     payload = "import sys; print('stage boom'); print('x' * 120); sys.exit(4)"
     command = (

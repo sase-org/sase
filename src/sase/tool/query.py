@@ -89,7 +89,7 @@ def handle_runs(request: ToolRunsCliRequest) -> int:
     if request.cursor:
         payload["cursor"] = request.cursor
     if not request.include_all:
-        payload["project"] = _project_identity()
+        payload["project"] = tool_project_identity()
     try:
         envelope = tool_run_list(payload)
     except Exception as exc:  # noqa: BLE001 - query failures are nonzero.
@@ -693,17 +693,6 @@ def _validate_state(state: str | None) -> str | None:
         allowed = ", ".join(sorted(_RUN_STATES))
         raise _ToolRunQueryError(f"unknown state {state!r}; expected one of {allowed}")
     return state
-
-
-def _project_identity() -> str:
-    try:
-        return tool_project_identity()
-    except Exception:  # noqa: BLE001 - listing still works without a registry hit.
-        return (
-            os.environ.get("SASE_PROJECT")
-            or os.environ.get("SASE_PROJECT_NAME")
-            or "unknown"
-        ).strip() or "unknown"
 
 
 def _write_bytes(stream: TextIO, data: bytes) -> None:

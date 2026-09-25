@@ -26,8 +26,9 @@ def test_tool_list_json_is_versioned_with_empty_last_typical(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    root = tmp_path / "fixture"
     path = _write_tools(
-        tmp_path,
+        root,
         {
             "check": {
                 "argv": ["just", "check"],
@@ -37,7 +38,10 @@ def test_tool_list_json_is_versioned_with_empty_last_typical(
         },
     )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("SASE_PROJECT", "fixture")
+    # The agent's own project is attribution only; the catalog repo names the
+    # project the list is scoped to.
+    monkeypatch.setenv("SASE_PROJECT", "host-project")
+    monkeypatch.chdir(root)
     monkeypatch.setattr("sase.config.tools.get_local_config_path", lambda: path)
     clear_config_cache()
 

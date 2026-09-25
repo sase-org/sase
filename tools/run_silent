@@ -7,6 +7,12 @@
 # On success (exit 0): prints "✓ <description>" and discards the captured output.
 # On failure (nonzero): prints "✗ <description>", dumps the captured output,
 #                       and exits with the same code.
+#
+# The stage command runs without SASE_TOOL_RUN_EVENTS and
+# SASE_MONITOR_DIAGNOSTICS_DIR: a stage is one row of the enclosing run, so a
+# nested run_silent (or a test fixture that invokes one) must never append its
+# own stages to that run's events or monitor diagnostics. SASE_TOOL_RUN_ID
+# stays, so a nested `sase tool run` keeps its parent link.
 
 set -uo pipefail
 
@@ -35,7 +41,7 @@ if [ -n "${SASE_TOOL_RUN_EVENTS:-}" ] && command -v python3 >/dev/null 2>&1; the
     python3 "$helper" start --state "$state_file" --description "$description" >/dev/null 2>&1 || true
 fi
 
-if "$@" >"$tmp_file" 2>&1; then
+if (unset SASE_TOOL_RUN_EVENTS SASE_MONITOR_DIAGNOSTICS_DIR; "$@") >"$tmp_file" 2>&1; then
     exit_code=0
 else
     exit_code=$?
