@@ -80,12 +80,12 @@ def _xprompt_highlight_agent(artifacts_dir: Path) -> Agent:
     [
         (
             "textual-dark",
-            "agents_xprompt_panel_highlighting_120x40",
+            "agents_xprompt_panel_highlighting_160x50",
             "ACE agents xprompt panel highlighting",
         ),
         (
             "textual-light",
-            "agents_xprompt_panel_highlighting_light_120x40",
+            "agents_xprompt_panel_highlighting_light_160x50",
             "ACE agents xprompt panel highlighting, light theme",
         ),
     ],
@@ -114,16 +114,20 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
 
     monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
+    # The expanded header is capped at half the detail column; 160x50 keeps
+    # the whole highlighted XPROMPT visible without scrolling the header.
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        # `d` is a no-op until the header panel shows an identity.
+        await wait_for_svg_contains(page, "\u25be")
         await page.press("d")
-        await wait_for_svg_contains(page, "AGENT XPROMPT")
+        await wait_for_svg_contains(page, "XPROMPT")
         await wait_for_svg_contains(page, "sase_plan")
-        await wait_for_svg_contains(page, "Agent Clan")
+        await wait_for_svg_contains(page, "Clan")
         await wait_for_svg_contains(page, "sase-core")
         await wait_for_visual_idle(page)
 
@@ -184,12 +188,12 @@ def _xprompt_tag_highlight_agent(artifacts_dir: Path) -> Agent:
     [
         (
             "textual-dark",
-            "agents_xprompt_panel_tag_highlighting_120x40",
+            "agents_xprompt_panel_tag_highlighting_160x50",
             "ACE agents xprompt panel tag highlighting",
         ),
         (
             "textual-light",
-            "agents_xprompt_panel_tag_highlighting_light_120x40",
+            "agents_xprompt_panel_tag_highlighting_light_160x50",
             "ACE agents xprompt panel tag highlighting, light theme",
         ),
     ],
@@ -219,16 +223,20 @@ async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
 
     monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
+    # The expanded header is capped at half the detail column; 160x50 keeps
+    # the whole highlighted XPROMPT visible without scrolling the header.
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         page.app.theme = theme
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        # `d` is a no-op until the header panel shows an identity.
+        await wait_for_svg_contains(page, "\u25be")
         await page.press("d")
-        await wait_for_svg_contains(page, "AGENT XPROMPT")
+        await wait_for_svg_contains(page, "XPROMPT")
         await wait_for_svg_contains(page, "sase_plan")
-        await wait_for_svg_contains(page, "Agent Clan")
+        await wait_for_svg_contains(page, "Clan")
         await wait_for_svg_contains(page, "sase-core")
         await wait_for_svg_contains(page, "sase")
         await wait_for_visual_idle(page)

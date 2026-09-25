@@ -66,9 +66,14 @@ class IdentityHeader:
         """Return the expanded identity fields followed by its xprompt, if any."""
         if self.xprompt is None:
             return self.expanded
+        fields: RenderableType = self.expanded
+        if isinstance(fields, Text):
+            fields = fields.copy()
+            fields.rstrip()
         heading = Text()
         append_section_heading(heading, "AGENT XPROMPT")
-        return Group(self.expanded, Text("\n"), heading, self.xprompt)
+        # ``Text("")`` renders as exactly one blank row between the two blocks.
+        return Group(fields, Text(""), heading, self.xprompt)
 
     def inline_renderable(self) -> RenderableType:
         """Return the kind line plus expanded block for inline documents."""

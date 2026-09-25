@@ -60,6 +60,24 @@ def test_identity_xprompt_is_inline_after_expanded_fields() -> None:
     assert plain.index("Review #plan") < plain.index("─" * 50)
 
 
+def test_expanded_renderable_separates_fields_and_xprompt_by_one_blank_row() -> None:
+    agent = make_agent(agent_name="solo")
+    document, _ = build_header_text(agent, detach_identity=True)
+    identity = find_identity_header(document)
+    assert identity is not None
+    attached = identity.with_xprompt(Text("Review #plan"))
+
+    output = StringIO()
+    Console(file=output, width=80, color_system=None).print(
+        attached.expanded_renderable(), end=""
+    )
+    lines = output.getvalue().splitlines()
+    heading = lines.index("AGENT XPROMPT")
+    assert lines[heading - 1] == ""
+    assert lines[heading - 2].strip() != ""
+    assert lines[heading + 1] == "Review #plan"
+
+
 def test_standard_xprompt_moves_to_identity_when_detached(tmp_path: Path) -> None:
     panel = _DetachedPanel()
     agent = make_artifact_agent(

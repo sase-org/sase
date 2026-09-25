@@ -435,11 +435,13 @@ full commands are hidden. Level 2 retains those rows and adds the wrapped full c
 or target, timing and outcome facts, errors, output previews, subagent statistics, and
 relative slow-time rank beneath each call.
 
-`AGENT XPROMPT`, `AGENT PROMPT`, and the consolidated `AGENT REPLY` are always shown in
-full at both family levels, without fold glyphs or section overrides. They remain
-navigation anchors for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them without changing the
-override registry. Absent xprompt and prompt sections are omitted, while reply rows for
-members that have not responded yet remain visible with their pending state.
+`AGENT PROMPT` and the consolidated `AGENT REPLY` are always shown in full at both
+family levels, without fold glyphs or section overrides. They remain navigation anchors
+for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them without changing the override registry.
+The family's `AGENT XPROMPT` renders in the sticky header panel above the data deck (a
+collapsed preview, or in full after `d`) rather than in the body. Absent xprompt and
+prompt sections are omitted, while reply rows for members that have not responded yet
+remain visible with their pending state.
 
 A family root is a sase agent, so its jump panel also carries a `NEIGHBORS` section
 listing the sase agent's ancestors, descendants, and hood neighbors; it sits after
