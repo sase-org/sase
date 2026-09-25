@@ -30,6 +30,8 @@ class AgentKillPersistenceProcMixin:
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
         recent_group: SavedAgentGroupWire | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
     ) -> None:
@@ -38,9 +40,14 @@ class AgentKillPersistenceProcMixin:
         *on_settled*, when given, is composed with the in-flight-release
         callback below so it always fires exactly once: from the proc's
         settled callback when submission succeeds, or immediately when
-        submission is rejected.
+        submission is rejected. *proc_stops* and *gate_cancels* ride the
+        same durable transaction so member rows stop in one step.
         """
         from . import _killing as killing_compat
+
+        proc_stops = list(proc_stops or ())
+        gate_cancels = list(gate_cancels or ())
+        member_agents = [*proc_stops, *gate_cancels]
 
         overlap = {
             item.agent.identity for item in kill_items
@@ -63,11 +70,13 @@ class AgentKillPersistenceProcMixin:
             cleanup_plan = withhold_agent_side_effects(
                 cleanup_plan, overlapped, agents_with_children_snapshot
             )
-            if not kill_items and not dismissable:
+            if not kill_items and not dismissable and not member_agents:
                 if on_settled is not None:
                     on_settled()
                 return
-        inflight = {item.agent.identity for item in kill_items}
+        inflight = {item.agent.identity for item in kill_items} | {
+            agent.identity for agent in member_agents
+        }
         self._kill_persistence_inflight.update(inflight)
 
         killed_count = len(kill_items)
@@ -100,6 +109,8 @@ class AgentKillPersistenceProcMixin:
                 for item in kill_items
             ],
             "message": killing_compat._bulk_kill_summary(killed_count, dismissed_count),
+            "proc_stops": serialize_agents(proc_stops),
+            "gate_cancels": serialize_agents(gate_cancels),
             "recent_group": (
                 saved_agent_group_wire_to_json_dict(recent_group)
                 if recent_group is not None
@@ -127,6 +138,9 @@ class AgentKillPersistenceProcMixin:
             self._escalate_kills_without_cleanup_proc(  # type: ignore[attr-defined]
                 item.agent for item in kill_items if item.kind != "monitor"
             )
+            resurface = getattr(self, "_resurface_member_rows", None)
+            if callable(resurface):
+                resurface(member_agents)
             _release()
 
     def _submit_kill_persistence_proc(

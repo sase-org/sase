@@ -133,14 +133,18 @@ def persist_bulk_kill_transaction(
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None,
     recent_group: SavedAgentGroupWire | None,
+    proc_stops: list[Agent] | None = None,
+    gate_cancels: list[Agent] | None = None,
     *,
     register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Persist all side effects for one optimistic bulk kill/dismiss operation.
 
     Follows the same order as :func:`persist_single_kill_transaction`:
-    publish the dismissal, terminate and verify, then release workspaces and
-    delete artifacts for every agent that is verifiably dead.
+    publish the dismissal, stop member proc shells, cancel member gates,
+    terminate and verify, then release workspaces and delete artifacts for
+    every agent that is verifiably dead. A member stop or cancel that does
+    not settle fails the transaction with the identities to resurface.
     """
     from ....dismissed_agents import save_dismissed_agents
 
@@ -153,6 +157,8 @@ def persist_bulk_kill_transaction(
     dismissed_rows = [item.agent for item in kill_items] + list(dismissable)
     if dismissed_rows:
         killing_compat.dismiss_notifications_for_agents(dismissed_rows)
+
+    _execute_member_stop_intents(proc_stops, gate_cancels)
 
     kill_agents = [item.agent for item in kill_items if item.kind != "monitor"]
     survivors = terminate_agents(
@@ -193,6 +199,32 @@ def persist_bulk_kill_transaction(
     killing_compat.persist_bulk_kill_side_effects(*args, **kwargs)
     if survivors:
         raise survivors_error(survivors)
+
+
+def _execute_member_stop_intents(
+    proc_stops: list[Agent] | None,
+    gate_cancels: list[Agent] | None,
+) -> None:
+    """Stop member proc shells and cancel member gates, failing on leftovers.
+
+    Raises :class:`MemberStopError` naming the identities whose rows must
+    resurface when any stop or cancel does not settle.
+    """
+    from ._kill_member_intents import (
+        MemberStopError,
+        execute_gate_cancel_intents,
+        execute_proc_stop_intents,
+    )
+
+    failed: set[AgentIdentity] = set()
+    failed.update(execute_proc_stop_intents(list(proc_stops or ())))
+    failed.update(execute_gate_cancel_intents(list(gate_cancels or ())))
+    if failed:
+        names = ", ".join(sorted(str(identity) for identity in failed))
+        raise MemberStopError(
+            f"Could not stop {names}; those rows remain visible",
+            resurface_identities=set(failed),
+        )
 
 
 def bulk_kill_task_display_name(killed_count: int, dismissed_count: int) -> str:

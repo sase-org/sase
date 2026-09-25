@@ -92,7 +92,11 @@ class _SpyApp(_MockApp):
     """
 
     def _do_bulk_kill_agents(  # type: ignore[override]
-        self, killable: list[Agent], dismissable: list[Agent] | None = None
+        self,
+        killable: list[Agent],
+        dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
     ) -> None:
         self.bulk_kill_calls.append(
             (list(killable), list(dismissable) if dismissable else None)

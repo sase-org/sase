@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from ..proc_actions import TrackedProcCompletion
@@ -80,6 +80,7 @@ class CleanupProcMixin:
         completion: TrackedProcCompletion[_CleanupProcOutcome],
     ) -> None:
         """Apply cleanup-specific completion effects on the UI thread."""
+        self._resurface_failed_cleanup_members(completion)
         outcome = _cleanup_outcome_from_completion(completion)
         if outcome is None:
             if not completion.success:
@@ -122,6 +123,52 @@ class CleanupProcMixin:
                     name="sase-cleanup-notification-count-refresh",
                     registry_attr="_pump_free_async_tasks",
                 )
+
+    def _resurface_failed_cleanup_members(self, completion: object) -> None:
+        """Clear tombstones and dismissal state for resurfaced identities.
+
+        The durable proc reports member stops/cancels that never settled via
+        ``resurface_identities``; their rows must come back on the next
+        refresh instead of staying tombstoned.
+        """
+        identities = _resurface_identities_from_completion(completion)
+        if not identities:
+            return
+        clear_removals = getattr(self, "clear_explicit_removals", None)
+        if callable(clear_removals):
+            clear_removals(identities)
+        dismissed = getattr(self, "_dismissed_agents", None)
+        if isinstance(dismissed, set):
+            dismissed.difference_update(identities)
+        dismissed_shells = getattr(self, "_dismissed_proc_shells", None)
+        if isinstance(dismissed_shells, set):
+            from sase.core.agent_types import AgentType
+
+            dismissed_shells.difference_update(
+                {
+                    suffix
+                    for agent_type, _cl_name, suffix in identities
+                    if agent_type == AgentType.PROC_SHELL and isinstance(suffix, str)
+                }
+            )
+
+
+def _resurface_identities_from_completion(
+    completion: object,
+) -> set[tuple[Any, ...]]:
+    """Return member identities the durable proc asked to resurface."""
+    payload = getattr(completion, "payload", None)
+    if not isinstance(payload, dict):
+        return set()
+    raw = payload.get("resurface_identities")
+    if not isinstance(raw, list):
+        return set()
+    from ..cleanup_payload import identities_from_json
+
+    try:
+        return {tuple(identity) for identity in identities_from_json(raw)}
+    except ValueError:
+        return set()
 
 
 def _cleanup_outcome_from_completion(

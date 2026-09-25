@@ -24,6 +24,23 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _member_stop_summary(member_agents: list[Agent]) -> str:
+    """Return the completion message for stopped member rows."""
+    from ._proc_shell_dismiss import proc_shell_count_phrase
+
+    procs = sum(1 for agent in member_agents if agent.is_proc_shell)
+    gates = sum(1 for agent in member_agents if agent.is_gate)
+    parts: list[str] = []
+    if procs:
+        parts.append(f"stopped {proc_shell_count_phrase(procs, running=True)}")
+    if gates:
+        noun = "gate" if gates == 1 else "gates"
+        parts.append(f"cancelled {gates} {noun}")
+    if not parts:
+        parts.append(f"stopped {len(member_agents)} rows")
+    return "; ".join(parts).capitalize()
+
+
 class AgentKillFlowMixin:
     """Mixin for immediate, optimistic kill and kill/dismiss workflows."""
 
@@ -164,14 +181,58 @@ class AgentKillFlowMixin:
         )
         return True
 
+    def _resurface_member_rows(self, agents: list[Agent]) -> None:
+        """Restore member rows whose durable stop/cancel never ran.
+
+        Used when the bulk persistence proc is rejected on submission: the
+        optimistic removal already happened but no durable proc will stop the
+        proc shells or cancel the gates, so the rows must come back instead
+        of staying tombstoned.
+        """
+        agents = list(agents)
+        if not agents:
+            return
+        identities = {agent.identity for agent in agents}
+        clear_removals = getattr(self, "clear_explicit_removals", None)
+        if callable(clear_removals):
+            clear_removals(identities)
+        dismissed = getattr(self, "_dismissed_agents", None)
+        if isinstance(dismissed, set):
+            dismissed.difference_update(identities)
+        dismissed_shells = getattr(self, "_dismissed_proc_shells", None)
+        if isinstance(dismissed_shells, set):
+            dismissed_shells.difference_update(
+                {agent.proc_id for agent in agents if agent.proc_id}
+            )
+        for roster in ("_agents_with_children", "_agents"):
+            current = getattr(self, roster, None)
+            if not isinstance(current, list):
+                continue
+            present = {agent.identity for agent in current}
+            current.extend(agent for agent in agents if agent.identity not in present)
+        labels = ", ".join(agent.display_name for agent in agents)
+        self.notify(  # type: ignore[attr-defined]
+            f"Could not stop {labels}; those rows remain visible",
+            severity="error",
+        )
+        refresh = getattr(self, "_schedule_agents_async_refresh", None)
+        if callable(refresh):
+            refresh(source="kill_error_recovery")
+
     def _do_bulk_kill_agents(
         self,
         killable: list[Agent],
         dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
     ) -> bool:
         """Kill/dismiss marked agents as one optimistic UI transaction.
+
+        *proc_stops* (active proc shells) and *gate_cancels* (pending gates)
+        are removed optimistically with the rest and ride the same durable
+        bulk transaction, which stops/cancels them out of process.
 
         *on_settled*, when given, runs once the bulk kill/dismiss's durable
         persistence proc has settled (or immediately, if nothing was
@@ -184,11 +245,18 @@ class AgentKillFlowMixin:
 
         started = time.perf_counter()
         dismissable = dismissable or []
+        proc_stops = list(proc_stops or [])
+        gate_cancels = list(gate_cancels or [])
         agents_with_children_snapshot = list(self._agents_with_children)
         live_ids = {a.identity for a in agents_with_children_snapshot}
         selected_agents = [
             agent for agent in [*killable, *dismissable] if agent.identity in live_ids
         ]
+        live_proc_stops = [agent for agent in proc_stops if agent.identity in live_ids]
+        live_gate_cancels = [
+            agent for agent in gate_cancels if agent.identity in live_ids
+        ]
+        member_agents = [*live_proc_stops, *live_gate_cancels]
         cleanup_plan = killing_compat._plan_bulk_kill_cleanup_side_effects(
             selected_agents,
             agents_with_children_snapshot,
@@ -264,7 +332,17 @@ class AgentKillFlowMixin:
         self._dismissed_agents.update(dismissed_ids)
         self._append_dismissed_agent_objects(dismiss_candidates, dismissed_ids)  # type: ignore[attr-defined]
 
-        removed_ids = killed_ids | dismissed_ids
+        member_proc_ids = [agent.proc_id for agent in member_agents if agent.proc_id]
+        if member_proc_ids:
+            dismissed_shells = getattr(self, "_dismissed_proc_shells", None)
+            if isinstance(dismissed_shells, set):
+                dismissed_shells.update(member_proc_ids)
+            else:
+                self._dismissed_proc_shells = set(member_proc_ids)  # type: ignore[attr-defined]
+
+        member_ids = {agent.identity for agent in member_agents}
+        self._dismissed_agents.update(member_ids)
+        removed_ids = killed_ids | dismissed_ids | member_ids
         self._reset_marked_agents()  # type: ignore[attr-defined]
         self._apply_killed_agents_in_memory(removed_ids)  # type: ignore[attr-defined]
 
@@ -274,8 +352,12 @@ class AgentKillFlowMixin:
             self._notify_after_refresh(  # type: ignore[attr-defined]
                 killing_compat._bulk_kill_summary(killed_count, dismissed_count)
             )
+        if member_agents:
+            self._notify_after_refresh(  # type: ignore[attr-defined]
+                _member_stop_summary(member_agents)
+            )
 
-        if kill_items or dismiss_candidates:
+        if kill_items or dismiss_candidates or member_agents:
             from ....dismissed_agents import snapshot_dismissed_agents
 
             self._submit_bulk_kill_persistence_proc(  # type: ignore[attr-defined]
@@ -285,14 +367,17 @@ class AgentKillFlowMixin:
                 agents_with_children_snapshot,
                 cleanup_plan,
                 recent_group,
+                live_proc_stops,
+                live_gate_cancels,
                 on_settled=on_settled,
             )
         elif on_settled is not None:
             on_settled()
         log.debug(
-            "bulk agent kill immediate stage: killed=%d dismissed=%d elapsed=%.3fs",
+            "bulk agent kill immediate stage: killed=%d dismissed=%d members=%d elapsed=%.3fs",
             killed_count,
             dismissed_count,
+            len(member_agents),
             time.perf_counter() - started,
         )
-        return bool(kill_items or dismiss_candidates)
+        return bool(kill_items or dismiss_candidates or member_agents)

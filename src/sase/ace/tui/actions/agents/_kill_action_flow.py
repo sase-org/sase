@@ -70,14 +70,14 @@ class AgentKillActionFlowMixin:
             return
 
         if agent.is_monitor and agent.monitor_state == "running":
-            self._handle_monitor_stop_action(agent)  # type: ignore[attr-defined]
+            self._handle_monitor_kill_action(agent)  # type: ignore[attr-defined]
             return
 
         if agent.is_proc_shell:
             from sase.procs import ACTIVE_PROC_STATUSES
 
             if agent.proc_status in ACTIVE_PROC_STATUSES:
-                self._handle_proc_shell_kill_action(agent)  # type: ignore[attr-defined]
+                self._handle_active_proc_shell_kill_action(agent)  # type: ignore[attr-defined]
             else:
                 self._dismiss_proc_shell_rows([agent])  # type: ignore[attr-defined]
             return
@@ -86,10 +86,13 @@ class AgentKillActionFlowMixin:
             from sase.gate_shell.state import gate_state_is_terminal
 
             if not (gate_state_is_terminal(agent.gate_state) or agent.stop_time):
-                self.notify(  # type: ignore[attr-defined]
-                    "Gate is waiting for a decision",
-                    severity="warning",
-                )
+                if agent.gate_state == "settling" or agent.gate_execution_active:
+                    self.notify(  # type: ignore[attr-defined]
+                        "Gate is waiting for a decision",
+                        severity="warning",
+                    )
+                    return
+                self._handle_pending_gate_kill_action(agent)  # type: ignore[attr-defined]
                 return
 
         if agent.is_clan_container:
@@ -193,6 +196,8 @@ class AgentKillActionFlowMixin:
 
         from sase.procs import ACTIVE_PROC_STATUSES
 
+        from ._marking_kill import gate_is_waiting
+
         targets = self._agent_cleanup_targets_from_candidates(panel_agents)  # type: ignore[attr-defined]
         proc_shells = [
             agent
@@ -200,8 +205,18 @@ class AgentKillActionFlowMixin:
             if getattr(agent, "is_proc_shell", False)
             and agent.proc_status not in ACTIVE_PROC_STATUSES
         ]
+        active_proc_shells = [
+            agent
+            for agent in panel_agents
+            if getattr(agent, "is_proc_shell", False)
+            and agent.proc_status in ACTIVE_PROC_STATUSES
+        ]
+        waiting_gates = [agent for agent in panel_agents if gate_is_waiting(agent)]
         if (
-            not targets and not proc_shells
+            not targets
+            and not proc_shells
+            and not active_proc_shells
+            and not waiting_gates
         ) or self._resolve_panel_cleanup_focus() != focus:
             self.notify(  # type: ignore[attr-defined]
                 f"{scope} membership changed; nothing cleaned up",
@@ -213,7 +228,7 @@ class AgentKillActionFlowMixin:
 
         label = agent_panel_label(focus.panel_key)
         self._present_bulk_kill_modal(  # type: ignore[attr-defined]
-            [*targets, *proc_shells],
+            [*targets, *proc_shells, *active_proc_shells, *waiting_gates],
             header=f"Panel: {label}",
         )
 

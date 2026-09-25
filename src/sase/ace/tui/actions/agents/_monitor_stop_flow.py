@@ -24,6 +24,95 @@ if TYPE_CHECKING:
 class MonitorStopActionFlowMixin:
     """Mixin dispatching the kill key for a selected monitor row."""
 
+    def _handle_monitor_kill_action(self, agent: Agent) -> None:
+        """Confirm and remove a running monitor row in one step.
+
+        Routes through the planner kill path and ``_do_kill_agent`` so the
+        row is tombstoned at once and the durable cleanup proc stops the
+        monitor via ``execute_monitor_stop_intents``. Falls back to the
+        stop-only path when the planner yields no kill item.
+        """
+        from ._dismiss_cleanup import agent_identity_from_wire
+
+        cleanup_plan = None
+        plan_kill = False
+        try:
+            cleanup_plan = self._plan_focused_agent_cleanup(agent)  # type: ignore[attr-defined]
+        except Exception:
+            cleanup_plan = None
+        if cleanup_plan is not None:
+            plan_kill = any(
+                agent_identity_from_wire(item.identity) == agent.identity
+                for item in cleanup_plan.kill_items
+            )
+        if not plan_kill:
+            self._handle_monitor_stop_action(agent)
+            return
+
+        from ...modals import ConfirmStopMonitorModal
+
+        description = (
+            agent.monitor_label or agent.monitor_command or agent.agent_name or ""
+        )
+
+        def on_dismiss(confirmed: bool | None) -> None:
+            if confirmed:
+                self._do_kill_agent(agent, cleanup_plan)  # type: ignore[attr-defined]
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmStopMonitorModal(description), on_dismiss
+        )
+
+    def _handle_active_proc_shell_kill_action(self, agent: Agent) -> None:
+        """Confirm and remove an active proc-shell row in one step.
+
+        The row is tombstoned at once and the durable bulk transaction stops
+        it through the canonical proc stop.
+        """
+        if agent.proc_status not in ACTIVE_PROC_STATUSES:
+            self._dismiss_proc_shell_rows([agent])  # type: ignore[attr-defined]
+            return
+        proc_id = agent.proc_id
+        if not proc_id:
+            self.notify("Cannot resolve proc shell id", severity="error")  # type: ignore[attr-defined]
+            return
+
+        from ...modals import ConfirmKillProcShellModal
+
+        description = agent.proc_label or agent.agent_name or short_proc_id(proc_id)
+
+        def on_dismiss(confirmed: bool | None) -> None:
+            if confirmed:
+                self._do_bulk_kill_agents([], [], proc_stops=[agent])  # type: ignore[attr-defined]
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmKillProcShellModal(description), on_dismiss
+        )
+
+    def _handle_pending_gate_kill_action(self, agent: Agent) -> None:
+        """Confirm and remove a pending gate row in one step.
+
+        The row is tombstoned at once and the durable bulk transaction
+        cancels it through the canonical gate cancel.
+        """
+        from ...modals import ConfirmCancelGateModal
+
+        description = (
+            agent.gate_label
+            or agent.gate_kind
+            or agent.agent_name
+            or agent.gate_id
+            or "gate shell"
+        )
+
+        def on_dismiss(confirmed: bool | None) -> None:
+            if confirmed:
+                self._do_bulk_kill_agents([], [], gate_cancels=[agent])  # type: ignore[attr-defined]
+
+        self.push_screen(  # type: ignore[attr-defined]
+            ConfirmCancelGateModal(description), on_dismiss
+        )
+
     def _handle_proc_shell_kill_action(self, agent: Agent) -> None:
         """Confirm and kill a stand-alone proc shell through the proc service."""
         if agent.proc_status not in ACTIVE_PROC_STATUSES:

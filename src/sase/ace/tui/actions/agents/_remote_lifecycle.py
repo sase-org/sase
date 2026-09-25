@@ -145,6 +145,12 @@ class AgentRemoteLifecycleMixin:
         return agent
 
     def _agent_by_identity(self, identity: tuple[object, ...]) -> Agent | None:
+        # Folded remote clan members live in ``_agents_with_children`` but not
+        # in the visible ``_agents`` list; search the full roster first so
+        # they still resolve.
+        for agent in getattr(self, "_agents_with_children", []):
+            if agent.identity == identity:
+                return agent
         for agent in getattr(self, "_agents", []):
             if agent.identity == identity:
                 return agent

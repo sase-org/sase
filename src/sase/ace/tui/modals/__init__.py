@@ -139,6 +139,7 @@ __all__ = [
     "DispatchTargetChoice",
     "DispatchTargetPickerModal",
     "LOCAL_DISPATCH_TARGET_ID",
+    "ConfirmCancelGateModal",
     "ConfirmDeleteModal",
     "ConfirmDialog",
     "ConfirmDismissAllModal",

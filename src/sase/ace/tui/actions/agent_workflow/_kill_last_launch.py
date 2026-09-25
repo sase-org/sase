@@ -371,6 +371,8 @@ class KillAndEditLastLaunchMixin:
             def on_confirm(
                 _killable: list[Agent],
                 _dismissable: list[Agent],
+                _proc_stops: list[Agent] | None = None,
+                _gate_cancels: list[Agent] | None = None,
             ) -> None:
                 confirmed_agents = [
                     resolve_agent_identity(self, identity) for identity in identities
@@ -383,23 +385,39 @@ class KillAndEditLastLaunchMixin:
                     finish(False)
                     return
                 from ..agents._core import DISMISSABLE_STATUSES
+                from ..agents._marking_kill import gate_is_waiting
+                from sase.procs import ACTIVE_PROC_STATUSES
 
                 exact_agents = [
                     agent for agent in confirmed_agents if agent is not None
                 ]
+                proc_stops = [
+                    agent
+                    for agent in exact_agents
+                    if getattr(agent, "is_proc_shell", False)
+                    and agent.proc_status in ACTIVE_PROC_STATUSES
+                ]
+                gate_cancels = [
+                    agent for agent in exact_agents if gate_is_waiting(agent)
+                ]
+                member_ids = {agent.identity for agent in [*proc_stops, *gate_cancels]}
                 killable = [
                     agent
                     for agent in exact_agents
-                    if not getattr(agent, "is_gate", False)
+                    if agent.identity not in member_ids
+                    and not getattr(agent, "is_gate", False)
                     and agent.pid is not None
                     and agent.status not in DISMISSABLE_STATUSES
                 ]
                 dismissable = [
                     agent
                     for agent in exact_agents
-                    if agent.status in DISMISSABLE_STATUSES
-                    or (agent.pid is None and not getattr(agent, "is_gate", False))
-                    or _is_gate_dismissable(agent)
+                    if agent.identity not in member_ids
+                    and (
+                        agent.status in DISMISSABLE_STATUSES
+                        or (agent.pid is None and not getattr(agent, "is_gate", False))
+                        or _is_gate_dismissable(agent)
+                    )
                 ]
 
                 def mount_prompt_stack() -> None:
@@ -424,9 +442,19 @@ class KillAndEditLastLaunchMixin:
                 settle: Callable[[], None] = lambda: settle_relaunch_cleanup_barrier(  # noqa: E731
                     self, barrier
                 )
-                if not self._do_bulk_kill_agents(  # type: ignore[attr-defined]
-                    killable, dismissable, on_settled=settle
-                ):
+                if proc_stops or gate_cancels:
+                    killed = self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                        killable,
+                        dismissable,
+                        proc_stops,
+                        gate_cancels,
+                        on_settled=settle,
+                    )
+                else:
+                    killed = self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                        killable, dismissable, on_settled=settle
+                    )
+                if not killed:
                     settle()
                     finish(False)
                     return

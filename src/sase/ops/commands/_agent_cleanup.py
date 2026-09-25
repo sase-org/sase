@@ -46,17 +46,19 @@ def apply_cleanup_payload_for_result(
         refresh_source, refresh_notifications = _CLEANUP_ERROR_RECOVERY.get(
             transaction, (f"{action}_error_recovery", False)
         )
-        return (
-            False,
-            f"{action.capitalize()} cleanup failed: {exc}",
-            {
-                "action": action,
-                "notify": True,
-                "refresh_notifications": refresh_notifications,
-                "schedule_agents_refresh_source": refresh_source,
-                "severity": "error",
-            },
-        )
+        result: dict[str, Any] = {
+            "action": action,
+            "notify": True,
+            "refresh_notifications": refresh_notifications,
+            "schedule_agents_refresh_source": refresh_source,
+            "severity": "error",
+        }
+        resurface = getattr(exc, "resurface_identities", None)
+        if resurface:
+            from sase.ace.tui.actions.cleanup_payload import json_identities
+
+            result["resurface_identities"] = json_identities(resurface)
+        return (False, f"{action.capitalize()} cleanup failed: {exc}", result)
     return (
         True,
         str(payload.get("message") or f"Persisted {action}"),
@@ -136,6 +138,8 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
             agents_with_children,
             cleanup_plan,
             recent_group,
+            agents_from_json(payload.get("proc_stops")),
+            agents_from_json(payload.get("gate_cancels")),
         )
         return
     if transaction == "single_dismiss":

@@ -190,7 +190,7 @@ def test_group_marked_agents_are_seen_by_bulk_kill() -> None:
         app._bulk_kill_marked_agents()
         app.pushed_callbacks[0](True)
 
-    mock_bulk.assert_called_once_with([running], [done])
+    mock_bulk.assert_called_once_with([running], [done], [], [])
 
 
 def test_group_mark_advance_lands_on_next_banner_stop() -> None:

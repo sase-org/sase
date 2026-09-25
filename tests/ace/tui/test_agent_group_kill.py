@@ -55,10 +55,16 @@ class _FakeGroupKillApp(AgentKillMixin, AgentMarkingMixin):
         self.pushed_callbacks.append(callback)
 
     def _do_bulk_kill_agents(
-        self, killable: list[Agent], dismissable: list[Agent] | None = None
+        self,
+        killable: list[Agent],
+        dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
     ) -> None:
         ids = {a.identity for a in killable}
         ids.update(a.identity for a in dismissable or [])
+        ids.update(a.identity for a in proc_stops or [])
+        ids.update(a.identity for a in gate_cancels or [])
         self._agents = [a for a in self._agents if a.identity not in ids]
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in ids
@@ -183,7 +189,7 @@ def test_action_kill_on_clan_container_cascades_to_real_members() -> None:
         app.action_kill_agent()
         app.pushed_callbacks[0](True)
 
-    mock_bulk.assert_called_once_with([running], [done])
+    mock_bulk.assert_called_once_with([running], [done], [], [])
     assert container not in mock_bulk.call_args.args[0]
     description = app.pushed_modals[0].agent_description
     assert "Clan: research" in description
@@ -238,7 +244,7 @@ def test_group_kill_partitions_killable_and_dismissable() -> None:
         app.action_kill_agent()
         app.pushed_callbacks[0](True)
 
-    mock_bulk.assert_called_once_with([running], [done])
+    mock_bulk.assert_called_once_with([running], [done], [], [])
 
 
 def test_group_kill_cancel_leaves_agents_untouched() -> None:

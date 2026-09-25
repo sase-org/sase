@@ -85,12 +85,16 @@ class _FakeBulkEditApp(AgentMarkingMixin):
         self,
         killable: list[Any],
         dismissable: list[Any] | None = None,
+        proc_stops: list[Any] | None = None,
+        gate_cancels: list[Any] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
     ) -> bool:
         dismissable = dismissable or []
         self.bulk_kill_calls.append((list(killable), list(dismissable)))
         ids = {a.identity for a in killable} | {a.identity for a in dismissable}
+        ids.update(a.identity for a in proc_stops or [])
+        ids.update(a.identity for a in gate_cancels or [])
         self._agents = [a for a in self._agents if a.identity not in ids]
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in ids
@@ -144,6 +148,8 @@ class _MountedBulkEditApp(AgentMarkingMixin, EntryRelaunchMixin, App[None]):
         self,
         killable: list[Agent],
         dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
     ) -> bool:

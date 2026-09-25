@@ -194,10 +194,16 @@ class _FakeMarkApp(
         ]
 
     def _do_bulk_kill_agents(
-        self, killable: list[Agent], dismissable: list[Agent] | None = None
+        self,
+        killable: list[Agent],
+        dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
     ) -> None:
         ids = {a.identity for a in killable}
         ids.update(a.identity for a in dismissable or [])
+        ids.update(a.identity for a in proc_stops or [])
+        ids.update(a.identity for a in gate_cancels or [])
         self._agents = [a for a in self._agents if a.identity not in ids]
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in ids

@@ -63,7 +63,7 @@ def test_bulk_kill_partitions_and_clears_marks() -> None:
         # Simulate user confirming the modal
         app.pushed_callbacks[0](True)
 
-    mock_bulk.assert_called_once_with([running], [done])
+    mock_bulk.assert_called_once_with([running], [done], [], [])
 
 
 def test_bulk_kill_cancel_preserves_marks() -> None:

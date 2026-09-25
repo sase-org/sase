@@ -85,6 +85,27 @@ class ConfirmKillProcShellModal(ConfirmDialog):
         )
 
 
+class ConfirmCancelGateModal(ConfirmDialog):
+    """Modal for confirming a pending gate shell should be cancelled."""
+
+    def __init__(self, gate_description: str) -> None:
+        """Initialize the confirm cancel-gate modal.
+
+        Args:
+            gate_description: Description of the gate to cancel.
+        """
+        self.gate_description = gate_description
+        super().__init__(
+            "Cancel Gate",
+            "Cancel this pending gate? The waiting decision will not run.",
+            subject=gate_description,
+            kind=ConfirmKind.DANGER,
+            confirm_label="Cancel gate",
+            cancel_label="Keep waiting",
+            default="cancel",
+        )
+
+
 class ConfirmKillAllModal(ConfirmDialog):
     """Modal for confirming kill & dismiss of all agents (double-confirmation)."""
 
@@ -117,6 +138,7 @@ class ConfirmKillAllModal(ConfirmDialog):
 
 
 __all__ = [
+    "ConfirmCancelGateModal",
     "ConfirmDismissAllModal",
     "ConfirmKillAllModal",
     "ConfirmKillModal",

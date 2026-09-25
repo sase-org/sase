@@ -115,6 +115,10 @@ _LAZY_EXPORTS = {
     ),
     "ConfigTransactionRequest": (".config_transaction", "ConfigTransactionRequest"),
     "ConfirmActionModal": (".confirm_action_modal", "ConfirmActionModal"),
+    "ConfirmCancelGateModal": (
+        ".confirm_kill_modal",
+        "ConfirmCancelGateModal",
+    ),
     "ConfirmDeleteModal": (".confirm_delete_modal", "ConfirmDeleteModal"),
     "ConfirmDialog": (".confirm_dialog", "ConfirmDialog"),
     "ConfirmDismissAllModal": (".confirm_kill_modal", "ConfirmDismissAllModal"),

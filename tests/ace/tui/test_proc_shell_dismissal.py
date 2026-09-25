@@ -29,6 +29,7 @@ class _KillDispatchApp(AgentsMixin):
         self._notifications: list[tuple[str, str]] = []
         self.pushed: list[tuple[object, Callable[[bool], None]]] = []
         self.dismissed_rows: list[list[Agent]] = []
+        self.bulk_kill_calls: list[tuple[list[Agent], list[Agent]]] = []
 
     def notify(self, msg: str, severity: str = "information") -> None:
         self._notifications.append((msg, severity))
@@ -41,6 +42,23 @@ class _KillDispatchApp(AgentsMixin):
 
     def _dismiss_proc_shell_rows(self, agents: list[Agent]) -> None:
         self.dismissed_rows.append(list(agents))
+
+    def _do_bulk_kill_agents(
+        self,
+        killable: list[Agent],
+        dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
+    ) -> bool:
+        self.bulk_kill_calls.append(
+            (
+                list(killable),
+                list(dismissable or []),
+            )
+        )
+        assert proc_stops is not None
+        self.dismissed_rows.append([*(proc_stops or []), *(gate_cancels or [])])
+        return True
 
 
 class _BulkDismissApp(
@@ -80,9 +98,15 @@ class _BulkDismissApp(
         self,
         killable: list[Agent],
         dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
     ) -> None:
         dismissable = dismissable or []
-        self.bulk_killed.append((list(killable), list(dismissable)))
+        proc_stops = proc_stops or []
+        gate_cancels = gate_cancels or []
+        self.bulk_killed.append(
+            (list(killable), list(dismissable), list(proc_stops), list(gate_cancels))
+        )
         self._dismissed_agent_objects.extend(dismissable)
 
     def _refilter_agents(self, *, prior_pos: int | None = None, **_kwargs: Any) -> None:
@@ -173,6 +197,11 @@ def test_action_kill_agent_on_running_proc_shell_confirms_kill() -> None:
     assert app.pushed[0][0].__class__.__name__ == "ConfirmKillProcShellModal"
     assert ("Proc shell has already finished", "warning") not in app._notifications
 
+    app.pushed[0][1](True)
+
+    assert app.dismissed_rows == [[agent]]
+    assert app.bulk_kill_calls == [([], [])]
+
 
 def test_dismiss_all_done_dismisses_agent_and_terminal_proc_shell() -> None:
     done = _done_agent()
@@ -209,7 +238,7 @@ def test_marked_bulk_kill_dismisses_terminal_proc_shell() -> None:
     ):
         app._present_bulk_kill_modal([done, proc])
 
-    assert app.bulk_killed == [([], [done])]
+    assert app.bulk_killed == [([], [done], [], [])]
     assert proc.proc_id in app._dismissed_proc_shells
     assert [agent.identity for agent in app._dismissed_agent_objects] == [done.identity]
     description = app.pushed[0].agent_description
@@ -218,15 +247,17 @@ def test_marked_bulk_kill_dismisses_terminal_proc_shell() -> None:
     delete_artifacts.assert_not_called()
 
 
-def test_marked_bulk_kill_skips_pending_gate() -> None:
+def test_marked_bulk_kill_cancels_pending_gate() -> None:
     pending_gate = _gate_agent(gate_state="pending")
     app = _BulkDismissApp([pending_gate])
 
     app._present_bulk_kill_modal([pending_gate])
 
-    assert app.bulk_killed == []
-    assert app.pushed == []
-    assert app._notifications == [("Skipping 1 gate waiting for a decision", "warning")]
+    assert app.bulk_killed == [([], [], [], [pending_gate])]
+    assert len(app.pushed) == 1
+    assert "Cancel 1 gate" in app.pushed[0].agent_description
+    assert "Skipping" not in app.pushed[0].agent_description
+    assert app._notifications == []
 
 
 def test_marked_bulk_kill_dismisses_terminal_gate() -> None:
@@ -235,35 +266,36 @@ def test_marked_bulk_kill_dismisses_terminal_gate() -> None:
 
     app._present_bulk_kill_modal([terminal_gate])
 
-    assert app.bulk_killed == [([], [terminal_gate])]
+    assert app.bulk_killed == [([], [terminal_gate], [], [])]
     assert [agent.identity for agent in app._dismissed_agent_objects] == [
         terminal_gate.identity
     ]
 
 
-def test_marked_bulk_kill_mixed_batch_skips_pending_gate() -> None:
+def test_marked_bulk_kill_mixed_batch_cancels_pending_gate() -> None:
     done = _done_agent()
     pending_gate = _gate_agent(gate_state="pending")
     app = _BulkDismissApp([done, pending_gate])
 
     app._present_bulk_kill_modal([done, pending_gate])
 
-    assert app.bulk_killed == [([], [done])]
+    assert app.bulk_killed == [([], [done], [], [pending_gate])]
     assert [agent.identity for agent in app._dismissed_agent_objects] == [done.identity]
-    assert "Skipping 1 gate waiting for a decision" in app.pushed[0].agent_description
+    assert "Cancel 1 gate" in app.pushed[0].agent_description
+    assert "Skipping" not in app.pushed[0].agent_description
 
 
-def test_marked_bulk_kill_skips_active_proc_shell() -> None:
+def test_marked_bulk_kill_kills_active_proc_shell() -> None:
     running = _proc_shell(status="RUNNING", proc_status="running")
     app = _BulkDismissApp([running])
 
     app._present_bulk_kill_modal([running])
 
-    assert app.bulk_killed == []
-    assert app._dismissed_proc_shells == set()
-    assert running in app._agents
-    assert app.pushed == []
-    assert app._notifications == [("Skipping 1 running proc shell", "warning")]
+    assert app.bulk_killed == [([], [], [running], [])]
+    assert len(app.pushed) == 1
+    assert "Kill 1 running proc shell" in app.pushed[0].agent_description
+    assert "Skipping" not in app.pushed[0].agent_description
+    assert app._notifications == []
 
 
 class _ProcShellPanelApp(_BulkDismissApp):

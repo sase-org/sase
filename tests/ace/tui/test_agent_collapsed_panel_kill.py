@@ -106,9 +106,13 @@ class _CollapsedPanelKillApp(
         self.pushed_callbacks.append(callback)
 
     def _do_bulk_kill_agents(
-        self, killable: list[Agent], dismissable: list[Agent] | None = None
+        self,
+        killable: list[Agent],
+        dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
     ) -> None:
-        del killable, dismissable
+        del killable, dismissable, proc_stops, gate_cancels
 
 
 def test_collapsed_tribe_assigned_panel_partitions_complete_scope_and_confirms_once() -> (
@@ -135,7 +139,7 @@ def test_collapsed_tribe_assigned_panel_partitions_complete_scope_and_confirms_o
 
         app.pushed_callbacks[0](True)
 
-    bulk.assert_called_once_with([running], [done, pidless])
+    bulk.assert_called_once_with([running], [done, pidless], [], [])
 
 
 def test_collapsed_panel_cancel_has_no_mutation_boundary() -> None:
@@ -166,7 +170,7 @@ def test_expanded_panel_focus_uses_the_same_bulk_cleanup_scope() -> None:
         assert "neighbor" not in description
         app.pushed_callbacks[0](True)
 
-    bulk.assert_called_once_with([running], [])
+    bulk.assert_called_once_with([running], [], [], [])
 
 
 def test_no_tribe_pidless_panel_uses_dismiss_confirmation() -> None:
@@ -187,7 +191,7 @@ def test_no_tribe_pidless_panel_uses_dismiss_confirmation() -> None:
         assert "  tribe_assigned" not in description
         app.pushed_callbacks[0](True)
 
-    bulk.assert_called_once_with([], [done, pidless])
+    bulk.assert_called_once_with([], [done, pidless], [], [])
 
 
 def test_marks_take_priority_over_collapsed_panel_focus() -> None:
@@ -233,7 +237,7 @@ def test_collapsed_panel_expands_clan_members_without_duplicates() -> None:
         assert "other" not in description
         app.pushed_callbacks[0](True)
 
-    bulk.assert_called_once_with([running], [done])
+    bulk.assert_called_once_with([running], [done], [], [])
 
 
 def test_collapsed_panel_adds_loaded_workflow_children_but_not_neighbors() -> None:
@@ -274,7 +278,7 @@ def test_collapsed_panel_adds_loaded_workflow_children_but_not_neighbors() -> No
         assert "unrelated-child" not in description
         app.pushed_callbacks[0](True)
 
-    bulk.assert_called_once_with([parent, child], [])
+    bulk.assert_called_once_with([parent, child], [], [], [])
 
 
 def test_empty_or_stale_collapsed_focus_warns_without_modal() -> None:

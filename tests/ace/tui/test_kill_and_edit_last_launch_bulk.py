@@ -55,6 +55,8 @@ class _BulkSetApp(AgentMarkingMixin, KillAndEditLastLaunchMixin):
         self,
         killable: list[Any],
         dismissable: list[Any] | None = None,
+        proc_stops: list[Any] | None = None,
+        gate_cancels: list[Any] | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
     ) -> bool:

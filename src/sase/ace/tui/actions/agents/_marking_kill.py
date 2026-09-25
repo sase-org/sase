@@ -22,13 +22,42 @@ def _gate_is_dismissable(agent: Agent) -> bool:
     return bool(gate_state_is_terminal(agent.gate_state) or agent.stop_time)
 
 
-def _gate_is_waiting(agent: Agent) -> bool:
+def gate_is_waiting(agent: Agent) -> bool:
     return bool(getattr(agent, "is_gate", False) and not _gate_is_dismissable(agent))
 
 
-def _gate_count_phrase(count: int) -> str:
+def _gate_cancel_phrase(count: int) -> str:
     noun = "gate" if count == 1 else "gates"
-    return f"{count} {noun} waiting for a decision"
+    return f"Cancel {count} {noun}"
+
+
+def _leftover_cleanup_line(
+    leftover: list[Agent],
+    agents_with_children_snapshot: list[Agent],
+) -> str:
+    """Describe selected members no kill, dismiss, stop, or cancel covers."""
+    from ._kill_cleanup_planning import plan_bulk_kill_cleanup_side_effects
+
+    reasons: list[str] = []
+    try:
+        plan = plan_bulk_kill_cleanup_side_effects(
+            leftover, agents_with_children_snapshot
+        )
+    except Exception:
+        plan = None
+    if plan is not None:
+        seen: set[str] = set()
+        for item in plan.skipped_items:
+            reason = item.reason
+            if item.detail:
+                reason = f"{reason}: {item.detail}"
+            if reason not in seen:
+                seen.add(reason)
+                reasons.append(reason)
+    noun = "row" if len(leftover) == 1 else "rows"
+    if not reasons:
+        return f"{len(leftover)} {noun} cannot be cleaned up"
+    return f"{len(leftover)} {noun} cannot be cleaned up: {'; '.join(reasons)}"
 
 
 class AgentMarkedKillMixin(AgentMarkNavigationMixin):
@@ -122,6 +151,8 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             def on_confirm(
                 _killable: list[Agent],
                 _dismissable: list[Agent],
+                _proc_stops: list[Agent] | None = None,
+                _gate_cancels: list[Agent] | None = None,
             ) -> None:
                 confirmed_agents = [
                     resolve_agent_identity(self, identity) for identity in identities
@@ -133,23 +164,38 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                     )
                     return
                 from ._core import DISMISSABLE_STATUSES
+                from sase.procs import ACTIVE_PROC_STATUSES
 
                 exact_agents = [
                     agent for agent in confirmed_agents if agent is not None
                 ]
+                proc_stops = [
+                    agent
+                    for agent in exact_agents
+                    if getattr(agent, "is_proc_shell", False)
+                    and agent.proc_status in ACTIVE_PROC_STATUSES
+                ]
+                gate_cancels = [
+                    agent for agent in exact_agents if gate_is_waiting(agent)
+                ]
+                member_ids = {agent.identity for agent in [*proc_stops, *gate_cancels]}
                 killable = [
                     agent
                     for agent in exact_agents
-                    if not getattr(agent, "is_gate", False)
+                    if agent.identity not in member_ids
+                    and not getattr(agent, "is_gate", False)
                     and agent.pid is not None
                     and agent.status not in DISMISSABLE_STATUSES
                 ]
                 dismissable = [
                     agent
                     for agent in exact_agents
-                    if agent.status in DISMISSABLE_STATUSES
-                    or (agent.pid is None and not getattr(agent, "is_gate", False))
-                    or _gate_is_dismissable(agent)
+                    if agent.identity not in member_ids
+                    and (
+                        agent.status in DISMISSABLE_STATUSES
+                        or (agent.pid is None and not getattr(agent, "is_gate", False))
+                        or _gate_is_dismissable(agent)
+                    )
                 ]
 
                 def mount_prompt_stack() -> None:
@@ -172,9 +218,19 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                     operation=operation,
                 )
                 settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
-                if not self._do_bulk_kill_agents(  # type: ignore[attr-defined]
-                    killable, dismissable, on_settled=settle
-                ):
+                if proc_stops or gate_cancels:
+                    killed = self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                        killable,
+                        dismissable,
+                        proc_stops,
+                        gate_cancels,
+                        on_settled=settle,
+                    )
+                else:
+                    killed = self._do_bulk_kill_agents(  # type: ignore[attr-defined]
+                        killable, dismissable, on_settled=settle
+                    )
+                if not killed:
                     settle()
                     return
                 mount_prompt_stack()
@@ -194,19 +250,23 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         agents: list[Agent],
         *,
         header: str | None = None,
-        on_confirm: Callable[[list[Agent], list[Agent]], None] | None = None,
+        on_confirm: (
+            Callable[[list[Agent], list[Agent], list[Agent], list[Agent]], None] | None
+        ) = None,
         on_cancel: Callable[[], None] | None = None,
     ) -> None:
         """Show the kill/dismiss confirmation modal for an arbitrary agent set.
 
         Partitions *agents* into killable (live PID + non-dismissable
-        status) and dismissable buckets, builds the per-agent description,
-        and pushes the matching ``ConfirmKillAllModal`` /
-        ``ConfirmDismissAllModal``.  On confirm, routes through *on_confirm*
-        (called with the killable/dismissable buckets), defaulting to the same
-        ``_do_bulk_kill_agents`` machinery used by the marked-set path.  The
-        kill-and-edit flow passes a wrapper that kills first and then mounts the
-        prompt stack.
+        status), dismissable, active proc-shell stops, and pending gate
+        cancels, builds the per-agent description, and pushes the matching
+        ``ConfirmKillAllModal`` / ``ConfirmDismissAllModal``.  On confirm,
+        routes through *on_confirm* (called with all four buckets),
+        defaulting to the same ``_do_bulk_kill_agents`` machinery used by the
+        marked-set path.  The kill-and-edit flow passes a wrapper that kills
+        first and then mounts the prompt stack.  Selected members covered by
+        none of the four buckets are named in the modal instead of being
+        silently kept.
         """
         from ._clan_cleanup import clan_members_for_container
         from ._core import DISMISSABLE_STATUSES
@@ -257,7 +317,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         )
 
         agents, proc_dismissable, active_proc_shells = partition_proc_shells(agents)
-        waiting_gates = [agent for agent in agents if _gate_is_waiting(agent)]
+        waiting_gates = [agent for agent in agents if gate_is_waiting(agent)]
         agents = [agent for agent in agents if agent not in waiting_gates]
 
         killable: list[Agent] = [
@@ -298,26 +358,43 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             desc_parts.append(
                 f"Dismiss {proc_shell_count_phrase(len(proc_dismissable))}"
             )
-        skip_line = ""
         if active_proc_shells:
-            skip_line = "Skipping " + proc_shell_count_phrase(
-                len(active_proc_shells), running=True
+            desc_parts.append(
+                "Kill " + proc_shell_count_phrase(len(active_proc_shells), running=True)
             )
-            desc_parts.append(skip_line)
         if waiting_gates:
-            gate_skip_line = "Skipping " + _gate_count_phrase(len(waiting_gates))
-            desc_parts.append(gate_skip_line)
-            if not skip_line:
-                skip_line = gate_skip_line
+            desc_parts.append(_gate_cancel_phrase(len(waiting_gates)))
+        covered_ids = (
+            {agent.identity for agent in killable}
+            | {agent.identity for agent in dismissable}
+            | {agent.identity for agent in proc_dismissable}
+            | {agent.identity for agent in active_proc_shells}
+            | {agent.identity for agent in waiting_gates}
+        )
+        leftover = [
+            agent for agent in local_agents if agent.identity not in covered_ids
+        ]
+        leftover_line = ""
+        if leftover:
+            leftover_line = _leftover_cleanup_line(
+                leftover, list(self._agents_with_children)
+            )
+            desc_parts.append(leftover_line)
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal, ConfirmKillAllModal
 
         confirm = on_confirm or self._do_bulk_kill_agents  # type: ignore[attr-defined]
 
-        if not killable and not dismissable and not proc_dismissable:
-            if skip_line:
-                self.notify(skip_line, severity="warning")  # type: ignore[attr-defined]
+        if (
+            not killable
+            and not dismissable
+            and not proc_dismissable
+            and not active_proc_shells
+            and not waiting_gates
+        ):
+            if leftover_line:
+                self.notify(leftover_line, severity="warning")  # type: ignore[attr-defined]
             if on_cancel is not None:
                 on_cancel()
             return
@@ -327,12 +404,12 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 if on_cancel is not None:
                     on_cancel()
                 return
-            if killable or dismissable:
-                confirm(killable, dismissable)
+            if killable or dismissable or active_proc_shells or waiting_gates:
+                confirm(killable, dismissable, active_proc_shells, waiting_gates)
             if proc_dismissable:
                 self._dismiss_proc_shell_rows(proc_dismissable)  # type: ignore[attr-defined]
 
-        if killable:
+        if killable or active_proc_shells or waiting_gates:
             self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
         else:
             self.push_screen(ConfirmDismissAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

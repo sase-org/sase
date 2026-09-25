@@ -1418,6 +1418,17 @@ If a process survives SIGKILL, the row stays dismissed, the workspace claim and
 artifacts are kept, and an error toast names the surviving PIDs. `sase agent kill NAME`
 runs the same termination in the foreground.
 
+`x` on a running monitor, an active proc shell, or a pending gate removes its row in the
+same step. A running monitor goes through the ordinary kill confirmation and the durable
+proc stops it before the other side effects. An active proc shell or pending gate asks
+for confirmation, then its row is hidden at once while the same durable bulk transaction
+stops the proc shell (through the native proc service) or cancels the gate. Clan, panel,
+group, and marked cleanups include active proc shells and pending gates the same way
+instead of skipping them; any selected member the cleanup cannot cover is named in the
+confirmation modal. A gate whose decision started executing under the cancel comes back
+with an error toast. A gate that is already settling keeps the "waiting for a decision"
+warning.
+
 #### Enter: act on an agent
 
 `Enter` on an Agents-tab row opens that agent node's pending gate (every gate kind,
@@ -2694,8 +2705,9 @@ with a Bash/Python language badge, current phase/status, elapsed time, and proje
 a panel title reports it in a separate `▣<count>` chip alongside the ordinary agent
 metrics. Selecting one opens a `PROC SHELL` detail (status/phase timeline, project/
 workspace/cwd, language, code digest and safe preview, waits, condition result,
-timeouts, and a bounded live-log tail). `x` kills a running stand-alone proc shell
-through the native proc service with confirmation, and dismisses a finished one with no
+timeouts, and a bounded live-log tail). `x` on a running stand-alone proc shell asks for
+confirmation and then kills it and removes its row in one step — the durable cleanup
+proc stops it through the native proc service — and `x` dismisses a finished one with no
 confirmation. Dismissal only clears the Agents-tab row — the proc stays visible in the
 [Procs pane](#durable-procs) and in `sase proc show`, and a dismissed Agents-tab row
 does not come back. See

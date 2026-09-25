@@ -396,8 +396,10 @@ class _BulkConfirmationApp(AgentMarkingMixin):
         self,
         killable: list[Agent],
         dismissable: list[Agent] | None = None,
+        proc_stops: list[Agent] | None = None,
+        gate_cancels: list[Agent] | None = None,
     ) -> None:
-        del killable, dismissable
+        del killable, dismissable, proc_stops, gate_cancels
 
 
 def test_bulk_subject_can_show_same_family_sase_agent_in_kill_and_dismiss_sections() -> (

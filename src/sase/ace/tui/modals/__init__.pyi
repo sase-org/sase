@@ -93,6 +93,7 @@ from .config_transaction import ConfigTransactionRequest as ConfigTransactionReq
 from .confirm_action_modal import ConfirmActionModal as ConfirmActionModal
 from .confirm_delete_modal import ConfirmDeleteModal as ConfirmDeleteModal
 from .confirm_dialog import ConfirmDialog as ConfirmDialog
+from .confirm_kill_modal import ConfirmCancelGateModal as ConfirmCancelGateModal
 from .confirm_kill_modal import ConfirmDismissAllModal as ConfirmDismissAllModal
 from .confirm_kill_modal import ConfirmKillAllModal as ConfirmKillAllModal
 from .confirm_kill_modal import ConfirmKillModal as ConfirmKillModal
