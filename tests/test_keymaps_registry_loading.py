@@ -217,6 +217,20 @@ def test_g_and_grouping_default_bindings_do_not_collide() -> None:
     assert reg.app.cycle_grouping_mode_reverse == "O"
 
 
+def test_deck_picker_shares_p_with_project_scope_but_rejects_a_third_owner() -> None:
+    """``p`` is tab-disjoint: Agents deck picker vs Artifacts project scope."""
+    reg = load_keymap_registry(
+        {"keymaps": {"app": {"pick_deck": "p", "pick_artifacts_project": "p"}}}
+    )
+    assert reg.app.pick_deck == "p"
+    assert reg.app.pick_artifacts_project == "p"
+
+    crowded = load_keymap_registry({"keymaps": {"app": {"agents_filters": "p"}}})
+    assert crowded.app.pick_deck == "p"
+    assert crowded.app.pick_artifacts_project == "p"
+    assert crowded.app.agents_filters == "f"
+
+
 def test_partial_app_override() -> None:
     """Overriding one app key preserves all other defaults."""
     reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "P"}}})

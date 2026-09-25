@@ -29,6 +29,7 @@ class AppKeymaps:
     prev_deck_card: str
     next_deck: str
     prev_deck: str
+    pick_deck: str
     toggle_deck_split_below: str
     toggle_deck_split_right: str
     toggle_deck_focus: str

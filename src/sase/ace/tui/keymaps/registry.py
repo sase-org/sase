@@ -139,6 +139,8 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # Tab-disjoint: Agents deck selection vs Services job-run selection.
         frozenset({"next_deck", "next_chop_run"}),
         frozenset({"prev_deck", "prev_chop_run"}),
+        # Tab-disjoint: Agents deck picker vs Artifacts project scope.
+        frozenset({"pick_deck", "pick_artifacts_project"}),
         # Tab-disjoint: Agents vs Services/Artifacts.
         frozenset({"toggle_deck_focus", "scroll_prompt_down"}),
         # Tab-disjoint: Agents deck ratio vs Artifacts split cycling.

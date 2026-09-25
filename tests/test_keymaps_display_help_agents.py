@@ -191,6 +191,13 @@ def test_agents_help_lists_grouping_picker_panel_layout_toggle() -> None:
     assert "Toggle tribe panels split/merged" not in unbound_grouping.values()
 
 
+def test_agents_help_lists_deck_picker_row() -> None:
+    sections = dict(agents_bindings(load_keymap_registry({})))
+    navigation = dict(sections["Navigation"])
+
+    assert navigation["p"] == "Pick deck for focused panel (decks)"
+
+
 def test_help_modal_lists_collapse_fold_by_hint_with_configured_prefix() -> None:
     reg = load_keymap_registry(
         {

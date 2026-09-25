@@ -649,6 +649,8 @@ ace:
       prev_deck_card: "ctrl+k"
       next_deck: "ctrl+n"
       prev_deck: "ctrl+p"
+      # Agents-only deck picker. Shares p with pick_artifacts_project (Artifacts); disambiguated by tab availability.
+      pick_deck: "p"
       toggle_deck_split_below: "backslash"
       toggle_deck_split_right: "vertical_line"
       toggle_deck_focus: "ctrl+f"

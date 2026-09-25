@@ -248,6 +248,10 @@ def test_default_jump_and_deck_navigation_keys_are_unique() -> None:
         "prev_chop_run",
         "prev_deck",
     ]
+    assert [b.action for b in bindings if b.key == "p"] == [
+        "pick_artifacts_project",
+        "pick_deck",
+    ]
     assert [b.action for b in bindings if b.key == "ctrl+f"] == [
         "scroll_prompt_down",
         "toggle_deck_focus",
@@ -268,6 +272,8 @@ def test_default_jump_and_deck_navigation_keys_are_unique() -> None:
     assert by_action["prev_deck_card"].key == "ctrl+k"
     assert by_action["next_deck"].key == "ctrl+n"
     assert by_action["prev_deck"].key == "ctrl+p"
+    assert by_action["pick_deck"].key == "p"
+    assert by_action["pick_artifacts_project"].key == "p"
     assert by_action["toggle_deck_focus"].key == "ctrl+f"
     assert by_action["grow_deck_panel"].key == "right_curly_bracket"
     assert by_action["shrink_deck_panel"].key == "left_curly_bracket"
@@ -283,6 +289,8 @@ def test_default_jump_and_deck_navigation_keys_are_unique() -> None:
     assert fallback_by_action["prev_deck_card"].key == "ctrl+k"
     assert fallback_by_action["next_deck"].key == "ctrl+n"
     assert fallback_by_action["prev_deck"].key == "ctrl+p"
+    assert fallback_by_action["pick_deck"].key == "p"
+    assert fallback_by_action["pick_artifacts_project"].key == "p"
     assert fallback_by_action["toggle_deck_focus"].key == "ctrl+f"
     assert fallback_by_action["grow_deck_panel"].key == "right_curly_bracket"
     assert fallback_by_action["shrink_deck_panel"].key == "left_curly_bracket"

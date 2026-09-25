@@ -54,6 +54,13 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("deck", "ctrl+p"),
     ),
     (
+        "pick_deck",
+        "Pick deck for focused panel",
+        "Navigation",
+        AGENTS_ONLY,
+        ("deck", "picker", "switch deck", "p"),
+    ),
+    (
         "toggle_deck_split_below",
         "Split deck panels top/bottom",
         "Navigation",

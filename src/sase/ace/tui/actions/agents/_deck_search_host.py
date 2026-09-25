@@ -32,6 +32,7 @@ def deck_structural_exit_keys(app: Any) -> tuple[str, ...]:
         ids = (
             "next_deck",
             "prev_deck",
+            "pick_deck",
             "next_deck_card",
             "prev_deck_card",
             "toggle_deck_split_below",

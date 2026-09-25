@@ -4727,6 +4727,55 @@ AgentGroupingModal #agent-grouping-footer {
     text-align: center;
 }
 
+DeckPickerModal {
+    align: center middle;
+}
+
+DeckPickerModal #deck-picker-container {
+    width: 56;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: round $primary;
+    border-title-align: center;
+    border-subtitle-align: center;
+    border-title-color: $primary;
+    border-title-style: bold;
+    border-subtitle-color: $text-muted;
+    background: $surface;
+    padding: 1 2;
+}
+
+DeckPickerModal #deck-picker-heading {
+    height: 1;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+DeckPickerModal .deck-picker-row {
+    height: auto;
+    min-height: 2;
+    padding: 0 1;
+}
+
+DeckPickerModal .deck-picker-row.focused {
+    background: $primary 15%;
+    border-left: thick $primary;
+    padding-left: 0;
+}
+
+DeckPickerModal .deck-picker-row.focused.-deck-main {
+    border-left: thick $secondary;
+}
+
+DeckPickerModal .deck-picker-row.focused.-deck-files {
+    border-left: thick green;
+}
+
+DeckPickerModal .deck-picker-row.focused.-deck-tools {
+    border-left: thick #87D7FF;
+}
+
 AgentActionChooserModal {
     align: center middle;
 }

@@ -1306,6 +1306,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `G`                       | Scroll to bottom (focused deck panel)                                                                                                                            |
 | `Ctrl+D` / `Ctrl+U`       | Scroll focused deck panel down / up (half page)                                                                                                                  |
 | `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                          |
+| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `pp`/`Esc` close                                                                                  |
 | `\` / `                   | `                                                                                                                                                                | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
 | `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                        |
 | `Ctrl+F`                  | Move focus to the other deck panel (split layouts only)                                                                                                          |
@@ -1389,6 +1390,7 @@ rather than landing somewhere stale.
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                     |
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                  |
 | `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                                    |
+| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `pp`/`Esc` close                                                                                            |
 
 When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
 target immediately, even if other rows are already marked. `m` marks or unmarks the
@@ -5268,20 +5270,30 @@ top-level/workflow-child identity. Older dismissed bundles may still contain
 compatibility helpers for reading those bundles. Bare `%wait` (no target) intentionally
 skips legacy dismissal-prefixed candidates so it anchors on a live, visible agent.
 
-### Agents Detail View Picker (retired)
+### Agents Deck Picker
 
-The `p` view picker is retired. The Agents tab now always shows
-[agent data decks and cards](#agent-data-decks-and-cards): `Ctrl+N` / `Ctrl+P` move the
-focused deck panel between the Main, Files, and Tools decks, and `\` / `|` open a second
-deck panel beside the first. `p` keeps its unrelated Artifacts meaning there.
+On the Agents tab, `p` opens a small centered deck picker for the focused deck panel.
+One more keypress picks the deck directly: `m` Main, `f` Files, `t` Tools (`pp` or `Esc`
+closes without changing anything). `j`/`k` move the highlight (wrapping) and `Enter`
+picks the highlighted row; any other printable key is swallowed so nothing leaks through
+to the tab. The picker heading names the focused panel (`deck panel` single, `top` /
+`bottom` or `left` / `right` in a split, `zoomed` while zoomed), each row shows its deck
+letter, glyph, count, and whether it is already showing (or shown in the other split
+panel), and the palette offers the same jumps as
+`Show <Main|Files|Tools> deck in focused panel`. The old detail-view picker is retired:
+the Agents tab now always shows
+[agent data decks and cards](#agent-data-decks-and-cards). The in-picker deck letters
+are fixed and not configurable. `p` keeps its unrelated Artifacts project-scope meaning
+on the Artifacts tab.
 
 ### Agent Data Decks and Cards
 
 The Agents tab detail column shows one or two deck panels between the sticky header
 panel and the jump panel. Each deck panel shows one agent data deck, a named ordered set
 of agent data cards about the selected node. `Ctrl+N` / `Ctrl+P` cycle the focused panel
-through the Main, Files, and Tools decks (wrapping, nothing skipped); `Ctrl+J` /
-`Ctrl+K` move to the next / previous card in the focused panel.
+through the Main, Files, and Tools decks (wrapping, nothing skipped), and `p` opens the
+[deck picker](#agents-deck-picker) for a two-key jump to any deck; `Ctrl+J` / `Ctrl+K`
+move to the next / previous card in the focused panel.
 
 - **Main deck.** `Context` (details and prompt; the default card) and `Reply` — titled
   `Output` for proc shells, monitors, gates, and workflow steps — plus a leading

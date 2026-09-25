@@ -28,6 +28,26 @@ DECK_ACCENTS: dict[DeckId, str] = {
     DeckId.TOOLS: "#87D7FF",
 }
 
+DECK_PICKER_KEYS: dict[DeckId, str] = {
+    DeckId.MAIN: "m",
+    DeckId.FILES: "f",
+    DeckId.TOOLS: "t",
+}
+
+DECK_BLURBS: dict[DeckId, str] = {
+    DeckId.MAIN: "Context, prompt, and reply",
+    DeckId.FILES: "Diffs and files the agent touched",
+    DeckId.TOOLS: "LLM tool-call timeline",
+}
+
+DECK_COUNT_NOUNS: dict[DeckId, tuple[str, str]] = {
+    DeckId.MAIN: ("card", "cards"),
+    DeckId.FILES: ("file", "files"),
+    DeckId.TOOLS: ("call", "calls"),
+}
+
+DECK_PICKER_RESERVED_KEYS = frozenset({"j", "k", "q", "p"})
+
 _MUTED = "#888888"
 _SEPARATOR = "#444444"
 

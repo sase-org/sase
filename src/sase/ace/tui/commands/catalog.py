@@ -137,6 +137,45 @@ def _iter_agents_panel_layout_command(
     )
 
 
+def _iter_deck_picker_commands(
+    registry: KeymapRegistry,
+) -> Iterator[CommandSpec]:
+    """Yield one direct deck command per deck in ``DECK_CYCLE``."""
+    from sase.ace.tui.keymaps.loader import key_display_name
+    from sase.ace.tui.widgets.decks.model import DECK_CYCLE
+    from sase.ace.tui.widgets.decks.titles import DECK_PICKER_KEYS
+
+    opener = registry.app.pick_deck
+    for index, deck in enumerate(DECK_CYCLE):
+        letter = DECK_PICKER_KEYS[deck]
+        if is_unbound_key(opener):
+            sequence: tuple[str, ...] = ()
+            display = ""
+        else:
+            sequence = (opener, letter)
+            # Space-join so the chord reads `p f`, not `pf`.
+            display = " ".join(key_display_name(k) for k in sequence)
+        yield CommandSpec(
+            id=f"agents.show_deck.{deck.value}",
+            label=f"Show {deck.value.capitalize()} deck in focused panel",
+            key_sequence=sequence,
+            key_display=display,
+            category="Navigation",
+            tabs=AGENTS_ONLY,
+            executor=CommandExecutor(
+                kind="app_action",
+                action="show_deck_at",
+                digit=index,
+            ),
+            aliases=(
+                "deck",
+                deck.value,
+                f"{deck.value} deck",
+                "switch deck",
+            ),
+        )
+
+
 def iter_digit_commands(
     registry: KeymapRegistry | None = None,
 ) -> Iterator[CommandSpec]:
@@ -331,6 +370,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog: list[CommandSpec] = []
     catalog.extend(iter_app_commands(registry))
     catalog.extend(_iter_agents_panel_layout_command(registry))
+    catalog.extend(_iter_deck_picker_commands(registry))
     catalog.extend(iter_saved_query_commands(registry))
     catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())

@@ -453,3 +453,78 @@ class AgentDetailDeckMixin:
             self.show_deck(index, cycle_deck_id(panel.deck, direction))
         except Exception:
             pass
+
+    def deck_picker_state(self) -> Any | None:
+        """Snapshot the focused panel for the deck picker, or None."""
+        from .decks.layout import is_zoomed
+        from .decks.picker import DeckPickerState, panel_position_label
+
+        try:
+            area = self.deck_area
+            state = area.state
+            focused = area.focused_panel()
+            panel_index = focused.panel_index
+            current = focused.deck
+            availability = dict(focused.availability)
+            accents = dict(focused.deck_accents())
+            panel_label = panel_position_label(state, panel_index)
+            other: tuple[DeckId, str] | None = None
+            if not is_zoomed(state):
+                try:
+                    visible = area.visible_panels()
+                except Exception:
+                    visible = ()
+                if len(visible) > 1:
+                    for candidate in visible:
+                        try:
+                            candidate_index = candidate.panel_index
+                        except Exception:
+                            continue
+                        if candidate_index != panel_index:
+                            try:
+                                other = (
+                                    candidate.deck,
+                                    panel_position_label(state, candidate_index),
+                                )
+                            except Exception:
+                                other = None
+                            break
+            return DeckPickerState(
+                panel_index=panel_index,
+                panel_label=panel_label,
+                current=current,
+                other=other,
+                availability=availability,
+                accents=accents,
+            )
+        except Exception:
+            return None
+
+    def apply_picked_deck(self, panel_index: int | None, deck: DeckId) -> bool:
+        """Show ``deck`` on the resolved panel; False when already showing."""
+        try:
+            area = self.deck_area
+        except Exception:
+            return False
+        try:
+            visible_indices = {p.panel_index for p in area.visible_panels()}
+        except Exception:
+            visible_indices = set()
+        try:
+            focused_index = area.focused_panel().panel_index
+        except Exception:
+            return False
+        if panel_index is not None and panel_index in visible_indices:
+            index = panel_index
+        else:
+            index = focused_index
+        try:
+            if area.panel(index).deck is deck:
+                return False
+        except Exception:
+            return False
+        try:
+            self.show_deck(index, deck)
+        except Exception:
+            return False
+        return True

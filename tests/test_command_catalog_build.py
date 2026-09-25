@@ -70,6 +70,45 @@ def test_agent_panel_layout_command_uses_grouping_picker_sequence() -> None:
     assert "merge" in spec.aliases
 
 
+def test_deck_picker_direct_commands_use_picker_chord() -> None:
+    catalog = build_command_catalog(_registry())
+    by_id = {c.id: c for c in catalog}
+
+    files = by_id["agents.show_deck.files"]
+    assert files.label == "Show Files deck in focused panel"
+    assert files.key_sequence == ("p", "f")
+    assert files.key_display == "p f"
+    assert files.category == "Navigation"
+    assert files.tabs == ("agents",)
+    assert files.executor.kind == "app_action"
+    assert files.executor.action == "show_deck_at"
+    assert files.executor.digit == 1
+    assert "files deck" in files.aliases
+    assert "switch deck" in files.aliases
+
+    assert by_id["agents.show_deck.main"].executor.digit == 0
+    assert by_id["agents.show_deck.tools"].executor.digit == 2
+
+
+def test_deck_picker_direct_commands_follow_rebound_and_unbound_picker() -> None:
+    rebound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"pick_deck": "f12"}}})
+    )
+    rebound_spec = next(c for c in rebound if c.id == "agents.show_deck.files")
+
+    assert rebound_spec.key_sequence == ("f12", "f")
+    assert rebound_spec.key_display == "f12 f"
+
+    unbound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"pick_deck": "unbound"}}})
+    )
+    unbound_spec = next(c for c in unbound if c.id == "agents.show_deck.files")
+
+    assert unbound_spec.key_sequence == ()
+    assert unbound_spec.key_display == ""
+    assert unbound_spec.executor.kind == "app_action"
+
+
 def test_agent_panel_layout_command_follows_rebound_and_unbound_picker() -> None:
     rebound = build_command_catalog(
         load_keymap_registry({"keymaps": {"app": {"choose_agent_grouping": "f12"}}})

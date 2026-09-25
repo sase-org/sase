@@ -1380,8 +1380,8 @@ The former `toggle_layout`, `toggle_thinking`, `toggle_thinking_reverse`,
 `choose_agent_view`, `next_agent_metadata_section`, and `prev_agent_metadata_section`
 app-key settings are retired. Existing overrides for those names are ignored; the Agents
 tab now uses deck keys instead (`next_deck_card` / `prev_deck_card` for cards,
-`next_deck` / `prev_deck` for decks, `toggle_deck_split_below` /
-`toggle_deck_split_right` for splits).
+`next_deck` / `prev_deck` for decks, `pick_deck` (`p`) for the deck picker,
+`toggle_deck_split_below` / `toggle_deck_split_right` for splits).
 
 On the Agents tab, `r` refreshes and `R` retries; every other tab keeps `r` for
 `run_workflow` and `R` for `refresh`, which is why those pairs share keys (see the
@@ -1429,6 +1429,12 @@ The second `o` is a literal key inside the picker, not a separate configurable a
 leader binding. Old `ace.keymaps.modes.leader_mode.keys.toggle_agent_panel_grouping`
 overrides are ignored with a warning instead of being remapped onto the picker opener.
 
+The Agents deck picker works the same way: configure `ace.keymaps.app.pick_deck`
+(default `p`) to change the opener, while the in-picker deck letters (`m` / `f` / `t`)
+are fixed and not configurable. `p` is shared with the Artifacts
+`pick_artifacts_project` action; the two are disambiguated by tab (see the allowlist
+below).
+
 The leader update keys are separate remappable actions. `update_sase` opens the cached
 Update panel, while `update_everything` directly runs the same previewed Everything flow
 as `,U` then capital `E`, including failed-preview and already-current no-op behavior.
@@ -1456,7 +1462,7 @@ rejects every other duplicate app binding:
 | `r`                   | `r`                   | `agents_refresh` / `run_workflow`                       | Agents vs Patches/Services                             |
 | `R`                   | `R`                   | `agents_retry` / `refresh`                              | Agents vs every other tab                              |
 | `o`                   | `o`                   | `choose_agent_grouping` / `cycle_grouping_mode`         | Agents vs Artifacts                                    |
-| `p`                   | `p`                   | (retired on Agents) / `pick_artifacts_project`          | Agents vs Artifacts                                    |
+| `p`                   | `p`                   | `pick_deck` / `pick_artifacts_project`                  | Agents vs Artifacts                                    |
 | configurable then `o` | varies                | `choose_agent_grouping` local panel-layout toggle       | Agents picker-local `o`; `oo` with defaults            |
 | configurable          | varies                | `choose_agent_grouping` / `cycle_grouping_mode_reverse` | Agents vs Artifacts                                    |
 

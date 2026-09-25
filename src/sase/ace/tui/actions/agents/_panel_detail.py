@@ -183,6 +183,89 @@ class AgentPanelDetailMixin:
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         agent_detail.cycle_focused_deck(-1)
 
+    def action_pick_deck(self) -> None:
+        """Open the deck picker for the focused deck panel."""
+        if self.current_tab != "agents":
+            return
+        from textual.screen import ModalScreen
+
+        from ...modals.deck_picker_modal import DeckPickerModal
+        from ...widgets import AgentDetail
+        from ...widgets.decks.picker import (
+            build_deck_picker_rows,
+            deck_picker_heading,
+        )
+
+        if isinstance(getattr(self, "screen", None), ModalScreen):
+            return
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            state = agent_detail.deck_picker_state()
+        except Exception:
+            return
+        if state is None:
+            return
+        rows = build_deck_picker_rows(state)
+        heading = deck_picker_heading(state)
+        try:
+            from ...keymaps import split_key_alternatives
+            from ...keymaps.key_validation import is_unbound_key
+
+            registry = getattr(self, "_keymap_registry", None)
+            configured = getattr(getattr(registry, "app", None), "pick_deck", "")
+            raw = str(configured) if configured else ""
+            close_keys = tuple(
+                k for k in split_key_alternatives(raw) if k and not is_unbound_key(k)
+            )
+        except Exception:
+            close_keys = ()
+
+        def _on_choice(chosen: object) -> None:
+            if chosen is None or self.current_tab != "agents":
+                return
+            try:
+                detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+                changed = detail.apply_picked_deck(state.panel_index, chosen)  # type: ignore[arg-type]
+            except Exception:
+                return
+            if not changed:
+                return
+            try:
+                refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+                if callable(refresh):
+                    refresh()
+            except Exception:
+                pass
+
+        self.push_screen(DeckPickerModal(rows, heading, close_keys), _on_choice)  # type: ignore[attr-defined]
+
+    def action_show_deck_at(self, index: int) -> None:
+        """Show one deck in the focused panel (palette direct command)."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+        from ...widgets.decks.model import DECK_CYCLE
+
+        try:
+            position = int(index)
+        except Exception:
+            return
+        if position < 0 or position >= len(DECK_CYCLE):
+            return
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            changed = agent_detail.apply_picked_deck(None, DECK_CYCLE[position])
+        except Exception:
+            return
+        if not changed:
+            return
+        try:
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
+
     def action_zoom_panel(self) -> None:
         """Zoom the active agent or tribe detail panel."""
         if self.current_tab != "agents":

@@ -173,6 +173,22 @@ def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> Non
         )
 
 
+def test_pick_deck_palette_entry_is_agents_only() -> None:
+    catalog = _catalog_by_id()
+    pick = catalog["app.pick_deck"]
+
+    assert is_command_available(pick, CommandContext(tab="agents"))
+    assert not is_command_available(
+        pick,
+        CommandContext(tab="artifacts", artifacts_subtab="patches"),
+    )
+    assert not is_command_available(pick, CommandContext(tab="axe"))
+
+    for deck in ("main", "files", "tools"):
+        spec = catalog[f"agents.show_deck.{deck}"]
+        assert is_command_available(spec, CommandContext(tab="agents"))
+
+
 def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
     catalog = _catalog_by_id()
     chooser = catalog["app.choose_agent_grouping"]

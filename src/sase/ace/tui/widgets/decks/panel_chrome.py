@@ -83,18 +83,18 @@ class DeckPanelChromeMixin:
         try:
             registry = getattr(getattr(self, "app", None), "_keymap_registry", None)
             if registry is not None:
-                next_key = key_display_name(
-                    str(getattr(getattr(registry, "app", None), "next_deck", ""))
-                )
-                prev_key = key_display_name(
-                    str(getattr(getattr(registry, "app", None), "prev_deck", ""))
-                )
+                app_keys = getattr(registry, "app", None)
+                next_key = key_display_name(str(getattr(app_keys, "next_deck", "")))
+                prev_key = key_display_name(str(getattr(app_keys, "prev_deck", "")))
+                pick_key = key_display_name(str(getattr(app_keys, "pick_deck", "")))
             else:
-                next_key = prev_key = ""
+                next_key = prev_key = pick_key = ""
         except Exception:
             return None
         if not next_key or not prev_key:
             return None
+        if pick_key:
+            return f"{pick_key} pick deck · {next_key}/{prev_key} cycle decks"
         return f"{next_key} next deck · {prev_key} previous deck"
 
     def _main_tabs(self) -> tuple[CardTab, ...]:

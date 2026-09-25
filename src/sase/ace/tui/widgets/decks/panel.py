@@ -77,6 +77,15 @@ class DeckPanel(  # type: ignore[misc]
         """Return the active deck."""
         return self._deck
 
+    @property
+    def availability(self) -> dict[DeckId, DeckAvailability]:
+        """Return a copy of the deck availability probes."""
+        return dict(self._availability)
+
+    def deck_accents(self) -> dict[DeckId, str]:
+        """Return the live accent for every deck."""
+        return self._accent_for()
+
     def compose(self) -> ComposeResult:
         """Compose the pre-composed Main, Files and Tools scrolls."""
         i = self._panel_index

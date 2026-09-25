@@ -77,6 +77,7 @@ _DECK_NAV_ACTIONS = frozenset(
         "prev_deck_card",
         "next_deck",
         "prev_deck",
+        "pick_deck",
     }
 )
 _DECK_LAYOUT_ACTIONS = frozenset(
@@ -186,6 +187,11 @@ def check_app_action(
     if action == "choose_agent_grouping":
         if app.current_tab != "agents" or _prompt_input_owns_keys(app):
             return False
+        from textual.screen import ModalScreen
+
+        if isinstance(getattr(app, "screen", None), ModalScreen):
+            return False
+    if action == "pick_deck":
         from textual.screen import ModalScreen
 
         if isinstance(getattr(app, "screen", None), ModalScreen):
