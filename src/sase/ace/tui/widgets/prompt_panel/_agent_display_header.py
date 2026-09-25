@@ -29,13 +29,13 @@ from ._agent_bead_section import (
     ResponsiveBeadSection,
     bead_detail_level,
 )
-from ._agent_display_family import (
-    FAMILY_IDENTITY_COLOR,
-    append_family_fold_heading,
-    append_family_member_roster,
-    effective_family_fold_level,
-    family_roster_entries,
-    family_roster_heading_suffix,
+from ._agent_display_agent_session import (
+    SESSION_IDENTITY_COLOR,
+    append_agent_session_fold_heading,
+    append_agent_session_member_roster,
+    effective_agent_session_fold_level,
+    agent_session_roster_entries,
+    agent_session_roster_heading_suffix,
 )
 from ._agent_display_neighbors import append_lane_neighbors_section
 from ._agent_display_header_metadata import (
@@ -131,29 +131,33 @@ def build_header_text(
         lane_fold_level or FoldLevel.COLLAPSED,
         lane_scale,
     )
-    family_fold_enabled = (
+    agent_session_fold_enabled = (
         agent.is_agent_session_container_row and lane_fold_level is not None
     )
     roster_container = agent_session_roster_container(agent)
     lane_neighbors = lane_neighbors if agent_owns_sase_agent(agent) else None
     shown_neighbor_count = 0 if lane_neighbors is None else len(lane_neighbors.rows)
-    family_heading_suffix: Text | None = None
-    if family_fold_enabled:
-        family_entries = family_roster_entries(agent)
+    agent_session_heading_suffix: Text | None = None
+    if agent_session_fold_enabled:
+        agent_session_entries = agent_session_roster_entries(agent)
     elif roster_container is not None:
-        family_entries = family_roster_entries(roster_container, exclude=agent)
-        family_heading_suffix = family_roster_heading_suffix(roster_container)
+        agent_session_entries = agent_session_roster_entries(
+            roster_container, exclude=agent
+        )
+        agent_session_heading_suffix = agent_session_roster_heading_suffix(
+            roster_container
+        )
     else:
-        family_entries = ()
+        agent_session_entries = ()
     document_numbering = None
-    if family_entries or shown_neighbor_count:
+    if agent_session_entries or shown_neighbor_count:
         from ._member_roster import MemberJumpNumbering
 
         document_numbering = MemberJumpNumbering(
-            total=len(family_entries) + shown_neighbor_count
+            total=len(agent_session_entries) + shown_neighbor_count
         )
     roster_text: Text | None = Text() if detach_identity else None
-    family_map = None
+    agent_session_map = None
     from ._agent_queue_section import (
         append_runner_queue_section,
         runner_queue_selection,
@@ -187,7 +191,7 @@ def build_header_text(
             responsive_ranges=identity_ranges,
             detach_identity=True,
         )
-        if family_fold_enabled:
+        if agent_session_fold_enabled:
             append_fold_header_line(
                 identity_text,
                 level=resolved_lane_fold_level,
@@ -195,7 +199,7 @@ def build_header_text(
             )
     else:
         if agent.is_agent_session_container_row:
-            append_kind_header(header_text, "FAMILY", FAMILY_IDENTITY_COLOR)
+            append_kind_header(header_text, "SESSION", SESSION_IDENTITY_COLOR)
         elif agent.is_proc_shell:
             append_kind_header(header_text, "PROC SHELL", _PROC_SHELL_ROW_STYLE)
         elif agent.is_agent_entry:
@@ -224,23 +228,25 @@ def build_header_text(
 
     append_runner_queue_section(header_text, agent, queue_selection)
 
-    if family_fold_enabled and not detach_identity:
+    if agent_session_fold_enabled and not detach_identity:
         append_fold_header_line(
             header_text,
             level=resolved_lane_fold_level,
             scale=AGENT_SESSION_FOLD_SCALE,
         )
-    if family_entries:
-        family_dest = roster_text if roster_text is not None else header_text
-        family_map = append_family_member_roster(
-            family_dest,
+    if agent_session_entries:
+        agent_session_dest = roster_text if roster_text is not None else header_text
+        agent_session_map = append_agent_session_member_roster(
+            agent_session_dest,
             agent,
             panel_level=resolved_lane_fold_level,
             section_fold_overrides=lane_overrides,
-            entries=family_entries,
+            entries=agent_session_entries,
             numbering=document_numbering,
-            fold_scale=AGENT_SESSION_FOLD_SCALE if family_fold_enabled else lane_scale,
-            heading_suffix=family_heading_suffix,
+            fold_scale=AGENT_SESSION_FOLD_SCALE
+            if agent_session_fold_enabled
+            else lane_scale,
+            heading_suffix=agent_session_heading_suffix,
         )
 
     append_legacy_parallel_members_section(header_text, agent)
@@ -249,25 +255,25 @@ def build_header_text(
         header_text,
         agent,
         fold_level=(
-            effective_family_fold_level(
+            effective_agent_session_fold_level(
                 "output-variables",
                 resolved_lane_fold_level,
                 lane_overrides,
             )
-            if family_fold_enabled
+            if agent_session_fold_enabled
             else None
         ),
     )
 
     if meta_fields:
         append_major_section_divider(header_text)
-        meta_level = effective_family_fold_level(
+        meta_level = effective_agent_session_fold_level(
             "workflow-variables",
             resolved_lane_fold_level,
             lane_overrides,
         )
-        if family_fold_enabled:
-            append_family_fold_heading(
+        if agent_session_fold_enabled:
+            append_agent_session_fold_heading(
                 header_text,
                 WORKFLOW_VARIABLES_SECTION_LABEL,
                 section_id="workflow-variables",
@@ -279,7 +285,7 @@ def build_header_text(
                 header_text,
                 WORKFLOW_VARIABLES_SECTION_LABEL,
             )
-        if not family_fold_enabled or meta_level != FoldLevel.COLLAPSED:
+        if not agent_session_fold_enabled or meta_level != FoldLevel.COLLAPSED:
             for name, value in meta_fields:
                 header_text.append(f"{name}: ", style="bold #87D7FF")
                 header_text.append(f"{value}\n", style="#5FD75F")
@@ -299,10 +305,12 @@ def build_header_text(
         )
 
     jump_map = None
-    if family_map is not None or neighbors_map is not None:
+    if agent_session_map is not None or neighbors_map is not None:
         from ._member_roster import merged_member_jump_map
 
-        jump_map = merged_member_jump_map(agent.identity, family_map, neighbors_map)
+        jump_map = merged_member_jump_map(
+            agent.identity, agent_session_map, neighbors_map
+        )
         if member_jump_map_publisher is not None:
             member_jump_map_publisher(jump_map)
 
@@ -349,7 +357,9 @@ def build_header_text(
             bead_touch_entries=summary.bead_touch_entries,
             hint_state=hint_state,
             responsive_ranges=responsive_ranges,
-            fold_level=(resolved_lane_fold_level if family_fold_enabled else None),
+            fold_level=(
+                resolved_lane_fold_level if agent_session_fold_enabled else None
+            ),
             section_fold_overrides=lane_overrides,
             ready_lanes=summary.ready_lanes,
         )
@@ -384,13 +394,13 @@ def build_header_text(
     is_failed = agent.display_status == "FAILED"
     if agent.error_message or is_failed:
         header_text.append("\n")
-        error_level = effective_family_fold_level(
+        error_level = effective_agent_session_fold_level(
             "error",
             resolved_lane_fold_level,
             lane_overrides,
         )
-        if family_fold_enabled:
-            append_family_fold_heading(
+        if agent_session_fold_enabled:
+            append_agent_session_fold_heading(
                 header_text,
                 "ERROR",
                 style="bold #FF5F5F underline",
@@ -406,7 +416,7 @@ def build_header_text(
                 section_id="error",
             )
         error_message = agent.error_message or "Runner failed without error details."
-        if not family_fold_enabled or error_level != FoldLevel.COLLAPSED:
+        if not agent_session_fold_enabled or error_level != FoldLevel.COLLAPSED:
             header_text.append(f"{error_message}\n", style="bold #FF5F5F")
     if agent.output_path and is_failed:
         header_text.append("Output: ", style="bold #87D7FF")
@@ -454,8 +464,12 @@ def build_header_text(
                 summary=summary,
                 wait_section=wait_section,
                 shell_section=shell_section,
-                fold_level=resolved_lane_fold_level if family_fold_enabled else None,
-                fold_scale=AGENT_SESSION_FOLD_SCALE if family_fold_enabled else None,
+                fold_level=resolved_lane_fold_level
+                if agent_session_fold_enabled
+                else None,
+                fold_scale=AGENT_SESSION_FOLD_SCALE
+                if agent_session_fold_enabled
+                else None,
             ),
             has_hints=has_hints,
         )

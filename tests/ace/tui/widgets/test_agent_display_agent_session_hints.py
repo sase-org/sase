@@ -24,15 +24,17 @@ from sase.ace.tui.widgets.prompt_panel._hint_caps import (
     HINT_TRUNCATION_MESSAGE,
     HintContentBudget,
 )
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
 from tests.ace.tui.widgets._agent_display_plan_helpers import plan_summary
 
 
-def test_family_hint_render_returns_cached_plan_delta_artifact_and_commit_views(
+def test_agent_session_hint_render_returns_cached_plan_delta_artifact_and_commit_views(
     tmp_path: Path,
 ) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     plan_path = tmp_path / "approved-plan.md"
@@ -90,10 +92,10 @@ def test_family_hint_render_returns_cached_plan_delta_artifact_and_commit_views(
     assert not result.header_enrichment_pending
 
 
-def test_family_content_hints_are_full_at_both_levels_and_use_phase_workspace(
+def test_agent_session_content_hints_are_full_at_both_levels_and_use_phase_workspace(
     tmp_path: Path,
 ) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
     root_workspace = tmp_path / "root-workspace"
     child_workspace = tmp_path / "child-workspace"
     root_workspace.mkdir()
@@ -151,8 +153,8 @@ def test_family_content_hints_are_full_at_both_levels_and_use_phase_workspace(
     assert rendered_paths == [expected_paths, expected_paths]
 
 
-def test_family_hint_render_skips_paths_inside_http_urls(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+def test_agent_session_hint_render_skips_paths_inside_http_urls(tmp_path: Path) -> None:
+    root, _child = make_agent_session(tmp_path)
     workspace = tmp_path / "root-workspace"
     workspace.mkdir()
     root.workspace_dir = str(workspace)
@@ -171,11 +173,11 @@ def test_family_hint_render_skips_paths_inside_http_urls(tmp_path: Path) -> None
 
 
 @pytest.mark.parametrize("level", [FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED])
-def test_family_hint_render_caps_total_member_content(
+def test_agent_session_hint_render_caps_total_member_content(
     tmp_path: Path,
     level: FoldLevel,
 ) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
     root_workspace = tmp_path / "root-workspace"
     child_workspace = tmp_path / "child-workspace"
     root_workspace.mkdir()
@@ -208,11 +210,11 @@ def test_family_hint_render_caps_total_member_content(
     assert str(child_workspace / "child/tail.py") not in result.file_hints.values()
 
 
-def test_family_reply_resolves_workspace_once_for_all_chunks(
+def test_agent_session_reply_resolves_workspace_once_for_all_chunks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     chunks = [
         (
             datetime(2026, 7, 18, 12, minute).isoformat(),
@@ -227,14 +229,14 @@ def test_family_reply_resolves_workspace_once_for_all_chunks(
     )
     resolve_workspace = Mock(return_value="/workspace")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_family_render."
+        "sase.ace.tui.widgets.prompt_panel._agent_display_agent_session_render."
         "resolve_agent_workspace_dir",
         resolve_workspace,
     )
     panel = FakePromptPanel()
     hint_state = HeaderHintState(1, {}, None, {})
 
-    panel._family_reply_renderables_with_hints(
+    panel._agent_session_reply_renderables_with_hints(
         root,
         hint_state,
         budget=HintContentBudget(),

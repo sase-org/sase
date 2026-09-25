@@ -28,7 +28,9 @@ from sase.ace.tui.widgets.prompt_panel._identity_header_compact import (
     build_workflow_compact_lines,
 )
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
 
@@ -95,7 +97,7 @@ def test_agent_row_falls_back_to_quiet_context(tmp_path: Path) -> None:
 
 
 def test_family_rows_summarize_shells_and_fold(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     compact = build_agent_compact_lines(
         agent=root,
         fold_level=FoldLevel.COLLAPSED,

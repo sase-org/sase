@@ -22,7 +22,7 @@ def _agent(*, suffix: str, status: str = "RUNNING") -> Agent:
     )
 
 
-def _family_root() -> Agent:
+def _agent_session_root() -> Agent:
     root = _agent(suffix="root", status="WAITING")
     root.agent_session_parallel = True
     statuses = ("QUESTION", "RUNNING", "STARTING", "QUEUED", "FAILED", "DONE")
@@ -78,8 +78,8 @@ def _clan_container() -> Agent:
     return clan
 
 
-def test_collapsed_family_row_keeps_fold_retry_annotation_without_chip() -> None:
-    root = _family_root()
+def test_collapsed_agent_session_row_keeps_fold_retry_annotation_without_chip() -> None:
+    root = _agent_session_root()
     root.attempt_history.append(_attempt())
     annotation = _compute_fold_annotation(
         root,
@@ -103,8 +103,10 @@ def test_collapsed_family_row_keeps_fold_retry_annotation_without_chip() -> None
     assert " · " not in left.plain
 
 
-def test_expanded_family_row_keeps_hidden_child_annotation_without_chip() -> None:
-    root = _family_root()
+def test_expanded_agent_session_row_keeps_hidden_child_annotation_without_chip() -> (
+    None
+):
+    root = _agent_session_root()
     annotation = _compute_fold_annotation(
         root,
         {root.raw_suffix: (7, 2)},
@@ -125,8 +127,8 @@ def test_expanded_family_row_keeps_hidden_child_annotation_without_chip() -> Non
     assert "[S1 R2 Q1 F1 D1]" not in left.plain
 
 
-def test_expanded_family_row_without_structural_annotation_omits_chip() -> None:
-    root = _family_root()
+def test_expanded_agent_session_row_without_structural_annotation_omits_chip() -> None:
+    root = _agent_session_root()
     annotation = _compute_fold_annotation(
         root,
         {root.raw_suffix: (7, 0)},
@@ -159,7 +161,7 @@ def test_clan_row_renders_direct_member_count_chip() -> None:
     assert "[S1 R2 Q1 F1 U1]" in left.plain
 
 
-def test_family_inside_clan_omits_chip_and_member_unread_suffix() -> None:
+def test_agent_session_inside_clan_omits_chip_and_member_unread_suffix() -> None:
     family = _agent(suffix="family", status="DONE")
     family.cl_name = "research.writer"
     family.agent_name = "research.writer"
@@ -177,10 +179,12 @@ def test_family_inside_clan_omits_chip_and_member_unread_suffix() -> None:
     member.agent_clan_generation = "gen"
     family.runtime_children = [member]
     family.followup_agents = [member]
-    _clan, projected_family, projected_member = project_clan_tree([family, member])
+    _clan, projected_agent_session, projected_member = project_clan_tree(
+        [family, member]
+    )
 
-    family_left, family_suffix, _ = format_agent_option(
-        projected_family,
+    agent_session_left, agent_session_suffix, _ = format_agent_option(
+        projected_agent_session,
         0,
         is_selected=False,
         unread_agent_ids={projected_member.identity},
@@ -192,19 +196,21 @@ def test_family_inside_clan_omits_chip_and_member_unread_suffix() -> None:
         is_unread=True,
     )
 
-    assert "[U1]" not in family_left.plain
-    assert "✅" not in family_suffix.plain
-    assert "❌" not in family_suffix.plain
+    assert "[U1]" not in agent_session_left.plain
+    assert "✅" not in agent_session_suffix.plain
+    assert "❌" not in agent_session_suffix.plain
     assert "✅" not in member_left.plain
     assert "✅" not in member_suffix.plain
     assert "❌" not in member_suffix.plain
 
 
-def test_non_family_and_zero_bucket_rows_omit_count_chip() -> None:
-    non_family = _agent(suffix="plain")
+def test_non_agent_session_and_zero_bucket_rows_omit_count_chip() -> None:
+    non_agent_session = _agent(suffix="plain")
     zero_count_root = _agent(suffix="zero-count")
 
-    non_family_left, _, _ = format_agent_option(non_family, 0, is_selected=False)
+    non_agent_session_left, _, _ = format_agent_option(
+        non_agent_session, 0, is_selected=False
+    )
     zero_count_left, _, _ = format_agent_option(
         zero_count_root,
         1,
@@ -212,9 +218,9 @@ def test_non_family_and_zero_bucket_rows_omit_count_chip() -> None:
         clan_counts=ClanStatusCounts(),
     )
 
-    assert "[S" not in non_family_left.plain
-    assert "[R" not in non_family_left.plain
-    assert "[D" not in non_family_left.plain
+    assert "[S" not in non_agent_session_left.plain
+    assert "[R" not in non_agent_session_left.plain
+    assert "[D" not in non_agent_session_left.plain
     assert "[S" not in zero_count_left.plain
     assert "[R" not in zero_count_left.plain
     assert "[D" not in zero_count_left.plain

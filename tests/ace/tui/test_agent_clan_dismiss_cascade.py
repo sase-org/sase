@@ -1,4 +1,4 @@
-"""Dismissing a clan container must hide family members and monitor shells."""
+"""Dismissing a clan container must hide session members and monitor shells."""
 
 from __future__ import annotations
 

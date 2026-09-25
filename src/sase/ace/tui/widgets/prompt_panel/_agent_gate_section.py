@@ -266,7 +266,7 @@ def build_gate_output(
     heading: bool = True,
     annotate: GateTextAnnotator | None = None,
 ) -> list[object]:
-    """Return the captured-output block for a gate row or family phase."""
+    """Return the captured-output block for a gate row or agent_session phase."""
     output = agent.get_live_reply_content()
     if heading:
         header = Text()
@@ -302,7 +302,7 @@ def build_gate_phase(
     *,
     annotate: GateTextAnnotator | None = None,
 ) -> list[object]:
-    """Return the family-facing GATE phase: divider, fields, and log."""
+    """Return the agent_session-facing GATE phase: divider, fields, and log."""
     accent = agent.gate_accent or "#0BCDEC"
     parts: list[object] = [
         render_phase_divider(

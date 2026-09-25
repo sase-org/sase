@@ -324,7 +324,7 @@ def _decline_insert(widget: Any, reason: str | None) -> bool:
 def _is_plain_leaf_row(agent: Agent) -> bool:
     """Whether *agent* renders as one standalone row that owns no descendants.
 
-    Clan containers and members, family containers, and workflow parents and
+    Clan containers and members, session containers, and workflow parents and
     steps change a synthetic container row or a descendant topology that only
     a rebuild reprojects, so they are never inserted in place.
     """
@@ -397,7 +397,7 @@ def try_insert_rows(
       :data:`GroupingMode.BY_MACHINE`, or it differs from the mode the widget
       was built under;
     - an existing agent changed, moved, or left (that is not an insert);
-    - an added agent is a clan container or member, a family container, or a
+    - an added agent is a clan container or member, a session container, or a
       workflow parent or step;
     - the new grouping tree adds or removes a banner or spacer, or changes a
       banner's identity or selectability (this covers a new ``BY_STATUS``

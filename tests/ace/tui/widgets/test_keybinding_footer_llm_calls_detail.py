@@ -446,17 +446,17 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     )
 
     assert ("h", "parent workflow") in workflow
-    assert ("h", "parent family") in session
+    assert ("h", "parent session") in session
     assert ("h", "parent clan") in clan
     assert ("h", "parent tribe") in tribe
-    assert ("h", "parent family") in llm_calls
+    assert ("h", "parent session") in llm_calls
     assert ("H", "compact LLM Calls") in llm_calls
     assert not any(label.startswith("parent ") for _key, label in panel)
     assert ("=", "only panel") in panel
     assert ("H", "only panel") not in panel
     assert ("H", "collapse workflow") in workflow_collapse
-    assert ("H", "collapse family") in agent_session_collapse
-    assert ("H", "collapse family") in selected_lane_over_group
+    assert ("H", "collapse session") in agent_session_collapse
+    assert ("H", "collapse session") in selected_lane_over_group
     assert ("H", "collapse sase agents") not in selected_lane_over_group
     assert ("H", "collapse clan") in clan_collapse
     assert ("H", "collapse clan") in selected_clan_collapse
@@ -470,7 +470,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     # single hinted-collapse chip instead of the retired panel-wide ladder.
     assert ("H", "collapse fold") in panel_hinted_collapse
     assert ("H", "collapse clans") not in panel_hinted_collapse
-    assert ("H", "collapse family") not in panel_hinted_collapse
+    assert ("H", "collapse session") not in panel_hinted_collapse
     assert ("H", "collapse group") not in panel_hinted_collapse
     assert ("H", "collapse group") in group_collapse
 
@@ -493,7 +493,7 @@ def test_footer_labels_aliased_agent_session_workflow_steps_from_shared_resolver
         )
     )
 
-    assert ("h", "parent family") in bindings
+    assert ("h", "parent session") in bindings
 
 
 def test_footer_omits_parent_for_invalid_ancestry() -> None:
@@ -578,7 +578,7 @@ def test_footer_hidden_agent_session_step_advertises_selected_agent_session_then
             lane_collapse_available=True,
         )
     )
-    assert ("H", "collapse family") in open_bindings
+    assert ("H", "collapse session") in open_bindings
     assert ("H", "collapse sase agents") not in open_bindings
 
     app.action_hooks_or_collapse_all()
@@ -594,5 +594,5 @@ def test_footer_hidden_agent_session_step_advertises_selected_agent_session_then
             group_collapse_available=remaining is None and group is not None,
         )
     )
-    assert ("H", "collapse family") not in closed_bindings
+    assert ("H", "collapse session") not in closed_bindings
     assert ("H", "collapse group") in closed_bindings

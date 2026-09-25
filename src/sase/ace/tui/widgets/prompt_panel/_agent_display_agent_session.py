@@ -1,4 +1,4 @@
-"""Fold-aware family-container helpers for the agent prompt panel."""
+"""Fold-aware agent-session container helpers for the agent prompt panel."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
 from ...models.agent_owner_badge import agent_owner_badge_label
 from ...models.agent_session_members import (
-    concrete_agent_session_shell_rows as family_shell_rows,
+    concrete_agent_session_shell_rows as agent_session_shell_rows,
     agent_session_member_status_buckets,
     gate_row_is_settled,
     monitor_row_is_settled,
@@ -40,8 +40,8 @@ from ._member_roster import (
 )
 from ._member_roster_digest import agent_roster_digest, agent_roster_duration
 
-FAMILY_IDENTITY_COLOR = "#00AFFF"
-_FAMILY_ROSTER_TITLE = "FAMILY SHELLS"
+SESSION_IDENTITY_COLOR = "#00AFFF"
+_AGENT_SESSION_ROSTER_TITLE = "SESSION SHELLS"
 _MONITOR_DESCRIPTOR_MAX_CHARS = 40
 _MONITOR_FAILURE_STATES = frozenset({"failed", "timeout", "lost"})
 _MONITOR_COMMAND_FALLBACK = "command"
@@ -50,17 +50,17 @@ _GATE_FAILURE_STATES = frozenset({"failed", "timeout", "lost"})
 _GATE_TITLE_FALLBACK = "decision"
 
 
-def effective_family_fold_level(
+def effective_agent_session_fold_level(
     section_id: str,
     panel_level: FoldLevel,
     overrides: Mapping[str, FoldLevel] | None = None,
 ) -> FoldLevel:
-    """Resolve a family section override against the shared panel level."""
+    """Resolve an agent-session section override against the shared panel level."""
     level = (overrides or {}).get(section_id, panel_level)
     return effective_fold_level(level, AGENT_SESSION_FOLD_SCALE)
 
 
-def append_family_fold_heading(
+def append_agent_session_fold_heading(
     text: Any,
     title: str,
     *,
@@ -69,7 +69,7 @@ def append_family_fold_heading(
     count: int | None = None,
     style: str = "bold #D7AF5F underline",
 ) -> None:
-    """Append one family-section heading carrying its effective fold glyph."""
+    """Append one agent-session heading carrying its effective fold glyph."""
     append_fold_section_heading(
         text,
         title,
@@ -129,15 +129,15 @@ def _gate_roster_bucket(member: Agent) -> str:
     return "Stopped"
 
 
-def family_roster_entries(
+def agent_session_roster_entries(
     agent: Agent,
     *,
     now: datetime | None = None,
     exclude: Agent | None = None,
 ) -> tuple[MemberRosterEntry, ...]:
-    """Adapt a family chain into shared numbered roster entries."""
-    family_name = agent.presented_agent_name or ""
-    shells = family_shell_rows(agent)
+    """Adapt an agent-session chain into shared numbered roster entries."""
+    agent_session_name = agent.presented_agent_name or ""
+    shells = agent_session_shell_rows(agent)
     agent_shells = tuple(
         shell for shell in shells if not (shell.is_monitor or shell.is_gate)
     )
@@ -177,7 +177,7 @@ def family_roster_entries(
                     or member.role_suffix
                     or member.display_name
                 ),
-                label=family_member_label(member, family_name),
+                label=agent_session_member_label(member, agent_session_name),
                 kind=kind,
                 status=member.display_status,
                 effective_bucket=bucket,
@@ -190,7 +190,7 @@ def family_roster_entries(
     return tuple(entries)
 
 
-def append_family_member_roster(
+def append_agent_session_member_roster(
     text: Text,
     agent: Agent,
     *,
@@ -202,15 +202,15 @@ def append_family_member_roster(
     fold_scale: FoldScale = AGENT_SESSION_FOLD_SCALE,
     heading_suffix: Text | None = None,
 ) -> MemberJumpMap:
-    """Render a family container's numbered roster."""
+    """Render an agent-session container's numbered roster."""
     return append_member_roster(
         text,
         container_identity=agent.identity,
         entries=entries
         if entries is not None
-        else family_roster_entries(agent, now=now),
-        title=_FAMILY_ROSTER_TITLE,
-        accent=FAMILY_IDENTITY_COLOR,
+        else agent_session_roster_entries(agent, now=now),
+        title=_AGENT_SESSION_ROSTER_TITLE,
+        accent=SESSION_IDENTITY_COLOR,
         panel_level=panel_level,
         section_fold_overrides=section_fold_overrides,
         fold_scale=fold_scale,
@@ -220,33 +220,37 @@ def append_family_member_roster(
     )
 
 
-def family_roster_heading_suffix(container: Agent) -> Text:
-    """Return the ` · <family name>` suffix naming a member panel's family."""
+def agent_session_roster_heading_suffix(container: Agent) -> Text:
+    """Return the ` · <agent-session name>` suffix naming a member panel's session."""
     suffix = Text()
     suffix.append(" · ", style="dim")
     suffix.append(
         container.presented_agent_name or "",
-        style=FAMILY_IDENTITY_COLOR,
+        style=SESSION_IDENTITY_COLOR,
     )
     return suffix
 
 
-def family_member_label(member: Agent, family_name: str) -> str:
+def agent_session_member_label(member: Agent, agent_session_name: str) -> str:
     name = member.presented_agent_name or member.step_name or member.display_name
-    if family_name and name.startswith(family_name) and len(name) > len(family_name):
-        return name[len(family_name) :]
+    if (
+        agent_session_name
+        and name.startswith(agent_session_name)
+        and len(name) > len(agent_session_name)
+    ):
+        return name[len(agent_session_name) :]
     if member.role_suffix:
         return member.role_suffix
     return name
 
 
 __all__ = [
-    "FAMILY_IDENTITY_COLOR",
-    "append_family_fold_heading",
-    "append_family_member_roster",
-    "effective_family_fold_level",
-    "family_member_label",
-    "family_roster_entries",
-    "family_roster_heading_suffix",
-    "family_shell_rows",
+    "SESSION_IDENTITY_COLOR",
+    "append_agent_session_fold_heading",
+    "append_agent_session_member_roster",
+    "effective_agent_session_fold_level",
+    "agent_session_member_label",
+    "agent_session_roster_entries",
+    "agent_session_roster_heading_suffix",
+    "agent_session_shell_rows",
 ]

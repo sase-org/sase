@@ -39,19 +39,19 @@ def append_agent_output_variables_section(
     *,
     fold_level: FoldLevel | None = None,
 ) -> None:
-    """Append output variables for the selected agent family."""
+    """Append output variables for the selected agent agent_session."""
     contributors = _output_variable_contributors(agent)
     if not contributors:
         return
 
     append_major_section_divider(text)
     if fold_level is not None:
-        from ._agent_display_family import append_family_fold_heading
+        from ._agent_display_agent_session import append_agent_session_fold_heading
 
         variable_count = sum(
             len(contributor.output_variables) for contributor in contributors
         )
-        append_family_fold_heading(
+        append_agent_session_fold_heading(
             text,
             "OUTPUT VARIABLES",
             section_id="output-variables",

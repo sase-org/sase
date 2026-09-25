@@ -149,9 +149,9 @@ async def test_python_step_parent_family_footer_png_snapshot(
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None
         bindings, _mode_label = footer._last_layout_inputs
-        assert ("h", "parent family") in bindings
+        assert ("h", "parent session") in bindings
         assert_page_svg_contains(page, "setup")
-        assert_page_svg_contains(page, "parent family")
+        assert_page_svg_contains(page, "parent session")
         ace_png_visual.assert_page_png(
             page,
             "agents_python_step_parent_family_120x40",
@@ -176,7 +176,7 @@ async def test_python_step_parent_family_footer_png_snapshot(
             for agent in page.app._agents
         )
         assert footer._last_layout_inputs is not None
-        assert ("H", "collapse family") in footer._last_layout_inputs[0]
+        assert ("H", "collapse session") in footer._last_layout_inputs[0]
         ace_png_visual.assert_page_png(
             page,
             "agents_python_step_hidden_collapsed_120x40",

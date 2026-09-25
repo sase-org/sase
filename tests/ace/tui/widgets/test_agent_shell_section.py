@@ -342,7 +342,7 @@ def test_cap_renders_twelve_lanes_plus_tail() -> None:
     lines = section.logical_text.plain.splitlines()
 
     assert len(lines) == SHELL_LANE_LIMIT + 1
-    assert lines[-1].strip() == "… +3 more shells (see FAMILY SHELLS)"
+    assert lines[-1].strip() == "… +3 more shells (see SESSION SHELLS)"
 
 
 def test_gutter_tracks_widest_label_only() -> None:

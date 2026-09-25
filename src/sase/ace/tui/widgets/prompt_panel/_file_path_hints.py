@@ -88,7 +88,7 @@ def annotated_char_scope() -> Generator[list[int], None, None]:
 
     Yields a one-element list holding the running total; read it after the
     block exits. The count is what a hint render actually paid the regex scan
-    for, across every fragment and every family member, which is the size term
+    for, across every fragment and every agent_session member, which is the size term
     the view-hints trace spans report. Scopes nest, and an inner scope's
     characters also count toward each enclosing scope. Costs nothing when no
     scope is open.

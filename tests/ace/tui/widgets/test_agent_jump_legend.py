@@ -76,7 +76,7 @@ def _two_section_map() -> MemberJumpMap:
         Text(),
         container_identity=_LANE_IDENTITY,
         entries=_entries(["--plan-0", "--plan-1", "--plan-2"]),
-        title="FAMILY SHELLS",
+        title="SESSION SHELLS",
         accent="#00AFFF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=numbering,
@@ -217,7 +217,7 @@ def test_title_ranges() -> None:
     two = _two_section_map()
     title = jump_legend_title(two).plain
     assert title.startswith("JUMP")
-    assert "FAMILY SHELLS" in title and "NEIGHBORS" in title
+    assert "SESSION SHELLS" in title and "NEIGHBORS" in title
     assert "00–02" in title and "03–06" in title
     narrowed = jump_legend_title(two, prefix="1")
     assert narrowed.plain == "JUMP · 1▁"
@@ -266,7 +266,7 @@ def test_narrow_widths_keep_spans_inside_clipped_cells() -> None:
         Text(),
         container_identity=_LANE_IDENTITY,
         entries=_entries(["--plan", "--code"]),
-        title="FAMILY SHELLS",
+        title="SESSION SHELLS",
         accent="#00AFFF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=numbering,

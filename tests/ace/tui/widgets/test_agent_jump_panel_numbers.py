@@ -20,7 +20,7 @@ from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui._member_jump_navigation_helpers import (
     JumpHarness,
     make_agent as make_nav_agent,
-    make_family as make_nav_family,
+    make_agent_session as make_nav_family,
 )
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 
@@ -65,7 +65,7 @@ def test_panel_numbers_land_through_real_jump_path() -> None:
         Text(),
         container_identity=root.identity,
         entries=entries,
-        title="FAMILY SHELLS",
+        title="SESSION SHELLS",
         accent="#00AFFF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=MemberJumpNumbering(total=len(entries)),

@@ -190,12 +190,12 @@ def append_agent_context_section(
         return None
 
     append_major_section_divider(text)
-    family_lane_levels: dict[str, FoldLevel] | None = None
+    agent_session_lane_levels: dict[str, FoldLevel] | None = None
     if fold_level is None:
         append_section_heading(text, "SASE CONTEXT", style=_COLOR_HEADER)
     else:
-        from ._agent_display_family import (
-            effective_family_fold_level,
+        from ._agent_display_agent_session import (
+            effective_agent_session_fold_level,
         )
         from ._fold_language import append_fold_glyph
 
@@ -212,8 +212,8 @@ def append_agent_context_section(
             "SKILLS": "skill-uses",
             "WORKSPACES": "opened-workspaces",
         }
-        family_lane_levels = {
-            label: effective_family_fold_level(
+        agent_session_lane_levels = {
+            label: effective_agent_session_fold_level(
                 lane_ids[label],
                 fold_level,
                 section_fold_overrides,
@@ -224,8 +224,8 @@ def append_agent_context_section(
     for index, (label, lane) in enumerate(rendered_lanes):
         if index:
             text.append("\n")
-        if family_lane_levels is not None:
-            lane_level = family_lane_levels[label]
+        if agent_session_lane_levels is not None:
+            lane_level = agent_session_lane_levels[label]
             line_end = lane.plain.find("\n")
             if line_end < 0:
                 line_end = len(lane)

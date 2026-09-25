@@ -435,7 +435,7 @@ def load_bead_touches_for_agent_context(
 ) -> tuple[_BeadTouchDisplayEvent, ...]:
     """Return display bead-touches for an agent-family context, newest first.
 
-    For an ordinary row with no follow-up family members this delegates to
+    For an ordinary row with no follow-up session members this delegates to
     the per-agent loader and wraps each touch with no label, preserving the
     single-agent shape. For a family row it reads the index once, attributes
     each touch to the first member whose identity matches its actor, sorts

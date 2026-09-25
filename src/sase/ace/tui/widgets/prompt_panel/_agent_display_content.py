@@ -39,7 +39,7 @@ PHASE_DIVIDER_ACCENT = "#AF87FF"
 
 
 def _agent_role_label(token: str | None) -> str:
-    """Format one family member's phase header as ``AGENT (<role>)``."""
+    """Format one agent_session member's phase header as ``AGENT (<role>)``."""
     return f"AGENT ({token})" if token else "AGENT"
 
 
@@ -59,7 +59,7 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
 
 
 def get_phase_label(agent: Agent) -> str:
-    """Map a member's family role to its phase header.
+    """Map a member's agent_session role to its phase header.
 
     Agent shells render as ``AGENT (<role>)``. Monitor and gate shells keep
     their shell-kind labels.

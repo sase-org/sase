@@ -289,7 +289,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
         assert jump_map.targets[2].member_identity == monitor.identity
         assert_page_svg_contains(page, "3 shells")
         assert_page_svg_contains(page, "⚙")
-        assert_page_svg_contains(page, "FAMILY SHELLS")
+        assert_page_svg_contains(page, "SESSION SHELLS")
         combined = prompt_header_and_body_text(
             page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         )
@@ -310,7 +310,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
             animate=False, immediate=True
         )
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "FAMILY SHELLS")
+        assert_page_svg_contains(page, "SESSION SHELLS")
         assert_page_svg_contains(page, "--plan")
         assert_page_svg_contains(page, "--mon")
         assert_page_svg_contains(page, "⚙ MONITOR")
@@ -318,7 +318,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "agents_family_panel_shells_monitor_roster_120x40",
-            title="ACE family panel FAMILY SHELLS roster with monitor",
+            title="ACE family panel SESSION SHELLS roster with monitor",
         )
 
         await page.press("2")

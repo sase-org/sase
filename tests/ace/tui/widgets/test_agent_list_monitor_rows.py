@@ -16,7 +16,7 @@ from sase.ace.tui.widgets._agent_list_styling import (
 
 from ._agent_list_monitor_rows_helpers import (
     gear_style,
-    make_family_container,
+    make_agent_session_container,
     make_monitor,
     make_monitor_starter,
 )
@@ -214,7 +214,7 @@ def test_running_monitor_row_with_stop_time_renders_grey_gear() -> None:
 
 
 def test_tree_child_settled_monitor_row_renders_grey_gear() -> None:
-    container = make_family_container("completed")
+    container = make_agent_session_container("completed")
     monitor = container.followup_agents[0]
 
     left, _suffix, _option_id = format_agent_option(monitor, 0, is_selected=False)
@@ -232,7 +232,7 @@ def test_top_level_settled_monitor_row_renders_grey_gear() -> None:
 
 
 def test_settled_row_gear_style_matches_container_settled_badge_style() -> None:
-    container = make_family_container("completed")
+    container = make_agent_session_container("completed")
     monitor = container.followup_agents[0]
 
     row_left, _suffix, _option_id = format_agent_option(monitor, 0, is_selected=False)

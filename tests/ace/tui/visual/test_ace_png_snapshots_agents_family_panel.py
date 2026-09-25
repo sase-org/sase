@@ -145,7 +145,7 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
         member_targets = {target.member_identity for target in member_jump_map.targets}
         assert member.identity not in member_targets
 
-        assert_page_svg_contains(page, "FAMILY SHELLS")
+        assert_page_svg_contains(page, "SESSION SHELLS")
         assert_page_svg_contains(page, "AGENT SHELL")
         ace_png_visual.assert_page_png(
             page,

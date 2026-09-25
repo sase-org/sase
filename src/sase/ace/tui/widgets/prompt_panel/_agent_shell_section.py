@@ -1,4 +1,4 @@
-"""Responsive per-shell lanes for family container detail panels."""
+"""Responsive per-shell lanes for agent_session container detail panels."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from ._agent_context_common import (
     REASON_GLYPH,
     normalize_context_display,
 )
-from ._agent_display_family import family_member_label
+from ._agent_display_agent_session import agent_session_member_label
 from ._helpers import PROMPT_PANEL_LINE_CELL_LIMIT, wrap_text_by_cells
 
 SHELL_SECTION_ID = "shells"
@@ -55,7 +55,7 @@ _SHELL_CONTINUATION_INDENT = 2
 
 @dataclass(frozen=True, slots=True)
 class _AgentShellLane:
-    """One concrete LLM agent shell in a family metadata lane."""
+    """One concrete LLM agent shell in a agent_session metadata lane."""
 
     label: str
     value: Text
@@ -63,7 +63,7 @@ class _AgentShellLane:
 
 @dataclass(frozen=True, slots=True)
 class _MonitorShellLane:
-    """One proc-shell monitor lane in a family metadata lane."""
+    """One proc-shell monitor lane in a agent_session metadata lane."""
 
     label: str
     command: str | None
@@ -72,7 +72,7 @@ class _MonitorShellLane:
 
 @dataclass(frozen=True, slots=True)
 class _GateShellLane:
-    """One human-decision gate lane in a family metadata lane."""
+    """One human-decision gate lane in a agent_session metadata lane."""
 
     label: str
     title: str | None
@@ -92,12 +92,12 @@ class _MonitorSelection:
     continuation_style: str
 
 
-def build_family_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
-    """Build one labelled shell lane per concrete family shell."""
-    family_name = agent.presented_agent_name or ""
+def build_agent_session_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
+    """Build one labelled shell lane per concrete agent_session shell."""
+    agent_session_name = agent.presented_agent_name or ""
     lanes: list[ShellLane] = []
     for member in concrete_agent_session_shell_rows(agent):
-        label = family_member_label(member, family_name)
+        label = agent_session_member_label(member, agent_session_name)
         if member.is_monitor:
             lanes.append(
                 _MonitorShellLane(
@@ -138,7 +138,9 @@ def build_family_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
         if value is None:
             value = Text("default", style=_SHELL_LANE_DEFAULT_STYLE)
         lanes.append(
-            _AgentShellLane(label=family_member_label(agent, family_name), value=value)
+            _AgentShellLane(
+                label=agent_session_member_label(agent, agent_session_name), value=value
+            )
         )
     return tuple(lanes)
 
@@ -426,7 +428,7 @@ def _logical_shell_text(
     if hidden_count > 0:
         text.append(" " * cell_len(SHELL_FIELD_LABEL))
         text.append(
-            f"… +{hidden_count} more shells (see FAMILY SHELLS)",
+            f"… +{hidden_count} more shells (see SESSION SHELLS)",
             style=_SHELL_LANE_TAIL_STYLE,
         )
         text.append("\n")
@@ -435,7 +437,7 @@ def _logical_shell_text(
 
 @dataclass(slots=True)
 class ResponsiveShellSection:
-    """Per-shell family lanes that wrap beneath aligned shell metadata."""
+    """Per-shell agent_session lanes that wrap beneath aligned shell metadata."""
 
     lanes: tuple[ShellLane, ...]
     hidden_count: int = 0
@@ -517,7 +519,7 @@ class ResponsiveShellSection:
             )
             table.add_column(overflow="fold")
             tail = Text(
-                f"… +{self.hidden_count} more shells (see FAMILY SHELLS)",
+                f"… +{self.hidden_count} more shells (see SESSION SHELLS)",
                 style=_SHELL_LANE_TAIL_STYLE,
             )
             table.add_row(Text(), Text(), tail)
@@ -530,5 +532,5 @@ __all__ = [
     "SHELL_SECTION_ID",
     "ResponsiveShellSection",
     "ShellLane",
-    "build_family_shell_lanes",
+    "build_agent_session_shell_lanes",
 ]

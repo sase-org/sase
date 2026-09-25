@@ -6,7 +6,9 @@ from pathlib import Path
 
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_jump_panel_helpers import (
     _DetailApp,
     _jump_panel,
@@ -19,7 +21,7 @@ from tests.ace.tui.widgets._agent_jump_panel_helpers import (
 
 
 async def test_toggle_expands_to_every_target_and_back(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -32,7 +34,7 @@ async def test_toggle_expands_to_every_target_and_back(tmp_path: Path) -> None:
         assert "less" in str(panel.border_subtitle)
         body = _jump_text(panel)
         assert "--plan" in body and "--code" in body
-        assert "❖ FAMILY SHELLS" in body
+        assert "❖ SESSION SHELLS" in body
         # Expanded content equals the carried roster verbatim.
         assert panel._member_roster is not None  # noqa: SLF001
         assert body.strip() == panel._member_roster.plain.strip()  # noqa: SLF001
@@ -51,7 +53,7 @@ async def test_expanded_roster_matches_carried_text_and_metadata_has_no_roster(
     )
     from sase.ace.tui.widgets.renderable_text import renderable_to_text as to_text
 
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -62,7 +64,7 @@ async def test_expanded_roster_matches_carried_text_and_metadata_has_no_roster(
         roster = find_member_roster(content)
         assert roster is not None
         metadata_text = to_text(content) or ""
-        assert "❖ FAMILY SHELLS" not in metadata_text
+        assert "❖ SESSION SHELLS" not in metadata_text
         assert detail.toggle_jump_panel_expanded() is True
         await pilot.pause()
         assert _jump_text(panel).strip() == roster.plain.strip()
@@ -104,7 +106,7 @@ async def test_expanded_roster_repaints_on_roster_only_change() -> None:
 
 
 async def test_expanded_state_persists_across_selection(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -119,7 +121,7 @@ async def test_expanded_state_persists_across_selection(tmp_path: Path) -> None:
 
 
 async def test_identity_change_resets_panel_scroll(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 12)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)

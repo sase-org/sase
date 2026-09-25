@@ -20,7 +20,7 @@ from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from tests.ace.tui.widgets._agent_display_header_enrichment_helpers import (
     HeaderEnrichmentPanel,
     MessageHeaderEnrichmentPanel,
-    make_family_agent,
+    make_agent_session_agent,
     make_summary,
     patch_summary_builder,
     set_context,
@@ -89,7 +89,7 @@ def test_cold_hint_render_schedules_enrichment_without_sync_build(
 def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    agent = make_family_agent()
+    agent = make_agent_session_agent()
     panel = MessageHeaderEnrichmentPanel()
     set_context(panel, agent.identity, current=True)
     calls: list[Agent] = []
@@ -115,7 +115,7 @@ def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
     assert cold.header_enrichment_pending
     assert panel._agent_hint_mode_rendered
     assert panel.worker_fn is not None
-    assert "FAMILY SHELLS" in plain_of(panel.captured[-1])
+    assert "SESSION SHELLS" in plain_of(panel.captured[-1])
 
     panel.worker.result = panel.worker_fn()
     panel._apply_agent_detail_header_enrichment_result(

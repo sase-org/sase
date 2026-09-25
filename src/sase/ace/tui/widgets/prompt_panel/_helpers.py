@@ -148,7 +148,7 @@ def append_kind_header(text: Text, label: str, color: str) -> None:
     The underline is one span, including any spaces in ``label``. Do not route
     kind labels through :func:`append_section_heading`; that would steal the
     first ``Ctrl+J`` jump from the first real section. Kind identity lines
-    (``FAMILY``, ``CLAN``, ``TRIBE``, ``AGENT SHELL``) stay unmarked chrome
+    (``AGENT_SESSION``, ``CLAN``, ``TRIBE``, ``AGENT SHELL``) stay unmarked chrome
     entirely — unlike roster rows and lane sub-headings, they are not even fold
     anchors via :func:`append_fold_anchor`. Only real section titles are
     navigable.

@@ -29,7 +29,7 @@ from tests.ace.tui.widgets._summary_fold_contract_helpers import (
     NOW,
     RenderedSummary,
     heading_line,
-    make_family,
+    make_agent_session,
     section_body,
     single_jump_map,
 )
@@ -121,7 +121,7 @@ def _single_sase_agent_case() -> _LaneNeighborContractCase:
 
 
 def _family_lane_case(tmp_path: Path) -> _LaneNeighborContractCase:
-    lane = make_family(
+    lane = make_agent_session(
         tmp_path,
         suffix="lane-family",
         with_prompt_content=False,

@@ -1,4 +1,4 @@
-"""Family-specific render paths for the agent prompt panel."""
+"""Agent-session-specific render paths for the agent prompt panel."""
 
 from __future__ import annotations
 
@@ -18,9 +18,9 @@ from ._agent_display_content import (
     render_phase_divider,
     render_timestamp_divider,
 )
-from ._agent_display_family import (
-    effective_family_fold_level,
-    family_shell_rows,
+from ._agent_display_agent_session import (
+    effective_agent_session_fold_level,
+    agent_session_shell_rows,
 )
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
@@ -52,8 +52,8 @@ from ._helpers import (
 from ._traceback_section import build_traceback_block
 
 
-class AgentFamilyDisplayMixin:
-    """Render family sections and their file-hint variants."""
+class AgentSessionDisplayMixin:
+    """Render agent-session sections and their file-hint variants."""
 
     if TYPE_CHECKING:
 
@@ -80,7 +80,7 @@ class AgentFamilyDisplayMixin:
             context: AgentPromptHighlightContext | None = None,
         ) -> RenderableType: ...
 
-    def _update_family_display(
+    def _update_agent_session_display(
         self,
         agent: Agent,
         header_text: AgentHeader,
@@ -90,16 +90,16 @@ class AgentFamilyDisplayMixin:
         section_fold_overrides: object,
         hint_state: HeaderHintState | None = None,
     ) -> None:
-        """Render a family container and its always-open conversation.
+        """Render an agent-session container and its always-open conversation.
 
-        Family metadata still follows the shared two-level fold, while xprompt,
+        Agent-session metadata still follows the shared two-level fold, while xprompt,
         prompt, and reply bodies remain fully visible at every level.
         ``hint_state`` only changes how that content is annotated.
         """
         shared_level = (
             panel_level if isinstance(panel_level, FoldLevel) else FoldLevel.COLLAPSED
         )
-        level = effective_family_fold_level("", shared_level)
+        level = effective_agent_session_fold_level("", shared_level)
         overrides = (
             section_fold_overrides
             if isinstance(section_fold_overrides, Mapping)
@@ -108,7 +108,7 @@ class AgentFamilyDisplayMixin:
         context_parts: list[Any] = [header_text]
         hint_budget = HintContentBudget() if hint_state is not None else None
 
-        error_level = effective_family_fold_level("error", level, overrides)
+        error_level = effective_agent_session_fold_level("error", level, overrides)
         traceback_parts: list[Any] = []
         if error_tb_syntax is not None and error_level != FoldLevel.COLLAPSED:
             traceback_parts = build_traceback_block(error_tb_syntax)
@@ -137,7 +137,7 @@ class AgentFamilyDisplayMixin:
                 hint_state.hint_counter if hint_state is not None else None
             )
             if hint_state is not None:
-                xprompt = self._family_text_with_hints(
+                xprompt = self._agent_session_text_with_hints(
                     xprompt,
                     hint_state,
                     workspace_dir=hint_state.workspace_dir,
@@ -181,7 +181,7 @@ class AgentFamilyDisplayMixin:
                 )
             else:
                 context_parts.append(
-                    self._family_text_with_hints(
+                    self._agent_session_text_with_hints(
                         self._humanize_display_text(prompt_content),
                         hint_state,
                         workspace_dir=hint_state.workspace_dir,
@@ -196,7 +196,7 @@ class AgentFamilyDisplayMixin:
             reply_header.append("\n")
             reply_header.append("\u2500" * 50 + "\n", style="dim")
             reply_header.append("\n")
-        phases = family_shell_rows(agent)
+        phases = agent_session_shell_rows(agent)
         reply_heading = Text(
             "AGENT REPLY",
             style=PROMPT_PANEL_SECTION_HEADING_STYLE,
@@ -248,7 +248,7 @@ class AgentFamilyDisplayMixin:
                     self._render_markdown,
                 )
             else:
-                reply_renderables = self._family_reply_renderables_with_hints(
+                reply_renderables = self._agent_session_reply_renderables_with_hints(
                     phase,
                     hint_state,
                     budget=hint_budget,
@@ -277,7 +277,7 @@ class AgentFamilyDisplayMixin:
                 renderable = prepare_hint_renderable(renderable)
         self.update(renderable)  # type: ignore[attr-defined]
 
-    def _family_text_with_hints(
+    def _agent_session_text_with_hints(
         self,
         content: str | Text,
         hint_state: HeaderHintState,
@@ -288,7 +288,7 @@ class AgentFamilyDisplayMixin:
         raw_xprompt: str | None = None,
         semantic_context: AgentPromptHighlightContext | None = None,
     ) -> Text:
-        """Return one visible family content fragment with numbered paths."""
+        """Return one visible agent-session content fragment with numbered paths."""
         include_xprompt = xprompt_agent is not None and raw_xprompt is not None
         text = container_text_with_file_hints(
             content,
@@ -322,7 +322,7 @@ class AgentFamilyDisplayMixin:
         return text
 
     @staticmethod
-    def _family_member_hint_workspace(agent: Agent, content: str) -> str | None:
+    def _agent_session_member_hint_workspace(agent: Agent, content: str) -> str | None:
         """Resolve a phase workspace only when its visible text has a path."""
         if not has_file_path(content):
             return None
@@ -342,10 +342,12 @@ class AgentFamilyDisplayMixin:
 
         def annotate(content: str | Text) -> Text:
             text = content if isinstance(content, Text) else Text(content)
-            return self._family_text_with_hints(
+            return self._agent_session_text_with_hints(
                 text,
                 hint_state,
-                workspace_dir=self._family_member_hint_workspace(phase, text.plain),
+                workspace_dir=self._agent_session_member_hint_workspace(
+                    phase, text.plain
+                ),
                 budget=budget,
             )
 
@@ -361,23 +363,25 @@ class AgentFamilyDisplayMixin:
 
         def annotate(content: str | Text) -> Text:
             text = content if isinstance(content, Text) else Text(content)
-            return self._family_text_with_hints(
+            return self._agent_session_text_with_hints(
                 text,
                 hint_state,
-                workspace_dir=self._family_member_hint_workspace(phase, text.plain),
+                workspace_dir=self._agent_session_member_hint_workspace(
+                    phase, text.plain
+                ),
                 budget=budget,
             )
 
         return annotate
 
-    def _family_reply_renderables_with_hints(
+    def _agent_session_reply_renderables_with_hints(
         self,
         agent: Agent,
         hint_state: HeaderHintState,
         *,
         budget: HintContentBudget | None,
     ) -> list[object]:
-        """Render one fully-open family phase reply with phase-local hints."""
+        """Render one fully-open agent-session phase reply with phase-local hints."""
         renderables: list[object] = []
         chunks = agent.get_timestamped_reply_chunks()
         if chunks:
@@ -390,7 +394,7 @@ class AgentFamilyDisplayMixin:
                 )
                 for timestamp, chunk_text in chunks
             ]
-            workspace_dir = self._family_member_hint_workspace(
+            workspace_dir = self._agent_session_member_hint_workspace(
                 agent,
                 "\n".join(content for _timestamp, content in visible_chunks),
             )
@@ -398,7 +402,7 @@ class AgentFamilyDisplayMixin:
                 renderables.append(render_timestamp_divider(timestamp))
                 if content:
                     renderables.append(
-                        self._family_text_with_hints(
+                        self._agent_session_text_with_hints(
                             content,
                             hint_state,
                             workspace_dir=workspace_dir,
@@ -415,10 +419,10 @@ class AgentFamilyDisplayMixin:
         if reply_content:
             reply_content = self._humanize_display_text(reply_content)
             renderables.append(
-                self._family_text_with_hints(
+                self._agent_session_text_with_hints(
                     reply_content,
                     hint_state,
-                    workspace_dir=self._family_member_hint_workspace(
+                    workspace_dir=self._agent_session_member_hint_workspace(
                         agent,
                         reply_content,
                     ),

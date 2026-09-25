@@ -7,7 +7,7 @@ from sase.ace.tui.models.agent import Agent
 from ._member_jump_navigation_helpers import (
     JumpHarness,
     make_agent,
-    make_family,
+    make_agent_session,
     make_jump_map,
     make_large_family,
     select_member,
@@ -15,7 +15,7 @@ from ._member_jump_navigation_helpers import (
 
 
 def test_selected_agent_session_member_digit_jumps_to_sibling() -> None:
-    complete, root, child = make_family(in_clan=False)
+    complete, root, child = make_agent_session(in_clan=False)
     app = JumpHarness(complete, root)
     select_member(app, root, child)
     app._member_jump_maps[child.identity] = make_jump_map(child, [root])
@@ -27,7 +27,7 @@ def test_selected_agent_session_member_digit_jumps_to_sibling() -> None:
 
 
 def test_agent_session_member_jump_to_self_is_rejected_as_stale() -> None:
-    complete, root, child = make_family(in_clan=False)
+    complete, root, child = make_agent_session(in_clan=False)
     app = JumpHarness(complete, root)
     select_member(app, root, child)
     app._member_jump_maps[child.identity] = make_jump_map(child, [child])
@@ -41,7 +41,7 @@ def test_agent_session_member_jump_to_self_is_rejected_as_stale() -> None:
 def test_agent_session_member_jump_target_no_longer_in_family_cancels_as_stale() -> (
     None
 ):
-    complete, root, child = make_family(in_clan=False)
+    complete, root, child = make_agent_session(in_clan=False)
     stranger = make_agent("stranger")
     complete.append(stranger)
     app = JumpHarness(complete, root)
@@ -77,7 +77,7 @@ def test_two_digit_agent_session_member_buffers_against_own_container_identity()
 def _family_with_nested_monitor() -> tuple[list[Agent], Agent, Agent, Agent]:
     from sase.ace.tui.models._agent_tree import project_clan_tree
 
-    complete, root, child = make_family(in_clan=False)
+    complete, root, child = make_agent_session(in_clan=False)
     monitor = make_agent("alpha--mon", session="alpha", role="monitor")
     monitor.monitor_id = "m-jump"
     monitor.monitor_state = "completed"
@@ -130,7 +130,7 @@ def test_selected_family_shell_digit_jumps_to_nested_monitor_sibling() -> None:
 
 
 def test_family_missing_digit_uses_shell_language() -> None:
-    complete, root, child = make_family(in_clan=False)
+    complete, root, child = make_agent_session(in_clan=False)
     app = JumpHarness(complete, root)
     app._member_jump_maps[root.identity] = make_jump_map(root, [root, child])
 

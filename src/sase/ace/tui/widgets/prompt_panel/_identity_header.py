@@ -17,7 +17,7 @@ from .._agent_list_styling import (
     _PROC_SHELL_ROW_STYLE,
     _STEP_TYPE_COLORS,
 )
-from ._agent_display_family import FAMILY_IDENTITY_COLOR
+from ._agent_display_agent_session import SESSION_IDENTITY_COLOR
 from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 from ._helpers import append_major_section_divider, append_section_heading
 
@@ -90,7 +90,7 @@ class IdentityHeader:
 def identity_kind_for_agent(agent: Agent) -> tuple[str, str]:
     """Return the panel kind label and accent color for ``agent``."""
     if agent.is_agent_session_container_row:
-        return ("FAMILY", FAMILY_IDENTITY_COLOR)
+        return ("SESSION", SESSION_IDENTITY_COLOR)
     if agent.is_proc_shell:
         return ("PROC SHELL", _PROC_SHELL_ROW_STYLE)
     if agent.is_agent_entry:

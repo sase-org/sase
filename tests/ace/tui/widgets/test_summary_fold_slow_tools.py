@@ -24,7 +24,7 @@ from sase.ace.tui.widgets.prompt_panel._fold_language import FOLD_CHARS
 from tests.ace.tui.widgets._summary_fold_contract_helpers import (
     NOW,
     heading_line,
-    make_family,
+    make_agent_session,
 )
 
 
@@ -98,7 +98,7 @@ def _single_slow_tool_lane_case() -> _SlowToolFoldContractCase:
 
 
 def _family_slow_tool_lane_case(tmp_path: Path) -> _SlowToolFoldContractCase:
-    lane = make_family(
+    lane = make_agent_session(
         tmp_path,
         suffix="slow-family",
         with_prompt_content=False,

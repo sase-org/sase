@@ -280,7 +280,7 @@ def build_monitor_output(
     heading: bool = True,
     annotate: MonitorTextAnnotator | None = None,
 ) -> list[object]:
-    """Return the captured-output block for a monitor row or family phase."""
+    """Return the captured-output block for a monitor row or agent_session phase."""
     output = agent.get_live_reply_content()
     if heading:
         header = Text()
@@ -323,7 +323,7 @@ def build_monitor_phase(
     *,
     annotate: MonitorTextAnnotator | None = None,
 ) -> list[object]:
-    """Return the family-facing MONITOR phase: divider, fields, and log."""
+    """Return the agent_session-facing MONITOR phase: divider, fields, and log."""
     parts: list[object] = [
         render_phase_divider(
             get_phase_label(agent),

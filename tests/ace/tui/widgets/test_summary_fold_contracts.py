@@ -46,7 +46,7 @@ from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpMap
 from tests.ace.tui.widgets._summary_fold_contract_helpers import (
     NOW,
     RenderedSummary,
-    make_family,
+    make_agent_session,
     render_family,
     section_body,
     single_jump_map,
@@ -177,12 +177,12 @@ def _render_tribe(
 
 
 def _family_case(tmp_path: Path) -> _FoldContractCase:
-    populated_agent = make_family(
+    populated_agent = make_agent_session(
         tmp_path,
         suffix="family-populated",
         with_prompt_content=True,
     )
-    empty_agent = make_family(
+    empty_agent = make_agent_session(
         tmp_path,
         suffix="family-empty",
         with_prompt_content=False,
@@ -200,8 +200,8 @@ def _family_case(tmp_path: Path) -> _FoldContractCase:
             for level in AGENT_SESSION_FOLD_SCALE
         },
         unloaded=populated,
-        roster_title="FAMILY SHELLS",
-        content_section="FAMILY SHELLS",
+        roster_title="SESSION SHELLS",
+        content_section="SESSION SHELLS",
         empty_sections=(
             "AGENT XPROMPT",
             "AGENT PROMPT",

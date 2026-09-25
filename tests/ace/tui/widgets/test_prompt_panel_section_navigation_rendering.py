@@ -30,7 +30,9 @@ from sase.ace.tui.widgets.prompt_panel._workflow_render import (
     build_workflow_detail_renderable,
 )
 from sase.ace.tui.widgets.prompt_panel._workflow_types import WorkflowDetailSnapshot
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
     make_artifact_agent,
@@ -153,7 +155,7 @@ def _marked_spans(renderable: object) -> list[tuple[str, bool, str]]:
 def test_only_title_anchors_carry_nonempty_all_caps_underlined_text(
     tmp_path: Path,
 ) -> None:
-    family, _child = make_family(tmp_path)
+    family, _child = make_agent_session(tmp_path)
     family_header, _ = build_header_text(
         family, cheap=True, lane_fold_level=FoldLevel.EXPANDED
     )
@@ -251,7 +253,7 @@ def test_only_title_anchors_carry_nonempty_all_caps_underlined_text(
 def test_family_conversation_headings_remain_navigation_targets(
     tmp_path: Path,
 ) -> None:
-    family, _child = make_family(tmp_path)
+    family, _child = make_agent_session(tmp_path)
     header, error = build_header_text(
         family,
         cheap=True,
@@ -279,7 +281,7 @@ def test_family_conversation_headings_remain_navigation_targets(
 
 
 def test_family_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
-    family, _child = make_family(tmp_path)
+    family, _child = make_agent_session(tmp_path)
     header, _ = build_header_text(
         family,
         cheap=True,
@@ -295,7 +297,7 @@ def test_family_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
 
 
 def test_agent_shell_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
-    _root, child = make_family(tmp_path)
+    _root, child = make_agent_session(tmp_path)
     header, _ = build_header_text(child, cheap=True, lane_fold_level=FoldLevel.EXPANDED)
 
     identities = rendered_section_ids(header, width=80)

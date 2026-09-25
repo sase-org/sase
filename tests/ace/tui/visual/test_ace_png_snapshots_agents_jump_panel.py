@@ -101,7 +101,7 @@ async def test_jump_panel_collapsed_single_section_png_snapshot(
         detail = await _open_agents_on_jump_roster(page)
         panel = detail.query_one("#agent-jump-panel", AgentJumpPanel)
         assert not panel.is_expanded
-        assert_page_svg_contains(page, "FAMILY SHELLS")
+        assert_page_svg_contains(page, "SESSION SHELLS")
         assert_page_svg_contains(page, "more")
 
         ace_png_visual.assert_page_png(
@@ -174,7 +174,7 @@ async def test_jump_panel_expanded_two_sections_png_snapshot(
 
         expanded_text = renderable_to_text(panel._member_roster)  # noqa: SLF001
         assert expanded_text is not None
-        assert "❖ FAMILY SHELLS" in expanded_text
+        assert "❖ SESSION SHELLS" in expanded_text
         assert "❖ NEIGHBORS" in expanded_text
 
         ace_png_visual.assert_page_png(
@@ -287,7 +287,7 @@ async def test_jump_panel_llm_calls_layout_png_snapshot(
         page.app._refresh_agent_footer_bindings_only()
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "JUMP")
-        assert_page_svg_contains(page, "FAMILY SHELLS")
+        assert_page_svg_contains(page, "SESSION SHELLS")
         panel = detail.deck_area.panel(0).tools_view
         assert panel._last_entries
 

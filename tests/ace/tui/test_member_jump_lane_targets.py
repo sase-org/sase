@@ -5,7 +5,7 @@ from __future__ import annotations
 from ._member_jump_navigation_helpers import (
     JumpHarness,
     make_agent,
-    make_family,
+    make_agent_session,
     make_role_jump_map,
 )
 
@@ -27,7 +27,7 @@ def test_single_sase_agent_digit_jumps_to_numbered_neighbor() -> None:
 
 
 def test_family_lane_digit_ladder_addresses_members_then_neighbors() -> None:
-    complete, root, child = make_family(in_clan=False)
+    complete, root, child = make_agent_session(in_clan=False)
     neighbor = make_agent("alpha.peer")
     complete.append(neighbor)
     app = JumpHarness(complete, root)

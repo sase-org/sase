@@ -84,7 +84,7 @@ def append_agent_memory_reads_section(
     show_empty: bool = False,
     hint_state: HeaderHintState | None = None,
 ) -> None:
-    """Append a MEMORY sub-section listing the family's audited reads."""
+    """Append a MEMORY sub-section listing the agent_session's audited reads."""
     if not events:
         if show_empty:
             append_context_lane_header(

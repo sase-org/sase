@@ -23,7 +23,9 @@ from sase.ace.tui.widgets.prompt_panel._workflow_render import (
     build_workflow_detail_renderable,
 )
 from sase.ace.tui.widgets.prompt_panel._workflow_types import WorkflowDetailSnapshot
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
     make_agent,
@@ -254,7 +256,7 @@ def test_family_pinned_and_workflow_authored_prompt_paths(
     repo = dynamic_catalog_for_identifier(tmp_path, "sase-core")
     install_panel_semantics(panel, glossary=glossary, repo=repo)
 
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     Path(root.artifacts_dir, "raw_xprompt.md").write_text(
         "#git:sase Ask Agent Clan\n",
         encoding="utf-8",

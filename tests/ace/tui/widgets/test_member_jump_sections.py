@@ -40,7 +40,9 @@ from sase.ace.tui.widgets.prompt_panel._member_roster import (
     merged_member_jump_map,
 )
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
 from tests.ace.tui.widgets._prompt_panel_section_navigation_helpers import (
@@ -160,7 +162,7 @@ def test_merged_map_concatenates_sections_in_order() -> None:
         family_text,
         container_identity=identity,
         entries=tuple(_entry(index, label=f"--plan-{index}") for index in range(2)),
-        title="FAMILY SHELLS",
+        title="SESSION SHELLS",
         accent="#00AFFF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=MemberJumpNumbering(total=5),
@@ -178,12 +180,12 @@ def test_merged_map_concatenates_sections_in_order() -> None:
     # Exhaust the shared ladder manually: family took 0-1, neighbors continue.
     assert [t.number for t in family_map.targets] == ["0", "1"]
     merged = merged_member_jump_map(identity, family_map, neighbors_map)
-    assert [s.title for s in merged.sections] == ["FAMILY SHELLS", "NEIGHBORS"]
+    assert [s.title for s in merged.sections] == ["SESSION SHELLS", "NEIGHBORS"]
     assert sum(s.numbered_count for s in merged.sections) == len(merged.targets)
 
 
 def test_family_container_map_has_labels_and_sections(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     published: list[MemberJumpMap] = []
     _header, _ = build_header_text(
         root,
@@ -196,7 +198,7 @@ def test_family_container_map_has_labels_and_sections(tmp_path: Path) -> None:
     assert jump_map.targets
     assert all(target.label for target in jump_map.targets)
     assert all(target.status_bucket for target in jump_map.targets)
-    assert [s.title for s in jump_map.sections] == ["FAMILY SHELLS"]
+    assert [s.title for s in jump_map.sections] == ["SESSION SHELLS"]
     assert sum(s.numbered_count for s in jump_map.sections) == len(jump_map.targets)
 
 
@@ -301,7 +303,7 @@ def test_tribe_full_map_sections() -> None:
 def test_detached_header_attaches_same_object_it_publishes(
     tmp_path: Path,
 ) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     published: list[MemberJumpMap] = []
     document, _ = build_header_text(
         root,
@@ -317,7 +319,7 @@ def test_detached_header_attaches_same_object_it_publishes(
 
 
 def test_detached_header_attaches_without_publisher(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     document, _ = build_header_text(
         root,
         cheap=True,
@@ -355,7 +357,7 @@ def test_detached_clan_attaches_same_object_it_publishes() -> None:
 def test_no_map_for_hint_documents_clan_without_members_or_plain_nodes(
     tmp_path: Path,
 ) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     state = HeaderHintState(1, {}, None, {})
     hint_document, _ = build_header_text(
         root,
@@ -376,7 +378,7 @@ def test_no_map_for_hint_documents_clan_without_members_or_plain_nodes(
 
 
 def test_non_detached_documents_carry_no_map(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     plain, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.COLLAPSED)
     assert find_member_jump_map(plain) is None
     snapshot = make_tribe_snapshot()
@@ -385,7 +387,7 @@ def test_non_detached_documents_carry_no_map(tmp_path: Path) -> None:
 
 def _assert_no_roster_in_body(body_plain: str) -> None:
     for token in (
-        "❖ FAMILY SHELLS",
+        "❖ SESSION SHELLS",
         "❖ NEIGHBORS",
         "❖ CLAN MEMBERS",
         "❖ TRIBE MEMBERS",
@@ -410,7 +412,7 @@ def test_detached_roster_text_trims_blank_lines() -> None:
 def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     from sase.ace.tui.models._agent_tree import project_clan_tree
 
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
     # Family container.
     container_doc, _ = build_header_text(
         root,
@@ -422,7 +424,7 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     _assert_no_roster_in_body(container_doc.plain)
     container_roster = find_member_roster(container_doc)
     assert container_roster is not None
-    assert "❖ FAMILY SHELLS" in container_roster.plain
+    assert "❖ SESSION SHELLS" in container_roster.plain
     assert not container_roster.plain.startswith("\n")
     assert not container_roster.plain.endswith("\n")
 
@@ -437,7 +439,7 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     _assert_no_roster_in_body(shell_doc.plain)
     shell_roster = find_member_roster(shell_doc)
     assert shell_roster is not None
-    assert "❖ FAMILY SHELLS" in shell_roster.plain
+    assert "❖ SESSION SHELLS" in shell_roster.plain
 
     # Agent with neighbors, including dismissed and suppressed-sibling tail.
     lane = make_agent(agent_name="lane")
@@ -464,7 +466,7 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     assert neighbor_roster is not None
     assert "❖ NEIGHBORS" in neighbor_roster.plain
     assert "⊘" in neighbor_roster.plain
-    assert "also listed under FAMILY SHELLS" in neighbor_roster.plain
+    assert "also listed under SESSION SHELLS" in neighbor_roster.plain
 
     collapsed_doc, _ = build_header_text(
         lane,
@@ -514,7 +516,7 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
 def test_detached_roster_matches_inline_document(tmp_path: Path) -> None:
     from sase.ace.tui.models._agent_tree import project_clan_tree
 
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     inline, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.COLLAPSED)
     detached, _ = build_header_text(
         root,
@@ -547,7 +549,7 @@ def test_detached_roster_matches_inline_document(tmp_path: Path) -> None:
 
 
 def test_hint_mode_carries_no_map_or_roster(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     state = HeaderHintState(1, {}, None, {})
     hint_document, _ = build_header_text(
         root,

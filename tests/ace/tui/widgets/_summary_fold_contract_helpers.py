@@ -28,7 +28,7 @@ def single_jump_map(published: list[MemberJumpMap]) -> MemberJumpMap:
     return published[0]
 
 
-def make_family(
+def make_agent_session(
     tmp_path: Path,
     *,
     suffix: str,

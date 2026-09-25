@@ -11,12 +11,12 @@ from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
-    family_roster_entries,
+from sase.ace.tui.widgets.prompt_panel._agent_display_agent_session import (
+    agent_session_roster_entries,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
-from tests.ace.tui.widgets._agent_display_family_helpers import (
-    make_family,
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
     write_phase_content,
 )
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
@@ -24,13 +24,13 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_kind_he
 
 
 @pytest.mark.parametrize("in_clan", [False, True])
-def test_family_roster_numbers_real_chain_rows_in_order(
+def test_agent_session_roster_numbers_real_chain_rows_in_order(
     tmp_path: Path,
     in_clan: bool,
 ) -> None:
-    root, child = make_family(tmp_path, in_clan=in_clan)
+    root, child = make_agent_session(tmp_path, in_clan=in_clan)
 
-    entries = family_roster_entries(root, now=root.stop_time)
+    entries = agent_session_roster_entries(root, now=root.stop_time)
     published = []
     header, _ = build_header_text(
         root,
@@ -42,19 +42,19 @@ def test_family_roster_numbers_real_chain_rows_in_order(
     assert [entry.identity for entry in entries] == [root.identity, child.identity]
     assert [entry.label for entry in entries] == ["--plan", "--code"]
     assert [entry.kind for entry in entries] == ["AGENT (plan)", "AGENT (code)"]
-    assert_kind_header(header, "FAMILY", "#00AFFF", before="FAMILY SHELLS")
-    assert header.plain.startswith("FAMILY\nName:")
+    assert_kind_header(header, "SESSION", "#00AFFF", before="SESSION SHELLS")
+    assert header.plain.startswith("SESSION\nName:")
     assert header.plain.index("Name:") < header.plain.index("Fold: 1/2\n")
-    assert header.plain.index("Fold: 1/2\n") < header.plain.index("FAMILY SHELLS")
-    assert "▾ ❖ FAMILY SHELLS · 2\n" in header.plain
-    assert header.plain.index("FAMILY SHELLS") < header.plain.index("OUTPUT VARIABLES")
+    assert header.plain.index("Fold: 1/2\n") < header.plain.index("SESSION SHELLS")
+    assert "▾ ❖ SESSION SHELLS · 2\n" in header.plain
+    assert header.plain.index("SESSION SHELLS") < header.plain.index("OUTPUT VARIABLES")
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         child.identity,
     ]
 
 
-def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
+def test_loaded_plan_agent_session_roster_uses_concrete_member_state_and_content(
     tmp_path: Path,
 ) -> None:
     started = datetime(2026, 7, 19, 9, 0, 0)
@@ -138,7 +138,7 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
     _apply_status_overrides([root, coder], [planner])
     ordered = sort_and_reorder([root, coder], [planner])
     now = started + timedelta(minutes=5)
-    entries = family_roster_entries(root, now=now)
+    entries = agent_session_roster_entries(root, now=now)
     published = []
     header, error = build_header_text(
         root,
@@ -186,7 +186,7 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
     assert "▶ WORKING TALE" in header.plain
 
     panel = FakePromptPanel()
-    panel._update_family_display(
+    panel._update_agent_session_display(
         root,
         header,
         error,
@@ -199,8 +199,10 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
     assert "aggregate reply line 1" not in plain
 
 
-def test_family_header_maps_shared_shallow_levels_to_preview(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+def test_agent_session_header_maps_shared_shallow_levels_to_preview(
+    tmp_path: Path,
+) -> None:
+    root, _child = make_agent_session(tmp_path)
 
     collapsed, _ = build_header_text(
         root,

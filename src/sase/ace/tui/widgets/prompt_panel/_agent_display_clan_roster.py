@@ -36,8 +36,8 @@ def ordered_clan_members(agent: Agent) -> tuple[Agent, ...]:
     )
 
 
-def family_children(member: Agent) -> tuple[Agent, ...]:
-    """Return sequential family members nested below a direct clan member."""
+def agent_session_children(member: Agent) -> tuple[Agent, ...]:
+    """Return sequential agent_session members nested below a direct clan member."""
     return tuple(
         child
         for child in member.runtime_children
@@ -45,17 +45,18 @@ def family_children(member: Agent) -> tuple[Agent, ...]:
     )
 
 
-def family_rows(member: Agent, children: tuple[Agent, ...]) -> tuple[Agent, ...]:
-    """Return real agent rows represented by one family aggregate line.
+def agent_session_rows(member: Agent, children: tuple[Agent, ...]) -> tuple[Agent, ...]:
+    """Return real agent rows represented by one agent_session aggregate line.
 
-    Rename-on-attach gives the first real family member a ``--role`` name and
+    Rename-on-attach gives the first real agent_session member a ``--role`` name and
     retains it as the row that owns later ``parent_timestamp`` children. A
-    legacy/root-shaped row whose name is exactly the family container is not
+    legacy/root-shaped row whose name is exactly the agent_session container is not
     repeated as a child line.
     """
-    family_name = member.agent_session
+    agent_session_name = member.agent_session
     include_member = bool(
-        member.agent_name and (not family_name or member.agent_name != family_name)
+        member.agent_name
+        and (not agent_session_name or member.agent_name != agent_session_name)
     )
     if include_member:
         return (member, *children)
@@ -75,28 +76,28 @@ def _hood_suffix(agent: Agent, clan_name: str) -> str:
     return name
 
 
-def _family_suffix(member: Agent, clan_name: str) -> str:
-    family_name = _presented_family_name(member)
+def _agent_session_suffix(member: Agent, clan_name: str) -> str:
+    agent_session_name = _presented_agent_session_name(member)
     prefix = f"{clan_name}."
-    if family_name.startswith(prefix):
-        return family_name[len(clan_name) :]
-    return family_name
+    if agent_session_name.startswith(prefix):
+        return agent_session_name[len(clan_name) :]
+    return agent_session_name
 
 
-def _nested_family_suffix(
+def _nested_agent_session_suffix(
     member: Agent,
-    family: Agent,
+    agent_session: Agent,
     clan_name: str,
 ) -> str:
     name = _row_name(member)
-    family_name = _presented_family_name(family)
-    if name.startswith(family_name) and len(name) > len(family_name):
-        return name[len(family_name) :]
+    agent_session_name = _presented_agent_session_name(agent_session)
+    if name.startswith(agent_session_name) and len(name) > len(agent_session_name):
+        return name[len(agent_session_name) :]
     return _hood_suffix(member, clan_name)
 
 
-def _presented_family_name(agent: Agent) -> str:
-    """Derive a family container from raw relations and presented identity."""
+def _presented_agent_session_name(agent: Agent) -> str:
+    """Derive a agent_session container from raw relations and presented identity."""
     return agent.presented_agent_session_reference_name() or _row_name(agent)
 
 
@@ -144,15 +145,15 @@ def duration_label(member: Agent, *, now: datetime | None) -> str:
     return elapsed or "—"
 
 
-def _family_duration_label(
-    family: Agent,
+def _agent_session_duration_label(
+    agent_session: Agent,
     rows: tuple[Agent, ...],
     *,
     now: datetime | None,
 ) -> str:
     if not rows:
-        return duration_label(family, now=now)
-    aggregate = copy(family)
+        return duration_label(agent_session, now=now)
+    aggregate = copy(agent_session)
     aggregate.runtime_children = [_leaf_for_runtime(row) for row in rows]
     return duration_label(aggregate, now=now)
 
@@ -169,7 +170,7 @@ def clan_roster_entries(
     digest_by_identity = {digest.identity: digest for digest in digests}
     entries: list[MemberRosterEntry] = []
     for member in members:
-        children = family_children(member)
+        children = agent_session_children(member)
         if not children:
             entries.append(
                 MemberRosterEntry(
@@ -186,31 +187,37 @@ def clan_roster_entries(
             )
             continue
 
-        rows = family_rows(member, children)
-        family_buckets = agent_session_member_status_buckets(rows)
-        family_status_entries = tuple(
+        rows = agent_session_rows(member, children)
+        agent_session_buckets = agent_session_member_status_buckets(rows)
+        agent_session_status_entries = tuple(
             (row.status, bucket)
-            for row, bucket in zip(rows, family_buckets, strict=True)
+            for row, bucket in zip(rows, agent_session_buckets, strict=True)
         )
-        family_status = (
-            aggregate_agent_group_effective_status(family_status_entries)
+        agent_session_status = (
+            aggregate_agent_group_effective_status(agent_session_status_entries)
             or member.display_status
         )
-        family_bucket = aggregate_agent_group_bucket(family_status_entries)
+        agent_session_bucket = aggregate_agent_group_bucket(
+            agent_session_status_entries
+        )
         roster_children = tuple(
             MemberRosterChild(
-                label=_nested_family_suffix(family_member, member, clan_name),
-                kind=_member_kind(family_member),
-                status=family_member.display_status,
+                label=_nested_agent_session_suffix(
+                    agent_session_member, member, clan_name
+                ),
+                kind=_member_kind(agent_session_member),
+                status=agent_session_member.display_status,
                 effective_bucket=bucket,
-                model=family_member.model or "default",
+                model=agent_session_member.model or "default",
                 duration=duration_label(
-                    _leaf_for_runtime(family_member),
+                    _leaf_for_runtime(agent_session_member),
                     now=now,
                 ),
-                digest=digest_by_identity.get(family_member.identity),
+                digest=digest_by_identity.get(agent_session_member.identity),
             )
-            for family_member, bucket in zip(rows, family_buckets, strict=True)
+            for agent_session_member, bucket in zip(
+                rows, agent_session_buckets, strict=True
+            )
         )
         entries.append(
             MemberRosterEntry(
@@ -220,12 +227,12 @@ def clan_roster_entries(
                     or member.agent_session
                     or _row_name(member)
                 ),
-                label=_family_suffix(member, clan_name),
-                kind="family",
-                status=family_status,
-                effective_bucket=family_bucket,
+                label=_agent_session_suffix(member, clan_name),
+                kind="session",
+                status=agent_session_status,
+                effective_bucket=agent_session_bucket,
                 model=_model_label(rows or (member,)),
-                duration=_family_duration_label(member, rows, now=now),
+                duration=_agent_session_duration_label(member, rows, now=now),
                 digest=digest_by_identity.get(member.identity),
                 children=roster_children,
             )

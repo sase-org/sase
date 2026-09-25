@@ -47,7 +47,7 @@ def append_clan_identity_fields(
     *,
     counts: ClanStatusCounts,
     agent_count: int,
-    family_count: int,
+    agent_session_count: int,
     fold_level: FoldLevel,
     now: datetime | None = None,
 ) -> None:
@@ -97,7 +97,7 @@ def append_clan_identity_fields(
 
     text.append("Members: ", style=CLAN_FIELD_LABEL_STYLE)
     text.append(
-        " · ".join(_member_summary_parts(agent_count, family_count)) + "\n",
+        " · ".join(_member_summary_parts(agent_count, agent_session_count)) + "\n",
         style="#D7D7FF",
     )
 
@@ -109,7 +109,7 @@ def build_clan_compact_lines(
     agent: Agent,
     counts: ClanStatusCounts,
     agent_count: int,
-    family_count: int,
+    agent_session_count: int,
     fold_level: FoldLevel,
     now: datetime | None = None,
 ) -> Text:
@@ -157,7 +157,7 @@ def build_clan_compact_lines(
             second.append(f" +{overflow}", style="dim")
         second.append(" · ", style=CHIP_SEPARATOR_STYLE)
     second.append(
-        " · ".join(_member_summary_parts(agent_count, family_count)),
+        " · ".join(_member_summary_parts(agent_count, agent_session_count)),
         style="",
     )
     second.append(" · ", style=CHIP_SEPARATOR_STYLE)
@@ -170,11 +170,13 @@ def build_clan_compact_lines(
     )
 
 
-def _member_summary_parts(agent_count: int, family_count: int) -> list[str]:
-    """Return the shared agent/family wording used by both identity forms."""
+def _member_summary_parts(agent_count: int, agent_session_count: int) -> list[str]:
+    """Return the shared agent/agent_session wording used by both identity forms."""
     parts = [f"{agent_count} agent{'s' if agent_count != 1 else ''}"]
-    if family_count:
-        parts.append(f"{family_count} famil{'ies' if family_count != 1 else 'y'}")
+    if agent_session_count:
+        parts.append(
+            f"{agent_session_count} session{'s' if agent_session_count != 1 else ''}"
+        )
     return parts
 
 

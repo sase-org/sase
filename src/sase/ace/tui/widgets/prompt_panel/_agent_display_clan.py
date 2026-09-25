@@ -25,8 +25,8 @@ from ._agent_display_clan_identity import (
 )
 from ._agent_display_clan_roster import (
     clan_roster_entries,
-    family_children,
-    family_rows,
+    agent_session_children,
+    agent_session_rows,
     ordered_clan_members,
 )
 from ._agent_clan_summary_text import clan_summary_text
@@ -142,16 +142,18 @@ def build_clan_detail_text(
         else None
     )
     members = ordered_clan_members(agent)
-    family_members = tuple(member for member in members if family_children(member))
+    agent_session_members = tuple(
+        member for member in members if agent_session_children(member)
+    )
     agent_count = sum(
-        max(1, len(family_rows(member, family_children(member))))
-        if family_children(member)
+        max(1, len(agent_session_rows(member, agent_session_children(member))))
+        if agent_session_children(member)
         else 1
         for member in members
     )
 
     counts = clan_member_counts(agent, unread_ids)
-    family_count = len(family_members)
+    agent_session_count = len(agent_session_members)
     hint_counter_before = hint_state.hint_counter if hint_state is not None else None
     hint_counter_after_identity: int | None = None
 
@@ -162,7 +164,7 @@ def build_clan_detail_text(
             agent,
             counts=counts,
             agent_count=agent_count,
-            family_count=family_count,
+            agent_session_count=agent_session_count,
             fold_level=fold_level,
             now=now,
         )
@@ -178,7 +180,7 @@ def build_clan_detail_text(
             agent,
             counts=counts,
             agent_count=agent_count,
-            family_count=family_count,
+            agent_session_count=agent_session_count,
             fold_level=fold_level,
             now=now,
         )
@@ -363,7 +365,7 @@ def build_clan_detail_text(
                     agent=agent,
                     counts=counts,
                     agent_count=agent_count,
-                    family_count=family_count,
+                    agent_session_count=agent_session_count,
                     fold_level=fold_level,
                     now=now,
                 ),

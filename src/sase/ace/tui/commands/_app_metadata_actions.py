@@ -160,14 +160,14 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "hooks_or_collapse_all",
-        "Collapse selected workflow/family, then group sase agents, selected "
+        "Collapse selected workflow/session, then group sase agents, selected "
         "clan, remaining clans/groups; panel sase agents/clans/groups/panel / "
         "compact LLM Calls detail / collapse all folds on other tabs",
         "Folding",
         ALL_TABS,
         (
             "collapse workflow",
-            "collapse family",
+            "collapse session",
             "collapse sase agents",
             "collapse clan",
             "collapse selected clan",

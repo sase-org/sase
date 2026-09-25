@@ -158,7 +158,7 @@ class AgentHintRenderMixin:
         hint_counter = header_hint_state.hint_counter
 
         if agent.is_agent_session_container_row:
-            self._update_family_display(  # type: ignore[attr-defined]
+            self._update_agent_session_display(  # type: ignore[attr-defined]
                 agent,
                 header_text,
                 error_tb_syntax,

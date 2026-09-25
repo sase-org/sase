@@ -4597,7 +4597,7 @@
       "properties": {
         "shell": {
           "type": "object",
-          "description": "Settings for processless gate-shell family members",
+          "description": "Settings for processless gate-shell session members",
           "additionalProperties": false,
           "properties": {
             "reclaim_grace_seconds": {
@@ -4728,13 +4728,13 @@
     },
     "max_running_agents": {
       "type": "integer",
-      "description": "Host-wide runner-capacity budget. Normal launches claim 1.0 capacity unit; %queue(weight=...) / %q(w=...) may request positive fractional or larger weights. Serial families share one live claim, while independent clan members and parallel family members each hold their own claim.",
+      "description": "Host-wide runner-capacity budget. Normal launches claim 1.0 capacity unit; %queue(weight=...) / %q(w=...) may request positive fractional or larger weights. Serial sessions share one live claim, while independent clan members and parallel session members each hold their own claim.",
       "minimum": 1,
       "default": 10
     },
     "max_agent_pipe_chain": {
       "type": "integer",
-      "description": "Maximum number of sase pipe hops in one family chain. The original agent is depth 0; each successful pipe increments depth by one and is refused when the next link would exceed this bound.",
+      "description": "Maximum number of sase pipe hops in one session chain. The original agent is depth 0; each successful pipe increments depth by one and is refused when the next link would exceed this bound.",
       "minimum": 1,
       "default": 8
     },

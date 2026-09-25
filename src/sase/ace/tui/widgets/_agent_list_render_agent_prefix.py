@@ -272,7 +272,7 @@ def append_agent_row_prefix(
             name_style = "bold #00D7AF" if is_selected else "#00D7AF"
 
         # Bash/python workflow steps keep their step name as identity. Sase
-        # shells (family members, monitors, workflow agent steps) omit the
+        # shells (session members, monitors, workflow agent steps) omit the
         # left-side title; identity is the right-hand %id annotation.
         title = agent_tree_title(agent)
         if title:

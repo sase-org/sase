@@ -21,7 +21,9 @@ from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
 )
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
     make_agent,
@@ -53,7 +55,7 @@ def test_append_kind_header_does_not_mark_a_section() -> None:
 
 
 def test_family_container_header_opens_with_family_kind_line(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
 
     cheap, _ = build_header_text(
         root,
@@ -67,10 +69,10 @@ def test_family_container_header_opens_with_family_kind_line(tmp_path: Path) -> 
     )
 
     for header in (cheap, full):
-        assert_kind_header(header, "FAMILY", "#00AFFF", before="FAMILY SHELLS")
-        assert header.plain.startswith("FAMILY\nName:")
+        assert_kind_header(header, "SESSION", "#00AFFF", before="SESSION SHELLS")
+        assert header.plain.startswith("SESSION\nName:")
         assert header.plain.index("Name:") < header.plain.index("Fold:")
-        assert header.plain.index("Fold:") < header.plain.index("FAMILY SHELLS")
+        assert header.plain.index("Fold:") < header.plain.index("SESSION SHELLS")
         assert "family" not in _section_ids(header)
         assert _section_ids(header)[0] == "members"
 
@@ -78,7 +80,7 @@ def test_family_container_header_opens_with_family_kind_line(tmp_path: Path) -> 
 def test_family_member_header_opens_with_agent_shell(
     tmp_path: Path,
 ) -> None:
-    _root, child = make_family(tmp_path)
+    _root, child = make_agent_session(tmp_path)
 
     header, _ = build_header_text(
         child,
@@ -88,8 +90,8 @@ def test_family_member_header_opens_with_agent_shell(
 
     assert_kind_header(header, "AGENT SHELL", "#FFD700")
     assert header.plain.startswith("AGENT SHELL\nName:")
-    assert "FAMILY SHELLS · 1 · alpha" in header.plain
-    prefix, _, _ = header.plain.partition("FAMILY SHELLS")
+    assert "SESSION SHELLS · 1 · alpha" in header.plain
+    prefix, _, _ = header.plain.partition("SESSION SHELLS")
     assert "FAMILY\n" not in prefix
     assert "family" not in _section_ids(header)
     assert "agent-shell" not in _section_ids(header)
@@ -159,7 +161,7 @@ def test_monitor_member_has_no_kind_heading() -> None:
     header, _ = build_header_text(agent, cheap=True)
 
     assert not header.plain.startswith("AGENT SHELL")
-    assert not header.plain.startswith("FAMILY")
+    assert not header.plain.startswith("SESSION")
     assert header.plain.startswith("Name:")
 
 
@@ -179,7 +181,7 @@ def test_workflow_step_has_no_kind_heading(step_type: str) -> None:
     header, _ = build_header_text(agent, cheap=True)
 
     assert not header.plain.startswith("AGENT SHELL")
-    assert not header.plain.startswith("FAMILY")
+    assert not header.plain.startswith("SESSION")
     # Cheap headers keep a Step: line only for bash/python workflow children.
     if step_type in {"bash", "python"}:
         assert "Step: do\n" in header.plain

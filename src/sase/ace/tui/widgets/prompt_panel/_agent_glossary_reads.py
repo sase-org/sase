@@ -72,7 +72,7 @@ def append_agent_glossary_reads_section(
     show_empty: bool = False,
     hint_state: HeaderHintState | None = None,
 ) -> None:
-    """Append a GLOSSARY sub-section listing the family's audited reads."""
+    """Append a GLOSSARY sub-section listing the agent_session's audited reads."""
     if not events:
         if show_empty:
             append_context_lane_header(

@@ -15,7 +15,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_xprompt import (
 )
 from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
     make_agent,
@@ -120,7 +122,7 @@ def test_hinted_xprompt_moves_to_identity_and_keeps_its_markers(tmp_path: Path) 
 
 
 def test_family_xprompt_moves_to_identity_when_detached(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     panel = _DetachedPanel()
     header, error = build_header_text(root, detach_identity=True)
 

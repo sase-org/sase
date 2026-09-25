@@ -31,7 +31,7 @@ def append_agent_skills_section(
     events: tuple[SkillUseDisplayEvent, ...] = (),
     show_empty: bool = False,
 ) -> None:
-    """Append a SKILLS sub-section listing the family's audited skill uses."""
+    """Append a SKILLS sub-section listing the agent_session's audited skill uses."""
     if not events:
         if show_empty:
             append_context_lane_header(

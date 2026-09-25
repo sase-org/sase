@@ -15,7 +15,7 @@ from ._member_jump_navigation_helpers import (
     PendingKeyboardHarness,
     make_agent,
     make_clan,
-    make_family,
+    make_agent_session,
     make_jump_map,
 )
 
@@ -45,7 +45,7 @@ def test_single_digit_reveals_collapsed_clan_and_back_restores_container() -> No
 def test_agent_session_member_jump_reveals_standalone_and_nested_chains(
     in_clan: bool,
 ) -> None:
-    complete, root, child = make_family(in_clan=in_clan)
+    complete, root, child = make_agent_session(in_clan=in_clan)
     app = JumpHarness(complete, complete[0] if in_clan else root)
     if in_clan:
         clan_container = complete[0]

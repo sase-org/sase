@@ -1,4 +1,4 @@
-"""Restartable prompt-source coverage for historical family members."""
+"""Restartable prompt-source coverage for historical session members."""
 
 from __future__ import annotations
 

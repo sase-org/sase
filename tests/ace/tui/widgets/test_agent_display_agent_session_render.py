@@ -18,7 +18,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header import (
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
 )
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import FakePromptPanel, plain_of
 
 _CONVERSATION_SECTION_IDS = (
@@ -28,14 +30,14 @@ _CONVERSATION_SECTION_IDS = (
 )
 
 
-def _render_family(
+def _render_agent_session(
     tmp_path: Path,
     *,
     level: FoldLevel,
     overrides: dict[str, FoldLevel] | None = None,
 ) -> object:
     tmp_path.mkdir(parents=True, exist_ok=True)
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     overrides = overrides or {}
     panel = FakePromptPanel()
     header, error = build_header_text(
@@ -44,7 +46,7 @@ def _render_family(
         lane_fold_level=level,
         lane_section_fold_overrides=overrides,
     )
-    panel._update_family_display(
+    panel._update_agent_session_display(
         root,
         header,
         error,
@@ -100,12 +102,12 @@ def _section_ids(renderable: object) -> list[str]:
         ),
     ],
 )
-def test_family_conversation_sections_are_always_full(
+def test_agent_session_conversation_sections_are_always_full(
     tmp_path: Path,
     level: FoldLevel,
     overrides: dict[str, FoldLevel],
 ) -> None:
-    renderable = _render_family(
+    renderable = _render_agent_session(
         tmp_path,
         level=level,
         overrides=overrides,
@@ -133,13 +135,13 @@ def test_family_conversation_sections_are_always_full(
     ] == list(_CONVERSATION_SECTION_IDS)
 
 
-def test_family_conversation_document_is_identical_across_fold_state(
+def test_agent_session_conversation_document_is_identical_across_fold_state(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "cases"
     documents = [
         _conversation_document(
-            _render_family(
+            _render_agent_session(
                 root / str(index),
                 level=level,
                 overrides=overrides,
@@ -165,8 +167,8 @@ def test_family_conversation_document_is_identical_across_fold_state(
     assert documents == [documents[0]] * len(documents)
 
 
-def test_family_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+def test_agent_session_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -> None:
+    root, _child = make_agent_session(tmp_path)
     artifacts_dir = Path(root.artifacts_dir or "")
     (artifacts_dir / "raw_xprompt.md").unlink()
     (artifacts_dir / "01_prompt.md").unlink()
@@ -177,7 +179,7 @@ def test_family_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -> None:
         lane_fold_level=FoldLevel.COLLAPSED,
     )
 
-    panel._update_family_display(
+    panel._update_agent_session_display(
         root,
         header,
         error,
@@ -195,11 +197,11 @@ def test_family_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("level", [FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED])
-def test_family_keeps_pending_reply_state(
+def test_agent_session_keeps_pending_reply_state(
     tmp_path: Path,
     level: FoldLevel,
 ) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
     Path(root.response_path or "").unlink()
     Path(child.response_path or "").unlink()
     panel = FakePromptPanel()
@@ -209,7 +211,7 @@ def test_family_keeps_pending_reply_state(
         lane_fold_level=level,
     )
 
-    panel._update_family_display(
+    panel._update_agent_session_display(
         root,
         header,
         error,
@@ -223,7 +225,7 @@ def test_family_keeps_pending_reply_state(
 
 
 def test_root_monitor_phase_follows_planner_step_divider(tmp_path: Path) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
     planner = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="main",
@@ -275,7 +277,7 @@ def test_root_monitor_phase_follows_planner_step_divider(tmp_path: Path) -> None
         cheap=True,
         lane_fold_level=FoldLevel.EXPANDED,
     )
-    panel._update_family_display(
+    panel._update_agent_session_display(
         root,
         header,
         error,

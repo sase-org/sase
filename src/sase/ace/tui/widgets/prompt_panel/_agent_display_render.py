@@ -42,7 +42,7 @@ from ._agent_display_clan import (
     panel_fold_state_from_widget,
 )
 from ._agent_display_context import runner_capacity_for_app
-from ._agent_display_family_render import AgentFamilyDisplayMixin
+from ._agent_display_agent_session_render import AgentSessionDisplayMixin
 from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import (
     clear_detail_header_summary_cache,
@@ -76,7 +76,7 @@ _AgentPromptHighlightCacheKey = tuple[int, int, tuple[object, ...]]
 
 class AgentDisplayRenderMixin(
     AgentAttemptDisplayMixin,
-    AgentFamilyDisplayMixin,
+    AgentSessionDisplayMixin,
     AgentStepDisplayMixin,
 ):
     """Core agent render paths for AgentPromptPanel."""
@@ -370,7 +370,7 @@ class AgentDisplayRenderMixin(
         )
 
         if agent.is_agent_session_container_row:
-            self._update_family_display(
+            self._update_agent_session_display(
                 agent,
                 header_text,
                 error_tb_syntax,

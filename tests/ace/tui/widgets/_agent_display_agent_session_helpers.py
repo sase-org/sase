@@ -8,7 +8,7 @@ from pathlib import Path
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
-def make_family(
+def make_agent_session(
     tmp_path: Path,
     *,
     in_clan: bool = False,

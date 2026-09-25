@@ -1,4 +1,4 @@
-"""Tests for the FAMILY SHELLS roster on family-member detail panels."""
+"""Tests for the SESSION SHELLS roster on family-member detail panels."""
 
 from __future__ import annotations
 
@@ -9,18 +9,20 @@ from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets.prompt_panel._agent_display_family import (
-    family_roster_entries,
+from sase.ace.tui.widgets.prompt_panel._agent_display_agent_session import (
+    agent_session_roster_entries,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_kind_header
 
 
 def test_member_panel_lists_only_sibling_and_publishes_jump_map(
     tmp_path: Path,
 ) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
 
     published = []
     header, _ = build_header_text(
@@ -32,9 +34,9 @@ def test_member_panel_lists_only_sibling_and_publishes_jump_map(
 
     assert_kind_header(header, "AGENT SHELL", "#FFD700")
     assert header.plain.startswith("AGENT SHELL\nName:")
-    assert "FAMILY\n" not in header.plain.split("FAMILY SHELLS", 1)[0]
-    assert "▾ ❖ FAMILY SHELLS · 1 · alpha" in header.plain
-    entries = family_roster_entries(root, exclude=child)
+    assert "FAMILY\n" not in header.plain.split("SESSION SHELLS", 1)[0]
+    assert "▾ ❖ SESSION SHELLS · 1 · alpha" in header.plain
+    entries = agent_session_roster_entries(root, exclude=child)
     assert [entry.label for entry in entries] == ["--plan"]
     assert [entry.identity for entry in entries] == [root.identity]
 
@@ -45,7 +47,7 @@ def test_member_panel_lists_only_sibling_and_publishes_jump_map(
     assert all(target.member_identity != child.identity for target in jump_map.targets)
 
 
-def test_plan_workflow_family_member_panels_list_each_other() -> None:
+def test_plan_workflow_agent_session_member_panels_list_each_other() -> None:
     started = datetime(2026, 7, 19, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -121,20 +123,20 @@ def test_plan_workflow_family_member_panels_list_each_other() -> None:
         member_jump_map_publisher=coder_published.append,
     )
 
-    assert "FAMILY SHELLS" in planner_header.plain
+    assert "SESSION SHELLS" in planner_header.plain
     assert "--code" in planner_header.plain
     assert [target.member_identity for target in planner_published[0].targets] == [
         coder.identity
     ]
 
-    assert "FAMILY SHELLS" in coder_header.plain
+    assert "SESSION SHELLS" in coder_header.plain
     assert "--plan" in coder_header.plain
     assert [target.member_identity for target in coder_published[0].targets] == [
         planner.identity
     ]
 
 
-def test_three_member_family_middle_member_lists_others_in_chain_order() -> None:
+def test_three_member_agent_session_middle_member_lists_others_in_chain_order() -> None:
     started = datetime(2026, 8, 1, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
@@ -186,7 +188,7 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
     member2.agent_session_container = root
     assert root.is_agent_session_container_row is True
 
-    entries = family_roster_entries(root, exclude=member1)
+    entries = agent_session_roster_entries(root, exclude=member1)
     assert [entry.identity for entry in entries] == [root.identity, member2.identity]
 
     published = []
@@ -197,7 +199,7 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
         member_jump_map_publisher=published.append,
     )
 
-    assert "FAMILY SHELLS" in header.plain
+    assert "SESSION SHELLS" in header.plain
     jump_map = published[0]
     assert jump_map.container_identity == member1.identity
     assert [target.number for target in jump_map.targets] == ["0", "1"]
@@ -207,7 +209,7 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
     ]
 
 
-def test_family_roster_labels_monitor_members() -> None:
+def test_agent_session_roster_labels_monitor_members() -> None:
     started = datetime(2026, 8, 12, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
@@ -244,7 +246,7 @@ def test_family_roster_labels_monitor_members() -> None:
     )
     root.followup_agents = [monitor]
 
-    entries = family_roster_entries(root)
+    entries = agent_session_roster_entries(root)
 
     assert [
         (entry.label, entry.kind, entry.status, entry.model, entry.effective_bucket)
@@ -254,13 +256,15 @@ def test_family_roster_labels_monitor_members() -> None:
         ("--mon", "⚙ MONITOR", "MONITORING", "just check", "Running"),
     ]
     header, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.EXPANDED)
-    assert "FAMILY SHELLS · 2\n" in header.plain
+    assert "SESSION SHELLS · 2\n" in header.plain
     assert "⚙ MONITOR" in header.plain
     assert "just check" in header.plain
     assert "shell" not in header.plain.split("⚙ MONITOR", 1)[1].split("\n", 1)[0]
 
 
-def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() -> None:
+def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_self() -> (
+    None
+):
     started = datetime(2026, 8, 12, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
@@ -330,7 +334,7 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
     monitor.agent_session_container = root
     review.agent_session_container = root
 
-    entries = family_roster_entries(root)
+    entries = agent_session_roster_entries(root)
     assert [entry.label for entry in entries] == [
         "--0",
         "--code",
@@ -341,7 +345,7 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
     assert entries[2].model == "just check-full --every-target"
     assert entries[2].effective_bucket == "Done"
 
-    sibling_entries = family_roster_entries(root, exclude=monitor)
+    sibling_entries = agent_session_roster_entries(root, exclude=monitor)
     assert [entry.label for entry in sibling_entries] == ["--0", "--code", "--review"]
 
     published = []
@@ -351,7 +355,7 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
         lane_fold_level=FoldLevel.EXPANDED,
         member_jump_map_publisher=published.append,
     )
-    assert "▾ ❖ FAMILY SHELLS · 3 · alpha" in header.plain
+    assert "▾ ❖ SESSION SHELLS · 3 · alpha" in header.plain
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         coder.identity,
@@ -359,7 +363,7 @@ def test_family_roster_inserts_nested_monitor_after_starter_and_excludes_self() 
     ]
 
 
-def test_family_roster_monitor_descriptor_falls_back_to_command() -> None:
+def test_agent_session_roster_monitor_descriptor_falls_back_to_command() -> None:
     started = datetime(2026, 8, 12, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
@@ -390,15 +394,15 @@ def test_family_roster_monitor_descriptor_falls_back_to_command() -> None:
     )
     root.followup_agents = [unlabeled]
 
-    assert family_roster_entries(root)[1].model == "command"
+    assert agent_session_roster_entries(root)[1].model == "command"
     unlabeled.monitor_command = "  pytest -q  "
-    assert family_roster_entries(root)[1].model == "pytest -q"
+    assert agent_session_roster_entries(root)[1].model == "pytest -q"
 
 
 def test_member_panel_stays_on_agent_scale_across_fold_levels(
     tmp_path: Path,
 ) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
     root.activity = "drafting the approach"
     root.workspace_num = 7
 
@@ -428,7 +432,7 @@ def test_member_panel_stays_on_agent_scale_across_fold_levels(
     assert "ws 7" in fully_expanded.plain
 
 
-def test_row_without_family_container_renders_no_roster() -> None:
+def test_row_without_agent_session_container_renders_no_roster() -> None:
     lone = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="lone",
@@ -441,13 +445,13 @@ def test_row_without_family_container_renders_no_roster() -> None:
 
     header, _ = build_header_text(lone, cheap=True)
 
-    assert "FAMILY SHELLS" not in header.plain
+    assert "SESSION SHELLS" not in header.plain
 
 
 def test_container_panel_output_is_unchanged_by_member_roster_support(
     tmp_path: Path,
 ) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
 
     published = []
     header, _ = build_header_text(
@@ -458,7 +462,7 @@ def test_container_panel_output_is_unchanged_by_member_roster_support(
     )
 
     assert "Fold: 1/2\n" in header.plain
-    assert "▾ ❖ FAMILY SHELLS · 2\n" in header.plain
+    assert "▾ ❖ SESSION SHELLS · 2\n" in header.plain
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         child.identity,

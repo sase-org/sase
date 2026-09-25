@@ -84,7 +84,7 @@ CONTEXT_REASON_INDENT = len(
 )
 
 # Compact responsibility column rendered between timestamp and glyph for
-# attributed (agent-family) rows. Labels are truncated to ROLE_LABEL_LIMIT so
+# attributed (agent-agent_session) rows. Labels are truncated to ROLE_LABEL_LIMIT so
 # the ljust to ROLE_COLUMN_WIDTH always leaves at least one space before the
 # glyph; non-attributed rows in an attributed lane render a blank column so
 # the glyph/primary/reason columns stay aligned.

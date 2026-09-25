@@ -54,7 +54,7 @@ from ._agent_shell_section import (
     SHELL_LANE_LIMIT,
     SHELL_SECTION_ID,
     ResponsiveShellSection,
-    build_family_shell_lanes,
+    build_agent_session_shell_lanes,
 )
 from ._agent_wait_section import (
     WAIT_SECTION_ID,
@@ -437,9 +437,9 @@ def _append_shell_or_model_fields(
     agent: Agent,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
 ) -> ResponsiveShellSection | None:
-    """Append family ``Shells:`` lanes or a concrete-shell ``Model:`` field."""
+    """Append agent_session ``Shells:`` lanes or a concrete-shell ``Model:`` field."""
     if agent.is_agent_session_container_row:
-        lanes = build_family_shell_lanes(agent)
+        lanes = build_agent_session_shell_lanes(agent)
         section = ResponsiveShellSection(
             lanes=lanes[:SHELL_LANE_LIMIT],
             hidden_count=max(0, len(lanes) - SHELL_LANE_LIMIT),
@@ -598,7 +598,7 @@ def append_agent_metadata_fields(
 
 
 def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
-    """Preserve archived parallel-family member summaries."""
+    """Preserve archived parallel-agent_session member summaries."""
     if not agent.agent_session_parallel:
         return
 

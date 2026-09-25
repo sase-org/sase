@@ -170,7 +170,7 @@ class AgentBindingsMixin:
             bindings.append(
                 (
                     self._kd("hooks_or_collapse"),
-                    "parent family"
+                    "parent session"
                     if left_navigation_kind == "session"
                     else f"parent {left_navigation_kind}",
                 )
@@ -184,7 +184,7 @@ class AgentBindingsMixin:
                 collapse_all_label = "collapse fold"
         elif structural_collapse_kind in {"workflow", "session"}:
             collapse_all_label = (
-                "collapse family"
+                "collapse session"
                 if structural_collapse_kind == "session"
                 else f"collapse {structural_collapse_kind}"
             )

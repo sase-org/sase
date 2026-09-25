@@ -59,14 +59,14 @@ dispatch:
 
 # Host-wide runner capacity budget. A normal agent claims 1.0
 # capacity unit; `%queue(weight=...)` / `%q(w=...)` can request a
-# positive finite fractional or larger weight. A running serial family
+# positive finite fractional or larger weight. A running serial session
 # shares one claim across its live shells, while independently launched
-# clan members and live parallel family members each hold their own
+# clan members and live parallel session members each hold their own
 # claim. Workflow Python/bash steps and axe runners are excluded; axe
 # Patch runners use their separate axe.max_* limits.
 max_running_agents: 10
 
-# Maximum number of `sase pipe` hops in one family chain. The original agent
+# Maximum number of `sase pipe` hops in one session chain. The original agent
 # is depth 0; each successful pipe increments depth by one and is refused
 # when the next link would exceed this bound. This is a config field, not a
 # feature flag: users choose the number permanently to stop runaway self-piping.
@@ -761,11 +761,11 @@ ace:
       refresh: "R"
       artifacts_copy_reference: "y"
       artifacts_link_marked: "unbound"
-      # Fold / collapse (Agents: h navigates member → family → clan → tribe,
+      # Fold / collapse (Agents: h navigates member → session → clan → tribe,
       # collapses an explicitly selected expanded panel, and jumps from a
       # collapsed panel to the last expanded panel when one exists. H compacts
       # LLM Calls; on row focus it first retreats a selected open workflow or
-      # family one fold level, then fully collapses remaining agent nodes in the
+      # session one fold level, then fully collapses remaining agent nodes in the
       # next group, then the selected open clan, then every remaining open
       # clan in that group, then the selected structural fallback and group.
       # On whole-panel focus it hints every expanded fold in that panel.
@@ -1467,7 +1467,7 @@ axe:
           description: |-
             Settle pending gate shells whose durable gates answered, cancelled, expired, or disappeared
 
-            Scans gate-shell family members across projects, reconciles already-terminal gate bundles, cancels
+            Scans gate-shell session members across projects, reconciles already-terminal gate bundles, cancels
             expired gates at their own deadline, and force-settles shells as lost once the configured grace period
             after that deadline has passed. It then diagnoses settled gates whose requested successor never
             recorded, reading the agent-artifact index once for the whole pass and resuming each project's

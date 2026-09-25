@@ -40,7 +40,9 @@ from sase.ace.tui.widgets.prompt_panel._workflow_render import (
 )
 from sase.ace.tui.widgets.prompt_panel._workflow_types import WorkflowDetailSnapshot
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
 from tests.ace.tui.widgets._prompt_panel_section_navigation_helpers import (
@@ -63,10 +65,10 @@ def _detached(agent: Agent, **kwargs: Any) -> IdentityHeader:
 
 
 def test_identity_kinds_cover_every_node_kind(tmp_path: Path) -> None:
-    root, child = make_family(tmp_path)
+    root, child = make_agent_session(tmp_path)
     cases = [
         (make_agent(agent_name="solo"), "AGENT SHELL", "#FFD700"),
-        (root, "FAMILY", "#00AFFF"),
+        (root, "SESSION", "#00AFFF"),
         (child, "AGENT SHELL", "#FFD700"),
         (
             make_agent(agent_name="proc", agent_type=AgentType.PROC_SHELL),
@@ -216,7 +218,7 @@ def test_responsive_lanes_render_at_widths_in_identity_and_body() -> None:
 
 
 def test_family_fold_line_moves_into_identity(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     plain, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.COLLAPSED)
     assert "Fold:" in plain.plain
     document, _ = build_header_text(

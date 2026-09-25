@@ -216,7 +216,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse),
-                    "Up: workflow/family/clan/tribe",
+                    "Up: workflow/session/clan/tribe",
                 ),
                 (
                     d(a.hooks_or_collapse),
@@ -242,7 +242,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Collapse selected workflow/family one level",
+                    "Collapse selected workflow/session one level",
                 ),
                 (
                     d(a.hooks_or_collapse_all),
@@ -277,7 +277,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                         )
                         for position in range(1, 3)
                     ),
-                    "Set family level 1-2",
+                    "Set session level 1-2",
                 ),
                 (
                     " / ".join(
@@ -563,7 +563,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "Agent Row Glyphs",
             [
                 ("×N", "N steps (collapsed)"),
-                ("×N +M / −M", "M shown / hidden steps or family members"),
+                ("×N +M / −M", "M shown / hidden steps or session members"),
                 ("⚙", "Monitor shell, running (amber)"),
                 ("⚙", "Monitor shell, finished (grey)"),
                 ("⚙N", "N running monitors (amber)"),

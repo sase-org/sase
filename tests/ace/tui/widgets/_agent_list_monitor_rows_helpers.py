@@ -90,7 +90,7 @@ def gear_style(text: Text) -> str | None:
     return style_at(text, text.plain.index("⚙"))
 
 
-def make_family_container(*monitor_states: str) -> Agent:
+def make_agent_session_container(*monitor_states: str) -> Agent:
     started = datetime(2026, 8, 12, 9, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,

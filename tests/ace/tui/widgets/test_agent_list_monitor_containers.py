@@ -21,7 +21,7 @@ from sase.ace.tui.widgets._agent_list_styling import (
     _MONITOR_SETTLED_COUNT_GLYPH_STYLE,
 )
 
-from ._agent_list_monitor_rows_helpers import make_family_container, style_at
+from ._agent_list_monitor_rows_helpers import make_agent_session_container, style_at
 
 
 def _monitor_lane_counts(agent: Agent):
@@ -34,7 +34,7 @@ def _gate_lane_counts(agent: Agent):
 
 def test_family_container_with_running_monitor_renders_badge() -> None:
     left, _suffix, _option_id = format_agent_option(
-        make_family_container("running"),
+        make_agent_session_container("running"),
         0,
         is_selected=False,
     )
@@ -44,7 +44,7 @@ def test_family_container_with_running_monitor_renders_badge() -> None:
 
 def test_family_container_with_only_settled_monitors_renders_grey_badge_only() -> None:
     left, _suffix, _option_id = format_agent_option(
-        make_family_container("completed"),
+        make_agent_session_container("completed"),
         0,
         is_selected=False,
     )
@@ -58,7 +58,7 @@ def test_family_container_with_running_and_settled_monitors_renders_both_badges(
     None
 ):
     left, _suffix, _option_id = format_agent_option(
-        make_family_container("running", "completed", "stopped", "failed"),
+        make_agent_session_container("running", "completed", "stopped", "failed"),
         0,
         is_selected=False,
     )
@@ -83,7 +83,7 @@ def test_non_container_row_never_renders_monitor_badge() -> None:
         agent_session="alpha",
         agent_session_role="root",
         role_suffix="--0",
-        # A parallel-family root is never a sequential-family container, even
+        # A parallel-session root is never a sequential-session container, even
         # with running-monitor children, so this isolates the container
         # check itself from ``_monitor_lane_counts`` returning a nonzero lane.
         agent_session_parallel=True,
@@ -114,7 +114,7 @@ def test_non_container_row_never_renders_monitor_badge() -> None:
 
 def test_family_container_badge_does_not_alter_status_chip() -> None:
     counts = ParallelAgentSessionStatusCounts(running=2, awaiting=1)
-    container = make_family_container("running", "completed")
+    container = make_agent_session_container("running", "completed")
     container.is_clan_container = True
     container.agent_clan = "alpha"
     container.agent_clan_generation = "gen"
@@ -304,7 +304,7 @@ def test_non_container_row_with_settled_monitors_renders_no_badge() -> None:
         agent_session="alpha",
         agent_session_role="root",
         role_suffix="--0",
-        # A parallel-family root is never a sequential-family container, even
+        # A parallel-session root is never a sequential-session container, even
         # with settled-monitor children, so this isolates the container
         # check itself from ``_monitor_lane_counts`` returning a nonzero lane.
         agent_session_parallel=True,

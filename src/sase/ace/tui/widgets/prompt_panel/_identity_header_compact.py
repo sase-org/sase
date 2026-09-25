@@ -118,7 +118,7 @@ def _machine_chip(agent: Agent) -> Text | None:
 
 
 def _shell_count_chip(shell_section: ResponsiveShellSection | None) -> Text:
-    """Return the family ``N shells`` row-1 summary chip."""
+    """Return the agent_session ``N shells`` row-1 summary chip."""
     total = 0
     if shell_section is not None:
         total = len(shell_section.lanes) + shell_section.hidden_count

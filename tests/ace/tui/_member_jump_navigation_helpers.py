@@ -337,7 +337,7 @@ def make_large_family(count: int) -> tuple[list[Agent], Agent, list[Agent]]:
     return [root, *children], root, children
 
 
-def make_family(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
+def make_agent_session(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
     clan = "research" if in_clan else None
     root = make_agent(
         "alpha--plan",

@@ -16,7 +16,9 @@ from sase.ace.tui.widgets.prompt_panel._member_roster import (
     append_member_roster,
 )
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
-from tests.ace.tui.widgets._agent_display_family_helpers import make_family
+from tests.ace.tui.widgets._agent_display_agent_session_helpers import (
+    make_agent_session,
+)
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
 from tests.ace.tui.widgets._agent_jump_panel_helpers import (
     _DetailApp,
@@ -87,7 +89,7 @@ async def test_all_unnumbered_document_hides_jump_panel() -> None:
 
 
 async def test_family_container_shows_collapsed_panel(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -98,7 +100,7 @@ async def test_family_container_shows_collapsed_panel(tmp_path: Path) -> None:
         assert not panel.is_expanded
         assert detail.jump_panel_toggle_available() is True
         assert "JUMP" in str(panel.border_title)
-        assert "FAMILY SHELLS" in str(panel.border_title)
+        assert "SESSION SHELLS" in str(panel.border_title)
         assert "more" in str(panel.border_subtitle)
         assert len(_jump_text(panel).splitlines()) <= 2
 
@@ -137,7 +139,7 @@ async def test_panel_sits_below_secondary_scroll_in_every_layout(
 ) -> None:
     from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
 
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -155,7 +157,7 @@ async def test_panel_sits_below_secondary_scroll_in_every_layout(
 
 
 async def test_search_overlay_keeps_jump_panel_visible(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -173,7 +175,7 @@ async def test_search_overlay_keeps_jump_panel_visible(tmp_path: Path) -> None:
 
 
 async def test_hint_document_hides_panel_and_back(tmp_path: Path) -> None:
-    root, _child = make_family(tmp_path)
+    root, _child = make_agent_session(tmp_path)
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
