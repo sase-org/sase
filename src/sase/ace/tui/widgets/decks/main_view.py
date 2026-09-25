@@ -101,8 +101,12 @@ class MainDeckView(SectionViewMixin, Static):
                 break
         return active or first_id
 
-    def spread_body_start(self, card_id: str) -> int | None:
-        """Return the body start row for ``card_id`` in spread mode."""
+    def spread_anchor_row(self, card_id: str) -> int | None:
+        """Return the titled-separator row for ``card_id`` in spread mode.
+
+        The first card has no separator, so its anchor is row 0. Later cards
+        anchor on the CARD-meta separator row published by layout.
+        """
         document = self._document
         if document is None or not document.cards:
             return None
@@ -119,8 +123,24 @@ class MainDeckView(SectionViewMixin, Static):
             return None
         for cid, row in pairs:
             if cid == card_id:
-                return row + 1
+                return row
         return None
+
+    def spread_body_start(self, card_id: str) -> int | None:
+        """Return the body start row for ``card_id`` in spread mode.
+
+        Body start is one row below the titled separator so spread/paged
+        transition math can restore a reading offset inside the card.
+        """
+        document = self._document
+        if document is None or not document.cards:
+            return None
+        if document.cards[0].card_id == card_id:
+            return 0
+        anchor = self.spread_anchor_row(card_id)
+        if anchor is None:
+            return None
+        return anchor + 1
 
     def show_card(self, card_id: str) -> str | None:
         """Activate ``card_id`` from the stored document; return it or None."""
@@ -179,7 +199,7 @@ class MainDeckView(SectionViewMixin, Static):
             self._spread_pending_card = None
             self._spread_retry_count = 0
             return
-        row = self.spread_body_start(card_id)
+        row = self.spread_anchor_row(card_id)
         if row is None:
             if self._spread_retry_count < 3:
                 self._spread_retry_count += 1

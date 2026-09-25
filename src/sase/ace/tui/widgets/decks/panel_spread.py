@@ -236,7 +236,8 @@ class DeckPanelSpreadMixin:
             except Exception:
                 return 0
 
-    def _files_body_start(self, index: int) -> int | None:
+    def _files_anchor_row(self, index: int) -> int | None:
+        """Return the titled-separator row for Files page ``index``."""
         if index <= 0:
             return 0
         try:
@@ -250,10 +251,23 @@ class DeckPanelSpreadMixin:
             want = f"file-{index}"
             for cid, row in pairs:
                 if cid == want:
-                    return row + 1
+                    return row
             return None
         except Exception:
             return None
+
+    def _files_body_start(self, index: int) -> int | None:
+        """Return the body start row for Files page ``index``.
+
+        Body start is one row below the titled separator so spread/paged
+        transition math can restore a reading offset inside the page.
+        """
+        if index <= 0:
+            return 0
+        anchor = self._files_anchor_row(index)
+        if anchor is None:
+            return None
+        return anchor + 1
 
     # -- Main spread cycling --------------------------------------------
 
@@ -293,7 +307,7 @@ class DeckPanelSpreadMixin:
             nxt = (current + direction) % len(slots)
             spread_view = self.files_spread_view  # type: ignore[attr-defined]
             spread_view.enable_section_layout_reserve()
-            row = self._files_body_start(nxt)
+            row = self._files_anchor_row(nxt)
             # Update the hidden paged index silently so E/clipboard follow.
             try:
                 file_view.set_current_index_silent(nxt)
@@ -327,7 +341,7 @@ class DeckPanelSpreadMixin:
     def _retry_files_scroll(self, index: int, attempt: int) -> None:
         if attempt >= 3:
             return
-        row = self._files_body_start(index)
+        row = self._files_anchor_row(index)
         if row is None:
             try:
                 self.call_after_refresh(  # type: ignore[attr-defined]

@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from textual.app import App, ComposeResult
+from textual.containers import VerticalScroll
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.agent_decks_settings import AgentDecksSettings
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
@@ -69,6 +71,111 @@ async def test_main_ctrl_j_in_spread_scrolls_and_sets_preferred(
         assert shown in ("reply", "context")
         if shown == "reply":
             assert detail.deck_area.state.panels[0].preferred_card == "reply"
+
+
+async def test_main_ctrl_j_scrolls_separator_anchor_to_top(
+    tmp_path: Path,
+) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = make_artifact_agent(tmp_path, status="DONE")
+        detail.update_display(agent)
+        await wait_for(pilot, lambda: panel_is_main_spread(detail))
+        panel = detail.deck_area.panel(0)
+        shown = detail.cycle_focused_deck_card(1)
+        await wait_for(
+            pilot,
+            lambda: _main_scroll_on_separator_anchor(panel, "reply"),
+        )
+        view = panel.main_view
+        anchor = view.spread_anchor_row("reply")
+        body = view.spread_body_start("reply")
+        assert shown == "reply"
+        assert anchor is not None and anchor > 0
+        assert body == anchor + 1
+        scroll = panel.query_one(
+            "#agent-deck-panel-0-main-scroll",
+            VerticalScroll,
+        )
+        assert int(scroll.scroll_y) == anchor
+        assert view.active_card_id == "reply"
+        assert panel._main_active_card == "reply"
+
+
+def panel_is_main_spread(detail: AgentDetail) -> bool:
+    panel = detail.deck_area.panel(0)
+    return panel._render_mode[DeckId.MAIN] is RenderMode.SPREAD
+
+
+def _main_scroll_on_separator_anchor(panel: Any, card_id: str) -> bool:
+    anchor = panel.main_view.spread_anchor_row(card_id)
+    if anchor is None:
+        return False
+    try:
+        scroll = panel.query_one(
+            "#agent-deck-panel-0-main-scroll",
+            VerticalScroll,
+        )
+    except Exception:
+        return False
+    return int(scroll.scroll_y) == anchor
+
+
+async def test_files_ctrl_j_scrolls_page_anchor_to_top(tmp_path: Path) -> None:
+    notes = tmp_path / "review_notes.md"
+    notes.write_text("# Review Notes\n\n- First point.\n", encoding="utf-8")
+    plan = tmp_path / "implementation_plan.md"
+    plan.write_text(
+        "# Implementation Plan\n\n"
+        + "\n".join(f"{i}. Step {i}." for i in range(1, 16))
+        + "\n",
+        encoding="utf-8",
+    )
+    agent = make_agent(
+        agent_name="pilot",
+        status="DONE",
+        extra_files=[str(notes), str(plan)],
+    )
+    app = _DetailApp()
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(agent)
+        await pilot.pause()
+        detail.show_deck(0, DeckId.FILES)
+        panel = detail.deck_area.panel(0)
+        await wait_for(pilot, lambda: panel.is_spread(DeckId.FILES))
+        await wait_for(pilot, lambda: panel._files_anchor_row(1) is not None)
+        await wait_for(
+            pilot,
+            lambda: len(getattr(panel.file_view, "_file_list", ())) > 1,
+        )
+        panel.cycle_card(1)
+        await wait_for(pilot, lambda: _files_scroll_on_separator_anchor(panel, 1))
+        anchor = panel._files_anchor_row(1)
+        assert anchor is not None and anchor > 0
+        assert panel._files_body_start(1) == anchor + 1
+        scroll = panel.query_one(
+            "#agent-deck-panel-0-files-scroll",
+            VerticalScroll,
+        )
+        assert int(scroll.scroll_y) == anchor
+
+
+def _files_scroll_on_separator_anchor(panel: Any, index: int) -> bool:
+    anchor = panel._files_anchor_row(index)
+    if anchor is None:
+        return False
+    try:
+        scroll = panel.query_one(
+            "#agent-deck-panel-0-files-scroll",
+            VerticalScroll,
+        )
+    except Exception:
+        return False
+    return int(scroll.scroll_y) == anchor
 
 
 async def test_main_partial_never_changes_mode() -> None:
