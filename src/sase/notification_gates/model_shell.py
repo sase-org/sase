@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass, field
 from itertools import combinations
 from typing import Any
+from collections.abc import Callable
 
 from sase.notification_gates.model_validation import (
     GateError,
@@ -67,6 +68,7 @@ class GateShellNext:
         *,
         target: str,
         inherited: GateShellNext | None = None,
+        fork_normalizer: Callable[[object], object] | None = None,
     ) -> GateShellNext:
         if value is None:
             return inherited or cls()
@@ -91,10 +93,18 @@ class GateShellNext:
         role = _optional_role(data.get("role", base.role), f"{target}.role")
         raw_prompt = _raw_prompt(data.get("raw_prompt", base.raw_prompt), target)
         fork = data.get("fork", base.fork)
-        # legacy agent-family spelling: gate-spec input and pre-rename bundles
-        # carry ``"family"``; normalize to ``"session"`` at the input boundary.
-        if fork == LEGACY_GATE_SHELL_NEXT_FORK:
-            fork = "session"
+        if fork_normalizer is not None:
+            try:
+                fork = fork_normalizer(fork)
+            except ValueError as exc:
+                raise GateError("invalid_shell", f"{target}.fork", str(exc)) from exc
+        else:
+            # legacy agent-family spelling: pre-rename durable bundles always load.
+            from sase.agent.legacy_agent_family_syntax import (
+                normalize_persisted_agent_session_fork,
+            )
+
+            fork = normalize_persisted_agent_session_fork(fork)
         if fork not in GATE_SHELL_NEXT_FORKS:
             raise GateError(
                 "invalid_shell",
@@ -168,12 +178,16 @@ class GateShellBranchSpec:
         *,
         target: str,
         inherited_next: GateShellNext,
+        fork_normalizer: Callable[[object], object] | None = None,
     ) -> GateShellBranchSpec:
         data = json_object(value, target)
         reject_unknown_fields(data, {"status", "accent", *_BRANCH_NEXT_FIELDS}, target)
         next_data = {key: data[key] for key in _BRANCH_NEXT_FIELDS if key in data}
         next_policy = GateShellNext.from_mapping(
-            next_data, target=target, inherited=inherited_next
+            next_data,
+            target=target,
+            inherited=inherited_next,
+            fork_normalizer=fork_normalizer,
         )
         return cls(
             status=_optional_status(data.get("status"), f"{target}.status"),
@@ -224,6 +238,7 @@ class GateShellSpec:
         *,
         branches: tuple[tuple[str, ...], ...],
         allow_branch_subsets: bool = False,
+        fork_normalizer: Callable[[object], object] | None = None,
     ) -> GateShellSpec:
         data = json_object(value, "shell")
         reject_unknown_fields(
@@ -247,7 +262,9 @@ class GateShellSpec:
             data.get("settled_status", DEFAULT_GATE_SHELL_SETTLED_STATUS),
             "shell.settled_status",
         )
-        next_policy = GateShellNext.from_mapping(data.get("next"), target="shell.next")
+        next_policy = GateShellNext.from_mapping(
+            data.get("next"), target="shell.next", fork_normalizer=fork_normalizer
+        )
         workspace = data.get("workspace", "inherit")
         if workspace not in GATE_SHELL_WORKSPACES:
             raise GateError(
@@ -273,6 +290,7 @@ class GateShellSpec:
                     allow_subsets=allow_branch_subsets,
                 ),
                 inherited_next=next_policy,
+                fork_normalizer=fork_normalizer,
             ),
         )
 
@@ -318,6 +336,7 @@ def _branches(
     *,
     valid_branch_keys: frozenset[str],
     inherited_next: GateShellNext,
+    fork_normalizer: Callable[[object], object] | None = None,
 ) -> dict[str, GateShellBranchSpec]:
     data = json_object(value, "shell.branches")
     result: dict[str, GateShellBranchSpec] = {}
@@ -333,6 +352,7 @@ def _branches(
             raw_branch,
             target=f"shell.branches.{key}",
             inherited_next=inherited_next,
+            fork_normalizer=fork_normalizer,
         )
     return result
 

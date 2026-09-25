@@ -140,17 +140,21 @@ def _resolve_agent_session_attach_workspace_pair(
 def load_agent_session_attach_plan_from_env(
     env: dict[str, str] | None = None,
 ) -> _types.AgentSessionAttachLaunchPlan | None:
-    raw = (env or os.environ).get(_types.LEGACY_AGENT_FAMILY_ATTACH_ENV)
+    from sase.agent.legacy_agent_family_syntax import agent_session_attach_env_value
+
+    raw = agent_session_attach_env_value(env or os.environ)
     if not raw:
         return None
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise _types.AgentSessionAttachError(
-            "Invalid SASE_AGENT_FAMILY_ATTACH payload"
+            "Invalid SASE_AGENT_SESSION_ATTACH payload"
         ) from exc
     if not isinstance(data, dict):
-        raise _types.AgentSessionAttachError("Invalid SASE_AGENT_FAMILY_ATTACH payload")
+        raise _types.AgentSessionAttachError(
+            "Invalid SASE_AGENT_SESSION_ATTACH payload"
+        )
     agent_session_role = _attach_payload_value(data, "agent_session_role")
     if agent_session_role is None:
         raise KeyError("agent_session_role")

@@ -158,7 +158,7 @@ def test_agent_session_attach_inherits_parent_model_alias_overrides(
         project_name="sase",
     )
     _, env = prepare_agent_session_attach_launch(
-        "%i(reviewer, family=foo)\nReview",
+        "%i(reviewer, session=foo)\nReview",
         LaunchExecutionContext(
             cl_name="feature",
             project_file="/tmp/sase.sase",
@@ -305,7 +305,7 @@ def test_agent_session_attach_launch_repairs_a_numbered_directory_missing_its_nu
         ),
     ):
         context, _ = prepare_agent_session_attach_launch(
-            "%i(reviewer, family=foo)\nReview",
+            "%i(reviewer, session=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
                 project_file="/tmp/sase.sase",
@@ -344,7 +344,7 @@ def test_agent_session_attach_launch_repairs_a_deferred_running_parent_pairing(
         ),
     ):
         context, env = prepare_agent_session_attach_launch(
-            "%i(reviewer, family=foo)\nReview",
+            "%i(reviewer, session=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
                 project_file="/tmp/sase.sase",
@@ -382,7 +382,7 @@ def test_agent_session_attach_launch_fails_loudly_when_pairing_is_unresolvable(
         pytest.raises(AgentSessionAttachError, match="Refusing to launch"),
     ):
         prepare_agent_session_attach_launch(
-            "%i(reviewer, family=foo)\nReview",
+            "%i(reviewer, session=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
                 project_file="/tmp/sase.sase",
@@ -417,7 +417,7 @@ def test_agent_session_attach_launch_repairs_a_nested_managed_dir_to_its_owning_
         return_value=(str(primary), None),
     ):
         context, _ = prepare_agent_session_attach_launch(
-            "%i(reviewer, family=foo)\nReview",
+            "%i(reviewer, session=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
                 project_file="/tmp/sase.sase",
@@ -491,7 +491,7 @@ def test_agent_session_attach_auto_suffix_and_collision_include_in_batch_members
     assert second.role_suffix == "--2"
     assert second.parent_name == "foo--1"
     assert second.parent_timestamp == "20260701010303"
-    with pytest.raises(AgentSessionAttachError, match=r"%i\(@, family=foo\)"):
+    with pytest.raises(AgentSessionAttachError, match=r"%i\(@, session=foo\)"):
         resolve_agent_session_attach_plan(
             AgentSessionAttachDirective(parent="foo", suffix="1"),
             project_name="sase",
@@ -546,7 +546,7 @@ def test_agent_session_attach_sase_plan_env_only_for_code_with_parent_plan(
         [_artifact_record(name="foo", sdd_plan_path=parent_plan_path)],
     )
     _, env = prepare_agent_session_attach_launch(
-        f"%i({suffix}, family=foo)\nDo work",
+        f"%i({suffix}, session=foo)\nDo work",
         LaunchExecutionContext(
             cl_name="launcher",
             project_file="/tmp/sase.sase",

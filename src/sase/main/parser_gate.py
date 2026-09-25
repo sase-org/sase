@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from sase.agent.legacy_agent_family_syntax import normalize_agent_session_fork
 from sase.ops.cli import add_operation_io_flags
 
 # Mirrors ``sase.gate_shell.state.TERMINAL_GATE_STATES`` plus ``pending`` and
@@ -19,6 +20,16 @@ GATE_SHELL_STATE_CHOICES = (
     "stopped",
     "lost",
 )
+
+
+def _parse_next_fork(value: str) -> str:
+    try:
+        normalized = normalize_agent_session_fork(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    if normalized not in {"session", "shell", "none"}:
+        raise argparse.ArgumentTypeError("next-fork must be session, shell, or none")
+    return str(normalized)
 
 
 def register_gate_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -405,7 +416,8 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
         "-f",
         "--next-fork",
         default=None,
-        choices=("family", "shell", "none"),
+        type=_parse_next_fork,
+        metavar="{session,shell,none}",
         help="Gate-shell follow-up fork policy",
     )
     create_parser.add_argument(

@@ -10,7 +10,7 @@ hand-roll the timestamp reservation, workflow-name derivation, and
 claim-continuity primitive.
 
 :func:`agent_session_attach_env` and :func:`spawn_agent_session_successor` layer the
-``%id(<suffix>, family=<parent>)`` agent-session-attach machinery
+``%id(<suffix>, session=<parent>)`` agent-session-attach machinery
 (:mod:`sase.agent.agent_session_attach`) on top, for the monitor-follow-up spawn.
 They import the low-level ``_agent_session_attach_*`` modules directly rather than
 the ``sase.agent.agent_session_attach`` facade, because that facade's
@@ -55,7 +55,7 @@ def agent_session_attach_env(plan: AgentSessionAttachLaunchPlan) -> dict[str, st
     """Encode ``plan`` into the env vars an agent-session-attach child boot reads."""
     return {
         INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
-        _types.LEGACY_AGENT_FAMILY_ATTACH_ENV: json.dumps(asdict(plan), sort_keys=True),
+        _types.AGENT_SESSION_ATTACH_ENV: json.dumps(asdict(plan), sort_keys=True),
     }
 
 

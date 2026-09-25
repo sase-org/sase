@@ -287,6 +287,6 @@ def test_launch_followup_agent_falls_back_to_workspace_zero_when_workspace_taken
     assert "workspace #0" in calls[2]["prompt"]
     assert "Do not assume" in calls[2]["prompt"]
     env = calls[2]["extra_env"]
-    plan = json.loads(env["SASE_AGENT_FAMILY_ATTACH"])
+    plan = json.loads(env["SASE_AGENT_SESSION_ATTACH"])
     assert plan["parent_workspace_num"] == 0
     assert plan["parent_workspace_dir"] == str(primary)

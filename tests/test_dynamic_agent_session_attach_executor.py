@@ -29,7 +29,7 @@ def test_agent_session_attach_prep_failure_prevents_spawn(
 
     with pytest.raises(AgentSessionAttachError, match="Cannot attach session member"):
         execute_launch_plan(
-            plan_fake_fanout("single", ["%i(reviewer, family=missing)\nDo work"]),
+            plan_fake_fanout("single", ["%i(reviewer, session=missing)\nDo work"]),
             LaunchExecutionContext(
                 cl_name="sase",
                 project_file="/tmp/sase.sase",

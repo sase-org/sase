@@ -27,6 +27,7 @@ class FeatureFlag(StrEnum):
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
+    legacy_agent_family_syntax = "legacy_agent_family_syntax"
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
@@ -83,6 +84,18 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",
+    ),
+    FeatureFlag.legacy_agent_family_syntax: FeatureFlagDefinition(
+        key=FeatureFlag.legacy_agent_family_syntax,
+        kind="sunset",
+        description=(
+            "SASE silently accepts the retired agent-family spellings as aliases "
+            "of their agent-session replacements: %id(..., family=...), the "
+            'family:/kind:family agent queries, --next-fork family, gate "fork": '
+            '"family", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also '
+            "removes sase-core's hidden `family` %id keyword alias."
+        ),
+        bead="sase-18l",
     ),
     FeatureFlag.bgcmd_legacy_slots: FeatureFlagDefinition(
         key=FeatureFlag.bgcmd_legacy_slots,

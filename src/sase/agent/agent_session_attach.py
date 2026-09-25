@@ -1,4 +1,4 @@
-"""User-facing ``%id(suffix, family=parent)`` agent-session attach support."""
+"""User-facing ``%id(suffix, session=parent)`` agent-session attach support."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from sase.agent import _agent_session_attach_types as _types
 if TYPE_CHECKING:
     from sase.agent.launch_executor_types import LaunchSpawnRequest
 
+AGENT_SESSION_ATTACH_ENV = _types.AGENT_SESSION_ATTACH_ENV
 LEGACY_AGENT_FAMILY_ATTACH_ENV = _types.LEGACY_AGENT_FAMILY_ATTACH_ENV
 AgentSessionAttachDirective = _types.AgentSessionAttachDirective
 AgentSessionAttachError = _types.AgentSessionAttachError
@@ -95,6 +96,7 @@ def build_agent_session_attach_sibling_from_spawn(
 
 
 __all__ = [
+    "AGENT_SESSION_ATTACH_ENV",
     "LEGACY_AGENT_FAMILY_ATTACH_ENV",
     "AgentSessionAttachDirective",
     "AgentSessionAttachError",

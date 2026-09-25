@@ -618,7 +618,7 @@
     "tests/test_directive_diagnostics.py": 4.3,
     "tests/test_directives_effort.py": 5.2,
     "tests/test_directives_extract.py": 11.6,
-    "tests/test_directives_family.py": 6.5,
+    "tests/test_directives_agent_session.py": 6.5,
     "tests/test_directives_flags.py": 7.1,
     "tests/test_directives_has_helpers.py": 5.5,
     "tests/test_directives_name_wait.py": 7.6,

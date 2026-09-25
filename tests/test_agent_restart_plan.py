@@ -177,7 +177,7 @@ def test_plan_agent_session_root_keeps_clan_not_agent_session(tmp_path: Path) ->
     assert plan.rewritten_prompt.startswith(
         "%id(!1, clan=sase-pw, bead=sase-pw.1)\n#gh:gh_sase-org__sase\n"
     )
-    assert "family=" not in plan.rewritten_prompt
+    assert "session=" not in plan.rewritten_prompt
     assert "%clan" not in plan.rewritten_prompt
     for spy in spies.values():
         spy.assert_not_called()
@@ -204,7 +204,7 @@ def test_plan_refuses_self_attaching_agent_session_identity(tmp_path: Path) -> N
     ):
         plan_agent_restart("sase-pw.1")
     assert caught.value.reason == "identity"
-    assert "family=" in caught.value.message
+    assert "session=" in caught.value.message
     assert caught.value.hint
     for spy in spies.values():
         spy.assert_not_called()
@@ -219,7 +219,7 @@ def test_plan_agent_session_member_keeps_role_and_bead(tmp_path: Path) -> None:
         role_suffix="--plan",
         extra_meta={"phase_bead_id": "sase-oc.4"},
     )
-    assert "family=" in plan.rewritten_prompt
+    assert "session=" in plan.rewritten_prompt
     assert "sase-oc.4" in plan.rewritten_prompt
     assert "plan" in plan.rewritten_prompt
     assert "bead=" in plan.rewritten_prompt
@@ -239,7 +239,7 @@ def test_plan_parallel_agent_session_member_skips_agent_session_branch(
         role_suffix="--plan",
         extra_meta={"agent_session_parallel": True, "phase_bead_id": "sase-oc.4"},
     )
-    assert "family=" not in plan.rewritten_prompt
+    assert "session=" not in plan.rewritten_prompt
     assert "!" in plan.rewritten_prompt
     for spy in spies.values():
         spy.assert_not_called()
@@ -385,7 +385,7 @@ def test_plan_agent_session_member_is_not_double_rewritten(tmp_path: Path) -> No
     )
     assert plan.name_reuse_source == "prompt"
     assert plan.rewritten_prompt.count("%id") == 1
-    assert "family=" in plan.rewritten_prompt
+    assert "session=" in plan.rewritten_prompt
     for spy in spies.values():
         spy.assert_not_called()
 

@@ -71,7 +71,7 @@ def test_extracts_forced_reuse_bead_association_for_clan_member() -> None:
 
 def test_extracts_forced_reuse_bead_association_for_agent_session_member() -> None:
     associations = force_reuse_bead_associations_by_prompt(
-        ["%id(!reviewer, family=foo, bead=sase-1.2)\nDo work"]
+        ["%id(!reviewer, session=foo, bead=sase-1.2)\nDo work"]
     )
 
     assert associations[0] is not None
@@ -108,7 +108,7 @@ def test_forced_reuse_bead_association_preflight_rejects_duplicates() -> None:
         preflight_launch_name_requests(
             [
                 "%id(!worker, bead=sase-1)\n"
-                "%i(!reviewer, family=foo, bead=sase-2)\nDo work"
+                "%i(!reviewer, session=foo, bead=sase-2)\nDo work"
             ],
             allow_force_reuse=True,
         )
@@ -166,7 +166,7 @@ def test_collision_validation_preserves_agent_session_container(tmp_path: Path) 
         convert_registered_agent_to_agent_session("review", "review--0", artifacts_dir)
         with pytest.raises(
             AgentNameAgentSessionCollisionError,
-            match=r"Attach a member with %i\(suffix, family=parent\)",
+            match=r"Attach a member with %i\(suffix, session=parent\)",
         ):
             validate_launch_name_requests(["%id:review\nDo work"])
         with pytest.raises(
@@ -185,7 +185,7 @@ def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:
 def test_forced_agent_session_attach_requires_confirmation_and_derives_exact_owner() -> (
     None
 ):
-    prompt = "%id(!code, family=foo)\nDo work"
+    prompt = "%id(!code, session=foo)\nDo work"
 
     with pytest.raises(AgentNameReuseConfirmationRequiredError, match="foo--code"):
         validate_launch_name_requests([prompt])
@@ -193,7 +193,7 @@ def test_forced_agent_session_attach_requires_confirmation_and_derives_exact_own
     preflight_launch_name_requests([prompt], allow_force_reuse=True)
     assert force_reuse_owner_names([prompt]) == ["foo--code"]
     assert rewrite_force_reuse_name_directives(prompt) == (
-        "%id(code, family=foo)\nDo work"
+        "%id(code, session=foo)\nDo work"
     )
 
 
@@ -201,7 +201,7 @@ def test_forced_agent_session_attach_does_not_relax_direct_session_shaped_names(
     None
 ):
     preflight_launch_name_requests(
-        ["%id(!code, family=foo)\nDo work"],
+        ["%id(!code, session=foo)\nDo work"],
         allow_force_reuse=True,
     )
     with pytest.raises(AgentNameSyntaxError, match="foo--code"):

@@ -141,7 +141,7 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
-    # `%i(@, family=...)` resolution (exercised below by the real ``--next``
+    # `%i(@, session=...)` resolution (exercised below by the real ``--next``
     # handoff) matches on `workflow_name`, the durable agent-session key -- not on
     # `agent_session` alone -- so a real starter must carry both. A real
     # starter also always carries its own continuation-graph node id from
@@ -228,7 +228,7 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
 
             extra_env = kwargs["extra_env"]
             assert isinstance(extra_env, dict)
-            plan = json.loads(extra_env["SASE_AGENT_FAMILY_ATTACH"])
+            plan = json.loads(extra_env["SASE_AGENT_SESSION_ATTACH"])
             successor = harness.create_agent(
                 2,
                 name=plan["agent_name"],

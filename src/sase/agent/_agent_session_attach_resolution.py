@@ -134,7 +134,7 @@ def resolve_agent_session_attach_plan(
     if agent_name == parent_agent_session_member_name:
         raise _types.AgentSessionAttachError(
             f"Agent session member '{agent_name}' is reserved for the original "
-            f"parent. Use %i(@, family={directive.parent}) to allocate the next "
+            f"parent. Use %i(@, session={directive.parent}) to allocate the next "
             "free suffix."
         )
     _ensure_agent_session_name_available(
@@ -321,7 +321,7 @@ def _ensure_agent_session_name_available(
     if current_owner_agent_name_key(agent_name) in known_keys:
         raise _types.AgentSessionAttachError(
             f"Agent {member_kind} '{agent_name}' already exists. "
-            f"Use %i(@, family={directive.parent}) to allocate the next free suffix."
+            f"Use %i(@, session={directive.parent}) to allocate the next free suffix."
         )
 
 

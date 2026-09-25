@@ -261,14 +261,14 @@ def resolution_error_message(
     if kind == "absent":
         return (
             f"Cannot attach session member with %i({directive.suffix}, "
-            f"family={directive.parent}): parent agent '{directive.parent}' was not "
+            f"session={directive.parent}): parent agent '{directive.parent}' was not "
             f"found in project '{project_name}'."
         )
     if kind == "dismissed":
         return (
             f"Cannot attach session member to dismissed parent '{directive.parent}'. "
             "Revive the parent from the Agents tab before using "
-            "%i(suffix, family=parent)."
+            "%i(suffix, session=parent)."
         )
     if kind == "ambiguous":
         labels = ", ".join(_candidate_label(candidate) for candidate in candidates[:5])

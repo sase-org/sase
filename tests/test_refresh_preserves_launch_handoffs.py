@@ -59,7 +59,7 @@ def _extract(
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
     ):
         # Isolate from the outer agent's launch env when tests run nested.
-        os.environ.pop("SASE_AGENT_FAMILY_ATTACH", None)
+        os.environ.pop("SASE_AGENT_SESSION_ATTACH", None)
         return extract_directives_and_write_meta(
             prompt,
             workspace_dir="/workspace",

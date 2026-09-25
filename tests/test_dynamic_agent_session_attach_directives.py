@@ -21,7 +21,9 @@ from sase.xprompt.directives import extract_prompt_directives
 
 
 def test_name_directive_agent_session_attach_form_parses_and_strips() -> None:
-    cleaned, directives = extract_prompt_directives("%i(reviewer, family=foo)\nDo work")
+    cleaned, directives = extract_prompt_directives(
+        "%i(reviewer, session=foo)\nDo work"
+    )
 
     assert cleaned == "Do work"
     assert directives.name is None
@@ -37,46 +39,46 @@ def test_name_directive_single_positional_keeps_plain_name_behavior() -> None:
     assert directives.agent_session_attach_parent is None
 
 
-def test_name_directive_rejects_positional_family_form_and_unknown_keywords() -> None:
+def test_name_directive_rejects_positional_session_form_and_unknown_keywords() -> None:
     with pytest.raises(
         DirectiveError,
-        match=r"positional family form.*%id\(<suffix>, family=<parent>\)",
+        match=r"positional session form.*%id\(<suffix>, session=<parent>\)",
     ):
         extract_prompt_directives("%i(foo, reviewer)\nDo work")
 
-    with pytest.raises(DirectiveError, match="positional family form"):
+    with pytest.raises(DirectiveError, match="positional session form"):
         extract_prompt_directives("%i(foo, reviewer, extra)\nDo work")
 
     with pytest.raises(
         DirectiveError,
-        match=r"Only bead=, clan=, family=, and tribe= are supported",
+        match=r"Only bead=, clan=, session=, and tribe= are supported",
     ):
         extract_prompt_directives("%i(foo, run_status=DONE)\nDo work")
 
 
-def test_name_directive_family_keyword_requires_suffix_and_parent() -> None:
+def test_name_directive_session_keyword_requires_suffix_and_parent() -> None:
     with pytest.raises(
         DirectiveError,
-        match=r"family=.*requires exactly one positional suffix.*%id\(@, family=",
+        match=r"session=.*requires exactly one positional suffix.*%id\(@, session=",
     ):
-        extract_prompt_directives("%id(family=foo)\nDo work")
+        extract_prompt_directives("%id(session=foo)\nDo work")
 
     with pytest.raises(DirectiveError, match="requires a non-empty agent session name"):
-        extract_prompt_directives("%id(reviewer, family=)\nDo work")
+        extract_prompt_directives("%id(reviewer, session=)\nDo work")
 
 
 @pytest.mark.parametrize(
     "source",
     [
-        "%id(worker, clan=research, family=foo)",
+        "%id(worker, clan=research, session=foo)",
         "%id(worker, clan=research, tribe=review)",
-        "%id(worker, family=foo, tribe=review)",
+        "%id(worker, session=foo, tribe=review)",
     ],
 )
 def test_name_directive_identity_keywords_are_mutually_exclusive(source: str) -> None:
     with pytest.raises(
         DirectiveError,
-        match=r"clan=, family=, and tribe=.*mutually exclusive",
+        match=r"clan=, session=, and tribe=.*mutually exclusive",
     ):
         extract_prompt_directives(f"{source}\nDo work")
 
@@ -93,14 +95,14 @@ def test_name_directive_tribe_keyword_parses() -> None:
 
 def test_name_directive_rejects_legacy_agent_session_suffix_spellings() -> None:
     with pytest.raises(DirectiveError, match="without a session separator"):
-        extract_prompt_directives("%i(.reviewer, family=foo)\nDo work")
+        extract_prompt_directives("%i(.reviewer, session=foo)\nDo work")
 
     with pytest.raises(DirectiveError, match="without a session separator"):
-        extract_prompt_directives("%i(-reviewer, family=foo)\nDo work")
+        extract_prompt_directives("%i(-reviewer, session=foo)\nDo work")
 
 
 def test_prelaunch_name_helpers_ignore_agent_session_attach_form() -> None:
-    prompt = "%i(reviewer, family=foo)\nDo work"
+    prompt = "%i(reviewer, session=foo)\nDo work"
 
     assert extract_static_name_directive(prompt) is None
     validate_launch_name_requests([prompt])
@@ -108,14 +110,14 @@ def test_prelaunch_name_helpers_ignore_agent_session_attach_form() -> None:
 
 def test_extract_agent_session_attach_directive() -> None:
     directive = extract_agent_session_attach_directive(
-        "%model:codex/gpt-5\n%i(@, family=foo)"
+        "%model:codex/gpt-5\n%i(@, session=foo)"
     )
 
     assert directive == AgentSessionAttachDirective(parent="foo", suffix="@")
 
 
 def test_extract_forced_agent_session_attach_directive() -> None:
-    prompt = "%id(!code, family=foo, bead=sase-1)\nDo work"
+    prompt = "%id(!code, session=foo, bead=sase-1)\nDo work"
 
     cleaned, directives = extract_prompt_directives(prompt)
     directive = extract_agent_session_attach_directive(prompt)
@@ -138,7 +140,7 @@ def test_with_feedback_parent_default_uses_agent_session_attach_directive() -> N
     default_with_feedback_parent_from_agent_session_attach(
         "with_feedback",
         args,
-        prompt="%i(@, family=foo) #with_feedback:: tighten tests",
+        prompt="%i(@, session=foo) #with_feedback:: tighten tests",
     )
 
     assert args["parent"] == "foo"
@@ -164,7 +166,7 @@ def test_agent_session_attach_collision_message_suggests_auto_suffix() -> None:
     )
 
     with patch("sase.agent.names.get_reserved_agent_names", return_value={"foo--bar"}):
-        with pytest.raises(AgentSessionAttachError, match=r"%i\(@, family=foo\)"):
+        with pytest.raises(AgentSessionAttachError, match=r"%i\(@, session=foo\)"):
             _ensure_agent_session_name_available(
                 "foo--bar",
                 AgentSessionAttachDirective(parent="foo", suffix="bar"),

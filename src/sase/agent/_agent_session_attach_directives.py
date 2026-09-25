@@ -1,4 +1,4 @@
-"""Directive parsing helpers for ``%id(suffix, family=parent)`` agent-session attach."""
+"""Directive parsing helpers for ``%id(suffix, session=parent)`` agent-session attach."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from sase.agent import _agent_session_attach_types as _types
 from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
 _SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
-_NAME_DIRECTIVE_KEYWORDS = frozenset({"bead", "clan", "family", "tribe"})
-_NAME_MEMBERSHIP_KEYWORDS = frozenset({"clan", "family", "tribe"})
+_NAME_DIRECTIVE_KEYWORDS = frozenset({"bead", "clan", "session", "tribe"})
+_NAME_MEMBERSHIP_KEYWORDS = frozenset({"clan", "session", "tribe"})
 
 
 def parse_name_directive_args(
@@ -21,6 +21,11 @@ def parse_name_directive_args(
 ) -> _types.ParsedNameDirective:
     """Classify ``%id`` / ``%i`` arguments as plain naming or agent-session attach."""
 
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_directive_args,
+    )
+
+    named_args = normalize_agent_session_directive_args(named_args)
     unknown_keys = sorted(
         key for key in named_args if key not in _NAME_DIRECTIVE_KEYWORDS
     )
@@ -28,20 +33,20 @@ def parse_name_directive_args(
         keys = ", ".join(f"{key}=" for key in unknown_keys)
         raise ValueError(
             f"Unsupported keyword on {source}: {keys}. Only bead=, clan=, "
-            "family=, and tribe= are supported."
+            "session=, and tribe= are supported."
         )
     selected_keywords = sorted(
         key for key in _NAME_MEMBERSHIP_KEYWORDS if key in named_args
     )
     if len(selected_keywords) > 1:
         raise ValueError(
-            "The clan=, family=, and tribe= keywords on %id are mutually "
+            "The clan=, session=, and tribe= keywords on %id are mutually "
             "exclusive; set at most one."
         )
     if len(positional_args) > 1:
         raise ValueError(
-            "The positional family form on %id is no longer supported; use "
-            "%id(<suffix>, family=<parent>) instead."
+            "The positional session form on %id is no longer supported; use "
+            "%id(<suffix>, session=<parent>) instead."
         )
 
     bead_id = named_args.get("bead")
@@ -76,13 +81,13 @@ def parse_name_directive_args(
             force_reuse=force_reuse,
         )
 
-    parent_arg = named_args.get("family")
+    parent_arg = named_args.get("session")
     if parent_arg is not None:
         if len(positional_args) != 1:
             raise ValueError(
-                f"The family= keyword on {source} requires exactly one positional "
-                "suffix; use %id(<suffix>, family=<family>) or "
-                "%id(@, family=<family>)."
+                f"The session= keyword on {source} requires exactly one positional "
+                "suffix; use %id(<suffix>, session=<session>) or "
+                "%id(@, session=<session>)."
             )
         parent = parent_arg.strip()
         suffix = positional_args[0].strip()
@@ -91,11 +96,11 @@ def parse_name_directive_args(
             suffix = suffix[1:]
         if not parent:
             raise ValueError(
-                f"The family= keyword on {source} requires a non-empty agent session name."
+                f"The session= keyword on {source} requires a non-empty agent session name."
             )
         if not suffix:
             raise ValueError(
-                f"The family= keyword on {source} requires a non-empty suffix."
+                f"The session= keyword on {source} requires a non-empty suffix."
             )
         normalize_agent_session_suffix_arg(suffix)
         return _types.ParsedNameDirective(
@@ -176,7 +181,7 @@ def extract_agent_session_attach_directive(
 
 
 def _agent_session_attach_parent_from_prompt(prompt: str) -> str | None:
-    """Return the parent named by a top-level ``%id(suffix, family=parent)``."""
+    """Return the parent named by a top-level ``%id(suffix, session=parent)``."""
     directive = extract_agent_session_attach_directive(prompt)
     return None if directive is None else directive.parent
 
@@ -233,7 +238,7 @@ def normalize_agent_session_suffix_arg(suffix: str) -> str:
     if suffix.startswith((".", "-")) or AGENT_SESSION_SEPARATOR in suffix:
         raise ValueError(
             f"Invalid %i session suffix '{suffix}'. Pass the bare suffix "
-            "without a session separator, e.g. %i(reviewer, family=parent)."
+            "without a session separator, e.g. %i(reviewer, session=parent)."
         )
     if not _SUFFIX_TOKEN_RE.fullmatch(suffix):
         raise ValueError(

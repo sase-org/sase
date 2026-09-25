@@ -570,7 +570,7 @@ def test_refresh_local_xprompts_boundary_replay(
             ),
             patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
         ):
-            os.environ.pop("SASE_AGENT_FAMILY_ATTACH", None)
+            os.environ.pop("SASE_AGENT_SESSION_ATTACH", None)
             return extract_directives_and_write_meta(
                 prompt,
                 str(workspace),

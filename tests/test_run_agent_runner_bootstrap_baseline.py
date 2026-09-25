@@ -15,7 +15,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from sase.agent.agent_session_attach import (
-    LEGACY_AGENT_FAMILY_ATTACH_ENV,
+    AGENT_SESSION_ATTACH_ENV,
     AgentSessionAttachLaunchPlan,
 )
 from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV
@@ -94,7 +94,7 @@ def test_capture_commit_finalizer_baseline_inherits_parent_baseline(
     baseline_payload = '{"repo": {"file.txt": ["M", "abc123"]}}\n'
     (parent_dir / BASELINE_FILENAME).write_text(baseline_payload, encoding="utf-8")
     plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
     capture = MagicMock()
     monkeypatch.setattr(
         "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
@@ -138,7 +138,7 @@ def test_capture_commit_finalizer_baseline_inherits_parent_finalizer_baseline(
         encoding="utf-8",
     )
     plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
     capture = MagicMock()
     monkeypatch.setattr(
         "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
@@ -161,7 +161,7 @@ def test_capture_commit_finalizer_baseline_falls_back_when_parent_has_no_baselin
     parent_dir = tmp_path / "parent"
     parent_dir.mkdir()
     plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
     capture = MagicMock()
     monkeypatch.setattr(
         "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
@@ -179,7 +179,7 @@ def test_capture_commit_finalizer_baseline_captures_fresh_without_family_attach_
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
-    monkeypatch.delenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, raising=False)
+    monkeypatch.delenv(AGENT_SESSION_ATTACH_ENV, raising=False)
     monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(tmp_path))
     capture = MagicMock()
     monkeypatch.setattr(
@@ -196,7 +196,7 @@ def test_capture_commit_finalizer_baseline_falls_back_on_malformed_family_attach
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, "not valid json")
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, "not valid json")
     capture = MagicMock()
     monkeypatch.setattr(
         "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
@@ -221,7 +221,7 @@ def test_capture_commit_finalizer_baseline_falls_back_when_parent_baseline_unrea
     stack = ExitStack()
     stack.callback(baseline_path.chmod, 0o644)
     plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
     capture = MagicMock()
     monkeypatch.setattr(
         "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture

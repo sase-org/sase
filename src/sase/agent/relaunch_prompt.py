@@ -115,14 +115,14 @@ def prepare_kill_and_edit_prompt(
 
     A prompt that never declared a named ``%id``/``%i`` is returned
     unchanged so the relaunch allocates a fresh name. Serial non-root agent-session
-    members are the exception: their ``family=`` attachment is reconstructed
+    members are the exception: their ``session=`` attachment is reconstructed
     from row metadata even when the stored prompt has no ``%id``. Agent-session
     roots get no such rewrite.
 
     Agent-session roots that declared ``%id`` are named under the agent-session
     reference and forced to reuse that name. Non-root serial agent-session members keep the
-    exact-member ``family=`` rewrite. A rewrite that would drop clan
-    membership without a parent to inherit from, self-attach ``family=`` to
+    exact-member ``session=`` rewrite. A rewrite that would drop clan
+    membership without a parent to inherit from, self-attach ``session=`` to
     the relaunched agent, or omit forced name reuse raises
     :class:`KillAndEditPromptError`.
     """
@@ -401,13 +401,13 @@ def _verify_agent_session_form(
         presented_row and agent_session_parent == presented_row
     ):
         raise KillAndEditPromptError(
-            f"family={agent_session_parent} attaches the agent to itself",
+            f"session={agent_session_parent} attaches the agent to itself",
             agent_name=agent_name or presented_row,
             produced=rewritten,
         )
     if facing_agent_session and agent_session_parent != facing_agent_session:
         raise KillAndEditPromptError(
-            f"family={agent_session_parent} does not match family {facing_agent_session}",
+            f"session={agent_session_parent} does not match session {facing_agent_session}",
             agent_name=agent_name,
             produced=rewritten,
         )
@@ -419,7 +419,7 @@ def _verify_agent_session_form(
         )
         if shell_agent_session and shell_agent_session != agent_session_parent:
             raise KillAndEditPromptError(
-                f"family={agent_session_parent} does not match agent {facing_agent}",
+                f"session={agent_session_parent} does not match agent {facing_agent}",
                 agent_name=agent_name,
                 produced=rewritten,
             )

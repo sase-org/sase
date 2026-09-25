@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-# legacy agent-family spelling: the handoff variable keeps its name until
-# ``SASE_AGENT_SESSION_ATTACH`` is introduced.
+AGENT_SESSION_ATTACH_ENV = "SASE_AGENT_SESSION_ATTACH"
+# legacy agent-family spelling: an agent launched before the rename can still
+# hand its attach plan to an upgraded child while the sunset flag is enabled.
 LEGACY_AGENT_FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
 
 
@@ -72,10 +73,11 @@ class AgentSessionAttachSibling:
 
 
 class AgentSessionAttachError(RuntimeError):
-    """Raised when a ``%id(suffix, family=parent)`` launch cannot be prepared."""
+    """Raised when a ``%id(suffix, session=parent)`` launch cannot be prepared."""
 
 
 __all__ = [
+    "AGENT_SESSION_ATTACH_ENV",
     "LEGACY_AGENT_FAMILY_ATTACH_ENV",
     "AgentSessionAttachDirective",
     "AgentSessionAttachError",

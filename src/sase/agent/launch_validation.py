@@ -82,7 +82,7 @@ class _AgentNameAgentSessionCollisionError(_LaunchNameValidationError):
         self.name = name
         super().__init__(
             f"Agent name '{name}' is reserved for agent session '{name}'. "
-            "Attach a member with %i(suffix, family=parent) instead."
+            "Attach a member with %i(suffix, session=parent) instead."
         )
 
 

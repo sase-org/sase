@@ -255,11 +255,14 @@ class GateSpec:
             default_feedback=adapter.default_feedback,
         )
         primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
+        from sase.agent.legacy_agent_family_syntax import normalize_agent_session_fork
+
         shell = (
             GateShellSpec.from_mapping(
                 data["shell"],
                 branches=branches,
                 allow_branch_subsets=subset_branches_allowed(kind),
+                fork_normalizer=normalize_agent_session_fork,
             )
             if "shell" in data
             else None

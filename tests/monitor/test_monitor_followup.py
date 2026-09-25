@@ -112,7 +112,7 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     env = captured["extra_env"]
     assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
     assert env[MONITOR_CONTINUATION_ENV] == "1"
-    plan = json.loads(env["SASE_AGENT_FAMILY_ATTACH"])
+    plan = json.loads(env["SASE_AGENT_SESSION_ATTACH"])
     assert plan["agent_name"] == "acme--1"
     assert plan["parent_base"] == "acme"
     # The starter's own role ("root") is inherited rather than the generic

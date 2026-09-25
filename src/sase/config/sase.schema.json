@@ -5270,6 +5270,12 @@
           "default": true,
           "deprecated": true
         },
+        "legacy_agent_family_syntax": {
+          "type": "boolean",
+          "description": "SASE silently accepts the retired agent-family spellings as aliases of their agent-session replacements: %id(..., family=...), the family:/kind:family agent queries, --next-fork family, gate \"fork\": \"family\", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also removes sase-core's hidden `family` %id keyword alias.",
+          "default": true,
+          "deprecated": true
+        },
         "monitor_continuation_records": {
           "type": "boolean",
           "description": "New monitor starts persist versioned continuation records, frozen outcome policy, checkpoints, and durable delivery/adoption state for production continuation routing.",

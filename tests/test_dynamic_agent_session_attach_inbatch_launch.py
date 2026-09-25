@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.agent_session_attach import LEGACY_AGENT_FAMILY_ATTACH_ENV
+from sase.agent.agent_session_attach import AGENT_SESSION_ATTACH_ENV
 from sase.agent.launch_executor import (
     LaunchExecutionContext,
     LaunchSpawnRequest,
@@ -37,8 +37,8 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
         "multi",
         [
             "%auto %i:foo\nPlan the change.",
-            "%i(reviewer, family=foo)\nReview foo's plan.",
-            "%i(@, family=foo)\nFollow up on the review.",
+            "%i(reviewer, session=foo)\nReview foo's plan.",
+            "%i(@, session=foo)\nFollow up on the review.",
         ],
     )
     plan = replace(
@@ -89,7 +89,7 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     assert requests[1].deferred_workspace is True
     assert requests[1].extra_env is not None
     assert requests[1].extra_env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] == "100"
-    payload = json.loads(requests[1].extra_env[LEGACY_AGENT_FAMILY_ATTACH_ENV])
+    payload = json.loads(requests[1].extra_env[AGENT_SESSION_ATTACH_ENV])
     assert payload["agent_name"] == "foo--reviewer"
     assert payload["parent_name"] == "foo"
     assert payload["parent_timestamp"] == "20260701010101"
@@ -98,7 +98,7 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     assert payload["parent_is_running"] is True
     assert payload["parent_agent_session_role_suffix"] == "--plan"
     assert requests[2].extra_env is not None
-    chained_payload = json.loads(requests[2].extra_env[LEGACY_AGENT_FAMILY_ATTACH_ENV])
+    chained_payload = json.loads(requests[2].extra_env[AGENT_SESSION_ATTACH_ENV])
     assert chained_payload["agent_name"] == "foo--1"
     assert chained_payload["parent_name"] == "foo--reviewer"
     assert chained_payload["parent_timestamp"] == "20260701010102"
@@ -140,7 +140,7 @@ def test_multi_prompt_agent_session_attach_can_reference_earlier_named_segment(
         results = launch_multi_prompt_agents(
             segments=[
                 "%i:foo\nPlan the change.",
-                "%i(reviewer, family=foo)\nReview foo's plan.",
+                "%i(reviewer, session=foo)\nReview foo's plan.",
             ],
             local_xprompts={},
             cl_name="feature",
@@ -158,7 +158,7 @@ def test_multi_prompt_agent_session_attach_can_reference_earlier_named_segment(
     extra_env = spawn_calls[1]["extra_env"]
     assert isinstance(extra_env, dict)
     assert extra_env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] == "100"
-    payload = json.loads(str(extra_env[LEGACY_AGENT_FAMILY_ATTACH_ENV]))
+    payload = json.loads(str(extra_env[AGENT_SESSION_ATTACH_ENV]))
     assert payload["agent_name"] == "foo--reviewer"
     assert payload["parent_name"] == "foo"
     assert payload["parent_timestamp"] == "20260701010101"

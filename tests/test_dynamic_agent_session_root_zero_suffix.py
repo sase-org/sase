@@ -41,7 +41,7 @@ def _attached_member(
     raw_suffix: str = "20260701010202",
     agent_session: str = "foo",
 ) -> Agent:
-    """A ``%i(suffix, family=parent)`` session-member child row."""
+    """A ``%i(suffix, session=parent)`` session-member child row."""
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="feature",
@@ -130,7 +130,7 @@ def test_single_bare_member_stays_bare() -> None:
 
 
 def test_explicit_zero_member_is_not_duplicated() -> None:
-    """An explicit ``foo--0`` (``%i(0, family=foo)``) suppresses normalization."""
+    """An explicit ``foo--0`` (``%i(0, session=foo)``) suppresses normalization."""
     root = _bare_root()
     explicit_zero = _attached_member(name="foo--0", role_suffix="--0", role="q")
 

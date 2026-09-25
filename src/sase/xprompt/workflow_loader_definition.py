@@ -22,8 +22,8 @@ from sase.xprompt.workflow_models import (
 )
 
 _REMOVED_AGENT_FAMILY_KIND_ERROR = (
-    "kind: agent_family is no longer supported; attach family members manually "
-    "with %i(suffix, family=parent). Agent-initiated family launches use "
+    "kind: agent_session is no longer supported; attach session members manually "
+    "with %i(suffix, session=parent). Agent-initiated session launches use "
     "LaunchApproval."
 )
 

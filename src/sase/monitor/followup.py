@@ -1,11 +1,11 @@
 """Launch the follow-up agent into a monitor's lane once it goes terminal.
 
-Reuses the same ``%id(<suffix>, family=<parent>)`` agent-session attach machinery
+Reuses the same ``%id(<suffix>, session=<parent>)`` agent-session attach machinery
 a user-typed directive would trigger (:mod:`sase.agent.agent_session_attach`):
 the monitor's lane is resolved to an agent-session attach plan, encoded into
 the child's launch environment, and the child's own runner boot adopts the
 resulting name, agent session, and role when it starts -- exactly as it would
-for an interactive ``%id(@, family=acme)`` launch.
+for an interactive ``%id(@, session=acme)`` launch.
 """
 
 from __future__ import annotations

@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from sase.agent._agent_session_attach_types import (
+    AGENT_SESSION_ATTACH_ENV,
     LEGACY_AGENT_FAMILY_ATTACH_ENV,
     AgentSessionAttachDirective,
     AgentSessionAttachLaunchPlan,
@@ -70,7 +71,9 @@ class TestAgentSessionAttachEnv:
     def test_payload_emits_only_agent_session_keys(self) -> None:
         env = agent_session_attach_env(_fake_plan())
 
-        payload = json.loads(env[LEGACY_AGENT_FAMILY_ATTACH_ENV])
+        payload = json.loads(env[AGENT_SESSION_ATTACH_ENV])
+
+        assert LEGACY_AGENT_FAMILY_ATTACH_ENV not in env
 
         assert payload["agent_session_role"] == "root"
         assert payload["parent_agent_session_member_name"] == "acme--0"

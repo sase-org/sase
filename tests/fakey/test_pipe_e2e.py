@@ -465,7 +465,7 @@ def test_monitor_sleep_one_next_still_attaches_and_transfers_claim(
     assert captured["prompt"].startswith("#fork:acme--0\n")
     env = captured["extra_env"]
     assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
-    plan = json.loads(env["SASE_AGENT_FAMILY_ATTACH"])
+    plan = json.loads(env["SASE_AGENT_SESSION_ATTACH"])
     assert plan["agent_name"] == "acme--1"
     assert plan["parent_base"] == "acme"
     assert plan["parent_is_running"] is False

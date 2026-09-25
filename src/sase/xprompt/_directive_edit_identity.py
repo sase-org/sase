@@ -41,7 +41,14 @@ def set_prompt_name(
     directive = _find_prompt_id_directive(protected)
     if directive is None:
         return restore(insert_directive(protected, f"%{directive_alias}:{name}"))
-    named = directive.named if preserve_kwargs else {}
+    if preserve_kwargs:
+        from sase.agent.legacy_agent_family_syntax import (
+            normalize_agent_session_directive_args,
+        )
+
+        named = normalize_agent_session_directive_args(directive.named)
+    else:
+        named = {}
     if drop_kwargs:
         named = {key: value for key, value in named.items() if key not in drop_kwargs}
     replacement = _format_id_directive(
@@ -166,7 +173,7 @@ def rewrite_prompt_agent_session_member_name(
     member_id = f"!{suffix}" if force_reuse else suffix
     replacement_parts = [
         format_directive_arg(member_id),
-        f"family={format_directive_arg(agent_session_name)}",
+        f"session={format_directive_arg(agent_session_name)}",
     ]
     if effective_bead:
         replacement_parts.append(f"bead={format_directive_arg(effective_bead)}")
@@ -201,14 +208,18 @@ def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
             return restore(protected)
         return restore(insert_directive(protected, f"%id(tribe={tribe})"))
 
-    named = dict(directive.named)
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_directive_args,
+    )
+
+    named = normalize_agent_session_directive_args(directive.named)
     if tribe is not None:
-        conflicting = sorted(key for key in named if key in {"clan", "family"})
+        conflicting = sorted(key for key in named if key in {"clan", "session"})
         if conflicting:
             keyword = conflicting[0]
             raise ValueError(
                 f"Cannot set tribe= on an %id directive that already uses "
-                f"{keyword}=; clan=, family=, and tribe= are mutually exclusive."
+                f"{keyword}=; clan=, session=, and tribe= are mutually exclusive."
             )
         named["tribe"] = tribe
     else:

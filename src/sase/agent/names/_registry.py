@@ -163,7 +163,7 @@ def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> NoRetur
         )
     raise NameCollisionError(
         f"agent name '{name}' is reserved for agent session '{name}'; "
-        "attach a member with %i(suffix, family=parent) instead"
+        "attach a member with %i(suffix, session=parent) instead"
     )
 
 

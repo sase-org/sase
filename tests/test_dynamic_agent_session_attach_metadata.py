@@ -11,7 +11,7 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.agent.agent_session_attach import (
-    LEGACY_AGENT_FAMILY_ATTACH_ENV,
+    AGENT_SESSION_ATTACH_ENV,
     AgentSessionAttachLaunchPlan,
     prepare_agent_session_attach_launch,
 )
@@ -87,7 +87,7 @@ def test_agent_session_attach_metadata_matches_runner_followup_and_tui_agent_ses
         ],
     )
 
-    prompt = "%i(code, family=foo)\nDo work"
+    prompt = "%i(code, session=foo)\nDo work"
     prepared_context, env = prepare_agent_session_attach_launch(
         prompt,
         LaunchExecutionContext(
@@ -233,8 +233,8 @@ def test_agent_session_attach_child_inherits_parent_clan_metadata(
         parent_agent_clan="research",
         parent_agent_clan_generation="20260701010000",
     )
-    prompt = "%i(reviewer, family=research.worker)\nReview"
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    prompt = "%i(reviewer, session=research.worker)\nReview"
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
     monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
     with (
@@ -317,8 +317,8 @@ def test_agent_session_attach_parent_workspace_num_does_not_clobber_claimed_run(
         parent_workspace_dir="/tmp/sase_7",
         parent_workspace_num=7,
     )
-    prompt = "%i(reviewer, family=foo)\nReview"
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    prompt = "%i(reviewer, session=foo)\nReview"
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
     monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
     with (
@@ -359,8 +359,8 @@ def test_agent_session_attach_parent_workspace_num_does_not_clobber_claimed_run(
 @pytest.mark.parametrize(
     ("prompt", "expected_weight", "expected_explicit"),
     [
-        ("%i(reviewer, family=foo)\nReview", 2.0, False),
-        ("%queue(weight=0.25)\n%i(reviewer, family=foo)\nReview", 0.25, True),
+        ("%i(reviewer, session=foo)\nReview", 2.0, False),
+        ("%queue(weight=0.25)\n%i(reviewer, session=foo)\nReview", 0.25, True),
     ],
 )
 def test_agent_session_attach_child_preserves_queue_weight_provenance(
@@ -400,7 +400,7 @@ def test_agent_session_attach_child_preserves_queue_weight_provenance(
         parent_project_name="sase",
         parent_cl_name="feature",
     )
-    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(AGENT_SESSION_ATTACH_ENV, json.dumps(asdict(plan)))
     monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
     with (

@@ -538,7 +538,7 @@ def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
         )
     if "clan" in collected.seen and collected.name_agent_session_args is not None:
         raise DirectiveError(
-            "Cannot combine %clan with %id(..., family=...); choose clan "
+            "Cannot combine %clan with %id(..., session=...); choose clan "
             "membership or serial agent-session attachment."
         )
 

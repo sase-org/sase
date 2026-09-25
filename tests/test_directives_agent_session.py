@@ -261,7 +261,7 @@ def test_id_clan_keyword_derives_template_metadata() -> None:
         ("%id(worker, clan=)", "requires a non-empty clan name"),
         (
             "%id(parent, reviewer, clan=research)",
-            "positional family form",
+            "positional session form",
         ),
         (
             "%id(worker, clan=research, clan=other)",
@@ -363,11 +363,11 @@ def test_clan_directive_rejects_duplicate_alias_occurrence() -> None:
 
 
 def test_clan_directive_conflicts_with_serial_agent_session_attach() -> None:
-    prompt = "%i(reviewer, family=parent)\n%clan:parent\nDo work"
+    prompt = "%i(reviewer, session=parent)\n%clan:parent\nDo work"
 
     with pytest.raises(
         DirectiveError,
-        match=r"Cannot combine %clan with %id\(\.\.\., family=\.\.\.\)",
+        match=r"Cannot combine %clan with %id\(\.\.\., session=\.\.\.\)",
     ):
         extract_prompt_directives(prompt)
 

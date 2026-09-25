@@ -18,7 +18,7 @@ def rewrite_retry_prompt_name(
     from sase.xprompt.directive_edit import set_prompt_name
 
     # A retry name is already the concrete derived name (for example,
-    # ``foo--reviewer.r0``). Keeping family= would reinterpret that full name
+    # ``foo--reviewer.r0``). Keeping session= would reinterpret that full name
     # as a bare family suffix, producing an invalid directive. Drop only that
     # obsolete membership attachment; orthogonal launch metadata such as
     # bead= must survive the retry.
