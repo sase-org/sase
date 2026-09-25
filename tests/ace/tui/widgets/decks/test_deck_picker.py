@@ -15,9 +15,12 @@ from sase.ace.tui.widgets.decks.model import (
 )
 from sase.ace.tui.widgets.decks.picker import (
     DeckPickerState,
+    _OtherPanelTarget,
     _deck_count_label,
     build_deck_picker_rows,
     deck_picker_heading,
+    deck_picker_other_hint,
+    other_panel_target,
     panel_position_label,
 )
 from sase.ace.tui.widgets.decks.titles import (
@@ -208,4 +211,86 @@ def test_deck_switch_hint_falls_back_without_picker_key() -> None:
     assert (
         _hint_app("unbound")._deck_switch_hint()  # type: ignore[attr-defined]
         == "Ctrl+N next deck · Ctrl+P previous deck"
+    )
+
+
+def _split(layout: DeckLayout, focused: int) -> DeckAreaState:
+    return DeckAreaState(
+        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
+        focused=focused,
+        layout=layout,
+    )
+
+
+def test_other_panel_target_single_opens_bottom_split() -> None:
+    assert other_panel_target(DeckAreaState(), 0) == _OtherPanelTarget(
+        panel_index=1, label="bottom", opens_split=True, ends_zoom=False
+    )
+
+
+def test_other_panel_target_top_bottom_targets_opposite_panel() -> None:
+    top_focus = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 0), 0)
+    assert top_focus == _OtherPanelTarget(1, "bottom", False, False)
+    bottom_focus = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 1), 1)
+    assert bottom_focus == _OtherPanelTarget(0, "top", False, False)
+
+
+def test_other_panel_target_left_right_keeps_layout() -> None:
+    left_focus = other_panel_target(_split(DeckLayout.LEFT_RIGHT, 0), 0)
+    assert left_focus == _OtherPanelTarget(1, "right", False, False)
+    right_focus = other_panel_target(_split(DeckLayout.LEFT_RIGHT, 1), 1)
+    assert right_focus == _OtherPanelTarget(0, "left", False, False)
+
+
+def test_other_panel_target_zoomed_from_single_opens_split_and_ends_zoom() -> None:
+    snapshot = DeckAreaState()
+    zoomed = DeckAreaState(
+        panels=snapshot.panels,
+        focused=0,
+        layout=DeckLayout.SINGLE,
+        nodes_collapsed=True,
+        zoom_snapshot=snapshot,
+    )
+    assert other_panel_target(zoomed, 0) == _OtherPanelTarget(
+        panel_index=1, label="bottom", opens_split=True, ends_zoom=True
+    )
+
+
+def test_other_panel_target_zoomed_from_split_uses_snapshot_orientation() -> None:
+    snapshot = _split(DeckLayout.LEFT_RIGHT, 1)
+    zoomed = DeckAreaState(
+        panels=snapshot.panels,
+        focused=1,
+        layout=DeckLayout.SINGLE,
+        nodes_collapsed=True,
+        zoom_snapshot=snapshot,
+    )
+    assert other_panel_target(zoomed, 1) == _OtherPanelTarget(
+        panel_index=0, label="left", opens_split=False, ends_zoom=True
+    )
+
+
+def test_other_panel_target_clamps_out_of_range_source() -> None:
+    target = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 0), 5)
+    assert target.panel_index == 0
+    target = other_panel_target(_split(DeckLayout.TOP_BOTTOM, 0), -1)
+    assert target.panel_index == 1
+
+
+def test_deck_picker_other_hint_phrases() -> None:
+    assert (
+        deck_picker_other_hint(_OtherPanelTarget(1, "bottom", True, False))
+        == "open in a new bottom panel"
+    )
+    assert (
+        deck_picker_other_hint(_OtherPanelTarget(0, "left", False, False))
+        == "show in the left panel"
+    )
+    assert (
+        deck_picker_other_hint(_OtherPanelTarget(1, "bottom", True, True))
+        == "open in a new bottom panel \u00b7 ends zoom"
+    )
+    assert (
+        deck_picker_other_hint(_OtherPanelTarget(0, "top", False, True))
+        == "show in the top panel \u00b7 ends zoom"
     )

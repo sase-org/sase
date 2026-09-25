@@ -192,8 +192,10 @@ class AgentPanelDetailMixin:
         from ...modals.deck_picker_modal import DeckPickerModal
         from ...widgets import AgentDetail
         from ...widgets.decks.picker import (
+            DeckPick,
             build_deck_picker_rows,
             deck_picker_heading,
+            deck_picker_other_hint,
         )
 
         if isinstance(getattr(self, "screen", None), ModalScreen):
@@ -207,6 +209,11 @@ class AgentPanelDetailMixin:
             return
         rows = build_deck_picker_rows(state)
         heading = deck_picker_heading(state)
+        other_hint = (
+            deck_picker_other_hint(state.other_target)
+            if state.other_target is not None
+            else None
+        )
         try:
             from ...keymaps import split_key_alternatives
             from ...keymaps.key_validation import is_unbound_key
@@ -220,12 +227,17 @@ class AgentPanelDetailMixin:
         except Exception:
             close_keys = ()
 
-        def _on_choice(chosen: object) -> None:
+        def _on_choice(chosen: DeckPick | None) -> None:
             if chosen is None or self.current_tab != "agents":
                 return
             try:
                 detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-                changed = detail.apply_picked_deck(state.panel_index, chosen)  # type: ignore[arg-type]
+                if chosen.other_panel:
+                    changed = detail.show_deck_in_other_panel(
+                        state.panel_index, chosen.deck
+                    )
+                else:
+                    changed = detail.apply_picked_deck(state.panel_index, chosen.deck)
             except Exception:
                 return
             if not changed:
@@ -237,7 +249,9 @@ class AgentPanelDetailMixin:
             except Exception:
                 pass
 
-        self.push_screen(DeckPickerModal(rows, heading, close_keys), _on_choice)  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            DeckPickerModal(rows, heading, close_keys, other_hint), _on_choice
+        )
 
     def action_show_deck_at(self, index: int) -> None:
         """Show one deck in the focused panel (palette direct command)."""
@@ -255,6 +269,33 @@ class AgentPanelDetailMixin:
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             changed = agent_detail.apply_picked_deck(None, DECK_CYCLE[position])
+        except Exception:
+            return
+        if not changed:
+            return
+        try:
+            refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh):
+                refresh()
+        except Exception:
+            pass
+
+    def action_show_deck_other_at(self, index: int) -> None:
+        """Show one deck in the other panel (palette direct command)."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+        from ...widgets.decks.model import DECK_CYCLE
+
+        try:
+            position = int(index)
+        except Exception:
+            return
+        if position < 0 or position >= len(DECK_CYCLE):
+            return
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            changed = agent_detail.show_deck_in_other_panel(None, DECK_CYCLE[position])
         except Exception:
             return
         if not changed:

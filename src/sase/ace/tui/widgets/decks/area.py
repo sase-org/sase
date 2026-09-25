@@ -95,15 +95,13 @@ class DeckArea(Vertical):
             except Exception:
                 pass
             return
-        if panel1 is not None:
-            try:
-                panel1.remove_class("hidden")
-            except Exception:
-                pass
+        # A split shows both panels. Panel 0 can still be hidden here when a
+        # zoom on panel 1 just ended.
         for index, panel in ((0, panel0), (1, panel1)):
             if panel is None:
                 continue
             try:
+                panel.remove_class("hidden")
                 panel.set_focused(index == new_state.focused)
             except Exception:
                 pass

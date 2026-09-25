@@ -140,7 +140,11 @@ def _iter_agents_panel_layout_command(
 def _iter_deck_picker_commands(
     registry: KeymapRegistry,
 ) -> Iterator[CommandSpec]:
-    """Yield one direct deck command per deck in ``DECK_CYCLE``."""
+    """Yield direct deck commands per deck in ``DECK_CYCLE``.
+
+    Each deck gets a focused-panel command and an other-panel command (the
+    picker's lowercase and capital letter).
+    """
     from sase.ace.tui.keymaps.loader import key_display_name
     from sase.ace.tui.widgets.decks.model import DECK_CYCLE
     from sase.ace.tui.widgets.decks.titles import DECK_PICKER_KEYS
@@ -172,6 +176,32 @@ def _iter_deck_picker_commands(
                 deck.value,
                 f"{deck.value} deck",
                 "switch deck",
+            ),
+        )
+        if is_unbound_key(opener):
+            other_sequence: tuple[str, ...] = ()
+            other_display = ""
+        else:
+            other_sequence = (opener, letter.upper())
+            other_display = " ".join(key_display_name(k) for k in other_sequence)
+        yield CommandSpec(
+            id=f"agents.show_deck_other.{deck.value}",
+            label=f"Show {deck.value.capitalize()} deck in other panel",
+            key_sequence=other_sequence,
+            key_display=other_display,
+            category="Navigation",
+            tabs=AGENTS_ONLY,
+            executor=CommandExecutor(
+                kind="app_action",
+                action="show_deck_other_at",
+                digit=index,
+            ),
+            aliases=(
+                "deck",
+                deck.value,
+                f"{deck.value} deck",
+                "other panel",
+                "split",
             ),
         )
 

@@ -196,6 +196,27 @@ def test_agents_help_lists_deck_picker_row() -> None:
     navigation = dict(sections["Navigation"])
 
     assert navigation["p"] == "Pick deck for focused panel (decks)"
+    assert navigation["p M/F/T"] == "Show deck in other panel (decks)"
+
+
+def test_agents_help_deck_other_panel_row_follows_pick_deck_binding() -> None:
+    rebound = dict(
+        dict(
+            agents_bindings(
+                load_keymap_registry({"keymaps": {"app": {"pick_deck": "f12"}}})
+            )
+        )["Navigation"]
+    )
+    assert rebound["f12 M/F/T"] == "Show deck in other panel (decks)"
+
+    unbound = dict(
+        dict(
+            agents_bindings(
+                load_keymap_registry({"keymaps": {"app": {"pick_deck": "unbound"}}})
+            )
+        )["Navigation"]
+    )
+    assert "Show deck in other panel (decks)" not in unbound.values()
 
 
 def test_help_modal_lists_collapse_fold_by_hint_with_configured_prefix() -> None:

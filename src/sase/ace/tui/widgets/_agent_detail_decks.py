@@ -457,7 +457,11 @@ class AgentDetailDeckMixin:
     def deck_picker_state(self) -> Any | None:
         """Snapshot the focused panel for the deck picker, or None."""
         from .decks.layout import is_zoomed
-        from .decks.picker import DeckPickerState, panel_position_label
+        from .decks.picker import (
+            DeckPickerState,
+            other_panel_target,
+            panel_position_label,
+        )
 
         try:
             area = self.deck_area
@@ -496,6 +500,7 @@ class AgentDetailDeckMixin:
                 other=other,
                 availability=availability,
                 accents=accents,
+                other_target=other_panel_target(state, panel_index),
             )
         except Exception:
             return None

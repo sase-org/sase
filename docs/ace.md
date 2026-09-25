@@ -1306,7 +1306,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `G`                       | Scroll to bottom (focused deck panel)                                                                                                                            |
 | `Ctrl+D` / `Ctrl+U`       | Scroll focused deck panel down / up (half page)                                                                                                                  |
 | `Ctrl+N` / `Ctrl+P`       | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                          |
-| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `pp`/`Esc` close                                                                                  |
+| `p`                       | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `M`/`F`/`T` show it in the other panel (opening one below if needed); `pp`/`Esc` close            |
 | `\` / `                   | `                                                                                                                                                                | Split deck panels top-bottom / left-right; press again to close the second panel, or press the other key to rotate |
 | `}` / `{`                 | Grow / shrink the focused deck panel (split layouts only)                                                                                                        |
 | `Ctrl+F`                  | Move focus to the other deck panel (split layouts only)                                                                                                          |
@@ -1390,7 +1390,7 @@ rather than landing somewhere stale.
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                     |
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                  |
 | `Ctrl+N` / `Ctrl+P` | Focused panel to the next / previous deck (Main → Files → Tools, wraps)                                                                                                    |
-| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `pp`/`Esc` close                                                                                            |
+| `p`                 | Pick the focused panel's deck: `m` Main, `f` Files, `t` Tools; `M`/`F`/`T` show it in the other panel (opening one below if needed); `pp`/`Esc` close                      |
 
 When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
 target immediately, even if other rows are already marked. `m` marks or unmarks the
@@ -5286,6 +5286,20 @@ the Agents tab now always shows
 are fixed and not configurable. `p` keeps its unrelated Artifacts project-scope meaning
 on the Artifacts tab.
 
+The capital deck letters (`M` / `F` / `T`) show that deck in the **other** panel instead
+of the focused one. From a single panel they open a new panel below (top-bottom) showing
+the picked deck; in an existing top-bottom or left-right split they fill the other panel
+and keep the layout as is (a left-right split is never rotated). While zoomed, the zoom
+ends first, the way `Z` ends it, and the split comes back in its original orientation
+(or a new bottom panel opens when the zoom came from a single panel). Focus always stays
+on the panel the picker was opened from, unlike `\`, which moves focus into the new
+panel; `Ctrl+F` moves it if you want. A muted hint line at the bottom of the picker
+(`M/F/T  open in a new bottom panel`, `show in the left panel`, and so on) says where
+the capital letter will go. Picking a capital letter for the deck the other panel
+already shows changes nothing. `Enter` and mouse clicks keep their focused-panel
+meaning. The palette offers the same jumps as
+`Show <Main|Files|Tools> deck in other panel`.
+
 ### Agent Data Decks and Cards
 
 The Agents tab detail column shows one or two deck panels between the sticky header
@@ -5320,10 +5334,12 @@ selection shows an empty-state card instead, so the layout never jumps.
 `\` opens a second panel below the first (top-bottom) and `|` opens one to its right
 (left-right); the new panel takes focus and shows the next deck with content, or a
 duplicate deck when every other deck is empty or already shown. Pressing the same split
-key again closes the second panel; pressing the other split key rotates the layout.
-`Ctrl+F` moves focus to the other panel (split layouts only) and every deck, card,
-scroll, search, and fold key acts on the focused panel. `}` / `{` grow / shrink the
-focused panel (split layouts only). `Ctrl+B` has no Agents behavior.
+key again closes the second panel; pressing the other split key rotates the layout. `p`
+plus a capital deck letter (`M` / `F` / `T`) opens or fills the other panel with a
+chosen deck without moving focus (see the [deck picker](#agents-deck-picker)). `Ctrl+F`
+moves focus to the other panel (split layouts only) and every deck, card, scroll,
+search, and fold key acts on the focused panel. `}` / `{` grow / shrink the focused
+panel (split layouts only). `Ctrl+B` has no Agents behavior.
 
 The layout, split ratio, focus, node-panel collapse, and each panel's deck and preferred
 card persist across restarts in `~/.sase/ace_agents_deck_state.json`. See the

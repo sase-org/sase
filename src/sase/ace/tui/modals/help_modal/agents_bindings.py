@@ -2,6 +2,8 @@
 
 from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
 from ...models.agent_live_query_engine import agents_unified_query_enabled
+from ...widgets.decks.model import DECK_CYCLE
+from ...widgets.decks.titles import DECK_PICKER_KEYS
 from .binding_common import (
     ADMIN_CENTER_TASKS_SECTION,
     ADMIN_CENTER_UPDATES_SECTION,
@@ -43,6 +45,12 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     grouping_opener_rows = (
         [(d(a.choose_agent_grouping), "Choose grouping")]
         if d(a.choose_agent_grouping)
+        else []
+    )
+    deck_capitals = "/".join(DECK_PICKER_KEYS[deck].upper() for deck in DECK_CYCLE)
+    pick_deck_other_rows = (
+        [(f"{d(a.pick_deck)} {deck_capitals}", "Show deck in other panel (decks)")]
+        if d(a.pick_deck)
         else []
     )
     panel_layout_rows = (
@@ -88,6 +96,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     d(a.pick_deck),
                     "Pick deck for focused panel (decks)",
                 ),
+                *pick_deck_other_rows,
                 (
                     f"{d(a.next_deck)} / {d(a.prev_deck)}",
                     "Cycle deck (decks)",

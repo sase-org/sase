@@ -1431,9 +1431,9 @@ overrides are ignored with a warning instead of being remapped onto the picker o
 
 The Agents deck picker works the same way: configure `ace.keymaps.app.pick_deck`
 (default `p`) to change the opener, while the in-picker deck letters (`m` / `f` / `t`)
-are fixed and not configurable. `p` is shared with the Artifacts
-`pick_artifacts_project` action; the two are disambiguated by tab (see the allowlist
-below).
+and their capitals (`M` / `F` / `T`, which show the deck in the other panel) are fixed
+and not configurable. `p` is shared with the Artifacts `pick_artifacts_project` action;
+the two are disambiguated by tab (see the allowlist below).
 
 The leader update keys are separate remappable actions. `update_sase` opens the cached
 Update panel, while `update_everything` directly runs the same previewed Everything flow

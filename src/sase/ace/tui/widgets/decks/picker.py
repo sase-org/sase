@@ -32,6 +32,56 @@ def panel_position_label(state: DeckAreaState, panel_index: int) -> str:
 
 
 @dataclass(frozen=True)
+class _OtherPanelTarget:
+    """Where a capital deck letter sends the picked deck."""
+
+    panel_index: int
+    label: str
+    opens_split: bool
+    ends_zoom: bool
+
+
+def other_panel_target(state: DeckAreaState, source_index: int) -> _OtherPanelTarget:
+    """Resolve the "other panel" for a picker opened from ``source_index``.
+
+    A single (or zoomed-from-single) deck area opens a new bottom panel. Any
+    split, including one hidden behind a zoom, keeps its layout and targets
+    the panel that is not ``source_index``.
+    """
+    base = state.zoom_snapshot if state.zoom_snapshot is not None else state
+    ends_zoom = is_zoomed(state)
+    if base.layout is DeckLayout.SINGLE:
+        return _OtherPanelTarget(
+            panel_index=1, label="bottom", opens_split=True, ends_zoom=ends_zoom
+        )
+    panel_index = 1 - min(max(source_index, 0), 1)
+    return _OtherPanelTarget(
+        panel_index=panel_index,
+        label=panel_position_label(base, panel_index),
+        opens_split=False,
+        ends_zoom=ends_zoom,
+    )
+
+
+def deck_picker_other_hint(target: _OtherPanelTarget) -> str:
+    """Return the phrase telling where a capital deck letter goes."""
+    phrase = (
+        "open in a new bottom panel"
+        if target.opens_split
+        else f"show in the {target.label} panel"
+    )
+    return f"{phrase} · ends zoom" if target.ends_zoom else phrase
+
+
+@dataclass(frozen=True)
+class DeckPick:
+    """The deck the picker chose and whether it goes to the other panel."""
+
+    deck: DeckId
+    other_panel: bool
+
+
+@dataclass(frozen=True)
 class DeckPickerState:
     """Snapshot the picker acts on."""
 
@@ -41,6 +91,7 @@ class DeckPickerState:
     other: tuple[DeckId, str] | None
     availability: Mapping[DeckId, DeckAvailability]
     accents: Mapping[DeckId, str]
+    other_target: _OtherPanelTarget | None = None
 
 
 @dataclass(frozen=True)
@@ -109,9 +160,12 @@ def build_deck_picker_rows(state: DeckPickerState) -> tuple[DeckPickerRow, ...]:
 
 
 __all__ = [
+    "DeckPick",
     "DeckPickerRow",
     "DeckPickerState",
     "build_deck_picker_rows",
     "deck_picker_heading",
+    "deck_picker_other_hint",
+    "other_panel_target",
     "panel_position_label",
 ]

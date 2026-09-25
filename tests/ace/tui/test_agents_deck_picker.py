@@ -8,7 +8,7 @@ from sase.ace.testing import AcePage, set_agent_prompt_document
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.deck_picker_modal import DeckPickerModal
 from sase.ace.tui.widgets import AgentDetail
-from sase.ace.tui.widgets.decks.model import DeckId
+from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
 from sase.core.time import local_now
 
 
@@ -197,3 +197,103 @@ async def test_agents_p_during_committed_search_exits_and_opens_picker() -> None
 
         await page.press("escape")
         await page.expect_no_modal()
+
+
+async def test_agents_p_capital_f_opens_files_below_and_keeps_focus() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+        assert detail.deck_area.panel(0).deck is DeckId.MAIN
+
+        calls: list[None] = []
+        original = page.app._agents_deck_state_changed
+        page.app._agents_deck_state_changed = lambda: calls.append(None)  # type: ignore[method-assign]
+        try:
+            await page.press("p")
+            await page.expect_modal("DeckPickerModal")
+            assert _plain(page, "#deck-picker-other-hint") == (
+                "   M/F/T  open in a new bottom panel"
+            )
+
+            await page.press("F")
+            await page.expect_no_modal()
+        finally:
+            page.app._agents_deck_state_changed = original  # type: ignore[method-assign]
+        state = detail.deck_area.state
+        assert state.layout is DeckLayout.TOP_BOTTOM
+        assert state.panels[0].deck is DeckId.MAIN
+        assert state.panels[1].deck is DeckId.FILES
+        assert state.focused == 0
+        assert calls, "opening the split schedules the deck-state save"
+
+
+async def test_agents_p_capital_t_in_left_right_split_fills_left_panel() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("vertical_line")
+        await page.pause()
+        state = detail.deck_area.state
+        assert state.layout is DeckLayout.LEFT_RIGHT
+        assert state.focused == 1
+        left_deck = state.panels[0].deck
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        assert _plain(page, "#deck-picker-heading") == (
+            "Choose what the right panel shows"
+        )
+        assert _plain(page, "#deck-picker-other-hint") == (
+            "   M/F/T  show in the left panel"
+        )
+        assert left_deck is not DeckId.TOOLS
+
+        await page.press("T")
+        await page.expect_no_modal()
+        state = detail.deck_area.state
+        assert state.layout is DeckLayout.LEFT_RIGHT
+        assert state.panels[0].deck is DeckId.TOOLS
+        assert state.focused == 1
+
+
+async def test_agents_p_capital_for_other_panels_deck_changes_nothing() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        await page.press("p")
+        await page.expect_modal("DeckPickerModal")
+        await page.press("F")
+        await page.expect_no_modal()
+        before = detail.deck_area.state
+
+        calls: list[None] = []
+        original = page.app._agents_deck_state_changed
+        page.app._agents_deck_state_changed = lambda: calls.append(None)  # type: ignore[method-assign]
+        try:
+            await page.press("p")
+            await page.expect_modal("DeckPickerModal")
+            assert _plain(page, "#deck-picker-other-hint") == (
+                "   M/F/T  show in the bottom panel"
+            )
+            await page.press("F")
+            await page.expect_no_modal()
+        finally:
+            page.app._agents_deck_state_changed = original  # type: ignore[method-assign]
+        assert detail.deck_area.state == before
+        assert not calls, "a no-op capital pick saves nothing"
+
+
+async def test_agents_palette_show_deck_other_command() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        await _seed_agents(page)
+        detail = _detail(page)
+
+        page.app.action_show_deck_other_at(1)
+        await page.pause()
+        state = detail.deck_area.state
+        assert state.layout is DeckLayout.TOP_BOTTOM
+        assert state.panels[0].deck is DeckId.MAIN
+        assert state.panels[1].deck is DeckId.FILES
+        assert state.focused == 0

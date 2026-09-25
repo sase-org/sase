@@ -227,6 +227,29 @@ async def test_zoom_round_trip_keeps_widget_and_card(tmp_path: Path) -> None:
         assert widget_before.main_view.active_card_id == card_before
 
 
+async def test_ending_zoom_on_second_panel_shows_both_panels_again(
+    tmp_path: Path,
+) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(make_artifact_agent(tmp_path, status="DONE"))
+        await pilot.pause()
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        area = detail.deck_area
+        assert area.state.focused == 1
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert area.panel(0).has_class("hidden")
+        detail.toggle_deck_zoom()
+        await pilot.pause()
+        assert not area.panel(0).has_class("hidden")
+        assert not area.panel(1).has_class("hidden")
+        assert len(area.visible_panels()) == 2
+
+
 async def test_split_key_ends_zoom(tmp_path: Path) -> None:
     app = _DetailApp()
     async with app.run_test(size=(100, 30)) as pilot:

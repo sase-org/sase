@@ -5,9 +5,12 @@ from __future__ import annotations
 from sase.ace.tui.widgets.decks.layout import (
     RATIO_STEPS,
     choose_new_panel,
+    exit_zoom_keeping_panels,
+    new_panel_for_deck,
     step_ratio,
     toggle_focus,
     toggle_split,
+    toggle_zoom,
 )
 from sase.ace.tui.widgets.decks.model import (
     DeckAreaState,
@@ -218,3 +221,94 @@ def test_unsplit_keeps_panel_zero_involution() -> None:
 
 def test_ratio_steps_constant() -> None:
     assert RATIO_STEPS == (30, 50, 70)
+
+
+def test_toggle_split_focus_new_false_keeps_focus_on_first_panel() -> None:
+    state = _single(DeckId.MAIN)
+    new_panel = DeckPanelState(DeckId.FILES)
+    updated = toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel, focus_new=False)
+    assert updated.layout is DeckLayout.TOP_BOTTOM
+    assert updated.panels == (DeckPanelState(DeckId.MAIN), new_panel)
+    assert updated.focused == 0
+    assert updated.ratio == 50
+    # The default still moves focus into the new panel.
+    assert toggle_split(state, DeckLayout.TOP_BOTTOM, new_panel).focused == 1
+
+
+def test_toggle_split_focus_new_ignored_by_unsplit_and_rotate() -> None:
+    split = DeckAreaState(
+        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
+        focused=1,
+        layout=DeckLayout.TOP_BOTTOM,
+        ratio=30,
+    )
+    other = DeckPanelState(DeckId.TOOLS)
+    for flag in (True, False):
+        rotated = toggle_split(split, DeckLayout.LEFT_RIGHT, other, focus_new=flag)
+        assert rotated.layout is DeckLayout.LEFT_RIGHT
+        assert rotated.focused == 1
+        assert rotated.ratio == 30
+        unsplit = toggle_split(split, DeckLayout.TOP_BOTTOM, other, focus_new=flag)
+        assert unsplit.layout is DeckLayout.SINGLE
+        assert unsplit.focused == 0
+
+
+def test_new_panel_for_deck_duplicate_main_takes_next_card_with_wrap() -> None:
+    cards = ("context", "prompt", "reply")
+    assert new_panel_for_deck(
+        DeckId.MAIN, DeckId.MAIN, "context", cards
+    ) == DeckPanelState(DeckId.MAIN, "prompt")
+    assert new_panel_for_deck(
+        DeckId.MAIN, DeckId.MAIN, "reply", cards
+    ) == DeckPanelState(DeckId.MAIN, "context")
+
+
+def test_new_panel_for_deck_non_duplicate_has_no_preferred_card() -> None:
+    cards = ("context", "reply")
+    assert new_panel_for_deck(
+        DeckId.FILES, DeckId.MAIN, "context", cards
+    ) == DeckPanelState(DeckId.FILES)
+    assert new_panel_for_deck(DeckId.MAIN, DeckId.FILES, None, cards) == DeckPanelState(
+        DeckId.MAIN
+    )
+    assert new_panel_for_deck(
+        DeckId.FILES, DeckId.FILES, None, cards
+    ) == DeckPanelState(DeckId.FILES)
+
+
+def test_exit_zoom_keeping_panels_restores_layout_but_keeps_current_panels() -> None:
+    split = DeckAreaState(
+        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),
+        focused=1,
+        layout=DeckLayout.LEFT_RIGHT,
+        ratio=70,
+        nodes_collapsed=False,
+    )
+    zoomed = toggle_zoom(split)
+    assert zoomed.nodes_collapsed is True
+    # A deck changed while zoomed (Ctrl+N) must survive ending the zoom.
+    zoomed = DeckAreaState(
+        panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.TOOLS)),
+        focused=zoomed.focused,
+        layout=zoomed.layout,
+        ratio=zoomed.ratio,
+        nodes_collapsed=zoomed.nodes_collapsed,
+        zoom_snapshot=zoomed.zoom_snapshot,
+    )
+
+    restored = exit_zoom_keeping_panels(zoomed)
+
+    assert restored.zoom_snapshot is None
+    assert restored.layout is DeckLayout.LEFT_RIGHT
+    assert restored.ratio == 70
+    assert restored.nodes_collapsed is False
+    assert restored.panels == (
+        DeckPanelState(DeckId.MAIN),
+        DeckPanelState(DeckId.TOOLS),
+    )
+    assert restored.focused == 1
+
+
+def test_exit_zoom_keeping_panels_unzoomed_state_is_unchanged() -> None:
+    state = _single(DeckId.FILES)
+    assert exit_zoom_keeping_panels(state) is state

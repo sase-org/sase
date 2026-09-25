@@ -154,6 +154,19 @@ def test_execute_deck_picker_direct_command_uses_show_deck_at() -> None:
     app._handle_leader_key.assert_not_called()
 
 
+def test_execute_deck_picker_other_panel_command_uses_show_deck_other_at() -> None:
+    app = MagicMock()
+    catalog = {
+        spec.id: spec for spec in build_command_catalog(load_keymap_registry({}))
+    }
+
+    execute_command(app, catalog["agents.show_deck_other.tools"])
+
+    app.action_show_deck_other_at.assert_called_once_with(2)
+    app.action_show_deck_at.assert_not_called()
+    app._handle_leader_key.assert_not_called()
+
+
 def test_execute_agent_panel_layout_command_uses_app_action() -> None:
     app = MagicMock()
     catalog = {

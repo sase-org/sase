@@ -4758,6 +4758,13 @@ DeckPickerModal .deck-picker-row {
     padding: 0 1;
 }
 
+DeckPickerModal #deck-picker-other-hint {
+    height: 1;
+    margin-top: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+
 DeckPickerModal .deck-picker-row.focused {
     background: $primary 15%;
     border-left: thick $primary;

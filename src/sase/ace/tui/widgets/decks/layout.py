@@ -48,11 +48,26 @@ def choose_new_panel(
         if content is False:
             continue
         return DeckPanelState(candidate)
-    if current_deck is DeckId.MAIN:
-        preferred = cycle_card_id(tuple(card_ids), current_active_card, 1)
-    else:
-        preferred = None
-    return DeckPanelState(current_deck, preferred)
+    return new_panel_for_deck(current_deck, current_deck, current_active_card, card_ids)
+
+
+def new_panel_for_deck(
+    deck: DeckId,
+    current_deck: DeckId,
+    current_active_card: str | None,
+    card_ids: Sequence[str],
+) -> DeckPanelState:
+    """Return the state for a new panel that shows ``deck``.
+
+    A duplicate Main panel prefers the card after ``current_active_card`` so
+    the two panels open on different cards. Every other panel has no
+    preferred card.
+    """
+    if deck is DeckId.MAIN and current_deck is DeckId.MAIN:
+        return DeckPanelState(
+            deck, cycle_card_id(tuple(card_ids), current_active_card, 1)
+        )
+    return DeckPanelState(deck)
 
 
 def _zoom_ended(state: DeckAreaState) -> DeckAreaState:
@@ -66,10 +81,14 @@ def toggle_split(
     state: DeckAreaState,
     target: DeckLayout,
     new_panel: DeckPanelState,
+    *,
+    focus_new: bool = True,
 ) -> DeckAreaState:
     """Toggle a split layout for ``target``.
 
-    From SINGLE open ``new_panel`` as panel 1 with focus and 50/50 ratio.
+    From SINGLE open ``new_panel`` as panel 1 with a 50/50 ratio. The new
+    panel takes focus unless ``focus_new`` is false (unsplit and rotate
+    ignore the flag).
     Pressing the same layout key again unsplits back to panel 0. Pressing
     the other layout key rotates, keeping decks, cards, focus and ratio.
     A layout key while zoomed ends the zoom: the snapshot is dropped and
@@ -83,7 +102,7 @@ def toggle_split(
             current = state.panels[0]
         return DeckAreaState(
             panels=(current, new_panel),
-            focused=1,
+            focused=1 if focus_new else 0,
             layout=target,
             ratio=50,
             nodes_collapsed=state.nodes_collapsed,
@@ -142,6 +161,19 @@ def _exit_zoom(state: DeckAreaState) -> DeckAreaState:
     if state.zoom_snapshot is None:
         return state
     return state.zoom_snapshot
+
+
+def exit_zoom_keeping_panels(state: DeckAreaState) -> DeckAreaState:
+    """End a zoom, restoring the snapshot's layout but keeping current panels.
+
+    Unlike :func:`_exit_zoom`, the current panels and focus survive so a
+    deck changed while zoomed is not lost. An unzoomed state is returned
+    unchanged.
+    """
+    snapshot = state.zoom_snapshot
+    if snapshot is None:
+        return state
+    return dataclasses.replace(snapshot, panels=state.panels, focused=state.focused)
 
 
 def toggle_zoom(state: DeckAreaState, focused: int | None = None) -> DeckAreaState:

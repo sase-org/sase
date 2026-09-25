@@ -109,6 +109,47 @@ def test_deck_picker_direct_commands_follow_rebound_and_unbound_picker() -> None
     assert unbound_spec.executor.kind == "app_action"
 
 
+def test_deck_picker_other_panel_commands_use_capital_letter_chord() -> None:
+    catalog = build_command_catalog(_registry())
+    by_id = {c.id: c for c in catalog}
+
+    files = by_id["agents.show_deck_other.files"]
+    assert files.label == "Show Files deck in other panel"
+    assert files.key_sequence == ("p", "F")
+    assert files.key_display == "p F"
+    assert files.category == "Navigation"
+    assert files.tabs == ("agents",)
+    assert files.executor.kind == "app_action"
+    assert files.executor.action == "show_deck_other_at"
+    assert files.executor.digit == 1
+    assert "other panel" in files.aliases
+    assert "split" in files.aliases
+
+    assert by_id["agents.show_deck_other.main"].executor.digit == 0
+    assert by_id["agents.show_deck_other.main"].key_display == "p M"
+    assert by_id["agents.show_deck_other.tools"].executor.digit == 2
+    assert by_id["agents.show_deck_other.tools"].key_display == "p T"
+
+
+def test_deck_picker_other_panel_commands_follow_rebound_and_unbound_picker() -> None:
+    rebound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"pick_deck": "f12"}}})
+    )
+    rebound_spec = next(c for c in rebound if c.id == "agents.show_deck_other.files")
+
+    assert rebound_spec.key_sequence == ("f12", "F")
+    assert rebound_spec.key_display == "f12 F"
+
+    unbound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"pick_deck": "unbound"}}})
+    )
+    unbound_spec = next(c for c in unbound if c.id == "agents.show_deck_other.files")
+
+    assert unbound_spec.key_sequence == ()
+    assert unbound_spec.key_display == ""
+    assert unbound_spec.executor.kind == "app_action"
+
+
 def test_agent_panel_layout_command_follows_rebound_and_unbound_picker() -> None:
     rebound = build_command_catalog(
         load_keymap_registry({"keymaps": {"app": {"choose_agent_grouping": "f12"}}})

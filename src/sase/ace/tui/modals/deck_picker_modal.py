@@ -10,7 +10,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.ace.tui.widgets.decks.model import DeckId
-from sase.ace.tui.widgets.decks.picker import DeckPickerRow
+from sase.ace.tui.widgets.decks.picker import DeckPick, DeckPickerRow
 
 _DECK_CLASS = {
     DeckId.MAIN: "-deck-main",
@@ -36,8 +36,12 @@ def _build_deck_picker_legend(letters: tuple[str, ...], *, width: int = 48) -> s
     return tiers[-1]
 
 
-class DeckPickerModal(ModalScreen[DeckId | None]):
-    """Pick which deck the focused deck panel shows."""
+class DeckPickerModal(ModalScreen[DeckPick | None]):
+    """Pick which deck a deck panel shows.
+
+    A lowercase deck letter (or Enter, or a click) targets the focused panel.
+    When ``other_hint`` is set, the capital letter targets the other panel.
+    """
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
@@ -54,11 +58,18 @@ class DeckPickerModal(ModalScreen[DeckId | None]):
         rows: tuple[DeckPickerRow, ...],
         heading: str,
         close_keys: tuple[str, ...] = (),
+        other_hint: str | None = None,
     ) -> None:
         super().__init__()
         self._rows = tuple(rows)
         self._heading = heading
+        self._other_hint = other_hint
         self._key_to_index = {row.key.lower(): i for i, row in enumerate(self._rows)}
+        self._capital_to_index = {
+            row.key.upper(): i
+            for i, row in enumerate(self._rows)
+            if row.key.upper() != row.key.lower()
+        }
         self._selected = next(
             (i for i, row in enumerate(self._rows) if row.is_current), 0
         )
@@ -85,6 +96,8 @@ class DeckPickerModal(ModalScreen[DeckId | None]):
                     id=f"deck-picker-row-{index}",
                     classes=self._row_classes(row, index),
                 )
+            if self._other_hint is not None:
+                yield Static(self._other_hint_text(), id="deck-picker-other-hint")
 
     def on_mount(self) -> None:
         try:
@@ -129,11 +142,24 @@ class DeckPickerModal(ModalScreen[DeckId | None]):
             event.stop()
             self.action_cancel()
             return
-        character = event.character.lower() if event.character else ""
-        if character and character in self._key_to_index:
+        # Case-sensitive on purpose: lowercase targets this panel, the
+        # capital targets the other one, whatever key name the terminal
+        # reports for the shifted letter.
+        character = event.character or ""
+        if character in self._key_to_index:
             event.prevent_default()
             event.stop()
             self._select_index(self._key_to_index[character])
+            return
+        capital_index = (
+            self._capital_to_index.get(character)
+            if self._other_hint is not None
+            else None
+        )
+        if capital_index is not None:
+            event.prevent_default()
+            event.stop()
+            self._select_index(capital_index, other_panel=True)
             return
         if event.character and event.character.isprintable():
             event.prevent_default()
@@ -182,10 +208,10 @@ class DeckPickerModal(ModalScreen[DeckId | None]):
             self._selected = (self._selected - 1) % len(self._rows)
             self._refresh()
 
-    def _select_index(self, index: int) -> None:
-        self._dismiss_once(self._rows[index].deck)
+    def _select_index(self, index: int, *, other_panel: bool = False) -> None:
+        self._dismiss_once(DeckPick(self._rows[index].deck, other_panel))
 
-    def _dismiss_once(self, result: DeckId | None) -> None:
+    def _dismiss_once(self, result: DeckPick | None) -> None:
         if self._dismissed:
             return
         self._dismissed = True
@@ -247,6 +273,18 @@ class DeckPickerModal(ModalScreen[DeckId | None]):
             text.append(f"\u25cb in {row.other_panel_label} panel", style=badge_style)
         text.append("\n    ", style="")
         text.append(row.blurb, style=blurb_style)
+        return text
+
+    def _other_hint_text(self) -> Text:
+        """Build the muted hint line telling where a capital letter goes."""
+        text = Text()
+        # Three columns of indent put each capital under its row's keycap letter.
+        text.append("   ")
+        for index, row in enumerate(self._rows):
+            if index:
+                text.append("/", style="dim")
+            text.append(row.key.upper(), style=f"bold {row.accent}")
+        text.append(f"  {self._other_hint}", style="dim")
         return text
 
     def _row_classes(self, row: DeckPickerRow, index: int) -> str:

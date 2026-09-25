@@ -187,6 +187,12 @@ def test_pick_deck_palette_entry_is_agents_only() -> None:
     for deck in ("main", "files", "tools"):
         spec = catalog[f"agents.show_deck.{deck}"]
         assert is_command_available(spec, CommandContext(tab="agents"))
+        other = catalog[f"agents.show_deck_other.{deck}"]
+        assert is_command_available(other, CommandContext(tab="agents"))
+        assert not is_command_available(
+            other, CommandContext(tab="artifacts", artifacts_subtab="patches")
+        )
+        assert not is_command_available(other, CommandContext(tab="axe"))
 
 
 def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
