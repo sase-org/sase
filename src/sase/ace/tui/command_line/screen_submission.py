@@ -18,7 +18,7 @@ from sase.ace.tui.command_line.builtins import (
     builtin_name_for,
     render_help,
     render_history,
-    run_cd,
+    resolve_cd,
     run_clear,
 )
 from sase.ace.tui.command_line.context import (
@@ -343,11 +343,10 @@ class CommandLineScreenSubmissionMixin:
     ) -> None:
         """Run a first-token built-in instantly with no proc."""
         session = self.session
-        working = self._local_working_context()
         args = prepared.tokens[1:]
         if name == "cd":
-            outcome = run_cd(session, args[0] if args else None, cwd=working.cwd or "")
-            self._refresh_working_context(pinned=session.cwd_pin)
+            self._run_cd_builtin(prepared, clear_input=clear_input)
+            return
         elif name == "clear":
             outcome = run_clear(session)
         elif name == "help":
@@ -362,6 +361,40 @@ class CommandLineScreenSubmissionMixin:
             clear_input=clear_input,
             record_history=True,
         )
+
+    def _run_cd_builtin(self, prepared: PreparedSubmit, *, clear_input: bool) -> None:
+        """Resolve ``cd`` off-loop, then apply its pin once the worker lands."""
+        working = self._local_working_context()
+        argument = prepared.tokens[1] if len(prepared.tokens) > 1 else None
+        run_worker = getattr(self.app, "run_worker", None)
+        if not callable(run_worker):
+            self._add_local_block(
+                prepared.line,
+                status="builtin",
+                text="error: cd worker unavailable",
+                exit_code=2,
+                clear_input=clear_input,
+                record_history=True,
+            )
+            return
+
+        async def _resolve() -> None:
+            resolution = await asyncio.to_thread(
+                resolve_cd, argument, cwd=working.cwd or ""
+            )
+            if resolution.changes_pin:
+                self.session.cwd_pin = resolution.pinned
+                self._refresh_working_context(pinned=resolution.pinned)
+            self._add_local_block(
+                prepared.line,
+                status="builtin",
+                text=resolution.outcome.text,
+                exit_code=resolution.outcome.exit_code,
+                clear_input=clear_input,
+                record_history=True,
+            )
+
+        run_worker(_resolve(), exclusive=False)
 
     def _builtin_help(self, args: list[str]) -> BuiltinOutcome:
         """Render ``help [command…]`` from ``command_help``."""

@@ -425,6 +425,20 @@ def test_marked_values_read_pane_targets() -> None:
     assert marked_values_for_kind(None, "patch") == []
 
 
+def test_marked_agent_values_read_agents_tab_mark_order() -> None:
+    """Agent slots follow the Agents tab's explicit mark order."""
+    first = ("running", "athena.1", None)
+    second = ("running", "mus.2", None)
+    app = SimpleNamespace(
+        _marked_agent_order=[second, first],
+        _agents_with_children=[
+            SimpleNamespace(identity=first, agent_name="athena.1"),
+            SimpleNamespace(identity=second, agent_name="mus.2"),
+        ],
+    )
+    assert marked_values_for_kind(app, "agent") == ["mus.2", "athena.1"]
+
+
 def test_marked_insert_text_quotes_and_trails_space() -> None:
     """The marked row fills the slot: quoted values plus a trailing space."""
     assert marked_insert_text(["sase-1", "sase-2"]) == "sase-1 sase-2 "

@@ -9,6 +9,7 @@ and a keystroke path that never awaits.
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -18,6 +19,9 @@ from sase.ace.tui.command_line.popup import (
     _longest_common_prefix,
     popup_footer,
     _render_popup_row,
+)
+from sase.ace.tui.command_line.screen_completion import (
+    CommandLineScreenCompletionMixin,
 )
 from sase.ace.tui.command_line.signature import (
     _build_chips,
@@ -30,6 +34,8 @@ from sase.ace.tui.command_line.sources import (
     ProviderCache,
     _in_memory_candidates,
     needs_provider_fetch,
+    path_candidates,
+    path_completion_request,
     selected_entity_values,
 )
 
@@ -185,14 +191,16 @@ def test_provider_cache_entries_expire() -> None:
     assert cache.cached("bead", None) is None
 
 
-def test_needs_provider_fetch_skips_native_and_in_memory() -> None:
-    """Paths and in-memory entity kinds never reach a provider fetch."""
+def test_needs_provider_fetch_uses_path_and_empty_entity_fallbacks() -> None:
+    """Paths scan in a worker; empty entity state falls back to its provider."""
     assert needs_provider_fetch(None) is False
     assert needs_provider_fetch("") is False
-    assert needs_provider_fetch("path") is False
-    assert needs_provider_fetch("dir") is False
+    assert needs_provider_fetch("path") is True
+    assert needs_provider_fetch("dir") is True
     assert needs_provider_fetch("agent") is False
     assert needs_provider_fetch("bead") is True
+    assert needs_provider_fetch("proc", SimpleNamespace()) is True
+    assert needs_provider_fetch("project", SimpleNamespace()) is True
 
 
 # -- in-memory sources and selection -------------------------------------------
@@ -211,6 +219,7 @@ def _agents_app() -> SimpleNamespace:
             phase_bead_id="sase-17x.9",
             bead_id=None,
             fleet_origin_alias=None,
+            plan_path="/plans/202609/selected_agent_plan.md",
         ),
     )
 
@@ -225,10 +234,65 @@ def test_in_memory_agent_candidates_come_from_app_state() -> None:
 
 
 def test_selected_entity_values_lead_with_selection() -> None:
-    """The selected agent and its linked bead rank first for ``selected=``."""
+    """The selected agent, plan, and linked bead rank first for ``selected=``."""
     values = selected_entity_values(_agents_app())
     assert values[0] == "athena.1"
+    assert values[1] == "selected_agent_plan"
     assert "sase-17x.9" in values
+
+
+def test_proc_and_project_candidates_read_live_app_state() -> None:
+    """Proc projections and live agent project metadata populate their slots."""
+    app = SimpleNamespace(
+        _proc_projection=SimpleNamespace(
+            rows=[
+                SimpleNamespace(
+                    proc_id="proc-17", label="check command", command=["just", "check"]
+                )
+            ]
+        ),
+        _agents=[SimpleNamespace(project_file="/projects/sase/sase.sase")],
+    )
+    proc_rows = _in_memory_candidates(app, "proc")
+    project_rows = _in_memory_candidates(app, "project")
+    assert [row.value for row in proc_rows] == ["proc-17"]
+    assert proc_rows[0].description == "check command"
+    assert [row.value for row in project_rows] == ["sase"]
+
+
+def test_path_candidates_scan_one_requested_directory(tmp_path: Path) -> None:
+    """Path candidates preserve the typed prefix and suffix directories."""
+    (tmp_path / "child").mkdir()
+    (tmp_path / "notes.md").write_text("notes")
+    request = path_completion_request("work/", str(tmp_path))
+    assert request.scan_directory == str(tmp_path / "work")
+    (tmp_path / "work").mkdir()
+    (tmp_path / "work" / "nested").mkdir()
+    (tmp_path / "work" / "item.txt").write_text("item")
+    rows = path_candidates(request, directories_only=False)
+    assert [row["value"] for row in rows] == ["work/nested/", "work/item.txt"]
+    assert [
+        row["value"] for row in path_candidates(request, directories_only=True)
+    ] == ["work/nested/"]
+
+
+def test_cd_completion_includes_project_and_unpin_values() -> None:
+    """The built-in ``cd`` slot uses project rows and exposes ``-`` unpinning."""
+    screen = object.__new__(CommandLineScreenCompletionMixin)
+    project_context = screen._cd_completion_context("cd +sa", len("cd +sa"))
+    assert project_context is not None
+    project_items = screen._complete_cd(
+        "cd +sa",
+        len("cd +sa"),
+        project_context,
+        [{"value": "sase", "badge": "project", "source": "tui"}],
+    )
+    assert [item["insert_text"] for item in project_items["items"]] == ["+sase"]
+
+    unpin_context = screen._cd_completion_context("cd -", len("cd -"))
+    assert unpin_context is not None
+    unpin_items = screen._complete_cd("cd -", len("cd -"), unpin_context, [])
+    assert [item["insert_text"] for item in unpin_items["items"]] == ["-"]
 
 
 def test_dynamic_merge_layers_in_memory_before_cached_providers() -> None:

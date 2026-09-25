@@ -29,6 +29,15 @@ class BuiltinOutcome:
     exit_code: int = 0
 
 
+@dataclass(frozen=True)
+class CdResolution:
+    """Off-thread result of resolving one ``cd`` command."""
+
+    outcome: BuiltinOutcome
+    pinned: str | None
+    changes_pin: bool
+
+
 def builtin_name_for(tokens: Sequence[str]) -> str | None:
     """Return the built-in name when *tokens* starts with one, else ``None``."""
     if not tokens:
@@ -44,29 +53,54 @@ def run_cd(
     cwd: str,
     resolve_project: Callable[[str], str | None] | None = None,
 ) -> BuiltinOutcome:
-    """Pin or unpin the session's working directory; never raises."""
+    """Pin or unpin the session's working directory; never raises.
+
+    UI code should use :func:`resolve_cd` in a worker and apply its result on
+    the app loop.  This compatibility wrapper remains useful for non-UI
+    callers and focused unit tests.
+    """
+    resolution = resolve_cd(arg, cwd=cwd, resolve_project=resolve_project)
+    if resolution.changes_pin:
+        session.cwd_pin = resolution.pinned
+    return resolution.outcome
+
+
+def resolve_cd(
+    arg: str | None,
+    *,
+    cwd: str,
+    resolve_project: Callable[[str], str | None] | None = None,
+) -> CdResolution:
+    """Resolve a ``cd`` target without mutating UI-held session state."""
     if arg is None or not arg.strip():
-        return BuiltinOutcome("usage: cd <path|+project|->")
+        return CdResolution(BuiltinOutcome("usage: cd <path|+project|->"), None, False)
     target = arg.strip()
     if target == "-":
-        session.cwd_pin = None
-        return BuiltinOutcome("unpinned · following the TUI project")
+        return CdResolution(
+            BuiltinOutcome("unpinned · following the TUI project"), None, True
+        )
     if target.startswith("+"):
         name = target[1:]
         resolved = resolve_project(name) if resolve_project is not None else None
         if resolved is None:
             resolved = _resolve_project_checkout(name)
         if resolved is None:
-            return BuiltinOutcome(f"error: no such project: {name}", exit_code=2)
-        session.cwd_pin = resolved
-        return BuiltinOutcome(f"pinned · {resolved}")
+            return CdResolution(
+                BuiltinOutcome(f"error: no such project: {name}", exit_code=2),
+                None,
+                False,
+            )
+        return CdResolution(BuiltinOutcome(f"pinned · {resolved}"), resolved, True)
     path = os.path.expanduser(target)
     if not os.path.isabs(path):
         path = os.path.normpath(os.path.join(cwd, path))
     if not os.path.isdir(path):
-        return BuiltinOutcome(f"error: no such directory: {target}", exit_code=2)
-    session.cwd_pin = path
-    return BuiltinOutcome(f"pinned · {path}")
+        return CdResolution(
+            BuiltinOutcome(f"error: no such directory: {target}", exit_code=2),
+            None,
+            False,
+        )
+    return CdResolution(BuiltinOutcome(f"pinned · {path}"), path, True)
 
 
 def run_clear(session: Any) -> BuiltinOutcome:
@@ -155,9 +189,11 @@ def _resolve_project_checkout(name: str) -> str | None:
 __all__ = [
     "BUILTIN_NAMES",
     "BuiltinOutcome",
+    "CdResolution",
     "builtin_name_for",
     "render_help",
     "render_history",
+    "resolve_cd",
     "run_cd",
     "run_clear",
 ]

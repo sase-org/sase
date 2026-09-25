@@ -569,6 +569,36 @@ def marked_values_for_kind(app: Any, value_kind: str | None) -> list[str]:
     pane_id = _MARKED_PANE_BY_KIND.get(str(value_kind or ""))
     if pane_id is None:
         return []
+    if value_kind == "agent":
+        try:
+            agents = list(
+                getattr(app, "_agents_with_children", None)
+                or getattr(app, "_agents", None)
+                or ()
+            )
+            by_identity = {getattr(agent, "identity", None): agent for agent in agents}
+            agent_values: list[str] = []
+            identities = (
+                getattr(app, "_marked_agent_order", None)
+                or getattr(app, "_marked_agents", None)
+                or ()
+            )
+            for identity in identities:
+                agent = by_identity.get(identity)
+                if agent is None:
+                    continue
+                name = str(
+                    getattr(agent, "agent_name", None)
+                    or getattr(agent, "name", None)
+                    or getattr(agent, "cl_name", None)
+                    or ""
+                )
+                if name and name not in agent_values:
+                    agent_values.append(name)
+            if agent_values:
+                return agent_values
+        except Exception:  # noqa: BLE001 - marks are best effort.
+            pass
     try:
         marks = getattr(app, "_artifacts_marked_targets", {}).get(pane_id, set())
     except Exception:  # noqa: BLE001 - marks are best effort.

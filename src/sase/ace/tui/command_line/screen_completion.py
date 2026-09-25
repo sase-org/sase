@@ -76,6 +76,8 @@ from sase.ace.tui.command_line.sources import (
     PROVIDER_DEBOUNCE_SECONDS,
     collect_dynamic_candidates,
     needs_provider_fetch,
+    path_candidates,
+    path_completion_request,
     selected_entity_values,
 )
 from sase.ace.tui.command_line.submit import (
@@ -128,7 +130,9 @@ class CommandLineScreenCompletionMixin:
             self._record_keystroke_probe(time.perf_counter() - started, True)
             return
         self._empty_state_active = False
-        context = resolve_command_line(self.app, line, cursor)
+        context = self._cd_completion_context(line, cursor) or resolve_command_line(
+            self.app, line, cursor
+        )
         self._resolve_context = context
         self._resolved_line = line
         widget.set_resolve_context(context)
@@ -155,6 +159,19 @@ class CommandLineScreenCompletionMixin:
         self, line: str, cursor: int, context: LineContext
     ) -> dict[str, Any]:
         """Rank candidates for the cursor slot through the Rust handle."""
+        slot = context.get("slot") or {}
+        value_kind = str(slot.get("value_kind") or "")
+        project = self._working_context.project if self._working_context else None
+        source_key = self._source_key(line, cursor, context)
+        dynamic = collect_dynamic_candidates(
+            self.app,
+            value_kind,
+            project,
+            self._provider_cache,
+            source_key=source_key,
+        )
+        if context.get("builtin") == "cd":
+            return self._complete_cd(line, cursor, context, dynamic)
         handle = command_line_grammar_for(self.app)
         if handle is None:
             return {
@@ -164,12 +181,6 @@ class CommandLineScreenCompletionMixin:
                 "replace_start": cursor,
                 "replace_end": cursor,
             }
-        slot = context.get("slot") or {}
-        value_kind = str(slot.get("value_kind") or "")
-        project = self._working_context.project if self._working_context else None
-        dynamic = collect_dynamic_candidates(
-            self.app, value_kind, project, self._provider_cache
-        )
         try:
             return handle.complete(
                 line,
@@ -187,16 +198,133 @@ class CommandLineScreenCompletionMixin:
                 "replace_end": cursor,
             }
 
+    def _cd_completion_context(self, line: str, cursor: int) -> LineContext | None:
+        """Resolve the ``cd`` built-in's single completion slot in memory."""
+        before_cursor = line[:cursor]
+        leading = len(before_cursor) - len(before_cursor.lstrip())
+        command_end = leading + 2
+        if before_cursor[leading:command_end] != "cd":
+            return None
+        if len(before_cursor) == command_end:
+            return None
+        if not before_cursor[command_end].isspace():
+            return None
+        replace_start = command_end
+        while (
+            replace_start < len(before_cursor)
+            and before_cursor[replace_start].isspace()
+        ):
+            replace_start += 1
+        token = before_cursor[replace_start:]
+        # ``cd`` accepts exactly one argument.  Leave editing later text to the
+        # normal input rather than replacing a surprising span.
+        if any(char.isspace() for char in token):
+            return None
+        value_kind = "project" if token.startswith("+") else "dir"
+        return cast(
+            LineContext,
+            {
+                "builtin": "cd",
+                "path": ["cd"],
+                "argv": ["cd", token],
+                "slot": {
+                    "value_kind": value_kind,
+                    "replace_start": replace_start,
+                    "replace_end": cursor,
+                },
+            },
+        )
+
+    @staticmethod
+    def _slot_prefix(line: str, cursor: int, context: LineContext) -> str:
+        """Return the current slot text without resolving or touching disk."""
+        slot = context.get("slot") or {}
+        try:
+            start = int(slot.get("replace_start", cursor))
+        except (TypeError, ValueError):
+            start = cursor
+        return line[max(0, min(start, cursor)) : max(0, cursor)]
+
+    def _path_request(self, line: str, cursor: int, context: LineContext) -> Any | None:
+        """Build the pure path scan request for a path/dir slot, if applicable."""
+        slot = context.get("slot") or {}
+        value_kind = str(slot.get("value_kind") or "")
+        if value_kind not in {"path", "dir"}:
+            return None
+        cwd = self._working_context.cwd if self._working_context else ""
+        return path_completion_request(self._slot_prefix(line, cursor, context), cwd)
+
+    def _source_key(self, line: str, cursor: int, context: LineContext) -> str | None:
+        """Return a directory-specific cache key for native path rows."""
+        request = self._path_request(line, cursor, context)
+        return None if request is None else request.source_key
+
+    def _complete_cd(
+        self,
+        line: str,
+        cursor: int,
+        context: LineContext,
+        dynamic: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Render ``cd``'s directory, project, and unpin candidates."""
+        slot = context.get("slot") or {}
+        value_kind = str(slot.get("value_kind") or "dir")
+        typed = self._slot_prefix(line, cursor, context)
+        items: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        if typed.startswith("-"):
+            items.append(
+                {
+                    "insert_text": "-",
+                    "display": "-",
+                    "description": "unpin and follow the TUI project",
+                    "badge": "dir",
+                    "source": "builtin",
+                    "match_runs": [],
+                    "selected": False,
+                }
+            )
+        for candidate in dynamic:
+            raw_value = str(candidate.get("value", "") or "")
+            if not raw_value:
+                continue
+            insert = f"+{raw_value}" if value_kind == "project" else raw_value
+            if not insert.casefold().startswith(typed.casefold()) or insert in seen:
+                continue
+            seen.add(insert)
+            items.append(
+                {
+                    "insert_text": insert,
+                    "display": str(candidate.get("display") or insert),
+                    "description": str(candidate.get("description") or ""),
+                    "badge": str(candidate.get("badge") or value_kind),
+                    "source": str(candidate.get("source") or "provider"),
+                    "match_runs": [],
+                    "selected": False,
+                }
+            )
+        return {
+            "items": items,
+            "total": len(items),
+            "kind": value_kind,
+            "replace_start": int(slot.get("replace_start", cursor)),
+            "replace_end": int(slot.get("replace_end", cursor)),
+        }
+
     def _maybe_fetch_providers(
         self, line: str, cursor: int, context: LineContext
     ) -> None:
         """Schedule a debounced provider fetch for the active slot, if any."""
         slot = context.get("slot") or {}
         value_kind = str(slot.get("value_kind") or "")
-        if not needs_provider_fetch(value_kind):
+        if not needs_provider_fetch(value_kind, self.app):
             return
         project = self._working_context.project if self._working_context else None
-        if self._provider_cache.cached(value_kind, project) is not None:
+        source_key = self._source_key(line, cursor, context)
+        if (
+            self._provider_cache.cached(value_kind, project, source_key=source_key)
+            is not None
+        ):
             return
         generation = self._provider_cache.next_generation()
         old_task, self._provider_task = self._provider_task, None
@@ -207,7 +335,15 @@ class CommandLineScreenCompletionMixin:
         except RuntimeError:  # No loop: providers stay quiet, popup keeps statics.
             return
         self._provider_task = loop.create_task(
-            self._provider_fetch_task(generation, value_kind, project, line, cursor)
+            self._provider_fetch_task(
+                generation,
+                value_kind,
+                project,
+                line,
+                cursor,
+                source_key,
+                self._path_request(line, cursor, context),
+            )
         )
 
     def invalidate_provider_cache(self) -> None:
@@ -220,7 +356,7 @@ class CommandLineScreenCompletionMixin:
         self._provider_cache.invalidate()
         if self._popup_state.menu_active:
             return
-        if needs_provider_fetch(self._current_value_kind()):
+        if needs_provider_fetch(self._current_value_kind(), self.app):
             self._refresh_completion()
 
     def _fetch_still_current(self, line: str, cursor: int) -> bool:
@@ -243,6 +379,8 @@ class CommandLineScreenCompletionMixin:
         project: str | None,
         line: str,
         cursor: int,
+        source_key: str | None,
+        path_request: Any | None,
     ) -> None:
         """Fetch provider candidates, dropping results for a moved line or cursor."""
         from sase.completion.candidates.providers import candidates_for
@@ -255,9 +393,16 @@ class CommandLineScreenCompletionMixin:
         failed = False
         fetched: list[Any] = []
         try:
-            fetched = await asyncio.to_thread(
-                candidates_for, value_kind, "", project=project, limit=2000
-            )
+            if path_request is not None:
+                fetched = await asyncio.to_thread(
+                    path_candidates,
+                    path_request,
+                    directories_only=value_kind == "dir",
+                )
+            else:
+                fetched = await asyncio.to_thread(
+                    candidates_for, value_kind, "", project=project, limit=2000
+                )
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 - provider failure is advisory.
@@ -267,18 +412,26 @@ class CommandLineScreenCompletionMixin:
         if not self._fetch_still_current(line, cursor):
             return
         if failed:
-            self._provider_cache.note_unavailable(value_kind, project)
+            self._provider_cache.note_unavailable(
+                value_kind, project, source_key=source_key
+            )
             self._render_popup_footer()
             return
-        items = [
-            {
-                "value": candidate.value,
-                "description": candidate.description,
-                "source": "provider",
-            }
-            for candidate in fetched
-        ]
-        if not self._provider_cache.commit(generation, value_kind, project, items):
+        items = (
+            fetched
+            if path_request is not None
+            else [
+                {
+                    "value": candidate.value,
+                    "description": candidate.description,
+                    "source": "provider",
+                }
+                for candidate in fetched
+            ]
+        )
+        if not self._provider_cache.commit(
+            generation, value_kind, project, items, source_key=source_key
+        ):
             return  # A newer keystroke already won; drop this result.
         if items:
             self._refresh_completion()
@@ -495,10 +648,21 @@ class CommandLineScreenCompletionMixin:
         fetch reads ``⚠ <kind> unavailable``, an empty one ``no <kind>``.
         """
         value_kind = self._current_value_kind()
-        if not needs_provider_fetch(value_kind):
+        if not needs_provider_fetch(value_kind, self.app):
+            return None
+        context = self._resolve_context
+        if context is None:
             return None
         project = self._working_context.project if self._working_context else None
-        health = self._provider_cache.health(value_kind, project)
+        source_key = None
+        try:
+            widget = self.query_one(CommandLineInput)
+            source_key = self._source_key(
+                widget.text, widget.cursor_location[1], context
+            )
+        except Exception:  # noqa: BLE001 - footer must not disturb teardown.
+            pass
+        health = self._provider_cache.health(value_kind, project, source_key=source_key)
         if health == "failed":
             return provider_unavailable_note(value_kind)
         if health == "empty":

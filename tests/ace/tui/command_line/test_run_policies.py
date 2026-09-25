@@ -516,6 +516,7 @@ async def test_builtin_cd_submit_pins_and_renders_block(
             screen = await _open_panel(page, monkeypatch, history_file)
             screen._working_context = CommandLineContext(cwd="/tmp", project=None)
             assert screen._submit_line(f"cd {target}") is True
+            await page.pause_until_cpu_idle()
             session = command_line_session_for(page.app)
             assert session.cwd_pin == str(target)
             assert len(session.blocks) == 1
