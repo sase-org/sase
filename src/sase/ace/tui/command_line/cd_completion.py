@@ -91,18 +91,6 @@ def complete_cd(
     typed = _slot_prefix(line, cursor, context)
     items: list[dict[str, Any]] = []
     seen: set[str] = set()
-    if typed.startswith("-"):
-        items.append(
-            {
-                "insert_text": "-",
-                "display": "-",
-                "description": "unpin and follow the TUI project",
-                "badge": "dir",
-                "source": "builtin",
-                "match_runs": [],
-                "selected": False,
-            }
-        )
     for candidate in dynamic:
         raw_value = str(candidate.get("value", "") or "")
         if not raw_value:
@@ -118,6 +106,19 @@ def complete_cd(
                 "description": str(candidate.get("description") or ""),
                 "badge": str(candidate.get("badge") or value_kind),
                 "source": str(candidate.get("source") or "provider"),
+                "match_runs": [],
+                "selected": False,
+            }
+        )
+    if value_kind == "dir" and "-".startswith(typed):
+        # Last, so an empty-argument Tab lands on a directory, not on unpin.
+        items.append(
+            {
+                "insert_text": "-",
+                "display": "-",
+                "description": "unpin and follow the TUI project",
+                "badge": "dir",
+                "source": "builtin",
                 "match_runs": [],
                 "selected": False,
             }

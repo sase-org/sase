@@ -25,13 +25,23 @@ _SourcePath = Callable[[str | None], "Path | None"]
 
 
 def candidates_for(
-    kind: str, prefix: str, *, project: str | None, limit: int
+    kind: str,
+    prefix: str,
+    *,
+    project: str | None,
+    limit: int,
+    use_disk_cache: bool = True,
 ) -> list[Candidate]:
     """Return up to *limit* candidates for *kind* matching *prefix*.
 
     An unrecognized kind -- one with no ``ValueKind`` member or no shipped
     provider -- returns an empty list rather than raising, so a shell never
     sees a traceback for a kind this sase build does not know.
+
+    ``use_disk_cache=False`` skips the disk-cache read and calls the
+    provider, then refreshes the cache file for later callers. The TUI
+    passes it right after a command finished, because that command may have
+    changed the rows without touching the file the cache is keyed on.
     """
     try:
         value_kind = ValueKind(kind)
@@ -51,8 +61,10 @@ def candidates_for(
     cache_key = value_kind if project is None else f"{value_kind}__{project}"
     source_mtime = _safe_mtime(source_path(project))
     ttl = VOLATILE_KIND_TTL_SECONDS.get(value_kind, DEFAULT_TTL_SECONDS)
-    cached = load_cached_candidates(
-        cache_key, source_mtime=source_mtime, ttl_seconds=ttl
+    cached = (
+        load_cached_candidates(cache_key, source_mtime=source_mtime, ttl_seconds=ttl)
+        if use_disk_cache
+        else None
     )
     if cached is None:
         try:

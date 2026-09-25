@@ -13,6 +13,10 @@ from sase.ace.tui.util.perf import perf_log_path
 
 __all__ = ["schedule_command_line_keystroke_probe"]
 
+#: In-flight appends. The event loop keeps only weak references to tasks, so a
+#: task nobody else holds can be collected before it writes its sample.
+_PENDING_APPENDS: set[asyncio.Task[None]] = set()
+
 
 def _command_line_probe_sample(
     keypress_at: float, model_updated_at: float, painted_at: float, indexed: bool
@@ -52,7 +56,8 @@ def schedule_command_line_keystroke_probe(
 
     ``_refresh_completion`` has already rendered by the time it calls this.
     Capturing the finish from ``call_after_refresh`` therefore measures the
-    visible popup, not merely synchronous resolver work. The JSONL append
+    visible popup, not merely synchronous resolver work. *keypress_at* is
+    the key-receipt time when the input stamped one. The JSONL append
     goes through ``asyncio.to_thread`` so this diagnostic never puts disk
     I/O on the input event path.
     """
@@ -65,11 +70,13 @@ def schedule_command_line_keystroke_probe(
             keypress_at, model_updated_at, time.perf_counter(), indexed
         )
         try:
-            asyncio.get_running_loop().create_task(
+            task = asyncio.get_running_loop().create_task(
                 asyncio.to_thread(_append_command_line_probe, sample)
             )
         except RuntimeError:  # teardown has no live loop.
-            pass
+            return
+        _PENDING_APPENDS.add(task)
+        task.add_done_callback(_PENDING_APPENDS.discard)
 
     try:
         call_after_refresh(_after_paint)

@@ -387,9 +387,10 @@ async def test_palette_tip_marker_write_runs_off_loop(
             screen._maybe_show_palette_moved_tip()
             # Cache-first: a reopen before the write lands does no disk I/O.
             assert session.palette_tip_show is False
-            await page.wait_for(lambda _state: idents != [])
+            # The spy records its thread before the real write runs, so wait
+            # for the marker itself rather than racing the write.
+            await page.wait_for(lambda _state: idents != [] and marker.exists())
             assert all(ident != main_ident for ident in idents)
-            assert marker.exists()
 
 
 async def test_procs_jump_reads_off_thread_and_appends_on_ui_thread(

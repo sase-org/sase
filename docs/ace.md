@@ -3596,8 +3596,11 @@ TUI.
   section headings. A slot whose provider failed reads `⚠ <kind> unavailable`, and one
   with nothing to offer reads `no <kind>`; the note never carries over to another slot.
   Provider results are cached briefly (pending plans for 5 seconds, everything else 15)
-  and forgotten when a command finishes. A result that arrives after you edited the line
-  or moved the cursor is dropped.
+  and forgotten when a command finishes; the next fetch then skips the providers' own
+  disk cache, so a plan you just approved is not offered again. A result that arrives
+  after you edited the line or moved the cursor is dropped. Project slots always merge
+  the provider behind the projects the TUI already knows, and a path slot lists dotfiles
+  once the name you type starts with `.`.
 - Every command runs as an ordinary durable proc (tagged `command-line`, visible by
   default in Admin Center → Procs), so hiding the panel never interrupts anything.
   Finished command-line procs keep their own retention bucket of 50.
@@ -3606,7 +3609,8 @@ TUI.
   Declined confirmation commands render an explicit `R` rerun with `-y`; `R` does
   nothing for other blocks.
 - Built-ins: `cd` (pin a working directory), `clear`, `help`, and `history`. They run
-  instantly with no proc.
+  instantly with no proc. `cd` takes a path, `+<project>` (the project's label as
+  completion shows it, or `+home`), or `-` to unpin.
 - Block keys (`NORMAL` mode): `o` expand, `v` pager, `K` kill, `r`/`R` rerun, `e` edit,
   `y`/`Y` copy output/command, `p` open in Procs, `x` remove, `i` back to input.
 

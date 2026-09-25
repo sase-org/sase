@@ -18,6 +18,7 @@ before vim handling. ``ctrl+r`` toggles fuzzy history search the same way.
 from __future__ import annotations
 
 import dataclasses
+import time
 from typing import Any
 
 from rich.style import Style
@@ -31,6 +32,7 @@ from sase.ace.tui.keymaps.key_validation import (
     is_unbound_key,
     split_key_alternatives,
 )
+from sase.ace.tui.util.perf import is_enabled as tui_perf_enabled
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.completion.command_line_grammar import LineContext
 
@@ -167,6 +169,7 @@ class CommandLineInput(SingleLineVimTextArea):
         kwargs.setdefault("id", "command-line-input")
         super().__init__(*args, **kwargs)
         self.resolve_context: LineContext | None = None
+        self._keypress_stamp: tuple[float, str] | None = None
 
     def normalized_text(self) -> str:
         """Return the editable text with any typed ``sase `` prefix stripped."""
@@ -179,6 +182,18 @@ class CommandLineInput(SingleLineVimTextArea):
             self.move_cursor((0, len(self.document.get_line(0))))
         except Exception:  # noqa: BLE001 - cursor restore is best effort.
             pass
+
+    def take_keypress_stamp(self) -> float | None:
+        """Return the key-receipt time of the edit now being handled, once.
+
+        The stamp holds the text as it stood when the key arrived. A refresh
+        that finds the same text was not caused by that key (a provider
+        result landing after a cursor-only key, say), so it gets no stamp.
+        """
+        stamp, self._keypress_stamp = self._keypress_stamp, None
+        if stamp is None or stamp[1] == self.text:
+            return None
+        return stamp[0]
 
     def set_resolve_context(self, context: LineContext | None) -> None:
         """Store the latest resolver response and repaint the overlay."""
@@ -328,6 +343,10 @@ class CommandLineInput(SingleLineVimTextArea):
 
     async def _on_key(self, event: Key) -> None:
         """Route popup and block-nav keys before Escape/hop/vim handling."""
+        if tui_perf_enabled():
+            # The Key -> TextArea.Changed queue delay belongs to the sample,
+            # so the completion probe starts here, not at the refresh.
+            self._keypress_stamp = (time.perf_counter(), self.text)
         keymaps = command_line_keymaps_for(self)
         if getattr(self, "_vim_mode", "insert") != "normal" and (
             (event.key or "") in _MENU_KEYS

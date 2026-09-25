@@ -115,7 +115,7 @@ class CommandLineScreenCompletionMixin(CommandLineScreenKeysMixin):
             cursor = widget.cursor_location[1]
         except Exception:  # noqa: BLE001 - cursor read is best effort.
             cursor = len(line)
-        started = time.perf_counter()
+        started = widget.take_keypress_stamp() or time.perf_counter()
         if self._history_search_active:
             self._render_history_search(line)
             self._record_keystroke_probe(started, True)
@@ -239,6 +239,9 @@ class CommandLineScreenCompletionMixin(CommandLineScreenKeysMixin):
                 cursor,
                 source_key,
                 self._path_request(line, cursor, context),
+                use_disk_cache=not self._provider_cache.bypass_disk_cache(
+                    value_kind, project
+                ),
             )
         )
 
@@ -246,10 +249,16 @@ class CommandLineScreenCompletionMixin(CommandLineScreenKeysMixin):
         """Drop cached provider rows after a command finished (UI thread).
 
         A finished command may have changed what a slot offers (an approved
-        plan is no longer pending). The popup refetches right away when the
-        cursor sits in a provider-backed slot, unless a menu is active.
+        plan is no longer pending). Clearing the cache retires every fetch
+        already in flight and makes the next fetch skip the providers' disk
+        cache. The popup refetches right away when the cursor sits in a
+        provider-backed slot; an active menu keeps its rows, and the next
+        render refetches instead.
         """
         self._provider_cache.invalidate()
+        stale_task, self._provider_task = self._provider_task, None
+        if stale_task is not None:
+            stale_task.cancel()
         if self._popup_state.menu_active:
             return
         if needs_provider_fetch(self._current_value_kind(), self.app):
@@ -277,6 +286,8 @@ class CommandLineScreenCompletionMixin(CommandLineScreenKeysMixin):
         cursor: int,
         source_key: str | None,
         path_request: Any | None,
+        *,
+        use_disk_cache: bool = True,
     ) -> None:
         """Fetch provider candidates, dropping results for a moved line or cursor."""
         from sase.completion.candidates.providers import candidates_for
@@ -297,7 +308,12 @@ class CommandLineScreenCompletionMixin(CommandLineScreenKeysMixin):
                 )
             else:
                 fetched = await asyncio.to_thread(
-                    candidates_for, value_kind, "", project=project, limit=2000
+                    candidates_for,
+                    value_kind,
+                    "",
+                    project=project,
+                    limit=2000,
+                    use_disk_cache=use_disk_cache,
                 )
         except asyncio.CancelledError:
             raise

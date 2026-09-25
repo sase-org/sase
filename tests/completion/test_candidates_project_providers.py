@@ -243,6 +243,52 @@ def test_candidates_for_caches_between_calls(
     assert len(calls) == 1
 
 
+def test_candidates_for_can_bypass_the_disk_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``use_disk_cache=False`` re-reads the provider and refreshes the file."""
+    monkeypatch.delenv("SASE_COMPLETION_NO_CACHE", raising=False)
+
+    def _record(name: str) -> ProjectRecordWire:
+        return ProjectRecordWire(
+            schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+            project_name=name,
+            project_dir=f"/tmp/{name}",
+            project_file=f"/tmp/{name}/{name}.sase",
+            archive_file=None,
+            workspace_dir=None,
+            state="enabled",
+            state_explicit=True,
+            system_managed=False,
+            active_claim_count=0,
+            launchable=False,
+        )
+
+    records = [_record("acme")]
+    monkeypatch.setattr(
+        project_lifecycle_facade,
+        "list_project_records",
+        lambda *args, **kwargs: list(records),
+    )
+
+    assert candidates_for("project", "", project=None, limit=200) == [
+        Candidate("acme", "enabled")
+    ]
+    records.append(_record("beta"))
+
+    # The cache file is still fresh, so a default call keeps serving it ...
+    assert candidates_for("project", "", project=None, limit=200) == [
+        Candidate("acme", "enabled")
+    ]
+    # ... until a caller that knows better skips it, which also refreshes it.
+    fresh = [Candidate("acme", "enabled"), Candidate("beta", "enabled")]
+    assert (
+        candidates_for("project", "", project=None, limit=200, use_disk_cache=False)
+        == fresh
+    )
+    assert candidates_for("project", "", project=None, limit=200) == fresh
+
+
 def test_repo_candidates_use_display_name_and_kind(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

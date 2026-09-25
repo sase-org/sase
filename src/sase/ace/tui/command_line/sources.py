@@ -37,6 +37,9 @@ PATH_CACHE_TTL_SECONDS = 1.0
 PATH_COMPLETION_LIMIT = 200
 #: In-memory entity kinds served synchronously from app state.
 IN_MEMORY_VALUE_KINDS = frozenset({"agent", "proc", "project", "patch"})
+#: In-memory kinds whose live rows are only a subset of what exists (a project
+#: with no loaded agent is invisible to the app), so the provider always merges.
+_PARTIAL_IN_MEMORY_KINDS = frozenset({"project"})
 
 __all__ = [
     "IN_MEMORY_VALUE_KINDS",
@@ -235,12 +238,16 @@ def needs_provider_fetch(value_kind: str | None, app: Any | None = None) -> bool
     """Return True when a slot needs its debounced provider/scan fallback.
 
     Entity readers are authoritative only while they have live rows.  Empty or
-    unavailable app state must not turn a valid command slot into a dead end.
+    unavailable app state must not turn a valid command slot into a dead end,
+    and a partial reader (projects) always merges the provider behind its rows.
     ``app=None`` retains the cheap classification used by non-UI callers.
     """
     if not value_kind:
         return False
-    if value_kind not in IN_MEMORY_VALUE_KINDS:
+    if (
+        value_kind not in IN_MEMORY_VALUE_KINDS
+        or value_kind in _PARTIAL_IN_MEMORY_KINDS
+    ):
         return True
     return app is not None and not _in_memory_candidates(app, value_kind)
 
@@ -264,7 +271,9 @@ def collect_dynamic_candidates(
     ]
     cached = cache.cached(value_kind, project, source_key=source_key)
     if cached is not None:
-        dynamic.extend(cached)
+        # In-memory rows win: a provider row for the same value is a duplicate.
+        seen = {row["value"] for row in dynamic}
+        dynamic.extend(row for row in cached if row.get("value") not in seen)
     return dynamic
 
 
@@ -337,6 +346,7 @@ class _PathCompletionRequest:
     scan_directory: str
     display_prefix: str
     source_key: str
+    show_hidden: bool = False
 
 
 def path_completion_request(prefix: str, cwd: str) -> _PathCompletionRequest:
@@ -345,11 +355,14 @@ def path_completion_request(prefix: str, cwd: str) -> _PathCompletionRequest:
     separator = "/"
     if typed.endswith(separator):
         display_prefix = typed
+        basename = ""
     else:
-        parent, _name = (
+        parent, basename = (
             typed.rsplit(separator, 1) if separator in typed else ("", typed)
         )
         display_prefix = f"{parent}{separator}" if parent else ""
+    # Dotfiles stay out of the way until the user starts typing one.
+    show_hidden = basename.startswith(".")
     scan_input = display_prefix or "."
     expanded = os.path.expanduser(scan_input)
     if not os.path.isabs(expanded):
@@ -360,7 +373,8 @@ def path_completion_request(prefix: str, cwd: str) -> _PathCompletionRequest:
     return _PathCompletionRequest(
         scan_directory=scan_directory,
         display_prefix=display_prefix,
-        source_key=f"path:{scan_directory}:{display_prefix}",
+        source_key=f"path:{scan_directory}:{display_prefix}:{int(show_hidden)}",
+        show_hidden=show_hidden,
     )
 
 
@@ -378,7 +392,7 @@ def path_candidates(
         with os.scandir(request.scan_directory) as entries:
             for entry in entries:
                 name = entry.name
-                if name.startswith("."):
+                if name.startswith(".") and not request.show_hidden:
                     continue
                 try:
                     is_directory = entry.is_dir(follow_symlinks=False)
@@ -445,6 +459,10 @@ class ProviderCache:
         self._clock = clock
         self._entries: dict[tuple[str, str | None, str | None], _ProviderEntry] = {}
         self._generation = 0
+        # After an invalidation the disk cache under the providers is suspect
+        # too, until each (kind, project) has been refetched past it once.
+        self._disk_suspect = False
+        self._disk_refreshed: set[tuple[str, str | None]] = set()
 
     def next_generation(self) -> int:
         """Advance the keystroke generation and return the new token."""
@@ -486,6 +504,7 @@ class ProviderCache:
         self._store(
             kind, project, items, "ok" if items else "empty", source_key=source_key
         )
+        self._disk_refreshed.add((kind, project))
         return True
 
     def note_unavailable(
@@ -495,8 +514,20 @@ class ProviderCache:
         self._store(kind, project, [], "failed", source_key=source_key)
 
     def invalidate(self) -> None:
-        """Forget every entry (a finished command may have changed them)."""
+        """Forget every entry (a finished command may have changed them).
+
+        Also retires every in-flight fetch (its generation is no longer
+        current) and marks the providers' own disk cache as suspect, so the
+        refetch calls :meth:`bypass_disk_cache` before trusting it.
+        """
         self._entries.clear()
+        self._generation += 1
+        self._disk_suspect = True
+        self._disk_refreshed.clear()
+
+    def bypass_disk_cache(self, kind: str, project: str | None) -> bool:
+        """Return True when the next fetch of this slot must skip the disk cache."""
+        return self._disk_suspect and (kind, project) not in self._disk_refreshed
 
     def _fresh_entry(
         self, kind: str, project: str | None, *, source_key: str | None = None

@@ -160,30 +160,36 @@ def render_history(entries: Sequence[Any], query: str | None) -> BuiltinOutcome:
 
 
 def _resolve_project_checkout(name: str) -> str | None:
-    """Best-effort ``+project`` resolution to an enabled project's checkout."""
+    """Best-effort ``+project`` resolution to an enabled project's checkout.
+
+    Completion offers display labels (``sase`` for ``gh_org__sase``) and the
+    built-in ``home`` project, so *name* matches a canonical project key or a
+    label. Runs off the UI thread: it lists the project records.
+    """
     try:
         from sase.core.paths import sase_projects_dir
         from sase.core.project_lifecycle_facade import list_project_records
+        from sase.project_display_names import ProjectDisplaySnapshot
     except Exception:  # noqa: BLE001 - project lookup always degrades.
         return None
     try:
         root = sase_projects_dir()
         if not root.is_dir():
             return None
-        records = list_project_records(root, "all", include_home=False)
+        records = list_project_records(root, "all", include_home=True)
+        snapshot = ProjectDisplaySnapshot.from_records(records)
     except Exception:  # noqa: BLE001 - project lookup always degrades.
         return None
-    for record in records:
-        project_name = getattr(record, "project_name", None)
-        if project_name != name:
-            continue
-        if getattr(record, "state", None) != "enabled":
-            return None
-        workspace = getattr(record, "workspace_dir", None)
-        if workspace:
-            return str(workspace)
+    # A canonical key is unambiguous, so it beats a label that equals it.
+    record = next((item for item in records if item.project_name == name), None)
+    if record is None:
+        record = next(
+            (item for item in records if snapshot.label_for(item.project_name) == name),
+            None,
+        )
+    if record is None or record.state != "enabled" or not record.workspace_dir:
         return None
-    return None
+    return str(record.workspace_dir)
 
 
 __all__ = [
