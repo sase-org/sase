@@ -1740,17 +1740,21 @@ Source: `src/sase/ace/tui/agent_decks_settings.py`
 #### `ace.agent_header`
 
 Controls how many rows of the agent's `AGENT XPROMPT` the collapsed Agents-tab header
-panel previews below its two chip rows.
+panel previews below its two chip rows. The preview shows at most
+`collapsed_preview_max_rows` rows, and fewer when `collapsed_max_share` leaves less room
+on a short column.
 
 ```yaml
 ace:
   agent_header:
     collapsed_max_share: 0.35
+    collapsed_preview_max_rows: 3
 ```
 
-| Field                 | Type   | Default | Description                                                                                                                                                                                        |
-| --------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `collapsed_max_share` | number | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border, chip rows, and XPROMPT tab row, at least 1 row. `0` turns the preview off. |
+| Field                        | Type    | Default | Description                                                                                                                                                                                        |
+| ---------------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collapsed_max_share`        | number  | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border, chip rows, and XPROMPT tab row, at least 1 row. `0` turns the preview off. |
+| `collapsed_preview_max_rows` | integer | `3`     | Most xprompt preview rows the collapsed header shows (at least 1). The `collapsed_max_share` budget can lower it on short columns. `d` expands to the full prompt.                                 |
 
 Source: `src/sase/ace/tui/agent_header_settings.py`
 

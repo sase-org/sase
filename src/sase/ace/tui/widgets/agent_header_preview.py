@@ -65,18 +65,20 @@ class XpromptPreviewFit:
     hidden_lines: int
 
 
-def preview_row_budget(column_rows: int, share: float) -> int:
+def preview_row_budget(column_rows: int, share: float, *, max_rows: int) -> int:
     """Return how many preview rows the collapsed header may show.
 
     The collapsed header is capped at ``floor(column_rows * share)`` rows in
     total; the preview gets that cap minus the border, chip, and ``XPROMPT``
-    tab rows, but at least one row whenever ``share`` is positive. A
-    non-positive ``share`` or ``column_rows`` turns the preview off (``0``).
+    tab rows, but at least one row whenever ``share`` is positive. The body
+    is also capped at ``max_rows`` rows, and the smaller of the two caps
+    wins. A non-positive ``share``, ``column_rows``, or ``max_rows`` turns
+    the preview off (``0``).
     """
-    if share <= 0 or column_rows <= 0:
+    if share <= 0 or column_rows <= 0 or max_rows <= 0:
         return 0
     cap = math.floor(column_rows * share + 1e-9)
-    return max(1, cap - _CHROME_ROWS)
+    return min(max_rows, max(1, cap - _CHROME_ROWS))
 
 
 def fit_xprompt_preview(

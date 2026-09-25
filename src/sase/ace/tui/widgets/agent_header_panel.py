@@ -105,7 +105,8 @@ class AgentHeaderPanel(VerticalScroll):
             word = "less" if expanded else "more"
             base = f"{arrow} {key} {word}"
         if hidden_lines > 0 and not expanded:
-            return f"+{hidden_lines} lines · {base}"
+            noun = "line" if hidden_lines == 1 else "lines"
+            return f"+{hidden_lines} {noun} · {base}"
         return base
 
     def _content_width(self) -> int:
@@ -128,7 +129,11 @@ class AgentHeaderPanel(VerticalScroll):
     def _preview_budget(self) -> int:
         """Return how many preview rows the current column height allows."""
         settings = agent_header_settings_for(self)
-        return preview_row_budget(self._column_rows, settings.collapsed_max_share)
+        return preview_row_budget(
+            self._column_rows,
+            settings.collapsed_max_share,
+            max_rows=settings.collapsed_preview_max_rows,
+        )
 
     def _pending_hold_rows(self, budget: int) -> int:
         """Return the placeholder height held while the full paint is pending."""

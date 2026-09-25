@@ -414,13 +414,38 @@ def test_huge_styled_sources_keep_styles_in_the_prefix() -> None:
     ],
 )
 def test_preview_row_budget(column_rows: int, share: float, expected: int) -> None:
-    assert preview_row_budget(column_rows, share) == expected
+    assert preview_row_budget(column_rows, share, max_rows=1000) == expected
 
 
 def test_preview_row_budget_reserves_the_tab_row() -> None:
     # cap 14 = border (2) + chip rows (2) + tab row + 9 body rows.
     assert PREVIEW_TAB_ROWS == 1
-    assert preview_row_budget(40, 0.35) == 14 - 4 - PREVIEW_TAB_ROWS
+    assert preview_row_budget(40, 0.35, max_rows=1000) == 14 - 4 - PREVIEW_TAB_ROWS
+
+
+@pytest.mark.parametrize(
+    ("column_rows", "share", "max_rows", "expected"),
+    [
+        # A tall column is capped at the row cap.
+        (32, 0.35, 3, 3),
+        (100, 0.35, 3, 3),
+        # A short column whose share gives fewer rows keeps the share value.
+        (20, 0.35, 3, 2),
+        (10, 0.35, 3, 1),
+        # A cap of one row shows one row.
+        (32, 0.35, 1, 1),
+        (100, 0.5, 1, 1),
+        # A non-positive cap turns the preview off.
+        (32, 0.35, 0, 0),
+        (32, 0.35, -1, 0),
+        # A non-positive share stays off even with a positive cap.
+        (32, 0, 3, 0),
+    ],
+)
+def test_preview_row_budget_applies_the_row_cap(
+    column_rows: int, share: float, max_rows: int, expected: int
+) -> None:
+    assert preview_row_budget(column_rows, share, max_rows=max_rows) == expected
 
 
 # --- card -----------------------------------------------------------------

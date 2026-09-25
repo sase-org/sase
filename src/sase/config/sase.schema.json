@@ -2217,10 +2217,16 @@
           "properties": {
             "collapsed_max_share": {
               "type": "number",
-              "description": "Fraction of the Agents tab detail column's height that the collapsed header may occupy in total, including its border, two chip rows, and XPROMPT tab row. The rest of the budget is used to preview the selected agent's xprompt. 0 turns the collapsed preview off.",
+              "description": "Fraction of the Agents tab detail column's height that the collapsed header may occupy in total, including its border, two chip rows, and XPROMPT tab row. The rest of the budget is used to preview the selected agent's xprompt, stopping at collapsed_preview_max_rows. 0 turns the collapsed preview off.",
               "minimum": 0,
               "maximum": 0.6,
               "default": 0.35
+            },
+            "collapsed_preview_max_rows": {
+              "type": "integer",
+              "description": "Most xprompt preview rows the collapsed header shows (at least 1). The collapsed_max_share budget can lower it on short columns. d expands to the full prompt.",
+              "minimum": 1,
+              "default": 3
             }
           }
         },

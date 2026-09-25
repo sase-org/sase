@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 DEFAULT_COLLAPSED_MAX_SHARE = 0.35
 MAX_COLLAPSED_MAX_SHARE = 0.6
+DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +14,7 @@ class AgentHeaderSettings:
     """Cached agent-header behavior settings used by ACE."""
 
     collapsed_max_share: float = DEFAULT_COLLAPSED_MAX_SHARE
+    collapsed_preview_max_rows: int = DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS
 
 
 DEFAULT_AGENT_HEADER_SETTINGS = AgentHeaderSettings()
@@ -24,6 +26,9 @@ def parse_agent_header_settings(ace_cfg: object) -> AgentHeaderSettings:
     Non-mapping ``ace`` blocks, missing or non-mapping ``agent_header``
     objects, boolean values, non-numbers, negatives and values above the
     maximum share all fall back to the default. Ints coerce to float.
+    ``collapsed_preview_max_rows`` accepts a non-bool ``int >= 1`` or an
+    integral ``float >= 1`` coerced to ``int``; anything else falls back to
+    its default. Each key falls back on its own.
     """
     if not isinstance(ace_cfg, dict):
         return DEFAULT_AGENT_HEADER_SETTINGS
@@ -32,6 +37,7 @@ def parse_agent_header_settings(ace_cfg: object) -> AgentHeaderSettings:
         return DEFAULT_AGENT_HEADER_SETTINGS
     return AgentHeaderSettings(
         collapsed_max_share=_coerce_share(raw.get("collapsed_max_share")),
+        collapsed_preview_max_rows=_coerce_rows(raw.get("collapsed_preview_max_rows")),
     )
 
 
@@ -42,6 +48,22 @@ def _coerce_share(value: object) -> float:
     if not 0 <= value <= MAX_COLLAPSED_MAX_SHARE:
         return DEFAULT_COLLAPSED_MAX_SHARE
     return float(value)
+
+
+def _coerce_rows(value: object) -> int:
+    """Coerce ``collapsed_preview_max_rows`` with a safe fallback."""
+    if isinstance(value, bool):
+        return DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS
+    if isinstance(value, int):
+        if value >= 1:
+            return value
+        return DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS
+    if isinstance(value, float):
+        # NaN and inf are not integers, so both fall through to the default.
+        if value.is_integer() and value >= 1:
+            return int(value)
+        return DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS
+    return DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS
 
 
 def agent_header_settings_for(widget: object) -> AgentHeaderSettings:
@@ -59,6 +81,7 @@ def agent_header_settings_for(widget: object) -> AgentHeaderSettings:
 __all__ = [
     "DEFAULT_AGENT_HEADER_SETTINGS",
     "DEFAULT_COLLAPSED_MAX_SHARE",
+    "DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS",
     "MAX_COLLAPSED_MAX_SHARE",
     "AgentHeaderSettings",
     "agent_header_settings_for",

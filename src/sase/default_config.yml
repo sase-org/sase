@@ -420,6 +420,9 @@ ace:
     # included). The rows left over preview the selected agent's xprompt.
     # Range 0 to 0.6; 0 turns the collapsed preview off.
     collapsed_max_share: 0.35
+    # Most xprompt preview rows the collapsed header shows, and fewer when
+    # collapsed_max_share leaves less room. Minimum 1. d shows the whole prompt.
+    collapsed_preview_max_rows: 3
   tool_calls:
     slow_threshold_seconds: 20
   artifact_file_viewer:

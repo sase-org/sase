@@ -9,6 +9,7 @@ from jsonschema.exceptions import ValidationError
 
 from sase.ace.tui.agent_header_settings import (
     DEFAULT_AGENT_HEADER_SETTINGS,
+    DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS,
     AgentHeaderSettings,
     agent_header_settings_for,
     parse_agent_header_settings,
@@ -20,8 +21,19 @@ def _parse(value: object) -> AgentHeaderSettings:
     return parse_agent_header_settings({"agent_header": {"collapsed_max_share": value}})
 
 
+def _parse_rows(value: object) -> AgentHeaderSettings:
+    return parse_agent_header_settings(
+        {"agent_header": {"collapsed_preview_max_rows": value}}
+    )
+
+
 def test_default_share_is_a_third_of_the_column() -> None:
     assert DEFAULT_AGENT_HEADER_SETTINGS.collapsed_max_share == 0.35
+
+
+def test_default_preview_max_rows_is_three() -> None:
+    assert DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS == 3
+    assert DEFAULT_AGENT_HEADER_SETTINGS.collapsed_preview_max_rows == 3
 
 
 def test_missing_or_malformed_blocks_use_the_default() -> None:
@@ -58,6 +70,43 @@ def test_valid_shares_are_kept_and_ints_coerce_to_float(
     assert isinstance(settings.collapsed_max_share, float)
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(1, 1), (3, 3), (12, 12), (3.0, 3)],
+)
+def test_valid_row_caps_are_kept_and_integral_floats_coerce_to_int(
+    value: object, expected: int
+) -> None:
+    settings = _parse_rows(value)
+    assert settings.collapsed_preview_max_rows == expected
+    assert isinstance(settings.collapsed_preview_max_rows, int)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [True, False, "3", None, [], 0, -1, 2.5, float("nan"), float("inf")],
+)
+def test_invalid_row_caps_fall_back_to_the_default(value: object) -> None:
+    assert _parse_rows(value) == DEFAULT_AGENT_HEADER_SETTINGS
+
+
+def test_each_key_falls_back_on_its_own() -> None:
+    settings = parse_agent_header_settings(
+        {"agent_header": {"collapsed_max_share": 0.25, "collapsed_preview_max_rows": 0}}
+    )
+    assert settings == AgentHeaderSettings(
+        collapsed_max_share=0.25,
+        collapsed_preview_max_rows=DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS,
+    )
+    settings = parse_agent_header_settings(
+        {"agent_header": {"collapsed_max_share": -1, "collapsed_preview_max_rows": 5}}
+    )
+    assert settings == AgentHeaderSettings(
+        collapsed_max_share=DEFAULT_AGENT_HEADER_SETTINGS.collapsed_max_share,
+        collapsed_preview_max_rows=5,
+    )
+
+
 def test_settings_helper_fails_open() -> None:
     assert agent_header_settings_for(object()) == DEFAULT_AGENT_HEADER_SETTINGS
 
@@ -86,15 +135,29 @@ def test_config_schema_agent_header_parity() -> None:
         (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
     )
     share = agent_header["properties"]["collapsed_max_share"]
+    max_rows = agent_header["properties"]["collapsed_preview_max_rows"]
 
-    assert default_config["ace"]["agent_header"] == {"collapsed_max_share": 0.35}
+    assert default_config["ace"]["agent_header"] == {
+        "collapsed_max_share": 0.35,
+        "collapsed_preview_max_rows": 3,
+    }
     assert agent_header["additionalProperties"] is False
     assert share["type"] == "number"
     assert share["default"] == DEFAULT_AGENT_HEADER_SETTINGS.collapsed_max_share
     assert share["minimum"] == 0
     assert share["maximum"] == 0.6
+    assert max_rows["type"] == "integer"
+    assert max_rows["minimum"] == 1
+    assert (
+        max_rows["default"] == DEFAULT_AGENT_HEADER_SETTINGS.collapsed_preview_max_rows
+    )
+    assert max_rows["default"] == DEFAULT_COLLAPSED_PREVIEW_MAX_ROWS
     for valid in (0, 0.35, 0.6):
         validator.validate({"ace": {"agent_header": {"collapsed_max_share": valid}}})
+    for valid_rows in (1, 3):
+        validator.validate(
+            {"ace": {"agent_header": {"collapsed_preview_max_rows": valid_rows}}}
+        )
     for invalid in (
         {"collapsed_max_share": "0.35"},
         {"collapsed_max_share": -0.1},
@@ -104,3 +167,11 @@ def test_config_schema_agent_header_parity() -> None:
     ):
         with pytest.raises(ValidationError):
             validator.validate({"ace": {"agent_header": invalid}})
+    for invalid_rows in (
+        {"collapsed_preview_max_rows": 0},
+        {"collapsed_preview_max_rows": "3"},
+        {"collapsed_preview_max_rows": 2.5},
+        {"collapsed_preview_max_rows": True},
+    ):
+        with pytest.raises(ValidationError):
+            validator.validate({"ace": {"agent_header": invalid_rows}})

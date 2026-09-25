@@ -78,7 +78,7 @@ def _preview_agent(artifacts_dir: Path, *, name: str, raw_xprompt: str) -> Agent
         (
             _LONG_PROSE_XPROMPT,
             True,
-            ("▎", "XPROMPT", "¶", "sticky header", "…"),
+            ("▎", "XPROMPT", "sticky header", "…"),
             "agents_header_preview_truncated_160x50",
             "ACE agents collapsed header xprompt preview, truncated",
         ),
@@ -123,6 +123,8 @@ async def test_agents_header_xprompt_preview_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert ("lines" in str(panel.border_subtitle)) is truncated
+        if truncated:
+            assert panel._last_preview_rows == 3  # noqa: SLF001
 
         for token in tokens:
             assert_page_svg_contains(page, token)

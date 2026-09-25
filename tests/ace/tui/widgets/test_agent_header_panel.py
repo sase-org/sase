@@ -378,8 +378,12 @@ async def test_preview_row_count_matches_budget_and_short_prompt_fits(
             detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
         )
         panel = _header_panel(detail)
-        expected = preview_row_budget(int(panel._column_rows), 0.35)  # noqa: SLF001
-        assert expected >= 1
+        expected = preview_row_budget(
+            int(panel._column_rows),
+            0.35,
+            max_rows=3,  # noqa: SLF001
+        )
+        assert 1 <= expected <= 3
         assert _preview_rows(panel) == expected
         assert "lines · " in str(panel.border_subtitle)
 
@@ -532,11 +536,79 @@ async def test_column_resize_changes_budget(tmp_path: Any) -> None:
             detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
         )
         panel = _header_panel(detail)
-        before = _preview_rows(panel)
         detail.on_resize(types.SimpleNamespace(size=types.SimpleNamespace(height=100)))
         await pilot.pause()
-        assert _preview_rows(panel) > before
+        assert _preview_rows(panel) == 3
+        assert _header_text(panel).splitlines()[-1].rstrip().endswith("…")
+        assert "lines · " in str(panel.border_subtitle)
+
+        detail.on_resize(types.SimpleNamespace(size=types.SimpleNamespace(height=12)))
+        await pilot.pause()
+        assert 1 <= _preview_rows(panel) < 3
+
+
+async def test_exact_fit_shows_no_ellipsis_or_count(tmp_path: Any) -> None:
+    from sase.ace.tui.widgets.agent_header_preview import fit_xprompt_preview
+
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        width = panel._content_width()  # noqa: SLF001
+        prompt: str | None = None
+        for count in range(5, 200):
+            candidate = " ".join(f"word{i:03d}" for i in range(count))
+            fit = fit_xprompt_preview(Text(candidate), width=width, max_rows=100)
+            if fit.rows == 3 and not fit.truncated:
+                prompt = candidate
+                break
+        assert prompt is not None
+        await _show_agent_full(detail, _artifact_agent(tmp_path, "b", prompt), pilot)
+        panel = _header_panel(detail)
+        assert _preview_rows(panel) == 3
+        assert not _header_text(panel).splitlines()[-1].rstrip().endswith("…")
         assert "lines" not in str(panel.border_subtitle)
+
+
+async def test_row_cap_setting_changes_collapsed_rows(tmp_path: Any) -> None:
+    import types
+
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        app._agent_header_settings = AgentHeaderSettings(  # noqa: SLF001
+            collapsed_preview_max_rows=5
+        )
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        detail.on_resize(types.SimpleNamespace(size=types.SimpleNamespace(height=100)))
+        await pilot.pause()
+        assert _preview_rows(panel) == 5
+
+        app._agent_header_settings = AgentHeaderSettings(  # noqa: SLF001
+            collapsed_preview_max_rows=1
+        )
+        panel.show_identity(panel._identity)  # noqa: SLF001
+        await pilot.pause()
+        assert _preview_rows(panel) == 1
+
+
+async def test_hidden_line_subtitle_uses_singular_for_one_line(tmp_path: Any) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        assert "+1 line · " in panel._subtitle_for(False, hidden_lines=1)  # noqa: SLF001
+        assert "+2 lines · " in panel._subtitle_for(False, hidden_lines=2)  # noqa: SLF001
+        assert "+12 lines · " in panel._subtitle_for(False, hidden_lines=12)  # noqa: SLF001
 
 
 async def test_card_rows_are_padded_and_repaint_on_width_change(

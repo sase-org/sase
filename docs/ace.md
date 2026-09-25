@@ -5424,26 +5424,28 @@ the preferred card.
   from the metadata chips. Every card row carries the `▎` quote bar in the XPROMPT
   accent, which acts as the card's accent edge; hard-wrapped prose reflows into wrapped
   rows, hard breaks render as a dim `¶`, and the highlighting matches the expanded
-  prompt. The card fills the panel width and takes as many rows as the
-  `ace.agent_header.collapsed_max_share` budget allows (about a third of the column by
-  default; `0` turns the preview off and shows no tab). The tab row counts against that
-  budget, next to the border and the chip rows. On overflow the last row ends in `…` and
-  the border subtitle becomes `+N lines · ▾ d more`. `d` expands the panel to the full
-  field list plus the complete `AGENT XPROMPT` under its own heading (or collapses it
-  back). The kind label moves into the panel's border title in the node's accent color —
-  `AGENT`, `AGENT SHELL`, `SESSION`, `CLAN`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`,
-  `PROC SHELL`, or, for a selected whole tribe panel, `TRIBE` — and the border subtitle
-  shows what `d` will do (`▾ d more` / `▴ d less`, naming the configured
-  `toggle_agent_header` key). The panel is hidden only for "No agent selected".
-  `AGENT XPROMPT` no longer renders in the scrolling body and is not a `Ctrl+J`/`Ctrl+K`
-  stop; `,/` still finds the user's words through `AGENT PROMPT`. A clan's collapsed
-  rows mirror the tribe layout: name, status, and count chip on row 1; tribes, member
-  totals, runtime, and the fold chip on row 2. Collapsed/expanded state is per session
-  and holds across row moves, tribe focus, and layout changes. While file-hint markers
-  (`[N]`) are visible the panel renders expanded so every hint stays selectable.
-  Attempt-pinned views never rendered `AGENT XPROMPT` and show no preview, and nodes
-  without an xprompt show exactly the two chip rows inside the border. Deck search
-  (`,/`) covers the focused panel's deck only, since header fields stay on screen.
+  prompt. The card fills the panel width and shows at most three rows
+  (`ace.agent_header.collapsed_preview_max_rows`), fewer when the
+  `ace.agent_header.collapsed_max_share` height budget of a short column is tighter (`0`
+  still turns the preview off and shows no tab). The tab row counts against that budget,
+  next to the border and the chip rows. On overflow the last row ends in `…` and the
+  border subtitle becomes `+N lines · ▾ d more` (`+1 line` when one line is hidden). `d`
+  expands the panel to the full field list plus the complete `AGENT XPROMPT` under its
+  own heading (or collapses it back). The kind label moves into the panel's border title
+  in the node's accent color — `AGENT`, `AGENT SHELL`, `SESSION`, `CLAN`, `WORKFLOW`,
+  `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a selected whole tribe panel, `TRIBE`
+  — and the border subtitle shows what `d` will do (`▾ d more` / `▴ d less`, naming the
+  configured `toggle_agent_header` key). The panel is hidden only for "No agent
+  selected". `AGENT XPROMPT` no longer renders in the scrolling body and is not a
+  `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through `AGENT PROMPT`. A
+  clan's collapsed rows mirror the tribe layout: name, status, and count chip on row 1;
+  tribes, member totals, runtime, and the fold chip on row 2. Collapsed/expanded state
+  is per session and holds across row moves, tribe focus, and layout changes. While
+  file-hint markers (`[N]`) are visible the panel renders expanded so every hint stays
+  selectable. Attempt-pinned views never rendered `AGENT XPROMPT` and show no preview,
+  and nodes without an xprompt show exactly the two chip rows inside the border. Deck
+  search (`,/`) covers the focused panel's deck only, since header fields stay on
+  screen.
 - **Jump panel**: Every live numbered roster target (session shells, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
   detail column, below the deck panels in every deck layout; the Main deck body does not
