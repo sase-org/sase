@@ -95,9 +95,9 @@ def test_keep_going_runs_every_stage_and_exits_with_first_failure(
     _home(monkeypatch, tmp_path)
     script = " && ".join(
         (
-            _stage("one", "sh -c 'exit 7'"),
+            _stage("one", "sh -c 'echo distinctive-one-output; exit 7'"),
             _stage("two", "true"),
-            _stage("three", "sh -c 'exit 9'"),
+            _stage("three", "sh -c 'echo distinctive-three-output; exit 9'"),
             _stage("four", "true"),
             f"{shlex.quote(str(RUN_SILENT))} --finish",
         )
@@ -108,6 +108,14 @@ def test_keep_going_runs_every_stage_and_exits_with_first_failure(
     assert _run(keep_going=True) == 7
     captured = capsys.readouterr()
     assert "✗ 2 stage(s) failed; continued past them (first exit 7)" in captured.out
+    assert "✗ one\n" in captured.out
+    assert "distinctive-one-output" in captured.out
+    assert "✗ three\n" in captured.out
+    assert "distinctive-three-output" in captured.out
+    assert "✓ one" not in captured.out
+    assert "✓ three" not in captured.out
+    assert "✓ two" in captured.out
+    assert "✓ four" in captured.out
     shown, records = _newest()
     assert shown["run"]["state"] == "failed"
     assert [stage["description"] for stage in shown["stages"]] == [

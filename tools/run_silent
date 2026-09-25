@@ -8,6 +8,9 @@
 # On success (exit 0): prints "✓ <description>" and discards the captured output.
 # On failure (nonzero): prints "✗ <description>", dumps the captured output,
 #                       and exits with the same code.
+# A stage the tool-run executor continues past prints the same "✗ <description>"
+# line and captured output as a fail-fast failure, but exits 0 so the recipe
+# proceeds; it never prints "✓".
 #
 # The stage command runs without SASE_TOOL_RUN_EVENTS and
 # SASE_MONITOR_DIAGNOSTICS_DIR: a stage is one row of the enclosing run, so a
@@ -76,6 +79,9 @@ if need_python && command -v python3 >/dev/null 2>&1; then
         --started-at "$started_at" >/dev/null 2>&1 || true
 fi
 
+failed_code=$exit_code
+continued=0
+
 # Only the executor enables this handshake. A missing event sink or Python
 # interpreter is deliberately fail-fast: no continuation can hide a failure.
 if [ "$exit_code" -ne 0 ] \
@@ -93,13 +99,15 @@ if [ "$exit_code" -ne 0 ] \
     # is the fail-fast exit selected by the helper (or the original failure
     # when recording itself could not make a decision).
     exit_code=$decision_code
+    [ "$exit_code" -eq 0 ] && continued=1
 fi
 
-if [ "$exit_code" -eq 0 ]; then
+if [ "$failed_code" -eq 0 ]; then
     printf '✓ %s\n' "$description"
     exit 0
 else
     printf '✗ %s\n' "$description"
     cat "$tmp_file"
+    [ "$continued" -eq 1 ] && exit 0
     exit "$exit_code"
 fi
