@@ -60,6 +60,7 @@ def _install_executable(path: Path, body: str) -> None:
 
 
 def test_lint_includes_toobig_stage() -> None:
+    """CI enforces the `toobig` gate through `just lint` after `check` skips it."""
     output = _dry_run("lint")
 
     assert "Checking Python file line counts" in output
@@ -80,10 +81,12 @@ def test_lint_includes_retired_test_wait_stage() -> None:
     assert "just _lint-test-waits" in output
 
 
-def test_check_mirrors_lint_toobig_stage() -> None:
-    output = _dry_run("check")
+def test_check_and_check_full_skip_toobig_stage() -> None:
+    for recipe in ("check", "check-full"):
+        output = _dry_run(recipe)
 
-    assert 'tools/run_silent "lint (toobig)"      just _lint-toobig' in output
+        assert "_lint-toobig" not in output
+        assert "lint (toobig)" not in output
 
 
 def test_check_mirrors_lint_symvision_stage() -> None:
@@ -447,7 +450,6 @@ _CHECK_GATE_LINES = (
     'tools/run_silent "lint (test waits)"  just _lint-test-waits',
     'tools/run_silent "lint (changelog)"   just _lint-changelog',
     'tools/run_silent "lint (symvision)"   just _lint-symvision',
-    'tools/run_silent "lint (toobig)"      just _lint-toobig',
     'tools/run_silent "SASE validation"     just validate',
     'tools/run_silent "committed plans"      just validate-committed-plans',
 )
@@ -530,8 +532,8 @@ def test_check_lint_and_fix_do_not_run_screenshot_maintenance() -> None:
 def test_check_and_check_full_share_an_identical_gate_list() -> None:
     """`check` and `check-full` must never drift on their non-test gates.
 
-    The failure mode this guards against is someone adding a tenth lint or
-    validation gate to one recipe and forgetting the other.
+    The failure mode this guards against is someone adding a lint or validation
+    gate to one recipe and forgetting the other.
     """
     check_output = _dry_run("check")
     check_full_output = _dry_run("check-full")

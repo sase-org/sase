@@ -62,10 +62,12 @@ just build         # Build wheel and sdist
 
 ### Diff-scoped checks (`just check`)
 
-`just check` is the agent default: every whole-repo lint gate runs unchanged, followed
-by `just validate` (the published `sase-core-rs` minimum, static feature-flag checks,
-and `sase validate`), committed plan validation, and an advisory probe of the published
-`sase-core-rs` floor, but the test stage is `just test-scoped` instead of `just test`.
+`just check` is the agent default: every whole-repo lint gate except `toobig` runs,
+followed by `just validate` (the published `sase-core-rs` minimum, static feature-flag
+checks, and `sase validate`), committed plan validation, and an advisory probe of the
+published `sase-core-rs` floor, but the test stage is `just test-scoped` instead of
+`just test`. Agents can rarely act on `toobig` failures, and the `toobig_split` routine
+owns those splits; the gate still runs in `just lint`, and therefore in CI.
 `just check-full` runs the same gates. `tools/select_tests` builds a cached import graph
 from `src/**` and `tests/**`, seeds it with the changed and untracked files in the
 current diff against `$SASE_CHECK_BASE` (default `origin/master`), and walks reverse
@@ -102,16 +104,16 @@ prints them whether or not the rule fired —
 `serial budget: estimated 180s against a 444s budget (within; 96% of the selection covered by the timing table)`.
 
 Agents run `just check`, not `just check-full`. `just check-full` is the exhaustive
-local lane — every lint gate, the full suite through `just test-cost`, the
-[flake-baseline gate](#the-flake-baseline-gate), and a local TUI screenshot update — and
-agents invoke it only when the current prompt, the user, or the assigned bead explicitly
-names that command (typically a CI failure on a check-full-only gate). Landing, touching
-the broadening set, and a scoped escalation are not reasons to start it; `just check`
-already escalates internally when the selector cannot trust the closure. CI always runs
-the full non-visual suite and a dedicated check-only visual job, so a scoped false
-negative surfaces there within roughly the CI test leg's runtime; it is the backstop,
-not a silent gap. A `just check` pass with a `just check-full` failure is a
-test-infrastructure bug; file it rather than treating it as remaining product work.
+local lane — every lint gate except `toobig`, the full suite through `just test-cost`,
+the [flake-baseline gate](#the-flake-baseline-gate), and a local TUI screenshot update —
+and agents invoke it only when the current prompt, the user, or the assigned bead
+explicitly names that command (typically a CI failure on a check-full-only gate).
+Landing, touching the broadening set, and a scoped escalation are not reasons to start
+it; `just check` already escalates internally when the selector cannot trust the
+closure. CI always runs the full non-visual suite and a dedicated check-only visual job,
+so a scoped false negative surfaces there within roughly the CI test leg's runtime; it
+is the backstop, not a silent gap. A `just check` pass with a `just check-full` failure
+is a test-infrastructure bug; file it rather than treating it as remaining product work.
 
 Both recipes are [guarded](tool.md#guarded-recipes): in a SASE agent's own shell
 (`SASE_AGENT` set), `just check` and `just check-full` refuse with exit 2 unless they

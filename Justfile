@@ -692,6 +692,11 @@ selection-backtest *args: _setup (_header "selection-backtest")
 # `test-scoped`). `just check-full` is exhaustive and is not an agent default;
 # agents run it only when explicitly instructed (typically a CI failure).
 #
+# The `toobig` line-count gate is deliberately not a `check`/`check-full`
+# stage: an agent can rarely act on it (the toobig_split routine owns those
+# splits). It still runs in `just lint`, which CI's lint and master-gate jobs
+# run, and on demand via `just toobig`.
+#
 # `tools/run_silent` discards the scoped stage's captured output on success,
 # so `print_scoped_summary` runs as a separate step right after it returns —
 # outside that captured region — and reads the selection manifest `test-scoped`
@@ -715,15 +720,14 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision
-    @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate
     @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test (scoped)"      just test-scoped
     @{{ venv_bin }}/python tools/print_scoped_summary
 
-# Exhaustive verification: every whole-repo lint gate plus the full test
-# suite, then a local TUI screenshot update. This is not an agent default;
+# Exhaustive verification: every whole-repo lint gate except `toobig` plus the
+# full test suite, then a local TUI screenshot update. This is not an agent default;
 # agents run it only when explicitly instructed (typically a CI failure). The
 # screenshot stage is outside `tools/run_silent` so its compact report stays
 # visible. CI does not run this recipe; the dedicated visual-test job uses
@@ -743,7 +747,6 @@ check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "lint (changelog)"   just _lint-changelog
     @tools/run_silent "lint (patch/stitch terminology)" just _lint-patch-stitch-terminology
     @tools/run_silent "lint (symvision)"   just _lint-symvision
-    @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate
     @{{ venv_bin }}/python tools/probe_core_floor --advisory --sase-core-dir "{{ sase_core_dir }}"
     @tools/run_silent "committed plans"      just validate-committed-plans
