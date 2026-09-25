@@ -69,4 +69,8 @@ labeled phase-pending unless `--live` is passed.
 
 `tools/tool_triage_backtest` replays retained ToolRun logs through the pure triage
 bindings. It is read-only with respect to the ledger; its only output is `report.json`
-and an `audit.md` worksheet under `--out-dir`.
+and an `audit.md` worksheet under `--out-dir`. Its added-file metric is per item locator
+(not any unrelated scratch path in a run); the report retains the former any-path count
+as informational context. The worksheet resolves core witness IDs into run, agent,
+workspace, base, and clean-tree evidence, and workspace attribution prefers the ledger
+before historical `agent_meta.json` records.

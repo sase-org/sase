@@ -11,12 +11,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import random
 import re
 import subprocess
 import sys
-import time
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
@@ -127,9 +125,11 @@ def _read_log(run: Mapping[str, Any]) -> str | None:
 
 def _sections(
     log: str, stages: Iterable[str]
-) -> tuple[list[tuple[str, bool, str]], list[str]]:
+) -> tuple[list[tuple[str, bool, str]], list[str], bool]:
     allowed = set(stages)
-    markers = [match for match in MARKER.finditer(log) if match.group(2) in allowed]
+    all_markers = list(MARKER.finditer(log))
+    markers = [match for match in all_markers if match.group(2) in allowed]
+    contaminated = any(match.group(2) not in allowed for match in all_markers)
     seen: set[str] = set()
     sections: list[tuple[str, bool, str]] = []
     completed: list[str] = []
@@ -148,7 +148,7 @@ def _sections(
             sections.append((name, True, output))
         else:
             completed.append(name)
-    return sections, completed
+    return sections, completed, contaminated
 
 
 def _fingerprint_parts(
@@ -178,6 +178,35 @@ def _fingerprint_parts(
     return base, dirty, complete, digest if isinstance(digest, str) else None
 
 
+def _iso_timestamp(value: object) -> int | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return int(parsed.timestamp())
+
+
+def _artifact_timestamp(path: Path, root: Path) -> int | None:
+    """Infer an artifact directory's local ``YYYYMMDDHHMMSS`` timestamp."""
+
+    for parent in (path.parent, *path.parents):
+        try:
+            parent.relative_to(root)
+        except ValueError:
+            break
+        try:
+            return int(
+                datetime.strptime(parent.name, "%Y%m%d%H%M%S").astimezone().timestamp()
+            )
+        except ValueError:
+            continue
+    return None
+
+
 def _workspace_map(root: Path) -> dict[str, list[tuple[int, str]]]:
     out: dict[str, list[tuple[int, str]]] = defaultdict(list)
     try:
@@ -189,8 +218,10 @@ def _workspace_map(root: Path) -> dict[str, list[tuple[int, str]]]:
             payload = json.loads(path.read_text(encoding="utf-8"))
             agent = payload.get("name")
             workspace = payload.get("workspace_num")
-            timestamp = payload.get("created_ts") or payload.get("started_ts")
-            if not isinstance(timestamp, (int, float)):
+            timestamp = _iso_timestamp(payload.get("run_started_at"))
+            if timestamp is None:
+                timestamp = _artifact_timestamp(path, root)
+            if timestamp is None:
                 timestamp = int(path.stat().st_mtime)
             if isinstance(agent, str) and workspace is not None:
                 out[agent].append((int(timestamp), str(workspace)))
@@ -254,26 +285,91 @@ def _dirty_touch(locators: Iterable[str], dirty: Iterable[Mapping[str, str]]) ->
     )
 
 
+def _locator_is_added(
+    root: Path, base: str, locators: Iterable[str], dirty: Iterable[Mapping[str, str]]
+) -> bool:
+    """Return whether a subject item names a file added by that subject run."""
+
+    added_statuses = {"added", "untracked", "R", "C"}
+    added_paths = {
+        entry["path"] for entry in dirty if entry.get("status") in added_statuses
+    }
+    return any(
+        locator in added_paths
+        or not _git_ok(root, ["cat-file", "-e", f"{base}:{locator}"])
+        for locator in locators
+    )
+
+
+def _witnesses(
+    evidence: Mapping[str, Any], rows: Mapping[str, Mapping[str, Any]], base: str
+) -> list[dict[str, Any]]:
+    """Resolve the core's compact witness IDs to auditable input wires."""
+
+    identifiers = [
+        *(evidence.get("witness_run_ids") or []),
+        *(evidence.get("selection_record_ids") or []),
+    ]
+    witnesses: list[dict[str, Any]] = []
+    for identifier in identifiers:
+        if not isinstance(identifier, str) or not isinstance(
+            row := rows.get(identifier), Mapping
+        ):
+            continue
+        witness_base = row.get("base_head")
+        witnesses.append(
+            {
+                "run_id": identifier,
+                "agent": row.get("agent"),
+                "workspace": row.get("workspace"),
+                "base_head": witness_base,
+                "base_equals_subject": witness_base == base,
+                "clean_tree": bool(row.get("clean_tree")),
+                "dirty_paths": list(row.get("dirty_paths") or []),
+                "selection_source": bool(row.get("selection_source")),
+                "settled_ts": row.get("settled_ts"),
+            }
+        )
+    return witnesses
+
+
+def _newest_witness_base(
+    witnesses: Iterable[Mapping[str, Any]], ancestry: Iterable[str], base: str
+) -> str | None:
+    ancestry_index = {commit: index for index, commit in enumerate(ancestry)}
+    candidates: list[tuple[int, int, str]] = []
+    for witness in witnesses:
+        witness_base = witness.get("base_head")
+        if not isinstance(witness_base, str):
+            continue
+        index = 0 if witness_base == base else ancestry_index.get(witness_base)
+        if index is not None:
+            candidates.append(
+                (index, -int(witness.get("settled_ts") or 0), witness_base)
+            )
+    return min(candidates)[2] if candidates else None
+
+
 def _item_audit(
-    item: Mapping[str, Any], run: Mapping[str, Any], root: Path, base: str
+    item: Mapping[str, Any],
+    run: Mapping[str, Any],
+    root: Path,
+    base: str,
+    witness_rows: Mapping[str, Mapping[str, Any]],
+    ancestry: Iterable[str],
 ) -> dict[str, Any]:
     locators = [str(path) for path in item.get("locator_paths") or []]
     _, dirty, _, _ = _fingerprint_parts(run, str(run.get("project") or ""))
-    evidence = (
+    raw_evidence = (
         (item.get("label") or {}).get("evidence")
         if isinstance(item.get("label"), Mapping)
-        else {}
+        else None
     )
-    witness_bases = []
-    witnesses = []
-    if isinstance(evidence, Mapping):
-        witnesses = list(evidence.get("witnesses") or [])
-        witness_bases = [
-            str(witness.get("base_head"))
-            for witness in witnesses
-            if isinstance(witness, Mapping) and witness.get("base_head")
-        ]
-    newest = witness_bases[-1] if witness_bases else None
+    evidence: Mapping[str, Any] = (
+        raw_evidence if isinstance(raw_evidence, Mapping) else {}
+    )
+    witnesses = _witnesses(evidence, witness_rows, base)
+    newest = _newest_witness_base(witnesses, ancestry, base)
     unchanged = bool(
         newest
         and locators
@@ -287,9 +383,15 @@ def _item_audit(
         "agent": run.get("agent"),
         "base": base,
         "dirty_paths": dirty,
+        "workspace": run.get("workspace"),
         "witnesses": witnesses,
         "locator_in_subject_diff": _dirty_touch(locators, dirty),
         "locator_unchanged_since_witness": unchanged,
+        "distinct_workspaces": evidence.get("distinct_workspaces"),
+        "distinct_agents": evidence.get("distinct_agents"),
+        "first_seen_ts": evidence.get("first_seen_ts"),
+        "touched": evidence.get("touched"),
+        "extractor": item.get("extractor"),
     }
 
 
@@ -316,11 +418,17 @@ def _runs(store: str, project: str, tool: str) -> list[dict[str, Any]]:
 
 
 def replay(namespace: argparse.Namespace) -> dict[str, Any]:
+    return replay_runs(
+        namespace, _runs(namespace.store, namespace.project, namespace.tool)
+    )
+
+
+def replay_runs(
+    namespace: argparse.Namespace, all_runs: Iterable[dict[str, Any]]
+) -> dict[str, Any]:
     root = _repo_root(namespace.repo_root)
-    now_ts = int(time.time())
     artifact_root = Path(namespace.artifacts_root).expanduser()
     workspaces = _workspace_map(artifact_root)
-    all_runs = _runs(namespace.store, namespace.project, namespace.tool)
     excluded: Counter[str] = Counter()
     stage_cache: dict[str, list[str]] = {}
     candidates: list[dict[str, Any]] = []
@@ -340,7 +448,10 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
             excluded["missing_log"] += 1
             continue
         stages = _stage_list(root, base, stage_cache)
-        failed, completed = _sections(log, stages)
+        failed, completed, contaminated = _sections(log, stages)
+        if contaminated:
+            excluded["contaminated_stage"] += 1
+            continue
         if run.get("state") == "failed" and not failed:
             tail = log[-LOG_TAIL_BYTES:]
             if not tail:
@@ -349,9 +460,17 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
             failed = [("*", True, tail)]
         run["_failed_sections"] = failed
         run["_completed_stages"] = completed
-        run["workspace"] = _workspace_for(
-            run.get("agent"), run.get("created_ts"), workspaces
-        )
+        ledger_workspace = run.get("workspace")
+        if isinstance(ledger_workspace, str) and ledger_workspace:
+            run["workspace"] = ledger_workspace
+            run["_workspace_attribution"] = "ledger"
+        else:
+            run["workspace"] = _workspace_for(
+                run.get("agent"), run.get("created_ts"), workspaces
+            )
+            run["_workspace_attribution"] = (
+                "agent_meta" if run["workspace"] is not None else "none"
+            )
         candidates.append(run)
     candidates.sort(key=lambda row: (int(row["settled_ts"]), str(row["run_id"])))
     classified_items: list[dict[str, Any]] = []
@@ -389,7 +508,7 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
         selection, _ = gather_selection_records(
             namespace.project,
             before_ts=run["settled_ts"],
-            now_ts=now_ts,
+            now_ts=run["settled_ts"],
             project=namespace.project,
             tool=namespace.tool,
             extra_args_digest=str(run.get("extra_args_digest") or ""),
@@ -398,6 +517,7 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
             else None,
         )
         selection = [_selection_items(row, root) for row in selection]
+        witness_rows = {str(row["run_id"]): row for row in (*previous, *selection)}
         result = tool_run_triage_classify(
             {
                 "subject_run": {
@@ -449,7 +569,9 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
                 ) or []:
                     reasons[str(reason)] += 1
             if label_name == "known":
-                classified_items.append(_item_audit(item, run, root, base))
+                classified_items.append(
+                    _item_audit(item, run, root, base, witness_rows, ancestry)
+                )
         verdict = tool_run_triage_verdict(
             {
                 "exit_code": run.get("exit_code"),
@@ -501,7 +623,12 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
                 "selection_source": False,
             }
         )
-    added_known = sum(
+    known_on_added = [
+        item
+        for item in classified_items
+        if _locator_is_added(root, item["base"], item["locators"], item["dirty_paths"])
+    ]
+    old_any_path_count = sum(
         1
         for item in classified_items
         if any(
@@ -509,6 +636,7 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
         )
     )
     touched = [item for item in classified_items if item["locator_in_subject_diff"]]
+    attribution = Counter(row["_workspace_attribution"] for row in candidates)
     sample_count = min(len(classified_items), max(50, namespace.sample))
     sample = (
         random.Random(namespace.seed).sample(classified_items, sample_count)
@@ -524,7 +652,11 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
         "counts": {
             "selected_runs": len(candidates),
             "known_items": len(classified_items),
-            "known_on_added_or_untracked": added_known,
+            "known_on_added_or_untracked": len(known_on_added),
+            "known_items_in_runs_with_untracked_paths": old_any_path_count,
+            "workspace_attribution": {
+                source: attribution[source] for source in ("ledger", "agent_meta", "none")
+            },
         },
         "label_distribution": dict(sorted(label_counts.items())),
         "label_distribution_by_stage": {
@@ -534,6 +666,7 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
         "unknown_reason_histogram": dict(sorted(reasons.items())),
         "verdict_distribution": dict(sorted(verdicts.items())),
         "excluded_runs": dict(sorted(excluded.items())),
+        "known_on_added": known_on_added,
         "known_but_touched": touched,
         "sample": sample,
     }
@@ -545,15 +678,45 @@ def replay(namespace: argparse.Namespace) -> dict[str, Any]:
     rows = [
         "# Triage backtest audit",
         "",
-        "| Item | Stage | Base | Justification |",
-        "| --- | --- | --- | --- |",
+        "| # | Item | Stage | Extractor | Subject run (agent, workspace) | base(R) | Witnesses (run/agent/workspace/base12/clean) | In subject diff | Unchanged since witness | Pre-existing (Y/N) | Justification |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
+    for index, item in enumerate(sample, start=1):
+        witnesses = "<br>".join(
+            "{run_id}/{agent}/{workspace}/{base}/{clean}".format(
+                run_id=witness["run_id"],
+                agent=witness.get("agent") or "-",
+                workspace=witness.get("workspace") or "-",
+                base=str(witness.get("base_head") or "-")[:12],
+                clean="Y" if witness.get("clean_tree") else "N",
+            )
+            for witness in item["witnesses"]
+        )
+        rows.append(
+            "| {index} | `{display}` | `{stage}` | `{extractor}` | `{run}` ({agent}, {workspace}) | `{base}` | {witnesses} | {in_diff} | {unchanged} |  |  |".format(
+                index=index,
+                display=str(item["display"]).replace("|", "\\|"),
+                stage=str(item["stage"]).replace("|", "\\|"),
+                extractor=str(item["extractor"]).replace("|", "\\|"),
+                run=item["subject_run"],
+                agent=item["agent"] or "-",
+                workspace=item["workspace"] or "-",
+                base=item["base"][:12],
+                witnesses=witnesses or "-",
+                in_diff="Y" if item["locator_in_subject_diff"] else "N",
+                unchanged="Y" if item["locator_unchanged_since_witness"] else "N",
+            )
+        )
+    rows.extend(["", "## KNOWN on added files", ""])
     rows.extend(
-        f"| `{item['display']}` | `{item['stage']}` | `{item['base']}` | |"
-        for item in sample
+        f"- `{item['display']}` ({item['subject_run']}) — Disposition: "
+        for item in known_on_added
     )
     rows.extend(["", "## KNOWN-but-touched", ""])
-    rows.extend(f"- `{item['display']}` ({item['subject_run']})" for item in touched)
+    rows.extend(
+        f"- `{item['display']}` ({item['subject_run']}) — Disposition: "
+        for item in touched
+    )
     (output / "audit.md").write_text("\n".join(rows) + "\n", encoding="utf-8")
     return report
 
