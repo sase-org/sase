@@ -6,15 +6,24 @@ import time
 
 import pytest
 from rich.cells import cell_len
+from rich.console import Console
+from rich.style import Style
 from rich.text import Text
 
+from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
 from sase.ace.tui.widgets.agent_header_preview import (
     PREVIEW_BAR_GLYPH,
     PREVIEW_BAR_STYLE,
     PREVIEW_BREAK_GLYPH,
+    PREVIEW_CARD_STYLE,
     PREVIEW_DIM_STYLE,
+    PREVIEW_TAB_LABEL,
+    PREVIEW_TAB_LABEL_STYLE,
+    PREVIEW_TAB_ROWS,
     XpromptPreviewFit,
     fit_xprompt_preview,
+    pending_preview_rows,
+    preview_card,
     preview_row_budget,
 )
 
@@ -386,12 +395,12 @@ def test_huge_styled_sources_keep_styles_in_the_prefix() -> None:
 @pytest.mark.parametrize(
     ("column_rows", "share", "expected"),
     [
-        (32, 0.35, 7),
-        (47, 0.35, 12),
-        (20, 0.35, 3),
-        (100, 0.35, 31),
-        (40, 0.5, 16),
-        (40, 0.6, 20),
+        (32, 0.35, 6),
+        (47, 0.35, 11),
+        (20, 0.35, 2),
+        (100, 0.35, 30),
+        (40, 0.5, 15),
+        (40, 0.6, 19),
         # The cap at or under the chrome rows still leaves one preview row.
         (10, 0.35, 1),
         (8, 0.35, 1),
@@ -406,3 +415,134 @@ def test_huge_styled_sources_keep_styles_in_the_prefix() -> None:
 )
 def test_preview_row_budget(column_rows: int, share: float, expected: int) -> None:
     assert preview_row_budget(column_rows, share) == expected
+
+
+def test_preview_row_budget_reserves_the_tab_row() -> None:
+    # cap 14 = border (2) + chip rows (2) + tab row + 9 body rows.
+    assert PREVIEW_TAB_ROWS == 1
+    assert preview_row_budget(40, 0.35) == 14 - 4 - PREVIEW_TAB_ROWS
+
+
+# --- card -----------------------------------------------------------------
+
+_CARD_SOURCE = (
+    "+sase #fork:0qp Can you now help me add a similar entry for 你好你好 that\n"
+    "\n"
+    "- a list item with_a_token_that_is_far_too_long_for_one_row_at_all\n"
+    "#beau %m:opus and a lot more text to force wrapping across rows"
+)
+_CONSOLE = Console(width=200, color_system=None, force_terminal=False)
+
+
+def _card(width: int, *, max_rows: int = 6) -> tuple[list[str], Text]:
+    fit = fit_xprompt_preview(
+        highlight_prompt_text(_CARD_SOURCE), width=width, max_rows=max_rows
+    )
+    card = preview_card(fit.text, width=width)
+    return card.plain.split("\n"), card
+
+
+def _style_at(card: Text, index: int) -> Style:
+    return card.get_style_at_offset(_CONSOLE, index)
+
+
+def test_card_tab_row_is_the_bar_and_a_bold_label_on_the_surface() -> None:
+    rows, card = _card(60)
+    assert rows[0] == f"{PREVIEW_BAR_GLYPH} {PREVIEW_TAB_LABEL}  "
+    bar = _style_at(card, 0)
+    assert bar.color is not None and bar.color.name == PREVIEW_BAR_STYLE.lower()
+    label_start = rows[0].index(PREVIEW_TAB_LABEL)
+    for offset in range(label_start, label_start + len(PREVIEW_TAB_LABEL)):
+        label = _style_at(card, offset)
+        assert label.bold
+        assert label.color is not None and label.color.name == "#af87ff"
+        assert label.bgcolor == Style.parse(PREVIEW_CARD_STYLE).bgcolor
+    assert PREVIEW_TAB_LABEL_STYLE == "bold #AF87FF"
+
+
+@pytest.mark.parametrize("width", [8, 12, 21, 40, 80])
+def test_card_body_rows_are_exactly_width_cells_and_start_with_the_gutter(
+    width: int,
+) -> None:
+    rows, _card_text = _card(width)
+    tab, *body = rows
+    assert len(body) >= 2
+    for row in body:
+        assert row.startswith(GUTTER)
+        assert cell_len(row) == width
+    assert cell_len(tab) <= width
+
+
+def test_card_pads_to_the_minimum_row_width_when_asked_for_less() -> None:
+    fit = fit_xprompt_preview(Text("hi"), width=2, max_rows=2)
+    _tab, *body = preview_card(fit.text, width=2).plain.split("\n")
+    assert [cell_len(row) for row in body] == [6]
+
+
+def test_card_every_cell_resolves_to_the_card_background() -> None:
+    rows, card = _card(40)
+    surface = Style.parse(PREVIEW_CARD_STYLE).bgcolor
+    assert MARK in card.plain
+    assert "…" in card.plain
+    offset = 0
+    for row in rows:
+        for _char in row:
+            assert _style_at(card, offset).bgcolor == surface
+            offset += 1
+        offset += 1  # the newline between rows
+
+
+def test_card_keeps_token_foreground_styles() -> None:
+    _rows_text, card = _card(80)
+    plain = card.plain
+    tag = _style_at(card, plain.index("#fork"))
+    assert tag.bold
+    assert tag.color != _style_at(card, plain.index("Can")).color
+    assert _style_at(card, plain.index(MARK)).dim
+
+
+def test_card_is_a_single_no_wrap_ellipsis_text() -> None:
+    _rows_text, card = _card(40)
+    assert card.no_wrap is True
+    assert card.overflow == "ellipsis"
+
+
+@pytest.mark.parametrize("width", [-3, 0, 1, 5, 6, 8, 10])
+def test_card_crops_a_narrow_tab_without_an_ellipsis(width: int) -> None:
+    fit = fit_xprompt_preview(Text("some prompt here"), width=width, max_rows=2)
+    tab, *body = preview_card(fit.text, width=width).plain.split("\n")
+    effective = max(width, 6)
+    tab_full = f"{PREVIEW_BAR_GLYPH} {PREVIEW_TAB_LABEL}  "
+    assert tab == tab_full[:effective]
+    assert "…" not in tab
+    assert all(row.startswith(GUTTER) for row in body)
+
+
+def test_card_does_not_mutate_the_fitted_body() -> None:
+    fit = fit_xprompt_preview(Text("one\n\ntwo"), width=30, max_rows=3)
+    before = fit.text.copy()
+    preview_card(fit.text, width=30)
+    assert fit.text == before
+    assert fit.text.plain == before.plain
+
+
+def test_pending_rows_mark_only_the_first_row() -> None:
+    rows = pending_preview_rows(3).plain.split("\n")
+    assert rows == [f"{GUTTER}⋯", GUTTER, GUTTER]
+    single = pending_preview_rows(1)
+    assert single.plain == f"{GUTTER}⋯"
+    assert single.no_wrap is True
+    assert single.overflow == "ellipsis"
+    assert pending_preview_rows(0).plain == ""
+
+
+def test_pending_rows_become_full_width_card_rows() -> None:
+    tab, *body = preview_card(pending_preview_rows(3), width=30).plain.split("\n")
+    assert tab.startswith(f"{PREVIEW_BAR_GLYPH} {PREVIEW_TAB_LABEL}")
+    assert [cell_len(row) for row in body] == [30, 30, 30]
+    assert body[0].startswith(f"{GUTTER}⋯")
+
+
+def test_card_surface_matches_the_highlighter_surface() -> None:
+    highlighted = highlight_prompt_text("plain words and #gh")
+    assert highlighted.style.bgcolor == Style.parse(PREVIEW_CARD_STYLE).bgcolor

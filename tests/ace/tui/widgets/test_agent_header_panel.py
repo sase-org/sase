@@ -6,6 +6,8 @@ import dataclasses
 from datetime import datetime
 from typing import Any
 
+import pytest
+from rich.text import Text
 from textual.app import App, ComposeResult
 from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui.widgets.agent_detail import AgentDetail
@@ -91,6 +93,27 @@ def _header_panel(detail: AgentDetail) -> AgentHeaderPanel:
 def _header_text(panel: AgentHeaderPanel) -> str:
     content = panel.query_one("#agent-header-content")
     return renderable_to_text(getattr(content, "content", None)) or ""
+
+
+def _raw_rows(panel: AgentHeaderPanel) -> list[str]:
+    """Return the painted rows with their padding (``_header_text`` rstrips)."""
+    content = panel.query_one("#agent-header-content")
+    painted = getattr(content, "content", None)
+    assert isinstance(painted, Text)
+    return painted.plain.split("\n")
+
+
+def _assert_card(panel: AgentHeaderPanel) -> list[str]:
+    """Assert the collapsed header ends in an XPROMPT card; return its body rows."""
+    rows = _raw_rows(panel)
+    body_rows = _preview_rows(panel)
+    assert body_rows >= 1
+    assert len(rows) == 2 + 1 + body_rows
+    assert rows[2].rstrip() == "▎ XPROMPT"
+    body = rows[3:]
+    for row in body:
+        assert row.startswith("▎ ")
+    return body
 
 
 async def test_header_collapsed_by_default_with_title_and_hint() -> None:
@@ -337,11 +360,7 @@ async def test_collapsed_preview_shows_quote_bar_and_body_omits_xprompt(
         )
         panel = _header_panel(detail)
         assert not panel.is_expanded
-        rows = _header_text(panel).splitlines()
-        assert len(rows) == 2 + _preview_rows(panel)
-        assert _preview_rows(panel) >= 1
-        for preview_row in rows[2:]:
-            assert preview_row.startswith("▎ ")
+        _assert_card(panel)
         assert "rendering the AGENT XPROMPT" in _header_text(panel)
         prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
         body = renderable_to_text(prompt.content) or ""
@@ -369,7 +388,7 @@ async def test_preview_row_count_matches_budget_and_short_prompt_fits(
         )
         panel = _header_panel(detail)
         assert _preview_rows(panel) == 1
-        assert _header_text(panel).splitlines()[-1].startswith("▎ ")
+        assert _assert_card(panel)[-1].startswith("▎ ")
         assert "lines" not in str(panel.border_subtitle)
         assert "more" in str(panel.border_subtitle)
 
@@ -406,8 +425,8 @@ async def test_expand_shows_full_xprompt_and_toggles_back(tmp_path: Any) -> None
 
         assert detail.toggle_header_expanded() is False
         await pilot.pause()
+        _assert_card(panel)
         collapsed = _header_text(panel).splitlines()
-        assert len(collapsed) == 2 + _preview_rows(panel)
         assert not any(line.strip() == "AGENT XPROMPT" for line in collapsed)
 
 
@@ -429,13 +448,14 @@ async def test_collapsed_content_rows_are_exact(tmp_path: Any) -> None:
             detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
         )
         panel = _header_panel(detail)
-        assert len(_header_text(panel).splitlines()) == 2 + _preview_rows(panel)
+        _assert_card(panel)
 
         await _show_agent_full(
             detail, _artifact_agent(tmp_path, "b", _SHORT_XPROMPT), pilot
         )
-        assert len(_header_text(panel).splitlines()) == 2 + _preview_rows(panel)
+        _assert_card(panel)
         assert _preview_rows(panel) == 1
+        assert panel.rendered_row_count == 2 + 1 + 1
 
 
 async def test_pending_hold_keeps_rows_then_settles(tmp_path: Any) -> None:
@@ -452,8 +472,10 @@ async def test_pending_hold_keeps_rows_then_settles(tmp_path: Any) -> None:
         other = _tagged(_solo(), "b")
         await _show_agent(detail, other, pilot)
         assert _preview_rows(panel) == held
-        assert _header_text(panel).splitlines()[2].startswith("▎ ")
-        assert "⋯" in _header_text(panel)
+        held_rows = _assert_card(panel)
+        assert held_rows[0].startswith("▎ ⋯")
+        assert all("⋯" not in row for row in held_rows[1:])
+        assert panel.rendered_row_count == 2 + 1 + held
 
         await _show_agent_full(detail, other, pilot)
         assert _preview_rows(panel) == 0
@@ -475,7 +497,7 @@ async def test_visited_agent_cheap_path_shows_preview(tmp_path: Any) -> None:
         )
         await _show_agent(detail, agent, pilot)
         assert _preview_rows(panel) == full_rows
-        assert _header_text(panel).splitlines()[2].startswith("▎ ")
+        _assert_card(panel)
 
 
 async def test_share_zero_hides_preview_but_expanded_keeps_xprompt(
@@ -490,7 +512,10 @@ async def test_share_zero_hides_preview_but_expanded_keeps_xprompt(
         )
         panel = _header_panel(detail)
         assert _preview_rows(panel) == 0
-        assert len(_header_text(panel).splitlines()) == 2
+        assert panel.rendered_row_count == 2
+        rows = _header_text(panel).splitlines()
+        assert len(rows) == 2
+        assert not any("XPROMPT" in row for row in rows)
 
         assert detail.toggle_header_expanded() is True
         await pilot.pause()
@@ -512,6 +537,24 @@ async def test_column_resize_changes_budget(tmp_path: Any) -> None:
         await pilot.pause()
         assert _preview_rows(panel) > before
         assert "lines" not in str(panel.border_subtitle)
+
+
+async def test_card_rows_are_padded_and_repaint_on_width_change(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from rich.cells import cell_len
+
+    app = _DetailApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        for width in (90, 60, 75):
+            monkeypatch.setattr(panel, "_content_width", lambda width=width: width)
+            panel.on_resize()
+            assert {cell_len(row) for row in _assert_card(panel)} == {width}
 
 
 async def test_bottom_pinned_body_stays_pinned_across_row_count_change(

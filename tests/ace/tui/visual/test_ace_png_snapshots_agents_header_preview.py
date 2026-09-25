@@ -78,14 +78,14 @@ def _preview_agent(artifacts_dir: Path, *, name: str, raw_xprompt: str) -> Agent
         (
             _LONG_PROSE_XPROMPT,
             True,
-            ("▎", "¶", "sticky header", "…"),
+            ("▎", "XPROMPT", "¶", "sticky header", "…"),
             "agents_header_preview_truncated_160x50",
             "ACE agents collapsed header xprompt preview, truncated",
         ),
         (
             _SHORT_DIRECTIVE_XPROMPT,
             False,
-            ("▎", "%auto", "my_change", "Summarize"),
+            ("▎", "XPROMPT", "%auto", "my_change", "Summarize"),
             "agents_header_preview_fits_160x50",
             "ACE agents collapsed header xprompt preview, fits",
         ),

@@ -5,7 +5,9 @@ agent's xprompt below its two chip rows. This module turns the highlighted,
 humanized xprompt ``Text`` into that preview: it reflows the source
 Markdown-style (soft line breaks join with a space, hard breaks become a dim
 ``¶``), wraps the result to a width, and keeps at most a row budget of rows
-behind a quote bar. It touches no widget and does no I/O.
+behind a quote bar. :func:`preview_card` then sets the fitted rows apart from
+the metadata chips as a card: an ``XPROMPT`` tab row above rows padded to a
+uniform Monokai surface. It touches no widget and does no I/O.
 """
 
 from __future__ import annotations
@@ -25,17 +27,25 @@ PREVIEW_BAR_GLYPH = "▎"
 PREVIEW_BAR_STYLE = "#AF87FF"
 PREVIEW_BREAK_GLYPH = "¶"
 PREVIEW_DIM_STYLE = "dim"
+# Must match the Monokai surface ``highlight_prompt_text`` paints under tokens.
+PREVIEW_CARD_STYLE = "on #272822"
+PREVIEW_TAB_LABEL = "XPROMPT"
+PREVIEW_TAB_LABEL_STYLE = "bold #AF87FF"
+PREVIEW_TAB_ROWS = 1
 
 _ELLIPSIS = "…"
 _GUTTER = f"{PREVIEW_BAR_GLYPH} "
 _GUTTER_CELLS = 2
+_PENDING_GLYPH = "⋯"
+_PENDING_GLYPH_STYLE = "dim"
 # Below this many cells rows would degenerate (a wide glyph may not fit at
 # all), so narrower requests are widened rather than crashing the wrap.
 _MIN_WIDTH = 6
 _TAB_SIZE = 4
 _MIN_PREFIX_CHARS = 512
-# Reserved by the header chrome: two border rows plus two chip rows.
-_CHROME_ROWS = 4
+# Reserved by the header chrome: two border rows, two chip rows, and the
+# XPROMPT tab row.
+_CHROME_ROWS = 4 + PREVIEW_TAB_ROWS
 _NEVER = sys.maxsize
 
 _WRAP_CONSOLE = Console(file=io.StringIO(), width=80, color_system=None)
@@ -59,9 +69,9 @@ def preview_row_budget(column_rows: int, share: float) -> int:
     """Return how many preview rows the collapsed header may show.
 
     The collapsed header is capped at ``floor(column_rows * share)`` rows in
-    total; the preview gets that cap minus the border and chip rows, but at
-    least one row whenever ``share`` is positive. A non-positive ``share`` or
-    ``column_rows`` turns the preview off (``0``).
+    total; the preview gets that cap minus the border, chip, and ``XPROMPT``
+    tab rows, but at least one row whenever ``share`` is positive. A
+    non-positive ``share`` or ``column_rows`` turns the preview off (``0``).
     """
     if share <= 0 or column_rows <= 0:
         return 0
@@ -119,6 +129,47 @@ def fit_xprompt_preview(
         truncated=truncated,
         hidden_lines=hidden_lines,
     )
+
+
+def pending_preview_rows(rows: int) -> Text:
+    """Return ``rows`` quote-barred placeholder rows with a dim mark on row one."""
+    out = Text(no_wrap=True, overflow="ellipsis")
+    for index in range(rows):
+        if index:
+            out.append("\n")
+        out.append(_GUTTER, style=PREVIEW_BAR_STYLE)
+        if index == 0:
+            out.append(_PENDING_GLYPH, style=_PENDING_GLYPH_STYLE)
+    return out
+
+
+def preview_card(body: Text, *, width: int) -> Text:
+    """Return ``body``'s rows as a card: an ``XPROMPT`` tab row, then the rows.
+
+    Every body row is put on the card surface and padded with spaces to exactly
+    ``width`` cells (widened to the minimum row width like the fit), so the
+    card is a clean rectangle. The base style sits under the rows' own spans,
+    so token styles win while joins, ``¶``, ``…`` and padding get the surface.
+    The tab row covers only its label and is cropped, never wrapped, when the
+    panel is narrower than it.
+    """
+    card_width = max(width, _MIN_WIDTH)
+    tab = Text(style=PREVIEW_CARD_STYLE, no_wrap=True, overflow="crop")
+    tab.append(PREVIEW_BAR_GLYPH, style=PREVIEW_BAR_STYLE)
+    tab.append(" ")
+    tab.append(PREVIEW_TAB_LABEL, style=PREVIEW_TAB_LABEL_STYLE)
+    tab.append("  ")
+    tab.truncate(card_width, overflow="crop")
+
+    out = Text(no_wrap=True, overflow="ellipsis")
+    out.append_text(tab)
+    for line in body.split("\n", allow_blank=True):
+        row = Text(style=PREVIEW_CARD_STYLE)
+        row.append_text(line)
+        row.append(" " * max(0, card_width - cell_len(row.plain)))
+        out.append("\n")
+        out.append_text(row)
+    return out
 
 
 def _empty_fit() -> XpromptPreviewFit:
@@ -251,8 +302,14 @@ __all__ = [
     "PREVIEW_BAR_GLYPH",
     "PREVIEW_BAR_STYLE",
     "PREVIEW_BREAK_GLYPH",
+    "PREVIEW_CARD_STYLE",
     "PREVIEW_DIM_STYLE",
+    "PREVIEW_TAB_LABEL",
+    "PREVIEW_TAB_LABEL_STYLE",
+    "PREVIEW_TAB_ROWS",
     "XpromptPreviewFit",
     "fit_xprompt_preview",
+    "pending_preview_rows",
+    "preview_card",
     "preview_row_budget",
 ]

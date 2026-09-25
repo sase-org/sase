@@ -1748,9 +1748,9 @@ ace:
     collapsed_max_share: 0.35
 ```
 
-| Field                 | Type   | Default | Description                                                                                                                                                                      |
-| --------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `collapsed_max_share` | number | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border and chip rows, at least 1 row. `0` turns the preview off. |
+| Field                 | Type   | Default | Description                                                                                                                                                                                        |
+| --------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collapsed_max_share` | number | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border, chip rows, and XPROMPT tab row, at least 1 row. `0` turns the preview off. |
 
 Source: `src/sase/ace/tui/agent_header_settings.py`
 

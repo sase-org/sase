@@ -5399,15 +5399,18 @@ the preferred card.
   through Timestamps, plus Fold where present) renders in its own always-visible panel
   at the top of the detail column, above the deck panels in every deck layout.
   Collapsed, it keeps the two chip rows — who and how on row 1, what and state on row 2
-  — and previews the agent's `AGENT XPROMPT` below them. Every preview row carries the
-  `▎` quote bar in the XPROMPT accent; hard-wrapped prose reflows into wrapped rows,
-  hard breaks render as a dim `¶`, and the highlighting matches the expanded prompt. The
-  preview fills the panel width and takes as many rows as the
+  — and previews the agent's `AGENT XPROMPT` below them as a card: an `XPROMPT` tab row
+  over a rectangle on the Monokai code surface, so the prompt reads as one block apart
+  from the metadata chips. Every card row carries the `▎` quote bar in the XPROMPT
+  accent, which acts as the card's accent edge; hard-wrapped prose reflows into wrapped
+  rows, hard breaks render as a dim `¶`, and the highlighting matches the expanded
+  prompt. The card fills the panel width and takes as many rows as the
   `ace.agent_header.collapsed_max_share` budget allows (about a third of the column by
-  default; `0` turns the preview off). On overflow the last row ends in `…` and the
-  border subtitle becomes `+N lines · ▾ d more`. `d` expands the panel to the full field
-  list plus the complete `AGENT XPROMPT` under its own heading (or collapses it back).
-  The kind label moves into the panel's border title in the node's accent color —
+  default; `0` turns the preview off and shows no tab). The tab row counts against that
+  budget, next to the border and the chip rows. On overflow the last row ends in `…` and
+  the border subtitle becomes `+N lines · ▾ d more`. `d` expands the panel to the full
+  field list plus the complete `AGENT XPROMPT` under its own heading (or collapses it
+  back). The kind label moves into the panel's border title in the node's accent color —
   `AGENT`, `AGENT SHELL`, `SESSION`, `CLAN`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`,
   `PROC SHELL`, or, for a selected whole tribe panel, `TRIBE` — and the border subtitle
   shows what `d` will do (`▾ d more` / `▴ d less`, naming the configured

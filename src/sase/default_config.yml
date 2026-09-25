@@ -416,9 +416,9 @@ ace:
     spread_max_screens: 1.5
   agent_header:
     # Fraction of the Agents tab detail column's height that the collapsed
-    # header may occupy in total (border and chip rows included). The rows left
-    # over preview the selected agent's xprompt. Range 0 to 0.6; 0 turns the
-    # collapsed preview off.
+    # header may occupy in total (border, chip rows, and the XPROMPT tab row
+    # included). The rows left over preview the selected agent's xprompt.
+    # Range 0 to 0.6; 0 turns the collapsed preview off.
     collapsed_max_share: 0.35
   tool_calls:
     slow_threshold_seconds: 20

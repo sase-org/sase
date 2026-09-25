@@ -14,10 +14,11 @@ from textual.widgets import Static
 from ..agent_header_settings import agent_header_settings_for
 from ..keymaps import key_display_name
 from .agent_header_preview import (
-    PREVIEW_BAR_GLYPH,
-    PREVIEW_BAR_STYLE,
+    PREVIEW_TAB_ROWS,
     XpromptPreviewFit,
     fit_xprompt_preview,
+    pending_preview_rows,
+    preview_card,
     preview_row_budget,
 )
 from .prompt_panel._identity_header import IdentityHeader
@@ -26,8 +27,6 @@ from .prompt_panel._identity_header import IdentityHeader
 _FALLBACK_CONTENT_WIDTH = 76
 # A node without an xprompt shows exactly the two chip rows inside the border.
 _COMPACT_ROW_COUNT = 2
-_PENDING_GLYPH = "⋯"
-_PENDING_GLYPH_STYLE = "dim"
 
 
 class AgentHeaderPanel(VerticalScroll):
@@ -137,21 +136,14 @@ class AgentHeaderPanel(VerticalScroll):
             return 0
         return min(self._last_preview_rows, budget)
 
-    def _pending_placeholder(self, rows: int) -> Text:
-        """Return quote-barred placeholder rows with a dim marker on row one."""
-        out = Text(no_wrap=True, overflow="ellipsis")
-        for index in range(rows):
-            if index:
-                out.append("\n")
-            out.append(f"{PREVIEW_BAR_GLYPH} ", style=PREVIEW_BAR_STYLE)
-            if index == 0:
-                out.append(_PENDING_GLYPH, style=_PENDING_GLYPH_STYLE)
-        return out
-
     def _collapsed_content(
         self, identity: IdentityHeader, width: int, budget: int
     ) -> tuple[RenderableType, XpromptPreviewFit | None, int]:
-        """Return the collapsed renderable, its fit, and shown preview rows."""
+        """Return the collapsed renderable, its fit, and shown preview body rows.
+
+        The preview is an ``XPROMPT`` card: the returned row count covers its
+        body only, not the tab row above it.
+        """
         collapsed = identity.compact.copy()
         if budget <= 0:
             return collapsed, None, 0
@@ -160,7 +152,7 @@ class AgentHeaderPanel(VerticalScroll):
             if hold <= 0:
                 return collapsed, None, 0
             collapsed.append("\n")
-            collapsed.append_text(self._pending_placeholder(hold))
+            collapsed.append_text(preview_card(pending_preview_rows(hold), width=width))
             return collapsed, None, hold
         xprompt = identity.xprompt
         if xprompt is None or not xprompt.plain.strip():
@@ -169,7 +161,7 @@ class AgentHeaderPanel(VerticalScroll):
         if fit.rows <= 0:
             return collapsed, fit, 0
         collapsed.append("\n")
-        collapsed.append_text(fit.text)
+        collapsed.append_text(preview_card(fit.text, width=width))
         return collapsed, fit, fit.rows
 
     @staticmethod
@@ -242,7 +234,8 @@ class AgentHeaderPanel(VerticalScroll):
             shown, fit, preview_rows = self._collapsed_content(header, width, budget)
             hidden_lines = fit.hidden_lines if fit is not None and fit.truncated else 0
             subtitle = self._subtitle_for(False, hidden_lines=hidden_lines)
-            self._rendered_rows = _COMPACT_ROW_COUNT + preview_rows
+            card_rows = PREVIEW_TAB_ROWS + preview_rows if preview_rows else 0
+            self._rendered_rows = _COMPACT_ROW_COUNT + card_rows
         self._last_preview_rows = preview_rows
         try:
             digest = renderable_content_digest(shown)
