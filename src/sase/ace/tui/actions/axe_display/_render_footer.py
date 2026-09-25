@@ -28,16 +28,48 @@ class AxeDisplayFooterMixin(AxeDisplayPanelsMixin):
         except Exception:
             pass
 
+    def _expire_service_restart_transition(self, transition: Any) -> None:
+        """Clear an expected restart window and re-push the cached health.
+
+        Thin and synchronous: no disk I/O. A stale callback for an
+        already-settled or replaced transition does nothing.
+        """
+        if getattr(self, "_service_restart_transition", None) is not transition:
+            return
+        self._service_restart_transition = None
+        update = getattr(self, "_update_axe_keybinding", None)
+        if callable(update):
+            update()
+
     def _push_service_health(self, footer: Any) -> None:
         """Push the cached service-health roll-up to the footer pill.
 
         A toast fires only when health flips or the snapshot ``change_token``
         moves while unhealthy -- never on countdown ticks.
         """
+        import time
+
         from ..._service_health import derive_service_health
+        from ._service_restart_transition import restart_transition_settled
 
         snapshot = getattr(self, "_service_status", None)
         health = derive_service_health(snapshot)
+        transition = getattr(self, "_service_restart_transition", None)
+        if transition is not None:
+            try:
+                settled = restart_transition_settled(transition, snapshot, health)
+            except Exception:
+                settled = False
+            if settled:
+                self._service_restart_transition = None
+            elif time.monotonic() < transition.deadline:
+                try:
+                    footer.set_service_health(health, restarting=True)
+                except TypeError:
+                    footer.set_service_health(health)
+                return
+            else:
+                self._service_restart_transition = None
         footer.set_service_health(health)
         token = None if snapshot is None else snapshot.change_token
         signature = (health.healthy, health.summary, None if health.healthy else token)

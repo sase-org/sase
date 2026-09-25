@@ -22,6 +22,11 @@ SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE = (
     "Native service-manager commands are disabled while running under pytest. Set "
     f"{SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV}=1 only for isolated lifecycle tests."
 )
+# Budget for native start/stop/restart lifecycle commands and the non-native
+# stop wait. Covers systemd's default 90s TimeoutStopSec (after which systemd
+# SIGKILLs the host) plus the start, and the host's worst-case sequential
+# child stop (up to stop_timeout_seconds + kill wait per child).
+SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS = 120.0
 
 
 @dataclass(frozen=True)

@@ -78,6 +78,7 @@ class KeybindingFooter(
         self._bgcmd_running_count: int = 0
         self._bgcmd_done_count: int = 0
         self._service_health: ServiceHealth | None = None
+        self._service_restarting: bool = False
         self._runner_count: int = 0
         self._startup_stopwatch_active: bool = True
         self._startup_start_time: float = time.monotonic()

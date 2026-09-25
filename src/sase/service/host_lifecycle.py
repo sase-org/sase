@@ -38,7 +38,7 @@ def run_host(host: Any, reconcile_seconds: float) -> int:
             host._nudge.clear()
             host._reconcile_once()
         host._stop_all_children()
-        write_current_host_status(host)
+        write_current_host_status(host, host_exited=True)
         clear_service_host(os.getpid())
         return 0
     except KeyboardInterrupt:

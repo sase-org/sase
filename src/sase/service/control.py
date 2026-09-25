@@ -25,7 +25,10 @@ from sase.service.paths import (
     service_host_start_lock_path,
     service_proc_output_log_path,
 )
-from sase.service.platform_models import SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE
+from sase.service.platform_models import (
+    SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS,
+    SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+)
 from sase.service.platform_runner import service_lifecycle_blocked_in_tests
 from sase.service.state import ServiceHostRecord, read_service_state
 from sase.service.status import (
@@ -39,7 +42,7 @@ from sase.service.status import (
 
 _HOST_STALE_SECONDS = 15.0
 _START_WAIT_SECONDS = 15.0
-_STOP_WAIT_SECONDS = 15.0
+_STOP_WAIT_SECONDS = SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS
 _POLL_SECONDS = 0.1
 
 

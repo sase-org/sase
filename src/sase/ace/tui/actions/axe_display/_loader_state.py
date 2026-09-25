@@ -24,6 +24,7 @@ if TYPE_CHECKING:
         TabName,
     )
     from sase.service.status import ServiceStatusSnapshot
+    from ._service_restart_transition import ServiceRestartTransition
 
 
 type AxeItemKey = (
@@ -89,6 +90,7 @@ class AxeLoaderState:
     _axe_lumberjack_snapshots: dict[str, LumberjackSnapshot]
     # Service-host snapshot caches populated by the async collector.
     _service_status: ServiceStatusSnapshot | None
+    _service_restart_transition: ServiceRestartTransition | None
     _service_status_error: str | None
     _service_log_tails: dict[str, str]
     _service_tailed_names: set[str]

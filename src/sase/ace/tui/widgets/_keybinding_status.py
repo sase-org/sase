@@ -60,6 +60,7 @@ class KeybindingStatusMixin:
         _bgcmd_running_count: int
         _bgcmd_done_count: int
         _service_health: ServiceHealth | None
+        _service_restarting: bool
         _startup_stopwatch_active: bool
         _startup_start_time: float
         _startup_elapsed: float
@@ -141,13 +142,16 @@ class KeybindingStatusMixin:
         self._bgcmd_done_count = done_count
         self._update_status()
 
-    def set_service_health(self, health: ServiceHealth) -> None:
+    def set_service_health(
+        self, health: ServiceHealth, restarting: bool = False
+    ) -> None:
         """Update the service-health pill.
 
         The footer keeps an initial ``None`` state that renders the
         pre-snapshot RUNNING/STOPPED pill until the first snapshot arrives.
         """
         self._service_health = health
+        self._service_restarting = restarting
         self._update_status()
 
     def _status_signature(self) -> tuple[Any, ...]:
@@ -169,6 +173,7 @@ class KeybindingStatusMixin:
             self._bgcmd_running_count,
             self._bgcmd_done_count,
             self._service_health,
+            getattr(self, "_service_restarting", False),
         )
 
     def _update_status(self) -> None:
@@ -208,6 +213,8 @@ class KeybindingStatusMixin:
             health = self._service_health
             if not health.known:
                 text.append(" ? ", style="bold black on #FFAF5F")
+            elif getattr(self, "_service_restarting", False):
+                text.append(" RESTARTING ", style="bold black on rgb(0,191,255)")
             elif health.healthy:
                 text.append(
                     f" {health.running}/{health.desired} ",

@@ -200,6 +200,24 @@ def test_footer_signature_changes_with_health() -> None:
     assert footer._status_signature() != before
 
 
+def test_footer_restarting_pill_renders_restarting() -> None:
+    footer = _footer()
+    footer.set_service_health(
+        derive_service_health(_snap(_proc("a", state="stopped"))),
+        restarting=True,
+    )
+    text = str(footer._get_status_text())
+    assert "RESTARTING" in text
+    assert "!" not in text
+    before = footer._status_signature()
+    footer.set_service_health(
+        derive_service_health(_snap(_proc("a", state="stopped"))),
+        restarting=False,
+    )
+    assert footer._status_signature() != before
+    assert "!" in str(footer._get_status_text())
+
+
 # --- host chrome -----------------------------------------------------------
 
 

@@ -48,6 +48,7 @@ def write_current_host_status(
     state: ServiceStateSnapshot | None = None,
     *,
     config_error: str | None = None,
+    host_exited: bool = False,
 ) -> None:
     """Write a snapshot from a host's current private runtime records.
 
@@ -86,6 +87,7 @@ def write_current_host_status(
         restart_decisions=host._restart_decisions,  # type: ignore[attr-defined]
         given_up=getattr(host, "_given_up", {}),
         config_error=config_error,
+        host_exited=host_exited,
     )
 
 
@@ -102,6 +104,7 @@ def _write_host_status(
     restart_decisions: Mapping[str, ServiceRestartDecision],
     given_up: Mapping[str, GivenUp] | None = None,
     config_error: str | None = None,
+    host_exited: bool = False,
 ) -> None:
     observations = [
         _observation(name, running, last_exits, restart_decisions)
@@ -131,10 +134,15 @@ def _write_host_status(
                     log_path=str(service_proc_output_log_path(name)),
                 )
             )
-    snapshot = build_service_status(
-        composition,
-        state_snapshot,
-        ServiceHostObservation(
+    if host_exited:
+        host_observation = ServiceHostObservation(
+            record=None,
+            lock_held=False,
+            pid_alive=None,
+            platform_unit=unit,
+        )
+    else:
+        host_observation = ServiceHostObservation(
             record=ServiceHostRecord(
                 pid=os.getpid(),
                 boot_id=boot_id,
@@ -147,7 +155,11 @@ def _write_host_status(
             ),
             lock_held=True,
             pid_alive=True,
-        ),
+        )
+    snapshot = build_service_status(
+        composition,
+        state_snapshot,
+        host_observation,
         observations,
     )
     write_service_status(snapshot)

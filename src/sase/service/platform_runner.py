@@ -23,7 +23,7 @@ def service_lifecycle_blocked_in_tests(
     return pytest_context_detected(effective_environ)
 
 
-def default_runner(argv: Sequence[str]) -> CommandResult:
+def default_runner(argv: Sequence[str], *, timeout: float = 10.0) -> CommandResult:
     if service_lifecycle_blocked_in_tests():
         return CommandResult(
             returncode=125,
@@ -35,7 +35,7 @@ def default_runner(argv: Sequence[str]) -> CommandResult:
             check=False,
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=timeout,
         )
     except OSError as exc:
         return CommandResult(returncode=127, stderr=str(exc))

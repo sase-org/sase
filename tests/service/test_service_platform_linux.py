@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import getpass
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
 from sase.service.platform import (
     apply_service_init,
+    control_installed_service,
     service_init_plan,
 )
+from sase.service.platform_models import SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS
+from sase.service.platform_runner import CommandResult, default_runner
 from tests.service.service_platform_helpers import (
     _LinuxManager,
     _exe,
@@ -146,3 +150,66 @@ def test_linux_second_apply_skips_enable_and_start_when_current(
         runner.calls.count(("systemctl", "--user", "start", "sase.service"))
         == start_calls
     )
+
+
+def test_linux_lifecycle_uses_budget_timeout_without_injected_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _linux_home(tmp_path, monkeypatch)
+    installer = _LinuxManager()
+    apply_service_init(
+        runner=installer,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+    captured: dict[str, object] = {}
+
+    def _fake_default_runner(
+        argv: Sequence[str], *, timeout: float = 10.0
+    ) -> CommandResult:
+        captured["argv"] = tuple(argv)
+        captured["timeout"] = timeout
+        return CommandResult(0, "")
+
+    monkeypatch.setattr(
+        "sase.service.platform_definition.default_runner", _fake_default_runner
+    )
+    result = control_installed_service("restart")
+    assert result is not None and result.ok is True
+    assert captured["timeout"] == SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS
+    assert captured["argv"] == ("systemctl", "--user", "restart", "sase.service")
+
+
+def test_linux_lifecycle_injected_runner_used_as_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _linux_home(tmp_path, monkeypatch)
+    installer = _LinuxManager()
+    apply_service_init(
+        runner=installer,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+    calls: list[tuple[str, ...]] = []
+
+    def _injected(argv: Sequence[str]) -> CommandResult:
+        calls.append(tuple(argv))
+        return CommandResult(0, "")
+
+    result = control_installed_service("restart", runner=_injected)
+    assert result is not None and result.ok is True
+    assert ("systemctl", "--user", "restart", "sase.service") in calls
+
+
+def test_default_runner_timeout_defaults_to_ten_seconds() -> None:
+    import inspect
+
+    sig = inspect.signature(default_runner)
+    assert sig.parameters["timeout"].default == 10.0
+
+
+def test_non_native_stop_wait_uses_lifecycle_budget() -> None:
+    from sase.service.control import _START_WAIT_SECONDS, _STOP_WAIT_SECONDS
+
+    assert _STOP_WAIT_SECONDS == SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS
+    assert _START_WAIT_SECONDS == 15.0

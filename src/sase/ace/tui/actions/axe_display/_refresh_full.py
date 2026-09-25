@@ -120,10 +120,97 @@ class AxeRefreshFullMixin(AxeRefreshCollectMixin):
             if callable(schedule):
                 schedule()
         if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
+            import time
+            from dataclasses import replace
+
             from sase.service.control import restart_service_host
 
-            await asyncio.to_thread(restart_service_host)
-            self._schedule_axe_async_refresh()
+            from ._service_restart_transition import (
+                SERVICE_RESTART_POST_START_GRACE_SECONDS,
+                SERVICE_RESTART_TRANSITION_HARD_CAP_SECONDS,
+                ServiceRestartTransition,
+                restart_transition_settled,
+            )
+
+            transition = ServiceRestartTransition(
+                requested_at=time.time(),
+                deadline=time.monotonic() + SERVICE_RESTART_TRANSITION_HARD_CAP_SECONDS,
+            )
+            try:
+                self._service_restart_transition = transition  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                result = await asyncio.to_thread(restart_service_host)
+            except Exception as exc:
+                try:
+                    self._service_restart_transition = None  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                notify = getattr(self, "notify", None)
+                if callable(notify):
+                    try:
+                        notify(
+                            f"Service host restart failed: {exc}",
+                            severity="error",
+                        )
+                    except Exception:
+                        pass
+            else:
+                ok = True if result is None else bool(getattr(result, "ok", True))
+                if not ok:
+                    try:
+                        self._service_restart_transition = None  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    message = (
+                        "" if result is None else str(getattr(result, "message", ""))
+                    )
+                    notify = getattr(self, "notify", None)
+                    if callable(notify):
+                        try:
+                            notify(
+                                f"Service host restart failed: {message}",
+                                severity="error",
+                            )
+                        except Exception:
+                            pass
+                elif getattr(self, "_service_restart_transition", None) is transition:
+                    try:
+                        from ..._service_health import derive_service_health
+
+                        _snapshot = getattr(self, "_service_status", None)
+                        _health = derive_service_health(_snapshot)
+                        _settled = restart_transition_settled(
+                            transition, _snapshot, _health
+                        )
+                    except Exception:
+                        _settled = False
+                    if not _settled:
+                        narrowed = replace(
+                            transition,
+                            deadline=time.monotonic()
+                            + SERVICE_RESTART_POST_START_GRACE_SECONDS,
+                        )
+                        try:
+                            self._service_restart_transition = narrowed  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
+                        expire = getattr(
+                            self, "_expire_service_restart_transition", None
+                        )
+                        set_timer = getattr(self, "set_timer", None)
+                        if callable(expire) and callable(set_timer):
+                            try:
+                                set_timer(
+                                    SERVICE_RESTART_POST_START_GRACE_SECONDS,
+                                    lambda: expire(narrowed),
+                                )
+                            except Exception:
+                                pass
+            schedule_restart = getattr(self, "_schedule_axe_async_refresh", None)
+            if callable(schedule_restart):
+                schedule_restart()
         elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]
             from sase.service.control import start_service_host
 

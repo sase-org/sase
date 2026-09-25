@@ -31,6 +31,7 @@ from sase.service.platform_managers import (
     linux_unit_enabled,
 )
 from sase.service.platform_models import (
+    SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS,
     CommandRunner,
     NativeInspection,
     NativeServiceDefinition,
@@ -174,7 +175,12 @@ def control_installed_service(
     definition = installed_native_definition()
     if definition is None:
         return None
-    runner = default_runner if runner is None else runner
+    if runner is None:
+        import functools
+
+        runner = functools.partial(
+            default_runner, timeout=SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS
+        )
     try:
         if definition.platform == "linux":
             command = {

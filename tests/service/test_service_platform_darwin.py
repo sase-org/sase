@@ -23,6 +23,8 @@ from sase.service.platform import (
     control_installed_service,
     service_init_plan,
 )
+from sase.service.platform_models import SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS
+from sase.service.platform_runner import CommandResult
 from tests.service.service_platform_helpers import (
     _DarwinManager,
     _darwin_home,
@@ -196,6 +198,43 @@ class TestDarwinPlatform:
         removed = apply_service_uninstall(runner=runner)
         assert removed.ok is True
         assert not plist.exists()
+
+    def test_darwin_lifecycle_uses_budget_timeout_without_injected_runner(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from collections.abc import Sequence
+
+        _darwin_home(tmp_path, monkeypatch)
+        runner = _DarwinManager()
+        apply_service_init(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(_exe(tmp_path)),
+        )
+        captured: dict[str, object] = {}
+
+        def _fake_default_runner(
+            argv: Sequence[str], *, timeout: float = 10.0
+        ) -> CommandResult:
+            captured.setdefault("calls", []).append(
+                (tuple(argv), timeout)  # type: ignore[attr-defined]
+            )
+            return CommandResult(0, "")
+
+        monkeypatch.setattr(
+            "sase.service.platform_definition.default_runner",
+            _fake_default_runner,
+        )
+        result = control_installed_service("restart")
+        assert result is not None and result.ok is True
+        calls = captured["calls"]  # type: ignore[index]
+        assert calls
+        assert all(
+            timeout == SERVICE_HOST_LIFECYCLE_TIMEOUT_SECONDS
+            for _, timeout in calls  # type: ignore[misc]
+        )
 
     def test_darwin_non_default_home_suffixes_label(
         self,
