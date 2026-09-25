@@ -405,7 +405,7 @@ def test_soft_primary_reservation_survives_healthy_tail(
     )
 
 
-def test_shipped_large_and_xlarge_honor_grok_priority(
+def test_shipped_large_honors_grok_priority_while_xlarge_prefers_claude(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
@@ -418,26 +418,26 @@ def test_shipped_large_and_xlarge_honor_grok_priority(
 
     assert resolve_model_provider_with_effort("@large", routing_context=context) == (
         "grok",
-        "grok-4.6",
-        "high",
+        "grok-4.7",
+        "xhigh",
     )
     assert resolve_model_provider_with_effort("@xlarge", routing_context=context) == (
-        "grok",
-        "grok-4.6",
+        "claude",
+        "opus",
         "xhigh",
     )
     default = resolve_launch_selection(
         PromptDirectives(), consume=False, routing_context=context
     )
     assert default is not None
-    assert (default.provider, default.model) == ("grok", "grok-4.6")
+    assert (default.provider, default.model) == ("grok", "grok-4.7")
     directed = resolve_launch_selection(
         PromptDirectives(model="@large", model_alias="large"),
         consume=False,
         routing_context=context,
     )
     assert directed is not None
-    assert (directed.provider, directed.model) == ("grok", "grok-4.6")
+    assert (directed.provider, directed.model) == ("grok", "grok-4.7")
 
 
 def test_delegated_and_raw_selector_pools_use_the_same_eligibility(

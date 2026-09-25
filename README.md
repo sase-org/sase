@@ -74,8 +74,8 @@ Prerequisites: Linux or macOS (POSIX; Windows is not supported), Python 3.12+,
 (`agy`), Qwen Code, OpenCode, Meta's Muse Code (`muse`), or xAI's Grok Build (`grok`).
 SASE's default provider autodetection never selects Muse or Grok from `PATH`, because
 those executable names are generic. Select Muse explicitly. Model-alias routing is a
-separate mechanism: it can select Grok through the shipped `@small`, `@medium`,
-`@large`, and `@xlarge` pools when Grok Build is installed.
+separate mechanism: its shipped `@small`, `@medium`, and `@large` pools can select Grok,
+while `@xlarge` falls back to Grok when Claude and Codex are unavailable.
 
 ```bash
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github
@@ -85,7 +85,7 @@ sase run "+home summarize what this repository does; do not change files" # auto
 # Or, for Muse Code:
 sase run "%model:muse/muse-spark-1.3 +home summarize what this repository does; do not change files"
 # Or, for Grok Build:
-sase run "%model:grok/grok-4.6 +home summarize what this repository does; do not change files"
+sase run "%model:grok/grok-4.7 +home summarize what this repository does; do not change files"
 sase tui                                                  # open the interactive control surface
 ```
 

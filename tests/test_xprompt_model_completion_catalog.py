@@ -188,6 +188,26 @@ def test_model_completion_catalog_includes_agy_gemini_38_flash_variants(
         assert f"agy/{model}" in scoped_values
 
 
+def test_model_completion_catalog_includes_grok_47(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real registry metadata surfaces both supported Grok models."""
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+    model_entries = {entry.value: entry for entry in entries if entry.kind == "model"}
+
+    for model in ("grok-4.7", "grok-4.6"):
+        assert model_entries[model].provider == "grok"
+
+    scoped_values = {
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(entries, "grok/")
+    }
+    assert {"grok/grok-4.7", "grok/grok-4.6"}.issubset(scoped_values)
+
+
 def test_model_completion_catalog_filters_gpt6_sol(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

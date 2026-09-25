@@ -73,10 +73,10 @@ normal form when SASE can auto-detect an installed provider CLI, or the explicit
 when Muse Code or Grok Build is your provider. SASE never auto-detects `muse` or `grok`
 from PATH because both are generic executable names; this is about default provider
 selection. Select either explicitly with a provider/model directive. Grok Build can
-still be reached automatically through the shipped `@small`, `@medium`, `@large`, and
-`@xlarge` pools. Alias routing checks for an available `grok` executable but does not
-verify its identity, so resolve any Grok identity warning from `sase doctor` before
-launching:
+still be reached automatically through the shipped `@small`, `@medium`, and `@large`
+pools, and through `@xlarge` when Claude and Codex are unavailable. Alias routing checks
+for an available `grok` executable but does not verify its identity, so resolve any Grok
+identity warning from `sase doctor` before launching:
 
 ```bash
 # Auto-detected providers:
@@ -84,7 +84,7 @@ sase run "+home summarize this workspace's layout; do not change files"
 # Muse Code:
 sase run "%model:muse/muse-spark-1.3 +home summarize this workspace's layout; do not change files"
 # Grok Build:
-sase run "%model:grok/grok-4.6 +home summarize this workspace's layout; do not change files"
+sase run "%model:grok/grok-4.7 +home summarize this workspace's layout; do not change files"
 # Then, while it is still running:
 sase agent list
 ```

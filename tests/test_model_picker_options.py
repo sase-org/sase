@@ -52,6 +52,8 @@ def test_build_model_options_has_known_models() -> None:
     assert "gemini-3.8-flash-high" in ids
     assert "gemini-3.7-flash-high" in ids
     assert "gemini-3.6-flash-high" in ids
+    assert "grok-4.7" in ids
+    assert "grok-4.6" in ids
 
 
 def test_build_model_options_has_separators() -> None:
@@ -94,15 +96,16 @@ def test_model_picker_provider_headers_include_count_and_style() -> None:
 def test_model_picker_includes_grok_model_with_cyan_style() -> None:
     """Grok should render as a first-class provider in the picker."""
     rows = build_model_rows()
-    row = next(row for row in rows if row.option_id == "grok-4.6")
-    option = rows_to_options([row])[0]
+    for model in ("grok-4.7", "grok-4.6"):
+        row = next(row for row in rows if row.option_id == model)
+        option = rows_to_options([row])[0]
 
-    assert row.provider == "grok"
-    assert row.model_id == "grok-4.6"
-    assert option is not None
-    assert isinstance(option.prompt, Text)
-    assert "grok-4.6" in option.prompt.plain
-    assert any(span.style == "#5FE3EF" for span in option.prompt.spans)
+        assert row.provider == "grok"
+        assert row.model_id == model
+        assert option is not None
+        assert isinstance(option.prompt, Text)
+        assert model in option.prompt.plain
+        assert any(span.style == "#5FE3EF" for span in option.prompt.spans)
 
 
 def test_model_picker_model_rows_include_alias_as_dim_secondary_text() -> None:

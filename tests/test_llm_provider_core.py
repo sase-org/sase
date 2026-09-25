@@ -161,6 +161,7 @@ def test_resolve_model_provider_explicit_syntax() -> None:
         "agy",
         "gemini-3.8-flash-high",
     )
+    assert resolve_model_provider("grok/grok-4.7") == ("grok", "grok-4.7")
 
 
 def test_resolve_model_provider_implicit_mapping() -> None:
@@ -199,6 +200,7 @@ def test_resolve_model_provider_implicit_mapping() -> None:
         "agy",
         "gemini-3.8-flash-high",
     )
+    assert resolve_model_provider("grok-4.7") == ("grok", "grok-4.7")
     assert resolve_model_provider("qwen3.6-plus") == ("qwen", "qwen3.6-plus")
 
 

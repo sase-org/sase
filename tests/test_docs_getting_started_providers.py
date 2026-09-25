@@ -16,7 +16,8 @@ def test_getting_started_muse_grok_wording_separates_provider_selection() -> Non
     assert "never auto-detects `muse` or `grok` from PATH" in text
     assert (
         "Grok Build can still be reached automatically through the shipped `@small`, "
-        "`@medium`, `@large`, and `@xlarge` pools"
+        "`@medium`, and `@large` pools, and through `@xlarge` when Claude and Codex "
+        "are unavailable"
     ) in text
     assert "last `@xlarge` fallback" not in text
     assert "explicit-only and never auto-detected" not in text
@@ -27,6 +28,6 @@ def test_xprompt_model_comments_avoid_overloaded_explicit_only_wording() -> None
 
     assert "%model:muse/muse-spark-1.3" in text
     assert "Meta Muse Code — never auto-detected from PATH" in text
-    assert "%model:grok/grok-4.6" in text
-    assert "xAI Grok Build — never auto-detected; also in alias pools" in text
+    assert "%model:grok/grok-4.7" in text
+    assert "xAI Grok Build — never auto-detected; also in alias selectors" in text
     assert "explicit-only, never auto-detected" not in text

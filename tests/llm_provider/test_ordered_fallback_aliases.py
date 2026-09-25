@@ -238,19 +238,20 @@ def test_launch_and_temporary_overrides_suspend_ordered_fallback(
     assert resolve_model_alias("@fallback", consume=True) == "claude/opus"
 
 
-def test_shipped_xlarge_round_robins_claude_codex_grok(
+def test_shipped_xlarge_uses_ordered_fallbacks(
     real_model_alias_defaults: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The shipped `@xlarge` round-robins Claude, Codex, and Grok at xhigh."""
+    """The shipped `@xlarge` prefers Claude, then Codex, then Grok at xhigh."""
     selector = parse_model_alias_selector(
         implicit_alias_targets()[XLARGE_MODEL_ALIAS_NAME]
     )
     assert selector is not None
+    assert selector.mode == "fallback"
     assert selector.members == (
         "claude/opus@xhigh",
         "codex/gpt-6-sol@xhigh",
-        "grok/grok-4.6@xhigh",
+        "grok/grok-4.7@xhigh",
     )
     assert selector.fallback_members == ()
 
@@ -264,7 +265,7 @@ def test_shipped_xlarge_round_robins_claude_codex_grok(
         lambda _target: True,
     )
     selected = [resolve_model_alias("@xlarge", consume=True) for _ in range(3)]
-    assert selected == ["claude/opus", "codex/gpt-6-sol", "grok/grok-4.6"]
+    assert selected == ["claude/opus", "claude/opus", "claude/opus"]
 
     monkeypatch.setattr(
         llm_config,
@@ -280,4 +281,4 @@ def test_shipped_xlarge_round_robins_claude_codex_grok(
         lambda target: target.startswith("grok/"),
     )
     only_grok = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (only_grok.target, only_grok.effort) == ("grok/grok-4.6", "xhigh")
+    assert (only_grok.target, only_grok.effort) == ("grok/grok-4.7", "xhigh")

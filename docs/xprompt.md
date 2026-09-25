@@ -2080,7 +2080,7 @@ Directives use the same argument syntax as xprompt references:
 %m:agy/gemini-3.7-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %model:muse/muse-spark-1.3   # Meta Muse Code — never auto-detected from PATH
-%model:grok/grok-4.6         # xAI Grok Build — never auto-detected; also in alias pools
+%model:grok/grok-4.7         # xAI Grok Build — never auto-detected; also in alias selectors
 %model:@fast                 # Configured/implicit model alias; Model shows ← @fast
 %model(opus, medium=codex/gpt-6-sol) # This agent uses opus; medium follow-ups use Codex
 %model(medium=@large) # Leave this agent on its normal launch model; route medium follow-ups through @large

@@ -957,13 +957,14 @@ Grok publishes `llm_autodetect_cli_name` but deliberately no `llm_autodetect_pri
 so it never appears in autodetect candidates: `grok` is a generic executable name shared
 with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Homebrew's
 deprecated, unrelated `grok` regex tool. Select the provider with
-`llm_provider.provider: grok` or `%model:grok/grok-4.6`; set `SASE_GROK_PATH` when you
+`llm_provider.provider: grok` or `%model:grok/grok-4.7`; set `SASE_GROK_PATH` when you
 also need to choose the executable. Separately, the shipped
-`@xsmall`/`@small`/`@medium`/`@large`/`@xlarge` load-balanced pools can select Grok
-whenever a `grok` executable is available. Routing checks executable presence only; it
-does not verify the binary's identity. Run `sase doctor` before launching: its
-`grok --version` probe reports a distinct wrong-binary advisory, after which you should
-point `SASE_GROK_PATH` at the `@xai-official/grok` binary.
+`@xsmall`/`@small`/`@medium`/`@large` load-balanced pools can select Grok whenever a
+`grok` executable is available; `@xlarge` reaches Grok only after Claude and Codex are
+unavailable. Routing checks executable presence only; it does not verify the binary's
+identity. Run `sase doctor` before launching: its `grok --version` probe reports a
+distinct wrong-binary advisory, after which you should point `SASE_GROK_PATH` at the
+`@xai-official/grok` binary.
 
 Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
 
@@ -1001,26 +1002,25 @@ Decisions inside that command:
 
 | Tier    | Grok Model |
 | ------- | ---------- |
-| `large` | `grok-4.6` |
+| `large` | `grok-4.7` |
 | `small` | `grok-4.6` |
 
-**Both tiers map to `grok-4.6` on purpose**: it is the only model in the authenticated
-catalog. Inventing a distinct `small` mapping to a model that may not exist would make
-ordinary `@small`/`@xsmall` routing fail; this is revisited if the catalog grows.
+`large` follows Grok Build's current default, `grok-4.7`. `small` stays on the previous
+flagship, `grok-4.6`, which the shipped `@medium` and `@small` aliases continue to use.
 
 ### Grok Reasoning Effort
 
-`grok-4.6` accepts only `--effort low|medium|high|xhigh`; `none`, `minimal`, and `max`
-are rejected by the CLI with a nonzero exit. SASE declares exactly the four supported
-levels, so an explicit `%effort:max`/`none`/`minimal` raises a clean
+Both `grok-4.7` and `grok-4.6` accept only `--effort low|medium|high|xhigh`; `none`,
+`minimal`, and `max` are rejected by the CLI with a nonzero exit. SASE declares exactly
+the four supported levels, so an explicit `%effort:max`/`none`/`minimal` raises a clean
 `LLMInvocationError` instead of a Grok process crash, and a config-derived default at
 one of those levels is logged and skipped. See [Reasoning Effort](#reasoning-effort)
-below — the shipped `@xlarge` Grok candidate is `grok/grok-4.6@xhigh`, so a
-Grok-selected xlarge launch passes `--effort xhigh`. The shipped `@xlarge` Claude and
-Codex pool candidates also run at `@xhigh`, an effort every provider in that target
-supports natively, so this best-effort `max`-is-logged-and-skipped caveat no longer
-describes the shipped default; it still applies to a user-configured target that pairs
-Codex with an alias-borne `max`.
+below — the shipped `@xlarge` Grok fallback candidate is `grok/grok-4.7@xhigh`, so an
+xlarge launch that reaches Grok passes `--effort xhigh`. The shipped `@xlarge` Claude
+and Codex fallback candidates also run at `@xhigh`, an effort every provider in that
+target supports natively, so this best-effort `max`-is-logged-and-skipped caveat no
+longer describes the shipped default; it still applies to a user-configured target that
+pairs Codex with an alias-borne `max`.
 
 ### The Event Stream
 
@@ -1533,10 +1533,10 @@ this section covers both. The current shipped size-alias defaults are generated 
 | Alias     | Description                                                                          | Shipped default                                                                                                                    |
 | --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-4-5@xhigh \| codex/gpt-5.6-luna@xhigh \| agy/gemini-3.8-flash-high \| muse/muse-spark-1.3-contributor@medium` |
-| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@high \| codex/gpt-5.6-terra@high \| grok/grok-4.6@low \| muse/muse-spark-1.3-contributor@high`                      |
-| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@xhigh \| codex/gpt-5.6-terra@xhigh \| grok/grok-4.6@medium \| muse/muse-spark-1.3-contributor@xhigh`                |
-| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-6-sol@high \| grok/grok-4.6@high`                                                                   |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \| codex/gpt-6-sol@xhigh \| grok/grok-4.6@xhigh`                                                                |
+| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@high \| codex/gpt-5.6-terra@high \| grok/grok-4.6@medium \| muse/muse-spark-1.3-contributor@high`                   |
+| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@xhigh \| codex/gpt-5.6-terra@xhigh \| grok/grok-4.6@high \| muse/muse-spark-1.3-contributor@xhigh`                  |
+| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-6-sol@xhigh \| grok/grok-4.7@xhigh`                                                                 |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \|\| codex/gpt-6-sol@xhigh \|\| grok/grok-4.7@xhigh`                                                            |
 
 <!-- END GENERATED: model-alias-defaults -->
 
@@ -1637,7 +1637,7 @@ Use `provider/model` to specify both explicitly:
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
 %model:muse/muse-spark-1.3
-%model:grok/grok-4.6
+%model:grok/grok-4.7
 %model:fakey/fakey-large
 ```
 
@@ -1660,7 +1660,7 @@ Known model names are automatically mapped to their provider:
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                                                                                                                                                                                       | qwen     |
 | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                                                                                                                                                                           | opencode |
 | `muse-spark-1.3`, `muse-spark-1.3-contributor`, `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                                                                    | muse     |
-| `grok-4.6`                                                                                                                                                                                                                                                                                                                                                                                                                          | grok     |
+| `grok-4.7`, `grok-4.6`                                                                                                                                                                                                                                                                                                                                                                                                              | grok     |
 | `fakey-large`, `fakey-small`                                                                                                                                                                                                                                                                                                                                                                                                        | fakey    |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()`
@@ -1771,7 +1771,7 @@ provider honors is decided per provider (below).
 sase's TUI Launch Control shows the launch-effective default in its header
 (`default effort: @ <level>`), or says `provider default` when none is configured. The
 top-bar launch-default pill shows the same launch-effective default as
-`<shortest %model value>[@<effort>]` (for example `grok-4.6@high`, or `codex/o3@high`
+`<shortest %model value>[@<effort>]` (for example `grok-4.7@high`, or `codex/o3@high`
 when the bare model name does not unambiguously name its provider), omitting the suffix
 when that value is unset. The pill is toned with the launch default's provider — the
 model in that provider's model hue and the `@<effort>` suffix in a recessive tone from
@@ -1923,14 +1923,14 @@ llm_provider:
 ```
 
 Xsmall phases/tasks/tale-follow-ups use the `@xsmall` pool, small ones the `@small`
-pool, medium ones `@medium`, large ones `@large`, and xlarge ones `@xlarge`. Sizeless
-standalone tasks fall back to `@small`; sizeless tale follow-ups fall back to `@medium`.
-Normal epic landers use `llm_provider.epic_lander_model`, and threshold-selected epic
-landers use `llm_provider.big_epic_lander_model`, independent of the size aliases and of
-`llm_provider.default_model`. See [Implicit role aliases](#implicit-role-aliases) for
-the current shipped defaults. Explicit `%model` directives, approval-picker model
-choices, direct alias overrides, and per-bead/land model metadata always win over role
-defaults.
+pool, medium ones `@medium`, large ones `@large`, and xlarge ones the `@xlarge` ordered
+fallback. Sizeless standalone tasks fall back to `@small`; sizeless tale follow-ups fall
+back to `@medium`. Normal epic landers use `llm_provider.epic_lander_model`, and
+threshold-selected epic landers use `llm_provider.big_epic_lander_model`, independent of
+the size aliases and of `llm_provider.default_model`. See
+[Implicit role aliases](#implicit-role-aliases) for the current shipped defaults.
+Explicit `%model` directives, approval-picker model choices, direct alias overrides, and
+per-bead/land model metadata always win over role defaults.
 
 > The previous `llm_provider.worker_models` map, the `~/.sase/llm_worker_override.json`
 > worker temporary override, and the later
@@ -1966,8 +1966,8 @@ and independent **per-setting** for the three scalar launch-model settings (name
 `setting:big_epic_lander_model` keys in the override store). An override takes effect
 wherever that alias or setting is resolved. For example, an override on `@medium`
 affects only that size alias, and an override on the `epic lander` setting affects only
-below-threshold epic land agents. An active override on `@xlarge` suspends its pool
-rotation for a single concrete target, just as overrides on `@xsmall`, `@small`,
+below-threshold epic land agents. An active override on `@xlarge` suspends its fallback
+selection for a single concrete target, just as overrides on `@xsmall`, `@small`,
 `@medium`, and `@large` suspend their independent load-balanced rotations for the
 override's duration. The three launch-model settings do not reference a shared alias, so
 an override on the `default model` setting (`llm_provider.default_model`) does not move

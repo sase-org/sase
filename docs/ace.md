@@ -4397,8 +4397,9 @@ Overrides are per-alias and per-launch-setting, and independent:
   alias is resolved. A size-specific phase or task override affects only that alias. An
   override on a selector-valued alias — a `|` load-balanced pool, `||` ordered fallback,
   or parenthesized `(A | B) || C` last-resort, such as the shipped `@xsmall`, `@small`,
-  `@medium`, `@large`, and `@xlarge` pools — suspends that alias's own rotation/fallback
-  for a single concrete target until the override expires or is cleared.
+  `@medium`, and `@large` pools or the `@xlarge` fallback — suspends that alias's own
+  rotation/fallback for a single concrete target until the override expires or is
+  cleared.
 - An override on **`epic lander`** or **`big epic lander`** affects only epic land
   agents below, or at/above, `bead.big_epic_phase_threshold`, independently of
   `default model` and of each other.
@@ -4415,7 +4416,7 @@ Launch Control.
 
 When no override is active, the same status-row chip instead names the current launch
 default — the smallest `%model` value that would pin this exact target (a bare model
-name such as `grok-4.6` when the model unambiguously names its provider, otherwise the
+name such as `grok-4.7` when the model unambiguously names its provider, otherwise the
 explicit `codex/o3` form) plus the optional `[@<effort>]` suffix, with no background
 accent — and stays live for the whole sase's TUI session. The label is toned with the
 launch default's provider: the model name takes the provider's model hue (the same one
@@ -4471,8 +4472,8 @@ references, a temporary override on the alias they reference (`@large` and `@xla
 default) cascades into their effective resolution; overriding `epic lander` or
 `big epic lander` directly takes precedence over that nested reference. A temporary
 override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`,
-`@medium`, `@large`, and `@xlarge` pools — suspends only that alias's own rotation and
-does not cascade to any other alias or launch setting.
+`@medium`, and `@large` pools or the `@xlarge` fallback — suspends only that alias's own
+rotation/fallback and does not cascade to any other alias or launch setting.
 
 ### Persistent edits
 
@@ -4535,15 +4536,14 @@ fewer than two pool members or the live validation line reports an error.
   non-default pill appears in the top bar.
 - Highlight `@large`, `e`, pick `claude/opus`, and confirm — only large phases and tasks
   without an explicit model use that target, replacing the shipped
-  `claude/opus@high | codex/gpt-6-sol@high | grok/grok-4.6@high` pool; other-sized
+  `claude/opus@high | codex/gpt-6-sol@xhigh | grok/grok-4.7@xhigh` pool; other-sized
   phase/task routing is unchanged.
 - Highlight `@xlarge`, `e`, pick `claude/opus`, and confirm — xlarge phases and tasks
   use that target directly, and `big epic lander` (left at its shipped `@xlarge`
   reference) inherits the same change.
 - Leave `@xlarge` implicit — xlarge phases, tasks, and threshold-selected epic landers
-  (which reference `@xlarge` by default) all follow whichever member of its shipped
-  `claude/opus@xhigh | codex/gpt-6-sol@xhigh | grok/grok-4.6@xhigh` pool is currently
-  selected.
+  (which reference `@xlarge` by default) select the first available member of its
+  `claude/opus@xhigh || codex/gpt-6-sol@xhigh || grok/grok-4.7@xhigh` fallback chain.
 - Highlight `@xsmall`, `e`, choose `Custom...`, enter
   `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases and tasks
   round-robin across installed providers while the panel continues to show the next

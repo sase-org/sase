@@ -142,12 +142,20 @@ def test_grok_provider_is_llm_provider() -> None:
 
 
 def test_grok_provider_is_registered_as_an_entry_point() -> None:
+    provider, model = resolve_model_provider("grok/grok-4.7")
+    assert provider == "grok"
+    assert model == "grok-4.7"
+
     provider, model = resolve_model_provider("grok/grok-4.6")
     assert provider == "grok"
     assert model == "grok-4.6"
 
 
 def test_grok_known_model_resolves_implicitly() -> None:
+    provider, model = resolve_model_provider("grok-4.7")
+    assert provider == "grok"
+    assert model == "grok-4.7"
+
     provider, model = resolve_model_provider("grok-4.6")
     assert provider == "grok"
     assert model == "grok-4.6"
@@ -159,7 +167,7 @@ def test_grok_provider_metadata_hooks() -> None:
     assert provider.llm_provider_short_name() == "grk"
     assert provider.llm_autodetect_cli_name() == "grok"
     assert provider.llm_cli_status_color() == "#00C8D7"
-    assert provider.llm_known_model_names() == ["grok-4.6"]
+    assert provider.llm_known_model_names() == ["grok-4.7", "grok-4.6"]
     assert provider.llm_skill_template_context() == {
         "provider_name": "Grok",
         "provider_tool_name": "Grok Build",
@@ -221,10 +229,10 @@ def test_grok_max_tokens_truncation_error_found_via_cross_provider_lookup() -> N
     assert is_retryable_error(_GROK_MAX_TOKENS_TRUNCATION_ERROR, config) is True
 
 
-def test_grok_provider_resolve_model_name_maps_both_tiers_to_grok_46() -> None:
+def test_grok_provider_resolve_model_name_maps_tiers_to_their_models() -> None:
     provider = GrokProvider()
-    assert provider.resolve_model_name() == "grok-4.6"
-    assert provider.resolve_model_name("large") == "grok-4.6"
+    assert provider.resolve_model_name() == "grok-4.7"
+    assert provider.resolve_model_name("large") == "grok-4.7"
     assert provider.resolve_model_name("small") == "grok-4.6"
 
 
@@ -237,7 +245,7 @@ def test_grok_command_construction(
     assert cmd[cmd.index("--prompt-file") + 1] == "/dev/stdin"
     assert cmd[cmd.index("--output-format") + 1] == "streaming-messages-json"
     assert cmd[cmd.index("--permission-mode") + 1] == "bypassPermissions"
-    assert cmd[cmd.index("--model") + 1] == "grok-4.6"
+    assert cmd[cmd.index("--model") + 1] == "grok-4.7"
     assert cmd[cmd.index("--cwd") + 1] == os.getcwd()
     uuid.UUID(cmd[cmd.index("--session-id") + 1])
     for flag in _GROK_CONTROL_FLAGS:
@@ -259,7 +267,7 @@ def test_grok_model_override_wins_over_tier(
     )
 
     assert cmd[cmd.index("--model") + 1] == "grok-next"
-    assert "grok-4.6" not in cmd
+    assert "grok-4.7" not in cmd
 
 
 @pytest.mark.parametrize("level", ["low", "medium", "high", "xhigh"])

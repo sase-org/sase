@@ -17,17 +17,17 @@ aliases:
       checks.
   small:
     target:
-      "claude/sonnet@high | codex/gpt-5.6-terra@high | grok/grok-4.6@low |
+      "claude/sonnet@high | codex/gpt-5.6-terra@high | grok/grok-4.6@medium |
       muse/muse-spark-1.3-contributor@high"
     description: "Small launch alias for straightforward task and phase work."
   medium:
     target:
-      "claude/sonnet@xhigh | codex/gpt-5.6-terra@xhigh | grok/grok-4.6@medium |
+      "claude/sonnet@xhigh | codex/gpt-5.6-terra@xhigh | grok/grok-4.6@high |
       muse/muse-spark-1.3-contributor@xhigh"
     description: "Medium launch alias for ordinary implementation work."
   large:
-    target: "claude/opus@high | codex/gpt-6-sol@high | grok/grok-4.6@high"
+    target: "claude/opus@high | codex/gpt-6-sol@xhigh | grok/grok-4.7@xhigh"
     description: "Large launch alias for planning-heavy work and default launches."
   xlarge:
-    target: "claude/opus@xhigh | codex/gpt-6-sol@xhigh | grok/grok-4.6@xhigh"
+    target: "claude/opus@xhigh || codex/gpt-6-sol@xhigh || grok/grok-4.7@xhigh"
     description: "Extra-large launch alias for maximum-effort work."

@@ -90,7 +90,7 @@ def test_size_aliases_use_independent_rotations(
             {
                 "claude/": ("claude/sonnet", "high"),
                 "codex/": ("codex/gpt-5.6-terra", "high"),
-                "grok/": ("grok/grok-4.6", "low"),
+                "grok/": ("grok/grok-4.6", "medium"),
                 "muse/": ("muse/muse-spark-1.3-contributor", "high"),
             },
         ),
@@ -99,7 +99,7 @@ def test_size_aliases_use_independent_rotations(
             {
                 "claude/": ("claude/sonnet", "xhigh"),
                 "codex/": ("codex/gpt-5.6-terra", "xhigh"),
-                "grok/": ("grok/grok-4.6", "medium"),
+                "grok/": ("grok/grok-4.6", "high"),
                 "muse/": ("muse/muse-spark-1.3-contributor", "xhigh"),
             },
         ),
@@ -107,8 +107,8 @@ def test_size_aliases_use_independent_rotations(
             "@large",
             {
                 "claude/": ("claude/opus", "high"),
-                "codex/": ("codex/gpt-6-sol", "high"),
-                "grok/": ("grok/grok-4.6", "high"),
+                "codex/": ("codex/gpt-6-sol", "xhigh"),
+                "grok/": ("grok/grok-4.7", "xhigh"),
             },
         ),
         (
@@ -116,7 +116,7 @@ def test_size_aliases_use_independent_rotations(
             {
                 "claude/": ("claude/opus", "xhigh"),
                 "codex/": ("codex/gpt-6-sol", "xhigh"),
-                "grok/": ("grok/grok-4.6", "xhigh"),
+                "grok/": ("grok/grok-4.7", "xhigh"),
             },
         ),
     ],
@@ -152,8 +152,8 @@ def test_shipped_large_round_robins_claude_codex_grok(
     assert selector is not None
     assert selector.members == (
         "claude/opus@high",
-        "codex/gpt-6-sol@high",
-        "grok/grok-4.6@high",
+        "codex/gpt-6-sol@xhigh",
+        "grok/grok-4.7@xhigh",
     )
     assert selector.fallback_members == ()
 
@@ -164,10 +164,10 @@ def test_shipped_large_round_robins_claude_codex_grok(
         lambda _target: True,
     )
     selected = [resolve_model_alias("@large", consume=True) for _ in range(3)]
-    assert selected == ["claude/opus", "codex/gpt-6-sol", "grok/grok-4.6"]
+    assert selected == ["claude/opus", "codex/gpt-6-sol", "grok/grok-4.7"]
 
 
-def test_shipped_xlarge_round_robins_claude_codex_grok(
+def test_shipped_xlarge_uses_ordered_fallbacks(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
@@ -175,12 +175,38 @@ def test_shipped_xlarge_round_robins_claude_codex_grok(
         implicit_alias_targets()[XLARGE_MODEL_ALIAS_NAME]
     )
     assert selector is not None
+    assert selector.mode == "fallback"
     assert selector.members == (
         "claude/opus@xhigh",
         "codex/gpt-6-sol@xhigh",
-        "grok/grok-4.6@xhigh",
+        "grok/grok-4.7@xhigh",
     )
     assert selector.fallback_members == ()
+
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    selected = [resolve_model_alias("@xlarge", consume=True) for _ in range(3)]
+    assert selected == ["claude/opus", "claude/opus", "claude/opus"]
+
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+    only_codex = resolve_model_alias_with_effort("@xlarge", consume=True)
+    assert (only_codex.target, only_codex.effort) == ("codex/gpt-6-sol", "xhigh")
+
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("grok/"),
+    )
+    only_grok = resolve_model_alias_with_effort("@xlarge", consume=True)
+    assert (only_grok.target, only_grok.effort) == ("grok/grok-4.7", "xhigh")
 
 
 def test_only_shipped_xsmall_has_antigravity_member(
@@ -219,16 +245,23 @@ def test_shipped_size_aliases_follow_the_effort_ladder(
     ):
         selector = parse_model_alias_selector(implicit_alias_targets()[alias])
         assert selector is not None
-        for member in (*selector.members, *selector.fallback_members):
+        members = (
+            selector.members[:1] if selector.mode == "fallback" else selector.members
+        )
+        for member in members:
             target, _, effort = member.partition("@")
             if target.startswith("agy/"):
                 assert effort == ""
                 continue
-            if target not in seen:
+            continued_from = {"grok/grok-4.6": "grok/grok-4.7"}
+            previous_effort = seen.get(target) or seen.get(
+                continued_from.get(target, "")
+            )
+            if previous_effort is None:
                 assert effort == "xhigh", (alias, member)
             else:
                 expected = EFFORT_LEVELS_ORDERED[
-                    EFFORT_LEVELS_ORDERED.index(seen[target]) - 1
+                    EFFORT_LEVELS_ORDERED.index(previous_effort) - 1
                 ]
                 assert effort == expected, (alias, member)
             seen[target] = effort

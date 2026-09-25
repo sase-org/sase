@@ -28,8 +28,10 @@ if TYPE_CHECKING:
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
+# Grok Build's large tier follows its current default model; the small tier stays on
+# the previous flagship used by the @medium and @small shipped aliases.
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "grok-4.6",
+    "large": "grok-4.7",
     "small": "grok-4.6",
 }
 
@@ -107,7 +109,7 @@ class GrokProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return ["grok-4.6"]
+        return ["grok-4.7", "grok-4.6"]
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
