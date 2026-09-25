@@ -402,7 +402,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase project set-state`                     | Set a lifecycle or internal backing state under the ProjectSpec lock.                                                                                                                                                 | [Project lifecycle](project_spec.md#project-lifecycle)            |
 | `sase project alias`                         | List, add, remove, or clear `PROJECT_ALIASES` under the ProjectSpec lock.                                                                                                                                             | [Project names](project_spec.md#project-names-and-aliases)        |
 | `sase plan` / `sase plan list`               | Show pending proposals, recent approvals, and inferred rejected archived proposals.                                                                                                                                   | [XPrompt directives](xprompt.md#plan-directive)                   |
-| `sase plan approve`                          | Approve one pending plan by name (TAB completes), `<shard>/<name>`, path, `plan:` ref, planner agent, or notification ID/prefix; `--kind` chooses approve/commit/epic/tale, and `--wait` holds launched work.         | [Plan approval pipeline](agent_families.md)                       |
+| `sase plan approve`                          | Approve a pending proposal or a plan file with no live gate. It defaults to a tale (epic plans require an explicit kind); `--dry-run` previews and `--project` identifies a gateless plan's project.                  | [Plan approval pipeline](agent_families.md)                       |
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                                                                                                                                             | [XPrompt directives](xprompt.md#plan-directive)                   |
 | `sase plan reject`                           | Reject one pending plan by name (TAB completes), `<shard>/<name>`, path, `plan:` ref, planner agent, or notification ID/prefix, then attempt planner cleanup when found.                                              | [XPrompt directives](xprompt.md#plan-directive)                   |
 | `sase plan search`                           | Search or browse resolved-store SDD artifacts (tale and epic plans, prompts, and document-sidecar roles such as research) plus the machine-local plan archive by literal text and metadata.                           | [SDD](sdd.md#how-sdd-works)                                       |
@@ -493,13 +493,17 @@ coder without asking the runner to commit an SDD plan, `tale` commits the plan a
 tale and then runs the coder, `epic` commits the matching SDD tier and launches the bead
 follow-up, and `commit` records the approved plan in SDD without launching a coder. Use
 `-m/--model` to pick the follow-up agent's model. Use `-p/--prompt` to add extra coder
-instructions for the `approve` and `tale` paths. Tale and epic approvals validate
-against their target schema before writing a response; a failure prints the diagnostics
-and expected schema and leaves the proposal pending for retry. `sase plan reject` writes
-the rejection response first, then uses the same durable cleanup path as the TUI
-no-feedback rejection action when the matching planner row is still discoverable. If
-cleanup cannot find or kill the row, the CLI reports that separately after the plan has
-already been rejected.
+instructions for the `approve` and `tale` paths. A plan with no live gate can be named
+by path, `plan:` reference, archive name, or unavailable gate ID: it is approved
+directly and starts a `#coder` in the planner's family when it can safely attach,
+otherwise as a standalone agent. `-n/--dry-run` renders that decision without changing
+state, and `-P/--project` supplies project context for the direct route. Tale and epic
+approvals validate against their target schema before writing a response; a failure
+prints the diagnostics and expected schema and leaves the proposal pending for retry.
+`sase plan reject` writes the rejection response first, then uses the same durable
+cleanup path as the TUI no-feedback rejection action when the matching planner row is
+still discoverable. If cleanup cannot find or kill the row, the CLI reports that
+separately after the plan has already been rejected.
 
 `sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source)
 and the machine-local `~/.sase/plans/` archive. Omit the query to browse with metadata

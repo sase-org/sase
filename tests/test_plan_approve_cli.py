@@ -185,7 +185,7 @@ def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
     assert meta["plan_action"] == expected_meta_action
 
 
-def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> None:
+def test_plan_approve_omitted_kind_guards_epic_plan(tmp_path: Path) -> None:
     response_dir = _response_dir(tmp_path)
     plan = _plan_file(tmp_path)
     workspace = tmp_path / "workspace"
@@ -197,31 +197,13 @@ def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> No
         project_dir=workspace,
     )
 
-    with (
-        patch(
-            "sase.bead.epic_launch.resolve_epic_launch_project",
-            return_value="canonical",
-        ),
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
-        patch(
-            "sase.bead.epic_launch.start_epic_launch_monitor",
-            return_value=SimpleNamespace(monitor_id="mon-omitted"),
-        ),
-    ):
-        result = _approve_plan_from_cli(selector="abcdef12", kind=None)
+    from sase.main.plan_direct_approval import DirectApprovalRefused
 
-    assert result.response_json == {
-        "action": "epic",
-        "commit_plan": True,
-        "run_coder": True,
-        "epic_launch_owner": "host",
-        "plan_archive_owner": "none",
-        "plan_archive_state": "not_requested",
-    }
-    assert result.epic_launch_monitor_id == "mon-omitted"
+    with pytest.raises(DirectApprovalRefused) as exc_info:
+        _approve_plan_from_cli(selector="abcdef12", kind=None)
+
+    assert exc_info.value.refusal.code == "epic_guard"
+    assert "-k epic" in exc_info.value.refusal.detail_lines[0]
 
 
 def test_cli_epic_approval_starts_monitor_after_claiming_ownership(
@@ -498,6 +480,65 @@ def test_plan_approve_bad_wait_spec_exits_2_before_resolving_plan(
     assert exc_info.value.code == 2
     resolve.assert_not_called()
     assert "wait spec does not accept time=" in capsys.readouterr().err
+
+
+def test_plan_approve_direct_dry_run_does_not_execute(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-pending plan uses the direct resolver, but dry runs stay read-only."""
+    plan = _plan_file(tmp_path)
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    args = argparse.Namespace(
+        selector=str(plan),
+        kind=None,
+        prompt=None,
+        model=None,
+        wait=None,
+        dry_run=True,
+        project="demo",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    with (
+        patch("sase.main.plan_direct_approval_run.execute_direct_approval") as execute,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_plan_approve_command(args)
+
+    assert exc_info.value.code == 0
+    execute.assert_not_called()
+    output = capsys.readouterr().out
+    assert "Dry run" in output
+    assert "Nothing was changed" in output
+
+
+def test_plan_approve_rejects_project_for_live_gate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+    args = argparse.Namespace(
+        selector="abcdef12",
+        kind="tale",
+        prompt=None,
+        model=None,
+        wait=None,
+        dry_run=False,
+        project="demo",
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_plan_approve_command(args)
+
+    assert exc_info.value.code == 2
+    assert (
+        "only applies to plans without a live approval gate" in capsys.readouterr().err
+    )
+    assert not (response_dir / "plan_response.json").exists()
 
 
 def test_plan_approve_omitted_selector_succeeds_with_one_pending_plan(

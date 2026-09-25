@@ -27,7 +27,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase plan\n"
             "  sase plan list --json\n"
-            "  sase plan approve abcdef12 --kind tale\n"
+            "  sase plan approve abcdef12\n"
             "  sase plan links validate --show-warnings\n"
             "  sase plan reject abcdef12\n"
             "  sase plan propose sase_plan_feature.md\n"
@@ -47,22 +47,23 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
 
     approve_parser = plan_subparsers.add_parser(
         "approve",
-        help="Approve one pending plan proposal",
+        help="Approve a pending proposal or a plan file",
         description=(
-            "Approve one pending plan proposal. PLAN matches exactly first "
-            "(notification ID, archive or bundle path, name, "
-            "<shard>/<name>, plan: ref, or planner agent), then by "
-            "notification-ID prefix. If PLAN is omitted, exactly one pending "
-            "proposal must exist."
+            "Approve a pending proposal or a plan file without a live approval gate. "
+            "PLAN matches a live proposal first (notification ID, archive or bundle "
+            "path, name, <shard>/<name>, plan: ref, or planner agent), then a plan "
+            "file. If PLAN is omitted, exactly one pending proposal must exist."
         ),
         epilog=(
             "examples:\n"
             "  sase plan approve\n"
             "  sase plan approve updates_tab_cached_open\n"
-            "  sase plan approve 202609/unrelated_red_gate_bead_close.md -k tale\n"
-            "  sase plan approve ~/.sase/plans/202609/my_plan.md --kind tale\n"
-            "  sase plan approve 0qw --kind tale --prompt 'Focus tests'\n"
-            "  sase plan approve abcdef12 --kind tale --wait 'sase-s7.2,bead=sase-64.3'\n"
+            "  sase plan approve ~/.sase/plans/202609/my_plan.md\n"
+            "  sase plan approve ./sase_plan_my_feature.md --dry-run\n"
+            "  sase plan approve ./sase_plan_my_feature.md --project sase\n"
+            "  sase plan approve 0qw --prompt 'Focus tests'\n"
+            "  sase plan approve abcdef12 --wait 'sase-s7.2,bead=sase-64.3'\n"
+            "  sase plan approve big_epic --kind epic\n"
             "  sase plan approve abcdef12 --kind commit"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -72,9 +73,15 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         metavar="PLAN",
         help=(
-            "Pending plan: name (TAB completes), <shard>/<name>[.md], path, "
-            "plan: ref, planner agent, or notification ID/prefix"
+            "Plan: name (TAB completes), <shard>/<name>[.md], path, plan: ref, "
+            "planner agent, or notification ID/prefix"
         ),
+    )
+    approve_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Preview the selected approval without changing files or launching work",
     )
     approve_parser.add_argument(
         "-k",
@@ -82,7 +89,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=PLAN_APPROVAL_CLI_KINDS,
         default=None,
         help=(
-            "Approval kind (default: authored plan tier): approve runs coder "
+            "Approval kind (default: tale; epic plans require an explicit kind): approve runs coder "
             "without committing an SDD plan; tale commits to sdd/plans with "
             "tier tale; epic commits there with tier epic; commit records the "
             "plan without launching coder"
@@ -92,6 +99,12 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "-m",
         "--model",
         help="Optional model for the follow-up agent",
+    )
+    approve_parser.add_argument(
+        "-P",
+        "--project",
+        metavar="NAME",
+        help="Project for a plan without a live approval gate",
     )
     approve_parser.add_argument(
         "-p",

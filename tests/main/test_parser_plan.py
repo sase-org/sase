@@ -44,6 +44,12 @@ def test_plan_command_group_parses_subcommands() -> None:
     assert approve_args.prompt == "Focus tests"
     assert approve_args.wait == "sase-s7.2,bead=sase-64.3"
 
+    direct_args = parser.parse_args(
+        ["plan", "approve", "sase_plan_feature.md", "-n", "-P", "sase"]
+    )
+    assert direct_args.dry_run is True
+    assert direct_args.project == "sase"
+
 
 def test_plan_approve_kind_defaults_from_plan_at_execution_time() -> None:
     args = create_parser(only="plan").parse_args(["plan", "approve", "abcdef12"])
@@ -189,26 +195,27 @@ def test_plan_subcommand_help_is_complete() -> None:
     assert "sase plan reject abcdef12" in reject_help
 
     assert "[PLAN]" in approve_help
-    assert "Pending plan: name (TAB completes)" in approve_help
+    assert "Plan: name (TAB completes)" in approve_help
     assert "If PLAN is omitted, exactly one" in approve_help
     assert "sase plan approve updates_tab_cached_open" in approve_help
-    assert "sase plan approve 202609/unrelated_red_gate_bead_close.md -k tale" in (
-        approve_help
-    )
+    assert "sase plan approve ./sase_plan_my_feature.md --dry-run" in approve_help
 
     assert "{approve,commit,epic,tale}" in approve_help
     assert "-k {approve,commit,epic,tale}" in approve_help
     assert "--kind {approve,commit,epic,tale}" in approve_help
+    assert "-n" in approve_help
+    assert "--dry-run" in approve_help
     assert "-m MODEL" in approve_help
     assert "--model MODEL" in approve_help
     assert "-p PROMPT" in approve_help
     assert "--prompt PROMPT" in approve_help
+    assert "-P NAME" in approve_help
+    assert "--project NAME" in approve_help
     assert "-w SPEC" in approve_help
     assert "--wait SPEC" in approve_help
-    assert "sase plan approve 0qw --kind tale --prompt 'Focus tests'" in approve_help
+    assert "sase plan approve 0qw --prompt 'Focus tests'" in approve_help
     assert (
-        "sase plan approve abcdef12 --kind tale --wait 'sase-s7.2,bead=sase-64.3'"
-        in approve_help
+        "sase plan approve abcdef12 --wait 'sase-s7.2,bead=sase-64.3'" in approve_help
     )
     assert "-j" in list_help
     assert "--json" in list_help

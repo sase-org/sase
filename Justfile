@@ -372,13 +372,13 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-18g(XpromptPreviewFit)' \
         --epic-symbol 'sase-18g(preview_row_budget)' \
         --epic-symbol 'sase-18g(agent_header_settings_for)' \
-        --epic-symbol 'sase-18i.2(CoderPlacement)' \
-        --epic-symbol 'sase-18i.2(DirectApprovalOutcome)' \
-        --epic-symbol 'sase-18i.2(DirectApprovalRequest)' \
-        --epic-symbol 'sase-18i.2(PlanGateHistory)' \
-        --epic-symbol 'sase-18i.2(RetiredGate)' \
-        --epic-symbol 'sase-18i.2(execute_direct_approval)' \
-        --epic-symbol 'sase-18i.2(resolve_direct_approval)' \
+        --epic-symbol 'sase-18i(CoderPlacement)' \
+        --epic-symbol 'sase-18i(DirectApprovalOutcome)' \
+        --epic-symbol 'sase-18i(DirectApprovalRequest)' \
+        --epic-symbol 'sase-18i(PlanGateHistory)' \
+        --epic-symbol 'sase-18i(RetiredGate)' \
+        --epic-symbol 'sase-18i(execute_direct_approval)' \
+        --epic-symbol 'sase-18i(resolve_direct_approval)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

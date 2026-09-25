@@ -141,10 +141,12 @@ and is harmless when no TUI is open.
 
 Humans can approve the pending proposal from sase's TUI or from the CLI. `sase plan`
 lists pending PlanApproval notifications, recent approvals, and inferred rejected
-archived proposals. `sase plan approve <name>` defaults to the tier authored in the
-plan; `--kind tale|epic` explicitly overrides it. The selected target schema is
-validated before the response, SDD copy, or notification dismissal, and failures leave
-the proposal pending.
+archived proposals. `sase plan approve <name>` defaults to a tale; an epic-authored plan
+requires an explicit `--kind epic` or `--kind tale` to prevent an accidental downgrade.
+The command can also directly approve an archived or scratch plan with no live gate;
+`--dry-run` previews it and `--project` supplies explicit project context. The selected
+target schema is validated before the response, SDD copy, or notification dismissal, and
+failures leave the proposal pending.
 
 Tale approval promotes the plan and launches its coder through the agent runner. Every
 epic approval surface — sase's TUI, the CLI, Telegram, or a bare gate response — instead
