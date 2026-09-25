@@ -848,6 +848,7 @@ ace:
 | `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                   |
 | `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                           |
 | `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab (only when agent decks are enabled).                                               |
+| `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel XPROMPT preview budget.                                                                                                    |
 | `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                    |
 | `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`).   |
 | `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                                |
@@ -1728,6 +1729,23 @@ ace:
 | `spread_max_screens` | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged. |
 
 Source: `src/sase/ace/tui/agent_decks_settings.py`
+
+#### `ace.agent_header`
+
+Controls how many rows of the agent's `AGENT XPROMPT` the collapsed Agents-tab header
+panel previews below its two chip rows.
+
+```yaml
+ace:
+  agent_header:
+    collapsed_max_share: 0.35
+```
+
+| Field                 | Type   | Default | Description                                                                                                                                                                      |
+| --------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collapsed_max_share` | number | `0.35`  | Share of the detail-column height the collapsed header may take (0 to 0.6). The preview gets that cap minus the border and chip rows, at least 1 row. `0` turns the preview off. |
+
+Source: `src/sase/ace/tui/agent_header_settings.py`
 
 #### `ace.prompt_submission`
 

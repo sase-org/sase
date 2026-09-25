@@ -95,7 +95,9 @@ class AgentDetail(
         except Exception:
             return
         try:
-            prompt_panel.attach_identity_header_sink(self._on_identity_header)
+            prompt_panel.attach_identity_header_sink(
+                self._on_identity_header, detach_xprompt=True
+            )
         except Exception:
             pass
         try:
@@ -120,10 +122,51 @@ class AgentDetail(
         if panel is None:
             return
         try:
+            before = int(panel.rendered_row_count)
+        except Exception:
+            before = -1
+        try:
             panel.show_identity(header)
         except Exception:
             pass
+        try:
+            if int(panel.rendered_row_count) != before:
+                self.reapply_main_view_pins()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self._sync_header_visibility()
+
+    def on_resize(self, event: Any = None) -> None:
+        """Refit the header preview when the detail column height changes."""
+        panel = self._header_panel_or_none()
+        if panel is None:
+            return
+        rows: int | None = None
+        try:
+            if event is not None:
+                rows = int(event.size.height)
+        except Exception:
+            rows = None
+        if rows is None or rows <= 0:
+            try:
+                rows = int(self.size.height or 0)
+            except Exception:
+                rows = None
+        if rows is None or rows <= 0:
+            return
+        try:
+            before = int(panel.rendered_row_count)
+        except Exception:
+            before = -1
+        try:
+            panel.set_column_rows(rows)
+        except Exception:
+            return
+        try:
+            if int(panel.rendered_row_count) != before:
+                self.reapply_main_view_pins()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _sync_header_visibility(self) -> None:
         """Hide the header unless the current document published an identity."""

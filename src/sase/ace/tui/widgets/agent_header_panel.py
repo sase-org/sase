@@ -4,14 +4,30 @@ from __future__ import annotations
 
 from typing import Any
 
+from rich.console import RenderableType
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.color import Color
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from ..agent_header_settings import agent_header_settings_for
 from ..keymaps import key_display_name
+from .agent_header_preview import (
+    PREVIEW_BAR_GLYPH,
+    PREVIEW_BAR_STYLE,
+    XpromptPreviewFit,
+    fit_xprompt_preview,
+    preview_row_budget,
+)
 from .prompt_panel._identity_header import IdentityHeader
+
+# Width used before the first layout, when the content widget has no size yet.
+_FALLBACK_CONTENT_WIDTH = 76
+# A node without an xprompt shows exactly the two chip rows inside the border.
+_COMPACT_ROW_COUNT = 2
+_PENDING_GLYPH = "⋯"
+_PENDING_GLYPH_STYLE = "dim"
 
 
 class AgentHeaderPanel(VerticalScroll):
@@ -23,6 +39,9 @@ class AgentHeaderPanel(VerticalScroll):
     _expanded: bool = False
     _last_kind: str | None = None
     _last_digest: str | None = None
+    _column_rows: int = 0
+    _last_preview_rows: int = 0
+    _rendered_rows: int = 0
 
     def compose(self) -> ComposeResult:
         """Compose the inner content static."""
@@ -38,6 +57,33 @@ class AgentHeaderPanel(VerticalScroll):
         """Return whether the panel shows the expanded field list."""
         return self._expanded
 
+    @property
+    def rendered_row_count(self) -> int:
+        """Return the content row count from the last paint."""
+        return self._rendered_rows
+
+    def set_column_rows(self, rows: int) -> None:
+        """Record the detail-column height and re-fit the preview."""
+        try:
+            rows = int(rows)
+        except Exception:
+            return
+        if rows < 0:
+            rows = 0
+        if rows == self._column_rows:
+            return
+        self._column_rows = rows
+        identity = self._identity
+        if identity is not None:
+            self.show_identity(identity)
+
+    def on_resize(self, _event: Any = None) -> None:
+        """Re-fit the preview when the panel width changes."""
+        identity = self._identity
+        if identity is None or self._expanded or identity.has_hints:
+            return
+        self.show_identity(identity)
+
     def _toggle_key(self) -> str:
         """Return the live display name for the header toggle key."""
         try:
@@ -50,21 +96,108 @@ class AgentHeaderPanel(VerticalScroll):
             pass
         return "d"
 
-    def _subtitle_for(self, expanded: bool) -> str:
+    def _subtitle_for(self, expanded: bool, *, hidden_lines: int = 0) -> str:
         """Return the border subtitle hint for the expanded state."""
         key = self._toggle_key()
         if not key:
-            return "more" if not expanded else "less"
-        arrow = "\u25b4" if expanded else "\u25be"
-        word = "less" if expanded else "more"
-        return f"{arrow} {key} {word}"
+            base = "more" if not expanded else "less"
+        else:
+            arrow = "\u25b4" if expanded else "\u25be"
+            word = "less" if expanded else "more"
+            base = f"{arrow} {key} {word}"
+        if hidden_lines > 0 and not expanded:
+            return f"+{hidden_lines} lines · {base}"
+        return base
 
-    def _apply_chrome(self, identity: IdentityHeader, shown_expanded: bool) -> None:
+    def _content_width(self) -> int:
+        """Return the content width available for preview rows."""
+        try:
+            content = self.query_one("#agent-header-content", Static)
+            width = int(getattr(content.size, "width", 0) or 0)
+            if width > 0:
+                return width
+        except Exception:
+            pass
+        try:
+            width = int(getattr(self.size, "width", 0) or 0)
+            if width > 0:
+                return max(width - 6, 1)
+        except Exception:
+            pass
+        return _FALLBACK_CONTENT_WIDTH
+
+    def _preview_budget(self) -> int:
+        """Return how many preview rows the current column height allows."""
+        settings = agent_header_settings_for(self)
+        return preview_row_budget(self._column_rows, settings.collapsed_max_share)
+
+    def _pending_hold_rows(self, budget: int) -> int:
+        """Return the placeholder height held while the full paint is pending."""
+        if budget <= 0:
+            return 0
+        return min(self._last_preview_rows, budget)
+
+    def _pending_placeholder(self, rows: int) -> Text:
+        """Return quote-barred placeholder rows with a dim marker on row one."""
+        out = Text(no_wrap=True, overflow="ellipsis")
+        for index in range(rows):
+            if index:
+                out.append("\n")
+            out.append(f"{PREVIEW_BAR_GLYPH} ", style=PREVIEW_BAR_STYLE)
+            if index == 0:
+                out.append(_PENDING_GLYPH, style=_PENDING_GLYPH_STYLE)
+        return out
+
+    def _collapsed_content(
+        self, identity: IdentityHeader, width: int, budget: int
+    ) -> tuple[RenderableType, XpromptPreviewFit | None, int]:
+        """Return the collapsed renderable, its fit, and shown preview rows."""
+        collapsed = identity.compact.copy()
+        if budget <= 0:
+            return collapsed, None, 0
+        if identity.xprompt_pending and identity.xprompt is None:
+            hold = self._pending_hold_rows(budget)
+            if hold <= 0:
+                return collapsed, None, 0
+            collapsed.append("\n")
+            collapsed.append_text(self._pending_placeholder(hold))
+            return collapsed, None, hold
+        xprompt = identity.xprompt
+        if xprompt is None or not xprompt.plain.strip():
+            return collapsed, None, 0
+        fit = fit_xprompt_preview(xprompt, width=width, max_rows=budget)
+        if fit.rows <= 0:
+            return collapsed, fit, 0
+        collapsed.append("\n")
+        collapsed.append_text(fit.text)
+        return collapsed, fit, fit.rows
+
+    @staticmethod
+    def _expanded_row_estimate(
+        renderable: RenderableType, identity: IdentityHeader
+    ) -> int:
+        """Estimate expanded content rows for pin-reapply change detection."""
+        plain: str | None = None
+        if isinstance(renderable, Text):
+            plain = renderable.plain
+        else:
+            getter = getattr(renderable, "plain", None)
+            if isinstance(getter, str):
+                plain = getter
+        if plain is not None:
+            return plain.count("\n") + 1
+        rows = _COMPACT_ROW_COUNT + 2
+        if identity.xprompt is not None:
+            rows += identity.xprompt.plain.count("\n") + 1
+        return rows
+
+    def _apply_chrome(
+        self, identity: IdentityHeader, shown_expanded: bool, subtitle: str
+    ) -> None:
         """Update the border title, subtitle, and dimmed accent border."""
         title = Text(identity.kind_label, style=f"bold {identity.accent}")
-        subtitle_text = self._subtitle_for(shown_expanded)
         self.border_title = title
-        self.border_subtitle = subtitle_text
+        self.border_subtitle = subtitle
         if self._last_kind != identity.kind_label:
             self._last_kind = identity.kind_label
             try:
@@ -88,24 +221,41 @@ class AgentHeaderPanel(VerticalScroll):
         if header is None:
             self._last_digest = None
             self._last_kind = None
+            self._last_preview_rows = 0
+            self._rendered_rows = 0
             content.update("")
             self.border_title = ""
             self.border_subtitle = ""
             return
         shown_expanded = bool(self._expanded or header.has_hints)
-        shown = header.expanded if shown_expanded else header.compact
-        subtitle = self._subtitle_for(shown_expanded)
+        width = self._content_width()
+        budget = self._preview_budget()
+        pending = bool(header.xprompt_pending and header.xprompt is None)
+        if shown_expanded:
+            shown: RenderableType = header.expanded_renderable()
+            fit: XpromptPreviewFit | None = None
+            preview_rows = 0
+            hidden_lines = 0
+            subtitle = self._subtitle_for(True)
+            self._rendered_rows = self._expanded_row_estimate(shown, header)
+        else:
+            shown, fit, preview_rows = self._collapsed_content(header, width, budget)
+            hidden_lines = fit.hidden_lines if fit is not None and fit.truncated else 0
+            subtitle = self._subtitle_for(False, hidden_lines=hidden_lines)
+            self._rendered_rows = _COMPACT_ROW_COUNT + preview_rows
+        self._last_preview_rows = preview_rows
         try:
             digest = renderable_content_digest(shown)
             digest += (
                 f"|{header.kind_label}|{subtitle}|{header.accent}|{shown_expanded}"
+                f"|{width}|{budget}|{pending}|{preview_rows}|{hidden_lines}"
             )
         except Exception:
             digest = None
         if digest is not None and digest == self._last_digest:
             return
         self._last_digest = digest
-        self._apply_chrome(header, shown_expanded)
+        self._apply_chrome(header, shown_expanded, subtitle)
         content.update(shown)
 
     def toggle_expanded(self) -> bool:

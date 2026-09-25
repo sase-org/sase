@@ -17,8 +17,13 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
 )
 from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
+from sase.ace.tui.widgets.agent_header_preview import preview_row_budget
+from sase.ace.tui.agent_header_settings import AgentHeaderSettings
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
-from tests.ace.tui.widgets._agent_display_helpers import make_agent
+from tests.ace.tui.widgets._agent_display_helpers import (
+    make_agent,
+    make_artifact_agent,
+)
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
 
 from sase.ace.tui.models._agent_tree import project_clan_tree
@@ -36,6 +41,47 @@ class _DetailApp(App[None]):
 async def _show_agent(detail: AgentDetail, agent: Any, pilot: Any) -> None:
     detail.update_display_immediate(agent)
     await pilot.pause()
+
+
+async def _show_agent_full(detail: AgentDetail, agent: Any, pilot: Any) -> None:
+    detail.update_display(agent)
+    await pilot.pause()
+
+
+def _preview_rows(panel: AgentHeaderPanel) -> int:
+    return int(panel._last_preview_rows)  # noqa: SLF001
+
+
+_LONG_XPROMPT = (
+    "Can you help me start rendering the AGENT XPROMPT section in the sticky "
+    "header above the agent data deck panel? Make sure that we provide a good "
+    "preview of the contents in this section.\n"
+    "\n"
+    "- first list item explains the quote bar\n"
+    "- second list item explains the row budget\n"
+    "```\n"
+    "some fenced code block line\n"
+    "```\n"
+    "A final hard-wrapped prose paragraph keeps going so the preview budget "
+    "overflows and the border subtitle names the hidden line count."
+)
+
+_SHORT_XPROMPT = "Fix the typo on the launch line."
+
+
+def _artifact_agent(tmp_path: Any, name: str, raw_xprompt: str) -> Any:
+    import dataclasses
+
+    subdir = tmp_path / name
+    subdir.mkdir(exist_ok=True)
+    agent = make_artifact_agent(subdir, status="DONE", raw_xprompt=raw_xprompt)
+    return dataclasses.replace(agent, cl_name=f"cl-{name}", raw_suffix=name)
+
+
+def _tagged(agent: Any, tag: str) -> Any:
+    import dataclasses
+
+    return dataclasses.replace(agent, cl_name=f"cl-{tag}", raw_suffix=tag)
 
 
 def _header_panel(detail: AgentDetail) -> AgentHeaderPanel:
@@ -278,3 +324,212 @@ def test_toggle_unavailable_while_prompt_input_owns_keys() -> None:
     assert check_app_action(busy, "toggle_agent_header", (), _fallback) is False
     hidden = _FakeAgentsApp(prompt_active=False, detail=_FakeDetail(available=False))
     assert check_app_action(hidden, "toggle_agent_header", (), _fallback) is False
+
+
+async def test_collapsed_preview_shows_quote_bar_and_body_omits_xprompt(
+    tmp_path: Any,
+) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        assert not panel.is_expanded
+        rows = _header_text(panel).splitlines()
+        assert len(rows) == 2 + _preview_rows(panel)
+        assert _preview_rows(panel) >= 1
+        for preview_row in rows[2:]:
+            assert preview_row.startswith("▎ ")
+        assert "rendering the AGENT XPROMPT" in _header_text(panel)
+        prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
+        body = renderable_to_text(prompt.content) or ""
+        assert "AGENT XPROMPT" not in body
+        assert "AGENT PROMPT" in body
+
+
+async def test_preview_row_count_matches_budget_and_short_prompt_fits(
+    tmp_path: Any,
+) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        expected = preview_row_budget(int(panel._column_rows), 0.35)  # noqa: SLF001
+        assert expected >= 1
+        assert _preview_rows(panel) == expected
+        assert "lines · " in str(panel.border_subtitle)
+
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "b", _SHORT_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        assert _preview_rows(panel) == 1
+        assert _header_text(panel).splitlines()[-1].startswith("▎ ")
+        assert "lines" not in str(panel.border_subtitle)
+        assert "more" in str(panel.border_subtitle)
+
+
+async def test_overflow_subtitle_names_hidden_lines(tmp_path: Any) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        subtitle = str(panel.border_subtitle)
+        assert "lines · " in subtitle
+        assert "more" in subtitle
+        assert _header_text(panel).splitlines()[-1].rstrip().endswith("…")
+
+
+async def test_expand_shows_full_xprompt_and_toggles_back(tmp_path: Any) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+
+        assert detail.toggle_header_expanded() is True
+        await pilot.pause()
+        expanded = _header_text(panel)
+        assert "AGENT XPROMPT" in expanded
+        assert "some fenced code block line" in expanded
+        assert "less" in str(panel.border_subtitle)
+
+        assert detail.toggle_header_expanded() is False
+        await pilot.pause()
+        collapsed = _header_text(panel).splitlines()
+        assert len(collapsed) == 2 + _preview_rows(panel)
+        assert not any(line.strip() == "AGENT XPROMPT" for line in collapsed)
+
+
+def test_no_phantom_row_rule_in_stylesheet() -> None:
+    from pathlib import Path
+
+    tcss = Path("src/sase/ace/tui/styles.tcss").read_text(encoding="utf-8")
+    for selector in ("#agent-header-panel", "#agent-jump-panel"):
+        start = tcss.index(selector + " {")
+        block = tcss[start : tcss.index("}", start)]
+        assert "scrollbar-size-horizontal: 0;" in block
+
+
+async def test_collapsed_content_rows_are_exact(tmp_path: Any) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        assert len(_header_text(panel).splitlines()) == 2 + _preview_rows(panel)
+
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "b", _SHORT_XPROMPT), pilot
+        )
+        assert len(_header_text(panel).splitlines()) == 2 + _preview_rows(panel)
+        assert _preview_rows(panel) == 1
+
+
+async def test_pending_hold_keeps_rows_then_settles(tmp_path: Any) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        held = _preview_rows(panel)
+        assert held >= 1
+
+        other = _tagged(_solo(), "b")
+        await _show_agent(detail, other, pilot)
+        assert _preview_rows(panel) == held
+        assert _header_text(panel).splitlines()[2].startswith("▎ ")
+        assert "⋯" in _header_text(panel)
+
+        await _show_agent_full(detail, other, pilot)
+        assert _preview_rows(panel) == 0
+        assert len(_header_text(panel).splitlines()) == 2
+
+
+async def test_visited_agent_cheap_path_shows_preview(tmp_path: Any) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        agent = _artifact_agent(tmp_path, "a", _LONG_XPROMPT)
+        await _show_agent_full(detail, agent, pilot)
+        panel = _header_panel(detail)
+        full_rows = _preview_rows(panel)
+        assert full_rows >= 1
+
+        await _show_agent(
+            detail, _tagged(make_agent(agent_name="other"), "other"), pilot
+        )
+        await _show_agent(detail, agent, pilot)
+        assert _preview_rows(panel) == full_rows
+        assert _header_text(panel).splitlines()[2].startswith("▎ ")
+
+
+async def test_share_zero_hides_preview_but_expanded_keeps_xprompt(
+    tmp_path: Any,
+) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        app._agent_header_settings = AgentHeaderSettings(collapsed_max_share=0.0)  # noqa: SLF001
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        assert _preview_rows(panel) == 0
+        assert len(_header_text(panel).splitlines()) == 2
+
+        assert detail.toggle_header_expanded() is True
+        await pilot.pause()
+        assert "AGENT XPROMPT" in _header_text(panel)
+
+
+async def test_column_resize_changes_budget(tmp_path: Any) -> None:
+    import types
+
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _LONG_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        before = _preview_rows(panel)
+        detail.on_resize(types.SimpleNamespace(size=types.SimpleNamespace(height=100)))
+        await pilot.pause()
+        assert _preview_rows(panel) > before
+        assert "lines" not in str(panel.border_subtitle)
+
+
+async def test_bottom_pinned_body_stays_pinned_across_row_count_change(
+    tmp_path: Any,
+) -> None:
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "a", _SHORT_XPROMPT), pilot
+        )
+        panel = _header_panel(detail)
+        before = panel.rendered_row_count
+        main_view = detail.deck_area.panel(0).main_view
+        main_view.pin_to_bottom()
+        assert bool(main_view.is_pinned_to_bottom) is True
+        await _show_agent_full(
+            detail, _artifact_agent(tmp_path, "b", _LONG_XPROMPT), pilot
+        )
+        assert panel.rendered_row_count != before
+        assert bool(main_view.is_pinned_to_bottom) is True
