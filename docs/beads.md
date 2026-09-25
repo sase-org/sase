@@ -1215,6 +1215,14 @@ exact flags. They go stale the instant the bead closes and turn unrelated agents
 List the entries with `sase bead epic-symbols <id>`. Already-closed no-ops skip this
 check. `--force` does not bypass it: leftover entries still break the lint gate.
 
+Closing a `flag` task bead is rejected the same way while the working tree's
+`src/sase/feature_flags/registry.py` still defines a flag naming it
+(`check_feature_flags` rule 7 would turn every workspace red). The registry is parsed
+statically, not imported, and the error names each surviving flag key. In the same
+change, delete the flag's Off branch, make its On branch unconditional, and remove the
+registry entry, or keep the bead open. A tree with no registry file skips the check. The
+flag-triage gate's deliberate Close action is unaffected.
+
 Closing a delegated child plan/epic also closes its parent phase automatically once
 every child of that phase is closed. This upward cascade continues only through phase
 parents and never auto-closes a parent plan/epic; the parent land agent retains that

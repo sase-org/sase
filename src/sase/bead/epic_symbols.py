@@ -9,11 +9,13 @@ them for the next agent.
 
 from __future__ import annotations
 
+import ast
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import re
 
+from sase.bead.flag_fields import is_flag_bead
 from sase.bead.model import Issue, Status
 
 _JUSTFILE_NAMES = ("Justfile", "justfile")
@@ -41,7 +43,6 @@ class _EpicSymbolEntry:
 
 
 _FLAG_REGISTRY_RELPATH = Path("src/sase/feature_flags/registry.py")
-_FLAG_DEFINITION_BEAD = re.compile(r"""\bbead\s*=\s*["']([^"']+)["']""")
 
 
 class _LeftoverEpicSymbolsError(ValueError):
@@ -161,15 +162,42 @@ def raise_if_leftover_epic_symbols(
     )
 
 
-def _registry_flag_beads(start: Path | None = None) -> set[str]:
-    """Return bead ids named by the working tree's feature-flag registry."""
+def _flag_key_name(node: ast.expr | None) -> str:
+    """Return the flag key a registry ``key=`` argument spells."""
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return "<unknown key>"
+
+
+def _registry_flag_definitions(start: Path | None = None) -> dict[str, list[str]]:
+    """Map bead ids to the flag keys the working tree's registry defines for them.
+
+    Parse the registry statically: the running ``sase`` may be a different
+    install than the working tree, so importing it could read the wrong file.
+    """
     justfile = discover_justfile(start)
     if justfile is None:
-        return set()
+        return {}
     registry = justfile.parent / _FLAG_REGISTRY_RELPATH
     if not registry.is_file():
-        return set()
-    return set(_FLAG_DEFINITION_BEAD.findall(registry.read_text(encoding="utf-8")))
+        return {}
+    try:
+        tree = ast.parse(registry.read_text(encoding="utf-8"), filename=str(registry))
+    except (OSError, SyntaxError, ValueError):
+        return {}
+    definitions: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        keywords = {kw.arg: kw.value for kw in node.keywords if kw.arg}
+        bead = keywords.get("bead")
+        if isinstance(bead, ast.Constant) and isinstance(bead.value, str):
+            definitions.setdefault(bead.value, []).append(
+                _flag_key_name(keywords.get("key"))
+            )
+    return definitions
 
 
 def raise_if_surviving_flag_definition(
@@ -182,17 +210,30 @@ def raise_if_surviving_flag_definition(
     ``check_feature_flags`` rule 7 fails every workspace once a named flag bead
     is closed while its definition survives, so close must surface it first.
     """
-    targets = [issue.id for issue in issues if issue.status is not Status.CLOSED]
+    targets = [
+        issue.id
+        for issue in issues
+        if issue.status is not Status.CLOSED and is_flag_bead(issue)
+    ]
     if not targets:
         return
-    surviving = sorted(set(targets) & _registry_flag_beads(start))
+    definitions = _registry_flag_definitions(start)
+    surviving = [bead_id for bead_id in targets if bead_id in definitions]
     if not surviving:
         return
-    names = ", ".join(surviving)
-    raise _LeftoverEpicSymbolsError(
-        f"refusing to close {names}: the feature-flag registry "
-        f"({_FLAG_REGISTRY_RELPATH}) still defines a flag naming it, which "
-        "turns unrelated agents' just check red (check_feature_flags rule 7). "
-        "Remove the flag definition (and its references and schema entry) "
-        "before closing the flag bead."
-    )
+    lines = [
+        f"refusing to close {', '.join(surviving)}: the feature-flag registry "
+        f"({_FLAG_REGISTRY_RELPATH}) still defines a flag naming this bead "
+        "(closing it turns unrelated agents' just check red through "
+        "check_feature_flags rule 7):",
+        *(
+            f"  {key} (bead={bead_id})"
+            for bead_id in surviving
+            for key in definitions[bead_id]
+        ),
+        "",
+        "In the same change, delete each flag's Off branch, make its On branch "
+        "unconditional, and remove the registry entry (with its references and "
+        "schema entry); or keep the bead open.",
+    ]
+    raise _LeftoverEpicSymbolsError("\n".join(lines))

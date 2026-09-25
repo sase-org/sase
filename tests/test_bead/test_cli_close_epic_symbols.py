@@ -10,6 +10,7 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
+from tests._axe_chop_bead_task_triage_helpers import flag_task_fields
 from tests.test_bead.resolution_test_helpers import (
     bead_store_snapshot,
     isolate_bead_store_resolution,
@@ -118,6 +119,47 @@ def test_close_succeeds_after_justfile_entries_are_removed(
     project_dir.joinpath("Justfile").write_text("symvision src\n", encoding="utf-8")
 
     bead_cli.handle_bead_close(create_parser().parse_args(["bead", "close", issue.id]))
+
+    with BeadProject(project_dir) as project:
+        assert project.show(issue.id).status is Status.CLOSED
+
+
+def test_close_refuses_flag_bead_until_registry_definition_is_removed(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create(
+            "Remove the old_path flag",
+            IssueType.TASK,
+            size="small",
+            task_type="flag",
+            task_type_fields=flag_task_fields(key="old_path"),
+        )
+    _write_justfile(project_dir, "--exclude-decorator builtin_chop")
+    registry = project_dir / "src/sase/feature_flags/registry.py"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(
+        "FeatureFlagDefinition(\n"
+        "    key=FeatureFlag.old_path,\n"
+        '    kind="sunset",\n'
+        f'    bead="{issue.id}",\n'
+        ")\n",
+        encoding="utf-8",
+    )
+
+    args = create_parser().parse_args(["bead", "close", issue.id, "--note", "done"])
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_close(args)
+
+    error = capsys.readouterr().err
+    assert f"refusing to close {issue.id}" in error
+    assert f"old_path (bead={issue.id})" in error
+    with BeadProject(project_dir) as project:
+        assert project.show(issue.id).status is not Status.CLOSED
+
+    registry.write_text("", encoding="utf-8")
+    bead_cli.handle_bead_close(args)
 
     with BeadProject(project_dir) as project:
         assert project.show(issue.id).status is Status.CLOSED

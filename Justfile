@@ -363,8 +363,10 @@ _lint-patch-stitch-terminology: _setup
 # Epic-symbol entries are self-cleaning: each entry goes away with the phase
 # that first consumes its symbols (sase-17x.9 consumed ensure_command_line_spec
 # and CompletionSpecCacheError; sase-18g.3 consumed the agent-header preview
-# symbols keyed to the sase-18g epic). The sase-18j entries wait on its e3
-# record-and-render, known-gated-continuation, and failures-and-followups phases.
+# symbols keyed to the sase-18g epic). The sase-18j entries wait on E3's
+# record-and-render, known-gated-continuation, and failures-and-followups
+# phases. Never put a comment line inside the continued command below: just
+# joins the lines, so the comment would swallow every later argument.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \

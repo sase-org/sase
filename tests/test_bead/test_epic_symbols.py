@@ -14,6 +14,7 @@ from sase.bead.epic_symbols import (
     discover_justfile,
     entries_for_beads,
     raise_if_leftover_epic_symbols,
+    raise_if_surviving_flag_definition,
 )
 from sase.bead.model import Issue, IssueType, Status
 
@@ -27,6 +28,39 @@ def _issue(issue_id: str, *, status: Status = Status.IN_PROGRESS) -> Issue:
         created_at="2026-08-17T00:00:00Z",
         updated_at="2026-08-17T00:00:00Z",
     )
+
+
+def _flag_issue(issue_id: str, *, status: Status = Status.IN_PROGRESS) -> Issue:
+    return Issue(
+        id=issue_id,
+        title=issue_id,
+        issue_type=IssueType.TASK,
+        status=status,
+        created_at="2026-08-17T00:00:00Z",
+        updated_at="2026-08-17T00:00:00Z",
+        task_type="flag",
+    )
+
+
+def _write_flag_registry(root: Path, text: str) -> Path:
+    (root / ".git").mkdir(exist_ok=True)
+    (root / "Justfile").write_text("check:\n", encoding="utf-8")
+    registry = root / "src/sase/feature_flags/registry.py"
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(text, encoding="utf-8")
+    return registry
+
+
+_REGISTRY_WITH_ABC = """
+_FEATURE_FLAG_DEFINITIONS = {
+    FeatureFlag.old_path: FeatureFlagDefinition(
+        key=FeatureFlag.old_path,
+        kind="sunset",
+        description="Old path.",
+        bead="sase-abc",
+    ),
+}
+"""
 
 
 def test_parse_epic_symbol_entries_accepts_quoted_and_bare_flags() -> None:
@@ -125,22 +159,58 @@ def test_raise_if_leftover_epic_symbols_names_the_justfile_flags(
     assert "sase bead epic-symbols sase-o8.2" in message
 
 
-def test_raise_if_surviving_flag_definition_refuses_registry_bead(
+def test_raise_if_surviving_flag_definition_names_flag_key_and_fix(
     tmp_path: Path,
 ) -> None:
-    from sase.bead.epic_symbols import raise_if_surviving_flag_definition
+    _write_flag_registry(tmp_path, _REGISTRY_WITH_ABC)
 
+    with pytest.raises(_LeftoverEpicSymbolsError, match="rule 7") as exc_info:
+        raise_if_surviving_flag_definition([_flag_issue("sase-abc")], start=tmp_path)
+
+    message = str(exc_info.value)
+    assert "refusing to close sase-abc" in message
+    assert "old_path (bead=sase-abc)" in message
+    assert "delete each flag's Off branch" in message
+    assert "keep the bead open" in message
+
+
+def test_raise_if_surviving_flag_definition_allows_close_once_entry_is_removed(
+    tmp_path: Path,
+) -> None:
+    registry = _write_flag_registry(tmp_path, _REGISTRY_WITH_ABC)
+    registry.write_text("_FEATURE_FLAG_DEFINITIONS = {}\n", encoding="utf-8")
+
+    raise_if_surviving_flag_definition([_flag_issue("sase-abc")], start=tmp_path)
+
+
+def test_raise_if_surviving_flag_definition_ignores_other_and_closed_beads(
+    tmp_path: Path,
+) -> None:
+    _write_flag_registry(tmp_path, _REGISTRY_WITH_ABC)
+
+    raise_if_surviving_flag_definition([_flag_issue("sase-other")], start=tmp_path)
+    raise_if_surviving_flag_definition(
+        [_flag_issue("sase-abc", status=Status.CLOSED)], start=tmp_path
+    )
+    raise_if_surviving_flag_definition([_issue("sase-abc")], start=tmp_path)
+
+
+def test_raise_if_surviving_flag_definition_ignores_comments_and_docstrings(
+    tmp_path: Path,
+) -> None:
+    _write_flag_registry(
+        tmp_path,
+        '"""Example: FeatureFlagDefinition(key=..., bead="sase-abc")."""\n'
+        '# bead="sase-abc" was removed\n',
+    )
+
+    raise_if_surviving_flag_definition([_flag_issue("sase-abc")], start=tmp_path)
+
+
+def test_raise_if_surviving_flag_definition_skips_missing_registry(
+    tmp_path: Path,
+) -> None:
     (tmp_path / ".git").mkdir()
     (tmp_path / "Justfile").write_text("check:\n", encoding="utf-8")
-    registry = tmp_path / "src/sase/feature_flags/registry.py"
-    registry.parent.mkdir(parents=True)
-    registry.write_text('    bead="sase-abc",\n', encoding="utf-8")
 
-    with pytest.raises(_LeftoverEpicSymbolsError, match="rule 7"):
-        raise_if_surviving_flag_definition([_issue("sase-abc")], start=tmp_path)
-    raise_if_surviving_flag_definition([_issue("sase-other")], start=tmp_path)
-    raise_if_surviving_flag_definition(
-        [_issue("sase-abc", status=Status.CLOSED)], start=tmp_path
-    )
-    registry.write_text("", encoding="utf-8")
-    raise_if_surviving_flag_definition([_issue("sase-abc")], start=tmp_path)
+    raise_if_surviving_flag_definition([_flag_issue("sase-abc")], start=tmp_path)
