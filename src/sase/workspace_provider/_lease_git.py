@@ -9,6 +9,7 @@ from pathlib import Path
 
 from sase.core.retryability_facade import classify_failure_retryability
 from sase.core.retryability_wire import RETRY_OPERATION_GIT
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider._lease_model import (
     OperationalLeaseError,
     is_credential_verdict,
@@ -37,7 +38,7 @@ def prepare_from_primary_remote(checkout: Path) -> None:
     if upstream is None:
         return
     local_branch = upstream.rsplit("/", 1)[-1]
-    checkout_result = _run_git(
+    checkout_result = _run_git_mutation(
         ["checkout", "--force", "-B", local_branch, upstream],
         checkout,
     )
@@ -169,6 +170,17 @@ def _git_remotes(checkout: Path) -> set[str]:
 def _ref_exists(checkout: Path, ref: str) -> bool:
     result = _run_git(["show-ref", "--verify", "--quiet", ref], checkout)
     return result.returncode == 0
+
+
+def _run_git_mutation(
+    args: list[str],
+    checkout: Path,
+) -> subprocess.CompletedProcess[str]:
+    result, _outcome = run_with_git_lock_retry(
+        lambda: _run_git(args, checkout),
+        cwd=checkout,
+    )
+    return result
 
 
 def _run_git(

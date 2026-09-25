@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -61,6 +62,14 @@ def _head(repo: Path) -> str:
 def _advance_origin(origin: Path, content: str) -> None:
     (origin / "README.md").write_text(content, encoding="utf-8")
     _run(["commit", "-aq", "-m", "advance"], origin)
+
+
+def _plant_index_lock(repo: Path, *, age_seconds: float) -> Path:
+    lock = repo / ".git" / "index.lock"
+    lock.write_text("stale\n", encoding="utf-8")
+    stamped = time.time() - age_seconds
+    os.utime(lock, (stamped, stamped))
+    return lock
 
 
 def _put_checkout_in_stale_rebase(checkout: Path, origin: Path) -> None:
@@ -480,6 +489,39 @@ class TestResetLeasedCheckoutToUpstream:
             ).stdout.strip()
             == local_nested
         )
+
+    def test_resets_through_a_stale_index_lock(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0")
+        origin = tmp_path / "origin"
+        checkout = tmp_path / "proj_10"
+        _init_origin(origin)
+        _clone(origin, checkout)
+        _advance_origin(origin, "origin v2\n")
+        lock = _plant_index_lock(checkout, age_seconds=3600)
+        context = _context(checkout, tmp_path / "proj")
+
+        reset_leased_checkout_to_upstream(context, checkout)
+
+        assert _head(checkout) == _head(origin)
+        assert not lock.exists()
+
+    def test_does_not_remove_a_fresh_index_lock(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0")
+        origin = tmp_path / "origin"
+        checkout = tmp_path / "proj_10"
+        _init_origin(origin)
+        _clone(origin, checkout)
+        lock = _plant_index_lock(checkout, age_seconds=0)
+        context = _context(checkout, tmp_path / "proj")
+
+        with pytest.raises(ResetReplayError, match="index.lock"):
+            reset_leased_checkout_to_upstream(context, checkout)
+
+        assert lock.exists()
 
 
 class TestOperationalLeaseResetAndReplay:

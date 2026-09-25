@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -30,6 +32,7 @@ class TestPrepareFromRemote:
         fetch_stderr: str = "",
         checkout_stderr: str = "",
         fetch_script: Sequence[str | None] | None = None,
+        lock_aware_checkout: bool = False,
     ) -> dict[str, Any]:
         import subprocess
 
@@ -41,7 +44,6 @@ class TestPrepareFromRemote:
         def fake_run_git(
             args: list[str], checkout: Path, timeout: float | None = None
         ) -> subprocess.CompletedProcess[str]:
-            del checkout
             if args[0] == "fetch":
                 fetch_calls.append({"timeout": timeout})
                 if script is not None:
@@ -64,6 +66,18 @@ class TestPrepareFromRemote:
                 return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             if args[0] == "checkout":
                 checkout_calls.append({"timeout": timeout})
+                if lock_aware_checkout:
+                    lock = checkout / ".git" / "index.lock"
+                    if lock.exists():
+                        return subprocess.CompletedProcess(
+                            args,
+                            128,
+                            stdout="",
+                            stderr=(
+                                f"fatal: Unable to create '{lock}': File exists.\n"
+                            ),
+                        )
+                    return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
                 if checkout_stderr:
                     return subprocess.CompletedProcess(
                         args, 128, stdout="", stderr=checkout_stderr + "\n"
@@ -408,6 +422,101 @@ class TestPrepareFromRemote:
         ).stdout.strip()
         assert head == remote_head
         assert (checkout / "README").read_text(encoding="utf-8") == "two\n"
+
+    def test_prepare_recovers_from_stale_index_lock(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import subprocess
+
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0")
+        remote, checkout = _prepared_lease_checkout(tmp_path)
+        lock = _plant_index_lock(checkout, age_seconds=3600)
+
+        _prepare_from_primary_remote(checkout)
+
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        remote_head = subprocess.run(
+            ["git", "rev-parse", "main"],
+            cwd=remote,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert head == remote_head
+        assert not lock.exists()
+
+    def test_prepare_does_not_remove_a_fresh_index_lock(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0")
+        _remote, checkout = _prepared_lease_checkout(tmp_path)
+        lock = _plant_index_lock(checkout, age_seconds=0)
+
+        with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
+            _prepare_from_primary_remote(checkout)
+
+        assert "index.lock" in str(exc_info.value)
+        assert lock.exists()
+
+    def test_prepare_lock_recovery_does_not_use_fetch_sleep(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0")
+        (tmp_path / ".git").mkdir()
+        lock = _plant_index_lock(tmp_path, age_seconds=3600)
+        calls = self._fake_git(monkeypatch, lock_aware_checkout=True)
+
+        _prepare_from_primary_remote(tmp_path)
+
+        assert len(calls["checkout_calls"]) > 1
+        assert calls["sleep_calls"] == []
+        assert not lock.exists()
+
+
+def _prepared_lease_checkout(tmp_path: Path) -> tuple[Path, Path]:
+    import subprocess
+
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(remote)], check=True)
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    _init_git(seed)
+    (seed / "README").write_text("one\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-qm", "one"], cwd=seed, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(remote)], cwd=seed, check=True
+    )
+    subprocess.run(["git", "push", "-u", "origin", "main"], cwd=seed, check=True)
+
+    checkout = tmp_path / "lease"
+    subprocess.run(["git", "clone", str(remote), str(checkout)], check=True)
+    (seed / "README").write_text("two\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README"], cwd=seed, check=True)
+    subprocess.run(["git", "commit", "-qm", "two"], cwd=seed, check=True)
+    subprocess.run(["git", "push", "origin", "main"], cwd=seed, check=True)
+    return remote, checkout
+
+
+def _plant_index_lock(repo: Path, *, age_seconds: float) -> Path:
+    lock = repo / ".git" / "index.lock"
+    lock.write_text("stale\n", encoding="utf-8")
+    stamped = time.time() - age_seconds
+    os.utime(lock, (stamped, stamped))
+    return lock
 
 
 def _init_git(path: Path) -> None:

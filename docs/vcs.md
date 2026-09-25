@@ -827,7 +827,8 @@ CLI) without modifying the core.
 
 ### Git `index.lock` Contention
 
-SASE routes Git mutations used by commits, workspace setup, SDD writes, linked
+SASE routes Git mutations used by commits, workspace setup, operational workspace leases
+(lease preparation and reset/replay recovery of leased checkouts), SDD writes, linked
 repositories, agent reverts, updates, and finalization through one bounded lock-recovery
 policy. On an `index.lock` failure it retries with short exponential backoff. If the
 canonical lock remains the same throughout that window or is already at least 15 seconds

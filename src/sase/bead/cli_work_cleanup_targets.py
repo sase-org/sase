@@ -27,7 +27,7 @@ def _is_agent_session_membership(membership: _OwnerMembership) -> bool:
     return membership == "session"
 
 
-class _OwnerRecordLookup(Protocol):
+class OwnerRecordLookup(Protocol):
     """Minimal owner view needed to classify one targeted artifact."""
 
     @property
@@ -393,7 +393,7 @@ def classify_artifact_record(
     owner_name: str,
     bead_assignees: dict[str, str],
     membership: _OwnerMembership,
-    view: _OwnerRecordLookup,
+    view: OwnerRecordLookup,
 ) -> CleanupTarget:
     _require_record_association(
         slot,
@@ -453,7 +453,7 @@ def classify_stale_registry_owner(
     owner: dict[str, object],
     *,
     bead_assignees: dict[str, str],
-    view: _OwnerRecordLookup,
+    view: OwnerRecordLookup,
 ) -> CleanupTarget:
     preserved = _resolve_assignee_conflict(
         slot,
@@ -577,7 +577,7 @@ def _resolve_assignee_conflict(
     *,
     owner_name: str,
     bead_assignees: dict[str, str],
-    view: _OwnerRecordLookup,
+    view: OwnerRecordLookup,
 ) -> CleanupTarget | None:
     assignee = bead_assignees.get(slot.expected_bead_id, "")
     if not assignee:

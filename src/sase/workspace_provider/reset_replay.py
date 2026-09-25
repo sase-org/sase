@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.ownership import (
     AccessKind,
     OperationContext,
@@ -235,7 +236,7 @@ def _reset_leased_checkout(
         )
     upstream_sha = upstream_sha_result.stdout.strip()
     recovery_ref = _snapshot_pre_reset_head(repo_root, clock=clock)
-    reset = _run_git(["reset", "--hard", upstream_sha], repo_root)
+    reset = _run_git_mutation(["reset", "--hard", upstream_sha], repo_root)
     if reset.returncode != 0:
         raise _ResetFailure(f"git reset --hard failed: {_git_error(reset)}")
     return recovery_ref
@@ -252,7 +253,7 @@ def _abort_in_progress_operations(repo_root: Path) -> None:
         git_dir = repo_root / git_dir
 
     def _run(argv: list[str]) -> tuple[int, str]:
-        result = _run_git(argv[1:], repo_root)
+        result = _run_git_mutation(argv[1:], repo_root)
         return result.returncode, _git_error(result)
 
     error = abort_in_progress_git_operations(repo_root, git_dir, _run)
@@ -286,6 +287,17 @@ def _snapshot_pre_reset_head(
     if updated.returncode != 0:
         return None
     return ref
+
+
+def _run_git_mutation(
+    args: list[str],
+    repo_root: Path,
+) -> subprocess.CompletedProcess[str]:
+    result, _outcome = run_with_git_lock_retry(
+        lambda: _run_git(args, repo_root),
+        cwd=repo_root,
+    )
+    return result
 
 
 def _run_git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:

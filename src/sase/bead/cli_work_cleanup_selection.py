@@ -22,7 +22,7 @@ from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
     from sase.agent.names._registry_batch import RegisteredNameReservationSnapshot
-    from sase.bead.cli_work_cleanup_targets import _OwnerRecordLookup
+    from sase.bead.cli_work_cleanup_targets import OwnerRecordLookup
 
 
 def preview_bead_work_force_reuse(
@@ -364,7 +364,7 @@ def _lookup_slot_owners(
 def _drifted_owner_names(
     slots: tuple[BeadWorkSlot, ...],
     *,
-    view: _OwnerRecordLookup,
+    view: OwnerRecordLookup,
     owner_by_name: dict[str, dict[str, object] | None],
 ) -> tuple[str, ...]:
     """Return owner names present in artifacts but missing from the registry."""
