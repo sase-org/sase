@@ -369,12 +369,8 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-18i(CoderPlacement)' \
-        --epic-symbol 'sase-18i(DirectApprovalOutcome)' \
-        --epic-symbol 'sase-18i(DirectApprovalRequest)' \
         --epic-symbol 'sase-18i(PlanGateHistory)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
-        --epic-symbol 'sase-18i(execute_direct_approval)' \
-        --epic-symbol 'sase-18i(resolve_direct_approval)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

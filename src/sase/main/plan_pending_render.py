@@ -79,7 +79,7 @@ def render_ambiguity(
     out.print(Text("Pass one plan name from the list above.", style="dim"))
 
 
-def render_approve_success(
+def _render_approve_success(
     plan: PendingPlan,
     message: str,
     notification_id: str,
@@ -107,7 +107,7 @@ def render_reject_success(
     console: Console | None = None,
 ) -> None:
     """Render a rejection success leading with the plan name."""
-    render_approve_success(plan, message, notification_id, response_path, console)
+    _render_approve_success(plan, message, notification_id, response_path, console)
 
 
 def _render_awaiting_list(plans: tuple[PendingPlan, ...], out: Console) -> None:
@@ -146,7 +146,6 @@ def _candidate_line(
 
 __all__ = [
     "render_ambiguity",
-    "render_approve_success",
     "render_miss",
     "render_reject_success",
 ]

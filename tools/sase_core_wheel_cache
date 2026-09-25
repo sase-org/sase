@@ -20,7 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -436,7 +436,7 @@ def _identity_lock(
     identity: CacheIdentity,
     *,
     timeout_seconds: float,
-) -> object:
+) -> Iterator[bool]:
     """Hold a bounded exclusive ``flock`` for a single artifact identity.
 
     A timeout deliberately yields ``False`` instead of failing.  The caller can

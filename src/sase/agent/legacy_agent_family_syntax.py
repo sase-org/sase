@@ -88,7 +88,7 @@ def agent_session_attach_env_value(env: Mapping[str, str]) -> str | None:
     return None
 
 
-def normalize_agent_session_query_expr(expr: QueryExpr) -> QueryExpr:
+def _normalize_agent_session_query_expr(expr: QueryExpr) -> QueryExpr:
     """Rewrite retired agent-family terms in a parsed agent query AST.
 
     ``family:<value>`` becomes ``session:<value>`` and ``kind:family``
@@ -105,11 +105,11 @@ def normalize_agent_session_query_expr(expr: QueryExpr) -> QueryExpr:
             return PropertyMatch(key=expr.key, value=_SESSION_QUERY_KIND)
         return expr
     if isinstance(expr, NotExpr):
-        rewritten = normalize_agent_session_query_expr(expr.operand)
+        rewritten = _normalize_agent_session_query_expr(expr.operand)
         return expr if rewritten is expr.operand else NotExpr(operand=rewritten)
     if isinstance(expr, (AndExpr, OrExpr)):
         rewritten_operands = [
-            normalize_agent_session_query_expr(operand) for operand in expr.operands
+            _normalize_agent_session_query_expr(operand) for operand in expr.operands
         ]
         if all(
             rewritten is original
@@ -130,7 +130,7 @@ def normalize_agent_session_query_text(
 
     The rewrite works on the parsed query AST, never on the raw text: the
     query is parsed (tolerating the retired ``family`` field and the retired
-    ``kind:family`` value), :func:`normalize_agent_session_query_expr`
+    ``kind:family`` value), :func:`_normalize_agent_session_query_expr`
     rewrites the AST, and the canonical session spelling is returned.
 
     With the ``legacy_agent_family_syntax`` flag on, a query using the
@@ -197,7 +197,7 @@ def _normalize_agent_session_query_after_error(
         legacy_expr = parse_query_for_profile(raw, tolerant_profile)
     except ProfileQueryError:
         raise original_error from None
-    rewritten = normalize_agent_session_query_expr(legacy_expr)
+    rewritten = _normalize_agent_session_query_expr(legacy_expr)
     if to_canonical_string(rewritten) == to_canonical_string(legacy_expr):
         raise original_error from None
     if not _legacy_agent_family_syntax_enabled():
@@ -230,7 +230,6 @@ __all__ = [
     "agent_session_attach_env_value",
     "normalize_agent_session_directive_args",
     "normalize_agent_session_fork",
-    "normalize_agent_session_query_expr",
     "normalize_agent_session_query_text",
     "normalize_persisted_agent_session_fork",
 ]

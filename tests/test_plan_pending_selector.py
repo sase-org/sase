@@ -33,7 +33,7 @@ from sase.main.plan_pending import (
 from sase.main.plan_pending_diagnosis import miss_error_code
 from sase.main.plan_pending_render import (
     render_ambiguity,
-    render_approve_success,
+    _render_approve_success,
     render_miss,
 )
 from sase.notifications.models import Notification
@@ -425,7 +425,7 @@ def test_omitted_plan_miss_zero_and_multiple() -> None:
 def test_success_rendering_leads_with_name(capsys: pytest.CaptureFixture[str]) -> None:
     _two_pending_plans()
     (plan,) = [p for p in pending_plans() if p.name == "updates_tab_cached_open"]
-    render_approve_success(
+    _render_approve_success(
         plan, "Approved as tale", "35553907-aaaa", "/tmp/response.json"
     )
     out = capsys.readouterr().out

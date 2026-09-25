@@ -487,7 +487,7 @@ def test_lsp_store_rechecks_after_waiting_for_identity_lock(
     )
     deadline = time.monotonic() + 5
     while not counter.exists() and time.monotonic() < deadline:
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: polls for fake cargo start marker
     assert counter.exists()
 
     second = _run(args, cwd=ROOT, env=env)
