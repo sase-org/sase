@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 from copy import deepcopy
 import json
 import sys
+from typing import Any
 
 from sase.finalizers.cli import (
     handle_final_doctor,
@@ -47,8 +49,31 @@ def _handle_prepare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _unwrap_prepare_wrapper(manifest: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return a prepare wrapper's declaration; plain manifests pass through."""
+
+    if "payloads" in manifest or not (
+        "declaration" in manifest or "verification" in manifest
+    ):
+        return manifest
+    declaration = manifest.get("declaration")
+    if "declaration" not in manifest or "verification" not in manifest:
+        raise FinalizerDeclarationError(
+            "malformed prepare wrapper: it needs both `declaration` and "
+            "`verification` (or pass a plain manifest with `payloads`)",
+            code="wrapper_malformed",
+        )
+    if not isinstance(declaration, Mapping):
+        raise FinalizerDeclarationError(
+            "malformed prepare wrapper: `declaration` must be a JSON object",
+            code="wrapper_malformed",
+        )
+    return declaration
+
+
 def _handle_submit(args: argparse.Namespace) -> int:
     manifest = read_final_manifest_from_path(str(args.manifest))
+    manifest = _unwrap_prepare_wrapper(manifest)
     payload = submit_final_manifest(manifest)
     validation = payload.get("validation")
     accepted = []

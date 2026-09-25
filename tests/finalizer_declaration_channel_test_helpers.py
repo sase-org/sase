@@ -59,7 +59,8 @@ def persist_default_plan(tmp_path: Path) -> None:
 def valid_manifest(publication: FinalContextPublication) -> dict[str, object]:
     manifest = deepcopy(publication.payload["manifest_template"])
     repositories = manifest["payloads"][0]["payload"]["repositories"]
-    repositories[0]["message"] = "fix(final): submit declaration"
+    for repository in repositories:
+        repository["message"] = "fix(final): submit declaration"
     return manifest
 
 

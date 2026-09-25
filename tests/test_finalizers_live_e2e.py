@@ -142,11 +142,12 @@ def test_live_assigned_bead_keep_is_authored_and_threaded_to_stitch_runner(
         for decision in item["payload"].get("repositories", [])
     ]
     assert decisions[0]["bead_action"] is None
+    template = deepcopy(publication.payload["manifest_template"])
+    for item in template["payloads"]:
+        for decision in item["payload"].get("repositories", []):
+            decision["message"] = "fix(final): submit declaration"
     with pytest.raises(FinalizerDeclarationError) as exc_info:
-        submit_final_manifest(
-            deepcopy(publication.payload["manifest_template"]),
-            artifacts_dir=str(artifacts),
-        )
+        submit_final_manifest(template, artifacts_dir=str(artifacts))
     assert exc_info.value.code == "commit_bead_action_invalid"
     assert seen_actions == []
     assert git_changed_files(str(repo)) == ["agent.py"]

@@ -52,6 +52,7 @@ def _foreign_work_deferral_manifest(
     manifest = deepcopy(publication.payload["manifest_template"])
     payload = manifest["payloads"][0]["payload"]
     repo_id = publication.context.obligations[0].obligation_id
+    payload["repositories"][0]["message"] = "fix(final): defer foreign work"
     payload["deferrals"].append(
         {
             "repo_id": repo_id,

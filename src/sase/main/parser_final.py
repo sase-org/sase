@@ -153,8 +153,11 @@ def register_final_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase final submit final-manifest.json\n"
-            "  sase final context -f json | jq '.manifest_template' | "
-            "sase final submit -"
+            "  sase final submit completion.json   (a `sase final prepare` "
+            "wrapper)\n"
+            "\n"
+            "Edit manifest_template's commit messages before submitting it; the "
+            "unedited placeholder message is rejected."
         ),
     )
     submit_parser.add_argument(

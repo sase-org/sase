@@ -38,6 +38,7 @@ from sase.workflows.commit.message_validation import (
 )
 
 FINAL_CONTEXT_FILENAME = "final_context.json"
+PLACEHOLDER_COMMIT_MESSAGE = "feat(scope): describe the completed work"
 FINAL_SUBMISSION_FILENAME = "final_submission.json"
 FINAL_SUBMISSION_ATTEMPTS_FILENAME = "final_submission_attempts.jsonl"
 
@@ -129,7 +130,7 @@ def manifest_template(context: FinalizerContextWire) -> dict[str, Any]:
                     {
                         "repo_id": repo_id,
                         "action": "commit",
-                        "message": "feat(scope): describe the completed work",
+                        "message": PLACEHOLDER_COMMIT_MESSAGE,
                         **(
                             {"bead_action": None}
                             if _context_assigned_bead(context) is not None
@@ -473,6 +474,38 @@ def _host_close_bead_status(
         return "unreadable"
 
 
+def _is_placeholder_commit_message(message: str) -> bool:
+    """Return whether ``message`` is the manifest template's placeholder."""
+
+    return " ".join(message.split()) == PLACEHOLDER_COMMIT_MESSAGE
+
+
+def reject_placeholder_commit_messages(declaration: Mapping[str, Any]) -> None:
+    """Raise if any commit decision in ``declaration`` keeps the template message."""
+
+    payloads = declaration.get("payloads")
+    if not isinstance(payloads, list):
+        return
+    for entry in payloads:
+        payload = entry.get("payload") if isinstance(entry, Mapping) else None
+        repositories = (
+            payload.get("repositories") if isinstance(payload, Mapping) else None
+        )
+        if not isinstance(repositories, list):
+            continue
+        for decision in repositories:
+            if not isinstance(decision, Mapping):
+                continue
+            message = decision.get("message")
+            if isinstance(message, str) and _is_placeholder_commit_message(message):
+                raise FinalizerDeclarationError(
+                    f"commit decision for {decision.get('repo_id')} still has the "
+                    "manifest template's placeholder message; describe the work "
+                    "done in that repository",
+                    code="commit_message_placeholder",
+                )
+
+
 def _validate_commit_decision(
     context: FinalizerContextWire,
     repo_id: str,
@@ -491,6 +524,12 @@ def _validate_commit_decision(
         raise FinalizerDeclarationError(
             f"commit decision for {repo_id} has an oversized message",
             code="commit_message_too_large",
+        )
+    if _is_placeholder_commit_message(message):
+        raise FinalizerDeclarationError(
+            f"commit decision for {repo_id} still has the manifest template's "
+            "placeholder message; describe the work done in that repository",
+            code="commit_message_placeholder",
         )
     rejection = check_commit_message(message, load_commit_message_policy())
     if rejection is not None:

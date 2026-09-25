@@ -92,6 +92,11 @@ start command in the foreground until it exits; it can take up to a minute befor
 writes the handoff marker and kills the runner. If your tool yields a live session, keep
 polling that same session rather than ending the turn.
 
+If `sase final prepare` is refused, run the verification command inline, then pass the
+same wrapper file to `sase final submit <wrapper>`; it submits the wrapper's
+`declaration` unchanged. Never rebuild the manifest from `manifest_template`, which
+drops the message you wrote (the unedited placeholder message is rejected).
+
 The monitored argv must exactly match the intent's verification command or binding fails
 and no monitor is created. The `verify` profile only supplies labels and evidence
 defaults; the `-f/--completion` ref is what authorizes a successful monitor result to

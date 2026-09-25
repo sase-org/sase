@@ -30,6 +30,7 @@ from sase.finalizers.declaration import (
     publish_final_context,
     require_artifacts_dir,
 )
+from sase.finalizers.declaration_manifest import reject_placeholder_commit_messages
 from sase.finalizers.declaration_recovery_evidence import (
     direct_written_paths,
     written_paths_from_tool_calls,
@@ -84,6 +85,7 @@ def prepare_conditional_completion(
 
     root = require_artifacts_dir(artifacts_dir, "sase final prepare")
     success_message, verification_command, declaration = _parse_wrapper(wrapper)
+    reject_placeholder_commit_messages(declaration)
     publication = publish_final_context(artifacts_dir=str(root))
     context = publication.context
     plan = load_finalizer_plan(root)
@@ -126,7 +128,10 @@ def prepare_conditional_completion(
         intent = seal_conditional_completion(request)
     except ValueError as exc:
         raise FinalizerDeclarationError(
-            str(exc), code="conditional_completion_invalid"
+            f"{exc}\nFallback: run the verification command inline, then "
+            "`sase final submit <same-wrapper-file>` (it accepts the prepare "
+            "wrapper as-is; do not rebuild the manifest from manifest_template)",
+            code="conditional_completion_invalid",
         ) from exc
     stored = persist_prepared_completion(intent, artifacts_dir=root)
     preview = preview_conditional_completion(stored.intent)
