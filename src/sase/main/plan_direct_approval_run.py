@@ -36,6 +36,14 @@ class DirectApprovalOutcome:
     coder: AgentLaunchResult | None = None
     coder_error: str | None = None
     warnings: tuple[str, ...] = ()
+    gate_answered_concurrently: bool = False
+
+    @property
+    def incomplete(self) -> bool:
+        """Whether the plan is committed but a coder is left for the user to check."""
+        if self.coder_error:
+            return True
+        return self.gate_answered_concurrently and self.plan.kind == "tale"
 
 
 def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
@@ -58,27 +66,19 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
     _write_receipt(plan, local_plan, plan_ref, saved_plan, coder=None, coder_error=None)
     # 5. Retire a stale or orphaned gate, all best-effort.
     warnings: list[str] = []
-    _retire_gate(plan, warnings)
+    coder_prompt = _coder_prompt(plan, plan_ref, local_plan)
+    if _retire_gate(plan, warnings):
+        return _settle_concurrent_answer(
+            plan, local_plan, plan_ref, saved_plan, coder_prompt, warnings
+        )
     # 6. Launch the coder for tale/approve.
     coder: AgentLaunchResult | None = None
     coder_error: str | None = None
-    coder_prompt = ""
     if plan.kind in ("tale", "approve"):
-        coder_prompt = compose_coder_prompt(
-            project_tag=plan.project_tag,
-            model_directive=plan.model_directive,
-            plan_argument=plan_ref or str(local_plan),
-            extra_prompt=plan.request.coder_prompt,
-            wait=_request_wait(plan),
-            bead=plan.bead,
-            placement=plan.placement,
-        )
         try:
             coder = _launch_coder(coder_prompt, local_plan)
         except Exception as exc:
             coder_error = str(exc) or type(exc).__name__
-    else:
-        coder_prompt = plan.coder_prompt_preview
     # 7. Rewrite the receipt with the coder outcome.
     _write_receipt(
         plan, local_plan, plan_ref, saved_plan, coder=coder, coder_error=coder_error
@@ -94,6 +94,21 @@ def execute_direct_approval(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
         coder=coder,
         coder_error=coder_error,
         warnings=tuple(warnings),
+    )
+
+
+def _coder_prompt(plan: DirectApprovalPlan, plan_ref: str, local_plan: Path) -> str:
+    """Return the final coder prompt, or the dry-run preview for a commit."""
+    if plan.kind not in ("tale", "approve"):
+        return plan.coder_prompt_preview
+    return compose_coder_prompt(
+        project_tag=plan.project_tag,
+        model_directive=plan.model_directive,
+        plan_argument=plan_ref or str(local_plan),
+        extra_prompt=plan.request.coder_prompt,
+        wait=_request_wait(plan),
+        bead=plan.bead,
+        placement=plan.placement,
     )
 
 
@@ -161,15 +176,19 @@ def _write_receipt(
     *,
     coder: AgentLaunchResult | None,
     coder_error: str | None,
+    gate_answered_concurrently: bool = False,
 ) -> None:
     from sase.plan_approval_receipts import (
         DirectApprovalReceipt,
         write_direct_approval_receipt,
     )
 
+    # A concurrently answered gate was never retired here and no coder was
+    # placed, so neither the route, family, nor retired gate is recorded.
+    placed = not gate_answered_concurrently
     route = (
         "none"
-        if plan.kind == "commit"
+        if plan.kind == "commit" or not placed
         else ("family" if plan.placement.mode == "family" else "standalone")
     )
     receipt = DirectApprovalReceipt(
@@ -184,43 +203,35 @@ def _write_receipt(
         coder_agent=getattr(coder, "agent_name", None) if coder is not None else None,
         coder_pid=getattr(coder, "pid", None) if coder is not None else None,
         coder_error=coder_error,
-        family=plan.placement.family,
-        retired_gate_id=plan.gate.notification_id if plan.gate is not None else None,
+        family=plan.placement.family if placed else None,
+        retired_gate_id=(
+            plan.gate.notification_id if plan.gate is not None and placed else None
+        ),
         original_path=str(plan.source_path),
     )
     write_direct_approval_receipt(receipt)
 
 
-def _retire_gate(plan: DirectApprovalPlan, warnings: list[str]) -> None:
+def _retire_gate(plan: DirectApprovalPlan, warnings: list[str]) -> bool:
+    """Retire a stale gate; return whether it was answered concurrently instead."""
     gate = plan.gate
     if gate is None:
-        return
+        return False
     if gate.bundle_path is None:
         warnings.append(f"gate {gate.notification_id} has no bundle to retire")
-        return
+        return False
     try:
         from sase.notification_gates.executor_cancellation import cancel_gate
     except Exception as exc:
         warnings.append(f"gate {gate.notification_id} could not be retired: {exc}")
-        return
+        return False
     try:
         cancel_gate(gate.bundle_path, reason="approved_directly", source="plan_approve")
     except Exception as exc:
-        if "already_answered" in type(exc).__name__ or "already_answered" in str(exc):
-            warnings.append(
-                f"gate {gate.notification_id} was answered concurrently;"
-                " no second coder launched"
-            )
-            raise DirectApprovalRefused(
-                DirectApprovalRefusal(
-                    code="conflict_already_handled",
-                    header=f"{plan.name} was already handled",
-                    detail_lines=tuple(warnings),
-                    hints=("sase plan list",),
-                )
-            ) from exc
+        if getattr(exc, "code", None) == "already_answered":
+            return True
         warnings.append(f"gate {gate.notification_id} could not be retired: {exc}")
-        return
+        return False
     try:
         from sase.notifications.pending_actions import mark_already_handled
 
@@ -235,6 +246,62 @@ def _retire_gate(plan: DirectApprovalPlan, warnings: list[str]) -> None:
         dismiss_notification_best_effort(gate.notification_id)
     except Exception as exc:
         warnings.append(f"gate {gate.notification_id} could not be dismissed: {exc}")
+    return False
+
+
+def _settle_concurrent_answer(
+    plan: DirectApprovalPlan,
+    local_plan: Path,
+    plan_ref: str,
+    saved_plan: str | None,
+    coder_prompt: str,
+    warnings: list[str],
+) -> DirectApprovalOutcome:
+    """Record what this command did when another responder answered the gate.
+
+    The gate's responder owns the coder, so none is launched and the gate,
+    notification, and planner metadata are left to it. A tale or commit has
+    already been published by then, so the receipt keeps that fact. An
+    ``approve`` publishes nothing: its receipt is withdrawn and the run refuses.
+    """
+    gate_id = plan.gate.notification_id if plan.gate is not None else plan.name
+    answered = f"gate {gate_id} was answered concurrently"
+    if plan.kind == "approve":
+        from sase.plan_approval_receipts import delete_direct_approval_receipt
+
+        warnings.append(f"{answered}; nothing was changed by this command")
+        try:
+            delete_direct_approval_receipt(local_plan)
+        except OSError as exc:
+            warnings.append(f"the approval receipt could not be removed: {exc}")
+        raise DirectApprovalRefused(
+            DirectApprovalRefusal(
+                code="conflict_already_handled",
+                header=f"{plan.name} was already handled",
+                detail_lines=tuple(warnings),
+                hints=("sase plan list",),
+            )
+        )
+    note = f"{answered}; no coder was launched by this command"
+    warnings.append(note)
+    _write_receipt(
+        plan,
+        local_plan,
+        plan_ref,
+        saved_plan,
+        coder=None,
+        coder_error=note,
+        gate_answered_concurrently=True,
+    )
+    return DirectApprovalOutcome(
+        plan=plan,
+        local_plan_path=local_plan,
+        plan_ref=plan_ref,
+        saved_plan_path=saved_plan,
+        coder_prompt=coder_prompt,
+        warnings=tuple(warnings),
+        gate_answered_concurrently=True,
+    )
 
 
 def _launch_coder(prompt: str, local_plan: Path) -> AgentLaunchResult:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import sys
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,13 @@ if TYPE_CHECKING:
     from sase.main.plan_direct_approval_run import DirectApprovalOutcome
     from sase.main.plan_pending import PendingPlan
     from sase.plan_approval_actions import PlanApprovalActionResult
+
+
+def _print_recovery_command(out: Console, prompt: str) -> None:
+    """Print a copy-pasteable ``sase run`` for *prompt*, unwrapped and unstyled."""
+    from rich.markup import escape
+
+    out.print(f"    sase run {escape(shlex.quote(prompt))}", soft_wrap=True)
 
 
 def _console(*, stderr: bool) -> Console:
@@ -76,10 +84,10 @@ def render_gate_approval_dry_run(plan: PendingPlan, kind: str) -> None:
 
 
 def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
-    """Render a direct approval, including recoverable coder-launch failures."""
+    """Render a direct approval, including a coder this command did not launch."""
     plan = outcome.plan
     out = _console(stderr=False)
-    if outcome.coder_error:
+    if outcome.coder_error or outcome.gate_answered_concurrently:
         out.print(
             f"[green]✓ Plan committed[/green] · [bold cyan]{plan.name}[/bold cyan]"
             f" · {outcome.plan_ref}"
@@ -96,14 +104,18 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
     out.print(f"\n  [dim]plan[/dim]    {plan_line}")
     if plan.kind == "commit":
         out.print("  [dim]coder[/dim]   none · commit only")
+    elif outcome.gate_answered_concurrently:
+        out.print("  [dim]coder[/dim]   none launched · left to the gate's responder")
     elif outcome.coder is not None:
         route = (
             "family " + str(plan.placement.family)
             if plan.placement.mode == "family"
             else "standalone"
         )
+        name = outcome.coder.agent_name
+        label = name or f"PID {outcome.coder.pid}"
         out.print(
-            f"  [dim]coder[/dim]   [bold]{outcome.coder.agent_name}[/bold] · {route}"
+            f"  [dim]coder[/dim]   [bold]{label}[/bold] · {route}"
             f" · %model:{plan.model_directive or 'custom'}"
         )
     else:
@@ -111,10 +123,18 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
         out.print(
             f"  [dim]coder[/dim]   {route} · %model:{plan.model_directive or 'custom'}"
         )
-    if plan.placement.mode == "standalone" and plan.placement.reason:
+    if (
+        plan.placement.mode == "standalone"
+        and plan.placement.reason
+        and not outcome.gate_answered_concurrently
+    ):
         out.print(f"          [dim]no agent family: {plan.placement.reason}[/dim]")
     if plan.gate is None:
         out.print("  [dim]gate[/dim]    none · never proposed")
+    elif outcome.gate_answered_concurrently:
+        out.print(
+            f"  [dim]gate[/dim]    {plan.gate.notification_id[:8]} · answered concurrently, not closed here"
+        )
     else:
         out.print(
             f"  [dim]gate[/dim]    {plan.gate.notification_id[:8]} · {plan.gate.state} approval gate closed"
@@ -124,9 +144,19 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
     if outcome.coder_error:
         out.print(f"\n[red]✗ Coder launch failed:[/red] {outcome.coder_error}")
         out.print("  Launch it yourself:")
-        out.print(f"    sase run {outcome.coder_prompt!r}")
+        _print_recovery_command(out, outcome.coder_prompt)
+    elif outcome.incomplete:
+        out.print("\n  Check whether the gate's responder launched a coder:")
+        out.print("    sase agent list")
+        out.print("  If it did not, launch it yourself:")
+        _print_recovery_command(out, outcome.coder_prompt)
     elif outcome.coder is not None:
-        out.print(f"\n  [dim]follow[/dim]  sase agent show {outcome.coder.agent_name}")
+        follow = (
+            f"sase agent show {outcome.coder.agent_name}"
+            if outcome.coder.agent_name
+            else "sase agent list"
+        )
+        out.print(f"\n  [dim]follow[/dim]  {follow}")
 
 
 def render_direct_approval_dry_run(plan: DirectApprovalPlan) -> None:

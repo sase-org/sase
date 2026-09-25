@@ -176,7 +176,7 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
             f"[cyan]Proc {task_id}[/cyan] "
             f"[dim]Follow with `sase proc show {task_id} --follow`.[/dim]"
         )
-    if getattr(result, "coder_error", None):
+    if getattr(result, "coder_error", None) or getattr(result, "incomplete", False):
         sys.exit(1)
     sys.exit(0)
 

@@ -92,6 +92,11 @@ def write_direct_approval_receipt(receipt: DirectApprovalReceipt) -> Path:
     return path
 
 
+def delete_direct_approval_receipt(local_plan: str | Path) -> None:
+    """Remove the receipt for *local_plan*; an absent receipt is not an error."""
+    receipt_path_for(local_plan).unlink(missing_ok=True)
+
+
 def iter_direct_approval_receipts() -> tuple[DirectApprovalReceipt, ...]:
     """Return every readable direct-approval receipt, newest first."""
     from sase.core.paths import sase_subdir
@@ -167,6 +172,7 @@ def _receipt_from_dict(raw: dict[str, Any]) -> DirectApprovalReceipt | None:
 
 __all__ = [
     "DirectApprovalReceipt",
+    "delete_direct_approval_receipt",
     "iter_direct_approval_receipts",
     "read_direct_approval_receipt",
     "receipt_path_for",

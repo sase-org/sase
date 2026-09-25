@@ -495,7 +495,7 @@ follow-up, and `commit` records the approved plan in SDD without launching a cod
 `-m/--model` to pick the follow-up agent's model. Use `-p/--prompt` to add extra coder
 instructions for the `approve` and `tale` paths. A plan with no live gate can be named
 by path, `plan:` reference, archive name, or unavailable gate ID: it is approved
-directly and starts a `#coder` in the planner's family when it can safely attach,
+directly and starts a `#coder` in the planner's agent session when it can safely attach,
 otherwise as a standalone agent. `-n/--dry-run` renders that decision without changing
 state, and `-P/--project` supplies project context for the direct route. Tale and epic
 approvals validate against their target schema before writing a response; a failure

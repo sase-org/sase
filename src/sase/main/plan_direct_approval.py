@@ -225,7 +225,7 @@ def compose_coder_prompt(
     if _needs_quoting(argument):
         argument = f'"{escape_for_xprompt(argument)}"'
     if placement.mode == "family" and placement.parent:
-        id_part = f"%id(code, family={placement.parent})"
+        id_part = f"%id(code, session={placement.parent})"
     elif bead:
         id_part = f"%id(bead={bead})"
     else:

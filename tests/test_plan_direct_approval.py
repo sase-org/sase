@@ -124,7 +124,7 @@ def test_family_placement_via_attach(tmp_path: Path, monkeypatch) -> None:
     assert not isinstance(outcome, (DirectApprovalRefusal, type(None)))
     assert outcome.placement.mode == "family"
     assert outcome.placement.member_name == "bob--code"
-    assert "%id(code, family=bob)" in outcome.coder_prompt_preview
+    assert "%id(code, session=bob)" in outcome.coder_prompt_preview
 
 
 def test_planner_running_refuses(tmp_path: Path, monkeypatch) -> None:
@@ -221,5 +221,26 @@ def test_compose_coder_prompt_family() -> None:
         bead=None,
         placement=placement,
     )
-    assert "%id(code, family=bob)" in prompt
+    assert "%id(code, session=bob)" in prompt
+    assert "family=" not in prompt
     assert "#coder(plan:202609/foo.md)" in prompt
+
+
+def test_compose_coder_prompt_session_directive_parses_without_legacy_syntax() -> None:
+    from sase.feature_flags import override_flags
+    from sase.xprompt.directives import extract_prompt_directives
+
+    placement = CoderPlacement(mode="family", parent="bob", family="bob")
+    prompt = compose_coder_prompt(
+        project_tag="+sase",
+        model_directive="@small",
+        plan_argument="plan:202609/foo.md",
+        extra_prompt=None,
+        wait=None,
+        bead=None,
+        placement=placement,
+    )
+    with override_flags(legacy_agent_family_syntax=False):
+        _, directives = extract_prompt_directives(prompt)
+    assert directives.agent_session_attach_parent == "bob"
+    assert directives.agent_session_attach_suffix == "code"
