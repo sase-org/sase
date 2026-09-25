@@ -285,6 +285,8 @@ def test_replay_resolves_witnesses_and_attributes_workspaces(
     ]
     audit = (tmp_path / "out" / "audit.md").read_text(encoding="utf-8")
     assert "Witnesses (run/agent/workspace/base12/clean)" in audit
+    header, separator, first_row = audit.splitlines()[2:5]
+    assert header.count(" | ") == separator.count(" | ") == first_row.count(" | ")
     assert "KNOWN on added files" in audit
     assert "KNOWN-but-touched" in audit
     same_seed = backtest.replay_runs(

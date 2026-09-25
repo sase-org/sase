@@ -675,11 +675,24 @@ def replay_runs(
     (output / "report.json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8"
     )
+    columns = (
+        "#",
+        "Item",
+        "Stage",
+        "Extractor",
+        "Subject run (agent, workspace)",
+        "base(R)",
+        "Witnesses (run/agent/workspace/base12/clean)",
+        "In subject diff",
+        "Unchanged since witness",
+        "Pre-existing (Y/N)",
+        "Justification",
+    )
     rows = [
         "# Triage backtest audit",
         "",
-        "| # | Item | Stage | Extractor | Subject run (agent, workspace) | base(R) | Witnesses (run/agent/workspace/base12/clean) | In subject diff | Unchanged since witness | Pre-existing (Y/N) | Justification |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| " + " | ".join(columns) + " |",
+        "|" + " --- |" * len(columns),
     ]
     for index, item in enumerate(sample, start=1):
         witnesses = "<br>".join(
