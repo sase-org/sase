@@ -333,7 +333,7 @@ class CommandLineInput(SingleLineVimTextArea):
             handler = getattr(self.screen, "command_line_handle_key", None)
             if callable(handler):
                 try:
-                    if await handler(event):
+                    if handler(event):
                         # Consumed keys must not bubble to the panel bindings:
                         # an accepting Enter would otherwise also submit.
                         event.stop()

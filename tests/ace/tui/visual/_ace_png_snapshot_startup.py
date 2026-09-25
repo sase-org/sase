@@ -102,6 +102,9 @@ def patch_startup_loaders(
     from sase.ace.tui.actions._usage_refresh_fallback import (
         UsageRefreshFallbackMixin,
     )
+    from sase.ace.tui.actions._proc_action_observer import (
+        ProcObserverActionsMixin,
+    )
     from sase.ace.tui.actions.agents import _loading
     from sase.ace.tui.proc_observer import ProcObserver
     from sase.ace.tui.commands import catalog as commands_catalog
@@ -388,12 +391,20 @@ def patch_startup_loaders(
     def _noop_proc_observer_start(_self: Any) -> None:
         return None
 
+    def _noop_proc_reconciler_start(_self: Any) -> None:
+        return None
+
     monkeypatch.setattr(
         UsageRefreshFallbackMixin,
         "_schedule_usage_refresh_fallback",
         _noop_schedule_usage_refresh_fallback,
     )
     monkeypatch.setattr(ProcObserver, "start", _noop_proc_observer_start)
+    monkeypatch.setattr(
+        ProcObserverActionsMixin,
+        "_start_proc_reconciler",
+        _noop_proc_reconciler_start,
+    )
 
     assert (
         UsageRefreshFallbackMixin._schedule_usage_refresh_fallback
@@ -402,6 +413,9 @@ def patch_startup_loaders(
     assert ProcObserver.start is _noop_proc_observer_start, (
         "proc observer patch did not bind — visual snapshot may re-leak state"
     )
+    assert (
+        ProcObserverActionsMixin._start_proc_reconciler is _noop_proc_reconciler_start
+    ), "proc reconciler patch did not bind — visual snapshot may re-leak state"
     assert (
         llm_override_indicator.resolve_effective_default_provider_model
         is _fake_resolve_effective_default_provider_model

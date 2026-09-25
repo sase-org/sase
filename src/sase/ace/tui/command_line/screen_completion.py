@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 from typing import TYPE_CHECKING, Any, cast
 
@@ -90,7 +89,38 @@ from sase.ace.tui.command_line.submit import (
     prepare_submit,
     submit_in_worker,
 )
+from sase.ace.tui.util.perf import is_enabled as tui_perf_enabled
+from sase.ace.tui.util.perf import perf_log_path
 from sase.completion.command_line_grammar import LineContext
+
+
+def _command_line_probe_sample(
+    keypress_at: float, model_updated_at: float, painted_at: float, indexed: bool
+) -> dict[str, object]:
+    """Build one command-line key-to-paint perf sample."""
+    return {
+        "action": "command_line.complete",
+        "tab": "command_line",
+        "t_keypress": keypress_at,
+        "model_ms": round((model_updated_at - keypress_at) * 1000, 3),
+        "paint_ms": round((painted_at - keypress_at) * 1000, 3),
+        "indexed": indexed,
+    }
+
+
+def _append_command_line_probe(sample: dict[str, object]) -> None:
+    """Append a completed probe from a worker, never from the UI thread."""
+    if not tui_perf_enabled():
+        return
+    try:
+        path = perf_log_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(sample) + "\n")
+    except OSError:
+        # Probe output is diagnostic only: a read-only or full disk must never
+        # affect typing.
+        pass
 
 
 class CommandLineScreenCompletionMixin:
@@ -124,11 +154,11 @@ class CommandLineScreenCompletionMixin:
         started = time.perf_counter()
         if self._history_search_active:
             self._render_history_search(line)
-            self._record_keystroke_probe(time.perf_counter() - started, True)
+            self._record_keystroke_probe(started, True)
             return
         if not line.strip():
             self._render_empty_state(line)
-            self._record_keystroke_probe(time.perf_counter() - started, True)
+            self._record_keystroke_probe(started, True)
             return
         self._empty_state_active = False
         context = self._cd_completion_context(line, cursor) or resolve_command_line(
@@ -139,7 +169,7 @@ class CommandLineScreenCompletionMixin:
         widget.set_resolve_context(context)
         if context is None:
             self._show_indexing(bool(line.strip()))
-            self._record_keystroke_probe(time.perf_counter() - started, False)
+            self._record_keystroke_probe(started, False)
             return
         completion = self._complete_line(line, cursor, context)
         completion = self._maybe_prepend_marked_row(context, completion)
@@ -154,7 +184,7 @@ class CommandLineScreenCompletionMixin:
         self._render_popup(completion)
         self._render_signature()
         self._maybe_fetch_providers(line, cursor, context)
-        self._record_keystroke_probe(time.perf_counter() - started, True)
+        self._record_keystroke_probe(started, True)
 
     def _complete_line(
         self, line: str, cursor: int, context: LineContext
@@ -807,7 +837,7 @@ class CommandLineScreenCompletionMixin:
         argv = self._resolve_context.get("argv") or []
         return [str(token) for token in argv] or None
 
-    async def command_line_handle_key(self, event: Any) -> bool:
+    def command_line_handle_key(self, event: Any) -> bool:
         """Apply the zsh menu-select key rules; True when the key is consumed.
 
         The fixed menu keys (Tab, Shift-Tab, ``ctrl+n``/``ctrl+p``,
@@ -818,6 +848,17 @@ class CommandLineScreenCompletionMixin:
         key = getattr(event, "key", None) or ""
         keymaps = command_line_keymaps_for(self)
         state = self._popup_state
+        try:
+            widget = self.query_one(CommandLineInput)
+        except Exception:  # noqa: BLE001 - unmounted screen cannot complete.
+            return False
+        if state.typed_text != widget.text:
+            # TextArea.Changed is queued separately from Key. A fast typist can
+            # therefore press Tab after the widget has accepted text but before
+            # its popup state has caught up. Resolve synchronously so Tab never
+            # inserts a stale whole-command suggestion at the wrong span.
+            self._refresh_completion()
+            state = self._popup_state
         decision: PopupDecision | None = None
         prev_match = binding_matches_key(keymaps.history_prev, key)
         next_match = binding_matches_key(keymaps.history_next, key)
@@ -965,27 +1006,33 @@ class CommandLineScreenCompletionMixin:
             self._render_popup_footer()
             self._render_signature()
 
-    def _record_keystroke_probe(self, elapsed_seconds: float, indexed: bool) -> None:
-        """Append a keystroke-to-popup sample when ``SASE_TUI_PERF=1``."""
-        if os.environ.get("SASE_TUI_PERF") != "1":
-            return
-        try:
-            from sase.core.paths import sase_subdir
+    def _record_keystroke_probe(self, keypress_at: float, indexed: bool) -> None:
+        """Schedule a key-to-popup-paint sample when ``SASE_TUI_PERF=1``.
 
-            path = sase_subdir("perf") / "tui_command_line.jsonl"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "a", encoding="utf-8") as handle:
-                handle.write(
-                    json.dumps(
-                        {
-                            "ts": time.time(),
-                            "elapsed_ms": round(elapsed_seconds * 1000, 3),
-                            "indexed": indexed,
-                        }
-                    )
-                    + "\n"
+        ``_refresh_completion`` has already rendered by the time it calls us.
+        Capturing the finish from ``call_after_refresh`` therefore measures the
+        visible popup, not merely synchronous resolver work. The JSONL append
+        goes through ``asyncio.to_thread`` so this diagnostic never puts disk
+        I/O on the input event path.
+        """
+        if not tui_perf_enabled():
+            return
+        model_updated_at = time.perf_counter()
+
+        def _after_paint() -> None:
+            sample = _command_line_probe_sample(
+                keypress_at, model_updated_at, time.perf_counter(), indexed
+            )
+            try:
+                asyncio.get_running_loop().create_task(
+                    asyncio.to_thread(_append_command_line_probe, sample)
                 )
-        except Exception:  # noqa: BLE001 - probes never break typing.
+            except RuntimeError:  # teardown has no live loop.
+                pass
+
+        try:
+            self.call_after_refresh(_after_paint)
+        except Exception:  # noqa: BLE001 - an unmounted panel cannot paint.
             pass
 
 

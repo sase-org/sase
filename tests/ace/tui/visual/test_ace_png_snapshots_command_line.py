@@ -49,6 +49,14 @@ async def _open_panel(
         "sase.ace.tui.command_line.screen.resolve_working_context",
         lambda app, session: _FROZEN_CONTEXT,
     )
+    # These snapshots either supply a frozen resolver response or explicitly
+    # model the pre-grammar indexing state. Starting the real grammar builder
+    # here would leave its host-dependent ``_load`` worker in flight and make
+    # render convergence depend on a subprocess that the snapshot cannot show.
+    monkeypatch.setattr(
+        "sase.ace.tui.command_line.screen.ensure_command_line_grammar_loaded",
+        lambda app, *, on_ready=None: False,
+    )
     if history_file is None:
         monkeypatch.setattr(CommandLineHistory, "refresh", lambda self: None)
     else:
@@ -441,6 +449,141 @@ def _extras_help_lookup(path: list[str]) -> dict[str, Any] | None:
         },
     }
     return tree.get(tuple(path))
+
+
+def _completion_visual_context() -> dict[str, Any]:
+    """Return a frozen resolver result covering popup completion chrome."""
+    return {
+        "path": ["bead", "close"],
+        "tokens": [
+            {"text": "bead", "start": 0, "end": 4, "role": "command"},
+            {"text": "close", "start": 5, "end": 10, "role": "subcommand"},
+            {"text": "--force", "start": 11, "end": 18, "role": "option"},
+        ],
+        "diagnostics": [
+            {
+                "start": 11,
+                "end": 18,
+                "severity": "warning",
+                "code": "missing-value",
+                "message": "requires a resolution",
+            }
+        ],
+        "slot": {"replace_start": 11, "replace_end": 18, "value_kind": ""},
+        "signature": {
+            "segments": [
+                {"text": "bead", "role": "command", "active": False, "required": True},
+                {"text": "close", "role": "command", "active": False, "required": True},
+                {
+                    "text": "‹ID…›",
+                    "role": "positional",
+                    "active": True,
+                    "required": True,
+                },
+            ],
+            "summary": "Close a bead",
+        },
+        "run_policy": {"policy": "proc", "note": None},
+        "writes": True,
+        "confirms": True,
+        "confirm_flag_present": False,
+        "stdin": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((160, 40), "command_line_completion_popup_160x40")],
+)
+async def test_command_line_completion_popup_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin the visible popup, active signature, writes chip, and diagnostic."""
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            context = _completion_visual_context()
+            widget = screen.query_one(CommandLineInput)
+            widget.set_line("bead close --force")
+            # Drain the TextArea change event before pinning this deliberately
+            # hand-crafted resolver response; otherwise the ordinary refresh
+            # can repaint over it one tick after the test state is installed.
+            await wait_for_visual_idle(page)
+            widget.set_resolve_context(context)
+            screen._resolve_context = context
+            screen._resolved_line = widget.text
+            screen._last_completion_kind = "option_name"
+            items = [
+                {
+                    "insert_text": "--force ",
+                    "display": "--force",
+                    "description": "Close matching beads without descendants",
+                    "badge": "FLAG",
+                    "source": "spec",
+                    "match_runs": [[0, 6]],
+                    "selected": False,
+                },
+                {
+                    "insert_text": "--resolution ",
+                    "display": "--resolution",
+                    "description": "Record why this bead is closing",
+                    "badge": "RESOLUTION",
+                    "source": "spec",
+                    "match_runs": [],
+                    "selected": False,
+                },
+            ]
+            screen._popup_state.reset(
+                items,
+                typed_text=widget.text,
+                replace_start=11,
+                replace_end=18,
+            )
+            screen._render_popup({"items": items, "kind": "option", "total": 2})
+            screen._render_signature()
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "--resolution")
+            assert_page_svg_contains(page, "writes")
+            assert_page_svg_contains(page, "requires a resolution")
+            ace_png_visual.assert_page_png(page, snapshot_name)
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [((120, 40), "command_line_indexing_120x40")],
+)
+async def test_command_line_indexing_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin the grammar-loading state shown while the user keeps typing."""
+    import sase.ace.tui.command_line.screen_completion as screen_module
+
+    monkeypatch.setattr(
+        screen_module, "is_command_line_grammar_pending", lambda app: True
+    )
+    with (
+        patch.object(AceApp, "_load_agents"),
+        patch.object(AceApp, "_load_axe_status"),
+    ):
+        patch_startup_loaders(monkeypatch)
+        async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+            screen = await _seeded_panel(page, monkeypatch)
+            screen.query_one(CommandLineInput).set_line("bead show ")
+            await wait_for_visual_idle(page)
+            screen._show_indexing(True)
+            await wait_for_visual_idle(page)
+            assert_page_svg_contains(page, "indexing commands")
+            ace_png_visual.assert_page_png(page, snapshot_name)
 
 
 @pytest.mark.parametrize(

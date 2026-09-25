@@ -22,6 +22,8 @@ from sase.ace.tui.command_line.popup import (
 )
 from sase.ace.tui.command_line.screen_completion import (
     CommandLineScreenCompletionMixin,
+    _append_command_line_probe,
+    _command_line_probe_sample,
 )
 from sase.ace.tui.command_line.signature import (
     _build_chips,
@@ -69,6 +71,26 @@ def test_tab_accepts_unique_candidate() -> None:
     assert decision.action == "accept"
     assert decision.text == "close "
     assert state.menu_active is False
+
+
+def test_tab_refreshes_a_stale_popup_before_inserting() -> None:
+    """A queued Tab completes the current slot, never an older whole line."""
+    screen = object.__new__(CommandLineScreenCompletionMixin)
+    widget = SimpleNamespace(text="bead sh", move_cursor=lambda _location: None)
+    stale = CompletionPopupState()
+    stale.reset(_items("bead "), typed_text="", replace_start=0, replace_end=0)
+    fresh = CompletionPopupState()
+    fresh.reset(_items("show "), typed_text="bead sh", replace_start=5, replace_end=7)
+    screen._popup_state = stale
+    screen.query_one = lambda _type: widget
+
+    def refresh() -> None:
+        screen._popup_state = fresh
+
+    screen._refresh_completion = refresh
+
+    assert screen.command_line_handle_key(SimpleNamespace(key="tab")) is True
+    assert widget.text == "bead show "
 
 
 def test_tab_inserts_longest_common_prefix_first() -> None:
@@ -191,6 +213,48 @@ def test_provider_cache_entries_expire() -> None:
     assert cache.cached("bead", None) is None
 
 
+@pytest.mark.asyncio
+async def test_provider_fetch_drops_result_after_cursor_moves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A result landing after a cursor-only move cannot repaint the old slot."""
+    import sase.ace.tui.command_line.screen_completion as screen_module
+
+    class _Screen(CommandLineScreenCompletionMixin):
+        def __init__(self) -> None:
+            self._provider_cache = ProviderCache(ttl_seconds=60.0)
+            self._working_context = None
+            self._checks = 0
+
+        def _fetch_still_current(self, line: str, cursor: int) -> bool:
+            self._checks += 1
+            return self._checks == 1
+
+    async def _without_delay(seconds: float) -> None:
+        return None
+
+    async def _fetched(*args: object, **kwargs: object) -> list[SimpleNamespace]:
+        return [SimpleNamespace(value="new", description="fresh")]
+
+    screen = _Screen()
+    generation = screen._provider_cache.next_generation()
+    monkeypatch.setattr(screen_module.asyncio, "sleep", _without_delay)
+    monkeypatch.setattr(screen_module.asyncio, "to_thread", _fetched)
+
+    await screen._provider_fetch_task(
+        generation,
+        "bead",
+        None,
+        "bead show ",
+        len("bead show "),
+        None,
+        None,
+    )
+
+    assert screen._checks == 2
+    assert screen._provider_cache.cached("bead", None) is None
+
+
 def test_needs_provider_fetch_uses_path_and_empty_entity_fallbacks() -> None:
     """Paths scan in a worker; empty entity state falls back to its provider."""
     assert needs_provider_fetch(None) is False
@@ -311,6 +375,33 @@ def test_dynamic_merge_layers_in_memory_before_cached_providers() -> None:
     assert dynamic[-1]["value"] == "sase-1"
     agents_only = collect_dynamic_candidates(_agents_app(), "agent", "sase", cache)
     assert [item["value"] for item in agents_only] == ["athena.1", "mus.2"]
+
+
+def test_screen_prepends_marked_row_for_variadic_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The screen injects the all-marks row before ordinary resolver rows."""
+    import sase.ace.tui.command_line.screen_completion as screen_module
+
+    screen = object.__new__(CommandLineScreenCompletionMixin)
+    screen.app = SimpleNamespace()
+    screen._help_lookup = lambda path: None
+    monkeypatch.setattr(screen_module, "slot_is_variadic", lambda *args: True)
+    monkeypatch.setattr(
+        screen_module, "marked_values_for_kind", lambda app, kind: ["sase-1", "sase-2"]
+    )
+
+    completion = {
+        "items": [{"insert_text": "sase-3", "display": "sase-3"}],
+        "total": 1,
+    }
+    rendered = screen._maybe_prepend_marked_row(
+        {"path": ["bead", "close"], "slot": {"value_kind": "bead"}}, completion
+    )
+
+    assert rendered["items"][0]["display"] == "‹2 marked›"
+    assert rendered["items"][0]["insert_text"] == "sase-1 sase-2 "
+    assert rendered["total"] == 2
 
 
 def test_selected_first_ranking_through_rust_handle() -> None:
@@ -536,6 +627,7 @@ def test_keystroke_path_never_awaits() -> None:
     """Resolve, popup, and signature refresh stay synchronous (perf budget)."""
     import inspect
 
+    from sase.ace.tui.command_line import input as input_module
     from sase.ace.tui.command_line import screen as screen_module
 
     for name in (
@@ -545,8 +637,27 @@ def test_keystroke_path_never_awaits() -> None:
         "command_line_handle_key",
     ):
         member = getattr(screen_module.CommandLineScreen, name)
-        if name == "command_line_handle_key":
-            assert inspect.iscoroutinefunction(member)
-            continue
         assert not inspect.iscoroutinefunction(member), name
         assert "await" not in inspect.getsource(member), name
+
+    input_source = inspect.getsource(input_module.CommandLineInput._on_key)
+    assert "await handler(event)" not in input_source
+
+
+def test_command_line_perf_probe_writes_only_when_enabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Completed key-to-paint samples honor the shared perf path override."""
+    path = tmp_path / "perf.jsonl"
+    sample = _command_line_probe_sample(10.0, 10.002, 10.009, indexed=True)
+
+    monkeypatch.setenv("SASE_TUI_PERF_PATH", str(path))
+    monkeypatch.delenv("SASE_TUI_PERF", raising=False)
+    _append_command_line_probe(sample)
+    assert not path.exists()
+
+    monkeypatch.setenv("SASE_TUI_PERF", "1")
+    _append_command_line_probe(sample)
+    written = path.read_text(encoding="utf-8")
+    assert '"action": "command_line.complete"' in written
+    assert '"paint_ms": 9.0' in written

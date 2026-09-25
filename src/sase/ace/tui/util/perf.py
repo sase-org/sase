@@ -40,7 +40,7 @@ def is_enabled() -> bool:
     return os.environ.get(ENV_FLAG) == "1"
 
 
-def _perf_log_path() -> Path:
+def perf_log_path() -> Path:
     """Return the JSONL path for perf samples (env-overridable)."""
     override = os.environ.get(ENV_PATH)
     if override:
@@ -65,7 +65,7 @@ class JKPerfTimer:
         log_path: Path | None = None,
     ) -> None:
         self.window = window
-        self.log_path = log_path if log_path is not None else _perf_log_path()
+        self.log_path = log_path if log_path is not None else perf_log_path()
         self._samples: deque[dict[str, Any]] = deque(maxlen=window)
         self._inflight: dict[str, Any] | None = None
 
