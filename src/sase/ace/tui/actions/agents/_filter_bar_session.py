@@ -172,17 +172,7 @@ class AgentsFilterBarSessionMixin:
 
     def _commit_agents_filter_query(self, source: str) -> None:
         old_source = self._agent_search_query
-        old_canonical = self._agents_history_canonical(old_source)
-        new_canonical = self._agents_history_canonical(source)
-        record_transition = getattr(self, "_record_artifacts_query_transition", None)
-        if callable(record_transition):
-            record_transition(
-                "agents-live",
-                old_source=old_source,
-                old_canonical=old_canonical,
-                old_profile_digest=self._agents_live_profile_digest(),
-                new_canonical=new_canonical,
-            )
+        self._record_agents_live_query_transition(old_source, source)
         self._record_explicit_agents_query_commit(source)  # type: ignore[attr-defined]
         # Session is still open here, so this refilter uses (and, on a
         # cache-miss race, self-heals) the *preview* facade below -- copy it
@@ -193,6 +183,22 @@ class AgentsFilterBarSessionMixin:
             self, "_agents_live_preview_facade", None
         )
         self._schedule_agents_async_refresh(source="filter")
+
+    def _record_agents_live_query_transition(
+        self, old_source: str, new_source: str
+    ) -> None:
+        """Record one committed Agents-query replacement for ``^`` history."""
+        old_canonical = self._agents_history_canonical(old_source)
+        new_canonical = self._agents_history_canonical(new_source)
+        record_transition = getattr(self, "_record_artifacts_query_transition", None)
+        if callable(record_transition):
+            record_transition(
+                "agents-live",
+                old_source=old_source,
+                old_canonical=old_canonical,
+                old_profile_digest=self._agents_live_profile_digest(),
+                new_canonical=new_canonical,
+            )
 
     def _validate_agents_live_query(self, text: str) -> str | None:
         from ....query.profile_reference import canonical_query_for_profile

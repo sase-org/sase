@@ -370,15 +370,24 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
     def _reveal_agent_row(
         self, target_identity: MemberIdentity, *, subject: str = "Member"
     ) -> bool:
-        """Reveal a roster target through folds, then select it by identity."""
+        """Reveal a roster target through folds and notify on failure."""
+        failure = self._try_reveal_agent_row(target_identity)
+        if failure is not None:
+            self._notify_member_reveal_failure(failure, subject=subject)
+            return False
+        return True
+
+    def _try_reveal_agent_row(
+        self, target_identity: MemberIdentity
+    ) -> AgentRevealFailure | None:
+        """Reveal a roster target through folds without issuing a notification."""
         plan, failure = prepare_agent_navigation_target(
             self,
             target_identity,
             require_current=False,
         )
         if plan is None:
-            self._notify_member_reveal_failure(failure, subject=subject)
-            return False
+            return failure
 
         old_idx = self.current_idx
         old_group_key = getattr(self, "_current_group_key", None)
@@ -399,8 +408,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         reveal = outcome.result
         if reveal is None:
             self._restore_member_jump_history(back_stack, forward_stack)
-            self._notify_member_reveal_failure(outcome.failure, subject=subject)
-            return False
+            return outcome.failure
         if old_agent is not None and reveal.tree_changed:
             rebase_anchor = getattr(self, "_rebase_latest_agents_jump_anchor", None)
             if callable(rebase_anchor):
@@ -441,7 +449,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                     refresh(list_changed=True, defer_detail=True)
                 except TypeError:
                     refresh(list_changed=True)
-        return True
+        return None
 
     def _restore_member_jump_history(
         self,
