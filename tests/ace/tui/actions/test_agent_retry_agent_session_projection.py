@@ -1,4 +1,4 @@
-"""Regression coverage for live plan-family retry projection."""
+"""Regression coverage for live plan-session retry projection."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from sase.ace.tui.actions.agents._loading_helpers import (
 )
 from sase.ace.tui.models.agent import Agent
 from sase.agent.status_buckets import agent_status_bucket
-from tests.ace.tui._retry_family_loader_fixture import (
+from tests.ace.tui._retry_agent_session_loader_fixture import (
     ROOT_TIMESTAMP,
     RUNNER_PID,
-    build_retrying_plan_family,
+    build_retrying_plan_agent_session,
 )
 
 
-def _load_family(
+def _load_agent_session(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -28,7 +28,7 @@ def _load_family(
 ) -> tuple[Agent, list[Agent]]:
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    build_retrying_plan_family(
+    build_retrying_plan_agent_session(
         sase_home,
         next_retry_at_epoch=1_800_000_000.0,
         include_retry_state=include_retry_state,
@@ -67,11 +67,11 @@ def _load_family(
     return roots[0], result.all_agents
 
 
-def test_live_failed_plan_family_projects_retry_immediately(
+def test_live_failed_plan_agent_session_projects_retry_immediately(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root, agents = _load_family(
+    root, agents = _load_agent_session(
         tmp_path,
         monkeypatch,
         runner_live=True,
@@ -95,13 +95,13 @@ def test_live_failed_plan_family_projects_retry_immediately(
     ("runner_live", "include_retry_state"),
     [(False, True), (True, False)],
 )
-def test_failed_plan_family_without_live_retry_remains_terminal(
+def test_failed_plan_agent_session_without_live_retry_remains_terminal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     runner_live: bool,
     include_retry_state: bool,
 ) -> None:
-    root, _ = _load_family(
+    root, _ = _load_agent_session(
         tmp_path,
         monkeypatch,
         runner_live=runner_live,

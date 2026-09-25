@@ -21,7 +21,7 @@ from ._loading_compute_types import (
     PreparedFinalizePlan,
 )
 from ._loading_helpers import (
-    build_question_answer_family_index,
+    build_question_answer_agent_session_index,
     roster_identities,
     should_clear_loaded_agent_status_override,
 )
@@ -242,14 +242,16 @@ def _compute_status_override_plan(
 ) -> PreparedStatusOverridePlan:
     """Determine which agent rows need an override applied or cleared."""
     loaded_identities = {a.identity for a in agents}
-    family_index = build_question_answer_family_index(agents)
+    agent_session_index = build_question_answer_agent_session_index(agents)
     to_apply: list[tuple[tuple[AgentType, str, str | None], str]] = []
     cleared: list[tuple[AgentType, str, str | None]] = []
     for agent in agents:
         override = overrides.get(agent.identity)
         if override is None:
             continue
-        if should_clear_loaded_agent_status_override(agent, override, family_index):
+        if should_clear_loaded_agent_status_override(
+            agent, override, agent_session_index
+        ):
             cleared.append(agent.identity)
             continue
         to_apply.append((agent.identity, override))

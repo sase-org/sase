@@ -162,10 +162,10 @@ def make_agent(
     )
 
 
-def make_loader_shaped_aliased_plan_family() -> tuple[
+def make_loader_shaped_aliased_plan_agent_session() -> tuple[
     list[Agent], Agent, Agent, Agent, dict[str, Agent]
 ]:
-    """Build the workflow/family suffix shape emitted by the real loader."""
+    """Build the workflow/session suffix shape emitted by the real loader."""
     root = make_agent(
         cl_name="he",
         agent_name="he",
@@ -275,25 +275,25 @@ def _make_loader_shaped_workflow_steps(
     }
 
 
-def make_sequential_family(
+def make_sequential_agent_session(
     *,
     clan: str | None = None,
     status: str = "RUNNING",
     tribe: str | None = None,
 ) -> tuple[list[Agent], Agent, Agent]:
-    family = make_agent(raw_suffix="family", status=status, tribe=tribe)
-    family.plan_chain_root = True
-    family.agent_session = "family"
+    agent_session = make_agent(raw_suffix="session", status=status, tribe=tribe)
+    agent_session.plan_chain_root = True
+    agent_session.agent_session = "session"
     member = make_agent(raw_suffix="member", status=status)
-    member.parent_timestamp = family.raw_suffix
-    member.agent_session = "family"
+    member.parent_timestamp = agent_session.raw_suffix
+    member.agent_session = "session"
     member.agent_session_role = "code"
-    family.followup_agents.append(member)
-    family.runtime_children.append(member)
+    agent_session.followup_agents.append(member)
+    agent_session.runtime_children.append(member)
     if clan is not None:
-        family.agent_clan = clan
-        family.agent_clan_generation = "generation"
-        projected = project_clan_tree([family, member])
+        agent_session.agent_clan = clan
+        agent_session.agent_clan_generation = "generation"
+        projected = project_clan_tree([agent_session, member])
     else:
-        projected = [family, member]
-    return projected, family, member
+        projected = [agent_session, member]
+    return projected, agent_session, member

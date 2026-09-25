@@ -16,11 +16,11 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from ..fixtures import (
     HINT_CLAN_MEMBER_COUNT,
     HINT_CLAN_SUMMARY_KB,
-    HINT_FAMILY_MEMBER_COUNT,
+    HINT_AGENT_SESSION_MEMBER_COUNT,
     HINT_REPLY_SIZE_KB,
     make_hint_agent,
     make_hint_clan_container,
-    make_hint_family_container,
+    make_hint_agent_session_container,
 )
 from .common import _read_jsonl, _summarize_spans, _wait_for_startup
 
@@ -29,8 +29,8 @@ _HINT_RENDER_SPAN = "widget.prompt_panel.update_display_with_hints"
 VIEW_HINTS_STEPS: tuple[str, ...] = (
     "large_reply_first_press",
     "large_reply_repeat_press",
-    "family_container_press",
-    "family_container_unfolded_press",
+    "session_container_press",
+    "session_container_unfolded_press",
     "clan_container_press",
     "hint_mode_auto_refresh",
 )
@@ -111,7 +111,7 @@ async def _run_view_hints_scenario(
         artifacts_root=artifacts_root,
         project_file=str(gp_file),
     )
-    family_agent = make_hint_family_container(
+    agent_session_agent = make_hint_agent_session_container(
         artifacts_root=artifacts_root,
         project_file=str(gp_file),
     )
@@ -217,13 +217,13 @@ async def _run_view_hints_scenario(
             await _timed("hint_mode_auto_refresh", _auto_refresh)
             await _teardown_bar()
 
-            await _select(family_agent)
-            await _timed("family_container_press", _press_v)
+            await _select(agent_session_agent)
+            await _timed("session_container_press", _press_v)
             await _teardown_bar()
 
             app.panel_fold_level = FoldLevel.FULLY_EXPANDED  # type: ignore[assignment]
             await pilot.pause()
-            await _timed("family_container_unfolded_press", _press_v)
+            await _timed("session_container_unfolded_press", _press_v)
             await _teardown_bar()
 
             # The clan press is measured at the default collapsed level, which
@@ -238,7 +238,7 @@ async def _run_view_hints_scenario(
 
     return {
         "reply_kb": HINT_REPLY_SIZE_KB,
-        "family_members": HINT_FAMILY_MEMBER_COUNT,
+        "agent_session_members": HINT_AGENT_SESSION_MEMBER_COUNT,
         "clan_members": HINT_CLAN_MEMBER_COUNT,
         "clan_summary_kb": HINT_CLAN_SUMMARY_KB,
         "steps": steps,
@@ -297,7 +297,7 @@ async def run_view_hints_baseline(
         "version": 1,
         "runs": runs,
         "reply_kb": HINT_REPLY_SIZE_KB,
-        "family_members": HINT_FAMILY_MEMBER_COUNT,
+        "agent_session_members": HINT_AGENT_SESSION_MEMBER_COUNT,
         "clan_members": HINT_CLAN_MEMBER_COUNT,
         "clan_summary_kb": HINT_CLAN_SUMMARY_KB,
         "steps": VIEW_HINTS_STEPS,

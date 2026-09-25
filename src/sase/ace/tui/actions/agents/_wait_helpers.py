@@ -41,7 +41,7 @@ def is_coder_followup_suffix(suffix: str | None) -> bool:
     return agent_session_role_for_suffix(suffix) == "code"
 
 
-def is_agent_family_root(agent: Agent) -> bool:
+def is_agent_session_root(agent: Agent) -> bool:
     return not agent.is_workflow_child and (
         agent.plan_chain_root or agent.agent_session_role == "root"
     )
@@ -161,7 +161,7 @@ def wait_modal_candidates(
             visible_agents,
             exclude_identity=selected_agent.identity,
         )
-        if candidate.kind in {"agent", "family"}
+        if candidate.kind in {"agent", "session"}
     ]
 
 
@@ -239,7 +239,7 @@ def resolve_agent_prompt_target_scope(
 
     if agent.is_proc_shell or agent.is_monitor:
         # A proc shell is a `#fork` source only. An ordinary `%wait` resolves
-        # agent/family/clan/tribe artifacts and has no proc branch, so offering
+        # agent/session/clan/tribe artifacts and has no proc branch, so offering
         # one here would hand the user a dependency that can never release.
         if action != "fork":
             return None, "A proc shell can be forked but not used as a wait target"
@@ -289,7 +289,7 @@ def resolve_agent_prompt_target_scope(
             None,
         )
 
-    if agent.status in _PLAN_HANDOFF_DONE_STATUSES and not is_agent_family_root(agent):
+    if agent.status in _PLAN_HANDOFF_DONE_STATUSES and not is_agent_session_root(agent):
         coder = next(
             (
                 followup

@@ -173,8 +173,8 @@ def _prepare_overlays_inner(
     if not candidates:
         return CompletionArrivalPrep(), 0
 
-    # Collect the node plus every loaded family member (excluding
-    # workflow-step children) so normalization mirrors the family root the
+    # Collect the node plus every loaded session member (excluding
+    # workflow-step children) so normalization mirrors the session root the
     # same way a full load would.
     dirs: list[Path] = []
     seen_dirs: set[str] = set()

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class _AgentConfirmationEntry:
-    """One affected sase agent and any exact running family members."""
+    """One affected sase agent and any exact running session members."""
 
     sase_agent_name: str
     running_member_names: tuple[str, ...] = ()
@@ -62,13 +62,13 @@ def confirmation_sase_agent_summary(
     targets: Sequence[Agent],
     loaded_agents: Sequence[Agent],
     *,
-    include_running_family_members: bool = False,
+    include_running_agent_session_members: bool = False,
 ) -> AgentConfirmationSummary:
     """Return the sase-agent projection and unique concrete-target count."""
     entries = confirmation_sase_agent_entries(
         targets,
         loaded_agents,
-        include_running_family_members=include_running_family_members,
+        include_running_agent_session_members=include_running_agent_session_members,
     )
     concrete_target_keys: set[Hashable] = set()
     for target in targets:
@@ -91,12 +91,12 @@ def confirmation_sase_agent_entries(
     targets: Sequence[Agent],
     loaded_agents: Sequence[Agent],
     *,
-    include_running_family_members: bool = False,
+    include_running_agent_session_members: bool = False,
 ) -> tuple[_AgentConfirmationEntry, ...]:
     """Project concrete cleanup targets into ordered sase-agent entries.
 
-    Workflow descendants resolve to their workflow sase agent. Sequential-family
-    descendants resolve to the family reference, including families nested
+    Workflow descendants resolve to their workflow sase agent. Sequential-session
+    descendants resolve to the session reference, including sessions nested
     directly inside a clan. Clan containers are not sase agents: a descendant stops
     at the direct member immediately below its clan container.
 
@@ -111,9 +111,13 @@ def confirmation_sase_agent_entries(
 
     for target in targets:
         owner = _sase_agent_owner(target, parent_lookup)
-        family_name = _sequential_family_name(owner) or _sequential_family_name(target)
-        sase_agent_name = _sase_agent_name(owner, target, family_name)
-        sase_agent_key = _sase_agent_key(owner, target, family_name, sase_agent_name)
+        agent_session_name = _sequential_agent_session_name(
+            owner
+        ) or _sequential_agent_session_name(target)
+        sase_agent_name = _sase_agent_name(owner, target, agent_session_name)
+        sase_agent_key = _sase_agent_key(
+            owner, target, agent_session_name, sase_agent_name
+        )
 
         entry_index = entry_indexes.get(sase_agent_key)
         if entry_index is None:
@@ -121,11 +125,11 @@ def confirmation_sase_agent_entries(
             entry_indexes[sase_agent_key] = entry_index
             entries.append(_PendingEntry(sase_agent_name, []))
 
-        if not include_running_family_members:
+        if not include_running_agent_session_members:
             continue
         if getattr(target, "pid", None) is None:
             continue
-        if _sequential_family_name(target) is None:
+        if _sequential_agent_session_name(target) is None:
             continue
         member_name = _presented_concrete_name(target, sase_agent_name)
         if (
@@ -209,7 +213,7 @@ def _parent_lookup(rows: Sequence[Agent]) -> dict[str, Agent]:
 
 
 def _sase_agent_owner(target: Agent, parent_lookup: dict[str, Agent]) -> Agent:
-    """Return the workflow/family/standalone row that owns *target*'s sase agent."""
+    """Return the workflow/session/standalone row that owns *target*'s sase agent."""
     current = target
     seen: set[int] = set()
     while id(current) not in seen:
@@ -238,18 +242,18 @@ def _is_child_row(agent: Agent) -> bool:
         )
 
 
-def _sequential_family_name(agent: Agent) -> str | None:
-    """Return a model-derived family reference for a serial family row."""
+def _sequential_agent_session_name(agent: Agent) -> str | None:
+    """Return a model-derived session reference for a serial session row."""
     if agent_session_parallel_value(agent):
         return None
-    family = agent_session_value(agent)
-    if family:
-        return str(family)
+    session = agent_session_value(agent)
+    if session:
+        return str(session)
 
-    # Family-name inference is intentionally gated by structural metadata.
-    # Arbitrary workflow step names may resemble legacy family suffixes (for
+    # Session-name inference is intentionally gated by structural metadata.
+    # Arbitrary workflow step names may resemble legacy session suffixes (for
     # example ``step.2``) but remain part of their owning workflow sase agent.
-    is_family_root = bool(
+    is_agent_session_root = bool(
         getattr(agent, "plan_chain_root", False)
         or agent_session_role_value(agent) == "root"
     )
@@ -258,7 +262,7 @@ def _sequential_family_name(agent: Agent) -> str | None:
         and not getattr(agent, "parent_workflow", None)
         and (getattr(agent, "role_suffix", None) or agent_session_role_value(agent))
     )
-    if not is_family_root and not is_agent_session_child:
+    if not is_agent_session_root and not is_agent_session_child:
         return None
     try:
         from ...models._agent_status_agent_session import stable_agent_session_name
@@ -271,9 +275,9 @@ def _sequential_family_name(agent: Agent) -> str | None:
 def _sase_agent_name(
     owner: Agent,
     target: Agent,
-    family_name: str | None,
+    agent_session_name: str | None,
 ) -> str:
-    if family_name:
+    if agent_session_name:
         for row in (owner, target):
             presenter = getattr(row, "presented_agent_session_reference_name", None)
             if callable(presenter):
@@ -283,7 +287,7 @@ def _sase_agent_name(
                     presented = None
                 if presented:
                     return str(presented)
-        return family_name
+        return agent_session_name
 
     for row in (owner, target):
         for attr in ("presented_agent_name", "agent_name"):
@@ -306,13 +310,13 @@ def _sase_agent_name(
 def _sase_agent_key(
     owner: Agent,
     target: Agent,
-    family_name: str | None,
+    agent_session_name: str | None,
     sase_agent_name: str,
 ) -> Hashable:
-    if family_name:
+    if agent_session_name:
         return (
-            "family",
-            family_name,
+            "session",
+            agent_session_name,
             getattr(owner, "agent_clan_generation", None)
             or getattr(target, "agent_clan_generation", None),
         )

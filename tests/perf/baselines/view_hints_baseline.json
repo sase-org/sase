@@ -2,12 +2,12 @@
   "version": 1,
   "runs": 5,
   "reply_kb": 100,
-  "family_members": 5,
+  "agent_session_members": 5,
   "steps": [
     "large_reply_first_press",
     "large_reply_repeat_press",
-    "family_container_press",
-    "family_container_unfolded_press",
+    "session_container_press",
+    "session_container_unfolded_press",
     "hint_mode_auto_refresh"
   ],
   "median": {
@@ -166,7 +166,7 @@
         }
       }
     },
-    "family_container_press": {
+    "session_container_press": {
       "wall_ms": 3060.818907004432,
       "hint_counters": {
         "renders": 1,
@@ -215,7 +215,7 @@
         }
       }
     },
-    "family_container_unfolded_press": {
+    "session_container_unfolded_press": {
       "wall_ms": 6025.639579995186,
       "hint_counters": {
         "renders": 1,
@@ -321,7 +321,7 @@
   "raw_runs": [
     {
       "reply_kb": 100,
-      "family_members": 5,
+      "agent_session_members": 5,
       "steps": {
         "large_reply_first_press": {
           "wall_ms": 3703.356388999964,
@@ -519,7 +519,7 @@
             ]
           }
         },
-        "family_container_press": {
+        "session_container_press": {
           "wall_ms": 3060.818907004432,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -578,7 +578,7 @@
             ]
           }
         },
-        "family_container_unfolded_press": {
+        "session_container_unfolded_press": {
           "wall_ms": 5712.881771003595,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -641,7 +641,7 @@
     },
     {
       "reply_kb": 100,
-      "family_members": 5,
+      "agent_session_members": 5,
       "steps": {
         "large_reply_first_press": {
           "wall_ms": 1965.5693219974637,
@@ -832,7 +832,7 @@
             ]
           }
         },
-        "family_container_press": {
+        "session_container_press": {
           "wall_ms": 451.0708719899412,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -873,7 +873,7 @@
             ]
           }
         },
-        "family_container_unfolded_press": {
+        "session_container_unfolded_press": {
           "wall_ms": 5592.334775006748,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -942,7 +942,7 @@
     },
     {
       "reply_kb": 100,
-      "family_members": 5,
+      "agent_session_members": 5,
       "steps": {
         "large_reply_first_press": {
           "wall_ms": 3277.4590690096375,
@@ -1230,7 +1230,7 @@
             ]
           }
         },
-        "family_container_press": {
+        "session_container_press": {
           "wall_ms": 3062.996975000715,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -1295,7 +1295,7 @@
             ]
           }
         },
-        "family_container_unfolded_press": {
+        "session_container_unfolded_press": {
           "wall_ms": 11270.092767997994,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -1364,7 +1364,7 @@
     },
     {
       "reply_kb": 100,
-      "family_members": 5,
+      "agent_session_members": 5,
       "steps": {
         "large_reply_first_press": {
           "wall_ms": 2746.325792002608,
@@ -1556,7 +1556,7 @@
             ]
           }
         },
-        "family_container_press": {
+        "session_container_press": {
           "wall_ms": 3074.6131560008507,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -1621,7 +1621,7 @@
             ]
           }
         },
-        "family_container_unfolded_press": {
+        "session_container_unfolded_press": {
           "wall_ms": 6025.639579995186,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -1684,7 +1684,7 @@
     },
     {
       "reply_kb": 100,
-      "family_members": 5,
+      "agent_session_members": 5,
       "steps": {
         "large_reply_first_press": {
           "wall_ms": 3067.744133004453,
@@ -1959,7 +1959,7 @@
             ]
           }
         },
-        "family_container_press": {
+        "session_container_press": {
           "wall_ms": 1844.2722870095167,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {
@@ -2018,7 +2018,7 @@
             ]
           }
         },
-        "family_container_unfolded_press": {
+        "session_container_unfolded_press": {
           "wall_ms": 11150.76083499298,
           "spans": {
             "widget.prompt_panel.update_display_with_hints": {

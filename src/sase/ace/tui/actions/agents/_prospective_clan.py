@@ -195,7 +195,7 @@ def prospective_clan_projection(
 ) -> _ProspectiveClanProjection:
     """Return rows that would render if collapsed clan folds were relaxed.
 
-    Every other visibility input remains unchanged: inner workflow/family
+    Every other visibility input remains unchanged: inner workflow/session
     folds, active search, grouping folds, split/merged tribe assignment, and
     STARTING-row exclusion. Collapsed tribe panels are deliberately traversed
     because their rows remain revealable navigation targets.

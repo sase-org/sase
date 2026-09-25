@@ -8,7 +8,7 @@ from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.ace.tui.widgets.llm_calls_panel import ToolDetailLevel
 from tests.ace.tui._agent_fold_transition_helpers import (
     StubFoldApp,
-    make_loader_shaped_aliased_plan_family,
+    make_loader_shaped_aliased_plan_agent_session,
     make_standalone_workflow_lane,
 )
 
@@ -360,8 +360,8 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     workflow = _labels(
         footer._compute_agent_bindings(None, left_navigation_kind="workflow")
     )
-    family = _labels(
-        footer._compute_agent_bindings(None, left_navigation_kind="family")
+    session = _labels(
+        footer._compute_agent_bindings(None, left_navigation_kind="session")
     )
     clan = _labels(footer._compute_agent_bindings(None, left_navigation_kind="clan"))
     tribe = _labels(
@@ -374,7 +374,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     llm_calls = _labels(
         footer._compute_agent_bindings(
             None,
-            left_navigation_kind="family",
+            left_navigation_kind="session",
             llm_calls_visible=True,
             llm_calls_detail_level=ToolDetailLevel.EXPANDED,
         )
@@ -382,9 +382,9 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     panel = _labels(
         footer._compute_agent_bindings(
             None,
-            left_navigation_kind="family",
+            left_navigation_kind="session",
             panel_focused=True,
-            structural_collapse_kind="family",
+            structural_collapse_kind="session",
             panel_isolation_available=True,
         )
     )
@@ -394,8 +394,8 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             structural_collapse_kind="workflow",
         )
     )
-    family_collapse = _labels(
-        footer._compute_agent_bindings(None, structural_collapse_kind="family")
+    agent_session_collapse = _labels(
+        footer._compute_agent_bindings(None, structural_collapse_kind="session")
     )
     clan_collapse = _labels(
         footer._compute_agent_bindings(None, structural_collapse_kind="clan")
@@ -418,7 +418,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             None,
             lane_collapse_available=True,
             clan_collapse_available=True,
-            structural_collapse_kind="family",
+            structural_collapse_kind="session",
             group_collapse_available=True,
         )
     )
@@ -437,7 +437,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             panel_focused=True,
             panel_hint_collapse_available=True,
             clan_collapse_available=True,
-            structural_collapse_kind="family",
+            structural_collapse_kind="session",
             group_collapse_available=True,
         )
     )
@@ -446,7 +446,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     )
 
     assert ("h", "parent workflow") in workflow
-    assert ("h", "parent family") in family
+    assert ("h", "parent family") in session
     assert ("h", "parent clan") in clan
     assert ("h", "parent tribe") in tribe
     assert ("h", "parent family") in llm_calls
@@ -455,7 +455,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("=", "only panel") in panel
     assert ("H", "only panel") not in panel
     assert ("H", "collapse workflow") in workflow_collapse
-    assert ("H", "collapse family") in family_collapse
+    assert ("H", "collapse family") in agent_session_collapse
     assert ("H", "collapse family") in selected_lane_over_group
     assert ("H", "collapse sase agents") not in selected_lane_over_group
     assert ("H", "collapse clan") in clan_collapse
@@ -476,10 +476,12 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
 
 
 @pytest.mark.parametrize("step_kind", ["bash", "python", "pre_prompt"])
-def test_footer_labels_aliased_family_workflow_steps_from_shared_resolver(
+def test_footer_labels_aliased_agent_session_workflow_steps_from_shared_resolver(
     step_kind: str,
 ) -> None:
-    agents, _root, _main, _coder, steps = make_loader_shaped_aliased_plan_family()
+    agents, _root, _main, _coder, steps = (
+        make_loader_shaped_aliased_plan_agent_session()
+    )
     app = StubFoldApp(agents, current_idx=agents.index(steps[step_kind]))
     target = app._resolve_agent_left_navigation_target()
     assert target is not None
@@ -556,16 +558,18 @@ def test_footer_saturated_hidden_leaf_advertises_selected_lane_collapse() -> Non
     assert ("H", "collapse group") in closed_bindings
 
 
-def test_footer_hidden_family_step_advertises_selected_family_then_group() -> None:
-    agents, root, _main, _coder, steps = make_loader_shaped_aliased_plan_family()
+def test_footer_hidden_agent_session_step_advertises_selected_agent_session_then_group() -> (
+    None
+):
+    agents, root, _main, _coder, steps = make_loader_shaped_aliased_plan_agent_session()
     app = StubFoldApp(agents, current_idx=agents.index(steps["pre_prompt"]))
-    family_key = root.raw_suffix
-    assert family_key is not None
-    app._fold_manager.expand(family_key)
-    app._fold_manager.expand(family_key)
+    agent_session_key = root.raw_suffix
+    assert agent_session_key is not None
+    app._fold_manager.expand(agent_session_key)
+    app._fold_manager.expand(agent_session_key)
     structural = app._resolve_agent_structural_collapse_target()
     assert structural is not None
-    assert structural.kind == "family"
+    assert structural.kind == "session"
 
     open_bindings = _labels(
         KeybindingFooter()._compute_agent_bindings(
@@ -579,7 +583,7 @@ def test_footer_hidden_family_step_advertises_selected_family_then_group() -> No
 
     app.action_hooks_or_collapse_all()
     app.action_hooks_or_collapse_all()
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
     assert app._resolve_agent_structural_collapse_target() is None
     remaining = app._resolve_sase_agent_collapse_target()
     group = app._resolve_group_collapse_target()

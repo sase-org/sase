@@ -122,12 +122,12 @@ _DEFAULT_SPAN_GATES = (
         rationale="warm repeat press must stay bounded by bar mount/scheduling cost",
     ),
     SpanGate(
-        "unfolded family press reaches the hint bar quickly",
-        step="family_container_unfolded_press",
+        "unfolded session press reaches the hint bar quickly",
+        step="session_container_unfolded_press",
         span="agents.view_files",
         max_ms=30.0,
         max_baseline_ratio=0.50,
-        rationale="family size must not scale the keypress-to-bar path",
+        rationale="session size must not scale the keypress-to-bar path",
     ),
     SpanGate(
         "repeat press uses the cached hint render",
@@ -166,12 +166,12 @@ _DEFAULT_SPAN_GATES = (
         ),
     ),
     SpanGate(
-        "unfolded family render stays bounded",
-        step="family_container_unfolded_press",
+        "unfolded session render stays bounded",
+        step="session_container_unfolded_press",
         span="widget.prompt_panel.update_display_with_hints",
         max_ms=65.0,
         max_baseline_ratio=0.80,
-        rationale="the family render may run off-pump, but capped input keeps it bounded",
+        rationale="the session render may run off-pump, but capped input keeps it bounded",
     ),
 )
 
@@ -203,12 +203,12 @@ _DEFAULT_COUNTER_GATES = (
         ),
     ),
     CounterGate(
-        "unfolded family hint scan is capped",
-        step="family_container_unfolded_press",
+        "unfolded session hint scan is capped",
+        step="session_container_unfolded_press",
         counter="annotated_chars",
         max_value=200_000.0,
         max_baseline_ratio=0.40,
-        rationale="family members share a total hint scan budget",
+        rationale="session members share a total hint scan budget",
     ),
 )
 

@@ -133,7 +133,7 @@ class AgentKillActionFlowMixin:
                 confirmation_sase_agent_entries(
                     [agent],
                     self._agents_with_children,
-                    include_running_family_members=True,
+                    include_running_agent_session_members=True,
                 )
             )
         )

@@ -111,10 +111,10 @@ def is_always_visible(agent: Agent) -> bool:
     return True
 
 
-def _question_answer_family_key(agent: Agent) -> str | None:
-    """Return a stable family key for QUESTION-override answer reconciliation.
+def _question_answer_agent_session_key(agent: Agent) -> str | None:
+    """Return a stable session key for QUESTION-override answer reconciliation.
 
-    Rows in one agent family share ``agent_session``; sibling continuations
+    Rows in one agent session share ``agent_session``; sibling continuations
     additionally share ``parent_timestamp``. Either is enough to recognize the
     continuation that answered an asking row's question.
     """
@@ -123,14 +123,14 @@ def _question_answer_family_key(agent: Agent) -> str | None:
     return agent.parent_timestamp or None
 
 
-def build_question_answer_family_index(
+def build_question_answer_agent_session_index(
     agents: list[Agent],
 ) -> dict[str, list[Agent]]:
     """Index continuation rows that carry persisted question-response metadata.
 
     Only rows with a ``question_response_path`` are indexed: their presence is
-    the loaded-graph proof that a family question was answered and the runner
-    spawned a continuation. The index is keyed by family so a stale
+    the loaded-graph proof that a session question was answered and the runner
+    spawned a continuation. The index is keyed by session so a stale
     ``QUESTION`` override on an asking row can find the continuation that
     superseded it without any disk reads.
     """
@@ -138,35 +138,35 @@ def build_question_answer_family_index(
     for agent in agents:
         if not agent.question_response_path:
             continue
-        key = _question_answer_family_key(agent)
+        key = _question_answer_agent_session_key(agent)
         if key is None:
             continue
         index.setdefault(key, []).append(agent)
     return index
 
 
-def _question_override_answered_by_family(
+def _question_override_answered_by_agent_session(
     agent: Agent,
     override: str,
-    family_index: dict[str, list[Agent]],
+    agent_session_index: dict[str, list[Agent]],
 ) -> bool:
     """Return True when a ``QUESTION`` override is overtaken by a loaded answer.
 
     An asking row keeps a stale ``QUESTION`` override after its question was
     answered out-of-band (e.g. the notification was dismissed before the
     answer, or the row is a historical artifact that predates response-metadata
-    persistence). The override is stale once a same-family continuation row —
+    persistence). The override is stale once a same-session continuation row —
     one carrying ``question_response_path`` — was launched after this row's
     latest question submission. Gating on the question time keeps a still-open
     follow-up question from being cleared by an earlier answered round.
     """
     if override != "QUESTION" or not agent.questions_times:
         return False
-    key = _question_answer_family_key(agent)
+    key = _question_answer_agent_session_key(agent)
     if key is None:
         return False
     threshold = max(agent.questions_times)
-    for continuation in family_index.get(key, ()):
+    for continuation in agent_session_index.get(key, ()):
         if continuation is agent:
             continue
         launched = continuation.run_start_time or continuation.start_time
@@ -178,13 +178,13 @@ def _question_override_answered_by_family(
 def should_clear_loaded_agent_status_override(
     agent: Agent,
     override: str,
-    question_answer_family_index: dict[str, list[Agent]] | None = None,
+    question_answer_agent_session_index: dict[str, list[Agent]] | None = None,
 ) -> bool:
     """Return True when a loaded row should discard an in-memory override.
 
-    When *question_answer_family_index* is supplied (built by
-    :func:`build_question_answer_family_index`), a stale ``QUESTION`` override
-    is also cleared once a same-family continuation proves the question was
+    When *question_answer_agent_session_index* is supplied (built by
+    :func:`build_question_answer_agent_session_index`), a stale ``QUESTION`` override
+    is also cleared once a same-session continuation proves the question was
     answered — even when the loaded row's own status (e.g. a loader-derived
     ``QUESTION`` on a historical artifact) would otherwise keep it.
     """
@@ -206,9 +206,9 @@ def should_clear_loaded_agent_status_override(
         # until the runner consumes the response and the marker clears.
         if override == "QUESTION" and agent.status == "ANSWERED":
             return True
-    if question_answer_family_index is not None and (
-        _question_override_answered_by_family(
-            agent, override, question_answer_family_index
+    if question_answer_agent_session_index is not None and (
+        _question_override_answered_by_agent_session(
+            agent, override, question_answer_agent_session_index
         )
     ):
         return True
@@ -388,7 +388,7 @@ def _apply_loaded_agent_disk_projections(
     load_state: AgentLoadState,
 ) -> _AgentDiskLoadResult:
     # Populate retry fields from retry_state.json for running agents. Runtime
-    # liveness provenance keeps family roots eligible even after semantic
+    # liveness provenance keeps session roots eligible even after semantic
     # aggregation mirrors a failed child onto their display status. Prior
     # attempt history is hydrated lazily by selected detail/search paths; doing
     # it here would list/stat artifacts/attempts/<N>/ for every row.
@@ -432,7 +432,7 @@ def _apply_loaded_agent_disk_projections(
     # Exclude live agents: a done.json auto-dismiss can share the same
     # identity/raw_suffix as a still-active runner; treating the live row as
     # dismissed would delete its artifacts and hide it. Display status is not
-    # sufficient because retrying family roots can temporarily mirror FAILED.
+    # sufficient because retrying session roots can temporarily mirror FAILED.
     dismissed_from_loader = [
         a
         for a in all_agents

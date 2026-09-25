@@ -16,7 +16,7 @@ def clan_members_for_container(
 
     Killing an ordinary member must leave its siblings alone, so only a
     rootless synthetic row (no artifact suffix) activates the new cascade.
-    The legacy branch preserves archived parallel-family root behavior.
+    The legacy branch preserves archived parallel-session root behavior.
     """
     if container.is_clan_container and container.agent_clan:
         from ...models._agent_tree import agent_fold_key

@@ -1,4 +1,4 @@
-"""Regression repros for family-shell status convergence after settlement."""
+"""Regression repros for session-shell status convergence after settlement."""
 
 from __future__ import annotations
 
@@ -482,7 +482,7 @@ def test_settlement_notification_exact_delta_converges_before_index_upsert(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The production completion notification refreshes the family chain exactly."""
+    """The production completion notification refreshes the session chain exactly."""
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     tree = _build_incident_tree(sase_home)
@@ -531,7 +531,7 @@ def test_settled_monitor_replay_converges_after_index_upsert(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Replay the stale-family incident through loader, merge, apply, and tokens."""
+    """Replay the stale-session incident through loader, merge, apply, and tokens."""
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     tree = _build_incident_tree(sase_home)

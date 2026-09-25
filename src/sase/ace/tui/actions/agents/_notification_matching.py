@@ -14,7 +14,7 @@ PENDING_GATE_REFRESH_ACTIONS = frozenset(
 )
 # legacy agent-family spelling: pre-rename notifications carry
 # ``family_root_suffix``; new writers emit only ``agent_session_root_suffix``.
-FAMILY_ROOT_SUFFIX_KEYS = (
+AGENT_SESSION_ROOT_SUFFIX_KEYS = (
     "agent_session_root_suffix",
     "family_root_suffix",
     "family_root_raw_suffix",
@@ -35,8 +35,8 @@ def notification_raw_suffix(notification: Notification) -> str | None:
     return normalized_suffix(notification.action_data.get("raw_suffix"))
 
 
-def notification_family_root_suffix(notification: Notification) -> str | None:
-    for key in FAMILY_ROOT_SUFFIX_KEYS:
+def notification_agent_session_root_suffix(notification: Notification) -> str | None:
+    for key in AGENT_SESSION_ROOT_SUFFIX_KEYS:
         suffix = normalized_suffix(notification.action_data.get(key))
         if suffix:
             return suffix
@@ -44,13 +44,13 @@ def notification_family_root_suffix(notification: Notification) -> str | None:
 
 
 def pending_gate_notification_suffixes(notification: Notification) -> list[str]:
-    """Return gate-member, planner, and family-root suffixes in that order."""
+    """Return gate-member, planner, and session-root suffixes in that order."""
     ordered: list[str] = []
     seen: set[str] = set()
     for value in (
         notification_raw_suffix(notification),
         normalized_suffix(notification.action_data.get("agent_timestamp")),
-        notification_family_root_suffix(notification),
+        notification_agent_session_root_suffix(notification),
     ):
         if value is None or value in seen:
             continue
@@ -80,7 +80,7 @@ def is_active_agent_settlement_notification(notification: Notification) -> bool:
         return True
     if not is_active_agent_completion_notification(notification):
         return False
-    root_suffix = notification_family_root_suffix(notification)
+    root_suffix = notification_agent_session_root_suffix(notification)
     return root_suffix is not None and root_suffix != raw_suffix
 
 
@@ -88,7 +88,7 @@ def is_active_pending_gate_refresh_notification(notification: Notification) -> b
     """Return True for an active pending-review gate notification.
 
     Sibling of the completion and settlement predicates. Plan/epic/question
-    arrivals need an exact family-chain refresh on the toast tick; they are
+    arrivals need an exact session-chain refresh on the toast tick; they are
     not settlement senders.
     """
     if notification.dismissed:

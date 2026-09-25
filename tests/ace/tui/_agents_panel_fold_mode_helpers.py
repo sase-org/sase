@@ -13,7 +13,7 @@ class _FoldApp(FoldNavigationMixin):
         *,
         tab: str = "agents",
         clan: bool = True,
-        family: bool = False,
+        session: bool = False,
         panel_focused: bool = False,
         has_agent: bool = True,
         neighbor_count: int = 0,
@@ -35,8 +35,8 @@ class _FoldApp(FoldNavigationMixin):
         self.selected_agent = (
             SimpleNamespace(
                 is_clan_container=clan,
-                is_agent_session_container_row=family,
-                is_agent_session_root_entry=family,
+                is_agent_session_container_row=session,
+                is_agent_session_root_entry=session,
                 is_workflow_child=False,
                 is_hidden_step=False,
                 is_agent_session_member_child=False,

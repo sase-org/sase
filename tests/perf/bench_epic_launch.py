@@ -218,15 +218,15 @@ def _seed_history(
                 pid=sleepers.spawn(),
                 waiting=True,
             )
-        elif scenario == "mixed_family_retry":
+        elif scenario == "mixed_agent_session_retry":
             member = f"{name}.member"
             _write_agent_meta(
-                root / f"family-{name}",
+                root / f"session-{name}",
                 name=member,
                 bead_id=bead_id,
                 done=True,
-                family=name,
-                family_role="member",
+                session=name,
+                agent_session_role="member",
             )
         elif scenario == "terminal_retry":
             _write_agent_meta(
@@ -259,8 +259,8 @@ def _write_agent_meta(
     pid: int | None = None,
     done: bool = False,
     waiting: bool = False,
-    family: str | None = None,
-    family_role: str | None = None,
+    session: str | None = None,
+    agent_session_role: str | None = None,
 ) -> None:
     path.mkdir(parents=True, exist_ok=True)
     meta: dict[str, Any] = {"name": name, "model": "bench"}
@@ -273,10 +273,10 @@ def _write_agent_meta(
             meta["epic_bead_id"] = bead_id.rsplit(".", 1)[0]
         else:
             meta["epic_bead_id"] = bead_id
-    if family is not None:
-        meta["agent_session"] = family
-    if family_role is not None:
-        meta["agent_session_role"] = family_role
+    if session is not None:
+        meta["agent_session"] = session
+    if agent_session_role is not None:
+        meta["agent_session_role"] = agent_session_role
     (path / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
     if done:
         (path / "done.json").write_text(
@@ -561,7 +561,7 @@ def main(argv: list[str] | None = None) -> int:
         "--scenarios",
         default=(
             "fresh_epic,all_active_noop,terminal_retry,waiting_retry,"
-            "mixed_family_retry,ordered_four_target_batch"
+            "mixed_agent_session_retry,ordered_four_target_batch"
         ),
     )
     parser.add_argument("--output", type=Path)

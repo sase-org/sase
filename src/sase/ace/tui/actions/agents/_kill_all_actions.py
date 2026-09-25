@@ -75,7 +75,7 @@ class AgentKillAllActionsMixin:
                 confirmation_sase_agent_summary(
                     killable,
                     loaded_agents,
-                    include_running_family_members=True,
+                    include_running_agent_session_members=True,
                 ).subject_lines("Kill")
             )
         if dismissable:

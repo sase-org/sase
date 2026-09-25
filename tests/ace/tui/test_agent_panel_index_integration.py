@@ -54,7 +54,7 @@ def _agent(
     )
 
 
-def _parallel_family(
+def _parallel_agent_session(
     *,
     suffix: str,
     root_status: str,
@@ -78,7 +78,9 @@ def _parallel_family(
     return root, members
 
 
-def _sequential_family(*, suffix: str, clan: str | None = None) -> tuple[Agent, Agent]:
+def _sequential_agent_session(
+    *, suffix: str, clan: str | None = None
+) -> tuple[Agent, Agent]:
     root = _agent(
         suffix=suffix,
         status="PLAN APPROVED",
@@ -381,11 +383,13 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 7)
 
 
-def test_info_panel_mixed_family_and_clan_uses_lane_headline() -> None:
+def test_info_panel_mixed_agent_session_and_clan_uses_lane_headline() -> None:
     standalone = _agent(suffix="standalone", status="DONE")
-    family_root, family_member = _sequential_family(suffix="family")
-    clan_family_root, clan_family_member = _sequential_family(
-        suffix="clan-family",
+    agent_session_root, agent_session_member = _sequential_agent_session(
+        suffix="session"
+    )
+    clan_agent_session_root, clan_agent_session_member = _sequential_agent_session(
+        suffix="clan-session",
         clan="research",
     )
     clan_standalone = _agent(
@@ -396,10 +400,10 @@ def test_info_panel_mixed_family_and_clan_uses_lane_headline() -> None:
     rows = project_clan_tree(
         [
             standalone,
-            family_root,
-            family_member,
-            clan_family_root,
-            clan_family_member,
+            agent_session_root,
+            agent_session_member,
+            clan_agent_session_root,
+            clan_agent_session_member,
             clan_standalone,
         ]
     )
@@ -408,14 +412,16 @@ def test_info_panel_mixed_family_and_clan_uses_lane_headline() -> None:
     info_panel = _run_info_panel(bare)
 
     assert info_panel.position == (1, 3)
-    # Four lanes: standalone, family, and two direct clan members. The status
+    # Four lanes: standalone, session, and two direct clan members. The status
     # buckets classify those same four owners.
     assert info_panel.counts == (0, 0, 0, 2, 1, 0, 1, 4)
 
 
 def test_info_panel_lane_headline_ignores_grouping_and_fold_presentation() -> None:
-    family_root, family_member = _sequential_family(suffix="family")
-    bare = _Bare([family_root, family_member])
+    agent_session_root, agent_session_member = _sequential_agent_session(
+        suffix="session"
+    )
+    bare = _Bare([agent_session_root, agent_session_member])
 
     initial = _run_info_panel(bare)
     bare._grouping_mode = GroupingMode.BY_STATUS
@@ -508,9 +514,9 @@ def test_real_status_transition_reveals_previously_hidden_starting_row() -> None
     assert bare._get_selected_agent() is running_agent
 
 
-def test_info_panel_projects_parallel_family_member_statuses() -> None:
-    family_one_root, family_one_members = _parallel_family(
-        suffix="family-one",
+def test_info_panel_projects_parallel_agent_session_member_statuses() -> None:
+    family_one_root, family_one_members = _parallel_agent_session(
+        suffix="session-one",
         root_status="WAITING",
         member_statuses=(
             "RUNNING",
@@ -521,8 +527,8 @@ def test_info_panel_projects_parallel_family_member_statuses() -> None:
             "DONE",
         ),
     )
-    family_two_root, family_two_members = _parallel_family(
-        suffix="family-two",
+    family_two_root, family_two_members = _parallel_agent_session(
+        suffix="session-two",
         root_status="DONE",
         member_statuses=(
             "RUNNING",
@@ -563,20 +569,20 @@ def test_info_panel_projects_parallel_family_member_statuses() -> None:
     info_panel = _run_info_panel(bare)
 
     assert info_panel.position == (1, 5)
-    # Family roots count once as agent nodes; member and serial-child shell
+    # Session roots count once as agent nodes; member and serial-child shell
     # identities do not widen the headline totals or unread count.
     assert info_panel.counts == (0, 0, 0, 2, 2, 0, 1, 5)
 
 
 def test_info_panel_parallel_root_without_loaded_members_falls_back_to_root() -> None:
-    unloaded_family_root = _agent(
-        suffix="unloaded-family",
+    unloaded_agent_session_root = _agent(
+        suffix="unloaded-session",
         status="WAITING",
         agent_session_parallel=True,
     )
     bare = _Bare(
         [
-            unloaded_family_root,
+            unloaded_agent_session_root,
             _agent(suffix="ordinary-done", status="DONE"),
             _agent(suffix="ordinary-starting", status="STARTING"),
         ]

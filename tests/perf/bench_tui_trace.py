@@ -188,13 +188,21 @@ async def test_view_hints_scenario(_trace_env: tuple[Path, Path, Path]) -> None:
     assert plain_counters["annotated_chars"] > HINT_REPLY_SIZE_KB * 1024
     assert plain_counters["hints"] > 0
     assert plain_counters["agent_session_container"] == [False]
-    default_family_counters = steps["family_container_press"]["hint_counters"]
-    full_family_counters = steps["family_container_unfolded_press"]["hint_counters"]
-    for family_counters in (default_family_counters, full_family_counters):
-        assert family_counters["agent_session_container"] == [True]
-        assert family_counters["annotated_chars"] > plain_counters["annotated_chars"]
-        assert family_counters["annotated_chars"] <= 200_000
-        assert family_counters["hints"] > 0
+    default_agent_session_counters = steps["session_container_press"]["hint_counters"]
+    full_agent_session_counters = steps["session_container_unfolded_press"][
+        "hint_counters"
+    ]
+    for agent_session_counters in (
+        default_agent_session_counters,
+        full_agent_session_counters,
+    ):
+        assert agent_session_counters["agent_session_container"] == [True]
+        assert (
+            agent_session_counters["annotated_chars"]
+            > plain_counters["annotated_chars"]
+        )
+        assert agent_session_counters["annotated_chars"] <= 200_000
+        assert agent_session_counters["hints"] > 0
     print(json.dumps(result, indent=2), file=sys.stderr)
 
 

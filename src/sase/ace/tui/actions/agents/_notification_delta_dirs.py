@@ -14,7 +14,7 @@ from ._notification_matching import (
     is_active_agent_settlement_notification,
     is_active_pending_gate_refresh_notification,
     normalized_suffix,
-    notification_family_root_suffix,
+    notification_agent_session_root_suffix,
     notification_raw_suffix,
     pending_gate_notification_suffixes,
     active_completion_agent_keys,
@@ -85,12 +85,12 @@ def completion_notification_delta_dirs(
         raw_suffix = notification_raw_suffix(notification)
         if raw_suffix is None:
             continue
-        root_suffix = notification_family_root_suffix(notification)
+        root_suffix = notification_agent_session_root_suffix(notification)
         settlement_suffixes.add(raw_suffix)
         if root_suffix is not None:
             settlement_suffixes.add(root_suffix)
         resolved_suffixes.update(
-            add_loaded_family_chain_artifact_dirs(
+            add_loaded_agent_session_chain_artifact_dirs(
                 agents_by_suffix,
                 raw_suffix=raw_suffix,
                 root_suffix=root_suffix,
@@ -119,14 +119,14 @@ def completion_notification_delta_dirs(
     return artifact_dirs
 
 
-def add_loaded_family_chain_artifact_dirs(
+def add_loaded_agent_session_chain_artifact_dirs(
     agents_by_suffix: dict[str, Agent],
     *,
     raw_suffix: str,
     root_suffix: str | None,
     add_agent_artifact_dir: Callable[[Agent], bool],
 ) -> set[str]:
-    """Add the loaded settled shell and ancestor family dirs, returning suffixes."""
+    """Add the loaded settled shell and ancestor session dirs, returning suffixes."""
     resolved: set[str] = set()
     current_suffix: str | None = raw_suffix
     visited: set[str] = set()
@@ -153,7 +153,7 @@ def pending_gate_notification_delta_dirs(
     app: Any,
     pending: Sequence[Notification],
 ) -> list[Path]:
-    """Resolve exact family-chain dirs for active pending-review gate arrivals.
+    """Resolve exact session-chain dirs for active pending-review gate arrivals.
 
     Touches disk (``is_dir`` and the unloaded-timestamp scan), so it runs only
     from ``prepare_pending_gate_notification_refresh`` on the notification-poll
@@ -201,10 +201,10 @@ def pending_gate_notification_delta_dirs(
         if raw_suffix is None:
             continue
         resolved_suffixes.update(
-            add_loaded_family_chain_artifact_dirs(
+            add_loaded_agent_session_chain_artifact_dirs(
                 agents_by_suffix,
                 raw_suffix=raw_suffix,
-                root_suffix=notification_family_root_suffix(notification),
+                root_suffix=notification_agent_session_root_suffix(notification),
                 add_agent_artifact_dir=add_agent_artifact_dir,
             )
         )

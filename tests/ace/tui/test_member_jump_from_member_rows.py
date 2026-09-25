@@ -1,4 +1,4 @@
-"""Digit jumps issued from a selected family member row rather than its container."""
+"""Digit jumps issued from a selected session member row rather than its container."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from ._member_jump_navigation_helpers import (
 )
 
 
-def test_selected_family_member_digit_jumps_to_sibling() -> None:
+def test_selected_agent_session_member_digit_jumps_to_sibling() -> None:
     complete, root, child = make_family(in_clan=False)
     app = JumpHarness(complete, root)
     select_member(app, root, child)
@@ -26,7 +26,7 @@ def test_selected_family_member_digit_jumps_to_sibling() -> None:
     assert app.notifications == []
 
 
-def test_family_member_jump_to_self_is_rejected_as_stale() -> None:
+def test_agent_session_member_jump_to_self_is_rejected_as_stale() -> None:
     complete, root, child = make_family(in_clan=False)
     app = JumpHarness(complete, root)
     select_member(app, root, child)
@@ -38,7 +38,9 @@ def test_family_member_jump_to_self_is_rejected_as_stale() -> None:
     assert app.notifications[-1] == "Shell roster changed; jump cancelled"
 
 
-def test_family_member_jump_target_no_longer_in_family_cancels_as_stale() -> None:
+def test_agent_session_member_jump_target_no_longer_in_family_cancels_as_stale() -> (
+    None
+):
     complete, root, child = make_family(in_clan=False)
     stranger = make_agent("stranger")
     complete.append(stranger)
@@ -52,7 +54,9 @@ def test_family_member_jump_target_no_longer_in_family_cancels_as_stale() -> Non
     assert app.notifications[-1] == "Shell roster changed; jump cancelled"
 
 
-def test_two_digit_family_member_buffers_against_own_container_identity() -> None:
+def test_two_digit_agent_session_member_buffers_against_own_container_identity() -> (
+    None
+):
     complete, root, children = make_large_family(12)
     selected = children[5]
     others = [root, *[member for member in children if member is not selected]]
@@ -74,7 +78,7 @@ def _family_with_nested_monitor() -> tuple[list[Agent], Agent, Agent, Agent]:
     from sase.ace.tui.models._agent_tree import project_clan_tree
 
     complete, root, child = make_family(in_clan=False)
-    monitor = make_agent("alpha--mon", family="alpha", role="monitor")
+    monitor = make_agent("alpha--mon", session="alpha", role="monitor")
     monitor.monitor_id = "m-jump"
     monitor.monitor_state = "completed"
     monitor.parent_timestamp = child.raw_suffix

@@ -16,7 +16,7 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from ._agent_fold_transition_helpers import (
     StubFoldApp,
     make_agent,
-    make_sequential_family,
+    make_sequential_agent_session,
 )
 
 
@@ -307,42 +307,42 @@ def test_row_h_narrows_deep_descendant_to_enclosing_clan() -> None:
 
 
 def test_row_h_closes_lanes_then_all_group_clans_then_group() -> None:
-    family_rows, family, _member = make_sequential_family(clan="workers")
+    agent_session_rows, session, _member = make_sequential_agent_session(clan="workers")
     sibling_rows = _projected_clan("reviewers")
     closed_rows = _projected_clan("closed")
-    agents = [*family_rows, *sibling_rows, *closed_rows]
-    family_clan = _clan_container(agents, "workers")
+    agents = [*agent_session_rows, *sibling_rows, *closed_rows]
+    agent_session_clan = _clan_container(agents, "workers")
     sibling_clan = _clan_container(agents, "reviewers")
     closed_clan = _clan_container(agents, "closed")
-    family_key = agent_fold_key(family)
-    family_clan_key = agent_fold_key(family_clan)
+    agent_session_key = agent_fold_key(session)
+    agent_session_clan_key = agent_fold_key(agent_session_clan)
     sibling_key = agent_fold_key(sibling_clan)
-    assert family_key is not None
-    assert family_clan_key is not None
+    assert agent_session_key is not None
+    assert agent_session_clan_key is not None
     assert sibling_key is not None
 
     app = StubFoldApp(agents)
     app._grouping_mode = GroupingMode.BY_STATUS
-    app._fold_manager.expand(family_key)
-    app._fold_manager.expand(family_key)
-    app._fold_manager.expand(family_clan_key)
+    app._fold_manager.expand(agent_session_key)
+    app._fold_manager.expand(agent_session_key)
+    app._fold_manager.expand(agent_session_clan_key)
     app._fold_manager.expand(sibling_key)
     _sync_fold_projection(app, agents, closed_clan)
 
     app.action_hooks_or_collapse_all()
 
     registry = app._group_fold_registry.for_panel(None)
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
-    assert app._fold_manager.get(family_clan_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_clan_key) is FoldLevel.EXPANDED
     assert app._fold_manager.get(sibling_key) is FoldLevel.EXPANDED
     assert not registry.is_collapsed(("Running",))
 
     target = app._resolve_agent_clan_collapse_target()
     assert target is not None
-    assert target.fold_keys == (family_clan_key, sibling_key)
+    assert target.fold_keys == (agent_session_clan_key, sibling_key)
     app.action_hooks_or_collapse_all()
 
-    assert app._fold_manager.get(family_clan_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_clan_key) is FoldLevel.COLLAPSED
     assert app._fold_manager.get(sibling_key) is FoldLevel.COLLAPSED
     assert not registry.is_collapsed(("Running",))
 

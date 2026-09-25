@@ -12,7 +12,7 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from ._agent_fold_transition_helpers import (
     StubFoldApp,
     make_agent,
-    make_sequential_family,
+    make_sequential_agent_session,
     make_standalone_workflow_lane,
 )
 
@@ -33,8 +33,8 @@ def _named_workflow_lane(
     return rows, root
 
 
-def _named_family_lane(name: str) -> tuple[list[Agent], Agent]:
-    rows, root, member = make_sequential_family()
+def _named_agent_session_lane(name: str) -> tuple[list[Agent], Agent]:
+    rows, root, member = make_sequential_agent_session()
     fold_key = f"{name}-fold"
     root.cl_name = name
     root.agent_name = name
@@ -173,7 +173,7 @@ def test_equal_status_group_keys_fold_independently_between_panels() -> None:
 def test_capital_h_collapses_every_open_lane_before_status_group() -> None:
     hu_rows, hu = _named_workflow_lane("hu")
     ht_rows, ht = _named_workflow_lane("ht")
-    hs_rows, hs = _named_family_lane("hs")
+    hs_rows, hs = _named_agent_session_lane("hs")
     agents = [*hu_rows, *ht_rows, *hs_rows]
     app = StubFoldApp(agents, current_idx=agents.index(hu))
     app._grouping_mode = GroupingMode.BY_STATUS
@@ -210,16 +210,16 @@ def test_capital_h_collapses_every_open_lane_before_status_group() -> None:
 def test_lane_collapse_saturates_remaining_open_lanes_when_selected_is_closed() -> None:
     closed_rows, closed = _named_workflow_lane("closed")
     rows, root = _named_workflow_lane("selected")
-    family_rows, family = _named_family_lane("family")
-    agents = [*closed_rows, *rows, *family_rows]
+    agent_session_rows, agent_session = _named_agent_session_lane("session")
+    agents = [*closed_rows, *rows, *agent_session_rows]
     app = StubFoldApp(agents)
     app._grouping_mode = GroupingMode.BY_DATE
     root_key = agent_fold_key(root)
-    family_key = agent_fold_key(family)
-    assert root_key is not None and family_key is not None
+    agent_session_key = agent_fold_key(agent_session)
+    assert root_key is not None and agent_session_key is not None
     app._fold_manager.expand(root_key)
     app._fold_manager.expand(root_key)
-    app._fold_manager.expand(family_key)
+    app._fold_manager.expand(agent_session_key)
     _sync_fold_projection(app, agents, closed)
     selected_idx = app.current_idx
     assert app._resolve_agent_structural_collapse_target() is None
@@ -229,7 +229,7 @@ def test_lane_collapse_saturates_remaining_open_lanes_when_selected_is_closed() 
     assert app.current_idx == selected_idx
     assert app._agents[app.current_idx] is closed
     assert app._fold_manager.get(root_key) is FoldLevel.COLLAPSED
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
     assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
     assert app.group_fold_changes == []
 

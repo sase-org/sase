@@ -121,7 +121,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         dismissed_index_synced = False
         try:
             # Restore minimal artifact files so load_all_agents() rediscovers
-            # the agent. Synthetic imported family containers have no artifacts.
+            # the agent. Synthetic imported session containers have no artifacts.
             revived_artifact_dirs: list[str | None] = []
             revived_records = []
             if not agent.is_imported_agent_session_container:

@@ -97,7 +97,7 @@ def _meta_payload(
         }
         payload["source_machine"] = "apollo"
     if not hidden and index % 11 == 0:
-        payload["agent_session"] = f"family-{index // 11}"
+        payload["agent_session"] = f"session-{index // 11}"
         payload["agent_session_role"] = "code"
         payload["agent_session_parallel"] = True
     if not hidden and index % 13 == 0:

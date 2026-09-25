@@ -16,7 +16,7 @@ write, so :func:`load_name_registry`'s real staleness/parse path runs) and
 the artifact index (via a real, schema-matching ``agent_artifact_index.sqlite``,
 so :mod:`sase.agents.catalog._sources`'s own projected-SQL reader runs) are
 both exercised for real. This still measures every line this phase wrote:
-``_sources.py``'s artifact-index reader, ``_family.py``, ``_derive.py``,
+``_sources.py``'s artifact-index reader, ``_agent_session.py``, ``_derive.py``,
 and ``_build.py``'s join/derivation loop, plus the real registry loader
 whose cost dominates the budget.
 
@@ -176,8 +176,8 @@ def build_synthetic_catalog_sources(
     """Build a registry-shaped, index-shaped, and archive-shaped synthetic corpus.
 
     Distribution mirrors the plan's measured live-machine shape: ~14%
-    family containers, ~5% clan containers, the rest claimed leaf names
-    (half family members, half plain agents), ~65% artifact-index
+    session containers, ~5% clan containers, the rest claimed leaf names
+    (half session members, half plain agents), ~65% artifact-index
     enrichment, ~55% of dismissed leaves getting a top-level archive match.
 
     When ``with_real_sources`` is true (the default), every claimed-leaf
@@ -203,8 +203,8 @@ def build_synthetic_catalog_sources(
             name = f"fam{i:06d}"
             entries[name] = {
                 "name": name,
-                "container_kind": "family",
-                "reservation_kind": "family",
+                "container_kind": "session",
+                "reservation_kind": "session",
                 "state": "dismissed" if i % 3 else "active",
                 "project_name": project,
                 "canonical_global_name": f"bench.athena.{name}",

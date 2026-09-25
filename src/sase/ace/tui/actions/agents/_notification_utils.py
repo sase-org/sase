@@ -26,7 +26,7 @@ from ._notification_agent_targeting import (
     resolve_notification_agent,
 )
 from ._notification_delta_dirs import (
-    add_loaded_family_chain_artifact_dirs,
+    add_loaded_agent_session_chain_artifact_dirs,
     completion_notification_delta_dirs,
     pending_gate_notification_delta_dirs,
     prepare_pending_gate_notification_refresh,
@@ -43,7 +43,7 @@ from ._notification_gate_refresh import (
     schedule_gate_decision_receipt_refresh,
 )
 from ._notification_matching import (
-    FAMILY_ROOT_SUFFIX_KEYS,
+    AGENT_SESSION_ROOT_SUFFIX_KEYS,
     PENDING_GATE_REFRESH_ACTIONS,
     SETTLEMENT_NOTIFICATION_SENDERS,
     active_completion_agent_keys,
@@ -56,7 +56,7 @@ from ._notification_matching import (
     is_active_agent_settlement_notification,
     is_active_pending_gate_refresh_notification,
     normalized_suffix,
-    notification_family_root_suffix,
+    notification_agent_session_root_suffix,
     notification_raw_suffix,
     pending_gate_notification_suffixes,
     unread_notification_buckets,
@@ -70,7 +70,7 @@ _agent_settlement_notification_matches_agent = (
 
 
 __all__ = [
-    "FAMILY_ROOT_SUFFIX_KEYS",
+    "AGENT_SESSION_ROOT_SUFFIX_KEYS",
     "PENDING_GATE_REFRESH_ACTIONS",
     "SETTLEMENT_NOTIFICATION_SENDERS",
     "TabName",
@@ -79,7 +79,7 @@ __all__ = [
     "accepted_gate_shell_artifact_dir",
     "active_completion_agent_keys",
     "active_row_owned_notification_keys",
-    "add_loaded_family_chain_artifact_dirs",
+    "add_loaded_agent_session_chain_artifact_dirs",
     "agent_artifact_dir",
     "agent_completion_notification_matches_agent",
     "agent_row_notification_matches_agent",
@@ -96,7 +96,7 @@ __all__ = [
     "is_active_pending_gate_refresh_notification",
     "loaded_real_agent_roster",
     "normalized_suffix",
-    "notification_family_root_suffix",
+    "notification_agent_session_root_suffix",
     "notification_raw_suffix",
     "pending_gate_notification_delta_dirs",
     "pending_gate_notification_suffixes",

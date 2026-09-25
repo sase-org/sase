@@ -20,7 +20,7 @@ from sase.core.time import local_now
 from ._loading_compute import PreparedFinalizePlan
 from ._fold_scope import reconcile_panel_fold_registries
 from ._loading_helpers import (
-    build_question_answer_family_index,
+    build_question_answer_agent_session_index,
     should_clear_loaded_agent_status_override,
 )
 from ...util.trace import tui_trace
@@ -447,12 +447,14 @@ def finalize_agent_list(
     # Apply status overrides (PLAN/PLAN APPROVED/QUESTION), clearing entries
     # that the fresh loader state has overtaken.
     loaded_identities = {a.identity for a in app._agents}
-    family_index = build_question_answer_family_index(app._agents)
+    agent_session_index = build_question_answer_agent_session_index(app._agents)
     for agent in app._agents:
         override = app._agent_status_overrides.get(agent.identity)
         if override is None:
             continue
-        if should_clear_loaded_agent_status_override(agent, override, family_index):
+        if should_clear_loaded_agent_status_override(
+            agent, override, agent_session_index
+        ):
             app._agent_status_overrides.pop(agent.identity, None)
         else:
             agent.status = override

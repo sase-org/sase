@@ -90,7 +90,7 @@ def agents_related_to_kill(
 ) -> list[Agent]:
     """Return agents whose notifications should be dismissed when killing ``agent``.
 
-    Includes the agent itself, parallel family members, and any workflow-child
+    Includes the agent itself, parallel session members, and any workflow-child
     rows when killing a workflow parent (mirroring
     :func:`collect_immediate_kill_identities` but returning Agent objects so
     they can be passed to ``dismiss_notifications_for_agents``).

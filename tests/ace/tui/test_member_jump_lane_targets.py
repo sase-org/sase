@@ -1,4 +1,4 @@
-"""Digit-key jumps that address lane neighbors rather than family members."""
+"""Digit-key jumps that address lane neighbors rather than session members."""
 
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ def test_stale_neighbor_digit_uses_neighbor_specific_cancellation() -> None:
 
 
 def test_digits_do_nothing_on_rows_that_do_not_own_lanes() -> None:
-    root = make_agent("alpha--plan", family="alpha", role="plan")
+    root = make_agent("alpha--plan", session="alpha", role="plan")
     workflow_step = make_agent("workflow.step")
     workflow_step.parent_timestamp = root.raw_suffix
     workflow_step.parent_workflow = "demo-workflow"

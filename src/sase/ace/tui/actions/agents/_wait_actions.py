@@ -171,7 +171,9 @@ class AgentWaitActionsMixin:
         if any(
             should_resolve_agent_session_plan_preview(agent) for agent in visible_agents
         ):
-            schedule = getattr(self, "_schedule_family_plan_preview_warmup", None)
+            schedule = getattr(
+                self, "_schedule_agent_session_plan_preview_warmup", None
+            )
             if callable(schedule):
                 schedule(source="completion")
         return build_agent_completion_candidates(
@@ -565,7 +567,7 @@ class AgentWaitActionsMixin:
                 confirmation_sase_agent_entries(
                     [agent],
                     loaded_agents,
-                    include_running_family_members=True,
+                    include_running_agent_session_members=True,
                 )
             )
         )

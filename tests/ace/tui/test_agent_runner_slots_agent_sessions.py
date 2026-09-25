@@ -16,12 +16,14 @@ from sase.agent.status_buckets import agent_status_bucket
 from ._agent_runner_slots_helpers import _agent, _assert_capacity_metrics
 
 
-def test_refresh_runner_slot_context_counts_one_lane_per_sequential_family() -> None:
+def test_refresh_runner_slot_context_counts_one_lane_per_sequential_agent_session() -> (
+    None
+):
     """A live serial child rides its root's slot instead of adding a second one.
 
     The root's own status already mirrors its newest live descendant (the
-    generic family status-propagation pass covered by
-    ``test_monitor_family_root_projection.py``), so a bare root plus a live
+    generic session status-propagation pass covered by
+    ``test_monitor_agent_session_root_projection.py``), so a bare root plus a live
     serial child is exactly the shape ``refresh_runner_slot_context`` sees
     once the loader has run that propagation.
     """
@@ -53,7 +55,7 @@ def test_refresh_runner_slot_context_counts_one_lane_per_sequential_family() -> 
 
 
 def test_refresh_runner_slot_context_counts_each_parallel_clan_member() -> None:
-    """Each live parallel family member holds its own slot, individually."""
+    """Each live parallel session member holds its own slot, individually."""
     first = _agent(
         "parallel.first",
         status="RUNNING",
@@ -74,11 +76,11 @@ def test_refresh_runner_slot_context_counts_each_parallel_clan_member() -> None:
 
 
 def test_refresh_runner_slot_context_counts_monitor_holding_family_slot() -> None:
-    """A family whose root died mid-handoff still holds one slot via its monitor.
+    """A session whose root died mid-handoff still holds one slot via its monitor.
 
-    ``root`` stands in for a family container whose status already mirrors
-    its live monitor member (see ``test_monitor_family_root_projection.py``
-    for the propagation this simulates); the monitor's own row is a family
+    ``root`` stands in for a session container whose status already mirrors
+    its live monitor member (see ``test_monitor_agent_session_root_projection.py``
+    for the propagation this simulates); the monitor's own row is a session
     child and never adds a second lane.
     """
     root = _agent("root", status="MONITORING", status_bucket="Running")
@@ -96,7 +98,7 @@ def test_refresh_runner_slot_context_counts_monitor_holding_family_slot() -> Non
 
 
 def test_refresh_runner_slot_context_counts_post_handoff_followup_family_slot() -> None:
-    """A family whose monitor settled and launched a follow-up still holds one slot."""
+    """A session whose monitor settled and launched a follow-up still holds one slot."""
     root = _agent("root", status="RUNNING")
     followup = _agent(
         "followup",
@@ -145,7 +147,7 @@ def test_first_refresh_promotes_all_slot_waiters_and_clan_aggregate() -> None:
 
 
 @pytest.mark.parametrize("effective_limit", [None, 10])
-def test_first_refresh_promotes_sequential_family_root_from_slot_waiter(
+def test_first_refresh_promotes_sequential_agent_session_root_from_slot_waiter(
     effective_limit: int | None,
 ) -> None:
     root = _agent("root", status="DONE", pid=None)
@@ -183,7 +185,7 @@ def test_first_refresh_promotes_sequential_family_root_from_slot_waiter(
 
 
 @pytest.mark.parametrize("effective_limit", [None, 10])
-def test_refresh_keeps_sequential_family_root_waiting_for_non_slot_waiter(
+def test_refresh_keeps_sequential_agent_session_root_waiting_for_non_slot_waiter(
     effective_limit: int | None,
 ) -> None:
     root = _agent("root", status="DONE", pid=None)

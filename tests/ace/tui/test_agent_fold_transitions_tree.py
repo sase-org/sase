@@ -1,4 +1,4 @@
-"""Structural clan, family, and workflow fold transition tests."""
+"""Structural clan, session, and workflow fold transition tests."""
 
 from __future__ import annotations
 
@@ -12,27 +12,27 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from ._agent_fold_transition_helpers import (
     StubFoldApp,
     make_agent,
-    make_loader_shaped_aliased_plan_family,
-    make_sequential_family,
+    make_loader_shaped_aliased_plan_agent_session,
+    make_sequential_agent_session,
     make_standalone_workflow_lane,
 )
 
 
-def test_capital_h_collapses_family_then_clan_before_group_fold() -> None:
-    projected, family, member = make_sequential_family(clan="research")
+def test_capital_h_collapses_agent_session_then_clan_before_group_fold() -> None:
+    projected, session, member = make_sequential_agent_session(clan="research")
     clan = projected[0]
     app = StubFoldApp(projected, current_idx=projected.index(member))
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(session)
     clan_key = agent_fold_key(clan)
-    assert family_key is not None
+    assert agent_session_key is not None
     assert clan_key is not None
     app._fold_manager.expand(clan_key)
-    app._fold_manager.expand(family_key)
+    app._fold_manager.expand(agent_session_key)
 
     app.action_hooks_or_collapse_all()
 
-    assert app.current_idx == projected.index(family)
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app.current_idx == projected.index(session)
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
     assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
     assert app._group_fold_registry.snapshot() == ()
 
@@ -48,17 +48,17 @@ def test_capital_h_collapses_family_then_clan_before_group_fold() -> None:
     assert app._group_fold_registry.snapshot()
 
 
-def test_capital_h_collapses_aliased_plan_family_before_group_fold() -> None:
-    agents, root, _main, coder, _steps = make_loader_shaped_aliased_plan_family()
+def test_capital_h_collapses_aliased_plan_agent_session_before_group_fold() -> None:
+    agents, root, _main, coder, _steps = make_loader_shaped_aliased_plan_agent_session()
     app = StubFoldApp(agents, current_idx=agents.index(coder))
-    family_key = agent_fold_key(root)
-    assert family_key is not None
-    app._fold_manager.expand(family_key)
+    agent_session_key = agent_fold_key(root)
+    assert agent_session_key is not None
+    app._fold_manager.expand(agent_session_key)
 
     app.action_hooks_or_collapse_all()
 
     assert app.current_idx == agents.index(root)
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
     assert app._group_fold_registry.snapshot() == ()
 
 
@@ -103,7 +103,7 @@ def test_l_expands_child_owner_but_saturated_hidden_leaf_is_noop() -> None:
     assert app.refilter_calls == 1
 
 
-def test_l_expands_running_parent_with_family_child() -> None:
+def test_l_expands_running_parent_with_agent_session_child() -> None:
     parent = make_agent(raw_suffix="parent-ts")
     child = make_agent(raw_suffix="child-ts")
     child.parent_timestamp = parent.raw_suffix
@@ -150,20 +150,20 @@ def test_clan_member_l_l_and_child_member_capital_h_are_isolated() -> None:
     hidden.step_type = "bash"
     hidden.is_hidden_step = True
 
-    family = make_agent(raw_suffix="family")
-    family.agent_clan = "research"
-    family.agent_clan_generation = "generation"
+    agent_session = make_agent(raw_suffix="session")
+    agent_session.agent_clan = "research"
+    agent_session.agent_clan_generation = "generation"
     followup = make_agent(raw_suffix="followup")
-    followup.parent_timestamp = family.raw_suffix
+    followup.parent_timestamp = agent_session.raw_suffix
 
-    projected = project_clan_tree([workflow, ordinary, hidden, family, followup])
-    container, workflow, ordinary, hidden, family, followup = projected
+    projected = project_clan_tree([workflow, ordinary, hidden, agent_session, followup])
+    container, workflow, ordinary, hidden, agent_session, followup = projected
     clan_key = agent_fold_key(container)
     workflow_key = agent_fold_key(workflow)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(agent_session)
     assert clan_key is not None
     assert workflow_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
     app = StubFoldApp(projected)
 
     app.action_expand_or_layout()
@@ -172,11 +172,11 @@ def test_clan_member_l_l_and_child_member_capital_h_are_isolated() -> None:
     app.current_idx = projected.index(workflow)
     app.action_expand_or_layout()
     assert app._fold_manager.get(workflow_key) is FoldLevel.EXPANDED
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
 
     app.action_expand_or_layout()
     assert app._fold_manager.get(workflow_key) is FoldLevel.FULLY_EXPANDED
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
 
     app.current_idx = projected.index(hidden)
     app.action_hooks_or_collapse_all()
@@ -241,24 +241,24 @@ def test_per_workflow_capital_h_runs_before_group_collapse() -> None:
     assert app._group_fold_registry.collapsed == set()
 
 
-def test_capital_h_retreats_loader_family_hidden_step_one_level() -> None:
-    agents, root, main, coder, steps = make_loader_shaped_aliased_plan_family()
+def test_capital_h_retreats_loader_agent_session_hidden_step_one_level() -> None:
+    agents, root, main, coder, steps = make_loader_shaped_aliased_plan_agent_session()
     hidden = steps["pre_prompt"]
     app = StubFoldApp(agents, current_idx=agents.index(hidden))
-    family_key = agent_fold_key(root)
-    assert family_key is not None
-    app._fold_manager.expand(family_key)
-    app._fold_manager.expand(family_key)
-    assert app._fold_manager.get(family_key) is FoldLevel.FULLY_EXPANDED
+    agent_session_key = agent_fold_key(root)
+    assert agent_session_key is not None
+    app._fold_manager.expand(agent_session_key)
+    app._fold_manager.expand(agent_session_key)
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.FULLY_EXPANDED
 
     target = app._resolve_agent_structural_collapse_target()
     assert target is not None
-    assert target.kind == "family"
+    assert target.kind == "session"
     assert target.reanchor is True
 
     app.action_hooks_or_collapse_all()
 
-    assert app._fold_manager.get(family_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.EXPANDED
     assert app.current_idx == agents.index(root)
     assert app._panel_selection_memory[None] == ("agent", agents.index(root))
     assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
@@ -270,11 +270,11 @@ def test_capital_h_retreats_loader_family_hidden_step_one_level() -> None:
     assert steps["python"] in visible
     still_open = app._resolve_agent_structural_collapse_target()
     assert still_open is not None
-    assert still_open.kind == "family"
+    assert still_open.kind == "session"
 
     app.action_hooks_or_collapse_all()
 
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
     assert app.current_idx == agents.index(root)
     visible, _counts = filter_agents_by_fold_state(agents, app._fold_manager)
     assert visible == [root]

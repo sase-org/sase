@@ -27,7 +27,7 @@ def test_agents_panel_level_cycles_forward_and_toggles_extremes() -> None:
 
 
 def test_family_panel_level_cycles_within_two_level_scale() -> None:
-    app = _FoldApp(clan=False, family=True)
+    app = _FoldApp(clan=False, session=True)
 
     _press(app, "z")
     assert app.panel_fold_level is FoldLevel.FULLY_EXPANDED
@@ -62,21 +62,21 @@ def test_whole_panel_focus_cycles_within_four_level_tribe_scale() -> None:
     ("app", "level", "expected"),
     [
         (
-            _FoldApp(clan=False, family=True),
+            _FoldApp(clan=False, session=True),
             FoldLevel.COLLAPSED,
             FoldLevel.FULLY_EXPANDED,
         ),
         (
-            _FoldApp(clan=False, family=True),
+            _FoldApp(clan=False, session=True),
             FoldLevel.EXPANDED,
             FoldLevel.FULLY_EXPANDED,
         ),
         (
-            _FoldApp(clan=False, family=True),
+            _FoldApp(clan=False, session=True),
             FoldLevel.FULLY_EXPANDED,
             FoldLevel.EXPANDED,
         ),
-        (_FoldApp(clan=False, family=True), FoldLevel.EXHAUSTIVE, FoldLevel.EXPANDED),
+        (_FoldApp(clan=False, session=True), FoldLevel.EXHAUSTIVE, FoldLevel.EXPANDED),
         (_FoldApp(), FoldLevel.COLLAPSED, FoldLevel.FULLY_EXPANDED),
         (_FoldApp(), FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED),
         (_FoldApp(), FoldLevel.FULLY_EXPANDED, FoldLevel.COLLAPSED),
@@ -123,8 +123,8 @@ def test_agents_toggle_all_uses_active_scale_extremes(
 @pytest.mark.parametrize(
     ("app", "key", "expected"),
     [
-        (_FoldApp(clan=False, family=True), "1", FoldLevel.EXPANDED),
-        (_FoldApp(clan=False, family=True), "2", FoldLevel.FULLY_EXPANDED),
+        (_FoldApp(clan=False, session=True), "1", FoldLevel.EXPANDED),
+        (_FoldApp(clan=False, session=True), "2", FoldLevel.FULLY_EXPANDED),
         (_FoldApp(), "1", FoldLevel.COLLAPSED),
         (_FoldApp(), "2", FoldLevel.EXPANDED),
         (_FoldApp(), "3", FoldLevel.FULLY_EXPANDED),
@@ -186,7 +186,7 @@ def test_direct_dispatch_uses_configured_agent_and_patch_subkeys() -> None:
 
 
 def test_invalid_family_direct_level_preserves_state_and_overrides() -> None:
-    app = _FoldApp(clan=False, family=True)
+    app = _FoldApp(clan=False, session=True)
     app.panel_fold_level = FoldLevel.EXPANDED
     app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
 
@@ -222,7 +222,7 @@ def test_agents_section_cycle_and_toggle_use_effective_panel_level() -> None:
 
 
 def test_family_section_cycle_and_toggle_use_family_scale() -> None:
-    app = _FoldApp(clan=False, family=True)
+    app = _FoldApp(clan=False, session=True)
 
     _press(app, "a")
     assert app._panel_fold_overrides.get_override("errors") is (
@@ -241,7 +241,7 @@ def test_family_conversation_sections_ignore_section_fold_commands(
     section_id: str,
     key: str,
 ) -> None:
-    app = _FoldApp(clan=False, family=True)
+    app = _FoldApp(clan=False, session=True)
     app.panel_fold_level = FoldLevel.EXPANDED
     app.section_id = section_id
     app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
@@ -360,17 +360,17 @@ def test_exhaustive_panel_state_does_not_enter_patch_cyclers() -> None:
 def test_regular_agent_fold_change_shows_scope_toast_but_containers_do_not() -> None:
     regular = _FoldApp(clan=False)
     clan = _FoldApp(clan=True)
-    family = _FoldApp(clan=False, family=True)
+    agent_session = _FoldApp(clan=False, session=True)
 
     _press(regular, "Z")
     _press(clan, "Z")
-    _press(family, "Z")
+    _press(agent_session, "Z")
 
     assert regular.notifications == [
         "Fold levels shape clan, family, neighbor, and slow-call summaries"
     ]
     assert clan.notifications == []
-    assert family.notifications == []
+    assert agent_session.notifications == []
 
 
 def test_regular_agent_fold_change_stays_silent_when_neighbors_are_foldable() -> None:

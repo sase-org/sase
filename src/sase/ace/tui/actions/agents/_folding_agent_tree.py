@@ -18,17 +18,17 @@ TabName = Literal["artifacts", "agents", "services"]
 class _AgentLeftNavigationTarget:
     """Validated immediate target for an Agents-tab ``h`` navigation."""
 
-    kind: Literal["workflow", "family", "clan", "tribe"]
+    kind: Literal["workflow", "session", "clan", "tribe"]
     index: int | None = None
     agent: Agent | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class _AgentStructuralCollapseTarget:
-    """The next workflow, family, or clan fold owned by Agents-tab ``H``."""
+    """The next workflow, session, or clan fold owned by Agents-tab ``H``."""
 
     fold_key: str
-    kind: Literal["workflow", "family", "clan"]
+    kind: Literal["workflow", "session", "clan"]
     reanchor: bool = False
     binary: bool = False
 
@@ -50,8 +50,8 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
             agent: The agent to get the key for.
 
         Returns:
-            The row's owned descendant key, the gating family/workflow key
-            when selected as a durable family shell, its immediate parent's
+            The row's owned descendant key, the gating session/workflow key
+            when selected as a durable session shell, its immediate parent's
             key when selected as any other child, or ``None`` when no edge is
             foldable.
         """
@@ -111,8 +111,8 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
         """Resolve the selected row/banner's validated immediate parent.
 
         The resolver stays entirely within the loaded Agents projection.  It
-        accepts every validated workflow/family child -> owner edge plus direct
-        member/family -> clan edges. A row or grouping banner reaches its tribe
+        accepts every validated workflow/session child -> owner edge plus direct
+        member/session -> clan edges. A row or grouping banner reaches its tribe
         panel only after proving that it has no structural parent.
         """
         if self.current_tab != "agents" or not (
@@ -182,7 +182,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
         # their root's raw suffix. They alias the root's fold; they are not
         # competing structural owners. A non-child row still wins a repeated
         # key. When no non-child owns the key (a monitor nested under a
-        # mid-family starter), the unique child-row owner is accepted.
+        # mid-session starter), the unique child-row owner is accepted.
         parent_positions: list[int] = []
         non_child_owners: list[tuple[int, Agent]] = []
         child_owners: list[tuple[int, Agent]] = []
@@ -249,9 +249,9 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
             return None
 
         if parent.is_clan_container:
-            kind: Literal["workflow", "family", "clan"] = "clan"
+            kind: Literal["workflow", "session", "clan"] = "clan"
         elif is_sequential_agent_session_container(parent):
-            kind = "family"
+            kind = "session"
         else:
             kind = "workflow"
         return _AgentLeftNavigationTarget(kind, parent_index, parent)
@@ -297,7 +297,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
 
     def _structural_fold_kind(
         self, fold_key: str
-    ) -> Literal["workflow", "family", "clan"]:
+    ) -> Literal["workflow", "session", "clan"]:
         """Classify a canonical structural fold key for contextual labels."""
         from ...models._agent_tree import agent_fold_key
         from ...models.agent_session_members import (
@@ -315,7 +315,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
         if owner is not None and owner.is_clan_container:
             return "clan"
         if owner is not None and is_sequential_agent_session_container(owner):
-            return "family"
+            return "session"
         return "workflow"
 
     def _resolve_agent_structural_collapse_target(
@@ -382,7 +382,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
         self,
         target: _AgentStructuralCollapseTarget | None = None,
     ) -> bool:
-        """Collapse one Agents workflow/family/clan target, if available."""
+        """Collapse one Agents workflow/session/clan target, if available."""
         if target is None:
             target = self._resolve_agent_structural_collapse_target()
         if target is None:

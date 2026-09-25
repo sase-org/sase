@@ -20,7 +20,9 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
-from tests.ace.tui._retry_family_loader_fixture import build_retrying_plan_family
+from tests.ace.tui._retry_agent_session_loader_fixture import (
+    build_retrying_plan_agent_session,
+)
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 from tests.fakey.harness import (
     FakeyRetryHarness,
@@ -131,7 +133,7 @@ async def test_real_loader_plan_family_retry_countdown_png_snapshot(
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     now_epoch = _VISUAL_NOW.timestamp()
-    build_retrying_plan_family(
+    build_retrying_plan_agent_session(
         sase_home,
         next_retry_at_epoch=now_epoch + 9,
     )

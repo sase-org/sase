@@ -32,7 +32,7 @@ def make_agent(
     *,
     tribe: str | None = None,
     clan: str | None = None,
-    family: str | None = None,
+    session: str | None = None,
     role: str | None = None,
 ) -> Agent:
     return Agent(
@@ -45,7 +45,7 @@ def make_agent(
         agent_name=name,
         tribe=tribe,
         agent_clan=clan,
-        agent_session=family,
+        agent_session=session,
         agent_session_role=role,
         role_suffix=f"--{role}" if role else None,
         plan_chain_root=role == "plan",
@@ -323,9 +323,9 @@ def make_clan(count: int, *, mixed_tribes: bool = False) -> tuple[list[Agent], A
 
 
 def make_large_family(count: int) -> tuple[list[Agent], Agent, list[Agent]]:
-    root = make_agent("big--0", family="big", role="plan")
+    root = make_agent("big--0", session="big", role="plan")
     children = [
-        make_agent(f"big--{index}", family="big", role="code")
+        make_agent(f"big--{index}", session="big", role="code")
         for index in range(1, count)
     ]
     for child in children:
@@ -342,13 +342,13 @@ def make_family(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
     root = make_agent(
         "alpha--plan",
         clan=clan,
-        family="alpha",
+        session="alpha",
         role="plan",
     )
     child = make_agent(
         "alpha--code",
         clan=clan,
-        family="alpha",
+        session="alpha",
         role="code",
     )
     child.parent_timestamp = root.raw_suffix
@@ -367,7 +367,7 @@ def make_family(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
 
 
 def select_member(app: JumpHarness, root: Agent, member: Agent) -> None:
-    """Expand the family fold so a folded member row becomes selectable."""
+    """Expand the session fold so a folded member row becomes selectable."""
     app._fold_manager.expand(root.raw_suffix or "")
     app._refilter_agents()
     app.current_idx = next(

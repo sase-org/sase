@@ -71,15 +71,15 @@ def test_span_gate_passes_under_absolute_and_ratio_thresholds() -> None:
 def test_span_gate_fails_when_current_approaches_sync_baseline() -> None:
     results = check_view_hints(
         current=_payload(
-            span_ms={("family_container_unfolded_press", "agents.view_files"): 70.0}
+            span_ms={("session_container_unfolded_press", "agents.view_files"): 70.0}
         ),
         baseline=_payload(
-            span_ms={("family_container_unfolded_press", "agents.view_files"): 85.0}
+            span_ms={("session_container_unfolded_press", "agents.view_files"): 85.0}
         ),
         span_gates=(
             SpanGate(
-                "family",
-                step="family_container_unfolded_press",
+                "session",
+                step="session_container_unfolded_press",
                 span="agents.view_files",
                 max_baseline_ratio=0.50,
             ),

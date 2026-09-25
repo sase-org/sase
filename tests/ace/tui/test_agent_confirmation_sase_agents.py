@@ -80,7 +80,7 @@ def test_projection_dedupes_workflow_descendants_in_first_seen_sase_agent_order(
     entries = confirmation_sase_agent_entries(
         [hidden_step, standalone, workflow, hidden_step],
         [workflow, hidden_step, standalone],
-        include_running_family_members=True,
+        include_running_agent_session_members=True,
     )
 
     assert entries == (
@@ -93,7 +93,9 @@ def test_projection_dedupes_workflow_descendants_in_first_seen_sase_agent_order(
     ]
 
 
-def test_sequential_family_uses_presented_sase_agent_and_exact_running_member() -> None:
+def test_sequential_agent_session_uses_presented_sase_agent_and_exact_running_member() -> (
+    None
+):
     root = _agent(
         "athena.feature--plan",
         "root",
@@ -118,7 +120,7 @@ def test_sequential_family_uses_presented_sase_agent_and_exact_running_member() 
     entries = confirmation_sase_agent_entries(
         [root, member],
         [root, member],
-        include_running_family_members=True,
+        include_running_agent_session_members=True,
     )
 
     assert entries == (
@@ -132,30 +134,32 @@ def test_sequential_family_uses_presented_sase_agent_and_exact_running_member() 
     ]
 
 
-def test_completed_family_members_never_leak_into_dismiss_entries() -> None:
+def test_completed_agent_session_members_never_leak_into_dismiss_entries() -> None:
     root = _agent(
-        "family--plan",
+        "session--plan",
         "root",
-        agent_session="family",
+        agent_session="session",
         agent_session_role="root",
         role_suffix="--plan",
     )
     member = _agent(
-        "family--code",
+        "session--code",
         "member",
         parent_timestamp=root.raw_suffix,
-        agent_session="family",
+        agent_session="session",
         role_suffix="--code",
     )
 
     entries = confirmation_sase_agent_entries([root, member], [root, member])
 
-    assert entries == (_AgentConfirmationEntry("family"),)
-    assert "family--plan" not in "\n".join(format_confirmation_entries(entries))
-    assert "family--code" not in "\n".join(format_confirmation_entries(entries))
+    assert entries == (_AgentConfirmationEntry("session"),)
+    assert "session--plan" not in "\n".join(format_confirmation_entries(entries))
+    assert "session--code" not in "\n".join(format_confirmation_entries(entries))
 
 
-def test_rename_on_attach_family_root_uses_bare_family_sase_agent() -> None:
+def test_rename_on_attach_agent_session_root_uses_bare_agent_session_sase_agent() -> (
+    None
+):
     renamed_root = _agent(
         "review-lane--original",
         "root",
@@ -169,13 +173,13 @@ def test_rename_on_attach_family_root_uses_bare_family_sase_agent() -> None:
     )
 
 
-def test_plan_workflow_steps_resolve_to_family_sase_agent() -> None:
+def test_plan_workflow_steps_resolve_to_agent_session_sase_agent() -> None:
     root = _agent(
-        "plan-family--plan",
+        "plan-session--plan",
         "root",
         agent_type=AgentType.WORKFLOW,
         workflow="plan-workflow",
-        agent_session="plan-family",
+        agent_session="plan-session",
         agent_session_role="root",
         role_suffix="--plan",
         plan_chain_root=True,
@@ -188,25 +192,25 @@ def test_plan_workflow_steps_resolve_to_family_sase_agent() -> None:
     )
 
     assert confirmation_sase_agent_entries([hidden_step], [root, hidden_step]) == (
-        _AgentConfirmationEntry("plan-family"),
+        _AgentConfirmationEntry("plan-session"),
     )
 
 
 def test_clan_descendants_resolve_to_direct_member_sase_agents_not_clan() -> None:
-    family_root = _agent(
-        "research.family--plan",
-        "family-root",
-        agent_session="research.family",
+    agent_session_root = _agent(
+        "research.session--plan",
+        "session-root",
+        agent_session="research.session",
         agent_session_role="root",
         role_suffix="--plan",
         agent_clan="research",
         agent_clan_generation="generation",
     )
-    family_member = _agent(
-        "research.family--code",
-        "family-member",
-        parent_timestamp=family_root.raw_suffix,
-        agent_session="research.family",
+    agent_session_member = _agent(
+        "research.session--code",
+        "session-member",
+        parent_timestamp=agent_session_root.raw_suffix,
+        agent_session="research.session",
         role_suffix="--code",
         agent_clan="research",
         agent_clan_generation="generation",
@@ -217,15 +221,17 @@ def test_clan_descendants_resolve_to_direct_member_sase_agents_not_clan() -> Non
         agent_clan="research",
         agent_clan_generation="generation",
     )
-    loaded = project_clan_tree([family_root, family_member, direct_member])
+    loaded = project_clan_tree(
+        [agent_session_root, agent_session_member, direct_member]
+    )
 
     entries = confirmation_sase_agent_entries(
-        [family_member, direct_member],
+        [agent_session_member, direct_member],
         loaded,
     )
 
     assert entries == (
-        _AgentConfirmationEntry("research.family"),
+        _AgentConfirmationEntry("research.session"),
         _AgentConfirmationEntry("research.solo"),
     )
     assert all(entry.sase_agent_name != "research" for entry in entries)
@@ -244,7 +250,7 @@ def test_missing_parent_uses_concrete_legacy_row_as_defensive_fallback() -> None
     )
 
 
-def test_summary_counts_family_sase_agent_and_unique_concrete_agents() -> None:
+def test_summary_counts_agent_session_sase_agent_and_unique_concrete_agents() -> None:
     root = _agent(
         "release--plan",
         "root",
@@ -357,17 +363,17 @@ def test_empty_summary_emits_no_subject_lines() -> None:
 
 def test_summary_headline_sase_agent_count_equals_roster_length() -> None:
     root = _agent(
-        "family--plan",
+        "session--plan",
         "root",
-        agent_session="family",
+        agent_session="session",
         agent_session_role="root",
         role_suffix="--plan",
     )
     member = _agent(
-        "family--code",
+        "session--code",
         "member",
         parent_timestamp=root.raw_suffix,
-        agent_session="family",
+        agent_session="session",
         role_suffix="--code",
     )
     standalone = _agent("standalone", "standalone")
@@ -402,7 +408,7 @@ class _BulkConfirmationApp(AgentMarkingMixin):
         del killable, dismissable, proc_stops, gate_cancels
 
 
-def test_bulk_subject_can_show_same_family_sase_agent_in_kill_and_dismiss_sections() -> (
+def test_bulk_subject_can_show_same_agent_session_sase_agent_in_kill_and_dismiss_sections() -> (
     None
 ):
     completed_root = _agent(

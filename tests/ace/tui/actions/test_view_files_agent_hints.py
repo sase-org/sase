@@ -37,14 +37,14 @@ class _PendingAgentDetail:
         )
 
 
-class _ReadyFamilyAgentDetail:
+class _ReadyAgentSessionDetail:
     def __init__(self) -> None:
         self.update_calls = 0
 
     def update_display_with_hints(self, _agent: object) -> AgentHintRender:
         self.update_calls += 1
         return AgentHintRender(
-            file_hints={1: "/tmp/family-report.txt"},
+            file_hints={1: "/tmp/session-report.txt"},
             tool_call_reports={},
         )
 
@@ -117,14 +117,14 @@ async def test_cold_agent_hint_render_keeps_view_mode_open_for_enrichment() -> N
 
 
 @pytest.mark.asyncio
-async def test_family_with_displayed_artifact_mounts_view_hint_input() -> None:
+async def test_session_with_displayed_artifact_mounts_view_hint_input() -> None:
     app = _PendingAgentViewApp()
     app.agent = SimpleNamespace(
-        cl_name="family",
-        identity=("family",),
+        cl_name="session",
+        identity=("session",),
         is_agent_session_container_row=True,
     )
-    app.detail = _ReadyFamilyAgentDetail()
+    app.detail = _ReadyAgentSessionDetail()
 
     app._view_agent_files()
 
@@ -135,7 +135,7 @@ async def test_family_with_displayed_artifact_mounts_view_hint_input() -> None:
 
     app.notify.assert_not_called()
     app._refresh_agents_display.assert_not_called()
-    assert app._hint_mappings == {1: "/tmp/family-report.txt"}
+    assert app._hint_mappings == {1: "/tmp/session-report.txt"}
     assert len(app.container.mounted) == 1
     assert isinstance(app.container.mounted[0], HintInputBar)
 
@@ -149,14 +149,14 @@ async def test_clan_with_summary_path_mounts_hint_input_without_warning() -> Non
         is_agent_session_container_row=False,
         is_clan_container=True,
     )
-    app.detail = _ReadyFamilyAgentDetail()
+    app.detail = _ReadyAgentSessionDetail()
 
     app._view_agent_files()
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
     app.notify.assert_not_called()
-    assert app._hint_mappings == {1: "/tmp/family-report.txt"}
+    assert app._hint_mappings == {1: "/tmp/session-report.txt"}
     assert app._hint_mode_active
     assert len(app.container.mounted) == 1
     assert isinstance(app.container.mounted[0], HintInputBar)
@@ -190,7 +190,7 @@ class _ImmediateSubmitAgentViewApp(InputProcessingMixin, FileViewingMixin):
             identity=("immediate-submit",),
             is_agent_session_container_row=False,
         )
-        self.detail = _ReadyFamilyAgentDetail()
+        self.detail = _ReadyAgentSessionDetail()
         self.container = _PendingHintContainer()
         self.current_tab = "agents"
         self._hint_mode_active = False

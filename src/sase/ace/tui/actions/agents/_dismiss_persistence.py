@@ -340,7 +340,7 @@ def agents_related_to_dismissal(
     agent: Agent,
     agents_with_children_snapshot: list[Agent],
 ) -> list[Agent]:
-    """Return the primary agent plus family/workflow children dismissed with it.
+    """Return the primary agent plus session/workflow children dismissed with it.
 
     Same-identity rows are the same agent in another incarnation: a FAILED or
     DONE row dismissed while its live STARTING twin is still on disk. The

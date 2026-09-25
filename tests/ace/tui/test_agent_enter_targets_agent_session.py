@@ -1,4 +1,4 @@
-"""Family scopes for Enter-on-agent: containers, members, and ordering."""
+"""Session scopes for Enter-on-agent: containers, members, and ordering."""
 
 from __future__ import annotations
 
@@ -161,8 +161,8 @@ def test_container_falls_back_to_newest_member_patch() -> None:
     assert resolution.targets[-1].project_file == member.project_file
 
 
-def test_project_level_plan_family_container_resolves_gate_only() -> None:
-    """Enter on a project-level plan family goes straight to its gate.
+def test_project_level_plan_agent_session_container_resolves_gate_only() -> None:
+    """Enter on a project-level plan session goes straight to its gate.
 
     The concrete planner step is a workflow step child of a project-level
     workflow, so the real Patch resolver must map it to None (not the

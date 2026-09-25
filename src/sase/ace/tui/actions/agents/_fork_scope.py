@@ -89,7 +89,7 @@ def agent_prompt_target_scope(
     vcs_prompt_name: str | None = None,
     history_fallback: str = "agent",
 ) -> AgentPromptTargetScope:
-    """Build a single-agent or plan-family prompt target scope."""
+    """Build a single-agent or plan-session prompt target scope."""
     members = _vcs_members(
         (agent,),
         prompt_name=vcs_prompt_name or prompt_reference,

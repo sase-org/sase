@@ -164,13 +164,15 @@ class AgentBindingsMixin:
             bindings.append((self._kd("collapse_all_panel_folds"), "restore all folds"))
 
         if (
-            left_navigation_kind in {"workflow", "family", "clan", "tribe"}
+            left_navigation_kind in {"workflow", "session", "clan", "tribe"}
             and not panel_focused
         ):
             bindings.append(
                 (
                     self._kd("hooks_or_collapse"),
-                    f"parent {left_navigation_kind}",
+                    "parent family"
+                    if left_navigation_kind == "session"
+                    else f"parent {left_navigation_kind}",
                 )
             )
 
@@ -180,8 +182,12 @@ class AgentBindingsMixin:
         elif panel_focused:
             if not llm_calls_visible and panel_hint_collapse_available:
                 collapse_all_label = "collapse fold"
-        elif structural_collapse_kind in {"workflow", "family"}:
-            collapse_all_label = f"collapse {structural_collapse_kind}"
+        elif structural_collapse_kind in {"workflow", "session"}:
+            collapse_all_label = (
+                "collapse family"
+                if structural_collapse_kind == "session"
+                else f"collapse {structural_collapse_kind}"
+            )
         elif lane_collapse_available:
             collapse_all_label = "collapse sase agents"
         elif clan_collapse_available:

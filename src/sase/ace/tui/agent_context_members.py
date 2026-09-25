@@ -1,6 +1,6 @@
-"""Attribution helpers for agent-family SASE CONTEXT events.
+"""Attribution helpers for agent-session SASE CONTEXT events.
 
-This is display attribution over the agent-family relationships already
+This is display attribution over the agent-session relationships already
 computed by the TUI loaders (``followup_agents``, role suffixes, artifact
 dirs). It deliberately does *not* scan agents by shared name prefix and it
 does *not* move any audit-log reading into the Rust core; it only decides
@@ -38,7 +38,7 @@ _SUFFIX_LABELS = {
 }
 
 # Fallback labels for ``agent_session_role`` values when no suffix is present.
-_FAMILY_ROLE_LABELS = {
+_AGENT_SESSION_ROLE_LABELS = {
     "plan": "plan",
     "code": "coder",
     "epic": "epic",
@@ -49,7 +49,7 @@ _FAMILY_ROLE_LABELS = {
 
 @dataclass(frozen=True)
 class _ContextMember:
-    """One agent that contributes audited context to a family row."""
+    """One agent that contributes audited context to a session row."""
 
     label: str
     cache_key: str
@@ -75,13 +75,13 @@ def _compact_suffix_label(suffix: str) -> str:
 
 
 def compact_role_label(agent: Agent) -> str:
-    """Return a compact role label for *agent* within its family.
+    """Return a compact role label for *agent* within its session.
 
     Recognized plan-chain suffixes map to ``plan``/``q``/``coder``/``epic``/
     ``commit``. Phase-feedback members carry a concrete suffix name
     such as ``--plan-0`` and render as ``plan-0``; only legacy numeric feedback
     rounds (``.2``/``-2``/``--2``) map to ``fbN``. Otherwise we fall back to the
-    family role, ``@agent_name``, the step name, or the display name. The
+    session role, ``@agent_name``, the step name, or the display name. The
     renderer is responsible for truncating long labels.
     """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
@@ -112,9 +112,9 @@ def compact_role_label(agent: Agent) -> str:
         return _compact_suffix_label(suffix)
     if agent.plan_chain_root:
         return "plan"
-    family_role = agent.agent_session_role
-    if family_role:
-        return _FAMILY_ROLE_LABELS.get(family_role, family_role)
+    agent_session_role = agent.agent_session_role
+    if agent_session_role:
+        return _AGENT_SESSION_ROLE_LABELS.get(agent_session_role, agent_session_role)
     if agent.presented_agent_name:
         return f"@{agent.presented_agent_name}"
     if agent.step_name:
@@ -171,11 +171,11 @@ def match_event_label(
     artifacts_dir: str | None,
     agent_name: str | None,
 ) -> str | None:
-    """Return the family label for an event, or ``None`` when no member matches.
+    """Return the session label for an event, or ``None`` when no member matches.
 
     Artifact-dir matching wins when the event has an artifacts dir; matching
     by agent name is only a fallback for events that lack one. This preserves
-    the existing per-agent matching semantics across the whole family.
+    the existing per-agent matching semantics across the whole session.
     """
     normalized = _normalize_artifacts_dir(artifacts_dir)
     if normalized is not None:

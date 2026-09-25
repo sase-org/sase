@@ -12,7 +12,7 @@ from ._agent_fold_transition_helpers import (
     make_agent as make_transition_agent,
 )
 from ._agent_fold_transition_helpers import (
-    make_sequential_family,
+    make_sequential_agent_session,
     make_standalone_workflow_lane,
 )
 from ._agent_panel_collapse_helpers import AgentPanelCollapseApp
@@ -112,7 +112,7 @@ def test_all_panel_sweep_collapses_lanes_and_clans_in_every_panel() -> None:
 
 def test_all_panel_sweep_restores_exact_levels_including_fully_expanded() -> None:
     lane_rows, lane_root, _lane_steps = _named_workflow_lane("lane")
-    projected, family, _member = make_sequential_family(tribe="research")
+    projected, session, _member = make_sequential_agent_session(tribe="research")
     agents = [*lane_rows, *projected]
     app = AgentPanelCollapseApp(agents, focused_key=None)
     app._agents_with_children = list(agents)
@@ -120,25 +120,25 @@ def test_all_panel_sweep_restores_exact_levels_including_fully_expanded() -> Non
     _populate_fold_counts(app, agents)
 
     lane_key = agent_fold_key(lane_root)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(session)
     assert lane_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
 
     app._fold_manager.expand(lane_key)
-    app._fold_manager.expand(family_key)
-    app._fold_manager.expand(family_key)  # -> FULLY_EXPANDED
+    app._fold_manager.expand(agent_session_key)
+    app._fold_manager.expand(agent_session_key)  # -> FULLY_EXPANDED
     app._expanded_panel_focus = True
 
     app.action_collapse_all_panel_folds()
 
     assert app._fold_manager.get(lane_key) is FoldLevel.COLLAPSED
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
     assert app.notifications[-1] == "Collapsed 2 folds in 2 panels"
 
     app.action_collapse_all_panel_folds()
 
     assert app._fold_manager.get(lane_key) is FoldLevel.EXPANDED
-    assert app._fold_manager.get(family_key) is FoldLevel.FULLY_EXPANDED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.FULLY_EXPANDED
     assert app.notifications[-1] == "Restored 2 folds in 2 panels"
     assert None not in app._panel_fold_sweep_records
     assert "research" not in app._panel_fold_sweep_records

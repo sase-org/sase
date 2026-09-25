@@ -20,14 +20,14 @@ def _gate_lane_counts(agent: Agent):
     return shell_lane_counts(agent).gate
 
 
-def _monitor_agent(name: str, *, family: str, state: str | None) -> Agent:
+def _monitor_agent(name: str, *, session: str, state: str | None) -> Agent:
     settled = state not in (None, "running")
     monitor = _agent(
         name=name,
         suffix=name,
         status="MONITORED" if settled else "MONITORING",
     )
-    monitor.agent_session = family
+    monitor.agent_session = session
     monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_id = name
@@ -35,7 +35,7 @@ def _monitor_agent(name: str, *, family: str, state: str | None) -> Agent:
     return monitor
 
 
-def _gate_agent(name: str, *, family: str, state: str | None) -> Agent:
+def _gate_agent(name: str, *, session: str, state: str | None) -> Agent:
     settled = state in {"answered", "completed", "stopped"}
     failed = state in {"failed", "timeout", "lost"}
     gate = _agent(
@@ -43,7 +43,7 @@ def _gate_agent(name: str, *, family: str, state: str | None) -> Agent:
         suffix=name,
         status="GATED" if settled or failed else "GATE",
     )
-    gate.agent_session = family
+    gate.agent_session = session
     gate.agent_session_role = "gate"
     gate.role_suffix = "--gate"
     gate.gate_id = name
@@ -52,7 +52,7 @@ def _gate_agent(name: str, *, family: str, state: str | None) -> Agent:
     return gate
 
 
-def _sequential_family(
+def _sequential_agent_session(
     name: str,
     *,
     tribe: str | None = None,
@@ -93,9 +93,9 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
         suffix="standalone",
         status="DONE",
     )
-    family_root, family_child = _sequential_family("family")
-    clan_family_root, clan_family_child = _sequential_family(
-        "research.family",
+    agent_session_root, agent_session_child = _sequential_agent_session("session")
+    clan_agent_session_root, clan_agent_session_child = _sequential_agent_session(
+        "research.session",
         clan="research",
     )
     clan_standalone = _agent(
@@ -108,16 +108,18 @@ def test_panel_counts_use_lanes_for_total_and_statuses() -> None:
     clan_standalone.pid = 101
     clan_standalone.wait_runners = 9
     clan_standalone.slot_requested_at = "2026-07-12T12:00:00Z"
-    settled_monitor = _monitor_agent("family--mon", family="family", state="completed")
-    family_root.followup_agents.append(settled_monitor)
-    family_root.runtime_children.append(settled_monitor)
+    settled_monitor = _monitor_agent(
+        "session--mon", session="session", state="completed"
+    )
+    agent_session_root.followup_agents.append(settled_monitor)
+    agent_session_root.runtime_children.append(settled_monitor)
     agents = project_clan_tree(
         [
             standalone,
-            family_root,
-            family_child,
-            clan_family_root,
-            clan_family_child,
+            agent_session_root,
+            agent_session_child,
+            clan_agent_session_root,
+            clan_agent_session_child,
             clan_standalone,
         ]
     )
@@ -138,7 +140,7 @@ def test_agent_panel_counts_is_fold_independent_for_settled_monitors() -> None:
     container = _agent(name="alpha--0", suffix="alpha-0", status="RUNNING")
     container.agent_session = "alpha"
     container.agent_session_role = "root"
-    monitor = _monitor_agent("alpha--mon", family="alpha", state="completed")
+    monitor = _monitor_agent("alpha--mon", session="alpha", state="completed")
     container.runtime_children = [monitor]
     container.followup_agents = [monitor]
 
@@ -153,7 +155,7 @@ def test_agent_panel_counts_is_fold_independent_for_running_monitors() -> None:
     container = _agent(name="alpha--0", suffix="alpha-0", status="RUNNING")
     container.agent_session = "alpha"
     container.agent_session_role = "root"
-    monitor = _monitor_agent("alpha--mon", family="alpha", state="running")
+    monitor = _monitor_agent("alpha--mon", session="alpha", state="running")
     container.runtime_children = [monitor]
     container.followup_agents = [monitor]
 
@@ -169,9 +171,9 @@ def test_agent_panel_counts_is_fold_independent_for_gates() -> None:
     container = _agent(name="alpha--0", suffix="alpha-0", status="RUNNING")
     container.agent_session = "alpha"
     container.agent_session_role = "root"
-    pending_gate = _gate_agent("alpha--gate-pending", family="alpha", state="pending")
-    settled_gate = _gate_agent("alpha--gate-done", family="alpha", state="answered")
-    failed_gate = _gate_agent("alpha--gate-failed", family="alpha", state="failed")
+    pending_gate = _gate_agent("alpha--gate-pending", session="alpha", state="pending")
+    settled_gate = _gate_agent("alpha--gate-done", session="alpha", state="answered")
+    failed_gate = _gate_agent("alpha--gate-failed", session="alpha", state="failed")
     container.runtime_children = [pending_gate, settled_gate, failed_gate]
     container.followup_agents = [pending_gate, settled_gate, failed_gate]
 
@@ -183,56 +185,61 @@ def test_agent_panel_counts_is_fold_independent_for_gates() -> None:
     assert sum(value for _name, value in counts.metric_items()) == counts.lane_count
 
 
-def test_agent_panel_counts_does_not_double_count_clan_and_family_rows() -> None:
+def test_agent_panel_counts_does_not_double_count_clan_and_agent_session_rows() -> None:
     clan = _agent(name="workers", suffix="workers", status="RUNNING")
     clan.is_clan_container = True
     clan.agent_clan = "workers"
-    family_root = _agent(
+    agent_session_root = _agent(
         name="alpha--0",
         suffix="alpha-0",
         status="RUNNING",
         parent_timestamp="workers",
     )
-    family_root.agent_session = "alpha"
-    family_root.agent_session_role = "root"
-    family_root.agent_clan = "workers"
-    monitor = _monitor_agent("alpha--mon", family="alpha", state="completed")
-    running_monitor = _monitor_agent("alpha--mon-run", family="alpha", state="running")
-    family_root.runtime_children = [monitor, running_monitor]
-    family_root.followup_agents = [monitor, running_monitor]
-    clan.runtime_children = [family_root]
+    agent_session_root.agent_session = "alpha"
+    agent_session_root.agent_session_role = "root"
+    agent_session_root.agent_clan = "workers"
+    monitor = _monitor_agent("alpha--mon", session="alpha", state="completed")
+    running_monitor = _monitor_agent("alpha--mon-run", session="alpha", state="running")
+    agent_session_root.runtime_children = [monitor, running_monitor]
+    agent_session_root.followup_agents = [monitor, running_monitor]
+    clan.runtime_children = [agent_session_root]
 
-    counts = agent_panel_counts([clan, family_root], set())
+    counts = agent_panel_counts([clan, agent_session_root], set())
 
     assert (counts.running_monitors, counts.settled_monitors) == (1, 1)
 
 
 def test_panel_monitor_lanes_match_sum_of_container_row_badges() -> None:
-    family_a_root, family_a_child = _sequential_family("alpha")
+    agent_session_a_root, agent_session_a_child = _sequential_agent_session("alpha")
     monitor_a_running = _monitor_agent(
-        "alpha--mon-run", family="alpha", state="running"
+        "alpha--mon-run", session="alpha", state="running"
     )
     monitor_a_done = _monitor_agent(
-        "alpha--mon-done", family="alpha", state="completed"
+        "alpha--mon-done", session="alpha", state="completed"
     )
-    family_a_root.followup_agents.extend([monitor_a_running, monitor_a_done])
-    family_a_root.runtime_children.extend([monitor_a_running, monitor_a_done])
+    agent_session_a_root.followup_agents.extend([monitor_a_running, monitor_a_done])
+    agent_session_a_root.runtime_children.extend([monitor_a_running, monitor_a_done])
 
-    family_b_root, family_b_child = _sequential_family("beta")
-    monitor_b_done = _monitor_agent("beta--mon-done", family="beta", state="completed")
-    family_b_root.followup_agents.append(monitor_b_done)
-    family_b_root.runtime_children.append(monitor_b_done)
+    agent_session_b_root, agent_session_b_child = _sequential_agent_session("beta")
+    monitor_b_done = _monitor_agent("beta--mon-done", session="beta", state="completed")
+    agent_session_b_root.followup_agents.append(monitor_b_done)
+    agent_session_b_root.runtime_children.append(monitor_b_done)
 
-    agents = [family_a_root, family_a_child, family_b_root, family_b_child]
+    agents = [
+        agent_session_a_root,
+        agent_session_a_child,
+        agent_session_b_root,
+        agent_session_b_child,
+    ]
     counts = agent_panel_counts(agents, set())
 
     expected_settled = (
-        _monitor_lane_counts(family_a_root).settled
-        + _monitor_lane_counts(family_b_root).settled
+        _monitor_lane_counts(agent_session_a_root).settled
+        + _monitor_lane_counts(agent_session_b_root).settled
     )
     expected_running = (
-        _monitor_lane_counts(family_a_root).running
-        + _monitor_lane_counts(family_b_root).running
+        _monitor_lane_counts(agent_session_a_root).running
+        + _monitor_lane_counts(agent_session_b_root).running
     )
     assert expected_settled == 2
     assert expected_running == 1
@@ -241,24 +248,31 @@ def test_panel_monitor_lanes_match_sum_of_container_row_badges() -> None:
 
 
 def test_panel_gate_lanes_match_sum_of_container_row_badges() -> None:
-    family_a_root, family_a_child = _sequential_family("alpha")
-    gate_a_pending = _gate_agent("alpha--gate-pending", family="alpha", state="pending")
-    gate_a_done = _gate_agent("alpha--gate-done", family="alpha", state="answered")
-    family_a_root.followup_agents.extend([gate_a_pending, gate_a_done])
-    family_a_root.runtime_children.extend([gate_a_pending, gate_a_done])
+    agent_session_a_root, agent_session_a_child = _sequential_agent_session("alpha")
+    gate_a_pending = _gate_agent(
+        "alpha--gate-pending", session="alpha", state="pending"
+    )
+    gate_a_done = _gate_agent("alpha--gate-done", session="alpha", state="answered")
+    agent_session_a_root.followup_agents.extend([gate_a_pending, gate_a_done])
+    agent_session_a_root.runtime_children.extend([gate_a_pending, gate_a_done])
 
-    family_b_root, family_b_child = _sequential_family("beta")
-    gate_b_failed = _gate_agent("beta--gate-failed", family="beta", state="timeout")
-    family_b_root.followup_agents.append(gate_b_failed)
-    family_b_root.runtime_children.append(gate_b_failed)
+    agent_session_b_root, agent_session_b_child = _sequential_agent_session("beta")
+    gate_b_failed = _gate_agent("beta--gate-failed", session="beta", state="timeout")
+    agent_session_b_root.followup_agents.append(gate_b_failed)
+    agent_session_b_root.runtime_children.append(gate_b_failed)
 
-    agents = [family_a_root, family_a_child, family_b_root, family_b_child]
+    agents = [
+        agent_session_a_root,
+        agent_session_a_child,
+        agent_session_b_root,
+        agent_session_b_child,
+    ]
     counts = agent_panel_counts(agents, set())
 
     expected = (
-        _gate_lane_counts(family_a_root).running,
-        _gate_lane_counts(family_a_root).settled,
-        _gate_lane_counts(family_b_root).failed,
+        _gate_lane_counts(agent_session_a_root).running,
+        _gate_lane_counts(agent_session_a_root).settled,
+        _gate_lane_counts(agent_session_b_root).failed,
     )
     assert expected == (1, 1, 1)
     assert (counts.running_gates, counts.settled_gates, counts.failed_gates) == expected

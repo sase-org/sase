@@ -522,16 +522,16 @@ class AgentLoadingApplyMixin(
         else:
             self._schedule_live_hint_refresh(source="apply")  # type: ignore[attr-defined]
             self._schedule_bead_confirmation_warmup(source="apply")  # type: ignore[attr-defined]
-            schedule_family_preview_warmup = getattr(
+            schedule_agent_session_preview_warmup = getattr(
                 self,
-                "_schedule_family_plan_preview_warmup",
+                "_schedule_agent_session_plan_preview_warmup",
                 None,
             )
-            if callable(schedule_family_preview_warmup) and hasattr(
+            if callable(schedule_agent_session_preview_warmup) and hasattr(
                 self,
-                "_family_preview_scan_running",
+                "_agent_session_preview_scan_running",
             ):
-                schedule_family_preview_warmup(source="apply")
+                schedule_agent_session_preview_warmup(source="apply")
             self._schedule_diff_badge_classification(source="apply")  # type: ignore[attr-defined]
 
         arm_index_revalidate = getattr(

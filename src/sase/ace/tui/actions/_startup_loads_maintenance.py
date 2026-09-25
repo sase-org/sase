@@ -135,19 +135,19 @@ class StartupLoadsMaintenanceMixin:
             self._schedule_bead_confirmation_warmup(source=source)
         except Exception:
             log.debug("Failed to schedule bead warmup", exc_info=True)
-        schedule_family_preview_warmup = getattr(
+        schedule_agent_session_preview_warmup = getattr(
             self,
-            "_schedule_family_plan_preview_warmup",
+            "_schedule_agent_session_plan_preview_warmup",
             None,
         )
-        if callable(schedule_family_preview_warmup) and hasattr(
+        if callable(schedule_agent_session_preview_warmup) and hasattr(
             self,
-            "_family_preview_scan_running",
+            "_agent_session_preview_scan_running",
         ):
             try:
-                schedule_family_preview_warmup(source=source)
+                schedule_agent_session_preview_warmup(source=source)
             except Exception:
-                log.debug("Failed to schedule family-preview warmup", exc_info=True)
+                log.debug("Failed to schedule session-preview warmup", exc_info=True)
         try:
             self._schedule_diff_badge_classification(source=source)
         except Exception:

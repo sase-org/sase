@@ -1,4 +1,4 @@
-"""Digit-key navigation for numbered tribe, clan, and family rosters."""
+"""Digit-key navigation for numbered tribe, clan, and session rosters."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
     def _selected_member_jump_container(
         self,
     ) -> SelectedMemberJumpContainer | None:
-        """Return the selected tribe, clan, or family roster container."""
+        """Return the selected tribe, clan, or session roster container."""
         if self.current_tab != "agents":
             return None
         for resolver_name in (

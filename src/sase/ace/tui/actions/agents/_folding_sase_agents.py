@@ -53,7 +53,7 @@ def _is_canonical_lane_owner(
         return agent.tree_parent_key is None and agent.tree_depth == 0
 
     # The only valid agent-node owner below another structural row is a
-    # direct clan member. Workflow steps and sequential-family members are
+    # direct clan member. Workflow steps and sequential-session members are
     # aliases of their outer agent node and were rejected above via
     # ``is_child_row``.
     if (

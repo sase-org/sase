@@ -345,7 +345,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             kill_summary: AgentConfirmationSummary = confirmation_sase_agent_summary(
                 killable,
                 loaded_agents,
-                include_running_family_members=True,
+                include_running_agent_session_members=True,
             )
             desc_parts.extend(kill_summary.subject_lines("Kill"))
         if dismissable:

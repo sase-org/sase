@@ -65,7 +65,7 @@ def build_agent_conversation_sections(agent: Agent) -> tuple[PagerSection, ...]:
             member.presented_identity_name or member.agent_name or member.display_name
         )
         # Use the persisted row identity, never the position, name, or reply source.
-        # Appending a family member or switching live reply to chat keeps r anchored.
+        # Appending a session member or switching live reply to chat keeps r anchored.
         prefix = f"agent-conversation:{json.dumps(member.identity, default=str)}"
         context = agent_link_context(
             member.effective_workspace_num, member.project_file, member.workspace_dir

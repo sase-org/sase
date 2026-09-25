@@ -145,12 +145,12 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 return
 
             # Resolve the selected structural target once. An open workflow
-            # or family owns the next press and retreats one fold level;
+            # or session owns the next press and retreats one fold level;
             # clans stay on the established lane-before-clan ladder.
             structural_target = self._resolve_agent_structural_collapse_target()
             if structural_target is not None and structural_target.kind in {
                 "workflow",
-                "family",
+                "session",
             }:
                 self._collapse_agent_structural_fold(structural_target)
                 return

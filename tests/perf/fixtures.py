@@ -21,11 +21,11 @@ AGENT_SIZES: tuple[int, ...] = (50, 200, 1000)
 LARGE_REPLY_SIZES_MB: tuple[int, ...] = (1, 5, 20)
 
 # View-hints scenario sizing. 100 KB matches the observed p99/max of real
-# ``live_reply.md`` files, and five members is a plausible family width.
+# ``live_reply.md`` files, and five members is a plausible session width.
 HINT_REPLY_SIZE_KB: int = 100
-HINT_FAMILY_MEMBER_COUNT: int = 5
+HINT_AGENT_SESSION_MEMBER_COUNT: int = 5
 # Clan scenario sizing. Clan summaries are opaque script output, so 8 KB models
-# a verbose epic summary, and five members matches the family width above.
+# a verbose epic summary, and five members matches the session width above.
 HINT_CLAN_MEMBER_COUNT: int = 5
 HINT_CLAN_SUMMARY_KB: int = 8
 HINT_CLAN_GENERATION: str = "20260727120000"
@@ -175,17 +175,17 @@ def make_hint_agent(
     )
 
 
-def make_hint_family_container(
+def make_hint_agent_session_container(
     *,
     artifacts_root: Path,
     project_file: str,
-    members: int = HINT_FAMILY_MEMBER_COUNT,
+    members: int = HINT_AGENT_SESSION_MEMBER_COUNT,
     reply_kb: int = HINT_REPLY_SIZE_KB,
 ) -> Agent:
-    """Return a family-container row with ``members`` on-disk family members.
+    """Return a session-container row with ``members`` on-disk session members.
 
-    The family hint path renders every member's reply, so this row is the
-    scenario that exposes cost scaling with family width.
+    The session hint path renders every member's reply, so this row is the
+    scenario that exposes cost scaling with session width.
     """
     root = make_hint_agent(
         900,

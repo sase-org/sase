@@ -1,4 +1,4 @@
-"""Agents-tab regressions for restarting one exact family member."""
+"""Agents-tab regressions for restarting one exact session member."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from sase.ace.tui.modals import ConfirmKillModal
 from sase.ace.tui.widgets import PromptInputBar
 
 
-class _FamilyRelaunchApp(EntryRelaunchMixin, App[None]):
+class _AgentSessionRelaunchApp(EntryRelaunchMixin, App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     def __init__(self, agents: list[Agent], selected: Agent) -> None:
@@ -69,14 +69,16 @@ class _FamilyRelaunchApp(EntryRelaunchMixin, App[None]):
         return True
 
 
-def _prompt_bar_ready(app: _FamilyRelaunchApp) -> bool:
+def _prompt_bar_ready(app: _AgentSessionRelaunchApp) -> bool:
     for bar in app.query(PromptInputBar):
         if bar.query("#frontmatter-raw"):
             return True
     return False
 
 
-def _family_rows(tmp_path: Path, *, running_child: bool = False) -> tuple[Agent, Agent]:
+def _agent_session_rows(
+    tmp_path: Path, *, running_child: bool = False
+) -> tuple[Agent, Agent]:
     parent_dir = tmp_path / "parent"
     child_dir = tmp_path / "child"
     parent_dir.mkdir()
@@ -134,11 +136,11 @@ def _family_rows(tmp_path: Path, *, running_child: bool = False) -> tuple[Agent,
     return parent, child
 
 
-async def test_completed_family_member_relaunch_dismisses_only_selected_child(
+async def test_completed_agent_session_member_relaunch_dismisses_only_selected_child(
     tmp_path: Path,
 ) -> None:
-    parent, child = _family_rows(tmp_path)
-    app = _FamilyRelaunchApp([parent, child], child)
+    parent, child = _agent_session_rows(tmp_path)
+    app = _AgentSessionRelaunchApp([parent, child], child)
 
     with patch(
         "sase.ace.tui.actions.agents._fork_scope.resolve_vcs_tag",
@@ -162,11 +164,11 @@ async def test_completed_family_member_relaunch_dismisses_only_selected_child(
     assert app._agents_with_children == [parent]
 
 
-async def test_running_family_member_relaunch_cancel_is_non_destructive(
+async def test_running_agent_session_member_relaunch_cancel_is_non_destructive(
     tmp_path: Path,
 ) -> None:
-    parent, child = _family_rows(tmp_path, running_child=True)
-    app = _FamilyRelaunchApp([parent, child], child)
+    parent, child = _agent_session_rows(tmp_path, running_child=True)
+    app = _AgentSessionRelaunchApp([parent, child], child)
 
     async with app.run_test(size=(100, 35)) as pilot:
         app._kill_and_edit_agent()
@@ -191,11 +193,11 @@ async def test_running_family_member_relaunch_cancel_is_non_destructive(
         assert not app.query(PromptInputBar)
 
 
-async def test_running_family_member_relaunch_confirmation_kills_only_child(
+async def test_running_agent_session_member_relaunch_confirmation_kills_only_child(
     tmp_path: Path,
 ) -> None:
-    parent, child = _family_rows(tmp_path, running_child=True)
-    app = _FamilyRelaunchApp([parent, child], child)
+    parent, child = _agent_session_rows(tmp_path, running_child=True)
+    app = _AgentSessionRelaunchApp([parent, child], child)
 
     with patch(
         "sase.ace.tui.actions.agents._fork_scope.resolve_vcs_tag",
@@ -222,11 +224,11 @@ async def test_running_family_member_relaunch_confirmation_kills_only_child(
             )
 
 
-async def test_family_member_relaunch_aborts_when_row_goes_stale(
+async def test_agent_session_member_relaunch_aborts_when_row_goes_stale(
     tmp_path: Path,
 ) -> None:
-    parent, child = _family_rows(tmp_path)
-    app = _FamilyRelaunchApp([parent, child], child)
+    parent, child = _agent_session_rows(tmp_path)
+    app = _AgentSessionRelaunchApp([parent, child], child)
     started = Event()
     release = Event()
 
@@ -276,7 +278,7 @@ def _write_prompt(directory: Path, prompt: str) -> Path:
     return directory
 
 
-def _epic_family_root(tmp_path: Path) -> Agent:
+def _epic_agent_session_root(tmp_path: Path) -> Agent:
     artifacts = _write_prompt(tmp_path / "epic-root", _EPIC_ROOT_PROMPT)
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -317,7 +319,7 @@ def _plain_plan_root(tmp_path: Path) -> Agent:
     )
 
 
-def _self_attaching_family_row(tmp_path: Path) -> Agent:
+def _self_attaching_agent_session_row(tmp_path: Path) -> Agent:
     artifacts = _write_prompt(tmp_path / "self-attach", "Do work")
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -348,11 +350,11 @@ def _clan_container_row() -> Agent:
     )
 
 
-async def test_family_root_relaunch_keeps_clan_and_not_self_family(
+async def test_agent_session_root_relaunch_keeps_clan_and_not_self_agent_session(
     tmp_path: Path,
 ) -> None:
-    root = _epic_family_root(tmp_path)
-    app = _FamilyRelaunchApp([root], root)
+    root = _epic_agent_session_root(tmp_path)
+    app = _AgentSessionRelaunchApp([root], root)
 
     async with app.run_test(size=(110, 40)) as pilot:
         app._kill_and_edit_agent()
@@ -372,7 +374,7 @@ async def test_plain_plan_root_relaunch_keeps_prompt(
     tmp_path: Path,
 ) -> None:
     root = _plain_plan_root(tmp_path)
-    app = _FamilyRelaunchApp([root], root)
+    app = _AgentSessionRelaunchApp([root], root)
 
     async with app.run_test(size=(110, 40)) as pilot:
         app._kill_and_edit_agent()
@@ -389,8 +391,8 @@ async def test_plain_plan_root_relaunch_keeps_prompt(
 async def test_self_attaching_family_rewrite_notifies_and_kills_nothing(
     tmp_path: Path,
 ) -> None:
-    row = _self_attaching_family_row(tmp_path)
-    app = _FamilyRelaunchApp([row], row)
+    row = _self_attaching_agent_session_row(tmp_path)
+    app = _AgentSessionRelaunchApp([row], row)
 
     async with app.run_test(size=(110, 40)) as pilot:
         app._kill_and_edit_agent()
@@ -408,7 +410,7 @@ async def test_self_attaching_family_rewrite_notifies_and_kills_nothing(
 
 async def test_clan_container_focused_relaunch_warns_and_kills_nothing() -> None:
     container = _clan_container_row()
-    app = _FamilyRelaunchApp([container], container)
+    app = _AgentSessionRelaunchApp([container], container)
 
     async with app.run_test(size=(110, 40)) as pilot:
         app._kill_and_edit_agent()

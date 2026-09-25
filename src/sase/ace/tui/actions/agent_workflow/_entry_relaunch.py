@@ -39,26 +39,28 @@ def prepare_kill_edit_agent_prompt(
     if raw_prompt is None:
         return None
 
-    is_family_root = bool(getattr(agent, "is_agent_session_root_entry", False))
-    family_name: str | None = None
+    is_agent_session_root = bool(getattr(agent, "is_agent_session_root_entry", False))
+    agent_session_name: str | None = None
     agent_session = agent_session_value(agent)
     role_suffix = getattr(agent, "role_suffix", None)
-    serial_family_member = bool(
+    serial_agent_session_member = bool(
         agent_session and not agent_session_parallel_value(agent) and role_suffix
     )
-    if serial_family_member or is_family_root:
-        family_name = _kill_edit_family_reference_name(agent, agent_session)
+    if serial_agent_session_member or is_agent_session_root:
+        agent_session_name = _kill_edit_agent_session_reference_name(
+            agent, agent_session
+        )
     return prepare_kill_and_edit_prompt(
         raw_prompt,
         agent.agent_name,
-        agent_session_name=family_name,
+        agent_session_name=agent_session_name,
         role_suffix=role_suffix,
         phase_bead_id=getattr(agent, "phase_bead_id", None),
-        is_agent_session_root=is_family_root,
+        is_agent_session_root=is_agent_session_root,
     )
 
 
-def _kill_edit_family_reference_name(
+def _kill_edit_agent_session_reference_name(
     agent: object,
     agent_session: str | None,
 ) -> str | None:
@@ -398,7 +400,7 @@ class EntryRelaunchMixin:
                 confirmation_sase_agent_entries(
                     [agent],
                     loaded_agents,
-                    include_running_family_members=True,
+                    include_running_agent_session_members=True,
                 )
             )
         )

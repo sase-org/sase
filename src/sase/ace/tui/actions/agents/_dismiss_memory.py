@@ -70,7 +70,7 @@ class AgentDismissMemoryMixin:
     def _apply_dismissal_in_memory(self, agents: Iterable[Agent]) -> None:
         """Update in-memory agent state after a dismiss without a disk reload.
 
-        Removes the dismissed agents (plus parallel family members and
+        Removes the dismissed agents (plus parallel session members and
         workflow-child steps that cascade from a dismissed root) from the
         cached unfiltered agent list, appends them to
         ``_dismissed_agent_objects`` for same-session revive, and re-runs the

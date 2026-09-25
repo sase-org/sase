@@ -283,7 +283,7 @@ def _write_monitor_done(projects_root: Path, index: int) -> None:
     project_file = projects_root / project / f"{project}.sase"
     name = "feature-monitor"
     cl_name = "feature-monitor"
-    family_shell = {
+    agent_session_shell = {
         "kind": "monitor",
         "id": "mon-fixture",
         "state": "completed",
@@ -305,9 +305,9 @@ def _write_monitor_done(projects_root: Path, index: int) -> None:
             model="gpt-5.6-sol",
         )
         | {
-            "agent_session": "feature-monitor-family",
+            "agent_session": "feature-monitor-session",
             "agent_session_role": "monitor",
-            "family_shell": family_shell,
+            "agent_session_shell": agent_session_shell,
         },
     )
     _write_json(
@@ -322,7 +322,7 @@ def _write_monitor_done(projects_root: Path, index: int) -> None:
         )
         | {
             "status_label": "MONITORED",
-            "family_shell": family_shell,
+            "agent_session_shell": agent_session_shell,
         },
     )
 

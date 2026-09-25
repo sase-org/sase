@@ -244,7 +244,7 @@ class AgentPanelHintFoldingMixin:
                 continue
             owner = panel_agents[local_idx]
             # Workflow step rows are controlled by their parent's fold.
-            # Family/clan member rows may still own a distinct nested fold.
+            # Session/clan member rows may still own a distinct nested fold.
             if owner.is_workflow_step_child:
                 continue
             fold_key = agent_fold_key(owner)

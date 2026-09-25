@@ -1,4 +1,4 @@
-"""Digit-key navigation for numbered clan and family member rosters."""
+"""Digit-key navigation for numbered clan and session member rosters."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def test_single_digit_reveals_collapsed_clan_and_back_restores_container() -> No
 
 
 @pytest.mark.parametrize("in_clan", [False, True])
-def test_family_member_jump_reveals_standalone_and_nested_chains(
+def test_agent_session_member_jump_reveals_standalone_and_nested_chains(
     in_clan: bool,
 ) -> None:
     complete, root, child = make_family(in_clan=in_clan)
@@ -66,14 +66,14 @@ def test_family_member_jump_reveals_standalone_and_nested_chains(
     assert app._fold_manager.get(root.raw_suffix or "") is FoldLevel.EXPANDED
 
 
-def test_family_member_jump_accepts_concrete_workflow_planner_target() -> None:
-    root = make_agent("alpha--plan", family="alpha", role="plan")
-    planner = make_agent("alpha--plan-step", family="alpha", role="plan")
+def test_agent_session_member_jump_accepts_concrete_workflow_planner_target() -> None:
+    root = make_agent("alpha--plan", session="alpha", role="plan")
+    planner = make_agent("alpha--plan-step", session="alpha", role="plan")
     planner.plan_chain_root = False
     planner.parent_timestamp = root.raw_suffix
     planner.parent_workflow = "ace-run"
     planner.step_type = "agent"
-    coder = make_agent("alpha--code", family="alpha", role="code")
+    coder = make_agent("alpha--code", session="alpha", role="code")
     coder.parent_timestamp = root.raw_suffix
     root.runtime_children = [planner, coder]
     root.followup_agents = [coder]

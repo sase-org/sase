@@ -226,7 +226,7 @@ class AgentFooterDisplayMixin:
             # Under whole-panel focus, ``H`` arms a hinted collapse instead of
             # the row-scoped ladder below, so these resolvers stay row-only;
             # each already returns ``None`` while a panel holds focus.
-            # Mirror the dispatcher: an open selected workflow/family owns
+            # Mirror the dispatcher: an open selected workflow/session owns
             # the next press before the group-wide SASE-agent capability.
             structural_collapse_kind: str | None = None
             structural_collapse = None
@@ -241,7 +241,7 @@ class AgentFooterDisplayMixin:
                 structural_collapse = resolve_structural_collapse()
                 if structural_collapse is not None and structural_collapse.kind in {
                     "workflow",
-                    "family",
+                    "session",
                 }:
                     structural_collapse_kind = structural_collapse.kind
 

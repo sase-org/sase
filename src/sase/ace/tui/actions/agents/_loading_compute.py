@@ -431,7 +431,7 @@ def compute_apply_loaded_agents(
     }
 
     # Filter out dismissed agents. Verified live-runner rows outrank stale
-    # terminal dismissal identities: family normalization may have replaced
+    # terminal dismissal identities: session normalization may have replaced
     # their RUNNING label with RETRYING or another semantic status.
     # Non-RUNNING agents use the broad dismissed_suffixes index (suffix-only).
     # RUNNING agents use the

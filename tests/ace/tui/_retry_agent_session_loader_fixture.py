@@ -1,4 +1,4 @@
-"""Real artifact fixture for a live plan family in provider retry backoff."""
+"""Real artifact fixture for a live plan session in provider retry backoff."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def build_retrying_plan_family(
+def build_retrying_plan_agent_session(
     sase_home: Path,
     *,
     next_retry_at_epoch: float,

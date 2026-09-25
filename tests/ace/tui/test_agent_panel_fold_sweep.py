@@ -20,7 +20,7 @@ from ._agent_fold_transition_helpers import (
     make_agent as make_transition_agent,
 )
 from ._agent_fold_transition_helpers import (
-    make_sequential_family,
+    make_sequential_agent_session,
     make_standalone_workflow_lane,
 )
 from ._agent_panel_collapse_helpers import AgentPanelCollapseApp
@@ -191,7 +191,7 @@ def test_restore_marked_keys_are_per_panel() -> None:
 
 def test_whole_panel_sweep_collapses_lanes_and_clans_banners_stay_open() -> None:
     lane_rows, lane_root, _lane_steps = _named_workflow_lane("lane")
-    projected, family, _member = make_sequential_family(clan="workers")
+    projected, session, _member = make_sequential_agent_session(clan="workers")
     sibling = make_transition_agent(agent_name="sibling", tribe="research")
     agents = [*lane_rows, *projected, sibling]
 
@@ -201,16 +201,16 @@ def test_whole_panel_sweep_collapses_lanes_and_clans_banners_stay_open() -> None
     _populate_fold_counts(app, agents)
 
     lane_key = agent_fold_key(lane_root)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(session)
     clan = _clan_container(agents, "workers")
     clan_key = agent_fold_key(clan)
     assert lane_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
     assert clan_key is not None
 
     app._fold_manager.expand(lane_key)
-    app._fold_manager.expand(family_key)
-    app._fold_manager.expand(family_key)  # -> FULLY_EXPANDED
+    app._fold_manager.expand(agent_session_key)
+    app._fold_manager.expand(agent_session_key)  # -> FULLY_EXPANDED
     app._fold_manager.expand(clan_key)
     app._expanded_panel_focus = True
 
@@ -218,7 +218,7 @@ def test_whole_panel_sweep_collapses_lanes_and_clans_banners_stay_open() -> None
 
     registry = app._group_fold_registry.for_panel(None)
     assert app._fold_manager.get(lane_key) is FoldLevel.COLLAPSED
-    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.COLLAPSED
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
     # `-` never collapses grouping banners, only structural lanes and clans.
     assert registry.is_collapsed(("Running",)) is False
@@ -231,7 +231,7 @@ def test_whole_panel_sweep_collapses_lanes_and_clans_banners_stay_open() -> None
     app.action_collapse_panel_folds()
 
     assert app._fold_manager.get(lane_key) is FoldLevel.EXPANDED
-    assert app._fold_manager.get(family_key) is FoldLevel.FULLY_EXPANDED
+    assert app._fold_manager.get(agent_session_key) is FoldLevel.FULLY_EXPANDED
     assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
     assert registry.is_collapsed(("Running",)) is False
     assert app.notifications[-1] == "Restored 3 folds"
