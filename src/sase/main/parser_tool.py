@@ -34,7 +34,75 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
     tool_subparsers = tool_parser.add_subparsers(
         dest="tool_subcommand",
         help="Tool subcommands",
-        metavar="{list,run,runs,show,stop,wait}",
+        metavar="{failures,list,run,runs,show,stop,wait}",
+    )
+
+    failures_parser = tool_subparsers.add_parser(
+        "failures",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="List grouped failure signatures",
+        description=(
+            "List machine-local failure signature groups from stored "
+            "triage, newest-agent groups first. Defaults to the current "
+            "catalog repo's project over the last 7 days. Linked-repo "
+            "groups never appear under another project's tool. An empty "
+            "result prints `no recorded failures` and exits 0."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase tool failures\n"
+            "  sase tool failures -t check -c known\n"
+            "  sase tool failures -a -d 14 -j"
+        ),
+    )
+    failures_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        dest="tool_failures_all",
+        help="Include signature groups from every project",
+    )
+    failures_parser.add_argument(
+        "-c",
+        "--class",
+        choices=("new", "known", "flaky", "unknown"),
+        default=None,
+        metavar="CLASS",
+        dest="tool_failures_class",
+        help="Filter to one item class",
+    )
+    failures_parser.add_argument(
+        "-d",
+        "--days",
+        type=int,
+        default=7,
+        metavar="N",
+        dest="tool_failures_days",
+        help="Look back N days (default: 7)",
+    )
+    failures_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        dest="tool_failures_json",
+        help="Emit a versioned machine-readable JSON object",
+    )
+    failures_parser.add_argument(
+        "-n",
+        "--limit",
+        type=int,
+        default=50,
+        metavar="N",
+        dest="tool_failures_limit",
+        help="Show at most N groups (default: 50, max: 1000)",
+    )
+    failures_parser.add_argument(
+        "-t",
+        "--tool",
+        default=None,
+        metavar="TOOL",
+        dest="tool_failures_tool",
+        help="Filter to one named tool",
     )
 
     list_parser = tool_subparsers.add_parser(

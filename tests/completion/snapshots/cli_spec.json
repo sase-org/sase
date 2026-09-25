@@ -34515,6 +34515,142 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "99780bbb75180242",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "failures",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "tool_failures_all",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--all"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "new",
+                  "known",
+                  "flaky",
+                  "unknown"
+                ],
+                "default": null,
+                "dest": "tool_failures_class",
+                "hidden": false,
+                "kind": null,
+                "metavar": "CLASS",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-c",
+                  "--class"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "7",
+                "dest": "tool_failures_days",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-d",
+                  "--days"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "tool_failures_json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "50",
+                "dest": "tool_failures_limit",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--limit"
+                ],
+                "takes_value": true,
+                "value_hint": "int"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "tool_failures_tool",
+                "hidden": false,
+                "kind": null,
+                "metavar": "TOOL",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-t",
+                  "--tool"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              }
+            ],
+            "path": [
+              "tool",
+              "failures"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "483d0817b384aee0",
             "hidden": false,
             "mutex_groups": [],

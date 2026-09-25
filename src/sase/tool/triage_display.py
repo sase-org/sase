@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
+from sase.core.tool_run import tool_run_triage_show
+
 
 _CLASS_ORDER = ("new", "unknown", "known", "flaky")
 _COMPACT_CAPS = {"new": 10, "unknown": 10, "known": 3, "flaky": 3}
@@ -35,6 +37,63 @@ def footer_triage_lines(
     if isinstance(run_facts, dict) and run_facts.get("repeat_of_run_id"):
         lines.append(f"REPEAT of {run_facts['repeat_of_run_id']}")
     return lines, _verdict_line(triage, items, exit_code)
+
+
+def followup_triage_lines(
+    triage: dict[str, Any],
+    *,
+    run_id: str,
+    exit_code: int | None,
+) -> list[str]:
+    """Return the flag-gated ``## Failure triage`` follow-up section."""
+
+    items = _dicts(triage.get("items"))
+    lines = ["## Failure triage", ""]
+    verdict = _verdict_line(triage, items, exit_code if exit_code is not None else 1)
+    if verdict:
+        lines.append(verdict)
+    elif triage.get("verdict"):
+        lines.append(f"verdict: {triage['verdict']}")
+    lines.append("")
+    for class_name in ("new", "unknown"):
+        selected = [item for item in items if _item_class(item) == class_name]
+        for item in selected[: _COMPACT_CAPS[class_name]]:
+            lines.append(_item_line(item))
+    counts = Counter(_item_class(item) for item in items)
+    lines.append(f"KNOWN {counts['known']}; FLAKY {counts['flaky']}")
+    lines.append("")
+    lines.append(f"sase tool show {run_id} -j")
+    lines.append("")
+    return lines
+
+
+def load_followup_triage(
+    *,
+    tool_run_id: str | None,
+    monitor_id: str | None,
+) -> dict[str, Any] | None:
+    """Read stored triage for a reserved run or a monitor-owned wrap.
+
+    A missing run, an untriaged run, or a store error omits the section.
+    """
+
+    if tool_run_id:
+        request: dict[str, Any] = {"run_id": tool_run_id}
+    elif monitor_id:
+        request = {"owner_kind": "monitor", "owner_id": monitor_id}
+    else:
+        return None
+    try:
+        shown = tool_run_triage_show(request)
+    except Exception:  # noqa: BLE001 - follow-up composition is fail-open.
+        return None
+    if (
+        not isinstance(shown, dict)
+        or not shown.get("run_found")
+        or not shown.get("triaged")
+    ):
+        return None
+    return shown
 
 
 def show_triage_lines(triage: object) -> list[str]:
@@ -175,4 +234,9 @@ def _strings(value: object) -> list[str]:
     return [str(item) for item in value if str(item)]
 
 
-__all__ = ["footer_triage_lines", "show_triage_lines"]
+__all__ = [
+    "followup_triage_lines",
+    "footer_triage_lines",
+    "load_followup_triage",
+    "show_triage_lines",
+]

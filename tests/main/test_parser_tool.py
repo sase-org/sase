@@ -43,6 +43,7 @@ def test_tool_help_advertises_implemented_verbs() -> None:
     assert list(subcommands.choices) == [
         "_adopt",
         "_triage-stage",
+        "failures",
         "list",
         "run",
         "runs",
@@ -50,7 +51,7 @@ def test_tool_help_advertises_implemented_verbs() -> None:
         "stop",
         "wait",
     ]
-    assert "{list,run,runs,show,stop,wait}" in help_text
+    assert "{failures,list,run,runs,show,stop,wait}" in help_text
     usage_line = next(
         line for line in raw_help.splitlines() if line.startswith("usage:")
     )
@@ -126,3 +127,29 @@ def test_tool_runs_and_show_flags() -> None:
     assert show.tool_show_run_id == "abc123"
     assert show.tool_show_logs is True
     assert show.tool_show_json is False
+
+
+def test_tool_failures_flags() -> None:
+    parsed = create_parser().parse_args(
+        [
+            "tool",
+            "failures",
+            "-a",
+            "-c",
+            "known",
+            "-d",
+            "14",
+            "-n",
+            "20",
+            "-t",
+            "check",
+            "-j",
+        ]
+    )
+    assert parsed.tool_subcommand == "failures"
+    assert parsed.tool_failures_all is True
+    assert parsed.tool_failures_class == "known"
+    assert parsed.tool_failures_days == 14
+    assert parsed.tool_failures_limit == 20
+    assert parsed.tool_failures_tool == "check"
+    assert parsed.tool_failures_json is True

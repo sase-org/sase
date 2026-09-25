@@ -1,7 +1,9 @@
 """Compose the follow-up agent's prompt after a monitor reaches a terminal state.
 
-Pure text formatting -- no I/O -- so the prompt shape is covered by golden
-tests without needing a real monitor supervisor or spawned process.
+Formatting is otherwise pure, so the prompt shape is covered by golden tests
+without a real monitor supervisor. When ``tool_failure_triage`` is on, the
+composer may read stored ToolRun triage (fail-open) to insert a Failure
+triage section.
 
 The composed prompt is launched as another agent's initial chat message, so
 it goes through the same xprompt/directive expansion as any user-typed
@@ -19,6 +21,8 @@ from collections.abc import Mapping
 import json
 from typing import Any
 
+from sase.feature_flags.registry import FeatureFlag
+from sase.feature_flags.snapshot import current_flags
 from sase.llm_provider.continuation_budget_spans import open_reducible_span_marker
 from sase.shells.followup import fork_target_for_settled_starter
 from sase.shells.prompt import (
@@ -27,6 +31,7 @@ from sase.shells.prompt import (
     shell_routing_prefix,
     untrusted_output_section,
 )
+from sase.tool.triage_display import followup_triage_lines, load_followup_triage
 from sase.xprompt._disabled_regions import wrap_disabled_region
 
 from .result_projection import (
@@ -140,6 +145,7 @@ def compose_followup_prompt(
     checkpoint_ref: str | None = None,
     checkpoint_body: Mapping[str, Any] | None = None,
     tool_run_id: str | None = None,
+    triage: Mapping[str, Any] | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -271,6 +277,14 @@ def compose_followup_prompt(
         "",
     ]
     raw_limits = selected_raw_limits(selection, requested_tail_lines=tail_lines)
+    triage_section = _failure_triage_section(
+        triage=triage,
+        tool_run_id=tool_run_id,
+        monitor_id=monitor_id,
+        exit_code=exit_code,
+    )
+    if triage_section:
+        sections.extend(triage_section)
     if selected_diagnostics_text and selection.get("diagnostic_stage_ids"):
         sections.extend(
             [
@@ -316,6 +330,39 @@ def compose_followup_prompt(
         agent_session_name=agent_session_name,
     )
     return f"{prefix}\n{body}" if prefix else body
+
+
+def _failure_triage_section(
+    *,
+    triage: Mapping[str, Any] | None,
+    tool_run_id: str | None,
+    monitor_id: str,
+    exit_code: int | None,
+) -> list[str]:
+    """Insert stored triage before selected diagnostics when the flag is on."""
+
+    if not _failure_triage_enabled():
+        return []
+    payload: dict[str, Any] | None
+    if isinstance(triage, Mapping):
+        payload = dict(triage)
+    else:
+        payload = load_followup_triage(
+            tool_run_id=tool_run_id, monitor_id=monitor_id or None
+        )
+    if not payload:
+        return []
+    run_id = str(payload.get("run_id") or tool_run_id or "")
+    if not run_id:
+        return []
+    return followup_triage_lines(payload, run_id=run_id, exit_code=exit_code)
+
+
+def _failure_triage_enabled() -> bool:
+    try:
+        return current_flags().enabled(FeatureFlag.tool_failure_triage)
+    except Exception:  # noqa: BLE001 - a prompt gate must fail closed.
+        return False
 
 
 def _checkpoint_section(

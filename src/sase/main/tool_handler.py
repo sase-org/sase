@@ -24,6 +24,7 @@ from sase.tool.control import (
 )
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 from sase.tool.liveness import reconcile_unsettled_tool_runs
+from sase.tool.failures import ToolFailuresCliRequest, handle_failures
 from sase.tool.query import (
     ToolRunsCliRequest,
     ToolShowCliRequest,
@@ -76,6 +77,19 @@ def handle_tool_command(args: argparse.Namespace) -> None:
                 )
             )
         )
+    if subcommand == "failures":
+        sys.exit(
+            handle_failures(
+                ToolFailuresCliRequest(
+                    include_all=bool(getattr(args, "tool_failures_all", False)),
+                    class_name=getattr(args, "tool_failures_class", None),
+                    days=int(getattr(args, "tool_failures_days", 7)),
+                    json=bool(getattr(args, "tool_failures_json", False)),
+                    limit=int(getattr(args, "tool_failures_limit", 50)),
+                    tool=getattr(args, "tool_failures_tool", None),
+                )
+            )
+        )
     if subcommand == "runs":
         sys.exit(
             handle_runs(
@@ -121,7 +135,10 @@ def handle_tool_command(args: argparse.Namespace) -> None:
                 )
             )
         )
-    print("Usage: sase tool {list,run,runs,show,stop,wait}", file=sys.stderr)
+    print(
+        "Usage: sase tool {failures,list,run,runs,show,stop,wait}",
+        file=sys.stderr,
+    )
     sys.exit(2)
 
 
