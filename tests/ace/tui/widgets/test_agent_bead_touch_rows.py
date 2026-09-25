@@ -417,6 +417,32 @@ def test_note_preview_physical_body_stays_three_lines_at_card_widths() -> None:
             assert cell_len(line) <= width, line
 
 
+def test_read_reason_yields_indent_before_words_in_narrow_cards() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14j.5",
+                "2026-05-24T14:00:00+00:00",
+                verbs={"viewed": 1},
+                read_reasons=("Render compact Context-card note previews",),
+            ),
+        ),
+        line_cell_limit=26,
+    )
+
+    reason_lines = [
+        line
+        for line in text.plain.splitlines()
+        if line.strip() and "sase-14j.5" not in line
+    ]
+    assert 1 <= len(reason_lines) <= 3
+    assert any("Context-card" in line for line in reason_lines)
+    for line in reason_lines:
+        assert cell_len(line) <= 26, line
+
+
 def test_note_preview_is_attributed_bounded_and_keeps_read_reason() -> None:
     body = " ".join(f"wide界word-{index:02d}" for index in range(40))
     preview = BeadNotePreview(

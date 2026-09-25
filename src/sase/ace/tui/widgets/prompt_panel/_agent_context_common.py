@@ -24,6 +24,7 @@ from ._helpers import PROMPT_PANEL_LINE_CELL_LIMIT, wrap_text_by_cells
 # leading indentation and prefixes. Callers may pass a tighter card width so
 # split Context cards keep the same three-line note body in fewer columns.
 REASON_LINE_CELL_LIMIT = PROMPT_PANEL_LINE_CELL_LIMIT
+_MIN_REASON_CONTENT_CELLS = 24
 
 COLOR_MEMORY_SUBHEADER = "bold #5FD7FF"
 COLOR_GLOSSARY_SUBHEADER = "bold #D7875F"
@@ -190,6 +191,13 @@ def append_context_reason(
     line_cell_limit: int = REASON_LINE_CELL_LIMIT,
 ) -> None:
     reason = normalize_context_display(reason)
+    # In a narrow Context card the lane-aligned indent would squeeze the reason
+    # into a sliver that hard-breaks words, so give up indent before width.
+    glyph_cells = cell_len(f"{REASON_GLYPH} ")
+    indent = max(
+        0,
+        min(indent, line_cell_limit - glyph_cells - _MIN_REASON_CONTENT_CELLS),
+    )
     prefix = f"{' ' * indent}{REASON_GLYPH} "
     prefix_cells = cell_len(prefix)
     continuation_prefix = " " * prefix_cells
