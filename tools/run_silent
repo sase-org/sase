@@ -2,6 +2,7 @@
 # Context-efficient command wrapper for agent-driven pipelines.
 #
 # Usage: tools/run_silent <description> <cmd> [args...]
+#        tools/run_silent --finish
 #
 # Runs <cmd> with combined stdout+stderr captured to a tempfile.
 # On success (exit 0): prints "✓ <description>" and discards the captured output.
@@ -16,6 +17,26 @@
 
 set -uo pipefail
 
+helper="$(dirname "$0")/_run_silent_record.py" # tools/_run_silent_record.py
+
+if [ "${1:-}" = "--finish" ]; then
+    if [ $# -ne 1 ]; then
+        printf 'Usage: %s --finish\n' "$0" >&2
+        exit 2
+    fi
+    # An unwrapped recipe (including an older SASE wrapper) has no handshake.
+    # Keep this branch entirely silent so adding the recipe finish line does
+    # not change human or CI output.
+    if [ -n "${SASE_TOOL_CONTINUE:-}" ] \
+        && [ -n "${SASE_TOOL_RUN_EVENTS:-}" ] \
+        && [ -n "${SASE_TOOL_RUN_ID:-}" ] \
+        && [ -n "${SASE_TOOL_PYTHON:-}" ]; then
+        "$SASE_TOOL_PYTHON" "$helper" recipe-finish
+        exit $?
+    fi
+    exit 0
+fi
+
 if [ $# -lt 2 ]; then
     printf 'Usage: %s <description> <cmd> [args...]\n' "$0" >&2
     exit 2
@@ -26,7 +47,6 @@ shift
 
 tmp_file=$(mktemp)
 state_file=$(mktemp)
-helper="$(dirname "$0")/_run_silent_record.py" # tools/_run_silent_record.py
 trap 'rm -f "$tmp_file" "$state_file"' EXIT
 
 started_at=$(date +%s.%N 2>/dev/null || date +%s)
@@ -41,7 +61,7 @@ if [ -n "${SASE_TOOL_RUN_EVENTS:-}" ] && command -v python3 >/dev/null 2>&1; the
     python3 "$helper" start --state "$state_file" --description "$description" >/dev/null 2>&1 || true
 fi
 
-if (unset SASE_TOOL_RUN_EVENTS SASE_MONITOR_DIAGNOSTICS_DIR; "$@") >"$tmp_file" 2>&1; then
+if (unset SASE_TOOL_RUN_EVENTS SASE_MONITOR_DIAGNOSTICS_DIR SASE_TOOL_CONTINUE SASE_TOOL_PYTHON; "$@") >"$tmp_file" 2>&1; then
     exit_code=0
 else
     exit_code=$?
@@ -54,6 +74,25 @@ if need_python && command -v python3 >/dev/null 2>&1; then
         --exit-code "$exit_code" \
         --output "$tmp_file" \
         --started-at "$started_at" >/dev/null 2>&1 || true
+fi
+
+# Only the executor enables this handshake. A missing event sink or Python
+# interpreter is deliberately fail-fast: no continuation can hide a failure.
+if [ "$exit_code" -ne 0 ] \
+    && [ -n "${SASE_TOOL_CONTINUE:-}" ] \
+    && [ -n "${SASE_TOOL_RUN_EVENTS:-}" ] \
+    && [ -n "${SASE_TOOL_RUN_ID:-}" ] \
+    && [ -n "${SASE_TOOL_PYTHON:-}" ]; then
+    "$SASE_TOOL_PYTHON" "$helper" decide \
+        --state "$state_file" \
+        --description "$description" \
+        --exit-code "$exit_code" \
+        --mode "$SASE_TOOL_CONTINUE" >/dev/null 2>&1
+    decision_code=$?
+    # A successful decision process means ``continued``; every nonzero code
+    # is the fail-fast exit selected by the helper (or the original failure
+    # when recording itself could not make a decision).
+    exit_code=$decision_code
 fi
 
 if [ "$exit_code" -eq 0 ]; then

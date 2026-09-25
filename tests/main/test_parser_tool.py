@@ -73,6 +73,16 @@ def test_tool_run_preserves_remainder_after_separator() -> None:
     assert args.tool_run_words == ["--", "printf", "--", "-n"]
 
 
+def test_tool_run_continuation_controls_parse_before_the_tool() -> None:
+    keep_going = create_parser().parse_args(["tool", "run", "-k", "check"])
+    fail_fast = create_parser().parse_args(["tool", "run", "-x", "check"])
+
+    assert keep_going.keep_going is True
+    assert keep_going.fail_fast is False
+    assert fail_fast.keep_going is False
+    assert fail_fast.fail_fast is True
+
+
 def test_tool_run_named_extra_args_keep_leading_dashes() -> None:
     args = create_parser().parse_args(["tool", "run", "test", "--", "-k", "not-a-flag"])
     assert args.tool_run_words == ["test", "--", "-k", "not-a-flag"]

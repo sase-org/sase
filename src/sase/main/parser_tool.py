@@ -110,6 +110,21 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="hand_off",
         help="Hand the run off to a durable proc and return at once",
     )
+    continuation_mode = run_parser.add_mutually_exclusive_group()
+    continuation_mode.add_argument(
+        "-k",
+        "--keep-going",
+        action="store_true",
+        dest="keep_going",
+        help="Continue past failed stages (named run_silent tools only)",
+    )
+    continuation_mode.add_argument(
+        "-x",
+        "--fail-fast",
+        action="store_true",
+        dest="fail_fast",
+        help="Stop at the first failed stage (named run_silent tools only)",
+    )
     run_parser.add_argument(
         "tool_run_words",
         nargs=argparse.REMAINDER,

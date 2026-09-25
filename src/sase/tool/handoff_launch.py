@@ -14,6 +14,12 @@ from sase.tool.executor import ToolRunCliRequest
 def execute_handoff(request: ToolRunCliRequest) -> int:
     """Reserve a hand-off run and submit its adopting proc."""
 
+    if request.keep_going or request.fail_fast:
+        print(
+            "sase tool run -H cannot be used with -k/--keep-going or -x/--fail-fast",
+            file=sys.stderr,
+        )
+        return 2
     if request.verbose:
         print(
             "sase tool run -H cannot be used with -v/--verbose",

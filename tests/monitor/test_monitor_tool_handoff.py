@@ -148,6 +148,8 @@ def test_parse_rejects_output_mode_options() -> None:
     assert _parse_monitor_tool_words(["-q", "check"]) is None
     assert _parse_monitor_tool_words(["-T", "5", "check"]) is None
     assert _parse_monitor_tool_words(["-H", "check"]) is None
+    assert _parse_monitor_tool_words(["-k", "check"]) is None
+    assert _parse_monitor_tool_words(["-x", "check"]) is None
     assert _parse_monitor_tool_words([]) is None
 
 

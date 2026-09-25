@@ -20,6 +20,10 @@ from sase.tool.render import EMPTY, format_duration_ms
 SCHEMA_VERSION = 1
 KIND_STARTED = "started"
 KIND_FINISHED = "finished"
+KIND_CONTINUED = "continued"
+KIND_STOPPED = "stopped"
+KIND_RECIPE_FINISHED = "recipe_finished"
+CONTINUATION_KINDS = frozenset({KIND_CONTINUED, KIND_STOPPED, KIND_RECIPE_FINISHED})
 MAX_LINE_BYTES = 65536
 BATCH_LIMIT = 32
 FLUSH_LIMIT = 10_000
@@ -49,6 +53,8 @@ class StageIngestor:
     diagnostics: list[str] = field(default_factory=list)
     stages: dict[str, dict[str, Any]] = field(default_factory=dict)
     compact_lines: list[str] = field(default_factory=list)
+    continuation_records: list[dict[str, Any]] = field(default_factory=list)
+    continuation_event_ids: set[str] = field(default_factory=set)
     queued: deque[tuple[dict[str, Any] | None, str | None]] = field(
         default_factory=deque
     )
@@ -135,6 +141,9 @@ class StageIngestor:
         if run_id != self.run_id:
             self._note(f"ignored cross-run event for {run_id or 'missing-run'}")
             return None
+        if record.get("kind") in CONTINUATION_KINDS:
+            self._record_continuation(record)
+            return None
         events = _jsonl_to_core_events(record)
         compact_line: str | None = None
         for event in events:
@@ -167,6 +176,25 @@ class StageIngestor:
                         self.announced.add(stage_id)
                         self.compact_lines.append(compact_line)
         return compact_line
+
+    def _record_continuation(self, record: dict[str, Any]) -> None:
+        event_id = str(record.get("event_id") or "")
+        if event_id and event_id in self.continuation_event_ids:
+            return
+        if event_id:
+            self.continuation_event_ids.add(event_id)
+        self.continuation_records.append(dict(record))
+
+    @property
+    def has_unfinished_continuation(self) -> bool:
+        """Whether a continued failure lacks the recipe's finish marker."""
+
+        return any(
+            record.get("kind") == KIND_CONTINUED for record in self.continuation_records
+        ) and not any(
+            record.get("kind") == KIND_RECIPE_FINISHED
+            for record in self.continuation_records
+        )
 
     def _project_stage(self, stage: dict[str, Any]) -> None:
         stage_id = str(stage.get("stage_id") or "")
@@ -203,7 +231,12 @@ def _parse_event_line(raw: bytes) -> tuple[dict[str, Any] | None, str | None]:
     if int(payload.get("schema_version") or 0) != SCHEMA_VERSION:
         return None, "events.jsonl schema_version is not 1"
     kind = str(payload.get("kind") or "")
-    if kind not in {KIND_STARTED, KIND_FINISHED, OUTPUT_RECORD_KIND}:
+    if kind not in {
+        KIND_STARTED,
+        KIND_FINISHED,
+        *CONTINUATION_KINDS,
+        OUTPUT_RECORD_KIND,
+    }:
         return None, f"unknown events.jsonl kind {kind!r}"
     return payload, None
 
@@ -212,6 +245,8 @@ def _jsonl_to_core_events(record: dict[str, Any]) -> list[dict[str, Any]]:
     """Convert one producer JSONL record into core append-event payloads."""
 
     kind = str(record.get("kind") or "")
+    if kind not in {KIND_STARTED, KIND_FINISHED}:
+        return []
     run_id = str(record.get("run_id") or "")
     stage_id = str(record.get("stage_id") or "")
     event_id = str(record.get("event_id") or "")

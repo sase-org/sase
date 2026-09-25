@@ -118,6 +118,30 @@ def test_child_env_exports_marker_when_recorded(
     assert env["SASE_TOOL_RUN_ID"] == "run-1"
 
 
+def test_child_env_exports_continuation_handshake_only_when_requested(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _home(monkeypatch, tmp_path)
+    enabled = child_env(
+        recorded=True,
+        run_id="run-1",
+        events_path=tmp_path / "events.jsonl",
+        resolved=_named_resolved(),
+        continuation_mode="always",
+    )
+    disabled = child_env(
+        recorded=True,
+        run_id="run-1",
+        events_path=tmp_path / "events.jsonl",
+        resolved=_named_resolved(),
+    )
+
+    assert enabled["SASE_TOOL_CONTINUE"] == "always"
+    assert enabled["SASE_TOOL_PYTHON"]
+    assert "SASE_TOOL_CONTINUE" not in disabled
+    assert "SASE_TOOL_PYTHON" not in disabled
+
+
 def test_child_env_exports_marker_when_unrecorded(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

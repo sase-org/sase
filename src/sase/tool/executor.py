@@ -75,6 +75,8 @@ class ToolRunCliRequest:
     words: tuple[str, ...]
     hand_off: bool = False
     tail_lines_explicit: bool = False
+    keep_going: bool = False
+    fail_fast: bool = False
 
 
 @dataclass(frozen=True)
@@ -93,11 +95,24 @@ class RecordedRunContext:
     stderr_path: Path | None
     stop_recorded: Callable[[], bool] | None = None
     timeout_recorded: Callable[[], bool] | None = None
+    continuation_mode: str | None = None
 
 
 def execute_tool_run(request: ToolRunCliRequest) -> int:
     """Run one named or ad-hoc command and return the child-or-signal exit."""
 
+    if request.keep_going and request.fail_fast:
+        print(
+            "-k/--keep-going and -x/--fail-fast cannot be used together",
+            file=sys.stderr,
+        )
+        return 2
+    if request.hand_off and (request.keep_going or request.fail_fast):
+        print(
+            "sase tool run -H cannot be used with -k/--keep-going or -x/--fail-fast",
+            file=sys.stderr,
+        )
+        return 2
     if request.hand_off:
         from sase.tool.handoff_launch import execute_handoff
 
@@ -114,6 +129,7 @@ def execute_tool_run(request: ToolRunCliRequest) -> int:
     try:
         resolved = resolve_run_argv(request.words)
         ownership = resolve_ownership(quiet=request.quiet)
+        continuation_mode = _continuation_mode(request, resolved)
     except (ToolRunUsageError, ToolRunOwnerConflict) as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -142,6 +158,7 @@ def execute_tool_run(request: ToolRunCliRequest) -> int:
             ownership=ownership,
             compact=compact,
             signals=signals,
+            continuation_mode=continuation_mode,
         )
     finally:
         signal.signal(signal.SIGINT, previous_int)
@@ -155,6 +172,7 @@ def _execute_resolved(
     ownership: ToolRunOwnership,
     compact: bool,
     signals: SignalState,
+    continuation_mode: str | None,
 ) -> int:
     run_id = secrets.token_hex(16)
     events_path: Path | None = None
@@ -205,6 +223,7 @@ def _execute_resolved(
         stdout_path=stdout_path,
         stderr_path=stderr_path,
         stop_recorded=_foreground_stop_probe(run_id) if recorded else None,
+        continuation_mode=continuation_mode,
     )
     return run_recorded_body(ctx, signals)
 
@@ -239,6 +258,33 @@ def _timeout_requested(ctx: RecordedRunContext) -> bool:
         return bool(ctx.timeout_recorded())
     except Exception:  # noqa: BLE001 - a timeout probe must not break execution.
         return False
+
+
+def _default_continuation_mode(resolved: ResolvedToolArgv) -> str | None:
+    """Return the normal continuation handshake for a resolved named tool."""
+
+    is_run_silent = (
+        not resolved.adhoc
+        and resolved.tool_name is not None
+        and str(resolved.definition.get("stages") or "none") == "run_silent"
+    )
+    return "never" if is_run_silent else None
+
+
+def _continuation_mode(
+    request: ToolRunCliRequest, resolved: ResolvedToolArgv
+) -> str | None:
+    """Validate continuation controls and choose the child handshake mode."""
+
+    default_mode = _default_continuation_mode(resolved)
+    if request.keep_going or request.fail_fast:
+        if default_mode is None:
+            raise ToolRunUsageError(
+                "-k/--keep-going and -x/--fail-fast require a named "
+                "tool with stages: run_silent"
+            )
+        return "always" if request.keep_going else "never"
+    return default_mode
 
 
 def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
@@ -312,6 +358,11 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         run_id=durable_id,
         events_path=ctx.events_path,
         resolved=resolved,
+        continuation_mode=(
+            ctx.continuation_mode
+            if ctx.continuation_mode is not None
+            else _default_continuation_mode(resolved)
+        ),
     )
     has_owner = ctx.has_owner
     merged = should_merge_streams(owns_output=ctx.owns_output, compact=ctx.compact)
@@ -461,6 +512,15 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         warn_once(_WARN_INCOMPLETE)
 
     state, exit_code, signal_num, interruption = settle_wait_code(wait_code, signals)
+    if exit_code == 0 and ingestor is not None and ingestor.has_unfinished_continuation:
+        # Core rejects a ``failed`` run carrying the child's successful status.
+        # The wrapper therefore records the safety-net failure as exit 1, the
+        # sole intentional departure from the child's process result.
+        state = "failed"
+        exit_code = 1
+        signal_num = None
+        interruption = None
+        ingest_diagnostics.append("continuation_unfinished")
     if state == "interrupted":
         cause = "interrupt"
     elif state == "signaled":

@@ -467,6 +467,7 @@ def test_check_ends_in_the_scoped_test_lane() -> None:
 
     assert 'tools/run_silent "test (scoped)"      just test-scoped' in output
     assert 'tools/run_silent "test"               just test' not in output
+    assert output.rstrip().endswith("tools/run_silent --finish")
 
 
 def test_check_full_ends_in_the_full_test_lane() -> None:
@@ -475,6 +476,7 @@ def test_check_full_ends_in_the_full_test_lane() -> None:
     assert 'tools/run_silent "test cost"          just test-cost' in output
     assert "just test-scoped" not in output
     assert "just fix-tui-screenshots" in output
+    assert output.rstrip().endswith("tools/run_silent --finish")
 
 
 def test_check_prints_the_scoped_summary_after_run_silent_returns() -> None:

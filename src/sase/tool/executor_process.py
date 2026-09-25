@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import threading
 import time
 from typing import TYPE_CHECKING, BinaryIO
@@ -24,6 +25,8 @@ TOOL_RUN_EVENTS_ENV = "SASE_TOOL_RUN_EVENTS"
 TOOL_NAME_ENV = "SASE_TOOL_NAME"
 TOOL_PROJECT_ROOT_ENV = "SASE_TOOL_PROJECT_ROOT"
 TOOL_RUN_AGENT_ENV = "SASE_TOOL_RUN_AGENT"
+TOOL_CONTINUE_ENV = "SASE_TOOL_CONTINUE"
+TOOL_PYTHON_ENV = "SASE_TOOL_PYTHON"
 TERM_ESCALATE_SECONDS = 5.0
 KILL_WAIT_SECONDS = 2.0
 
@@ -107,6 +110,7 @@ def child_env(
     run_id: str | None,
     events_path: Path | None,
     resolved: ResolvedToolArgv,
+    continuation_mode: str | None = None,
 ) -> dict[str, str]:
     env = os.environ.copy()
     if resolved.adhoc or not resolved.tool_name:
@@ -119,9 +123,17 @@ def child_env(
         env[TOOL_RUN_ID_ENV] = run_id
         if events_path is not None:
             env[TOOL_RUN_EVENTS_ENV] = str(events_path)
+        if continuation_mode is not None and events_path is not None:
+            env[TOOL_CONTINUE_ENV] = continuation_mode
+            env[TOOL_PYTHON_ENV] = sys.executable
+        else:
+            env.pop(TOOL_CONTINUE_ENV, None)
+            env.pop(TOOL_PYTHON_ENV, None)
         return env
     env.pop(TOOL_RUN_ID_ENV, None)
     env.pop(TOOL_RUN_EVENTS_ENV, None)
+    env.pop(TOOL_CONTINUE_ENV, None)
+    env.pop(TOOL_PYTHON_ENV, None)
     return env
 
 

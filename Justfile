@@ -721,6 +721,7 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test (scoped)"      just test-scoped
     @{{ venv_bin }}/python tools/print_scoped_summary
+    @tools/run_silent --finish
 
 # Exhaustive verification: every whole-repo lint gate except `toobig` plus the
 # full test suite, then a local TUI screenshot update. This is not an agent default;
@@ -750,6 +751,7 @@ check-full: (_require-tool-run "check-full") _setup
     @{{ venv_bin }}/python tools/check_test_cost_budgets --report-advisories
     @tools/run_silent "flake baseline"     just selection-health --fail-on-new-flake
     @just fix-tui-screenshots
+    @tools/run_silent --finish
 
 # Render the scripted ACE demo videos (GIF + MP4), stamp
 # demos/out/last_generated_date.txt, and offer to commit the results.

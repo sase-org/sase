@@ -60,6 +60,8 @@ def handle_tool_command(args: argparse.Namespace) -> None:
                     ),
                     hand_off=bool(getattr(args, "hand_off", False)),
                     tail_lines_explicit=tail_raw is not None,
+                    keep_going=bool(getattr(args, "keep_going", False)),
+                    fail_fast=bool(getattr(args, "fail_fast", False)),
                 )
             )
         )

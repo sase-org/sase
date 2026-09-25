@@ -42,7 +42,8 @@ def _parse_monitor_tool_words(words: Sequence[str]) -> tuple[str, ...] | None:
     """Parse ``tool run`` *words* with the real parser, or return ``None``.
 
     ``None`` means the E1.5 argv stays untouched: the words do not parse,
-    or they carry output-mode options (``-q``/``-v``/``-T``) or ``-H``,
+    or they carry output-mode options (``-q``/``-v``/``-T``), continuation
+    controls (``-k``/``-x``), or ``-H``,
     which a hand-off worker cannot honor.
     """
     parser = argparse.ArgumentParser(prog="sase tool")
@@ -60,6 +61,8 @@ def _parse_monitor_tool_words(words: Sequence[str]) -> tuple[str, ...] | None:
     if getattr(args, "tail_lines", None) is not None:
         return None
     if getattr(args, "hand_off", False):
+        return None
+    if getattr(args, "keep_going", False) or getattr(args, "fail_fast", False):
         return None
     remainder = tuple(
         str(part) for part in (getattr(args, "tool_run_words", None) or ())

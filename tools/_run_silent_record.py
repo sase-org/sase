@@ -22,6 +22,9 @@ from typing import Any
 SCHEMA_VERSION = 1
 KIND_STARTED = "started"
 KIND_FINISHED = "finished"
+KIND_CONTINUED = "continued"
+KIND_STOPPED = "stopped"
+KIND_RECIPE_FINISHED = "recipe_finished"
 LOCK_TIMEOUT_S = 0.25
 LOCK_POLL_S = 0.005
 MAX_LINE_BYTES = 65536
@@ -281,6 +284,140 @@ def finish_stage(
     return state
 
 
+def _continuation_summary(events_path: pathlib.Path, run_id: str) -> tuple[int, int | None]:
+    """Return the continued-stage count and first continued exit code.
+
+    JSONL is append-only and the stage wrapper runs serially in a recipe, so
+    file order is the authoritative order for the first failure. Malformed
+    records are ignored: they must never make a recipe accidentally succeed.
+    """
+
+    count = 0
+    first_code: int | None = None
+    try:
+        lines = events_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return count, first_code
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        if record.get("kind") != KIND_CONTINUED or record.get("run_id") != run_id:
+            continue
+        code = record.get("exit_code")
+        if type(code) is not int or code == 0:
+            continue
+        count += 1
+        if first_code is None:
+            first_code = code
+    return count, first_code
+
+
+def _append_continuation(
+    kind: str,
+    *,
+    state_path: pathlib.Path | None = None,
+    mode: str | None = None,
+    exit_code: int | None = None,
+    reason: str | None = None,
+    elapsed_ms: int | None = None,
+) -> tuple[bool, int | None]:
+    """Append one continuation fact, returning its prior first failure code."""
+
+    events_path = _events_path()
+    run_id = _run_id()
+    if events_path is None or not run_id:
+        return False, None
+    _, first_code = _continuation_summary(events_path, run_id)
+    record: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": kind,
+        "run_id": run_id,
+        "event_id": _new_id(),
+        "decided_ts": _unix_ms(),
+    }
+    if state_path is not None:
+        state = _load_state(state_path)
+        stage_id = str(state.get("stage_id") or "").strip()
+        if not stage_id:
+            return False, first_code
+        record["stage_id"] = stage_id
+    if mode is not None:
+        record["mode"] = mode
+    if exit_code is not None:
+        record["exit_code"] = int(exit_code)
+    if reason is not None:
+        record["reason"] = reason
+    if elapsed_ms is not None:
+        record["elapsed_ms"] = max(0, int(elapsed_ms))
+    if kind == KIND_RECIPE_FINISHED:
+        record["first_continued_exit_code"] = first_code
+    return append_jsonl_record(events_path, record), first_code
+
+
+def decide_stage(
+    state_path: pathlib.Path,
+    description: str,
+    exit_code: int,
+    mode: str,
+) -> int:
+    """Persist a continuation decision and return the recipe-visible status.
+
+    ``0`` is reserved for a successfully recorded continuation. A failed
+    decision remains fail-fast, using the first earlier continued code to
+    retain ordinary fail-fast exit-code parity.
+    """
+
+    started = _monotonic_ns()
+    if mode == "always":
+        recorded, _ = _append_continuation(
+            KIND_CONTINUED,
+            state_path=state_path,
+            mode=mode,
+            exit_code=exit_code,
+            reason="mode_always",
+            elapsed_ms=int((_monotonic_ns() - started) / 1_000_000),
+        )
+        return 0 if recorded else exit_code
+
+    # ``known`` is intentionally fail-closed until its triage subprocess
+    # lands. An unknown value follows the same safe stop behavior.
+    reason = "mode_never" if mode == "never" else "helper_error"
+    recorded, first_code = _append_continuation(
+        KIND_STOPPED,
+        state_path=state_path,
+        mode=mode,
+        exit_code=exit_code,
+        reason=reason,
+        elapsed_ms=int((_monotonic_ns() - started) / 1_000_000),
+    )
+    if not recorded:
+        return exit_code
+    return first_code if first_code is not None else exit_code
+
+
+def finish_recipe() -> int:
+    """Record recipe completion and restore the first continued failure code."""
+
+    recorded, first_code = _append_continuation(KIND_RECIPE_FINISHED)
+    if not recorded or first_code is None:
+        return 0
+    events_path = _events_path()
+    run_id = _run_id()
+    count, _ = (
+        _continuation_summary(events_path, run_id)
+        if events_path is not None and run_id
+        else (0, None)
+    )
+    print(
+        f"✗ {count} stage(s) failed; continued past them (first exit {first_code})"
+    )
+    return first_code
+
+
 def _write_monitor_stage(
     root: str,
     record: dict[str, Any],
@@ -426,11 +563,28 @@ def main(argv: list[str] | None = None) -> int:
     finish.add_argument("--output", required=True)
     finish.add_argument("--started-at", default="")
 
+    decide = sub.add_parser("decide")
+    decide.add_argument("--state", required=True)
+    decide.add_argument("--description", required=True)
+    decide.add_argument("--exit-code", required=True, type=int)
+    decide.add_argument("--mode", required=True)
+
+    sub.add_parser("recipe-finish")
+
     args = parser.parse_args(argv)
     try:
         if args.command == "start":
             start_stage(pathlib.Path(args.state), args.description)
             return 0
+        if args.command == "decide":
+            return decide_stage(
+                pathlib.Path(args.state),
+                args.description,
+                args.exit_code,
+                args.mode,
+            )
+        if args.command == "recipe-finish":
+            return finish_recipe()
         output_path = pathlib.Path(args.output)
         try:
             output_bytes = output_path.stat().st_size
