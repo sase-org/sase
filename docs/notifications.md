@@ -807,18 +807,18 @@ unread-agent shortcut, sase's TUI clears the row's unread marker and dismisses t
 matching completion notification. A host-owned settlement row (`epic-launch` or
 `monitor-settlement`) that names the exact `(cl_name, raw_suffix)` of that row or of any
 shell on its `parent_timestamp` chain — for example, an epic launch approved through the
-EpicApproval gate names the gate's launch monitor, and reading the family row clears it
+EpicApproval gate names the gate's launch monitor, and reading the session row clears it
 — is acknowledged with the row and dismissed alongside the completion notification. Plan
 approvals and user questions remain explicit response workflows and are not auto-read
 merely by selection.
 
 Unread state on the Agents tab is projected from the active user-agent completion
 notifications in the store, plus any active host-owned settlement notification — the
-notification an epic launch or monitor handoff posts when an agent family finishes
+notification an epic launch or monitor handoff posts when an agent session finishes
 (senders `epic-launch` or `monitor-settlement`) — whose `(cl_name, raw_suffix)` matches
 the Agents-tab row or any shell on its `parent_timestamp` chain, not only direct
 children. Unread state is not written as separate per-row state. A finished agent row
-whose family settles is therefore flagged unread until that notification is dismissed;
+whose session settles is therefore flagged unread until that notification is dismissed;
 when the underlying notification is dismissed (per-row selection, response modal, or any
 other path) the row's unread marker clears on the next refresh. A host-owned settlement
 notification that names the exact `(cl_name, raw_suffix)` of an agent row or of a shell
@@ -831,8 +831,8 @@ immediately re-cleared. Plan approvals and user questions still require an expli
 A newly arrived completion notification also drives a targeted Agents-tab refresh:
 sase's TUI reloads only the matching agents' artifact directories rather than rebuilding
 the whole list. Host-owned settlement notifications from epic launches and monitor
-handoffs (senders `epic-launch` and `monitor-settlement`) refresh the agent family they
-name the same way, so a settled family updates without waiting for the next full
+handoffs (senders `epic-launch` and `monitor-settlement`) refresh the agent session they
+name the same way, so a settled session updates without waiting for the next full
 refresh. When the named row is acknowledged, the settlement row is dismissed with it:
 the match requires both `cl_name` and `raw_suffix` to equal the row's key, since
 `cl_name` alone is the project-wide patch name shared by every agent and would clear
@@ -1601,14 +1601,14 @@ the on-disk tombstone when a remote edit fails.
 
 ### Gate shells and continuation
 
-A gate shell is a named, non-LLM member of an agent family, normally `--gate` or
+A gate shell is a named, non-LLM member of an agent session, normally `--gate` or
 `--gate-N`. It makes a user decision durable without keeping the asking provider process
-or a runner slot alive. The shell can retain the family's workspace claim while pending,
-records approved command output in `gate.log`, and settles only after the selected
-commands finish. Its lifecycle is pending, settling, answered, completed, failed,
-timeout, stopped, or lost. Answered commands start right away even when every runner
-slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a full
-queue never delays the decision itself.
+or a runner slot alive. The shell can retain the session's workspace claim while
+pending, records approved command output in `gate.log`, and settles only after the
+selected commands finish. Its lifecycle is pending, settling, answered, completed,
+failed, timeout, stopped, or lost. Answered commands start right away even when every
+runner slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a
+full queue never delays the decision itself.
 
 The hourly `gate_shell_reclaim` housekeeping job settles pending shells whose gates were
 already answered, cancelled, or removed. It also times out gates past their own
@@ -1626,7 +1626,7 @@ the gate kind and request ID and points at `sase gate list --all`
 
 The built-in front doors choose statuses and continuation policy for their domain:
 
-- `/sase_questions` creates `QUESTION` / `ANSWERED`; an answer launches the next family
+- `/sase_questions` creates `QUESTION` / `ANSWERED`; an answer launches the next session
   member with the accumulated Q&A.
 - `/sase_plan` creates a `TALE`, `EPIC`, or legacy `PLAN` shell. Feedback launches a
   replanner, while approval follows the selected tale/epic/commit policy.
@@ -1634,7 +1634,7 @@ The built-in front doors choose statuses and continuation policy for their domai
   may launch a continuation, while rejection or an unconfigured terminal branch stops.
 - Agent-side `sase launch request` creates `LAUNCH` and defaults to resuming the
   requester after approve, reject, timeout, or failure. The successor receives the gate
-  outcome, feedback, typed dispatch result, requester identity, family/workspace
+  outcome, feedback, typed dispatch result, requester identity, session/workspace
   context, and checkpoint. A stopped gate remains terminal; an explicit
   `terminal_handoff` mode suppresses requester continuation on every branch.
 - Agent-side `sase sudo request` creates `SUDO`. Approval settles it as `SUDOED` and
@@ -1642,7 +1642,7 @@ The built-in front doors choose statuses and continuation policy for their domai
   it as `DENIED` without a follow-up. See [Sudo Requests](sudo.md).
 
 For a custom handoff, pass `--shell` to `sase gate create`. `--next` supplies the
-default answered-branch prompt; `--next-fork family|shell|none`, `--next-model`, and
+default answered-branch prompt; `--next-fork session|shell|none`, `--next-model`, and
 repeatable `--next-output none|results|tail|file` control its context, model, and output
 channels. Branch policy in the specification may override or suppress that default. A
 shell block without an explicit `continuation_mode` records the derived `gate_shell`

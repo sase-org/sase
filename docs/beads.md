@@ -1098,7 +1098,7 @@ to the bead's plan, artifact references, parent and child beads, dependencies,
 associated agents, and commits. Current commits use a structured `SASE_BEAD=<id>` footer
 tag instead of a subject-line parenthetical; historical commits with trailing
 `(<bead-id>)` subjects are still recognized when the ID exists in the store. Published
-agent and family pages in the agents sidecar link back to the bead they worked, so the
+agent and session pages in the agents sidecar link back to the bead they worked, so the
 bead↔agent relationship is navigable in both directions.
 
 Each page's identity block also renders the bead's creator as `**Created by:** <name>`,
@@ -2277,7 +2277,7 @@ Once an epic bead exists, the shared launch path:
    part omitted when the slot has no expected bead. `BLOCKED` marks a slot whose
    existing owner cannot be safely classified, usually a conflicting bead association,
    an unknown live state, or a second still-running shell that holds the same name;
-   family and clan members reached without their own bead ids are accepted rather than
+   session and clan members reached without their own bead ids are accepted rather than
    treated as conflicts. Every blocker is listed instead of aborting on the first one,
    and a real launch still stops before any wipe, bead mutation, or spawn. `--dry-run`
    renders the `BLOCKED` rows, reports how many blockers would abort a real launch, and
@@ -2511,7 +2511,7 @@ alone. The durable approve result retains that integer so launch argv can emit
 `--capacity N`; tale, reject, and feedback actions never submit it.
 
 The preferred handoff is a [monitor](monitors.md) shell under the planner's own agent
-family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
+session, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
 `sase bead work` runs. After any terminal outcome its configured label is
 `EPIC CREATED`, including when the monitor failed, timed out, was stopped, or was lost;
 the monitor's state, bucket, exit code, and output—not that label—show whether the
@@ -2520,7 +2520,7 @@ ID; when that metadata lands, the planner row moves to `EPIC CREATED`, and other
 planner remains `EPIC APPROVED`. No follow-up agent is recorded because `sase bead work`
 launches the phase agents itself. The monitor takes a zero workspace claim rather than
 the planner's, since the launch runs in the primary workspace. When the planner's agent
-family cannot be resolved, the same command is submitted as one deduplicated global
+session cannot be resolved, the same command is submitted as one deduplicated global
 `detached` proc instead.
 
 Either handoff is durable and unowned by any interactive session: it survives the
@@ -2537,7 +2537,7 @@ through every default `sase proc list` and Procs-tab scope,
 epic ID and committed plan path into planner metadata.
 
 There is no planner-side subprocess fallback and no foreground path. An absent or
-unresolvable planner agent family selects the detached-proc fallback; other
+unresolvable planner agent session selects the detached-proc fallback; other
 monitor-start errors do not. If the host cannot resolve the primary workspace, finds the
 approved-epic plans store unusable, or cannot submit the selected handoff, approval
 fails loudly and reports the `sase bead work <plan> --yes-to-all` resume command rather

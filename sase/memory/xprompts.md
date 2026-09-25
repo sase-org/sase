@@ -37,7 +37,7 @@ grammar.
 | ------------------------ | ------ | -------------------------------------------------------------------------------------- |
 | `%model:<m>`             | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")`  |
 | `%effort:<lvl>`          | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                               |
-| `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(parent, suffix)` plan-family child                      |
+| `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(<suffix>, session=<parent>)` session child              |
 | `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                     |
 | `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                   |
 | `%queue:<n>`             | `%q`   | Runner-queue admission: positional `capacity`; `(capacity=, priority=/p=, weight=/w=)` |

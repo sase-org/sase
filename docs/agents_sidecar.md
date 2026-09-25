@@ -10,7 +10,7 @@ launched agents or copied into numbered workspaces.
 One publication includes every locally owned active, waiting, terminal, failed, and
 dismissed run in the committing agent's complete top-level hood. Active prompts can
 therefore appear before a transcript exists; later syncs can refresh the stable run with
-terminal state, commits, or a readable chat. Portable metadata and family/clan
+terminal state, commits, or a readable chat. Portable metadata and session/clan
 relationships are included as well. Creating or pushing the sidecar publishes that data
 to everyone who can read the configured remote.
 
@@ -65,7 +65,7 @@ the global spelling. Agent references do not accept `#L`, `#page=`, or `#t=` fra
 If the page has not been published yet, run `sase agent sync` for the project before
 sharing the `@agent:` reference.
 
-Owner manifests map each hood to its snapshot digest plus run and family counts. The
+Owner manifests map each hood to its snapshot digest plus run and session counts. The
 snapshot itself lists every referenced file with its size and SHA-256 digest, so the
 manifest does not need to repeat that file set. With the default-on
 `slim_agents_manifest` sunset flag, every manifest write (a fresh publication or either
@@ -164,7 +164,7 @@ be swept entirely (every transport, every machine) with
 Targeted publication refreshes exactly the committing agent's complete top-level hood.
 Full reconciliation publishes every locally owned project hood with at least one
 primary-repository commit association. Commit-less plan members, active siblings,
-failed/waiting runs, dismissed archives, and structural family/clan containers are
+failed/waiting runs, dismissed archives, and structural session/clan containers are
 included when they belong to that hood.
 
 After an agent-backed commit or pull-request operation records its first durable result
@@ -183,11 +183,11 @@ terminal state, commits, prompt data, and chat refresh the same stable run; abse
 not create an implicit deletion or tombstone. Identical inputs produce byte-identical
 files and a no-op publication.
 
-After each pull/rebase, SASE rebuilds root, user, machine, hood, family, and agent
+After each pull/rebase, SASE rebuilds root, user, machine, hood, session, and agent
 Markdown from every validated owner manifest. Index and neighbor pages link a _specific
-run_, so their family member links use stable `member-<role>` anchors; solo links target
-the corresponding agent README. Commit footers are the other case: they identify a sase
-agent rather than a run, so they link the family page with no member anchor (see
+run_, so their session member links use stable `member-<role>` anchors; solo links
+target the corresponding agent README. Commit footers are the other case: they identify
+a sase agent rather than a run, so they link the session page with no member anchor (see
 [runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload)). Because
 owners mutate disjoint authority files, a bounded non-fast-forward retry can pull a
 competing owner, recompute the shared views, and converge without overwriting either
@@ -195,13 +195,13 @@ snapshot.
 
 ## Browsing page anatomy
 
-Root, user, machine, and hood pages stay focused on indexes. Agent and family pages
+Root, user, machine, and hood pages stay focused on indexes. Agent and session pages
 carry the detailed artifact view for one run or lane, and their optional sections keep a
 deterministic order so stable inputs produce byte-identical Markdown.
 
 An agent page uses this anatomy:
 
-- Breadcrumb: root, user, machine, hood, optional family, and the current agent.
+- Breadcrumb: root, user, machine, hood, optional session, and the current agent.
 - Summary: bead and epic links when the run is associated with a bead, above model,
   provider, timing, commit count, and variable count when variables were published.
   Non-zero counts link to their page sections.
@@ -210,23 +210,24 @@ An agent page uses this anatomy:
 - Variables: sanitized output variables, when the run published any.
 - Neighbors: related sase agents in the same owner/machine hood, when any exist.
 
-A family page keeps the `Lineage` diagram and accessible member table first, then uses
-the same optional artifact order: `Commits`, `Variables`, and `Neighbors`. Family commit
-and variable tables include the member role so each row can be traced back to a member.
-Family neighbor rows describe the family itself and never list its own members, which
-are already present in the member table.
+A session page keeps the `Lineage` diagram and accessible member table first, then uses
+the same optional artifact order: `Commits`, `Variables`, and `Neighbors`. Session
+commit and variable tables include the member role so each row can be traced back to a
+member. Session neighbor rows describe the session itself and never list its own
+members, which are already present in the member table.
 
-The family page is the durable home of a family's commits. Because a commit footer names
-the sase agent rather than the member, family commit history is owned by the family
-container itself and is carried in the published snapshot alongside the per-member rows.
-The `Commits` table unions both sources: rows recovered from a member's own artifact
-keep that member's role, and sase-agent-level rows — including commits whose member
-artifact has since been cleaned up — render with a `—` role. Rows are deduplicated by
-SHA with the member-attributed row winning, then sorted and capped like every other
-commit table. Clan containers never accumulate commits this way; only families do.
+The session page is the durable home of a session's commits. Because a commit footer
+names the sase agent rather than the member, session commit history is owned by the
+session container itself and is carried in the published snapshot alongside the
+per-member rows. The `Commits` table unions both sources: rows recovered from a member's
+own artifact keep that member's role, and sase-agent-level rows — including commits
+whose member artifact has since been cleaned up — render with a `—` role. Rows are
+deduplicated by SHA with the member-attributed row winning, then sorted and capped like
+every other commit table. Clan containers never accumulate commits this way; only
+sessions do.
 
-When any member is associated with a bead, the family header line also names the
-distinct bead ids across the family's members after `Members:` — one as `Bead: <link>`,
+When any member is associated with a bead, the session header line also names the
+distinct bead ids across the session's members after `Members:` — one as `Bead: <link>`,
 several as `Beads: <link>, <link>` capped at five with a trailing `… +N more`, and none
 leaves the header line as it is today.
 
@@ -252,10 +253,10 @@ string leaf, depth and node caps, and a 65,536-byte encoded-value cap. They are 
 to anyone who can read the agents sidecar, so do not use output variables for secrets,
 credentials, private tokens, or other sensitive values.
 
-Neighbor rosters are sase-agent-scoped and owner-scoped. A sequential family is one sase
-agent, and each family member page renders that family's roster. Rows mirror the Agents
-tab's NEIGHBORS grouping: ancestors, descendants, then nearest hood groups, with links
-to solo-agent pages, family pages, and the hood roster when a group is truncated.
+Neighbor rosters are sase-agent-scoped and owner-scoped. A sequential session is one
+sase agent, and each session member page renders that session's roster. Rows mirror the
+Agents tab's NEIGHBORS grouping: ancestors, descendants, then nearest hood groups, with
+links to solo-agent pages, session pages, and the hood roster when a group is truncated.
 Cross-owner and cross-machine relationships are intentionally excluded.
 
 Compatibility note: snapshots published with `output_variables` metadata require readers
@@ -268,25 +269,25 @@ upgraded.
 
 Published history is treated as durable input, even when it contains an agent name that
 current creation-time validation would reject. Read-side identity classification
-therefore interprets `--<role>` as a family role only when it occurs in the final
+therefore interprets `--<role>` as a session role only when it occurs in the final
 dot-separated segment. For example, `4x--epic.f-0` is a solo name in hood `4x`, while
-`fi--code.f0--code` is the `code` member of family `fi--code.f0` in hood `fi`.
+`fi--code.f0--code` is the `code` member of session `fi--code.f0` in hood `fi`.
 
 Classification of a non-empty, path-safe historical name is best effort and must not
 abort an inventory scan or hood publication. A record that is genuinely unsafe or cannot
 be contained is excluded with its artifact path and reason in the publication
 diagnostics. Historical records that share an old timestamp-derived run ID are assigned
-distinct, deterministic IDs and reported instead of invalidating the hood. Stale family
+distinct, deterministic IDs and reported instead of invalidating the hood. Stale session
 metadata is likewise diagnosed and reconciled to the canonical name-derived
 classification. If a linked primary commit for a _solo_ sase agent remains after its
 local artifact has been cleaned up, publication synthesizes a minimal completed run from
 the commit association so its `SASE_AGENT` page does not become a permanent dead link. A
-family is never synthesized into a run: doing so would invent an
-`agents/<family>/README.md` page next to the real family page, so those commits reach
-the sidecar through the family container instead. When a family has commits that no
+session is never synthesized into a run: doing so would invent an
+`agents/<session>/README.md` page next to the real session page, so those commits reach
+the sidecar through the session container instead. When a session has commits that no
 published container can carry, the history is reported in the publication diagnostics
 rather than dropped silently. This read tolerance does not relax write validation: newly
-generated solo, family, and clan names must still satisfy the current strict naming
+generated solo, session, and clan names must still satisfy the current strict naming
 rules.
 
 ## Commands and status
@@ -476,7 +477,7 @@ Textual event loop.
 
 V1's top-level manifest and `agents/<machine-qualified-name>` files remain in place and
 read-only. A v1 row has no trustworthy username owner, a shared machine token alone is
-never proof of ownership, and v1 cannot reconstruct the complete transactional family
+never proof of ownership, and v1 cannot reconstruct the complete transactional session
 and relationship state guaranteed by v2. Current sync and status commands do not import
 or retire v1 transport data. Already-imported local legacy history can be purged in full
 (imports of any transport and any machine, plus historical import staging,

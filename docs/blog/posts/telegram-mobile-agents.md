@@ -136,7 +136,7 @@ Telegram's `set_my_commands` API so they show up in the chat input UI:
 
 | Command              | What it does                                                                      |
 | -------------------- | --------------------------------------------------------------------------------- |
-| `/list`              | Lists running agents with their families and current state                        |
+| `/list`              | Lists running agents with their sessions and current state                        |
 | `/kill [<name>]`     | Kills a specific agent or, with no argument, picks one from a button list         |
 | `/resume`            | Sends a copy-text button to re-enter the most recent conversation                 |
 | `/changes [project]` | Lists active Patches with a copy-text button for the bare workflow tag            |

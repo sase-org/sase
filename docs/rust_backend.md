@@ -205,7 +205,7 @@ Rust-backed boundaries, while others are Python-owned host adapters.
 | `agent_scan_facade.py`            | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
 | `agent_scan_wire.py`              | Stable wire records for agent-artifact scans and index maintenance                                                 |
 | `agent_identity_facade.py`        | Rust-backed agent identity, ownership, validation, and name-rewriting boundary                                     |
-| `agent_runtime_facade.py`         | Rust-backed clan/family wall-clock runtime aggregation                                                             |
+| `agent_runtime_facade.py`         | Rust-backed clan/session wall-clock runtime aggregation                                                            |
 | `artifact_file_facade.py`         | Compatibility import surface; artifact-file storage/default synthesis is Python-owned                              |
 | `artifact_file_query_facade.py`   | Rust-backed query facade for the persistent artifact-file index                                                    |
 | `agent_cleanup_wire.py`           | Stable cleanup planning and side-effect intent wires                                                               |

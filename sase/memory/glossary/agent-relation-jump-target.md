@@ -7,17 +7,17 @@ aliases:
 An agent relation jump target is what an Agents-tab numeric keymap jumps to: a sase
 node, or a dismissed sase agent that the keymap revives, reached through one of the
 selection's agent relations. Each one is a numbered row, its number chip at the left, in
-that relation's roster section: `FAMILY SHELLS` (an agent family's sase shells, monitor
-and gate shells included), `NEIGHBORS` (the selected agent's agent neighbors, dismissed
-ones included), `CLAN MEMBERS` (an agent clan's direct members), or `TRIBE MEMBERS` (an
-agent tribe's top-level clans, families, workflows, and agents). The rosters shown for
-one selection share a single number sequence: `0`–`9`, or `00`–`99` past ten targets,
-capped at 100. Typing a number selects its target and reveals it through any folds; a
-dismissed target is revived instead. The jump panel, the sticky footer below the Agents
-detail panels, lists every live agent relation jump target.
+that relation's roster section: `SESSION SHELLS` (an agent session's sase shells,
+monitor and gate shells included), `NEIGHBORS` (the selected agent's agent neighbors,
+dismissed ones included), `CLAN MEMBERS` (an agent clan's direct members), or
+`TRIBE MEMBERS` (an agent tribe's top-level clans, sessions, workflows, and agents). The
+rosters shown for one selection share a single number sequence: `0`–`9`, or `00`–`99`
+past ten targets, capped at 100. Typing a number selects its target and reveals it
+through any folds; a dismissed target is revived instead. The jump panel, the sticky
+footer below the Agents detail panels, lists every live agent relation jump target.
 
 Only numbered rows are agent relation jump targets. Rows behind a `… +N more` tail,
-unnumbered child rows, `… also listed under FAMILY SHELLS` duplicates, and tribe
+unnumbered child rows, `… also listed under SESSION SHELLS` duplicates, and tribe
 `CLAN SUMMARIES` / `PROMPTS` chips that reuse a member's number are not. Plain "jump
 target" is ambiguous, and none of its other uses is an agent relation jump target: `'`
 entry hints (including the `AgentJumpTarget` type in `jump_hints.py`), `Ctrl+J`/`Ctrl+K`

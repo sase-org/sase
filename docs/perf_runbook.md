@@ -153,11 +153,11 @@ Most of the Tier 1 revalidate cost there is hidden-row repair: about 6,800 marke
 checks.
 
 Real-archive parity. All 13 missing rows are `--code` and `--mon` members of dismissed
-families. The Rust index hides descendants of a dismissed family root (sase-core
+sessions. The Rust index hides descendants of a dismissed session root (sase-core
 `34b3229`, before this epic), but the tab's Python dismissal step, which the source scan
 reference uses, does not. The one extra row was an agent created during the run. Before
 the dismissal step was added, 107 rows differed; every one was a dismissed identity or
-one of those family members.
+one of those session members.
 
 Live session: sase's TUI from this tree (`sase tui -x --tab agents`, PID 2078791, logs
 in `~/.sase/perf/sase-zu.8.5-tui_{startup,agent_loads,trace}.jsonl`) against the real
@@ -537,7 +537,7 @@ refresh frame that already widened a panel's `requested_width`, is the flicker i
 deterministically; the paint log lives in `actions/agents/_paint_log.py`.
 
 The arrival's `display_cost` says which path painted it. An ordinary node (no clan,
-family or workflow relation, no wider than the panel's existing rows, no new banner)
+session or workflow relation, no wider than the panel's existing rows, no new banner)
 records `display_row_insert`: the row is inserted in place and no `update_list` runs. A
 node that cannot be inserted still rebuilds only its own panel, recording
 `display_panel_rebuild` after a `display_row_insert` record whose `fallback_reason`
@@ -637,7 +637,7 @@ update_display_with_hints  family_container, hints, commit_views,
 ```
 
 `annotated_chars` counts every character handed to the hint scanner, summed across
-fragments and family members, so it is the size term to divide a duration by.
+fragments and session members, so it is the size term to divide a duration by.
 `header_summary` says whether the render had a warm detail-header summary: a `cold`
 render omits the SASE CONTEXT hints entirely and will be rebuilt when the enrichment
 worker lands.
@@ -1094,14 +1094,14 @@ disk-backed fixtures — the hint render reads `raw_xprompt.md`, `*_prompt.md`, 
 ```text
 large_reply_first_press           v on a plain agent with a 100 KB reply, cold header summary
 large_reply_repeat_press          v again on the same row after the bar is torn down
-family_container_press            v on a 5-member family container at the default metadata level;
+family_container_press            v on a 5-member session container at the default metadata level;
                                   conversation content is full under the shared hint cap
 family_container_unfolded_press   the same row at FoldLevel.FULLY_EXPANDED; foldable metadata grows,
                                   while conversation visibility and the shared hint cap stay unchanged
 hint_mode_auto_refresh            an Agents-tab refresh tick while hint mode is active
 ```
 
-Spans are sliced per step rather than pooled, so the plain-agent and family-container
+Spans are sliced per step rather than pooled, so the plain-agent and session-container
 costs can be compared independently. Each step also carries a `hint_counters` block
 (`annotated_chars`, `hints`, `commit_views`, `header_summary`, `family_container`) so a
 duration change can be attributed to the document actually getting smaller rather than
@@ -1139,7 +1139,7 @@ just view-hints-perf-check
 
 The floor compares traced spans against the committed baseline and ignores wall-clock
 Pilot settle time. It also checks that warm repeat presses and unchanged auto-refreshes
-do not rescan annotated text, and that family rows stay within the shared hint scan cap
+do not rescan annotated text, and that session rows stay within the shared hint scan cap
 at both metadata levels. If long output is capped, sase's TUI shows a dim notice in the
 detail panel; hints are not generated past that notice. The committed baseline remains
 the synchronous pre-optimization reference and is not rewritten merely because

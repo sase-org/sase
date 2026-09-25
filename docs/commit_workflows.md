@@ -339,11 +339,11 @@ launch that should carry plan attribution sets it explicitly.
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and
 `create_pull_request`, `CommitWorkflow` appends or updates a trailing
 `SASE_AGENT=<username>.<machine>.<sase-agent>` line. The value is the committing sase
-agent, not the concrete agent shell that ran: a family member commits as its family
+agent, not the concrete agent shell that ran: a session member commits as its session
 (`pc--code` is tagged `<username>.<machine>.pc`), and a solo agent is tagged with its
 own name exactly as before. When the configured agents sidecar is hosted on GitHub, the
-value is a Markdown reference link to the sase agent's page — the family page for a
-family and the agent README for a solo agent — with no `#member-<role>` fragment. Every
+value is a Markdown reference link to the sase agent's page — the session page for a
+session and the agent README for a solo agent — with no `#member-<role>` fragment. Every
 fallback path (no owner, no project, unresolvable or non-hosted sidecar) still emits the
 sase-agent label unlinked. `AGENT` comes from `SASE_AGENT_NAME`, falling back to
 `SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete shell name is resolved first only so
@@ -393,8 +393,8 @@ reader (inventory history, import evidence, revert discovery, image-attachment s
 plan and bead associations, the PR body footer) accepts both spellings permanently: a
 member-named tag keeps its exact per-run attribution, while a sase-agent-named tag is
 attributed to the sase agent. Readers that need a link for a tag prefer the destination
-recorded in the footer itself, because that URL already distinguishes a family page from
-a solo agent page for commits from either era.
+recorded in the footer itself, because that URL already distinguishes a session page
+from a solo agent page for commits from either era.
 
 Internal fields added by `CommitWorkflow`:
 

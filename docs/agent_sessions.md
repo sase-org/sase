@@ -1,21 +1,22 @@
-# Agent Clans, Families, and Tribes
+# Agent Clans, Sessions, and Tribes
 
-SASE uses three different kinds of agent grouping:
+SASE uses three different kinds of agent grouping. Agent sessions were formerly called
+agent families.
 
-| Concept          | Directive or naming form                  | Purpose                                                              |
-| ---------------- | ----------------------------------------- | -------------------------------------------------------------------- |
-| **Agent clan**   | `%clan:<name>` / `%id(<id>, clan=<name>)` | Declare or join a named, rootless container for parallel agents      |
-| **Agent family** | `%i(<suffix>, family=<parent>)`           | A strictly sequential chain named `<family>--<suffix>`               |
-| **Agent tribe**  | `%id([<id>], tribe=<name>)` / `#tribe`    | A user-managed label displayed with an `@` prefix, such as `@review` |
+| Concept           | Directive or naming form                  | Purpose                                                              |
+| ----------------- | ----------------------------------------- | -------------------------------------------------------------------- |
+| **Agent clan**    | `%clan:<name>` / `%id(<id>, clan=<name>)` | Declare or join a named, rootless container for parallel agents      |
+| **Agent session** | `%i(<suffix>, session=<parent>)`          | A strictly sequential chain named `<session>--<suffix>`              |
+| **Agent tribe**   | `%id([<id>], tribe=<name>)` / `#tribe`    | A user-managed label displayed with an `@` prefix, such as `@review` |
 
 Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors
 in hood `foo`, and the agent named `foo` belongs to hood `foo` as well. A deeper name
 belongs to every hood along its dotted path, so sase's TUI can group `foo.bar.worker`
-with peers under `foo.bar` and cousins under `foo`. A family joins hoods under its bare
-family name, not its root member's `--` name, so a family `foo` and a single agent
+with peers under `foo.bar` and cousins under `foo`. A session joins hoods under its bare
+session name, not its root member's `--` name, so a session `foo` and a single agent
 `foo.bar` are related in both directions exactly as two single agents with those names
 would be. Clans use that namespace rule deliberately, while dotted names alone do not
-create clan or family membership.
+create clan or session membership.
 
 ## Parallel Agent Clans
 
@@ -192,13 +193,13 @@ does not re-apply values already in preserved metadata.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose
 a workspace or model, or otherwise rewrite launch behavior. Use `%wait` explicitly
-wherever ordering is required. The `clan=`, `family=`, and `tribe=` keywords on `%id`
+wherever ordering is required. The `clan=`, `session=`, and `tribe=` keywords on `%id`
 are mutually exclusive, and none can be combined with `%clan` in the same segment.
 
 The clan name is permanently reserved as a container name and cannot also belong to an
 agent. Each member must be named `<clan>.<suffix>`; launch planning rejects an
 out-of-hood name before spawning it. A clan may contain ordinary agents, workflow steps,
-and sequential families whose names stay inside the same hood.
+and sequential sessions whose names stay inside the same hood.
 
 `%wait:<clan>` waits for every member of the newest clan generation. An exact member
 name targets only that member. Killing or dismissing the synthetic clan row cascades to
@@ -212,36 +213,36 @@ first substitutes the member's concrete clan, such as `research.2`.
 
 sase's TUI renders every grouping row with a trailing color-coded name and no kind icon.
 A clan is synthetic and ends with an orchid `<name>` after its rolled-up status counts;
-its `@tribe` labels follow the name. A real multi-member family root ends with its bare
+its `@tribe` labels follow the name. A real multi-member session root ends with its bare
 azure container `<name>`, while its concrete member rows retain their exact `--<suffix>`
 names. Plain agent annotations and a lone plan proposer with only its display-only
 planner child remain gold. Press `l` once on a collapsed clan to reveal its direct
-members. The clan's outer fold is binary, so move to a family or workflow row and press
+members. The clan's outer fold is binary, so move to a session or workflow row and press
 `l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash,
 Python, parallel, embedded, or compatibility workflow step to its validated immediate
-workflow, family, clan, or tribe parent without changing fold state. Uppercase `H` first
-retreats a selected open workflow or sequential-family agent node by one fold level.
-After that agent node is collapsed, the next press fully collapses every remaining open
-agent node in the next grouping scope, then collapses only the open canonical clan
-enclosing the selection. The next press from that collapsed clan container collapses
-every remaining open canonical clan in the group, and only then does a later press fall
-back to selected-row structural handling and grouping collapse. A selection without an
-open enclosing workflow, family, or clan proceeds directly to the group-wide
-remaining-agent-node sweep. Selecting the clan row shows an aggregate `CLAN` header and
-a navigable summary of every section represented across its members. In the Agents list,
-direct members sort by status priority — Failed, Stopped, Running/Starting, Queued,
-Waiting, Done — and then by launch recency within a bucket. The `CLAN MEMBERS`
+workflow, session, clan, or tribe parent without changing fold state. Uppercase `H`
+first retreats a selected open workflow or sequential-session agent node by one fold
+level. After that agent node is collapsed, the next press fully collapses every
+remaining open agent node in the next grouping scope, then collapses only the open
+canonical clan enclosing the selection. The next press from that collapsed clan
+container collapses every remaining open canonical clan in the group, and only then does
+a later press fall back to selected-row structural handling and grouping collapse. A
+selection without an open enclosing workflow, session, or clan proceeds directly to the
+group-wide remaining-agent-node sweep. Selecting the clan row shows an aggregate `CLAN`
+header and a navigable summary of every section represented across its members. In the
+Agents list, direct members sort by status priority — Failed, Stopped, Running/Starting,
+Queued, Waiting, Done — and then by launch recency within a bucket. The `CLAN MEMBERS`
 jump-panel roster uses chronological launch order instead, keeping its number-to-member
 mapping stable while statuses change. The runtime is the union of member run intervals,
 with human-wait windows excluded — including a gate shell's pending and settling window
-— so concurrent members are not double-counted. When a sequential family has a concrete
-agent or monitor shell currently executing, the collapsed and expanded family container
-row shows `🏃‍♂️ <current-shell-runtime> / <family-total-runtime>` so the active shell
-duration is visible without opening the family. A clan container's live suffix collapses
-its parallel lanes with a minimum instead, since more than one lane can be live at once:
-`<lowest-running-lane-runtime> / <clan-total-runtime>`, where a sequential-family lane
-contributes its own total runtime -- the same value its own row shows to the right of
-its suffix.
+— so concurrent members are not double-counted. When a sequential session has a concrete
+agent or monitor shell currently executing, the collapsed and expanded session container
+row shows `🏃‍♂️ <current-shell-runtime> / <session-total-runtime>` so the active shell
+duration is visible without opening the session. A clan container's live suffix
+collapses its parallel lanes with a minimum instead, since more than one lane can be
+live at once: `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a
+sequential-session lane contributes its own total runtime -- the same value its own row
+shows to the right of its suffix.
 
 ### Clan summary folding
 
@@ -313,29 +314,29 @@ every phase and land segment uses the `clan=` join form. The built-in
 `sase_clan_summary_epic` script renders the epic's
 [launch-time clan summary](#launch-time-clan-summaries).
 
-## Sequential Agent Families
+## Sequential Agent Sessions
 
-An agent family is a strictly sequential chain. A family is created only when
-`%i(suffix, family=parent)` attaches the first follow-up to an existing agent. At that
+An agent session is a strictly sequential chain. A session is created only when
+`%i(suffix, session=parent)` attaches the first follow-up to an existing agent. At that
 point SASE renames the original agent with its own `--<role>` suffix and reserves the
-bare base name as a pure family container. Generic originals become `<family>--0`; plan
-proposers use `<family>--plan`. Because creation requires an attachment, a family always
-has at least two members.
+bare base name as a pure session container. Generic originals become `<session>--0`;
+plan proposers use `<session>--plan`. Because creation requires an attachment, a session
+always has at least two members.
 
-For example, attaching a reviewer to agent `foo` creates family `foo`, renames the
+For example, attaching a reviewer to agent `foo` creates session `foo`, renames the
 original to `foo--0`, and names the new member `foo--reviewer`:
 
 ```text
-%i(reviewer, family=foo) Review the diff produced by this family.
-%i(tester, family=foo) Run the focused tests and report any failures.
-%i(@, family=planner) #with_feedback:: Add failure handling before coding.
+%i(reviewer, session=foo) Review the diff produced by this session.
+%i(tester, session=foo) Run the focused tests and report any failures.
+%i(@, session=planner) #with_feedback:: Add failure handling before coding.
 ```
 
-The positional suffix is a bare token: write `%i(reviewer, family=foo)`, not
-`%i(--reviewer, family=foo)`. `%i(@, family=foo)` allocates the next free numeric
+The positional suffix is a bare token: write `%i(reviewer, session=foo)`, not
+`%i(--reviewer, session=foo)`. `%i(@, session=foo)` allocates the next free numeric
 suffix.
 
-Every family member has an `agent_family_role` derived from its suffix:
+Every session member has an `agent_session_role` derived from its suffix:
 
 | Suffix                                         | Role                           | Display behavior                 |
 | ---------------------------------------------- | ------------------------------ | -------------------------------- |
@@ -343,17 +344,17 @@ Every family member has an `agent_family_role` derived from its suffix:
 | Numeric (`@` allocates the next free number)   | Feedback or question round     | Built-in round status rules      |
 | Any other word (`reviewer`, `tester`, `audit`) | The suffix itself, an open set | Ordinary RUNNING/DONE statuses   |
 
-Arbitrary suffixes are ordinary family labels, not configured lifecycle hooks. SASE does
-not discover or execute custom `kind: agent_family` definitions. Replace a stale
-definition with an explicit family attachment or an agent-requested launch.
+Arbitrary suffixes are ordinary session labels, not configured lifecycle hooks. SASE
+does not discover or execute custom `kind: agent_session` definitions. Replace a stale
+definition with an explicit session attachment or an agent-requested launch.
 
-A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same family) is a
-**monitor shell**: a family member whose work is one supervised OS command instead of an
-LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
+A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same session) is
+a **monitor shell**: a session member whose work is one supervised OS command instead of
+an LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
 
 A `--gate` suffix (then `--gate-0`, `--gate-1`, …) is a **gate shell**: a named, non-LLM
-family member that owns a durable user decision. The asking agent ends its turn, the
-pending gate occupies no runner slot and contributes no accumulated family or clan
+session member that owns a durable user decision. The asking agent ends its turn, the
+pending gate occupies no runner slot and contributes no accumulated session or clan
 runtime, and the shell settles after the decision's commands complete. It can retain or
 release the workspace claim according to its shell policy. An answered branch may launch
 the next agent-shell member; timeout, stop, failure, and loss do so only when that
@@ -362,14 +363,14 @@ agent-initiated launch flows use this model, as can custom `sase gate create --s
 requests. See
 [Command-backed interaction gates](notifications.md#command-backed-interaction-gates).
 
-`sase pipe '<prompt>'` creates a family member the same way a plan approval or a
+`sase pipe '<prompt>'` creates a session member the same way a plan approval or a
 question follow-up does: it ends the calling agent's turn in-process and continues the
 run as the next member, in the same workspace and claim. The successor gets the next
 free numeric suffix (role `feedback`) by default, or an explicit `--name TOKEN` suffix
 (role: the token itself), per the suffix table above. See
 [Monitors: Pipe vs. monitor](monitors.md#pipe-vs-monitor).
 
-SASE resolves `parent` to the newest visible matching agent or family member in the
+SASE resolves `parent` to the newest visible matching agent or session member in the
 current project. If the parent is still running, the new member appears immediately as
 WAITING and starts only after that exact parent artifact completes successfully. If the
 parent fails, stops, or is killed, the queued member becomes STOPPED and SASE sends a
@@ -377,110 +378,110 @@ completion notification.
 
 If the parent is missing, ambiguous, or dismissed, or the composed member name already
 exists, launch preparation fails before spawning the member. Collision errors suggest
-`%i(@, family=parent)`. `%wait:<family>` and `#fork` references to the bare family name
-resolve through the family container; `sase agent wait <family>` uses the same family
-target and waits for successors that appear after the wait begins. An exact `--<suffix>`
-name targets one member. A member attached to an agent already inside a clan inherits
-that clan membership.
+`%i(@, session=parent)`. `%wait:<session>` and `#fork` references to the bare session
+name resolve through the session container; `sase agent wait <session>` uses the same
+session target and waits for successors that appear after the wait begins. An exact
+`--<suffix>` name targets one member. A member attached to an agent already inside a
+clan inherits that clan membership.
 
 A monitor or gate shell that ended unsuccessfully without handing off to a follow-up
-member normally keeps a bare-family wait blocked. Retries are the exception: when the
-same family generation (the newest root plus its attached members) also contains a newer
-shell of the same kind, SASE ignores the older failed shell while resolving the bare
-family name. For example, if `--mon` fails to start and `--mon-0` takes over, the family
-wait follows `--mon-0` and the other members instead of staying blocked on `--mon`. The
-newer shell only replaces the older failure; it still has to finish successfully (or
-hand off) before the family can settle. Kinds never mix: a newer gate does not excuse a
-failed monitor, or vice versa. An exact wait on the old shell's full name still reports
-that shell's own failed outcome.
+member normally keeps a bare-session wait blocked. Retries are the exception: when the
+same session generation (the newest root plus its attached members) also contains a
+newer shell of the same kind, SASE ignores the older failed shell while resolving the
+bare session name. For example, if `--mon` fails to start and `--mon-0` takes over, the
+session wait follows `--mon-0` and the other members instead of staying blocked on
+`--mon`. The newer shell only replaces the older failure; it still has to finish
+successfully (or hand off) before the session can settle. Kinds never mix: a newer gate
+does not excuse a failed monitor, or vice versa. An exact wait on the old shell's full
+name still reports that shell's own failed outcome.
 
-`#fork:<family>` contributes every known concrete shell — agent, monitor, and gate
+`#fork:<session>` contributes every known concrete shell — agent, monitor, and gate
 shells alike — in chain order, oldest first, including shells that ended unsuccessfully
 with their recorded failure context. Only a shell that is still running, or whose
 transcript or log is missing or unreadable, is listed as not shown rather than injected.
 Shared inherited history is de-duplicated across the included agent-shell transcripts.
-When a family member forks its own family, that member is omitted from both the shown
+When a session member forks its own session, that member is omitted from both the shown
 and not-shown member lists. At least one shown member is required. Use
-`#fork:<family>--<suffix>` when only one member should be a parent — this also accepts a
-monitor's `--mon`/`--mon-N` suffix, and a monitor's exact durable proc ID is always the
-unambiguous choice if its reusable shell name is ever reused. A family container can
-also be combined with independent agent, proc/monitor, family, clan, or tribe parents in
-one multi-parent fork.
+`#fork:<session>--<suffix>` when only one member should be a parent — this also accepts
+a monitor's `--mon`/`--mon-N` suffix, and a monitor's exact durable proc ID is always
+the unambiguous choice if its reusable shell name is ever reused. A session container
+can also be combined with independent agent, proc/monitor, session, clan, or tribe
+parents in one multi-parent fork.
 
-### Family detail folding
+### Session detail folding
 
-Selecting a real multi-member family root in sase's TUI opens the metadata panel with
-underlined `FAMILY` (cyan, matching the name), with a numbered `FAMILY SHELLS` roster in
-the jump panel in stable chain order: agent shells in chain order, with each monitor
+Selecting a real multi-member session root in sase's TUI opens the metadata panel with
+underlined `SESSION` (cyan, matching the name), with a numbered `SESSION SHELLS` roster
+in the jump panel in stable chain order: agent shells in chain order, with each monitor
 spliced in directly after its starter shell. The original member and each follow-up are
 direct jump targets; synthetic planner projections and legacy parallel-family
 scaffolding are not. The roster follows the global panel fold keys (`zz`, `zZ`, and the
 direct level keys); the root's foldable output variables, workflow variables, SASE
 context, slow calls, and errors use the same chords plus `za`/`zA`.
 
-Family summaries have two effective levels. Level 1 shows bounded activity, wait/retry,
+Session summaries have two effective levels. Level 1 shows bounded activity, wait/retry,
 context, and compact member metadata; level 2 adds full foldable metadata plus member
 workspace, timestamp, and attempt annotations (roster annotations show when the jump
 panel is expanded with `.`). Press `zZ` at level 1 to open every fold to level 2, or at
 level 2 to close every fold to level 1. Press `z1` or `z2` to select either level
-directly. `z3` and `z4` are invalid in a family context and leave both the panel level
+directly. `z3` and `z4` are invalid in a session context and leave both the panel level
 and section overrides untouched. A member-specific override inherits from the
-`FAMILY SHELLS` section, which in turn inherits the panel level; any leftover roster
+`SESSION SHELLS` section, which in turn inherits the panel level; any leftover roster
 override still applies until a global fold key clears overrides. The numbered roster and
 its digit jumps remain present at both effective levels.
 
-The family root's `SLOW TOOL CALLS` section also follows that two-position scale. Level
+The session root's `SLOW TOOL CALLS` section also follows that two-position scale. Level
 1 keeps one aligned row per call with a short target digest and a tail explaining that
 full commands are hidden. Level 2 retains those rows and adds the wrapped full command
 or target, timing and outcome facts, errors, output previews, subagent statistics, and
 relative slow-time rank beneath each call.
 
 `AGENT PROMPT` and the consolidated `AGENT REPLY` are always shown in full at both
-family levels, without fold glyphs or section overrides. They remain navigation anchors
+session levels, without fold glyphs or section overrides. They remain navigation anchors
 for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them without changing the override registry.
-The family's `AGENT XPROMPT` renders in the sticky header panel above the data deck (a
+The session's `AGENT XPROMPT` renders in the sticky header panel above the data deck (a
 collapsed preview, or in full after `d`) rather than in the body. Absent xprompt and
 prompt sections are omitted, while reply rows for members that have not responded yet
 remain visible with their pending state.
 
-A family root is a sase agent, so its jump panel also carries a `NEIGHBORS` section
+A session root is a sase agent, so its jump panel also carries a `NEIGHBORS` section
 listing the sase agent's ancestors, descendants, and hood neighbors; it sits after
-`FAMILY SHELLS` when both exist. The family participates under its bare family name
-rather than the root member's `--` name, so a family `fam` lists `fam.helper` as a
+`SESSION SHELLS` when both exist. The session participates under its bare session name
+rather than the root member's `--` name, so a session `fam` lists `fam.helper` as a
 descendant and `fam.helper` lists `fam` back as its ancestor. Both rosters draw their
-digits from one continuous ladder, so family members are numbered first and neighbors
-after, with a single shared number width. Family members already shown under
-`FAMILY SHELLS` are never repeated in `NEIGHBORS`; they are reported as a dim
-`… +N also listed under FAMILY SHELLS` tail. Every neighbor is always listed and
-numbered after the family members, whatever the fold level. See
+digits from one continuous ladder, so session members are numbered first and neighbors
+after, with a single shared number width. Session members already shown under
+`SESSION SHELLS` are never repeated in `NEIGHBORS`; they are reported as a dim
+`… +N also listed under SESSION SHELLS` tail. Every neighbor is always listed and
+numbered after the session members, whatever the fold level. See
 [Sase Agent Neighbors Section](ace.md#sase-agent-neighbors-section) for the full
 behavior, which single agents share through their own three-level scale.
 
-#### Family member detail folding
+#### Session member detail folding
 
-Selecting a family **shell** row — not the container — also renders a numbered
-`FAMILY SHELLS` roster in the jump panel: every shell of the enclosing family in the
+Selecting a session **shell** row — not the container — also renders a numbered
+`SESSION SHELLS` roster in the jump panel: every shell of the enclosing session in the
 same stable chain order, except the selected shell itself, numbered starting from `0`.
-The heading carries a dim ` · <family name>` suffix naming the family. Digit jumps
+The heading carries a dim ` · <session name>` suffix naming the session. Digit jumps
 behave exactly as they do on the container roster — `0`–`9` (or two-key `00`–`99` past
 ten shells) reveal the target shell, and a roster that changed since the panel was drawn
 cancels the jump with a warning instead of landing somewhere stale.
 
-Unlike the container's two-level family scale, a member panel folds every other section
+Unlike the container's two-level session scale, a member panel folds every other section
 on the selected member's own three-level agent scale (`z1`–`z3`, `zz`, `za`, `zA`),
 while its jump-panel roster follows the global panel fold keys, so no `Fold: N/M` header
 line appears. A member row is an agent shell node rather than a sase agent, so its panel
 names that with underlined `AGENT SHELL` (gold, matching the name), has no `NEIGHBORS`
-section, and shows only `FAMILY SHELLS` for the enclosing family. The container panel
-names itself `FAMILY`.
+section, and shows only `SESSION SHELLS` for the enclosing session. The container panel
+names itself `SESSION`.
 
 #### Per-member model lanes
 
-A family container has no single model: `%m` overrides, provider defaults, and
+A session container has no single model: `%m` overrides, provider defaults, and
 per-member reasoning effort can differ along the chain, and one shared `Model:` line
-would hide that. So when a family projects to two or more concrete members, the `Model:`
-field in the family root's detail-panel header expands into one lane per member instead
-of a single value:
+would hide that. So when a session projects to two or more concrete members, the
+`Model:` field in the session root's detail-panel header expands into one lane per
+member instead of a single value:
 
 ```text
 Model:  --plan    · CLAUDE(opus) @ high ← @large
@@ -493,12 +494,12 @@ every other SASE surface — the single-agent panel and `sase agent show` includ
 one reading habit covers all of them. The `← @<alias>` chip appears only when the member
 was launched with an `@` model alias, and it is launch-time provenance: completed runs
 keep showing the alias that launched them even if that alias is later retargeted or
-deleted. Member labels are the `--<suffix>` labels from the `FAMILY SHELLS` roster,
+deleted. Member labels are the `--<suffix>` labels from the `SESSION SHELLS` roster,
 padded to one aligned value column, and a member with no recorded model renders a dim
 `default`. Long values wrap beneath that column rather than pushing the layout wide. At
-most 12 lanes are shown; a larger family adds a dim
-`… +N more shells (see FAMILY SHELLS)` tail. The lanes are not part of the two-level
-fold scale — they read the same at level 1 and level 2. A family that projects to fewer
+most 12 lanes are shown; a larger session adds a dim
+`… +N more shells (see SESSION SHELLS)` tail. The lanes are not part of the two-level
+fold scale — they read the same at level 1 and level 2. A session that projects to fewer
 than two concrete members, and every ordinary single agent, keeps the original one-line
 `Model:` field.
 
@@ -506,8 +507,8 @@ Two bundled xprompts help assemble common follow-up prompt bodies. They build te
 `%i` performs the attachment:
 
 ```text
-%i(@, family=planner) #with_feedback:: Add failure handling before coding.
-%i(@, family=planner) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
+%i(@, session=planner) #with_feedback:: Add failure handling before coding.
+%i(@, session=planner) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
 ```
 
 The full directive grammar is documented under
@@ -520,7 +521,7 @@ A later segment can attach to a statically named parent from an earlier segment:
 ```text
 %i:foo Plan the change.
 ---
-%i(reviewer, family=foo) Review foo's plan.
+%i(reviewer, session=foo) Review foo's plan.
 ```
 
 The attached member waits for the in-batch parent to complete successfully. This lookup
@@ -528,20 +529,20 @@ supports earlier static names such as `%i:foo` or `%i(foo)`; template-named and
 auto-named parents must already have an artifact before they can be used as attachment
 targets.
 
-### Sase Agents, Families, and Commit Provenance
+### Sase Agents, Sessions, and Commit Provenance
 
-A sase agent is either a family or a single agent that does not belong to one. Commit
+A sase agent is either a session or a single agent that does not belong to one. Commit
 provenance is anchored on the sase agent, not on the concrete shell that happened to be
 running: a commit by `fam--code` is tagged `SASE_AGENT=<username>.<machine>.fam` and
 links to `families/<username>.<machine>.fam.md` with no member anchor, while a solo
 agent's footer is exactly what it has always been. The same projection is used for the
 sidecar publication identity and for the agent rows on plan headers and bead pages, so a
-family appears once as itself instead of once per member.
+session appears once as itself instead of once per member.
 
-The practical consequence is that the **family page is the durable home of a family's
+The practical consequence is that the **session page is the durable home of a session's
 commits**. Members come and go — a member's artifact can be cleaned up long before the
-family is done — but the sase agent outlives them, so its commit history is carried on
-the family container and rendered on the family page, with member-attributed rows
+session is done — but the sase agent outlives them, so its commit history is carried on
+the session container and rendered on the session page, with member-attributed rows
 keeping their role and sase-agent-level rows showing `—`. Commits made before this
 change name a concrete member and are still read that way forever; nothing is rewritten.
 See [runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload) and
@@ -549,7 +550,7 @@ See [runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload) an
 
 ## Agent Tribes
 
-An agent tribe is a user-facing label for related agents across clans and families.
+An agent tribe is a user-facing label for related agents across clans and sessions.
 Assign one at launch with the `tribe=` keyword on `%id`, or use `#tribe` when the agent
 should be auto-named:
 
@@ -622,7 +623,7 @@ written.
 ### Tribe panel focus and folding
 
 In the split layout, a tribe panel is also a selectable container. Repeated lowercase
-`h` follows the validated workflow → family → clan → tribe ladder and selects the whole
+`h` follows the validated workflow → session → clan → tribe ladder and selects the whole
 expanded panel after the structural parent chain is exhausted; `h` on the selected panel
 collapses it when another panel remains visible. Press `l` to expand a collapsed panel
 while keeping container focus, then `l` again to return to the row sase's TUI remembered
@@ -679,7 +680,7 @@ without arming hint mode; an already collapsed panel keeps the existing
 already-collapsed warning. Whole-panel `H` is unavailable in merged layout, where the
 existing row/group-scoped ladder remains in effect. Use `,H` to open the same collapse
 hints from any row, or from a selected panel to hint every tribe. That row ladder first
-retreats a selected open workflow or family one fold level, then remaining group-wide
+retreats a selected open workflow or session one fold level, then remaining group-wide
 agent nodes, then the selected open clan, then every remaining open canonical clan in
 the next group; the grouping banner closes only after those structural rungs are
 saturated. Custom keys bound to `hooks_or_collapse_all` receive the same contextual
@@ -702,7 +703,7 @@ enrichment is requested off-thread at every tribe level so known-empty sections 
 remain absent; all-time runtime statistics remain level-4-only. Unknown required
 disk-backed content produces one dim `⋯ scanning member data…` document tail rather than
 per-section placeholders. The compact roster and its fixed numeric jump targets remain
-present at all four levels; the number keys jump to top-level clans, families,
+present at all four levels; the number keys jump to top-level clans, sessions,
 workflows, or agents and expand only the required ancestors.
 
 Use `z1`-`z3` to select the collapsed, expanded, or fully expanded view directly; `z4`
@@ -714,7 +715,7 @@ characters in a large list.
 
 The `,H` leader chord opens the same collapse-by-hint picker as whole-panel `H`, from
 any selection. From a row or banner it hints every expanded agent node, clan, workflow,
-family, and top-level grouping banner in the focused tribe. From a selected tribe panel
+session, and top-level grouping banner in the focused tribe. From a selected tribe panel
 it hints those owners across every expanded tribe panel and adds a title chip on each
 expanded panel so picking it collapses that panel. Typing a hint fully collapses that
 one entry and exits; `Esc` cancels. The ordinary apostrophe jump mode includes both
@@ -762,10 +763,10 @@ current rows determine only that optional VCS prefix; they do not pin the eventu
 or tribe fork source. See [Forking Agents and Groups](ace.md#forking-agents-and-groups)
 for selection and revalidation behavior.
 
-## Agent-Initiated Family Launches
+## Agent-Initiated Session Launches
 
 User-initiated launches are direct: prompts submitted through normal launch surfaces,
-including prompts containing `%i(suffix, family=parent)`, do not require launch
+including prompts containing `%i(suffix, session=parent)`, do not require launch
 approval.
 
 When a **running agent** requests another launch, SASE creates a typed `LaunchApproval`
@@ -776,20 +777,20 @@ request and spawns nothing until a human approves it. Agents use the generated
 sase launch request -f launch_request.json -o json
 ```
 
-The request may contain `%i(suffix, family=parent)` in its prompt, so the approved
-launch joins an existing family with any valid suffix. `launch_preview.md` shows the
+The request may contain `%i(suffix, session=parent)` in its prompt, so the approved
+launch joins an existing session with any valid suffix. `launch_preview.md` shows the
 resolved launch plan before approval. Inside an agent, the request creates a pending
-`LAUNCH` gate shell, hands off the family lane, and ends the requesting turn. Its
+`LAUNCH` gate shell, hands off the session lane, and ends the requesting turn. Its
 default `requester_continuation.mode` is `resume_requester`: after approval, rejection,
 timeout, or gate/dispatch failure, one successor resumes the original assignment with
-the gate decision, feedback, typed launch results, requester identity, workspace/family
+the gate decision, feedback, typed launch results, requester identity, workspace/session
 context, and the recorded checkpoint. A stopped gate remains terminal. Set the mode
 explicitly to `terminal_handoff` when the requester truly has no remaining work; no
 settlement branch then resumes it.
 
 The approved helper prompt and requester continuation cannot both target the requester's
-family lane. If the stored prompt uses `family=parent` (or names that same family),
-target a different family or select `terminal_handoff` so the lane has one owner.
+session lane. If the stored prompt uses `session=parent` (or names that same session),
+target a different session or select `terminal_handoff` so the lane has one owner.
 Outside an agent, the request defaults to terminal handoff, prints the creation
 descriptor, and returns immediately. A script that needs to block can use its
 `request_id` with `sase gate wait -i <request-id> -k launch -j` as a separate step.

@@ -167,7 +167,7 @@ opening Artifacts still selects Stitch by default.
 ### Contextual Artifact Links
 
 sase's TUI owns one link rail across the three top-level tabs. It appears when the
-current selection has artifact links: an Artifacts-pane entry, a named agent or family
+current selection has artifact links: an Artifacts-pane entry, a named agent or session
 shell, or an AXE job. Synthetic clan containers, routines, and background-command rows
 do not provide a link subject. The rail includes a breadcrumb while a link-follow trail
 is active.
@@ -219,8 +219,8 @@ Starting a new jump cancels one still in flight.
 | Neutral       | Still missing, where allowed (never Stitches) | Replace the query with a blunt `limit:all`.                                                                                                   |
 | Honest report | Everything missed                             | Say so: a dangling ref, a load failure, an unconfigured provider pane, or "not in `<Pane>`".                                                  |
 
-The rewrite lands the target inside its natural family — never an isolated row — and
-keeps the current `limit:`, raising it only when the family would not fit:
+The rewrite lands the target inside its natural session — never an isolated row — and
+keeps the current `limit:`, raising it only when the session would not fit:
 
 | Target                              | The query becomes                                                                                  | Lens label                             |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------- |
@@ -229,7 +229,7 @@ keeps the current `limit:`, raising it only when the family would not fit:
 | Bead task or flag `sase-abc`        | `id:sase-abc`                                                                                      | `bead sase-abc`                        |
 | Agent hood member `sase-16n.7`      | `name:sase-16n.*`, or `(name:sase-16n OR name:sase-16n.*)` when the root exists                    | `sase-16n hood`                        |
 | Lone agent `x`                      | `name:x`                                                                                           | `agent x`                              |
-| Agent family shell `x--y`           | `family:x`                                                                                         | `family x`                             |
+| Agent session shell `x--y`          | `session:x`                                                                                        | `session x`                            |
 | File                                | `agent:<creating agent>`, else `id:<file>`                                                         | `files from <agent>`, else `file <id>` |
 | Plan or provider doc                | `path:<doc path>`                                                                                  | `plan <name>` or `<provider> <name>`   |
 | Stitch `repo@sha`                   | `repo:<repo> since:<day> until:<day>`, plus `project:`, `sidecar:true`, or `merges:show` as needed | `<repo> · <day>`                       |
@@ -350,7 +350,7 @@ the same way. Its section names come from the pane contract, so examples include
 and children, document lifecycle stages, dependencies, linked beads or plans, and
 file-version families. Navigation is two keystrokes: first a relation mode, then the key
 printed in square brackets beside the target row. The modes are `<` for ancestors, `>`
-for descendants, and `~` for family or siblings, and the footer lists only the ones the
+for descendants, and `~` for session or siblings, and the footer lists only the ones the
 current entry actually has; these keys stay live even while the panel is collapsed. A
 section header ending in `(N hidden)` means the query is filtering out that many
 targets, a row ending in `(missing)` points at an entry that no longer exists, and a row
@@ -464,7 +464,7 @@ key or value completion.
 Agent uses the same persistent query row and the Boolean profile dialect shared with
 [`sase agent search`](configuration.md#sase-agent). It accepts `AND`, `OR`, `NOT`, and
 parentheses, plus free text over agent names and metadata. Its fields cover identity and
-lineage (`name`, `kind`, `family`, `clan`, `tribe`, `role`, `workflow`, `parent`,
+lineage (`name`, `kind`, `session`, `clan`, `tribe`, `role`, `workflow`, `parent`,
 `project`), execution (`state`, `status`, `provider`, `model`, `attempt`), lifecycle
 booleans (`hidden`, `dismissed`, `revivable`, `attention`, `retry`), archive links
 (`linked`, `relation`, `artifact`), start/finish bounds (`since`, `until`, `after`,
@@ -479,7 +479,7 @@ The top-level Agents tab uses the same Boolean grammar through the live `agents-
 profile, but keeps zero idle screen-space cost: when no query is active, no filter row
 is visible; when a query is active, the metadata panel shows the canonical highlighted
 query and match count. Press `/` or `f` to open the auto-hiding filter bar. Live Agent
-fields include the shared identity and runtime fields (`name`, `family`, `clan`,
+fields include the shared identity and runtime fields (`name`, `session`, `clan`,
 `project`, `kind`, `role`, `workflow`, `model`, `provider`, `status`, `attempt`,
 `hidden`, `attention`, `retry`, `since`, `until`, `after`, `before`, `min`, `max`,
 `text`) plus operational fields (`cl`, `machine`, `tribe`, `pinned`, `unread`, `needs`,
@@ -716,19 +716,19 @@ when one is stored, without trying to resolve an epic plan.
 
 Artifacts → Agent is the durable historical catalog. It is intentionally different from
 the top-level Agents tab: the live tab is the operational view for running work, unread
-completions, and current clan/family panels, while this pane keeps queryable rows for
-prior runs, dismissed agents, families, clans, workflows, and workflow children. Rows
+completions, and current clan/session panels, while this pane keeps queryable rows for
+prior runs, dismissed agents, sessions, clans, workflows, and workflow children. Rows
 are newest-first. The pane paints its newest 500 rows first, then extends to the
 complete catalog and builds the full query index off-thread.
 
-The left side defaults to **Family** grouping; `o` / `O` cycle forward or backward
-through **Family**, **State**, and **Project**. The shared fold keys (`h`, `l`, `H`,
+The left side defaults to **Session** grouping; `o` / `O` cycle forward or backward
+through **Session**, **State**, and **Project**. The shared fold keys (`h`, `l`, `H`,
 `L`) collapse or expand group banners. Selecting a row updates the right-hand detail
 with its durable `agent:` reference, identity, lifecycle and timing, model/provider,
-family and retry lineage, provenance, a bounded prompt preview, chat path, and hosted
+session and retry lineage, provenance, a bounded prompt preview, chat path, and hosted
 agent page when those files resolve.
 
-The collapsed relation rail combines catalog lineage—family, clan, parent, and retry
+The collapsed relation rail combines catalog lineage—session, clan, parent, and retry
 chain—with typed artifact links such as `cites`, `read`, `implements`, and their inverse
 labels. Expand it with `.`, then use the printed `<`, `>`, or `~` mode and row hint to
 navigate. `linked:true`, `relation:<slug>`, and `artifact:<canonical-ref>` expose the
@@ -746,9 +746,9 @@ same graph as query facets.
 | `%`                 | Open the Agent **Copy as…** palette                             |
 | `R`                 | Refresh the catalog (through the Refresh panel)                 |
 
-`w` skips marked rows that are not revivable. On an aggregate family or clan with one
+`w` skips marked rows that are not revivable. On an aggregate session or clan with one
 revivable member it revives that member directly; with several, it narrows the pane to
-the matching `state:dismissed AND revivable:true` family or clan query so the choice is
+the matching `state:dismissed AND revivable:true` session or clan query so the choice is
 explicit. Use [`sase agent search`](configuration.md#sase-agent) for the same catalog
 dialect outside sase's TUI.
 
@@ -1261,7 +1261,7 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 ### Machines
 
 When at least one remote machine is enrolled, the Agents tab shows local and remote rows
-in one list. Remote agent, family, and clan nodes carry a short host-alias chip such as
+in one list. Remote agent, session, and clan nodes carry a short host-alias chip such as
 `apollo` or `mac`; local rows never carry a `here` chip, including under a by-machine
 group header. A fleet header row appears above the list only when there is something to
 act on. A fleet configuration or follow-store error is shown on its own; otherwise the
@@ -1280,8 +1280,8 @@ durable requests, optimistically annotate the row while in flight, and refresh t
 Agents list after they settle. Setup and recovery commands are covered by the
 [Remote Dispatch Runbook](remote_dispatch.md).
 
-Remote agents are grouped into the same family and clan nodes as local ones, with the
-same queue badges (`cN`, `wN`) and the same family and clan status rules. A remote row
+Remote agents are grouped into the same session and clan nodes as local ones, with the
+same queue badges (`cN`, `wN`) and the same session and clan status rules. A remote row
 stays free of connection chrome while its machine's feed is online and fresh; anything
 else is shown on the row. A stale feed reads like `stale · cached 5h ago`, and an
 invalid feed reads `feed invalid`, is named in the Agents header, and adds a **Feed
@@ -1290,22 +1290,22 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
 ### Navigation
 
-| Key                       | Action                                                                                                                                                          |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead     |
-| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                               |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                 |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                    |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                     |
-| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                             |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                           |
-| `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
-| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                         |
-| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                   |
-| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                              |
-| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                           |
-| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                     |
-| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                                   |
+| Key                       | Action                                                                                                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead      |
+| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                  |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                     |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
+| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                              |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
+| `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
+| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                          |
+| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                    |
+| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                               |
+| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                            |
+| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                      |
+| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                                    |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -1318,34 +1318,34 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
 The numbered `NEIGHBORS` rows use dotted agent-name relationships rather than Patch
 sibling families. Relations are keyed on the name a row presents as its **sase agent**
-name, so a family participates under its bare family name rather than its root member's
-`--` name. The section shows visible ancestors and descendants plus neighbors from every
-dotted hood that contains the selected sase-agent name — including the hood that matches
-that name exactly. For example, `foo.bar.worker` lists peers under `foo.bar` and cousins
-elsewhere under `foo`, grouped deepest hood first, and a family `fam` lists `fam.helper`
-as a descendant while `fam.helper` lists `fam` back as its ancestor. Dotless names can
-still have descendants such as `foo.child`. A digit jump target is resolved by stable
-identity and revealed through any clan, family, workflow, or grouping folds before focus
-moves.
+name, so a session participates under its bare session name rather than its root
+member's `--` name. The section shows visible ancestors and descendants plus neighbors
+from every dotted hood that contains the selected sase-agent name — including the hood
+that matches that name exactly. For example, `foo.bar.worker` lists peers under
+`foo.bar` and cousins elsewhere under `foo`, grouped deepest hood first, and a session
+`fam` lists `fam.helper` as a descendant while `fam.helper` lists `fam` back as its
+ancestor. Dotless names can still have descendants such as `foo.child`. A digit jump
+target is resolved by stable identity and revealed through any clan, session, workflow,
+or grouping folds before focus moves.
 
 When a clan or a sase agent is selected, its metadata panel assigns a fixed number to
-each numbered row, up to 100 targets. A sase agent is a multi-member family container or
-a single agent; sase-agent panels number their `FAMILY SHELLS` roster (when present) and
-then their `NEIGHBORS` section from one continuous ladder. A selected family **shell**
-row numbers its enclosing family's `FAMILY SHELLS` roster the same way, listing every
-sibling except itself from the same ladder; a shell row owns no sase agent, so it has no
-`NEIGHBORS` rows to follow the roster. Documents with at most ten numbered rows use
-`0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and
-show any remaining entries as an unnumbered count. Every live numbered target lives in
-the sticky jump panel below the file / LLM Calls panel, so the digit answers stay on
-screen while the metadata body scrolls. The metadata body no longer contains these
-roster sections. After the first digit of a two-key jump, the panel narrows to the
-matching candidates; press `Esc` to cancel or any non-digit key to cancel and continue
-with that key's normal action. A successful jump expands only the target's ancestor
-chain, switches tribe panels when needed, and participates in the normal `Ctrl+O`
-jump-back history. A digit on a dismissed neighbor revives that agent instead of
-jumping. If the roster or the neighbor relationship changed since the panel was drawn,
-the jump is cancelled with a warning rather than landing somewhere stale.
+each numbered row, up to 100 targets. A sase agent is a multi-member session container
+or a single agent; sase-agent panels number their `SESSION SHELLS` roster (when present)
+and then their `NEIGHBORS` section from one continuous ladder. A selected session
+**shell** row numbers its enclosing session's `SESSION SHELLS` roster the same way,
+listing every sibling except itself from the same ladder; a shell row owns no sase
+agent, so it has no `NEIGHBORS` rows to follow the roster. Documents with at most ten
+numbered rows use `0`–`9`; larger documents number the first 100 rows with two-key
+values `00`–`99` and show any remaining entries as an unnumbered count. Every live
+numbered target lives in the sticky jump panel below the file / LLM Calls panel, so the
+digit answers stay on screen while the metadata body scrolls. The metadata body no
+longer contains these roster sections. After the first digit of a two-key jump, the
+panel narrows to the matching candidates; press `Esc` to cancel or any non-digit key to
+cancel and continue with that key's normal action. A successful jump expands only the
+target's ancestor chain, switches tribe panels when needed, and participates in the
+normal `Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent
+instead of jumping. If the roster or the neighbor relationship changed since the panel
+was drawn, the jump is cancelled with a warning rather than landing somewhere stale.
 
 ### Agent Actions
 
@@ -1355,18 +1355,18 @@ the jump is cancelled with a warning rather than landing somewhere stale.
 | `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                                                                             |
 | `+`                 | Run custom agent                                                                                                                                                           |
 | `A`                 | Toggle bare `%auto` plan auto-approval / answer HITL                                                                                                                       |
-| `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel                                                             |
+| `F`                 | Prepare a fork of the selected agent/session, proc shell, monitor, clan container, or focused named tribe panel                                                            |
 | `n`                 | Name agent                                                                                                                                                                 |
 | `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                               |
 | `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                      |
-| `v`                 | View files (hint mode; annotates clan/family containers in place)                                                                                                          |
+| `v`                 | View files (hint mode; annotates clan/session containers in place)                                                                                                         |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                                                                                          |
 | `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                                                                                  |
 | `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                                                                             |
 | `I`                 | Show/hide non-run agents                                                                                                                                                   |
 | `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                                                                                         |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                                                                            |
-| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`                                                                  |
+| `W`                 | Prepare a prompt that waits for the selected agent/session, clan, or named tribe; marks produce `%w:a,b,c`                                                                 |
 | `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)                                                                    |
 | `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                                                                                      |
 | `U`                 | Toggle the focused agent's unread marker                                                                                                                                   |
@@ -1382,7 +1382,7 @@ the jump is cancelled with a warning rather than landing somewhere stale.
 | `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `[` metadata only, `1`/`=`/`2` split sizes, `]` secondary only                                                            |
 | `pp`                | Next split layout; from either fullscreen layout, return to equal split                                                                                                    |
 | `pP`                | Previous split layout; from either fullscreen layout, return to equal split                                                                                                |
-| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels                                                              |
+| `z`                 | Start metadata fold mode for clan, agent node (session or single agent), or selected whole-tribe detail panels                                                             |
 | `Z`                 | Zoom the active agent or tribe detail panel                                                                                                                                |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                            |
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                     |
@@ -1444,13 +1444,13 @@ What counts as a target depends on the selected row:
 
 - A **gate row** targets its own gate while it is pending. A settled gate toasts
   `This gate already settled (<state>)`.
-- A **family container** collects every pending gate across its members, plus the
-  family's Patch (or, when the container has none, the Patch of its most recently
+- A **session container** collects every pending gate across its members, plus the
+  session's Patch (or, when the container has none, the Patch of its most recently
   started member). A gate reachable through both a gate shell row and its inbox
-  notification counts once, so a family waiting on a single tale plan, with no Patch,
-  runs `Enter` directly (footer `review tale plan`); a family that also has a Patch
+  notification counts once, so a session waiting on a single tale plan, with no Patch,
+  runs `Enter` directly (footer `review tale plan`); a session that also has a Patch
   shows the `choose action` footer instead.
-- A **family member** or standalone agent targets gates it created and gate
+- A **session member** or standalone agent targets gates it created and gate
   notifications matched to it. An agent stopped on a question, or a workflow step
   waiting for input, falls back to the answer flow when no gate notification matches.
 - A **workflow step child** uses its parent workflow's Patch; a child of a project-level
@@ -1483,31 +1483,32 @@ the `jump_to_agent_patch` command, unbound by default; see
 ### Forking Agents and Groups
 
 With a named agent selected, press `F` to open a prompt prefilled with `#fork:<agent>`.
-Selecting a family root uses the family name instead. Failed named rows are valid fork
+Selecting a session root uses the session name instead. Failed named rows are valid fork
 targets; the child receives the failed parent's transcript plus the recorded failure
 message when available. The same action works on the synthetic container row for a clan
 (`#fork:<clan>`) and while an expanded or collapsed named tribe panel has whole-panel
 focus (`#fork:@<tribe>`). The reserved `@default` panel and grouping banners are not
 fork targets.
 
-Finished planner rows (`EPIC CREATED`, `PLAN COMMITTED`) are also fork targets; a family
-root forks its whole family, including the planner transcript and its gate/monitor
-shells. `PLAN REJECTED` and `STOPPED` rows are not fork targets.
+Finished planner rows (`EPIC CREATED`, `PLAN COMMITTED`) are also fork targets; a
+session root forks its whole session, including the planner transcript and its
+gate/monitor shells. `PLAN REJECTED` and `STOPPED` rows are not fork targets.
 
-`F` also works on a stand-alone proc-shell row and on a monitor family member, active or
-settled. The prefilled reference is the shell's exact durable proc ID — not its reusable
-friendly name — so the eventual fork can never drift onto a different proc if that name
-is reused later; the footer and prompt label still show the friendly shell name. A proc
-or monitor row has no chat, so it never advertises retry, edit-chat, or `name`; `x`
-kills an active proc or stops a running monitor, and dismisses a settled one.
+`F` also works on a stand-alone proc-shell row and on a monitor session member, active
+or settled. The prefilled reference is the shell's exact durable proc ID — not its
+reusable friendly name — so the eventual fork can never drift onto a different proc if
+that name is reused later; the footer and prompt label still show the friendly shell
+name. A proc or monitor row has no chat, so it never advertises retry, edit-chat, or
+`name`; `x` kills an active proc or stops a running monitor, and dismisses a settled
+one.
 
-Press `W` on the same selections to prepare `%w:<agent-or-family>`, `%w:<clan>`, or
+Press `W` on the same selections to prepare `%w:<agent-or-session>`, `%w:<clan>`, or
 `%w:@<tribe>`. A non-empty marked set takes precedence and produces one comma-separated
 wait over the named marked rows instead of the focused group. The reserved `@default`
 panel and grouping banners are not wait targets either.
 
 Group references are dynamic; pressing `F` does not snapshot the selected transcripts. A
-family reference contributes every known concrete shell in the family's sequential
+session reference contributes every known concrete shell in the session's sequential
 chain, oldest first, agent shells and monitor shells alike, and includes shells that
 ended unsuccessfully with their failure context rather than dropping them. Only shells
 that are still running, or whose transcript/log is missing or unreadable, are listed as
@@ -1519,11 +1520,11 @@ proceeds and requires every member of that generation to have succeeded. A tribe
 reference follows the next-entity rule: the new run waits for the earliest successful
 entity in that tribe launched after its own artifact was created. It does not fork the
 agents currently visible in the selected tribe panel. See
-[Tribe wait and fork targets](agent_families.md#tribe-wait-and-fork-targets) for the
+[Tribe wait and fork targets](agent_sessions.md#tribe-wait-and-fork-targets) for the
 full ordering rules.
 
 sase's TUI also tries to carry VCS context into either prefilled prompt. For one
-selected agent or family row, it uses that row's launch ref when it can resolve it. For
+selected agent or session row, it uses that row's launch ref when it can resolve it. For
 a selected clan or tribe, it adds a VCS tag only when every real agent in the current
 scope resolves to the same workflow and ref. Mixed or missing context produces only the
 `#fork` or `%w` reference, leaving you to add the desired `#git`, `#gh`, or other VCS
@@ -1534,30 +1535,30 @@ the selected scope and its members did not change; marked waits instead verify t
 marked target set. A stale selection cancels with a warning rather than opening a prompt
 for the wrong target.
 
-### Clan and Family Detail Panels
+### Clan and Session Detail Panels
 
-Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member family
-root titles the sticky [header panel](#agents-tab-metadata-panel) `FAMILY` (cyan,
-matching the name), then shows the family's normal agent metadata, with its
-`FAMILY SHELLS` roster in the jump panel. A selected agent shell — standalone or family
-member — titles the header panel `AGENT SHELL` (gold, matching the name). Both rosters
-use the numbered member jumps described above. Clan direct members in the Agents list
-sort by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done —
-with launch recency breaking ties. The clan's `CLAN MEMBERS` jump-panel roster instead
+Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member session
+root titles the sticky [header panel](#agents-tab-metadata-panel) `SESSION` (cyan,
+matching the name), then shows the session's normal agent metadata, with its
+`SESSION SHELLS` roster in the jump panel. A selected agent shell — standalone or
+session member — titles the header panel `AGENT SHELL` (gold, matching the name). Both
+rosters use the numbered member jumps described above. Clan direct members in the Agents
+list sort by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done
+— with launch recency breaking ties. The clan's `CLAN MEMBERS` jump-panel roster instead
 keeps chronological launch order so its numbers do not change as statuses change; a
-nested family remains one direct entry with its chain indented beneath it. Family
+nested session remains one direct entry with its chain indented beneath it. Session
 rosters retain sequential chain order.
 
-Selecting a family **shell** row (not the container) also shows its `FAMILY SHELLS`
-roster in the jump panel: the same enclosing family's members, in the same chain order,
-minus the selected member itself. The heading carries a dim ` · <family name>` suffix
-naming the family, since the count shown is one less than the family's full size. Unlike
-a container panel, a member panel folds this roster (and the rest of its own sections)
-using the selected member's own three-level agent scale rather than the family's
-two-level scale, so no `Fold: N/M` header line appears.
+Selecting a session **shell** row (not the container) also shows its `SESSION SHELLS`
+roster in the jump panel: the same enclosing session's members, in the same chain order,
+minus the selected member itself. The heading carries a dim ` · <session name>` suffix
+naming the session, since the count shown is one less than the session's full size.
+Unlike a container panel, a member panel folds this roster (and the rest of its own
+sections) using the selected member's own three-level agent scale rather than the
+session's two-level scale, so no `Fold: N/M` header line appears.
 
-Clan metadata has three session-only detail levels. Family metadata uses the last two
-effective states as its two-level scale for fold-aware metadata: family level 1 is
+Clan metadata has three session-only detail levels. Session metadata uses the last two
+effective states as its two-level scale for fold-aware metadata: session level 1 is
 expanded and level 2 is fully expanded.
 
 | Level | Content                                                                                                        |
@@ -1570,11 +1571,11 @@ The compact clan roster and its fixed numeric member jumps remain available at a
 levels. Clan sections appear only when their content is known to exist: known-empty
 sections are omitted, while unknown required disk-backed content produces one dim
 `⋯ scanning member data…` tail for the document instead of a placeholder for each
-section. Family rosters and their numeric jumps likewise remain available at both
-effective levels. Family xprompt and prompt sections are omitted when absent, while an
+section. Session rosters and their numeric jumps likewise remain available at both
+effective levels. Session xprompt and prompt sections are omitted when absent, while an
 unfinished reply remains visible as pending rather than disappearing as empty.
 `AGENT PROMPT` and the consolidated `AGENT REPLY` are plain navigation anchors whose
-available conversation bodies stay fully visible at both family levels.
+available conversation bodies stay fully visible at both session levels.
 
 `v` annotates a clan document in place rather than replacing it: the panel keeps its
 current sections and fold level and gains inline `[N]` markers. Clan hints come from the
@@ -1595,32 +1596,32 @@ when the deferred sections land.
 
 The default fold chords are:
 
-| Key       | Action                                                                                                                                |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `zz`      | Cycle the whole metadata panel forward through its active scale                                                                       |
-| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum                                               |
-| `za`      | Cycle the foldable section, tribe `CLAN SUMMARIES`/`PROMPTS` entry, or family `SASE CONTEXT` lane at the top of the metadata viewport |
-| `zA`      | Toggle that foldable section or entry between collapsed and fully expanded                                                            |
-| `z1`-`z2` | Set a family directly to level 1 or 2                                                                                                 |
-| `z1`-`z3` | Set a clan or single-agent scope directly to level 1-3                                                                                |
-| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                                                                |
+| Key       | Action                                                                                                                                 |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `zz`      | Cycle the whole metadata panel forward through its active scale                                                                        |
+| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum                                                |
+| `za`      | Cycle the foldable section, tribe `CLAN SUMMARIES`/`PROMPTS` entry, or session `SASE CONTEXT` lane at the top of the metadata viewport |
+| `zA`      | Toggle that foldable section or entry between collapsed and fully expanded                                                             |
+| `z1`-`z2` | Set a session directly to level 1 or 2                                                                                                 |
+| `z1`-`z3` | Set a clan or single-agent scope directly to level 1-3                                                                                 |
+| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                                                                 |
 
 The `Fold: N/M` header field reports the position within the active scale, while glyphs
-on foldable headings show their effective per-section levels. Only family panels print
+on foldable headings show their effective per-section levels. Only session panels print
 that header line; a single sase agent relies on the `SLOW TOOL CALLS` heading glyph
-(and, with the jump panel expanded, the `NEIGHBORS` heading glyph) instead. On a family
+(and, with the jump panel expanded, the `NEIGHBORS` heading glyph) instead. On a session
 conversation heading, `za` and `zA` refresh normally but do not create or change a
 section override. A valid panel-level cycle, extreme toggle, or direct selection clears
 real per-section overrides. Fold state is shared by the Agents metadata panel: an
 ordinary agent's own three-level scale shapes its `NEIGHBORS` and `SLOW TOOL CALLS`
 sections, so `z*` chords have a visible effect on a regular sase agent, and the same
-clan/agent scope carries over to the next selected clan or family container. Most other
+clan/agent scope carries over to the next selected clan or session container. Most other
 sections on a regular-agent panel stay fold-inert, except the `SASE CONTEXT / BEAD`
 lane's multi-line values: at scale position 1 (`z1`, Collapsed), a task or phase
 worker's `Notes`, and a task worker's `+1 Evidence`, collapse to a one-line digest,
 `N lines (zz to show)`; single-line values never fold, and at positions 2-3 the full
 value renders. A selected whole tribe panel adds level 4 for exhaustive detail. These
-keys are configurable; see [Agent Clans, Families, and Tribes](agent_families.md) for
+keys are configurable; see [Agent Clans, Sessions, and Tribes](agent_sessions.md) for
 the grouping model.
 
 When sase's TUI knows a planner/author or epic lander's associated plan, the metadata
@@ -1761,22 +1762,22 @@ in place after the editor exits.
 ### Sase Agent Neighbors Section
 
 Every sase agent panel carries a numbered `NEIGHBORS` roster in the jump panel. The
-section appears on family container panels after their `FAMILY SHELLS` roster when both
-exist, and on ordinary agent panels. Clan containers, tribe panel summaries, family
-member child rows, and workflow aggregate rows have no `NEIGHBORS` section. A selected
-family shell row owns no sase agent, so its panel carries only the `FAMILY SHELLS`
-roster (siblings, minus itself) and never a `NEIGHBORS` section.
+section appears on session container panels after their `SESSION SHELLS` roster when
+both exist, and on ordinary agent panels. Clan containers, tribe panel summaries,
+session member child rows, and workflow aggregate rows have no `NEIGHBORS` section. A
+selected session shell row owns no sase agent, so its panel carries only the
+`SESSION SHELLS` roster (siblings, minus itself) and never a `NEIGHBORS` section.
 
 The rows for that sase agent are ancestors, descendants including same-session dismissed
 descendants, then hood neighbors grouped by hood, nearest hood first — under dim
 `ancestors`, `descendants`, and `<hood> hood` group labels. A sase agent joins the hood
-that matches its own name, and a family uses its bare family name for that match, so a
-family `visual.worker` and a single agent `visual.worker.notes` relate as ancestor and
+that matches its own name, and a session uses its bare session name for that match, so a
+session `visual.worker` and a single agent `visual.worker.notes` relate as ancestor and
 descendant exactly as two single agents with those names would. Row labels are shortened
 relative to their group, so a `myclan` hood neighbor reads `.code` and a descendant
 reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
 `folded` marks a prospective row that currently lives inside a collapsed clan. In the
-jump panel the section sits after `FAMILY SHELLS` when both exist, so a sase agent's
+jump panel the section sits after `SESSION SHELLS` when both exist, so a sase agent's
 numbered neighbors stay reachable without scrolling the metadata body.
 
 Every neighbor always renders and gets a digit whatever the fold level. The fold level
@@ -1785,9 +1786,9 @@ jump panel is expanded with `.`. Numbering is stable across fold levels and JUMP
 toggles: the collapsed legend, the expanded roster, and the published jump map all share
 one continuous ladder. The heading count is always the sase agent's total neighbor
 count. The only hidden-row tail is the shared 100-slot numbering capacity, which reports
-`… +N more neighbors (not numbered)`. On a family, siblings that already appear under
-`FAMILY SHELLS` are not repeated; they are reported by a dim
-`… +N also listed under FAMILY SHELLS` tail instead. The heading count still includes
+`… +N more neighbors (not numbered)`. On a session, siblings that already appear under
+`SESSION SHELLS` are not repeated; they are reported by a dim
+`… +N also listed under SESSION SHELLS` tail instead. The heading count still includes
 the suppressed rows.
 
 ### Opened Repository Context
@@ -1856,10 +1857,10 @@ Behavior depends on the agent's status:
 
 The **Capacity** field is this launch's capacity budget, replacing the current global
 `max_running_agents` budget for its own admission decision. It is not a count of
-individual shells. A serial family — including its monitor and `--next` follow-up —
-still occupies one claim of its family weight, so that weight still counts against this
-budget. Only a root or a live parallel family member waits here; a serial family member
-rides the family's slot and never parks.
+individual shells. A serial session — including its monitor and `--next` follow-up —
+still occupies one claim of its session weight, so that weight still counts against this
+budget. Only a root or a live parallel clan member waits here; a serial session member
+rides the session's slot and never parks.
 
 Priority must be a non-negative integer and defaults to `10`; lower values are admitted
 first. See [Runner slot waits](troubleshooting/runner-slots.md) for how priority
@@ -2001,8 +2002,8 @@ backfilled into `agent_meta.json` or `agent_tribes.json`; clearing a user-manage
 returns the agent to this panel. Pressing `N` on a clan row or on any clan member
 instead sets the whole clan generation's recorded tribe, and clearing it writes an
 explicit unset that sticks even when members still carry an epic tribe (see
-[clan records](agent_families.md)). Every tribe renders as `@<tribe>` with a sase-agent
-count in the panel title. One standalone agent or one sequential family is one sase
+[clan records](agent_sessions.md)). Every tribe renders as `@<tribe>` with a sase-agent
+count in the panel title. One standalone agent or one sequential session is one sase
 agent, and a rootless clan contributes one sase agent per direct member rather than one
 for its synthetic container. Per-tribe icons, identity colors, and initial expansion are
 configurable through [`ace.tribes`](configuration.md#acetribes); the special `default`
@@ -2024,9 +2025,9 @@ show an icon. Each panel title can also show compact scoped metrics in the form
 `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting to
 start, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work.
 Zero-count metrics are omitted. The status metrics use the same sase-agent projection as
-the adjacent total and classify a sequential family once from its normalized owner
+the adjacent total and classify a sequential session once from its normalized owner
 status. The selected whole-panel `TRIBE` header uses that same projection, while its
-nested count and per-family/per-clan member summaries preserve the concrete-member
+nested count and per-session/per-clan member summaries preserve the concrete-member
 distinction. On the selected whole panel, the title marker, total, brackets, and metric
 letters use the focus accent; each numeric metric count retains its semantic status
 color. The title can end with an amber `⚙N` badge for running monitors followed by a
@@ -2060,8 +2061,8 @@ including collapsed ones; `l` or `Esc` then descends into the newly selected pan
 remembered row. This differs from `J` / `K`, which skip collapsed panels and land
 directly on a row. Whole-panel focus is available only in the split layout. Lowercase
 `h` walks from any agent or workflow-step row to its validated immediate workflow,
-family, clan, and finally tribe parent without changing structural or grouping folds. It
-also selects a lone split panel after the structural chain is exhausted. A selected
+session, clan, and finally tribe parent without changing structural or grouping folds.
+It also selects a lone split panel after the structural chain is exhausted. A selected
 panel has a `❖` title and shows a fold-aware `TRIBE` summary in the metadata pane. While
 it is selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` returns to
 the remembered row. A second `h` collapses the selected panel when another panel remains
@@ -2083,24 +2084,24 @@ the cursor returns to the focused panel instead. If the selected agent disappear
 cursor lands on the neighboring visible row.
 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate
-workflow/family owner, so a visible hidden leaf under an already fully expanded workflow
-is a no-op. Uppercase `H` is the structural mutation key. When the selected row owns an
-open workflow or sequential-family agent node, the first press retreats that agent node
-one fold level. From a visible hidden step that hides the selected row, selection
-re-anchors to the agent-node owner. After the selected agent node is collapsed, later
-presses fully collapse every remaining open agent node in the next grouping scope, then
-only the open canonical clan enclosing the selected row. With that now-collapsed clan
-container still selected, another press collapses every remaining open canonical clan in
-the group; only a later press collapses the grouping banner. A banner, already-collapsed
-agent node, or already-collapsed clan selection proceeds directly to that
-remaining-agent-node or group-wide clan sweep. LLM Calls detail still takes priority. On
-a selected expanded whole panel, `H` hints every currently expanded agent node, clan,
-and top-level grouping banner in that panel — the same `L` hint affordance restricted to
-collapsible targets — and fully collapses whichever one you pick; it never expands and
-never touches the panel itself, which stays lowercase `h`'s job. A panel with nothing
-expanded warns without arming hint mode; an already collapsed panel keeps the usual
-already-collapsed notification. The merged layout has no whole-panel focus and keeps the
-row-focused group scope across the merged roster.
+workflow/session owner, so a visible hidden leaf under an already fully expanded
+workflow is a no-op. Uppercase `H` is the structural mutation key. When the selected row
+owns an open workflow or sequential-session agent node, the first press retreats that
+agent node one fold level. From a visible hidden step that hides the selected row,
+selection re-anchors to the agent-node owner. After the selected agent node is
+collapsed, later presses fully collapse every remaining open agent node in the next
+grouping scope, then only the open canonical clan enclosing the selected row. With that
+now-collapsed clan container still selected, another press collapses every remaining
+open canonical clan in the group; only a later press collapses the grouping banner. A
+banner, already-collapsed agent node, or already-collapsed clan selection proceeds
+directly to that remaining-agent-node or group-wide clan sweep. LLM Calls detail still
+takes priority. On a selected expanded whole panel, `H` hints every currently expanded
+agent node, clan, and top-level grouping banner in that panel — the same `L` hint
+affordance restricted to collapsible targets — and fully collapses whichever one you
+pick; it never expands and never touches the panel itself, which stays lowercase `h`'s
+job. A panel with nothing expanded warns without arming hint mode; an already collapsed
+panel keeps the usual already-collapsed notification. The merged layout has no
+whole-panel focus and keeps the row-focused group scope across the merged roster.
 
 Press `Z` with a whole tribe panel selected to zoom that tribe's metadata document.
 Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
@@ -2170,8 +2171,8 @@ select its row in the Agents tab and press `x`. Every scope then continues throu
 normal bulk-cleanup confirmation or planner flow.
 
 The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`, `zZ`,
-`za`, and `zA` chords used for clan and family detail. From levels 1-3, `zZ` opens every
-fold to level 4; at level 4, it closes every fold to level 1:
+`za`, and `zA` chords used for clan and session detail. From levels 1-3, `zZ` opens
+every fold to level 4; at level 4, it closes every fold to level 1:
 
 | Level | Name      | Tribe summary content                                                                                                                                                                                                                             |
 | ----- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2181,7 +2182,7 @@ fold to level 4; at level 4, it closes every fold to level 1:
 | 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, full clan summary bodies (500-line safety cap per clan), full prompt bodies (500-line safety cap per prompt) and launch directives, and all-time runtime statistics and percentiles |
 
 The compact roster and its fixed numeric jump targets exist at all four levels. Number
-keys jump to a top-level clan, family, workflow, or agent, expanding the required panel
+keys jump to a top-level clan, session, workflow, or agent, expanding the required panel
 and ancestor folds first. These metadata-member numbers are separate from ordinary
 apostrophe entry hints, whose adaptive target keys may use two characters in a large
 list.
@@ -2244,22 +2245,22 @@ setting. Every emitted grouping banner has its own binary expanded/collapsed sta
 separately for each tribe panel and grouping mode. Three independent folding layers can
 therefore be visible at once:
 
-| Layer             | What it controls                                         | Default keys                                                                                                                                                          |
-| ----------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped agent nodes/clans; `l` expands; `-` never sweeps banners                                                                          |
-| Structural row    | Clan members, family members, and workflow descendants   | `H` retreats a selected workflow/family one level, then remaining group agent nodes, then group clans; `l` expands; `-` sweeps every open agent node and clan at once |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; `L` hints an agent-node/clan/banner fold to toggle in the focused expanded panel                                      |
+| Layer             | What it controls                                         | Default keys                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped agent nodes/clans; `l` expands; `-` never sweeps banners                                                                           |
+| Structural row    | Clan members, session members, and workflow descendants  | `H` retreats a selected workflow/session one level, then remaining group agent nodes, then group clans; `l` expands; `-` sweeps every open agent node and clan at once |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; `L` hints an agent-node/clan/banner fold to toggle in the focused expanded panel                                       |
 
-| Key  | Action                                                                                                                                                                         |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `l`  | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                               |
-| `h`  | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                         |
-| `L`  | From a row or the selected panel, hint every visible agent-node/clan/banner fold in the focused tribe to toggle; on a collapsed panel, show the already-collapsed warning      |
-| `H`  | Collapse selected workflow/family one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded LLM Calls detail |
-| `=`  | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                          |
-| `-`  | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself                   |
-| `_`  | Like `-`, but across every eligible tribe panel at once                                                                                                                        |
-| `,H` | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel                                 |
+| Key  | Action                                                                                                                                                                          |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l`  | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                                |
+| `h`  | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                          |
+| `L`  | From a row or the selected panel, hint every visible agent-node/clan/banner fold in the focused tribe to toggle; on a collapsed panel, show the already-collapsed warning       |
+| `H`  | Collapse selected workflow/session one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded LLM Calls detail |
+| `=`  | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                           |
+| `-`  | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself                    |
+| `_`  | Like `-`, but across every eligible tribe panel at once                                                                                                                         |
+| `,H` | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel                                  |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -2273,25 +2274,25 @@ actions, so a non-empty mark set always drives the bulk action regardless of ban
 focus. When a fold change hides the previously focused agent, focus snaps to the nearest
 visible ancestor banner so navigation context is never lost.
 
-Clan and family rows add an agent-tree hierarchy inside those grouping banners. Their
+Clan and session rows add an agent-tree hierarchy inside those grouping banners. Their
 trailing names are color-coded by kind without an additional icon. A clan is a
 selectable synthetic container, never an agent, and ends in an orchid `<name>` after its
-rolled-up status and member counts. A real multi-member family root remains a teal agent
-row and ends in an azure `<name>`; ordinary agent annotations and lone plan proposers
-with only their display-only planner child remain gold. Clan `@tribe` labels follow the
-orchid name. A clan's outer fold is binary: from a collapsed clan row, press `l` once to
-reveal its direct agents, family rows, and visible workflow rows. The clan row's fold
-count and status chrome count those direct clan agent nodes once; nested family or
-workflow members do not inflate them. To reveal descendants within a family or workflow,
-move to that row and press `l` there; pressing `l` again on the clan row itself has no
-effect. Lowercase `h` moves to the validated parent without changing fold state.
-Sequential family members use `--<suffix>` names and run one after another. Killing or
-dismissing a clan row cascades to the clan's live members; acting on one member leaves
-its siblings alone. Direct clan members always sort by the clan-local status priority
-Failed, Stopped, Running, Queued, Waiting, Done in every grouping mode; Starting shares
-Running's rank. Launch recency orders only members in the same status bucket. A family
-row moves as one unit with its follow-ups and workflow steps, preserving their adjacency
-and internal order.
+rolled-up status and member counts. A real multi-member session root remains a teal
+agent row and ends in an azure `<name>`; ordinary agent annotations and lone plan
+proposers with only their display-only planner child remain gold. Clan `@tribe` labels
+follow the orchid name. A clan's outer fold is binary: from a collapsed clan row, press
+`l` once to reveal its direct agents, session rows, and visible workflow rows. The clan
+row's fold count and status chrome count those direct clan agent nodes once; nested
+session or workflow members do not inflate them. To reveal descendants within a session
+or workflow, move to that row and press `l` there; pressing `l` again on the clan row
+itself has no effect. Lowercase `h` moves to the validated parent without changing fold
+state. Sequential session members use `--<suffix>` names and run one after another.
+Killing or dismissing a clan row cascades to the clan's live members; acting on one
+member leaves its siblings alone. Direct clan members always sort by the clan-local
+status priority Failed, Stopped, Running, Queued, Waiting, Done in every grouping mode;
+Starting shares Running's rank. Launch recency orders only members in the same status
+bucket. A session row moves as one unit with its follow-ups and workflow steps,
+preserving their adjacency and internal order.
 
 Clan rows aggregate member status using the same operational precedence: human-input
 questions, pending plan review, failure, and running/starting states outrank queued
@@ -2300,9 +2301,9 @@ clan with queued work and ordinary waiters displays `QUEUED` unless a higher-pri
 member state is present. When exactly one direct member is outside the queued, waiting,
 and done buckets, and that member's bucket matches the aggregate bucket, the clan row
 shows that member's own status label and styling instead of the generic bucket label.
-For example, a family running a `TESTING` monitor makes the clan read `TESTING`, while a
-failed monitor with an authored stop label can read `TESTED [W1 F1 D9]` and still remain
-in the Failed group. The status bucket, precedence, and count chip are unchanged;
+For example, a session running a `TESTING` monitor makes the clan read `TESTING`, while
+a failed monitor with an authored stop label can read `TESTED [W1 F1 D9]` and still
+remain in the Failed group. The status bucket, precedence, and count chip are unchanged;
 `TESTED` is only the authored shell label, not proof that verification passed. When the
 aggregate is `QUEUED` and exactly one direct member is queued, the clan row and CLAN
 `Status:` line also show that member's admission rank (`QUEUED #3/4`), plus the same
@@ -2317,7 +2318,7 @@ and beads across the clan's direct `WAITING` members, so a dependency shared by 
 members counts once. Expand the clan to see which member's `WAITING ?N` token names the
 stale target.
 
-The uppercase `H` ladder starts with the selected workflow or sequential-family agent
+The uppercase `H` ladder starts with the selected workflow or sequential-session agent
 node when that agent node is still open. The first press retreats that agent node by
 exactly one fold level. From a visible hidden step, that press hides hidden steps while
 leaving ordinary descendants visible and re-anchors selection to the agent-node owner;
@@ -2326,16 +2327,16 @@ not take this two-level path. After the selected agent node is collapsed, later 
 continue through the existing group-scoped remaining-agent-node, selected-clan,
 remaining-clans, structural-fallback, and grouping-banner ladder. If the grouping banner
 that `H` would collapse next contains any open standalone workflow, agent, or
-sequential-family sase agent, and the selection does not own an open workflow or family
-fold, the next press drives every such remaining agent node directly to fully collapsed
-while leaving the banner open. Once remaining agent nodes are saturated, a selection
-inside an open canonical clan makes the next press collapse only that clan. A selected
-descendant re-anchors to its visible clan container; selecting the container itself
-preserves selection without writing new selection memory. With the collapsed container
-still selected, the following press drives every remaining open canonical clan in the
-group directly to collapsed. A grouping banner, already-collapsed agent node,
+sequential-session sase agent, and the selection does not own an open workflow or
+session fold, the next press drives every such remaining agent node directly to fully
+collapsed while leaving the banner open. Once remaining agent nodes are saturated, a
+selection inside an open canonical clan makes the next press collapse only that clan. A
+selected descendant re-anchors to its visible clan container; selecting the container
+itself preserves selection without writing new selection memory. With the collapsed
+container still selected, the following press drives every remaining open canonical clan
+in the group directly to collapsed. A grouping banner, already-collapsed agent node,
 already-collapsed clan, or invalid clan owner falls through to that group-wide sweep
-immediately. The footer advertises `H collapse workflow` or `H collapse family` while
+immediately. The footer advertises `H collapse workflow` or `H collapse session` while
 the selected agent node is open, then `H collapse sase agents`, then `H collapse clan`,
 then `H collapse clans`, and only then `H collapse group`. Equal group names in other
 tribe panels are never affected; merged layout intentionally treats the merged panel as
@@ -2422,12 +2423,12 @@ sorts agent nodes newest-first inside the standalone partition and subgroup unit
 newest-first inside the subgroup partition. The same partitioning rule applies under a
 name-root, where directly contained agent nodes precede visible dotted-prefix subgroups.
 Units with no launch timestamp sort after timestamped units within their partition, with
-structural names and input order providing deterministic tie-breakers. A family, clan,
+structural names and input order providing deterministic tie-breakers. A session, clan,
 or workflow subtree uses its outer/root agent's launch time and remains contiguous.
 Inside a clan, direct members still use the clan-local Failed, Stopped,
 Running/Starting, Queued, Waiting, Done priority described above, with launch recency
 breaking same-status ties; that order intentionally differs from this L0 bucket order.
-Family follow-ups and workflow steps remain adjacent to their direct-member anchor in
+Session follow-ups and workflow steps remain adjacent to their direct-member anchor in
 their established internal preorder, including any name-prefix banners. The `Starting`
 bucket remains last and its transient rows remain hidden, so startup-only work does not
 displace active rows during daemon or launch refreshes. Each mode keeps its own
@@ -2453,9 +2454,9 @@ countdown. Only the agent status counts and the filter's match count keep square
 brackets: an active filter reads `filter: <query> [matched/loaded] (/)`, where the dim
 trailing `(/)` names the configured `edit_query` key. After the first scan, the header
 starts with the visible sase-agent total `N`. One standalone agent or one sequential
-family is one sase agent, regardless of whether the family is folded. A rootless clan
+session is one sase agent, regardless of whether the session is folded. A rootless clan
 container contributes no sase agent itself; each direct clan member contributes one, and
-a direct member that is a sequential family still contributes only one. A hidden
+a direct member that is a sequential session still contributes only one. A hidden
 top-level `STARTING` agent contributes one sase agent even though it is not selectable
 yet. Grouping mode, tribe ownership, and fold state do not change this projection.
 
@@ -2484,7 +2485,7 @@ count is cornflower blue.
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
 numeric counts in place of the letters and zero-count metrics omitted. These buckets
-classify the same sase agents as the leading total, using a sequential family's
+classify the same sase agents as the leading total, using a sequential session's
 normalized owner status instead of counting historical members separately. `stopped`
 counts agents paused for plan approval, questions, or workflow human-input steps;
 `starting` counts just-launched agents that have not yet surfaced as visible rows;
@@ -2492,7 +2493,7 @@ counts agents paused for plan approval, questions, or workflow human-input steps
 genuinely blocked dependency, bead, and time waits, while the status strip's `queued`
 count contains every live runner-capacity waiter; `failed` is terminal failed work;
 `unread` counts terminal sase agents that still need acknowledgement; and `done` is
-completed visible work that has already been acknowledged. Nested family/clan member
+completed visible work that has already been acknowledged. Nested session/clan member
 summaries remain concrete. The position/navigation denominator is a separate count:
 rendered selectable roots, where a clan container is one row and a hidden `STARTING`
 agent is excluded. During startup the header renders `Agents: …` until the first agent
@@ -2503,8 +2504,8 @@ by-project grouping; cycling only changes the current session.
 and need only runner capacity under their current admission budget. A queued row renders
 as `QUEUED #3/12`, followed by `pN` for an explicit queue priority and by
 `held by <armer>` while an [agent hold](#agent-holds) keeps it from starting. A
-sequential family whose next member is queued shows that member's `QUEUED` status and
-queue position on the family row. A clan with exactly one queued direct member does the
+sequential session whose next member is queued shows that member's `QUEUED` status and
+queue position on the session row. A clan with exactly one queued direct member does the
 same on the clan row and CLAN `Status:` line; two queued members stay generic `QUEUED`
 with no rank. Authored capacity renders as a quiet `cN` badge beside the existing `wN`
 weight badge, and turns gold when the launch's budget exceeds the current effective
@@ -2537,34 +2538,34 @@ and workflow input.
 To keep rows compact, agent statuses and types are rendered as one- or two-character
 badges instead of verbose text:
 
-| Glyph | Meaning                                                                                            |
-| ----- | -------------------------------------------------------------------------------------------------- |
-| `▶`   | RUNNING                                                                                            |
-| `✓`   | DONE                                                                                               |
-| `✓P`  | PLAN DONE                                                                                          |
-| `▶P`  | PLAN APPROVED                                                                                      |
-| `★E`  | EPIC CREATED                                                                                       |
-| `✎`   | PLAN                                                                                               |
-| `✗`   | FAILED                                                                                             |
-| `…`   | QUEUED                                                                                             |
-| `⏳`  | WAITING                                                                                            |
-| `?`   | QUESTION                                                                                           |
-| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)                                                    |
-| `≡`   | Workflow row (top-level)                                                                           |
-| `❑`   | Patch / Patch row (top-level)                                                                      |
-| `⚡`  | Autonomous (`%auto`) agent                                                                         |
-| `◌`   | Hidden agent (visible only when `.` toggles them in)                                               |
-| `⚙`   | Monitor shell (row label)                                                                          |
-| `⚙N`  | N running monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (amber) |
-| `⚙N`  | N finished monitors in a family/clan subtree, or in a tribe panel title for its whole tribe (grey) |
-| `⋔`   | Gate shell; its gate accent while pending/running, grey when settled, red on failure               |
-| `⋔N`  | N gates in a family/clan subtree or tribe panel title, colored by lifecycle bucket                 |
-| `▣`   | Stand-alone `%proc` proc shell (row label; beta, `typed_launch_units`)                             |
-| `▣N`  | N stand-alone proc shells in a panel title's separate proc chip                                    |
+| Glyph | Meaning                                                                                             |
+| ----- | --------------------------------------------------------------------------------------------------- |
+| `▶`   | RUNNING                                                                                             |
+| `✓`   | DONE                                                                                                |
+| `✓P`  | PLAN DONE                                                                                           |
+| `▶P`  | PLAN APPROVED                                                                                       |
+| `★E`  | EPIC CREATED                                                                                        |
+| `✎`   | PLAN                                                                                                |
+| `✗`   | FAILED                                                                                              |
+| `…`   | QUEUED                                                                                              |
+| `⏳`  | WAITING                                                                                             |
+| `?`   | QUESTION                                                                                            |
+| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)                                                     |
+| `≡`   | Workflow row (top-level)                                                                            |
+| `❑`   | Patch / Patch row (top-level)                                                                       |
+| `⚡`  | Autonomous (`%auto`) agent                                                                          |
+| `◌`   | Hidden agent (visible only when `.` toggles them in)                                                |
+| `⚙`   | Monitor shell (row label)                                                                           |
+| `⚙N`  | N running monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (amber) |
+| `⚙N`  | N finished monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (grey) |
+| `⋔`   | Gate shell; its gate accent while pending/running, grey when settled, red on failure                |
+| `⋔N`  | N gates in a session/clan subtree or tribe panel title, colored by lifecycle bucket                 |
+| `▣`   | Stand-alone `%proc` proc shell (row label; beta, `typed_launch_units`)                              |
+| `▣N`  | N stand-alone proc shells in a panel title's separate proc chip                                     |
 
-A monitor shell (a family member whose work is a supervised command, started with
+A monitor shell (a session member whose work is a supervised command, started with
 `sase monitor start`) renders an amber `⚙` glyph and omits a left-side title — identity
-is the right-hand `%id` (`<family>--mon`), not the configured monitor label. A live
+is the right-hand `%id` (`<session>--mon`), not the configured monitor label. A live
 elapsed suffix or exit-code/timeout badge replaces the ordinary agent statuses. The
 status token — the start label while running, the stop label once settled — is colored
 by a deterministic accent derived from that pair, so every `TESTING`/`TESTED` monitor is
@@ -2576,28 +2577,28 @@ cleanly and still strand its follow-up. See [Monitors](monitors.md).
 
 Gate shells use `⋔` and their authored pending/settled labels, such as `GATE`/`GATED`,
 `QUESTION`/`ANSWERED`, or plan-tier statuses. A pending gate has no LLM process and does
-not occupy a runner slot, but it may retain the family's workspace claim. Its state is
-one of pending, settling, answered, completed, failed, timeout, stopped, or lost. Family
-and tribe chips count pending/running, settled, and failed gates separately by color.
-After a decision, the gate member owns the displayed outcome: handoff outcomes
+not occupy a runner slot, but it may retain the session's workspace claim. Its state is
+one of pending, settling, answered, completed, failed, timeout, stopped, or lost.
+Session and tribe chips count pending/running, settled, and failed gates separately by
+color. After a decision, the gate member owns the displayed outcome: handoff outcomes
 `PLAN APPROVED`, `TALE APPROVED`, `EPIC APPROVED`, and `ANSWERED` use the Running bucket
 even though the gate itself has settled, so the row represents the successor handoff.
 Rejection and cancellation use Done; timeout, failure, and lost gates use Failed.
 
 A monitor row nests under the agent that started it, not under a synthetic aggregate —
 one gear-glyph row at the starter's depth plus one. It is revealed by its **agent
-family's** fold rather than its starter's own: a collapsed family shows an amber `⚙N`
+session's** fold rather than its starter's own: a collapsed session shows an amber `⚙N`
 badge for its running monitors and a grey `⚙N` badge for its finished ones — the two
 counts partition the subtree's monitors, with a monitor that has not reported a terminal
 state counting as running — and counts every monitor in its collapsed ` ×N`, but renders
-no monitor row, even when the family root itself is the starter. The tribe panel title
+no monitor row, even when the session root itself is the starter. The tribe panel title
 aggregates both lanes across the whole tribe, so a fully collapsed panel still reports
 both what is still running and how much has already completed inside it. A single `l` on
-the family container row reveals every member and monitor in that family in one step;
+the session container row reveals every member and monitor in that session in one step;
 monitors are not deferred to a further "fully expanded" press the way hidden workflow
-steps are. Selecting a monitor row and pressing `l` or `H` acts on that governing family
-fold — `H` collapses the family and reanchors the cursor there — while `h` still walks
-up to the monitor's starter.
+steps are. Selecting a monitor row and pressing `l` or `H` acts on that governing
+session fold — `H` collapses the session and reanchors the cursor there — while `h`
+still walks up to the monitor's starter.
 
 A monitor has no LLM process to kill, so `x` on a selected **running** monitor row is
 routed off the ordinary kill/dismiss path: it opens a `Stop Monitor` confirmation
@@ -2645,8 +2646,8 @@ carries an **owner badge** — ` [<label>]` after its identity name — recordin
 came from. A foreign machine belonging to you renders as just the machine name; another
 user's run renders as `username@machine`. The badge appears wherever an imported
 identity is named: agent rows, the revive modal, and neighbor pickers. Imported
-sequential families are also folded under one synthetic family-container row so members
-imported without their root still group as one family instead of scattering across the
+sequential sessions are also folded under one synthetic session-container row so members
+imported without their root still group as one session instead of scattering across the
 panel. Both are presentation over leftover local state; nothing imports new rows any
 more, and `sase agent names purge-local-state` removes the state that produces them (see
 [Agent Hood Synchronization](agents_sidecar.md#legacy-v1-limitations)).
@@ -2655,9 +2656,9 @@ Workflow child rows for `python` and `bash` steps render a leading `❯` glyph p
 step name, styled with the matching step-type accent — bash amber, python green —
 because that name is those rows' identity. The glyph's presence is a stronger signal
 than the step-type color alone for colorblind users and for rapid scanning; color still
-carries the bash/python distinction. Sase shells (family-member agent shells, monitor
+carries the bash/python distinction. Sase shells (session-member agent shells, monitor
 proc shells, and workflow `agent` steps) omit a left-side title; their identity is the
-right-hand `%id` / family-member name. Parallel rows fan out into structural children,
+right-hand `%id` / session-member name. Parallel rows fan out into structural children,
 and `prompt_part` rows are invisible by default.
 
 The right-hand edge of each row carries a runtime suffix
@@ -2667,18 +2668,18 @@ completed rows use a `✅` marker in the same suffix slot, or `❌` when the age
 finished in a `FAILED` state; and user-paused rows (`PLAN`, `QUESTION`, `WAITING INPUT`)
 use a `✋` marker while waiting for a human response. Pre-run `WAITING` and `QUEUED`
 rows with no `BEGIN` time hide the suffix so admission waits do not look like live
-runtime. On an active sequential-family container, the live suffix is
-`🏃‍♂️ <current-shell-runtime> / <family-total-runtime>`: the left value is the concrete
-agent or monitor shell currently executing, and the right value is the aggregate family
-interval. Gate-shell windows are excluded from that family total — they measure the
+runtime. On an active sequential-session container, the live suffix is
+`🏃‍♂️ <current-shell-runtime> / <session-total-runtime>`: the left value is the concrete
+agent or monitor shell currently executing, and the right value is the aggregate session
+interval. Gate-shell windows are excluded from that session total — they measure the
 human decision, not agent runtime — and the same exclusion applies to clan totals. On an
 active clan container the live suffix is
 `<lowest-running-lane-runtime> / <clan-total-runtime>` (same marker), where the left
 value is the smallest current runtime among the clan's running lanes (a sequential
-family lane contributes its total runtime, the same value its own row shows on the right
-of its suffix) and the right value is the aggregate clan interval. For finished agents,
-the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair sized to
-fit the existing 15-cell slot:
+session lane contributes its total runtime, the same value its own row shows on the
+right of its suffix) and the right value is the aggregate clan interval. For finished
+agents, the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair
+sized to fit the existing 15-cell slot:
 
 - **Same day**: `HH:MM:SS`
 - **Prior day, same year**: `Mon DD HH:MM` (drops seconds — they're noise once a row
@@ -2699,18 +2700,18 @@ inflating the palette. Statuses not in the table fall back to `(STATUS)` text fo
 forwards compatibility.
 
 A stand-alone `%proc` unit (beta, behind `typed_launch_units`) is backed only by the
-proc store — it is never an agent, never nested under an agent family, and never counted
-in agent runner, unread, clan, or family totals. It renders as its own top-level `▣` row
-with a Bash/Python language badge, current phase/status, elapsed time, and project, and
-a panel title reports it in a separate `▣<count>` chip alongside the ordinary agent
-metrics. Selecting one opens a `PROC SHELL` detail (status/phase timeline, project/
-workspace/cwd, language, code digest and safe preview, waits, condition result,
-timeouts, and a bounded live-log tail). `x` on a running stand-alone proc shell asks for
-confirmation and then kills it and removes its row in one step — the durable cleanup
-proc stops it through the native proc service — and `x` dismisses a finished one with no
-confirmation. Dismissal only clears the Agents-tab row — the proc stays visible in the
-[Procs pane](#durable-procs) and in `sase proc show`, and a dismissed Agents-tab row
-does not come back. See
+proc store — it is never an agent, never nested under an agent session, and never
+counted in agent runner, unread, clan, or session totals. It renders as its own
+top-level `▣` row with a Bash/Python language badge, current phase/status, elapsed time,
+and project, and a panel title reports it in a separate `▣<count>` chip alongside the
+ordinary agent metrics. Selecting one opens a `PROC SHELL` detail (status/phase
+timeline, project/ workspace/cwd, language, code digest and safe preview, waits,
+condition result, timeouts, and a bounded live-log tail). `x` on a running stand-alone
+proc shell asks for confirmation and then kills it and removes its row in one step — the
+durable cleanup proc stops it through the native proc service — and `x` dismisses a
+finished one with no confirmation. Dismissal only clears the Agents-tab row — the proc
+stays visible in the [Procs pane](#durable-procs) and in `sase proc show`, and a
+dismissed Agents-tab row does not come back. See
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units) for the
 directives that create it.
 
@@ -2755,8 +2756,8 @@ Property keys (closed allowlist):
 
 | Key                                                | Form                                    | Matching behavior                                                                |
 | -------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
-| `name`, `family`, `clan`, `project`                | `key:value`                             | Exact, case-insensitive identity fields; completions include observed values.    |
-| `kind`                                             | `kind:agent`, `kind:workflow`, etc.     | Enum for agent/member/family/clan/workflow rows.                                 |
+| `name`, `session`, `clan`, `project`               | `key:value`                             | Exact, case-insensitive identity fields; completions include observed values.    |
+| `kind`                                             | `kind:agent`, `kind:workflow`, etc.     | Enum for agent/member/session/clan/workflow rows.                                |
 | `status`, `provider`, `source`, `needs`            | `key:value`                             | Enums; `source` accepts `axe` / `manual`, and `needs` accepts `input`.           |
 | `role`, `workflow`, `model`, `cl`, `text`          | `key:value`                             | Case-insensitive substring fields; `text:` searches the full text corpus.        |
 | `machine`, `tribe`                                 | `key:value`                             | Exact live operational fields; `machine` accepts `here`, aliases, and hostnames. |
@@ -2853,24 +2854,25 @@ Each recovered prompt is marked for forced name reuse so the relaunch keeps the 
 agent's name instead of claiming `<name>1`. The marker is a `!` on the `%id` directive,
 and its exact shape follows the prompt:
 
-| Original prompt          | Rewritten as                      |
-| ------------------------ | --------------------------------- |
-| `%id:foo`                | `%id:!foo`                        |
-| `%id(foo)`               | `%id(!foo)`                       |
-| a clan member's prompt   | `%id(!<suffix>, clan=<clan>)`     |
-| a family member's prompt | `%id(!<suffix>, family=<family>)` |
-| no `%id` directive       | unchanged — a fresh name is used  |
+| Original prompt           | Rewritten as                        |
+| ------------------------- | ----------------------------------- |
+| `%id:foo`                 | `%id:!foo`                          |
+| `%id(foo)`                | `%id(!foo)`                         |
+| a clan member's prompt    | `%id(!<suffix>, clan=<clan>)`       |
+| a session member's prompt | `%id(!<suffix>, session=<session>)` |
+| no `%id` directive        | unchanged — a fresh name is used    |
 
-Note that the clan and family forms carry the member's trailing `<suffix>` — the part
-after the `<clan>.` prefix, or the family role segment — not the full agent name; the
+Note that the clan and session forms carry the member's trailing `<suffix>` — the part
+after the `<clan>.` prefix, or the session role segment — not the full agent name; the
 membership keyword supplies the rest. An existing `bead=` value is carried across, and a
 standalone `clan:` declaration is dropped in favor of the `clan=` keyword. The last row
 is not a failure: a prompt that never named its agent has nothing to reuse, so it simply
-relaunches under a newly allocated name. A serial family member is the one case where a
-prompt with no `%id` is still rewritten, because its `family=` attachment comes from the
-row rather than the prompt; family roots are not treated that way. Forced reuse of a
-family member replaces only that member and its own descendants; the family root and the
-sibling members are left untouched, so the `family=` attachment still finds its parent.
+relaunches under a newly allocated name. A serial session member is the one case where a
+prompt with no `%id` is still rewritten, because its `session=` attachment comes from
+the row rather than the prompt; session roots are not treated that way. Forced reuse of
+a session member replaces only that member and its own descendants; the session root and
+the sibling members are left untouched, so the `session=` attachment still finds its
+parent.
 
 sase's TUI is the surface that confirms that reuse, and it carries the authorization
 through to the launch, so no second confirmation is asked for. Forced reuse cannot be
@@ -2915,8 +2917,8 @@ are not restored. Quitting sase's TUI while a launch is still pending stashes it
 so `@` can restore it.
 
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent
-before creating git revert commits. For plan/follow-up families, sase's TUI reverts the
-family scope when the row carries family metadata; otherwise it reverts the focused
+before creating git revert commits. For plan/follow-up sessions, sase's TUI reverts the
+session scope when the row carries session metadata; otherwise it reverts the focused
 agent name. The preview includes the primary workspace plus recorded `linked_repos`
 metadata entries that still point at an existing workspace directory; never-opened
 linked workspaces are not part of this action. Each repository is checked before
@@ -2927,7 +2929,7 @@ repository, pushes when a remote tracking branch is available, and writes
 
 When agents are marked, `,r` previews the combined commit set for the marked `DONE` /
 `FAILED` rows. Marked agents must come from the same primary workspace. The bulk path
-still groups work by repository, deduplicates overlapping family matches, skips marked
+still groups work by repository, deduplicates overlapping session matches, skips marked
 rows with no matching commits, and reports partial linked-repo failures instead of
 hiding them.
 
@@ -3953,7 +3955,7 @@ additional selected windows include compact names such as `fable`, `5h`, `mo`,
 `5h/fable`, or `5h/gemini`. Compact names omit redundant weekly and all-model components
 and drop the `family:` prefix of family-scoped windows (`5h/3p`, not `5h/family:3p`)
 while retaining model/family distinctions; tooltips (`scope: family: 3p`) and
-`sase usage list` (`scope=family:3p`) still show the family scope; `scope?` means the
+`sase usage list` (`scope=family:3p`) still show the session scope; `scope?` means the
 provider did not expose exact applicability. The name, percentage, and reset countdown
 share the window's ten-step remaining-capacity color, from red (nearly exhausted) to
 blue (nearly full), except an exact `0%` highlights the window's whole value run — its
@@ -5036,22 +5038,22 @@ migration marker is present or `--json` for machine-readable output.
 
 ### Per-Step Naming for Multi-Agent Workflows
 
-Sequential plan-family workflows have a stable family container plus member suffixes.
-When the first follow-up attaches, the original agent is renamed and the bare family
+Sequential plan-family workflows have a stable session container plus member suffixes.
+When the first follow-up attaches, the original agent is renamed and the bare session
 name becomes a pure container. Generated follow-up rows and phase metadata use canonical
 double-dash suffixes. For example, if the initial agent was named `a`:
 
-1. The first attachment creates family container `a` and gives the original its
+1. The first attachment creates session container `a` and gives the original its
    persisted role suffix (`a--plan` for a plan proposer or `a--0` for a generic agent).
 2. The planner phase uses a canonical `--plan` role suffix.
 3. Feedback and question-continuation rounds become `a--2`, `a--3`, etc.
 4. Terminal follow-ups use the phase suffix, such as `a--code`, `a--epic`, or
    `a--commit`.
 
-The base name (`a`) is reserved for the family as a whole, so `%wait:a` or `@a`
-references resolve through the family container. In sase's TUI, the aggregate family row
-displays that bare container name, while expanded concrete member rows keep their exact
-suffixed names (`a--0`, `a--plan`, `a--code`, and so on). New plan-family metadata
+The base name (`a`) is reserved for the session as a whole, so `%wait:a` or `@a`
+references resolve through the session container. In sase's TUI, the aggregate session
+row displays that bare container name, while expanded concrete member rows keep their
+exact suffixed names (`a--0`, `a--plan`, `a--code`, and so on). New plan-family metadata
 stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). sase's TUI
 still canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and legacy
 single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading legacy artifacts.
@@ -5091,12 +5093,12 @@ Running bucket when it handed off to a successor.
 | **SUDO**          | Gate accent                    | An agent's [sudo request](sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
 | **RETRYING**      | Orange                         | Agent hit a retryable error and is in a countdown before retrying                                                |
 
-Modern `/sase_questions` calls hand the family to a processless `QUESTION` gate shell
+Modern `/sase_questions` calls hand the session to a processless `QUESTION` gate shell
 and end the asking LLM turn. The shell owns the durable question until it is answered,
-cancelled, or times out, so dismissing its notification does not dismiss the family
-state. An answer settles it as `ANSWERED` and launches the next ordinary family member
-with the accumulated Q&A. That successor starts under the serial-family admission
-exemption and becomes the family's occupied slot; it does not enter the runner queue.
+cancelled, or times out, so dismissing its notification does not dismiss the session
+state. An answer settles it as `ANSWERED` and launches the next ordinary session member
+with the accumulated Q&A. That successor starts under the serial-session admission
+exemption and becomes the session's occupied slot; it does not enter the runner queue.
 The `Enter` shortcut can reopen the live question even when no unread notification
 remains.
 
@@ -5336,15 +5338,15 @@ share one cursor. Each selected title is aligned with the first visible metadata
 including a short final section, while the top waypoint reveals the top of the scrolling
 body before the first title (identity fields live in the sticky header panel above).
 Only rendered ALL-CAPS underlined section titles participate; matching text inside
-prompts or replies does not. Numbered roster rows (`FAMILY SHELLS`, `CLAN MEMBERS`,
+prompts or replies does not. Numbered roster rows (`SESSION SHELLS`, `CLAN MEMBERS`,
 `TRIBE MEMBERS`, `NEIGHBORS`) live in the jump panel and are not `Ctrl+J`/`Ctrl+K`
-stops; within a family container's `SASE CONTEXT` region, its lane sub-headings (`BEAD`,
-`PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not
-titles — `za`/`zA` still reach them when they own the viewport's top row, but they are
-never `Ctrl+J`/`Ctrl+K` stops. Roster rows are also not `za`/`zA` targets and are not
-covered by `,/` metadata search. The shortcuts continue to target the metadata pane when
-a file or LLM Calls pane is also visible, and changing agents or entering/leaving a
-pinned attempt view resets the cursor.
+stops; within a session container's `SASE CONTEXT` region, its lane sub-headings
+(`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold
+anchors, not titles — `za`/`zA` still reach them when they own the viewport's top row,
+but they are never `Ctrl+J`/`Ctrl+K` stops. Roster rows are also not `za`/`zA` targets
+and are not covered by `,/` metadata search. The shortcuts continue to target the
+metadata pane when a file or LLM Calls pane is also visible, and changing agents or
+entering/leaving a pinned attempt view resets the cursor.
 
 - **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
@@ -5368,17 +5370,17 @@ pinned attempt view resets the cursor.
   `CLAN MEMBERS` roster lives in the jump panel. Direct member rows use chronological
   launch order (earliest first), which keeps their numbers stable while statuses change.
   Each numbered row shows the hood-relative suffix, kind, status, model, and duration;
-  members of a nested sequential family are indented under its aggregate row. `Ctrl+J` /
-  `Ctrl+K` navigate the rendered section headings, and pressing the row's number jumps
+  members of a nested sequential session are indented under its aggregate row. `Ctrl+J`
+  / `Ctrl+K` navigate the rendered section headings, and pressing the row's number jumps
   to that member in the Agents list. At most 100 members receive numbers.
-- **FAMILY**: Shown when a real multi-member family root is selected. The cyan kind
-  label renders as the header panel title and the cyan `Name:` value matches the family
+- **SESSION**: Shown when a real multi-member session root is selected. The cyan kind
+  label renders as the header panel title and the cyan `Name:` value matches the session
   row's identity block. The title is header chrome, not a `Ctrl+J` title; the
-  `FAMILY SHELLS` roster lives in the jump panel and is not a navigable section. On a
-  family container, its `SASE CONTEXT` heading is the navigable title for that region;
+  `SESSION SHELLS` roster lives in the jump panel and is not a navigable section. On a
+  session container, its `SASE CONTEXT` heading is the navigable title for that region;
   its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`,
   `SKILLS`, `WORKSPACES`) stay fold anchors only.
-- **AGENT SHELL**: Shown when a standalone sase agent or family member row is selected.
+- **AGENT SHELL**: Shown when a standalone sase agent or session member row is selected.
   The gold kind label renders as the header panel title and the gold `Name:` value
   matches the list-row name annotation. The title is header chrome, not a `Ctrl+J`
   title. Monitor members and workflow step children (`bash` / `python` / `parallel`) do
@@ -5397,7 +5399,7 @@ pinned attempt view resets the cursor.
   `+N lines · ▾ d more`. `d` expands the panel to the full field list plus the complete
   `AGENT XPROMPT` under its own heading (or collapses it back). The kind label moves
   into the panel's border title in the node's accent color — `AGENT`, `AGENT SHELL`,
-  `FAMILY`, `CLAN`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a
+  `SESSION`, `CLAN`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a
   selected whole tribe panel, `TRIBE` — and the border subtitle shows what `d` will do
   (`▾ d more` / `▴ d less`, naming the configured `toggle_agent_header` key). The panel
   is hidden only for "No agent selected". `AGENT XPROMPT` no longer renders in the
@@ -5410,7 +5412,7 @@ pinned attempt view resets the cursor.
   and show no preview, and nodes without an xprompt show exactly the two chip rows
   inside the border. Metadata search (`,/`) covers the scrolling body only, since header
   fields stay on screen.
-- **Jump panel**: Every live numbered roster target (family shells, neighbors, clan
+- **Jump panel**: Every live numbered roster target (session shells, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
   detail column, below the file / LLM Calls panel, in every layout; the metadata body
   does not contain these sections, although the zoom view (`Z`) shows them inline in its
@@ -5483,12 +5485,12 @@ pinned attempt view resets the cursor.
   `GLOSSARY`, `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve
   and still-resolving lanes holding their slot with a dim `resolving…` row.
 - **SASE CONTEXT / GLOSSARY**: Shown directly after `MEMORY` whenever the selected agent
-  or family has at least one audited event under the retired, pre-web
+  or session has at least one audited event under the retired, pre-web
   `sase glossary read` command's legacy log. Current
   `sase memory read glossary:<keyword>` reads are not legacy events, so they surface in
   the `MEMORY` lane like any other memory read; this lane is purely historical (see
   [Memory Webs](memory.md#memory-webs)). The lane header counts reads and distinct
-  requested terms, adding the agent count for a multi-agent family. Each row shows the
+  requested terms, adding the agent count for a multi-agent session. Each row shows the
   read's requested terms (truncated the same way `MEMORY` truncates paths), with a
   `+N related` suffix when the closure expanded past the requested terms, and the
   recorded reason on its own indented line. A numbered hint pages a generated report of
@@ -5510,14 +5512,14 @@ pinned attempt view resets the cursor.
   newest five rows render; when there are more, a dim `+ N more · HH:MM earliest` footer
   reports the rest. A numbered hint opens the bead's live detail (the `sase bead show`
   view) in sase's pager, `%` copies the bead ID, and `@` is not supported for bead rows.
-  Family rows add the producer label when every contributor to that bead shares one
+  Session rows add the producer label when every contributor to that bead shares one
   producer, and clan rows include their members' beads (de-duplicated and labeled per
   member). Audited `bead:` reads live here and are excluded from `Reads`. The data and
   glyphs match [`sase bead touched`](beads.md#sase-bead-touched-agent). `Reads` is the
   input side of the lane: each retained audited `sase artifact read` (including when
   artifact links are disabled) appears newest-first with local time, the canonical
-  reference, the recorded reason on a wrapped continuation line, and — on a family row —
-  the compact producer label. The header counts every retained read event; the newest
+  reference, the recorded reason on a wrapped continuation line, and — on a session row
+  — the compact producer label. The header counts every retained read event; the newest
   five rows render and a dim `+ N more · HH:MM earliest` footer reports overflow.
   Repeated reads of the same reference stay separate. Prompt citations and silent `show`
   / `path` / `open` commands never appear. A read with a recorded resolved path
@@ -5545,7 +5547,7 @@ pinned attempt view resets the cursor.
   outcome facts and any error. The lane's last position also adds output previews,
   subagent tool/token statistics, and each call's rank and share of selected slow time.
   These tiers are positional: an ordinary agent uses compact/detail/full across its
-  three levels, while a family uses compact/full across its two. `za` and `zA` can
+  three levels, while a session uses compact/full across its two. `za` and `zA` can
   change only this section. For a root agent the list aggregates calls across its
   children while attributing each call to the child that made it.
 - **Wait state**: For a `WAITING` agent gated by `%wait`, a duration wait, or an
@@ -5554,7 +5556,7 @@ pinned attempt view resets the cursor.
   occupy a padded gutter, so every value begins in one aligned column and long
   dependency lists wrap with a hanging indent beneath that value column. The `[agents]`
   lane lists the dependency names recorded on the waiting agent, adds per-name status
-  badges for currently known agents, clan containers, or family containers, and marks
+  badges for currently known agents, clan containers, or session containers, and marks
   unknown names with `?` so typos and stale references are obvious. The `[beads]` lane
   uses the same status-bearing token as the compact row, without a count: `run-bead ◐`,
   `done-bead ●`, and `bead-id ?` for an unknown bead. A WAITING list row keeps agent and
@@ -5568,13 +5570,13 @@ pinned attempt view resets the cursor.
   line led by its rank and elapsed time since `slot_requested_at`, followed by cap
   context. It deliberately suppresses the marker's stale dependency, bead, and time-wait
   fields.
-- **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family
+- **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent session
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;
-  multiple family members render with compact role labels so root, planner, coder,
+  multiple session members render with compact role labels so root, planner, coder,
   tester, and follow-up values stay attributable. Lists, maps, and multi-line strings
   use an indented YAML-shaped block with type-specific colors. The section is omitted
-  when the family has not published variables. These values are stored in
+  when the session has not published variables. These values are stored in
   `agent_meta.json`, so they are visible metadata rather than secret storage.
 - **TRACEBACK**: When an agent or workflow step recorded an error traceback, it renders
   under its own `TRACEBACK` heading after the prompt, directly above the reply heading
@@ -5586,20 +5588,20 @@ pinned attempt view resets the cursor.
   `live_reply_timestamps.jsonl`), the reply is displayed with timestamp dividers between
   each agent turn. For agents with follow-up phases (planner, feedback rounds, coder),
   the AGENT REPLY section consolidates replies from all phases into a single view with
-  phase dividers showing each phase's label and start time. Phases follow the family's
+  phase dividers showing each phase's label and start time. Phases follow the session's
   chain order: a monitor phase renders immediately after the shell that started it,
-  including a monitor started by the family root, which renders after the root's own
+  including a monitor started by the session root, which renders after the root's own
   phase. Agent-shell members follow one rule, `AGENT (<role>)`, derived from the
-  member's family role: `--plan` renders as `AGENT (plan)`, `--code` as `AGENT (code)`,
+  member's session role: `--plan` renders as `AGENT (plan)`, `--code` as `AGENT (code)`,
   `--epic` as `AGENT (epic)`, `--commit` as `AGENT (commit)`, and numeric feedback
-  suffixes such as `--2` as `AGENT (plan round 2)`. Custom family members render the
+  suffixes such as `--2` as `AGENT (plan round 2)`. Custom session members render the
   same way with their suffix token, e.g. `AGENT (bar)`. A monitor member is a proc
   shell, so its phase renders as an amber `⚙ MONITOR` divider followed by the monitor's
   command, its recorded detail fields, and its full captured output — the same block the
   monitor's own panel shows. A gate-shell member renders as a lifecycle-colored `⋔ GATE`
   divider with its decision, kind, state, deadline, reason, request identity, branch
   policy, follow-up disposition, and captured command output. Its phase remains in the
-  consolidated family reply after settlement, including terminal branches that
+  consolidated session reply after settlement, including terminal branches that
   intentionally launch no successor. Legacy dotted and single-dash suffixes render the
   same way.
 - **WORKFLOW VARIABLES**: xprompt workflow output variables from step outputs with
@@ -5646,7 +5648,7 @@ panel is showing, `l` adds one level of detail and `H` returns to compact, takin
 priority over their usual fold actions. In the [zoom view](#agents-zoom-panel), `l` /
 `h` step the level up or down and `L` / `H` jump to full or compact.
 
-For retry chains and planner-to-coder follow-up families, the panel aggregates
+For retry chains and planner-to-coder follow-up sessions, the panel aggregates
 `tool_calls.jsonl` from related artifact directories so the selected logical agent shows
 one ordered tool timeline. Discovery uses the persistent artifact index when it is
 available; if the index is missing or stale, sase's TUI falls back to direct lineage
@@ -5864,14 +5866,14 @@ launches bead work directly, so those controls are hidden for Epic:
 
 The custom approval dialog no longer exposes separate commit/run switches because the
 selected outcome determines the commit location and follow-up behavior. Additional
-family members are launched explicitly with `%i(suffix, family=parent)`; they are not
+session members are launched explicitly with `%i(suffix, session=parent)`; they are not
 selected at the plan gate.
 
 ## Launch Approval
 
 Launches requested by a running agent (see
-[Agent-initiated launches](agent_families.md#agent-initiated-family-launches)) arrive as
-priority notifications with a `LaunchApproval` action. Selecting one opens the launch
+[Agent-initiated launches](agent_sessions.md#agent-initiated-session-launches)) arrive
+as priority notifications with a `LaunchApproval` action. Selecting one opens the launch
 approval modal, which renders the request's human-readable preview
 (`launch_preview.md`). Clan slots identify their rootless clan alongside the model,
 kind, and planned member name. Press `a` to approve, `r` to reject, and `q` or `Esc` to
@@ -5880,13 +5882,13 @@ remote callbacks, while retaining legacy launch-request fallback. The CLI equiva
 are `sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
 agent, `sase launch request` creates a `LAUNCH` gate shell and ends the requesting turn;
 the process does not wait for the response. By default, approval, rejection, timeout, or
-gate/dispatch failure settles the shell and resumes the original requester as one family
-successor. That successor receives the decision, reviewer feedback, typed dispatch
-result, requester/workspace/family identity, and checkpoint; a stopped gate does not
-resume. A request can explicitly choose `terminal_handoff` when every branch should end
-without a requester continuation. Outside a SASE agent, terminal handoff is the default:
-the command registers the gate, prints its creation descriptor, and returns. Automation
-that needs the terminal gate result can then run
+gate/dispatch failure settles the shell and resumes the original requester as one
+session successor. That successor receives the decision, reviewer feedback, typed
+dispatch result, requester/workspace/session identity, and checkpoint; a stopped gate
+does not resume. A request can explicitly choose `terminal_handoff` when every branch
+should end without a requester continuation. Outside a SASE agent, terminal handoff is
+the default: the command registers the gate, prints its creation descriptor, and
+returns. Automation that needs the terminal gate result can then run
 `sase gate wait -i <request-id> -k launch -j`.
 
 ## Agent Holds
@@ -6348,14 +6350,14 @@ and other Markdown marker styles are excluded.
 
 The same fallback applies to ordered items from anywhere on the direct `<N>.` / `<N>)`
 marker line. Ordered `Tab` nests at the _content column_ of the nearest preceding marker
-line (either family, same or lower indent) instead of a fixed two-space unit, because an
-ordered item can only interrupt its parent's paragraph when numbered `1`: `Tab` with no
-preceding marker line to nest under is a no-op, `Tab` landing under an existing nested
-run continues that run at its next number, and `Tab` that starts a new nested list
-numbers the moved item `1`. `Shift+Tab` moves the item back out to its parent's indent
-and gives it the next number in that outer run; at the outermost level it is a no-op.
-Both carry the item's owned block along and renumber the source and destination runs as
-one undo checkpoint.
+line (either session, same or lower indent) instead of a fixed two-space unit, because
+an ordered item can only interrupt its parent's paragraph when numbered `1`: `Tab` with
+no preceding marker line to nest under is a no-op, `Tab` landing under an existing
+nested run continues that run at its next number, and `Tab` that starts a new nested
+list numbers the moved item `1`. `Shift+Tab` moves the item back out to its parent's
+indent and gives it the next number in that outer run; at the outermost level it is a
+no-op. Both carry the item's owned block along and renumber the source and destination
+runs as one undo checkpoint.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word).
 Line numbers appear in cyan when the text exceeds one line. The native cursor cell is
@@ -6723,15 +6725,15 @@ token under the cursor:
   `Enter` always submits the prompt as typed, even on an automatically opened first-row
   menu; `Ctrl+F` accepts the highlighted row without requiring `Ctrl+N`, `Down`, or
   another ownership signal. Agent inputs such as `#fork` offer agent, proc/monitor,
-  family, clan, and `@tribe` targets with kind and member context. A proc or monitor row
-  inserts its exact durable proc ID while displaying the friendly, reusable shell name.
-  Family rows also show the associated plan or bead when SASE can resolve one: the row
-  reads `<kind> · <phases/waves> · <title>` (for example
+  session, clan, and `@tribe` targets with kind and member context. A proc or monitor
+  row inserts its exact durable proc ID while displaying the friendly, reusable shell
+  name. Session rows also show the associated plan or bead when SASE can resolve one:
+  the row reads `<kind> · <phases/waves> · <title>` (for example
   `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is
-  searchable, so typing part of the title filters to that family. Selecting the row
+  searchable, so typing part of the title filters to that session. Selecting the row
   fills the panel subtitle with more of the same artifact — phase titles for an epic,
   the goal for a tale or plain plan, the parent title for a phase or task bead. When
-  nothing resolves, the row falls back to a snippet of the family's launch prompt and
+  nothing resolves, the row falls back to a snippet of the session's launch prompt and
   the subtitle falls back to member names; completion is never blocked either way.
   Numeric inputs keep the type hint visible but do not invent values.
 - **Directive completion**: When the cursor is on a `%`-prefixed directive token (e.g.,
@@ -7714,7 +7716,7 @@ Procs the TUI runs itself are **mirrored** into the durable proc store
 `~/.sase/procs/logs/`), so their outcome survives the session that produced them and is
 visible from `sase proc list` / `sase proc show`. Supervisor-backed procs — commands
 submitted with `sase proc run`, programmatic submissions, and the unattributed command
-fallback for an epic approval whose planner agent family cannot be resolved — are read
+fallback for an epic approval whose planner agent session cannot be resolved — are read
 back out of that store and rendered here, so work that this process never owned still
 shows up on the tab.
 
@@ -7787,7 +7789,7 @@ it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
 - **Visible in both scopes.** Monitor procs are unattributed, so they appear in both
   **this session** and **all sessions**.
 - **`K` stops the supervisor.** Kill uses the proc-shell stop path: it stops the
-  supervisor, settles the family, and runs any `--next` action.
+  supervisor, settles the session, and runs any `--next` action.
 
 ### Durable Procs
 
@@ -7851,7 +7853,7 @@ The CLI equivalents are `sase proc list`, `sase proc show ID` (`--follow` to str
 `sase proc run [--session SESSION|none] -- COMMAND` (`--wait` to stream and inherit the
 exit code), and `sase proc kill ID`. A hidden legacy `--kind` filter remains for
 historical kind rows. Approved epics normally launch as [monitor shells](monitors.md);
-only an unresolvable planner agent family uses an unattributed command proc. See the
+only an unresolvable planner agent session uses an unattributed command proc. See the
 [CLI reference](cli.md#daily-operation).
 
 ### Filtering procs

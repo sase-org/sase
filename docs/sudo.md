@@ -19,8 +19,8 @@ A sudo request moves through four steps:
 3. `sase sudo answer` authenticates through the real `sudo` prompt in a terminal. The
    dedicated `sase_sudo_runner` executes the selected commands and returns a ledger.
 4. The gate settles as `SUDOED` (approved) or `DENIED`. After an approval, the request's
-   `next.prompt` launches a successor in the same agent family that receives the ledger.
-   A denial never launches a follow-up.
+   `next.prompt` launches a successor in the same agent session that receives the
+   ledger. A denial never launches a follow-up.
 
 Agents learn this contract from the generated `/sase_sudo` skill.
 

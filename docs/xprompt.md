@@ -1480,7 +1480,7 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_new_task`      | Use before creating, filing, proposing, or otherwise recording any new SASE task bead         |
 | `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |
 | `sase_patches`       | Inspect and reason about Patches, stitches, hooks, comments, and mentors                      |
-| `sase_pipe`          | Hand this agent's turn to the next family member with `sase pipe`                             |
+| `sase_pipe`          | Hand this agent's turn to the next session member with `sase pipe`                            |
 | `sase_plan`          | Create and submit an implementation plan when provider-native plan mode is disabled           |
 | `sase_project`       | Inspect or manage project lifecycle state and aliases                                         |
 | `sase_questions`     | Ask the user structured questions when the provider-native question tool is disabled          |
@@ -1598,13 +1598,13 @@ than successful work to trust. Because an already-failed parent can never satisf
 wait, SASE skips the normally implied `%wait:<agent>` for that fork target; an explicit
 `%wait:<agent>` you typed is still preserved.
 
-When a new agent forks a family it already belongs to, its own artifact does not count
+When a new agent forks a session it already belongs to, its own artifact does not count
 against the fork target's completeness. The implied wait still holds for any other live
-family member, because that member's transcript or execution record is not ready to
+session member, because that member's transcript or execution record is not ready to
 inject yet.
 
 `#fork` also resolves a stand-alone proc shell (by its reusable shell name or its exact
-proc ID) and a monitor family member (by its `--mon`/`--mon-N` shell name or exact proc
+proc ID) and a monitor session member (by its `--mon`/`--mon-N` shell name or exact proc
 ID). Both are execution records, never a prior conversation: the injected block states
 the shell kind, command or safe code preview, cwd/project, timestamps, exit/timeout
 status, and a bounded, explicitly untrusted tail of program output, plus the full log
@@ -1634,41 +1634,41 @@ notes for the lander.
 
 ### Bundled Follow-Up XPrompts
 
-SASE ships two embeddable follow-up prompt workflows for manual family rounds:
+SASE ships two embeddable follow-up prompt workflows for manual session rounds:
 
 | Reference        | Inputs                        | Purpose                                                                  |
 | ---------------- | ----------------------------- | ------------------------------------------------------------------------ |
 | `#with_feedback` | `feedback`, optional `parent` | Append plan feedback using the same replan prompt renderer as the runner |
 | `#with_q_and_a`  | `prompt`, `qa_file`           | Append answered SASE questions using the same Q&A renderer as the runner |
 
-Both xprompts only assemble prompt text; `%i(suffix, family=parent)` is the launch
-directive that attaches the new agent to the family. See
-[Agent Clans, Families, and Tribes](agent_families.md) for the full attachment and
+Both xprompts only assemble prompt text; `%i(suffix, session=parent)` is the launch
+directive that attaches the new agent to the session. See
+[Agent Clans, Sessions, and Tribes](agent_sessions.md) for the full attachment and
 launch-approval model.
 
-For feedback, pass `parent=` explicitly or combine it with `%i(suffix, family=parent)`
+For feedback, pass `parent=` explicitly or combine it with `%i(suffix, session=parent)`
 and let SASE infer the parent:
 
 ```text
-%i(@, family=planner) #with_feedback:: Add failure handling before coding.
-%i(reviewer, family=planner) #with_feedback(parent=planner):: Re-check the API shape.
+%i(@, session=planner) #with_feedback:: Add failure handling before coding.
+%i(reviewer, session=planner) #with_feedback(parent=planner):: Re-check the API shape.
 ```
 
 For Q&A, provide a JSON file containing one or more answered question rounds:
 
 ```text
-%i(@, family=planner) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
+%i(@, session=planner) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
 ```
 
 The Q&A file should use the same structured request/response shape SASE writes for user
 questions: `questions` plus a `response`, or a top-level `rounds` list of those objects.
 Literal `#xprompt` text inside answers is protected so it does not expand accidentally.
 
-Glossary note: this feature uses the runner's double-dash plan-chain family model —
-agents such as `foo--0`, `foo--plan`, and `foo--code` share the pure family container
+Glossary note: this feature uses the runner's double-dash plan-chain session model —
+agents such as `foo--0`, `foo--plan`, and `foo--code` share the pure session container
 `foo`. Dot-separated names such as `foo.bar` are agent hoods/neighbors in sase's TUI, a
-distinct grouping concept. See [Agent Clans, Families, and Tribes](agent_families.md)
-for the full family model.
+distinct grouping concept. See [Agent Clans, Sessions, and Tribes](agent_sessions.md)
+for the full session model.
 
 ### Scheduled Work Uses Jobs
 
@@ -1758,7 +1758,7 @@ are extracted and stripped from the prompt before further processing.
 | ------------------- | ----- | --------------------------------------------------------------------- |
 | `%model`            | `%m`  | Override the LLM model for this prompt                                |
 | `%effort`           | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
-| `%id`               | `%i`  | Assign an id, clan, family, or user-managed tribe                     |
+| `%id`               | `%i`  | Assign an id, clan, session, or user-managed tribe                    |
 | `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                     |
 | `%wait`             | `%w`  | Wait for agents, closed beads, and/or a time floor                    |
 | `%queue`            | `%q`  | Set per-launch capacity budget, queue priority, and/or claim weight   |
@@ -1796,9 +1796,9 @@ recipes appear only when the `typed_launch_units` beta flag is enabled. Retired 
 | `%model` / `%m`     | `%model:...`, `%model(...)`                                                                  | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                                                              |
 | `%effort` / `%e`    | `%effort:...`                                                                                | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `%final`            | Bare `%final`, `%final:...`, `%final(...)`                                                   | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                                                                       |
-| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                             |
+| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `session=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, session, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                           |
 | `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                     |
-| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, and `time=` suggests `5m` and `1430`.                                                                                                                                                                  |
+| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/session/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, and `time=` suggests `5m` and `1430`.                                                                                                                                                                 |
 | `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes only the positional positive-integer `capacity` value, suggesting `1` and `100`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
 | `%hold`             | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                             |
 | `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                 |
@@ -2003,7 +2003,7 @@ selected project, project file, and workspace number) is added; the proc never s
 the `0600` script and is not a replacement user home, and this scrubbing is not a
 filesystem or network sandbox — the child still runs with the supervisor's filesystem
 and network permissions. A stand-alone `%proc` unit never allocates an agent runner
-slot, family, `done.json`, or finalizer obligation.
+slot, session, `done.json`, or finalizer obligation.
 
 A `%proc` unit may also carry `%queue` / `%q` fields:
 
@@ -2028,13 +2028,13 @@ resolved beneath the leased checkout; `workspace="false"` opts out and requires 
 ordinary `cwd`. Outside project context no lease is taken and an explicit `cwd` is
 required — `workspace="true"` without a selected project is a hard error. `%id:<name>` /
 `%id(<name>)` becomes the proc's optional bare `shell_name` (validated independently of
-the agent-family `--` naming convention); the canonical proc id is always allocated by
+the agent-session `--` naming convention); the canonical proc id is always allocated by
 the proc store. Stop/kill is routed through the native proc-stop path and is responsive
 in every phase — waiting, checking, acquiring the workspace, preparing the script,
 running, and settling.
 
 Typed admission preserves the complete identity binding for each agent unit, not only
-the positional `%id` name: `%id` keywords (`clan=`, `family=`, `tribe=`, `bead=`), an
+the positional `%id` name: `%id` keywords (`clan=`, `session=`, `tribe=`, `bead=`), an
 optional `%clan` declaration (`tribe=`, `summary=`, `summary_script=`), and force-reuse
 `!` prefixes all survive planning. Dispatch reconstructs the equivalent `%id` and
 `%clan` directives, then the existing model/effort/auto/final/hide/wait-runner
@@ -2057,15 +2057,16 @@ same counts the receipt stores — total, eligible, launched, skipped, condition
 and launch errors.
 
 Stand-alone proc shells created this way appear in sase's TUI Agents tab as their own
-top-level rows (never nested under an agent family), each marked with a `▣` glyph
+top-level rows (never nested under an agent session), each marked with a `▣` glyph
 alongside its shell name or short proc id, an optional `label`, a Bash/Python language
 badge, the current phase/status, elapsed time, and project. Panel titles report a
 separate `▣<count>` chip for stand-alone procs next to the ordinary agent-status chips;
-a stand-alone proc never changes agent runner, unread, clan, or family counts. Selecting
-a row opens a `PROC SHELL` detail with status/phase timeline, project/workspace/cwd,
-language, code digest and safe preview, waits and condition result, timeouts, and a
-bounded live-log tail — never the private script, the `SASE_CONDITION_CONTEXT` file, or
-unbounded output. The same rows and details are visible from the Procs pane.
+a stand-alone proc never changes agent runner, unread, clan, or session counts.
+Selecting a row opens a `PROC SHELL` detail with status/phase timeline,
+project/workspace/cwd, language, code digest and safe preview, waits and condition
+result, timeouts, and a bounded live-log tail — never the private script, the
+`SASE_CONDITION_CONTEXT` file, or unbounded output. The same rows and details are
+visible from the Procs pane.
 
 ### Syntax
 
@@ -2091,8 +2092,8 @@ Directives use the same argument syntax as xprompt references:
 %{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
 %id:reviewer               # Short-form
 %i:reviewer                  # Same, using alias
-%i(reviewer, family=parent)  # Attach parent--reviewer to parent's family
-%i(@, family=parent)         # Attach the next free feedback/Q&A suffix
+%i(reviewer, session=parent)  # Attach parent--reviewer to parent's session
+%i(@, session=parent)         # Attach the next free feedback/Q&A suffix
 %id(worker, clan=research)   # Derive research.worker and join clan research
 %id(!worker, clan=research)  # Same derived name, with forced reuse
 %id(reviewer, tribe=review)  # Name reviewer and assign it to tribe @review
@@ -2175,7 +2176,7 @@ Every other member uses `%id(<id>, clan=<clan>)`, which derives `<clan>.<id>` an
 the newest generation or creates the clan implicitly without a tribe. The join form
 cannot be combined with `%clan`; joining a clan also joins its tribe. A member segment
 may fan out, and identical raw clan templates in one batch resolve to the same
-generation. See [Agent Clans, Families, and Tribes](agent_families.md) for the full
+generation. See [Agent Clans, Sessions, and Tribes](agent_sessions.md) for the full
 launch, wait, display, and cleanup contract.
 
 The declaring `%clan` can also attach one launch-time description with `summary=`,
@@ -2197,7 +2198,7 @@ including epic `SASE_EPIC_PLAN_REF`, `SASE_EPIC_PLAN_SNAPSHOT`, `SASE_EPIC_BEAD_
 variables. The snapshot is an absolute project-scoped best-effort copy that the built-in
 epic summary script uses as a guaranteed-local fallback after the normal checkout
 candidates; the original reference remains authoritative for display and metadata. See
-[Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the
+[Launch-time clan summaries](agent_sessions.md#launch-time-clan-summaries) for the
 complete ordering, execution, and persistence details. Re-creating a clan with a bare
 `%clan(<name>)` or a generation-creating `%id(<id>, clan=<name>)` inherits the
 remembered tribe and re-runs the remembered summary script (falling back to the
@@ -2335,10 +2336,10 @@ including an alias reference such as `@large@high`.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE
 records the map in agent metadata and carries it through its plan/coder follow-up path.
-An explicit `%id(suffix, family=parent)` attachment inherits the parent's map when its
+An explicit `%id(suffix, session=parent)` attachment inherits the parent's map when its
 prompt supplies no alias keywords; a prompt with its own keywords uses that new map.
 Ordinary nested launches do not inherit the map. This lineage often overlaps an
-[Agent Family](agent_families.md), but the terms are not interchangeable.
+[Agent Session](agent_sessions.md), but the terms are not interchangeable.
 
 At each alias hop a launch-scoped value wins over a machine-wide temporary override and
 the configured or implicit alias value.
@@ -2359,7 +2360,7 @@ auto-generates a permanent unique name for the agent. `%id(<id>, clan=<clan>)` d
 the full `<clan>.<id>` name and requests membership in that clan. Dotted ids are
 allowed, and a leading `!` forces reuse of the derived name. `%id(<id>, tribe=<tribe>)`
 tags an explicit id, while `%id(tribe=<tribe>)` and `#tribe:<tribe>` tag an auto-named
-agent. The `clan=`, `family=`, and `tribe=` keywords are mutually exclusive, and none
+agent. The `clan=`, `session=`, and `tribe=` keywords are mutually exclusive, and none
 can be combined with a `%clan` declaration in the same prompt. Bare `%wait` resolves to
 the most recently named agent (raises an error if no previous agent exists).
 
@@ -2415,42 +2416,42 @@ is the explicit confirmation to wipe the previous owner and its persisted system
 before launching the new agent with that name. Non-TUI launch surfaces reject
 `%id:!<name>` unless they provide an explicit confirmation path.
 
-The `%i(<suffix>, family=<parent>)` form attaches a new agent to a sequential family. On
-the first attachment, SASE renames the original agent with its own `--<role>` suffix and
-reserves the bare base name as a pure family container; generic originals become `--0`,
-while plan proposers become `--plan`. SASE then names the new member
-`<family-base>--<suffix>`, writes the normal family metadata, and strips the directive
+The `%i(<suffix>, session=<parent>)` form attaches a new agent to a sequential session.
+On the first attachment, SASE renames the original agent with its own `--<role>` suffix
+and reserves the bare base name as a pure session container; generic originals become
+`--0`, while plan proposers become `--plan`. SASE then names the new member
+`<session-base>--<suffix>`, writes the normal session metadata, and strips the directive
 before the model sees the prompt. The positional suffix is a bare token: write
-`%i(reviewer, family=foo)`, not `%i(--reviewer, family=foo)`.
+`%i(reviewer, session=foo)`, not `%i(--reviewer, session=foo)`.
 
-Reserved suffixes (`plan`, `code`, `epic`, `commit`) select their built-in family roles
+Reserved suffixes (`plan`, `code`, `epic`, `commit`) select their built-in session roles
 and status labels. Numeric suffixes and `@` are feedback/Q&A rounds; `@` allocates the
 next free suffix. Other alphanumeric suffixes such as `reviewer` or `tester` are
-allowed, preserve that open-set role in `agent_family_role` metadata, and use ordinary
-RUNNING/DONE status labels. See [Agent Clans, Families, and Tribes](agent_families.md)
+allowed, preserve that open-set role in `agent_session_role` metadata, and use ordinary
+RUNNING/DONE status labels. See [Agent Clans, Sessions, and Tribes](agent_sessions.md)
 for attachment and agent-initiated launch behavior.
 
-If the parent is still running, the new family member appears immediately as a WAITING
+If the parent is still running, the new session member appears immediately as a WAITING
 row and starts when that exact parent artifact completes successfully. If the parent
 fails, is stopped, or is killed, the queued member is cancelled to `STOPPED` and SASE
 sends a completion notification explaining the failed dependency. If the parent is
 absent, ambiguous, dismissed, or the composed child name already exists, launch
 preparation fails before spawning the child; collision errors suggest
-`%i(@, family=parent)`.
+`%i(@, session=parent)`.
 
-The family-attach form works from every normal user launch surface because the
+The session-attach form works from every normal user launch surface because the
 constraint check runs in shared launch preparation. In a multi-agent prompt,
-`%i(suffix, family=parent)` may reference a parent explicitly named in an earlier `---`
-segment of the same prompt, such as `%i:foo` followed by `%i(reviewer, family=foo)`. The
-in-batch parent is treated as a running parent: the member queues as a WAITING child and
-starts when that exact parent artifact completes successfully. This same-prompt lookup
-is limited to earlier static names; template-named and auto-named parents still require
-the parent artifact to exist before they can be used as `%i(suffix, family=parent)`
-targets.
+`%i(suffix, session=parent)` may reference a parent explicitly named in an earlier `---`
+segment of the same prompt, such as `%i:foo` followed by `%i(reviewer, session=foo)`.
+The in-batch parent is treated as a running parent: the member queues as a WAITING child
+and starts when that exact parent artifact completes successfully. This same-prompt
+lookup is limited to earlier static names; template-named and auto-named parents still
+require the parent artifact to exist before they can be used as
+`%i(suffix, session=parent)` targets.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a
 `done.json` outcome of `"completed"`. For a clan name, every member of its newest
-generation must complete successfully; for a family or multi-agent workflow name, every
+generation must complete successfully; for a session or multi-agent workflow name, every
 member or child must complete successfully. An exact agent name still targets only that
 agent. Failed, killed, crashed, still-running, malformed, or missing `done.json`
 artifacts do not satisfy the wait; the dependent agent stays parked until a later
@@ -2463,15 +2464,15 @@ launch, the notification also names the `sase monitor resume <id>` command and a
 worktree recovery diff. The waiter itself stays parked: kill and relaunch it, clear the
 wait, or let a later successful run release it.
 
-A bare family target makes one exception for retried shells. A monitor or gate member
+A bare session target makes one exception for retried shells. A monitor or gate member
 that ended unsuccessfully without handing off to a follow-up is ignored once a newer
-member of the same kind exists in the same family generation, so a failed `--mon` or
-`--gate` no longer blocks the family forever after `--mon-0` or `--gate-0` takes over.
+member of the same kind exists in the same session generation, so a failed `--mon` or
+`--gate` no longer blocks the session forever after `--mon-0` or `--gate-0` takes over.
 This applies to every older failed shell of that kind; the newest shell then counts like
 any other member and must itself succeed. A monitor never replaces a failed gate or vice
-versa, and an exact shell-name wait such as `<family>--mon` still reports that shell's
+versa, and an exact shell-name wait such as `<session>--mon` still reports that shell's
 own outcome. See
-[Sequential Agent Families](agent_families.md#sequential-agent-families).
+[Sequential Agent Sessions](agent_sessions.md#sequential-agent-sessions).
 
 The repeatable `bead=<bead-id>` keyword adds a closure condition from the waiting
 agent's own project bead store. Every named agent/artifact condition and every bead
@@ -2504,14 +2505,14 @@ summary in the selected clan; full clan-member replies remain available through 
 included transcript paths rather than being injected automatically. Tribe names use
 letters, digits, underscores, dots, and dashes after the leading `@`. `@default` is
 rejected because that panel is display-only, and `@job` targets AXE job agents (see
-[The built-in job tribe](agent_families.md#the-built-in-job-tribe)).
+[The built-in job tribe](agent_sessions.md#the-built-in-job-tribe)).
 
 A submitted plan awaiting review is the one exception. A planner that ran
 `sase plan propose` blocks in the approval flow without writing a `done.json`, so its
 planner row shows the `PLAN` status. A `%wait` on that planner row — its canonical
 `<base>--plan` name (or a legacy `<base>.plan` spelling) — treats the submitted plan as
 done and unblocks while the plan is still in review. This targets the planner row only:
-a `%wait:<base>` on the bare family container stays parked until the whole plan chain
+a `%wait:<base>` on the bare session container stays parked until the whole plan chain
 actually completes, so a submitted plan alone never makes the chain look finished.
 
 When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%id`,
@@ -2586,23 +2587,23 @@ is configurable through [`runner_slots`](configuration.md#runner_slots). Deferen
 not priority aging or preemption, and a steady stream of fitting higher-priority
 arrivals can still starve lower-priority work.
 
-A standalone agent owns one claim of its effective weight. A live serial family shares
+A standalone agent owns one claim of its effective weight. A live serial session shares
 one claim across its agent, monitor, and serial successor shells; serial continuations
-inherit the family weight when their prompt omits one, and must reacquire capacity after
-the family releases its claim. Independently launched clan members and live parallel
-family members each hold their own claim. Processless gates and modern question shells
-hold zero capacity while waiting for a human, and their follow-up work must either
-transfer a live claim or re-enter admission. Once a decision arrives, the gate shell
-makes one capacity attempt before running the chosen option's commands, and that attempt
-never parks: if the gate's weight fits, it claims capacity so the follow-up can inherit
-it; otherwise the commands run right away without a claim and the follow-up queues
-normally. A gate that `%auto` resolves at creation time runs its commands inside the
-creating agent's existing claim instead of taking a second one. The host-owned monitor
-that launches an approved epic records an explicit zero weight and consumes no capacity;
-the phase agents it launches claim their own. A zero weight cannot be authored. A
-`%proc` unit with queue fields is checked against this budget but never holds a claim
-(see [Experimental typed launch units](#experimental-typed-launch-units)). Workflow
-Python/bash steps and axe Patch runners are outside this budget.
+inherit the session weight when their prompt omits one, and must reacquire capacity
+after the session releases its claim. Independently launched clan members and live
+parallel session members each hold their own claim. Processless gates and modern
+question shells hold zero capacity while waiting for a human, and their follow-up work
+must either transfer a live claim or re-enter admission. Once a decision arrives, the
+gate shell makes one capacity attempt before running the chosen option's commands, and
+that attempt never parks: if the gate's weight fits, it claims capacity so the follow-up
+can inherit it; otherwise the commands run right away without a claim and the follow-up
+queues normally. A gate that `%auto` resolves at creation time runs its commands inside
+the creating agent's existing claim instead of taking a second one. The host-owned
+monitor that launches an approved epic records an explicit zero weight and consumes no
+capacity; the phase agents it launches claim their own. A zero weight cannot be
+authored. A `%proc` unit with queue fields is checked against this budget but never
+holds a claim (see [Experimental typed launch units](#experimental-typed-launch-units)).
+Workflow Python/bash steps and axe Patch runners are outside this budget.
 
 Roll out this change by replacing long-lived sase's TUI/AXE and runner processes, or by
 letting old work drain before launching weighted workloads. Records written before
@@ -2762,7 +2763,7 @@ starting until an earlier step finishes.
 
 Holds live in one store (`~/.sase/agent_holds.json`), keyed by the _armer_: the agent or
 shell that armed the hold. Each armer has at most one hold. A hold ends when it is
-released, when its armer ends (an agent armer's family settles or a shell armer's
+released, when its armer ends (an agent armer's session settles or a shell armer's
 process exits), or when its TTL expires. A broken hold store fails open: admission
 ignores it rather than stranding a waiter. The
 [`sase agent hold`](cli.md#sase-agent-hold) commands arm, list, show, and release holds,
@@ -2787,7 +2788,7 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | Name (`planner`)             | An exact agent name or `%proc` shell name                                                                                     |
 | Tribe (`@nightly`, `tribe=`) | Agents in that tribe                                                                                                          |
-| Hood (`hood=sase-s7`)        | Agents in that [hood](agent_families.md), written without a `--role` suffix                                                   |
+| Hood (`hood=sase-s7`)        | Agents in that [hood](agent_sessions.md), written without a `--role` suffix                                                   |
 | `pending`                    | The agents that are WAITING or QUEUED in scope when the hold is armed; later launches and undispatched procs are not captured |
 | `future`                     | Agents and undispatched procs submitted after the hold is armed                                                               |
 
@@ -2878,7 +2879,7 @@ sase's TUI docs for the full review flow.
 
 SASE's planning workflow is driven by the `/sase_plan` skill together with the
 `sase plan` approval pipeline. An agent drafts a plan and submits it with `/sase_plan`
-(or `sase plan propose`). In an agent-runner context, submission hands the family to a
+(or `sase plan propose`). In an agent-runner context, submission hands the session to a
 processless plan gate shell and ends the planner turn; that shell, not the provider
 process, owns the pending review. In the TUI it shows the authored `TALE` or `EPIC`
 status (or legacy `PLAN`) and settles when the selected branch's commands complete.
@@ -3275,7 +3276,7 @@ launched child; siblings in the current segment all inherit the same previous-se
 dependency. Explicit waits such as `%wait:agent`, bead/time waits, `%queue`, and waits
 inside fenced code or disabled xprompt regions keep their normal meanings. If the
 predecessor name is not known yet, SASE records the predecessor artifact identity and
-waits on that agent or family completion instead of resolving bare `%wait` against the
+waits on that agent or session completion instead of resolving bare `%wait` against the
 global latest agent.
 
 ### Frontmatter Panel (sase's TUI)

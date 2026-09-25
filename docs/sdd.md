@@ -155,7 +155,7 @@ launching an epic's phases is itself a long-running command that must outlive th
 approving process.
 
 The preferred form is a [monitor](monitors.md) shell under the planner's own agent
-family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
+session, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
 `sase bead work` runs and uses its configured `EPIC CREATED` label after any terminal
 outcome—even failure, timeout, stop, or loss. Treat the monitor's state, bucket, exit
 code, and output as the result. Only a successful launch attempts to back-fill the epic
@@ -163,7 +163,7 @@ ID; when that metadata lands, the planner row itself moves to `EPIC CREATED`, an
 otherwise it remains `EPIC APPROVED`. No follow-up agent is recorded — `sase bead work`
 launches the phase agents itself — and the monitor takes a zero workspace claim, since
 the launch runs in the project's primary workspace rather than the planner's. If the
-planner's agent family cannot be resolved (a very old artifacts layout, or a wiped
+planner's agent session cannot be resolved (a very old artifacts layout, or a wiped
 agent), the launch falls back to an unattributed command proc with the same command and
 label rather than silently dropping the approval. Other monitor-start errors fail the
 approval rather than selecting that fallback.
@@ -342,7 +342,7 @@ earlier refresh already wrote.
 
 Both sources are normalized to the **sase agent**, so each sase agent is listed exactly
 once: a plan touched by `pc--code` and `pc--plan` shows a single `pc` row linked to the
-family page, never the member and its family as two agents. Solo agents are listed
+session page, never the member and its session as two agents. Solo agents are listed
 exactly as before. The row's link is taken from the concrete shell when any source knew
 one, otherwise from the destination recorded in the commit footer, and it degrades to an
 unlinked label rather than guessing a URL. Bead-page agent rows follow the same rule,

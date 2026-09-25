@@ -260,7 +260,7 @@ waiters blocked by terminal dependencies so permanent stalls are diagnosable wit
 spamming ordinary live waiters.
 
 Before writing `ready.json`, `wait_checks` confirms an agent-shaped release against a
-fresh on-disk membership view taken after the resolving marker read. If a family gained
+fresh on-disk membership view taken after the resolving marker read. If a session gained
 a member in between — for example, a coder just launched its monitor or gate — the
 waiter remains parked for a later tick. The waiting runner applies the same confirmation
 for its startup and periodic fallback path. Such ordinary deferrals are counted in the
@@ -621,9 +621,9 @@ and cannot cancel a healthy pending gate, because the true roster is then unknow
 the hour.
 
 The `gate_shell_reclaim` job is the backstop for
-[gate shells](notifications.md#gate-shells-and-continuation). It scans gate-shell family
-members across projects, settles shells whose gate bundle is already terminal, cancels
-gates that reached their own deadline, and force-settles a shell as `lost` once
+[gate shells](notifications.md#gate-shells-and-continuation). It scans gate-shell
+session members across projects, settles shells whose gate bundle is already terminal,
+cancels gates that reached their own deadline, and force-settles a shell as `lost` once
 `gate.shell.reclaim_grace_seconds` (one hour by default) has passed after that deadline.
 It then diagnoses settled gates whose requested successor never recorded, reading the
 agent artifact index once per pass and resuming from a per-project cursor. Work left

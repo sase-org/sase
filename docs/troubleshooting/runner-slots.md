@@ -23,8 +23,8 @@ priority. Non-fitting waiters are skipped instead of blocking later waiters that
 run. sase's TUI shows currently eligible waiters first, then parked waiters by current
 blocker severity, with priority/FIFO preserved inside each group. Priority defaults to
 `10` and does not age, so sustained higher-priority arrivals can starve default- or
-lower-priority waiters. Parallel family members wait for their own capacity even when
-sase's TUI renders them as nested rows. Serial members ride a family claim that is
+lower-priority waiters. Parallel clan members wait for their own capacity even when
+sase's TUI renders them as nested rows. Serial members ride a session claim that is
 already live; after a processless gate releases capacity, the successor must transfer a
 still-live claim or reacquire capacity normally. Workflow Python/bash steps and axe
 Patch runners hold none of this capacity.
@@ -120,11 +120,12 @@ compatibility does not make a mixed old/new scheduler fleet safe: an old runner 
 cannot enforce weighted claims for new work.
 
 A modern unanswered `QUESTION` is a gate shell and consumes no runner capacity. On
-answer, its next family member transfers or reacquires the family capacity claim through
-the locked queue. Existing compatibility runs may instead carry `pending_question.json`;
-that marker remains authoritative while the user decides and while the same process is
-queued to resume. Killing a legacy run during either pause cleans up its question and
-queue markers, and its authored priority is retained while reacquiring.
+answer, its next session member transfers or reacquires the session capacity claim
+through the locked queue. Existing compatibility runs may instead carry
+`pending_question.json`; that marker remains authoritative while the user decides and
+while the same process is queued to resume. Killing a legacy run during either pause
+cleans up its question and queue markers, and its authored priority is retained while
+reacquiring.
 
 Other gate shells follow the same rule while a human decides. Once the decision arrives,
 the gate shell makes a single capacity attempt before running the chosen option's

@@ -306,15 +306,15 @@ fields, and `definition_path` when SASE can resolve a real file.
 returns active and recent ordinary agent rows, de-duplicated by name, with `status` and
 `project`; monitor rows use `kind: monitor`. When the same artifact snapshot contains
 usable group metadata, the response adds the latest identifiable generation of each
-family and clan plus `@tribe` references derived from stored tribe assignments and clan
+session and clan plus `@tribe` references derived from stored tribe assignments and clan
 declarations. Every row has `name`, `kind`, `member_count`, and display-ready `detail`;
 clan rows also have aggregate `status`.
 
-Family rows carry a `detail` of `family · N members` by default. For the 20 families
+Session rows carry a `detail` of `session · N members` by default. For the 20 sessions
 with the most recent activity — and only those, so the short-lived helper subprocess
 stays fast enough for interactive completion — the helper additionally tries to resolve
-an associated plan or bead. It checks concrete family members newest-first and uses the
-family root only as a legacy fallback, then enriches the row in three descending rungs:
+an associated plan or bead. It checks concrete session members newest-first and uses the
+session root only as a legacy fallback, then enriches the row in three descending rungs:
 
 1. A plan or bead resolved with a title: `detail` becomes
    `<kind> · <structure> · <title>`, such as
@@ -323,17 +323,17 @@ family root only as a legacy fallback, then enriches the row in three descending
    fragment, present only when a plan exposes its phase list; bead-derived rows never
    have it.
 2. A kind resolved but no title (an untitled, missing, or unreadable plan file): a
-   cleaned snippet of the family's launch prompt fills the title slot in that same
+   cleaned snippet of the session's launch prompt fills the title slot in that same
    shape.
 3. Nothing resolved but a usable prompt snippet exists: `detail` becomes
-   `family · N members · <snippet>`.
+   `session · N members · <snippet>`.
 
 Rungs 1 and 2 also attach Markdown `documentation` — the plan's goal, its epic phase
-list, or a phase/task bead's parent context, closed by a `family · N members · <status>`
-footer. Rung 3 and unenriched families have no `documentation`. Every family keeps its
-plain `family · N members` detail if resolution fails outright, and group enrichment is
-additive throughout, so missing plans or malformed legacy metadata never hide ordinary
-agent rows.
+list, or a phase/task bead's parent context, closed by a
+`session · N members · <status>` footer. Rung 3 and unenriched sessions have no
+`documentation`. Every session keeps its plain `session · N members` detail if
+resolution fails outright, and group enrichment is additive throughout, so missing plans
+or malformed legacy metadata never hide ordinary agent rows.
 
 `finalizer-catalog` requires `{"schema_version":1}` and optionally accepts `project`.
 Unknown request fields are ignored. It returns the effective configured finalizer

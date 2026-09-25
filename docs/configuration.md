@@ -820,7 +820,7 @@ ace:
           cycle_stitches: "c" # `cycle_commits` is still accepted as a legacy alias
           cycle_hooks: "h"
           agents:
-            set_level_1: "1" # family 1-2; clan/agent 1-3; tribe 1-4
+            set_level_1: "1" # session 1-2; clan/agent 1-3; tribe 1-4
             set_level_2: "2"
             set_level_3: "3"
             set_level_4: "4"
@@ -1405,7 +1405,7 @@ mode has:
 The built-in `fold_mode` direct actions are `set_level_1` through `set_level_3` for PR
 details and the nested `agents.set_level_1` through `agents.set_level_4` for Agents
 metadata. Their defaults produce `z1`-`z3` on PRs; Agents accepts levels 1-2 for a
-family, 1-3 for a clan or single-agent scope, and 1-4 for a selected whole tribe panel.
+session, 1-3 for a clan or single-agent scope, and 1-4 for a selected whole tribe panel.
 The configured prefix and subkeys are used by dispatch, the command palette, footers,
 and help.
 
@@ -3932,12 +3932,12 @@ integer and the packaged default remains `10`, but the value is interpreted as c
 units. A normal launch claims `1.0`; `%queue(weight=...)` / `%q(w=...)` can request a
 positive finite fractional or larger weight.
 
-A standalone agent owns one claim of its effective weight. A live serial family shares
+A standalone agent owns one claim of its effective weight. A live serial session shares
 one claim across its agent, monitor, and serial successor shells; serial continuations
-inherit the family weight when omitted, and must reacquire capacity after the family has
-released its claim. Independently launched clan members and live parallel family members
-each hold their own claim. A processless gate shell deliberately releases runner
-capacity while it owns a user decision, even when it retains the family's workspace
+inherit the session weight when omitted, and must reacquire capacity after the session
+has released its claim. Independently launched clan members and live parallel clan
+members each hold their own claim. A processless gate shell deliberately releases runner
+capacity while it owns a user decision, even when it retains the session's workspace
 claim. Workflow Python/bash steps and axe Patch runners hold none of this capacity; axe
 runners continue to use their separate `axe.max_*_runners` limits.
 
@@ -3972,26 +3972,26 @@ do not enforce weighted claims.
 
 ### max_agent_pipe_chain
 
-The bound on how many times one agent family may hand its turn forward with `sase pipe`.
-The originally launched agent is depth `0`; each successful pipe records `pipe_depth` on
-the successor and increments it by one. A pipe is refused when the next link would
-exceed this value, and the refusal names the limit, this configuration key, and the
-chain length already reached. The calling agent stays alive on a refusal, so it can
-finish the work itself instead of handing it on.
+The bound on how many times one agent session may hand its turn forward with
+`sase pipe`. The originally launched agent is depth `0`; each successful pipe records
+`pipe_depth` on the successor and increments it by one. A pipe is refused when the next
+link would exceed this value, and the refusal names the limit, this configuration key,
+and the chain length already reached. The calling agent stays alive on a refusal, so it
+can finish the work itself instead of handing it on.
 
 ```yaml
 max_agent_pipe_chain: 8
 ```
 
-| Field                  | Type | Default | Minimum | Description                                         |
-| ---------------------- | ---- | ------- | ------- | --------------------------------------------------- |
-| `max_agent_pipe_chain` | int  | `8`     | `1`     | Maximum `sase pipe` hops in one agent family chain. |
+| Field                  | Type | Default | Minimum | Description                                          |
+| ---------------------- | ---- | ------- | ------- | ---------------------------------------------------- |
+| `max_agent_pipe_chain` | int  | `8`     | `1`     | Maximum `sase pipe` hops in one agent session chain. |
 
 This is a configuration field rather than a feature flag: the number is one users choose
 permanently to stop a self-piping chain from running away. A missing or malformed value
 falls back to the packaged default rather than allowing an unbounded chain. Only
 `sase pipe` records `pipe_depth`, so a plan-approval, question, or monitor follow-up
-member created in between starts the count over at `0`. The bound is per family chain,
+member created in between starts the count over at `0`. The bound is per session chain,
 not per host, so it is unrelated to the concurrency cap in
 [max_running_agents](#max_running_agents).
 
@@ -6729,7 +6729,7 @@ intentionally a fixed-operation bridge rather than a generic shell or filesystem
 
 | Form                                          | Input                | Description                                                                                                      |
 | --------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `sase editor helper-bridge agent-catalog`     | JSON object on stdin | Return active/recent agents and derived family, clan, and tribe prompt targets.                                  |
+| `sase editor helper-bridge agent-catalog`     | JSON object on stdin | Return active/recent agents and derived session, clan, and tribe prompt targets.                                 |
 | `sase editor helper-bridge finalizer-catalog` | JSON object on stdin | Return configured `%final` completion rows from effective finalizer config without loading providers.            |
 | `sase editor helper-bridge xprompt-catalog`   | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
 | `sase editor helper-bridge snippet-catalog`   | JSON object on stdin | Return the composed sase's TUI snippet registry used by `sase lsp` and editor completion clients.                |
@@ -6743,12 +6743,12 @@ builder never loads provider code.
 The `agent-catalog` request is just `{"schema_version":1}`; it has no project filter and
 reads the cross-project agent snapshot. Ordinary rows are de-duplicated by name and
 include `status` and `project`, with `kind: agent` for agents and `kind: monitor` for
-monitors. When group metadata is available, additive family, clan, and `@tribe` rows
+monitors. When group metadata is available, additive session, clan, and `@tribe` rows
 include `kind`, `member_count`, and display-ready `detail`; clan rows also include
-aggregate `status`. For the 20 most recently active families, SASE tries to enrich
+aggregate `status`. For the 20 most recently active sessions, SASE tries to enrich
 `detail` with the associated plan or bead's kind, structure, and title, and to add
 Markdown `documentation` carrying the goal, phase list, or parent/task context plus a
-family status footer. Unresolved or older families keep the plain member-count detail,
+session status footer. Unresolved or older sessions keep the plain member-count detail,
 and enrichment failure never removes ordinary rows; see
 [Editor Integration: Helper Bridge](editor.md#helper-bridge) for the exact fallback
 ladder. The structured xprompt catalog includes insertion metadata (`insertion`,
@@ -6781,7 +6781,7 @@ With no subcommand, `sase file-history` defaults to `sase file-history list`.
 ### `sase gate`
 
 Create, inspect, answer, and manage durable command-backed gates and their optional
-gate-shell family members.
+gate-shell session members.
 
 | Form               | Principal flags                                                                                                                                                                                                                          | Description                                                                                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -6802,10 +6802,10 @@ descriptor with the request identity, owned paths, continuation/auto state, and 
 error report path and exact safe recovery commands. A CLI timeout can shorten but not
 extend the request timeout.
 
-`--shell` creates a processless family member that owns the pending decision and ends an
-agent-side creator's turn. `--next` is the default answered-branch follow-up prompt;
+`--shell` creates a processless session member that owns the pending decision and ends
+an agent-side creator's turn. `--next` is the default answered-branch follow-up prompt;
 branch-specific policy may override or suppress it, and non-answered terminal branches
-need their own explicit follow-up. `--next-fork family|shell|none` chooses inherited
+need their own explicit follow-up. `--next-fork session|shell|none` chooses inherited
 context, `--next-model` pins the successor model, and repeatable
 `--next-output none|results|tail|file` chooses what gate-command evidence reaches it.
 Use `sase gate wait` from non-agent automation; an agent that created a shell-backed
@@ -7093,7 +7093,7 @@ shared agent history. Subcommands:
 | `search`    | query words, `-j/--json`, `-l/--limit`, `-p/--project`                                                                                                                                                                   | Search the historical catalog with the Artifacts → Agent Boolean dialect. Bare search hides hidden and workflow-child rows and caps at 40; `-l 0` or `limit:all` is unlimited. Explicit `-l` wins over a query `limit:` token.                                                                                                                                                                                                                                                                                                                                                                    |
 | `show`      | `<name>`                                                                                                                                                                                                                 | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `kill`      | `-n/--name`                                                                                                                                                                                                              | SIGTERM a running agent by name.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `wait`      | names or `-a/--all`, `-i/--interval`, `-j/--json`, `-p/--project`, `-q/--quiet`, `-t/--timeout`, `-w/--wait-blocked`                                                                                                     | Wait for agents, families, clans, or workflows to settle; exit status distinguishes failure, human blocking, timeout, and signals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `wait`      | names or `-a/--all`, `-i/--interval`, `-j/--json`, `-p/--project`, `-q/--quiet`, `-t/--timeout`, `-w/--wait-blocked`                                                                                                     | Wait for agents, sessions, clans, or workflows to settle; exit status distinguishes failure, human blocking, timeout, and signals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `hold`      | `create` / `list` / `release` / `run` / `show`; selectors `-n/--name`, `-t/--tribe`, `-H/--hood`, `-f/--future`, `-p/--pending`; `-s/--scope`, `-T/--ttl`; `list`/`show -j`; `release`/`show -k/--key`                   | Arm and manage durable admission holds that keep matching WAITING/QUEUED agents, later launches, and undispatched procs from starting. Bare `hold` defaults to `list`. See [Agent holds](cli.md#sase-agent-hold).                                                                                                                                                                                                                                                                                                                                                                                 |
 | `restart`   | `<name>`, `-j/--json`, `-m/--model`, `-n/--dry-run`, `-y/--yes`                                                                                                                                                          | Stop one agent and relaunch its stored prompt under the same name. Planning precedes mutation; dry-run previews and JSON skips confirmation.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `drain`     | `<provider>`, `-j/--json`, `-l/--limit`, `-m/--model`, `-n/--dry-run`, `-y/--yes`                                                                                                                                        | Replan and relaunch agents stranded by a hard-disabled provider. Enabled and soft-disabled providers are refused.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |

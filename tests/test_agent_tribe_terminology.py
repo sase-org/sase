@@ -36,7 +36,7 @@ _TAG_IDENTIFIER_ALLOWLIST = {
 
 _CURRENT_DOCUMENTATION = (
     Path("docs/ace.md"),
-    Path("docs/agent_families.md"),
+    Path("docs/agent_sessions.md"),
     Path("docs/xprompt.md"),
     Path("sase/memory/cli_rules.md"),
 )

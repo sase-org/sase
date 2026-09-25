@@ -278,14 +278,14 @@ provider/model did it use? The row already knows.
 _The Agents tab groups runs, shows status/provider/model cues, and keeps the selected
 agent's artifacts nearby._
 
-![Static sase's TUI Agents tab frame showing families, model metadata, and tool call details](../../images/blog/agents_observability_still.png)
+![Static sase's TUI Agents tab frame showing sessions, model metadata, and tool call details](../../images/blog/agents_observability_still.png)
 
-_A still frame makes the family grouping, selected model, and detail pane easier to
+_A still frame makes the session grouping, selected model, and detail pane easier to
 inspect than the loop._
 
-Three grouping ideas make dense views navigable. Sequential plan-chain families use `--`
+Three grouping ideas make dense views navigable. Sequential plan-chain sessions use `--`
 suffixes to keep one unit of work together: `nova--plan`, `nova--code`, and
-`nova--review` render as related workflow rows under a pure family container. Rootless
+`nova--review` render as related workflow rows under a pure session container. Rootless
 `%clan:<name>` containers group hood-scoped parallel agents without changing launch
 order or execution. Agent hoods use dotted names such as `foo.bar` and `foo.baz`; `~`
 jumps among visible ancestors, descendants, and same-namespace neighbors. Tribes such as

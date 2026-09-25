@@ -1602,7 +1602,7 @@ custom alias names — `llm_provider.default_model`, `epic_lander_model`, and
 `big_epic_lander_model` are config fields, not keys accepted here. Values may be
 concrete model targets or `@other_alias` references. The map is stored in agent metadata
 and inherited by SASE-created plan/coder follow-ups. An explicit
-`%id(suffix, family=parent)` attachment inherits it only when the attached prompt
+`%id(suffix, session=parent)` attachment inherits it only when the attached prompt
 supplies no alias keywords. Ordinary nested launches do not inherit it. This is a
 propagation rule, not a change to `sase.yml` or `~/.sase/llm_override.json`.
 
@@ -1955,7 +1955,7 @@ member, its current availability, and the current selection, and each of the thr
 scalar launch-model-setting rows shows its configured/shipped target, resolved
 provider/model, and provenance. The title shows the launch-effective default effort and
 current effective `max_running_agents` capacity budget — occupied capacity units against
-the host ceiling, where a serial family still carries one live claim while any of its
+the host ceiling, where a serial session still carries one live claim while any of its
 shells is live, including a monitor and its `--next` agent. Active temporary values
 include their remaining time and configured provenance. Non-pool aliases that explicitly
 carry an effort explain its provenance on the second description line.
@@ -2589,7 +2589,7 @@ durable proc output has the complete JSON envelope. Inspect a bad drain with
 Restart recovery bundles live under `~/.sase/restarts/<timestamp>-<agent>/`. For a
 failed forced-reuse restart, open the saved `rewritten.md` prompt from that bundle in
 sase's TUI and relaunch through the reviewed launch flow so name reuse, bead context,
-family or clan membership, and scoped authorization are reconstructed. Do not recover
+session or clan membership, and scoped authorization are reconstructed. Do not recover
 forced reuse by running a bare `sase run "$(cat rewritten.md)"`; `execution.md` is
 retained for audit of the already-prepared launch text, not as a privileged replay path.
 

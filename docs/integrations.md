@@ -111,7 +111,7 @@ By default the helper returns active agents. `include_recent=True` includes rece
 completed `DONE` and `FAILED` rows using the same cap as `sase agent list -a`; `project`
 filters by exact project key after projection. Each `AgentListEntry` includes the basic
 CLI fields plus status bucket/glyph, provider and VCS display labels, retry and wait
-metadata, family role, parent, tribe, bead and Patch names, direct-child counts, output
+metadata, session role, parent, tribe, bead and Patch names, direct-child counts, output
 variables, artifact and commit counts, and error text when available. Output-variable
 values retain their JSON scalar, list, and map shapes, so integrations should not coerce
 containers to strings before rendering or transport. The nested wait/retry/children
@@ -366,12 +366,12 @@ composed sase's TUI snippet registry from xprompt snippets plus user snippets co
 under `ace.snippets`, including the generated initial-capital aliases (`foo` → `Foo`) so
 the registry matches sase's TUI, editor completion, and the native LSP fallback. The
 `agent-catalog` operation returns cross-project active/recent agent rows, de-duplicated
-by name, and additive `family`, `clan`, and `tribe` rows derived from the same artifact
+by name, and additive `session`, `clan`, and `tribe` rows derived from the same artifact
 snapshot. Ordinary rows carry `kind: agent`, except monitors, which use `kind: monitor`.
 Group rows include member counts, while clan rows also include aggregate status. The 20
-most recently active family rows are enriched, when resolvable, with associated plan or
+most recently active session rows are enriched, when resolvable, with associated plan or
 bead kind, structure, and title in `detail`, plus Markdown `documentation` for goal,
-phase, or task context. Older and unresolved families retain their member-count detail,
+phase, or task context. Older and unresolved sessions retain their member-count detail,
 and enrichment failures degrade safely; see
 [Editor Integration: Helper Bridge](editor.md#helper-bridge) for the full fallback
 ladder. The `finalizer-catalog` operation returns configured `%final` completion rows

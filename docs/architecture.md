@@ -17,7 +17,7 @@ reviewed, retried, and handed off through stable project artifacts.
 | Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](axe.md)                                                      |
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [XPrompts](xprompt.md)                                             |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](workflow_spec.md)                                  |
-| Gates        | Durable, command-backed user decisions and processless family-shell handoffs.                                                                     | [Notifications](notifications.md#command-backed-interaction-gates) |
+| Gates        | Durable, command-backed user decisions and processless session-shell handoffs.                                                                    | [Notifications](notifications.md#command-backed-interaction-gates) |
 | Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](change_spec.md)                                          |
 | Memory       | Always-loaded and on-demand context, explicit flat-note xprompt inclusion, audited reads, and sase's TUI-backed note/strand changes.              | [Memory](memory.md)                                                |
 | SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](sdd.md)                                                      |
@@ -136,11 +136,11 @@ into their own transient user scopes, so restarting that service does not kill t
 
 ## Agent, Monitor, and Gate Shells
 
-A SASE agent is either one standalone agent shell or a sequential family of shells.
+A SASE agent is either one standalone agent shell or a sequential session of shells.
 Agent shells are provider/LLM turns. Monitor shells are supervised commands attached to
-that family. Gate shells are non-LLM members that own a durable user decision; while a
-gate is pending, it has no provider or command process. All three appear in one family
-timeline. Once their evidence is readable, later family forks can include the agent
+that session. Gate shells are non-LLM members that own a durable user decision; while a
+gate is pending, it has no provider or command process. All three appear in one session
+timeline. Once their evidence is readable, later session forks can include the agent
 transcript, monitor log, or gate decision record.
 
 Questions, plan review, agent-side workflow HITL, agent-initiated launch approval, and
@@ -150,7 +150,7 @@ according to policy, releases the runner slot, and ends the provider turn. A cli
 later selects a branch; SASE first writes a write-once decision receipt, so the choice
 is durable and a conflicting answer fails before any command runs. It then runs the
 branch's hashed commands (normally in a supervised detached proc), records their output,
-settles the shell, and optionally launches the next agent-shell family member. The
+settles the shell, and optionally launches the next agent-shell session member. The
 answered branch can inherit a default follow-up; timeout, stopped, failed, and lost
 outcomes require explicit follow-up policy. This makes a human pause durable without
 holding a provider process or runner slot open.

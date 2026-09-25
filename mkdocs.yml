@@ -34,7 +34,7 @@ nav:
       - Patches: change_spec.md
       - Beads: beads.md
       - Workflows: workflow_spec.md
-      - Agent Families: agent_families.md
+      - Agent Sessions: agent_sessions.md
       - Agent Hood Synchronization: agents_sidecar.md
       - Monitors: monitors.md
       - Named Tools: tool.md
