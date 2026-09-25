@@ -27,23 +27,30 @@ def _digest(label: str) -> str:
     return sha256(label.encode()).hexdigest()
 
 
-def _observation(repo_id: str) -> dict[str, object]:
+def _observation(
+    repo_id: str,
+    *,
+    name: str = "main",
+    kind: str = "main",
+    path: str = "src/app.py",
+    protected: bool = False,
+) -> dict[str, object]:
     return {
         "repo_id": repo_id,
-        "kind": "main",
-        "name": "main",
+        "kind": kind,
+        "name": name,
         "head": _digest("head"),
         "head_tree": _digest("head-tree"),
         "index_tree": _digest("index-tree"),
         "complete": True,
         "paths": [
             {
-                "path": "src/app.py",
+                "path": path,
                 "xy": "M",
                 "content_hash": _digest("app"),
                 "mode": "100644",
-                "kind": "file",
-                "protected": False,
+                "kind": "untracked" if protected else "file",
+                "protected": protected,
                 "foreign": False,
             }
         ],
@@ -109,6 +116,65 @@ def test_prepare_rejects_missing_repository_decisions(
             }
         )
     assert not (tmp_path / FINAL_SUBMISSION_FILENAME).exists()
+
+
+def test_prepare_ignores_protected_prompt_archive_sidecar_without_decision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    publication = publish_final_context()
+    repo_id = publication.context.obligations[0].obligation_id
+    monkeypatch.setattr(
+        "sase.finalizers.prepare.observe_completion_repositories",
+        lambda _root: [
+            _observation(repo_id),
+            _observation(
+                "repo-agents",
+                name="agents",
+                kind="sibling",
+                path="files/objects/sha256/40/40de62",
+                protected=True,
+            ),
+        ],
+    )
+
+    prepared = prepare_conditional_completion(
+        {
+            "success_message": "Required checks passed.",
+            "verification": {"command": ["just", "check-full"]},
+            "declaration": valid_manifest(publication),
+        }
+    )
+
+    assert [item["repo_id"] for item in prepared.intent["observations"]] == [
+        repo_id,
+        "repo-agents",
+    ]
+
+
+def test_prepare_rejects_protected_decided_repository_with_its_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.finalizers.declaration import FinalizerDeclarationError
+
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    publication = publish_final_context()
+    repo_id = publication.context.obligations[0].obligation_id
+    monkeypatch.setattr(
+        "sase.finalizers.prepare.observe_completion_repositories",
+        lambda _root: [_observation(repo_id, protected=True)],
+    )
+
+    with pytest.raises(FinalizerDeclarationError, match="main"):
+        prepare_conditional_completion(
+            {
+                "success_message": "Required checks passed.",
+                "verification": {"command": ["just", "check-full"]},
+                "declaration": valid_manifest(publication),
+            }
+        )
 
 
 def test_read_prepare_manifest_from_file(tmp_path: Path) -> None:

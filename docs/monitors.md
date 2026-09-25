@@ -257,6 +257,11 @@ context and records the relevant repositories' HEAD, index, dirty paths, and pro
 or foreign state. It does **not** accept a final submission, run a finalizer, commit, or
 end the turn.
 
+Prepare retains observations for every relevant repository as evidence, but eligibility
+and the worktree-staleness fingerprint use only repositories with a repository decision.
+Those are the repositories host completion can commit; unrelated sidecars may have
+pre-existing dirt or receive concurrent commits without making a safe completion stale.
+
 ```json
 {
   "success_message": "Required checks passed in {duration}.",
