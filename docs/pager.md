@@ -226,7 +226,7 @@ In the Agents tab, `V` opens the selected agent's metadata and conversation toge
 After the metadata, **AGENT XPROMPT** shows the original input, **AGENT PROMPT** shows
 the expanded prompt, and **AGENT REPLY** shows the available conversation. Each is a
 separate section with line numbers, Markdown syntax colors, searchable text, and
-followable links. Use `Ctrl+N` / `Ctrl+P` to move between sections. Family and clan
+followable links. Use `Ctrl+N` / `Ctrl+P` to move between sections. Session and clan
 conversations identify each member in the section title and preserve member order.
 
 Content uses the same loaders as the detail panel, including live replies, saved

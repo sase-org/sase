@@ -171,7 +171,7 @@ def test_plan_chain_session_is_unaffected() -> None:
     header, _ = build_header_text(plan_root, cheap=True)
     assert row_text.plain.endswith(" foo")
     assert "foo--plan" not in row_text.plain
-    assert header.plain.startswith("FAMILY\nName: foo\n")
+    assert header.plain.startswith("SESSION\nName: foo\n")
 
 
 def test_legacy_plan_zero_root_presents_session_name() -> None:

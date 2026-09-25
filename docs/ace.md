@@ -5025,7 +5025,7 @@ migration marker is present or `--json` for machine-readable output.
 
 ### Per-Step Naming for Multi-Agent Workflows
 
-Sequential plan-family workflows have a stable session container plus member suffixes.
+Sequential plan-session workflows have a stable session container plus member suffixes.
 When the first follow-up attaches, the original agent is renamed and the bare session
 name becomes a pure container. Generated follow-up rows and phase metadata use canonical
 double-dash suffixes. For example, if the initial agent was named `a`:
@@ -5040,10 +5040,11 @@ double-dash suffixes. For example, if the initial agent was named `a`:
 The base name (`a`) is reserved for the session as a whole, so `%wait:a` or `@a`
 references resolve through the session container. In sase's TUI, the aggregate session
 row displays that bare container name, while expanded concrete member rows keep their
-exact suffixed names (`a--0`, `a--plan`, `a--code`, and so on). New plan-family metadata
-stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). sase's TUI
-still canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and legacy
-single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading legacy artifacts.
+exact suffixed names (`a--0`, `a--plan`, `a--code`, and so on). New plan-session
+metadata stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...).
+sase's TUI still canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and
+legacy single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading legacy
+artifacts.
 
 ## Agent Statuses
 

@@ -196,7 +196,7 @@ def test_copy_agent_reference_warns_for_agent_session_container() -> None:
 
     schedule.assert_not_called()
     assert app.notifications == [
-        ("The selected family container has no agent reference", "warning")
+        ("The selected session container has no agent reference", "warning")
     ]
 
 

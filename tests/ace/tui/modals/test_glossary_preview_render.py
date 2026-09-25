@@ -150,14 +150,14 @@ def test_title_renders_wrapped_alias_match_on_one_line() -> None:
     text = _render_text(
         build_glossary_title(
             entry,
-            matched_text="agent\n  family",
+            matched_text="agent\n  group",
             project_name="sase",
             accent="#87D7FF",
         )
     )
 
-    assert 'matched "agent family"' in text
-    assert "agent\n  family" not in text
+    assert 'matched "agent group"' in text
+    assert "agent\n  group" not in text
 
 
 def test_numbered_chip_rows_share_renderer_for_parent_children_labels() -> None:

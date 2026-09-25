@@ -626,12 +626,12 @@ Useful counters:
 
 ```text
 agents.view_files          tab
-agents.view_agent_files    family_container, hints, commit_views,
+agents.view_agent_files    agent_session_container, hints, commit_views,
                            header_enrichment_pending, outcome
                            (mounted | refocused | empty | no_agent |
                             detached_container)
-agents.view_hints_refresh  family_container, hints, commit_views
-update_display_with_hints  family_container, hints, commit_views,
+agents.view_hints_refresh  agent_session_container, hints, commit_views
+update_display_with_hints  agent_session_container, hints, commit_views,
                            tool_call_reports, annotated_chars,
                            header_summary (warm | cold)
 ```
@@ -646,7 +646,7 @@ Slice one press out of a capture with:
 
 ```bash
 jq -c 'select(.span | startswith("agents.view_") or . == "widget.prompt_panel.update_display_with_hints")
-       | {span, duration_ms, hints, annotated_chars, header_summary, family_container, outcome}' \
+       | {span, duration_ms, hints, annotated_chars, header_summary, agent_session_container, outcome}' \
    ~/.sase/perf/tui_trace.jsonl | tail -20
 ```
 
@@ -1094,18 +1094,18 @@ disk-backed fixtures — the hint render reads `raw_xprompt.md`, `*_prompt.md`, 
 ```text
 large_reply_first_press           v on a plain agent with a 100 KB reply, cold header summary
 large_reply_repeat_press          v again on the same row after the bar is torn down
-family_container_press            v on a 5-member session container at the default metadata level;
+session_container_press           v on a 5-member session container at the default metadata level;
                                   conversation content is full under the shared hint cap
-family_container_unfolded_press   the same row at FoldLevel.FULLY_EXPANDED; foldable metadata grows,
+session_container_unfolded_press  the same row at FoldLevel.FULLY_EXPANDED; foldable metadata grows,
                                   while conversation visibility and the shared hint cap stay unchanged
 hint_mode_auto_refresh            an Agents-tab refresh tick while hint mode is active
 ```
 
 Spans are sliced per step rather than pooled, so the plain-agent and session-container
 costs can be compared independently. Each step also carries a `hint_counters` block
-(`annotated_chars`, `hints`, `commit_views`, `header_summary`, `family_container`) so a
-duration change can be attributed to the document actually getting smaller rather than
-to a quieter machine.
+(`annotated_chars`, `hints`, `commit_views`, `header_summary`,
+`agent_session_container`) so a duration change can be attributed to the document
+actually getting smaller rather than to a quieter machine.
 
 Run just these scenarios and print the table:
 

@@ -251,7 +251,7 @@ Launches that start with a wait directive keep workspace number `0` until the de
 is ready, then resolve a real workspace during normal runner setup. Before applying the
 current launch context, SASE removes inherited `SASE_*_PRE_ALLOCATED`,
 `SASE_*_WORKSPACE_NUM`, and `SASE_*_WORKSPACE_DIR` variables so nested or follow-up
-launches do not accidentally reuse a stale parent workspace. When a family follow-up's
+launches do not accidentally reuse a stale parent workspace. When a session follow-up's
 composed prompt still carries its `#git:` or `#gh:` ref, SASE then supplies fresh
 pre-allocation variables for the workspace that successor actually received. The VCS
 setup step adopts a numbered claim already owned by its runner instead of allocating a
