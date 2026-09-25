@@ -17,7 +17,6 @@ import pytest
 from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui import AceApp
 from sase.ace.tui.command_line.context import CommandLineContext
-from sase.ace.tui.command_line.history import CommandLineHistory
 from sase.ace.tui.command_line.input import CommandLineInput
 from sase.ace.tui.command_line.screen import CommandLineScreen
 from sase.ace.tui.command_line.session import command_line_session_for
@@ -57,9 +56,7 @@ async def _open_panel(
         "sase.ace.tui.command_line.screen.ensure_command_line_grammar_loaded",
         lambda app, *, on_ready=None: False,
     )
-    if history_file is None:
-        monkeypatch.setattr(CommandLineHistory, "refresh", lambda self: None)
-    else:
+    if history_file is not None:
         from sase.history import command_line as history_store
 
         monkeypatch.setattr(history_store, "_history_file_override", history_file)
@@ -658,29 +655,36 @@ async def test_command_line_doc_peek_png_snapshot(
             monkeypatch.setattr(screen, "_help_lookup", _extras_help_lookup)
             screen._resolve_context = {"path": ["bead"]}
             screen._last_completion_kind = "subcommand"
+            widget = screen.query_one(CommandLineInput)
+            widget.set_line("bead cl")
+            # Let the programmatic line update deliver its Changed message
+            # before installing the deliberately frozen completion state.
+            await wait_for_visual_idle(page)
+            items = [
+                {
+                    "insert_text": "close ",
+                    "display": "close",
+                    "description": "Close a bead",
+                    "badge": "cmd",
+                    "source": "spec",
+                    "match_runs": [[0, 2]],
+                    "selected": False,
+                }
+            ]
             screen._popup_state.reset(
-                [
-                    {
-                        "insert_text": "close ",
-                        "display": "close",
-                        "description": "Close a bead",
-                        "badge": "cmd",
-                        "source": "spec",
-                        "match_runs": [[0, 2]],
-                        "selected": False,
-                    }
-                ],
+                items,
                 typed_text="bead cl",
                 replace_start=5,
                 replace_end=7,
             )
+            screen._render_popup(
+                {
+                    "items": items,
+                    "kind": "subcommand",
+                    "total": 1,
+                }
+            )
             screen._popup_state.menu_active = True
-            from sase.ace.tui.command_line.popup import CommandLinePopup
-
-            popup = screen.query_one(CommandLinePopup)
-            popup.display = True
-            popup.show_items(screen._popup_state.items)
-            popup.highlight_index(0)
             screen._render_doc_peek()
             await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "Close a bead")

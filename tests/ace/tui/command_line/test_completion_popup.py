@@ -8,6 +8,8 @@ and a keystroke path that never awaits.
 
 from __future__ import annotations
 
+import ast
+import textwrap
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -641,13 +643,20 @@ def test_keystroke_path_never_awaits() -> None:
         "_complete_line",
         "on_text_area_changed",
         "command_line_handle_key",
+        "_render_popup",
+        "_render_signature",
     ):
         member = getattr(screen_module.CommandLineScreen, name)
         assert not inspect.iscoroutinefunction(member), name
         assert "await" not in inspect.getsource(member), name
 
     input_source = inspect.getsource(input_module.CommandLineInput._on_key)
-    assert "await handler(event)" not in input_source
+    awaits = [
+        ast.unparse(node.value)
+        for node in ast.walk(ast.parse(textwrap.dedent(input_source)))
+        if isinstance(node, ast.Await)
+    ]
+    assert awaits == ["super()._on_key(event)"]
 
 
 def test_command_line_perf_probe_writes_only_when_enabled(
