@@ -9,14 +9,17 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import (
     _FAMILY_NAME,
     _family_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    main_deck_scroll,
     pin_agents_visual_now,
+    pin_decks_paged,
+    resolved_main_section,
+    scroll_main_section_to_top,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -35,6 +38,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
     tmp_path: Path,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    pin_decks_paged(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
         agents=_family_agents(tmp_path, member_count=3, with_content=True),
@@ -57,13 +61,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
             title="ACE family panel fold level 1",
         )
 
-        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
-        for _ in range(20):
-            await page.press("ctrl+j")
-            if panel.active_section_identity == "agent-xprompt":
-                break
-        assert panel.active_section_identity == "agent-xprompt"
-        await wait_for_visual_idle(page)
+        await scroll_main_section_to_top(page, "agent-xprompt")
         ace_png_visual.assert_page_png(
             page,
             "agents_family_conversation_level_1_120x40",
@@ -73,18 +71,18 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         await page.press("z", "z")
         assert page.app.panel_fold_level is FoldLevel.FULLY_EXPANDED
         await wait_for_visual_idle(page)
-        assert panel.active_section_identity == "agent-xprompt"
+        assert resolved_main_section(page) == "agent-xprompt"
         ace_png_visual.assert_page_png(
             page,
             "agents_family_conversation_level_2_120x40",
             title="ACE family conversation at fold level 2",
         )
-        for _ in range(20):
-            if panel.active_section_identity is None:
-                break
-            await page.press("ctrl+j")
-        assert panel.active_section_identity is None
+        # Wrapping back to the top: the Main deck starts at its first section.
+        scroll = main_deck_scroll(page)
+        scroll.scroll_to(y=0, animate=False, immediate=True)
         await wait_for_visual_idle(page)
+        assert int(scroll.scroll_y) == 0
+        assert resolved_main_section(page) == "output-variables"
         ace_png_visual.assert_page_png(
             page,
             "agents_family_panel_level_2_120x40",
@@ -94,7 +92,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
         await page.press("z", "z")
         assert page.app.panel_fold_level is FoldLevel.EXPANDED
         await wait_for_visual_idle(page)
-        assert panel.active_section_identity is None
+        assert resolved_main_section(page) == "output-variables"
 
         await page.press("1")
         await page.wait_for(

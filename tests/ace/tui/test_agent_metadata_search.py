@@ -309,3 +309,21 @@ async def test_leader_metadata_search_does_not_modify_committed_query(
 
         assert page.app._agent_metadata_search.is_active
         assert page.app._agent_search_query == committed
+
+
+def test_search_help_subtitle_drops_optional_hints_to_fit() -> None:
+    from sase.ace.tui.actions.agents._deck_search_host import search_help_subtitle
+
+    full = "[n/N] next/prev  [/] reverse  [y] yank  [esc/q] close"
+    assert search_help_subtitle(False, "/", 0) == full
+    assert search_help_subtitle(False, "/", len(full)) == full
+    assert search_help_subtitle(False, "/", len(full) - 1) == (
+        "[n/N] next/prev  [esc/q] close"
+    )
+    assert search_help_subtitle(False, "/", 20) == "[esc/q] close"
+    assert search_help_subtitle(False, "/", 3) == "[esc/q] close"
+    assert search_help_subtitle(True, "/", 80) == (
+        "[enter] accept  [/] reverse  [esc/^c] cancel"
+    )
+    assert search_help_subtitle(True, "/", 35) == "[enter] accept  [esc/^c] cancel"
+    assert search_help_subtitle(True, "/", 16) == "[esc/^c] cancel"

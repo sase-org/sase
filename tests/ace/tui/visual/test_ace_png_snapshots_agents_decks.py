@@ -11,7 +11,11 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
-from sase.ace.tui.widgets.decks.model import DeckId
+from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
+from sase.ace.tui.widgets.decks.panel import DeckPanel
+from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
+    zoom_multi_file_agent,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -66,6 +70,51 @@ def _reply_agent(tmp_path: Path) -> Agent:
         artifacts_dir=str(artifacts_dir),
         response_path=str(response_path),
     )
+
+
+def _long_reply_agent(tmp_path: Path) -> Agent:
+    """Build a reply agent whose Main deck exceeds ``spread_max_screens``."""
+    agent = _reply_agent(tmp_path)
+    assert agent.response_path is not None
+    Path(agent.response_path).write_text(
+        "".join(
+            f"Long visual response line {n:03d} keeps the Main deck tall.\n"
+            for n in range(1, 161)
+        ),
+        encoding="utf-8",
+    )
+    return agent
+
+
+def _subtitle_plain(detail: AgentDetail, panel_index: int = 0) -> str:
+    return detail.deck_area.panel(panel_index)._border_subtitle.plain
+
+
+async def _apply_files_spread_probe(page: AcePage, panel: DeckPanel) -> None:
+    """Apply the Files spread probe result synchronously.
+
+    ``DeckPanelFilesMixin.on_worker_state_changed`` gates on a
+    ``Worker.StateChanged.is_done`` attribute that Textual does not define, so
+    the real background probe result is never applied and a Files deck never
+    leaves paged mode in the live app (task sase-18m). Feed the identical probe
+    result through the same entry point so this golden still covers the spread
+    Files layout; drop this helper once that bug is fixed.
+    """
+    from sase.ace.tui.widgets.file_panel._spread_probe import probe_files_spread
+
+    view = panel.file_view
+    slots = tuple(view._file_list)
+    rows, width = panel._spread_viewport(DeckId.FILES)
+    probe = probe_files_spread(
+        view._current_agent,
+        slots,
+        width=width,
+        stop_after_rows=panel._spread_settings_max_screens() * rows * 1.10,
+    )
+    panel._on_files_probe_result(
+        probe, view._current_agent, slots, view._anchor_agent_identity
+    )
+    await wait_for_visual_idle(page)
 
 
 async def _goto_agents(page: AcePage, count: int) -> None:
@@ -256,4 +305,107 @@ async def test_agents_decks_zoomed_png_snapshot(
             page,
             "agents_decks_zoomed_120x40",
             title="ACE agents decks zoomed focused panel",
+        )
+
+
+async def test_agents_decks_single_files_spread_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Two small markdown pages; the fixture's diff page is dropped so the Files
+    # deck stays well under the spread threshold in the narrow deck column.
+    agent = zoom_multi_file_agent(tmp_path)
+    agent.diff_path = None
+    patch_startup_loaders(monkeypatch, agents=[agent])
+    # A wider terminal keeps the deck column wide enough for the ``spread`` tag;
+    # at 120 columns the subtitle drops it to fit.
+    async with AcePage(query='"visual"', size=(160, 40), patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        detail.show_deck(0, DeckId.FILES)
+        panel = detail.deck_area.panel(0)
+        await wait_for_state(page, detail.is_file_visible, description="Files deck")
+        await _apply_files_spread_probe(page, panel)
+        await wait_for_state(
+            page,
+            lambda: panel.is_spread(DeckId.FILES),
+            description="Files deck settles as spread",
+        )
+        await wait_for_visual_idle(page)
+        assert panel.deck is DeckId.FILES
+        assert panel.is_spread(DeckId.FILES)
+        assert "spread" in _subtitle_plain(detail)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_decks_single_files_spread_160x40",
+            title="ACE agents decks single Files spread",
+        )
+
+
+async def test_agents_decks_single_main_paged_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # No ``pin_paged``: the long response must push Main past the default
+    # ``spread_max_screens`` so this golden proves the threshold path.
+    patch_startup_loaders(monkeypatch, agents=[_long_reply_agent(tmp_path)])
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        await wait_for_state(
+            page,
+            lambda: (
+                set(detail._main_deck_document.card_ids) == {"context", "reply"}
+                and panel.main_view.render_mode is RenderMode.PAGED
+            ),
+            description="Main deck exceeds the spread threshold and pages",
+        )
+        await wait_for_visual_idle(page)
+        assert panel.main_view.render_mode is RenderMode.PAGED
+        assert "spread" not in _subtitle_plain(detail)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_decks_single_main_paged_120x40",
+            title="ACE agents decks single Main paged after threshold",
+        )
+
+
+async def test_agents_decks_left_right_search_committed_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=[_reply_agent(tmp_path)])
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await _goto_agents(page, 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await page.press("vertical_line")
+        await wait_for_visual_idle(page)
+        # Choose the searched panel before starting the search.
+        await page.press("ctrl+f")
+        await wait_for_visual_idle(page)
+        focused = detail.deck_area.focused_panel()
+        await page.press("comma", "slash", "p", "r", "o", "m", "p", "t")
+        await page.wait_for(
+            lambda _state: (
+                page.app._agent_metadata_search.mode == "typing"
+                and len(page.app._agent_metadata_search.match_spans) > 1
+            ),
+        )
+        await page.press("enter", "n")
+        await page.wait_for(
+            lambda _state: (
+                page.app._agent_metadata_search.mode == "committed"
+                and "[2/" in focused.search_command().render().plain
+            ),
+        )
+        await wait_for_visual_idle(page)
+        assert detail.deck_area.focused_panel() is focused
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_decks_left_right_search_committed_120x40",
+            title="ACE agents decks left-right committed search overlay",
         )

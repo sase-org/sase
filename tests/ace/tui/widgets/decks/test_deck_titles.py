@@ -111,6 +111,46 @@ def test_subtitle_drops_switcher_before_truncating_status() -> None:
     assert len(rendered.plain) <= 20
 
 
+_COUNTED = {
+    DeckId.MAIN: DeckAvailability(True, 1),
+    DeckId.FILES: DeckAvailability(True, 3),
+    DeckId.TOOLS: DeckAvailability(True, 2),
+}
+_ACCENTS = {DeckId.MAIN: "red", DeckId.FILES: "green", DeckId.TOOLS: "#87D7FF"}
+
+
+def _subtitle(width: int, *, spread: bool = False, status: Text | None = None) -> str:
+    return deck_subtitle(
+        DeckId.MAIN,
+        _COUNTED,
+        status=status,
+        width=width,
+        accent_for=_ACCENTS,
+        spread=spread,
+    ).plain
+
+
+def test_subtitle_drops_spread_tag_then_counts_before_slicing() -> None:
+    assert _subtitle(60, spread=True) == "spread  main 1 \u00b7 files 3 \u00b7 tools 2"
+    # Spread tag goes first, keeping the counts.
+    assert _subtitle(30, spread=True) == "main 1 \u00b7 files 3 \u00b7 tools 2"
+    # Then the counts, so no label is ever cut mid-word.
+    assert _subtitle(25, spread=True) == "main \u00b7 files \u00b7 tools"
+    assert _subtitle(21) == "main \u00b7 files \u00b7 tools"
+
+
+def test_subtitle_slices_only_when_even_bare_labels_do_not_fit() -> None:
+    assert _subtitle(8) == "main \u00b7 f"
+
+
+def test_subtitle_status_keeps_bare_switcher_before_dropping_it() -> None:
+    status = Text("1-50 of 90")
+    assert _subtitle(60, status=status).startswith("1-50 of 90  main 1")
+    bare = _subtitle(34, status=status)
+    assert bare == "1-50 of 90  main \u00b7 files \u00b7 tools"
+    assert _subtitle(15, status=status) == "1-50 of 90"
+
+
 def test_file_line_status() -> None:
     assert file_line_status(1, 0, False, editor_key="E") is None
     capped = file_line_status(120, 693, True, editor_key="E")

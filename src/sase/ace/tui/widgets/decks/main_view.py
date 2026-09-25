@@ -247,7 +247,11 @@ class MainDeckView(SectionViewMixin, Static):
         from .separators import main_separator_for
 
         self.prepare_section_document((document.subject, "spread"))
-        render_key = (document.digest, "spread", document.partial)
+        try:
+            accent = self._spread_accent()
+        except Exception:
+            accent = ""
+        render_key = (document.digest, "spread", document.partial, accent)
         if render_key == self._last_render_key and self._document is not None:
             self._render_mode = RenderMode.SPREAD
             pending = self._spread_pending_card
@@ -274,10 +278,6 @@ class MainDeckView(SectionViewMixin, Static):
             self._render_mode = RenderMode.SPREAD
             self._last_render_key = render_key
             return None
-        try:
-            accent = self._spread_accent()
-        except Exception:
-            accent = ""
         parts: list[Any] = []
         for index, card in enumerate(document.cards):
             if index > 0:

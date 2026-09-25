@@ -173,6 +173,16 @@ def deck_title(
     return candidates[-1][1]
 
 
+def _build_switcher(parts: Sequence[tuple[str, str, str]], *, counts: bool) -> Text:
+    """Join the ``(label, counted label, style)`` deck switcher entries."""
+    switcher = Text()
+    for i, (label, counted, style) in enumerate(parts):
+        if i > 0:
+            switcher.append(" \u00b7 ", style=_MUTED)
+        switcher.append(counted if counts else label, style=style)
+    return switcher
+
+
 def deck_subtitle(
     active: DeckId,
     availability: Mapping[DeckId, object],
@@ -182,10 +192,15 @@ def deck_subtitle(
     accent_for: Mapping[DeckId, str],
     spread: bool = False,
 ) -> Text:
-    """Render the deck switcher with an optional leading status."""
+    """Render the deck switcher with an optional leading status.
+
+    Tiers, widest first: status, spread tag and counted switcher; then drop the
+    spread tag; then drop the switcher counts; then drop the switcher; and only
+    then truncate.
+    """
     from .availability import DeckAvailability
 
-    parts: list[tuple[str, str]] = []
+    parts: list[tuple[str, str, str]] = []
     for deck in DECK_CYCLE:
         label = deck.value
         avail = availability.get(deck)
@@ -203,54 +218,37 @@ def deck_subtitle(
         display = label
         if isinstance(avail, DeckAvailability) and avail.count is not None:
             display = f"{label} {count}"
-        parts.append((display, style))
-    switcher = Text()
-    for i, (display, style) in enumerate(parts):
-        if i > 0:
-            switcher.append(" \u00b7 ", style=_MUTED)
-        switcher.append(display, style=style)
+        parts.append((label, display, style))
+    switcher = _build_switcher(parts, counts=True)
+    bare_switcher = _build_switcher(parts, counts=False)
     spread_tag = Text("spread", style="dim") if spread else None
-    if status is None and spread_tag is None:
-        combined = switcher
-        if width > 0 and _plain_width(combined) > width:
-            return Text(combined.plain[: max(0, width)], style="")
-        return combined
-    if status is None:
-        assert spread_tag is not None
-        full = Text()
-        full.append_text(spread_tag)
-        full.append("  ", style="")
-        full.append_text(switcher)
-        if width <= 0 or _plain_width(full) <= width:
-            return full
-        # Drop the spread tag first when width is tight.
-        if _plain_width(switcher) <= width or width <= 0:
-            return switcher
-        return Text(switcher.plain[: max(0, width)], style="")
-    full = Text()
-    full.append_text(status)
-    if spread_tag is not None:
-        full.append("  ", style="")
-        full.append_text(spread_tag)
-    full.append("  ", style="")
-    full.append_text(switcher)
-    if width <= 0 or _plain_width(full) <= width:
-        return full
-    # Drop the spread tag first when width is tight.
-    if spread_tag is not None:
-        without_spread = Text()
-        without_spread.append_text(status)
-        without_spread.append("  ", style="")
-        without_spread.append_text(switcher)
-        if _plain_width(without_spread) <= width:
-            return without_spread
-    # Drop the switcher first, then truncate the status.
-    status_only = Text()
-    status_only.append_text(status)
-    if _plain_width(status_only) <= width:
-        return status_only
-    truncated = status_only.plain[: max(0, width)]
-    return Text(truncated, style="")
+
+    def _joined(*pieces: Text | None) -> Text:
+        joined = Text()
+        for piece in (p for p in pieces if p is not None):
+            if joined.plain:
+                joined.append("  ", style="")
+            joined.append_text(piece)
+        return joined
+
+    # Candidates in preference order; the first that fits the budget wins.
+    candidates = [
+        _joined(status, spread_tag, switcher),
+        _joined(status, switcher),
+        _joined(status, spread_tag, bare_switcher),
+        _joined(status, bare_switcher),
+    ]
+    if width <= 0:
+        return candidates[0]
+    for candidate in candidates:
+        if _plain_width(candidate) <= width:
+            return candidate
+    if status is not None:
+        # Drop the switcher entirely, then truncate the status.
+        if _plain_width(status) <= width:
+            return _joined(status)
+        return Text(status.plain[: max(0, width)], style="")
+    return Text(bare_switcher.plain[: max(0, width)], style="")
 
 
 def file_line_status(

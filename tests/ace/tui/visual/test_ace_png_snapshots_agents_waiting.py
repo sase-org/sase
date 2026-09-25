@@ -13,6 +13,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
     choose_agent_metadata_view,
+    page_svg_text,
     prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
@@ -292,7 +293,7 @@ async def test_agents_waiting_tribe_target_png_snapshot(
         )
 
 
-async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
+async def test_agents_waiting_unknown_detail_header_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -303,33 +304,49 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
             agents=waiting_unknown_agents(),
         )
 
-        async with AcePage(query='"wait-unknown"', patches=patches()) as page:
+        async with AcePage(
+            query='"wait-unknown"', size=(200, 40), patches=patches()
+        ) as page:
             await wait_for_startup(page)
             await page.press("shift+tab")
             await page.expect_state("tab", "agents")
             await page.expect_state("agent_count", 4)
             await wait_for_visual_idle(page)
             await choose_agent_metadata_view(page)
-            await page.press("Z")
-            await page.expect_no_modal()
             await wait_for_svg_contains(page, "ghost")
-            await _wait_for_wait_bead_statuses(page)
+            # The Wait section lives in the identity header above the deck; ``d``
+            # expands that header to its full detail.
+            await page.press("d")
+            # The header wraps the bead status line, so match its tokens.
+            bead_tokens = (
+                "[beads]",
+                "run-bead",
+                "◐",
+                "done-bead",
+                "●",
+                "open-bead",
+                "○",
+            )
+            await wait_for_state(
+                page,
+                lambda: all(
+                    token in page_svg_text(page, title="ACE wait header probe")
+                    for token in bead_tokens
+                ),
+                description="wait bead status badges in the expanded header",
+            )
+            await wait_for_visual_idle(page)
+            visible = page_svg_text(page, title="ACE wait header assertion")
 
-            assert_page_svg_contains(page, "Wait:")
-            assert_page_svg_contains(page, "coder")
-            assert_page_svg_contains(page, "builder")
-            assert_page_svg_contains(page, "reviewer")
-            assert_page_svg_contains(page, "ghost")
-            assert_page_svg_contains(page, "✓")
-            assert_page_svg_contains(page, "▶")
-            assert_page_svg_contains(page, "✗")
-            assert_page_svg_contains(page, "?")
+            assert "Wait:" in visible
+            for name in ("coder", "builder", "reviewer", "ghost"):
+                assert name in visible
+            for glyph in ("✓", "▶", "✗", "?"):
+                assert glyph in visible
             ace_png_visual.assert_page_png(
                 page,
-                "agents_waiting_unknown_zoom_modal_120x40",
-                title="ACE agents waiting unknown zoom modal",
-                max_diff_pixels=10_000,
-                max_material_diff_pixels=0,
+                "agents_waiting_unknown_header_200x40",
+                title="ACE agents waiting unknown expanded header",
             )
     finally:
         _clear_wait_bead_status_cache()

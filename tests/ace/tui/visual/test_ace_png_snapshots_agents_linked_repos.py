@@ -7,7 +7,6 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from textual.containers import VerticalScroll
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.testing import AcePage
@@ -21,8 +20,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
-    assert_page_svg_styled_text_contains,
+    main_deck_scroll,
     page_svg_text,
+    pin_decks_paged,
     reveal_agent_file_view,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -210,10 +210,28 @@ async def _wait_for_commit_delta_summary(page: AcePage, agent: Agent) -> None:
     await wait_for_visual_idle(page)
 
 
+async def _wait_for_deck_text(page: AcePage, targets: tuple[str, ...]) -> None:
+    """Wait until every target is on screen in the focused deck, then settle.
+
+    The deck content loads asynchronously and fits the viewport without
+    scrolling, so wait for it instead of pressing scroll keys blindly.
+    """
+    await wait_for_state(
+        page,
+        lambda: all(
+            target in page_svg_text(page, title="ACE commit deltas deck probe")
+            for target in targets
+        ),
+        description=f"deck text {targets!r}",
+    )
+    await wait_for_visual_idle(page)
+
+
 async def test_agents_linked_repo_diff_file_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    pin_decks_paged(monkeypatch)
     agent = _linked_repo_diff_agent()
     _seed_linked_repo_visual_delta(monkeypatch, agent)
     patch_startup_loaders(monkeypatch, agents=[agent])
@@ -230,10 +248,8 @@ async def test_agents_linked_repo_diff_file_panel_png_snapshot(
         assert_page_svg_contains(page, "sase-core")
         assert_page_svg_contains(page, "linked repo")
         assert_page_svg_contains(page, "/workspace/sase-core_14")
-        file_scroll = page.app.query_one("#agent-file-scroll", VerticalScroll)
-        prompt_scroll = page.app.query_one("#agent-prompt-scroll", VerticalScroll)
-        file_scroll.show_vertical_scrollbar = False
-        prompt_scroll.show_vertical_scrollbar = False
+        # Only the Files deck is shown, so its scroll is the only one to hide.
+        main_deck_scroll(page).show_vertical_scrollbar = False
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
@@ -246,6 +262,7 @@ async def test_agents_commit_messages_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    pin_decks_paged(monkeypatch)
     _patch_commit_diff_display_paths(monkeypatch)
     agent = _linked_repo_commits_agent()
     patch_startup_loaders(monkeypatch, agents=[agent])
@@ -257,33 +274,35 @@ async def test_agents_commit_messages_panel_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
         await _wait_for_commit_delta_summary(page, agent)
-        await reveal_agent_file_view(page)
-        # The sticky header panel shrinks the body viewport, so scroll
-        # until every asserted row is visible instead of a fixed count.
-        targets = (
-            "Deltas:",
-            "agent_deltas.py",
-            "file_panel.py",
-            "sase-core",
-            "files [1/3]",
-            "primary_001.diff",
+        # The commit deltas live in the Main deck and the diff pages in the
+        # Files deck; each is captured on its own so file names and diff rows
+        # are not wrapped by a half-width split panel.
+        await _wait_for_deck_text(
+            page, ("Deltas:", "agent_deltas.py", "file_panel.py", "sase-core")
         )
-        for _ in range(14):
-            visible = page_svg_text(page, title="ACE commit deltas scroll check")
-            if all(target in visible for target in targets):
-                break
-            await page.press("ctrl+f")
-            await wait_for_visual_idle(page)
-
         assert_page_svg_contains(page, "Deltas:")
         assert_page_svg_contains(page, "agent_deltas.py")
         assert_page_svg_contains(page, "file_panel.py")
         assert_page_svg_contains(page, "sase-core")
-        assert_page_svg_contains(page, "files [1/3]")
-        assert_page_svg_styled_text_contains(page, "visual_project 1234567890ab")
-        assert_page_svg_contains(page, "primary_001.diff")
+        # The narrow deck wraps the repo name and sha onto separate rows.
+        assert_page_svg_contains(page, "visual_project")
+        assert_page_svg_contains(page, "1234567890ab")
         ace_png_visual.assert_page_png(
             page,
             "agents_commit_messages_panel_120x40",
-            title="ACE agents commit deltas and file panel",
+            title="ACE agents commit deltas main deck",
+        )
+
+        await reveal_agent_file_view(page)
+        await _wait_for_deck_text(page, ("1/3", "primary_001"))
+        # The Files deck title carries the page count (the legacy panel's
+        # ``files [1/3]`` heading no longer exists).
+        assert_page_svg_contains(page, "FILES")
+        assert_page_svg_contains(page, "1/3")
+        # The narrow deck wraps the fixture path mid-name (``primary_001.d|iff``).
+        assert_page_svg_contains(page, "primary_001")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_commit_messages_files_panel_120x40",
+            title="ACE agents commit diff files deck",
         )

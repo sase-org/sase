@@ -8,7 +8,6 @@ import pytest
 from rich.color import Color
 from rich.console import Console
 from rich.text import Text
-from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models._agent_tree import agent_fold_key
@@ -18,6 +17,7 @@ from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    main_deck_scroll,
     pin_agents_visual_now,
     prompt_header_and_body_text,
 )
@@ -47,7 +47,7 @@ def _assert_title_identity_color(title: Text, *, text: str, color: str) -> None:
 
 async def _settle_tribe_visual(page: AcePage) -> None:
     await wait_for_visual_idle(page)
-    scroll = page.app.query_one("#agent-prompt-scroll", VerticalScroll)
+    scroll = main_deck_scroll(page)
     scroll.show_vertical_scrollbar = False
     scroll._scroll_to(y=0, animate=False, force=True)  # noqa: SLF001
     await wait_for_visual_idle(page)

@@ -12,6 +12,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
 from sase.ace.tui.widgets import AgentList
+from sase.ace.tui.widgets.agent_jump_panel import AgentJumpPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.monitor.models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME
 from sase.monitor.presentation import HOST_COMPLETED_OUTCOME
@@ -22,7 +23,10 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import 
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
+    pin_decks_paged,
     prompt_header_and_body_text,
+    scroll_main_section_to_top,
+    select_main_card,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -205,6 +209,7 @@ async def test_monitor_state_detail_png_snapshots(
     height: int,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 9, 12, 12, 6, 0))
+    pin_decks_paged(monkeypatch)
     agent = _monitor_state_agent(tmp_path, slug, **overrides)  # type: ignore[arg-type]
     patch_startup_loaders(monkeypatch, agents=[agent])
 
@@ -220,19 +225,16 @@ async def test_monitor_state_detail_png_snapshots(
         await wait_for_visual_idle(page)
 
         assert page.app._agents[page.app.current_idx].is_monitor
-        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
-        for _ in range(20):
-            if panel.active_section_identity == "monitor":
-                break
-            await page.press("ctrl+j")
-        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, f"visual-monitor-{slug}")
         if width >= 120:
-            assert panel.active_section_identity == "monitor"
+            await scroll_main_section_to_top(page, "monitor")
             assert_page_svg_contains(page, "MONITOR")
             assert_page_svg_contains(page, "Result:")
             assert_page_svg_contains(page, "Next:")
             assert_page_svg_contains(page, "Evidence:")
+        # At 90 columns the agent list squeezes the detail column to 0-19
+        # cells, so no Main section can be targeted or matched as text; that
+        # squeezed layout (task sase-18p) is what the 90-column snapshots capture.
         ace_png_visual.assert_page_png(
             page,
             f"agents_monitor_state_{slug}_{width}x{height}",
@@ -246,6 +248,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
     tmp_path: Path,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    pin_decks_paged(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
         agents=_family_agents(
@@ -301,6 +304,12 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
 
         await page.press(".")
         await wait_for_visual_idle(page)
+        # The expanded roster wraps past the jump panel's rows; scroll it to the
+        # end so the monitor lane's command is on screen.
+        page.app.query_one("#agent-jump-panel", AgentJumpPanel).scroll_end(
+            animate=False, immediate=True
+        )
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "FAMILY SHELLS")
         assert_page_svg_contains(page, "--plan")
         assert_page_svg_contains(page, "--mon")
@@ -325,6 +334,7 @@ async def test_family_conversation_monitor_phase_png_snapshot(
     tmp_path: Path,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    pin_decks_paged(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
         agents=_family_agents(
@@ -344,13 +354,7 @@ async def test_family_conversation_monitor_phase_png_snapshot(
 
         container = page.app._agents[page.app.current_idx]
         assert container.is_family_container_row is True
-        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
-        for _ in range(20):
-            await page.press("ctrl+j")
-            if panel.active_section_identity == "agent-reply":
-                break
-        assert panel.active_section_identity == "agent-reply"
-        await wait_for_visual_idle(page)
+        await select_main_card(page, "reply")
         assert_page_svg_contains(page, "MONITOR")
         assert_page_svg_contains(page, "AGENT REPLY")
         panel = page.app.query_one("#agent-list-panel", AgentList)

@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import pytest
-from textual.containers import VerticalScroll
-from textual.geometry import Region
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.llm_calls import build_slow_tool_sources
 from sase.ace.tui.llm_calls import cache as tools_cache_module
-from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel import _agent_display_header
@@ -27,7 +23,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     choose_agent_metadata_view,
+    main_deck_scroll,
     pin_agents_visual_now,
+    scroll_main_section_to_top,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -43,12 +41,6 @@ pytestmark = pytest.mark.visual
 
 _NOW = datetime(2026, 7, 28, 12, 10, tzinfo=UTC)
 _SLOW_TOOLS_VISUAL_IDLE_TIMEOUT = 60.0
-# The dot is its own SVG run when the indicator's dot and label are styled
-# differently (content present), and merges into the label run when they match.
-_LLM_CALLS_FOOTER_RE = re.compile(
-    r'<text[^>]*clip-path="url\(#terminal-\d+-line-35\)">'
-    r"[●○]?&#160;llm&#160;calls</text>"
-)
 _VISUAL_SLOW_TOOLS_DIR = Path("/tmp/sase-ace-visual-slow-tools")
 
 
@@ -185,96 +177,12 @@ def _slow_tool_agent(artifacts_dir: Path) -> Agent:
     )
 
 
-async def _focus_slow_tool_section(page: AcePage) -> AgentPromptPanel:
-    panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
-    for _ in range(20):
-        if panel.active_section_identity == "slow-tool-calls":
-            await wait_for_state(
-                page,
-                lambda: _slow_tool_section_ready(panel),
-                description="active slow-tool section",
-            )
-            await wait_for_visual_idle(
-                page,
-                timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT,
-            )
-            if _slow_tool_section_ready(panel):
-                if await _slow_tool_section_top_aligned(page, panel):
-                    return panel
-                continue
-        await page.press("ctrl+j")
-        # The first navigation request may enable the panel's layout reserve
-        # and finish through a call-after-refresh retry. Let that retry and its
-        # anchor paint converge before deciding whether another key is needed.
-        await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
-    raise AssertionError("Timed out focusing slow-tool calls section")
-
-
-async def _slow_tool_section_top_aligned(
-    page: AcePage,
-    panel: AgentPromptPanel,
-) -> bool:
-    """Pin the slow-tool section header to the metadata viewport top."""
-    for _attempt in range(3):
-        anchor = next(
-            (
-                candidate
-                for candidate in getattr(panel, "_section_anchors", ())
-                if candidate.identity == "slow-tool-calls"
-            ),
-            None,
-        )
-        if anchor is None:
-            await page.pause()
-            continue
-
-        scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
-        panel_region = panel.virtual_region
-        scroll.scroll_to_region(
-            Region(
-                panel_region.x,
-                panel_region.y + anchor.row,
-                max(1, panel_region.width),
-                1,
-            ),
-            top=True,
-            animate=False,
-            x_axis=False,
-            y_axis=True,
-            immediate=True,
-        )
-        await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
-        if _metadata_viewport_top_section(page, panel) == "slow-tool-calls":
-            return True
-    return False
-
-
-def _metadata_viewport_top_section(
-    page: AcePage,
-    panel: AgentPromptPanel,
-) -> str | None:
-    scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
-    document_row = max(0, int(scroll.scroll_y) - panel.virtual_region.y)
-    return panel.resolve_section_at_row(document_row, width=panel.size.width)
-
-
-async def _settle_slow_tool_snapshot(page: AcePage, panel: AgentPromptPanel) -> None:
-    scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
-    scroll.show_vertical_scrollbar = False
-    assert await _slow_tool_section_top_aligned(page, panel)
+async def _settle_slow_tool_snapshot(page: AcePage) -> None:
+    """Hide the Main scrollbar, then pin the slow-tool section to the deck top."""
+    main_deck_scroll(page).show_vertical_scrollbar = False
     await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
-
-
-def _slow_tool_section_ready(panel: AgentPromptPanel) -> bool:
-    return panel.active_section_identity == "slow-tool-calls"
-
-
-def _rendered_llm_calls_footer(page: AcePage) -> bool:
-    return bool(
-        _LLM_CALLS_FOOTER_RE.search(
-            page.export_svg(title="ACE slow tools footer probe")
-        )
-    )
+    await scroll_main_section_to_top(page, "slow-tool-calls")
+    await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
 
 
 async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
@@ -319,13 +227,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
         await wait_for_svg_contains(page, "SLOW TOOL CALLS")
         await choose_agent_metadata_view(page)
         await wait_for_svg_contains(page, "SLOW TOOL CALLS")
-        await _focus_slow_tool_section(page)
-        await wait_for_state(
-            page,
-            lambda: _slow_tool_section_ready(panel),
-            description="active slow-tool section",
-        )
-        await _settle_slow_tool_snapshot(page, panel)
+        await _settle_slow_tool_snapshot(page)
 
         assert page.app.panel_fold_level is FoldLevel.COLLAPSED
         ace_png_visual.assert_page_png(
@@ -337,12 +239,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
         await page.press("z", "z")
         assert page.app.panel_fold_level is FoldLevel.EXPANDED
         await wait_for_svg_contains(page, "validation complete")
-        await wait_for_state(
-            page,
-            lambda: _slow_tool_section_ready(panel),
-            description="expanded slow-tool section",
-        )
-        await _settle_slow_tool_snapshot(page, panel)
+        await _settle_slow_tool_snapshot(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_slow_tool_calls_level_2_120x40",

@@ -114,6 +114,7 @@ class DeckPanel(  # type: ignore[misc]
             pass
         self._watch_deck_scrolls()
         self._sync_files_views()
+        self._subscribe_theme_changes()
 
     def _watch_deck_scrolls(self) -> None:
         try:

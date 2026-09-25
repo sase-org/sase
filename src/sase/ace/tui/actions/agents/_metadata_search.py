@@ -15,6 +15,7 @@ from ...widgets.vim_search_controller import (
     VimSearchMode,
 )
 from ..clipboard import schedule_copy_delivery
+from ._deck_search_host import search_help_subtitle
 
 if TYPE_CHECKING:
     from textual.widget import Widget
@@ -339,14 +340,15 @@ class AgentMetadataSearchMixin:
         reverse_key = key_display_name(
             self._keymap_registry.app.search_reverse  # type: ignore[attr-defined]
         )
-        if mode == "typing":
-            command.border_subtitle = (
-                f"[enter] accept  [{reverse_key}] reverse  [esc/^c] cancel"
-            )
-        else:
-            command.border_subtitle = (
-                f"[n/N] next/prev  [{reverse_key}] reverse  [y] yank  [esc/q] close"
-            )
+        # ``size.width`` is the content width; Textual draws a border label into
+        # that many cells plus the 2 padding cells, minus 4 reserved for corners.
+        try:
+            budget = int(command.size.width) - 2
+        except Exception:
+            budget = 0
+        command.border_subtitle = search_help_subtitle(
+            mode == "typing", reverse_key, budget
+        )
         command.update(content)
         try:
             command.remove_class("hidden")

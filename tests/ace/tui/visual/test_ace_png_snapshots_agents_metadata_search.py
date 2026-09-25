@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from textual.widgets import Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     prompt_header_and_body_text,
@@ -63,7 +63,8 @@ async def test_agents_metadata_search_typing_and_committed_png_snapshots(
         )
 
         await page.press("enter", "n")
-        command = page.app.query_one("#agent-search-command", Static)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        command = detail.deck_area.focused_panel().search_command()
         await page.wait_for(
             lambda _state: (
                 page.app._agent_metadata_search.mode == "committed"

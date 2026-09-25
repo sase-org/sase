@@ -14,6 +14,7 @@ from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    pin_decks_paged,
     reveal_agent_file_view,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -85,6 +86,9 @@ async def test_agents_external_repo_diff_file_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The Files deck decides spread vs paged from an async probe that can land
+    # after the frame converges, so pin the deterministic paged mode.
+    pin_decks_paged(monkeypatch)
     agent = _external_repo_diff_agent()
     _seed_external_repo_visual_delta(monkeypatch, agent)
     patch_startup_loaders(monkeypatch, agents=[agent])
@@ -101,6 +105,7 @@ async def test_agents_external_repo_diff_file_panel_png_snapshot(
         assert_page_svg_contains(page, "gh:pallets/click")
         assert_page_svg_contains(page, "external repo")
         assert_page_svg_contains(page, "sase/repos/external")
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_external_repo_diff_file_panel_120x40",

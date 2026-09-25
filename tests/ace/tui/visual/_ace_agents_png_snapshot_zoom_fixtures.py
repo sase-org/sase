@@ -1,4 +1,4 @@
-"""Zoom-modal fixtures shared by Agents-tab PNG visual snapshot tests."""
+"""Agent, tribe and wait fixtures shared by Agents-tab PNG visual snapshot tests."""
 
 from __future__ import annotations
 

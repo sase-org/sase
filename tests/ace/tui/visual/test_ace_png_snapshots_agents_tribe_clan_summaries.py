@@ -17,6 +17,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
     prompt_header_and_body_text,
+    scroll_main_section_to_top,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -80,15 +81,9 @@ def _tribe_clan_summary_agents() -> list[Agent]:
     return sort_and_reorder(agents, [])
 
 
-async def _jump_to_clan_summaries(page: AcePage) -> AgentPromptPanel:
-    panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
-    for _ in range(10):
-        if panel.active_section_identity == "tribe:clan-summaries":
-            break
-        await page.press("ctrl+j")
-    assert panel.active_section_identity == "tribe:clan-summaries"
-    await wait_for_visual_idle(page)
-    return panel
+async def _jump_to_clan_summaries(page: AcePage) -> None:
+    """Scroll the Summary card's CLAN SUMMARIES section to the deck top."""
+    await scroll_main_section_to_top(page, "tribe:clan-summaries")
 
 
 async def test_tribe_panel_clan_summaries_png_snapshots(

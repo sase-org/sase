@@ -130,11 +130,9 @@ class FilePanelContentMixin:
         """Return the file panel's parent scroll container, when mounted."""
         try:
             parent = self.parent  # type: ignore[attr-defined]
-            if isinstance(parent, VerticalScroll):
-                return parent
-            return self.app.query_one("#agent-file-scroll", VerticalScroll)  # type: ignore[attr-defined]
         except Exception:
             return None
+        return parent if isinstance(parent, VerticalScroll) else None
 
     def _update_body(self, renderable: RenderableType, *, anchor: bool = True) -> None:
         """Route a body render through scroll-anchor capture and restore.

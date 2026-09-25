@@ -6,10 +6,15 @@ from datetime import datetime
 from xml.etree import ElementTree
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId
+from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+    PromptPanelSectionAnchor,
+    PromptPanelSectionRole,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_state,
     wait_for_visual_idle,
@@ -33,6 +38,96 @@ async def reveal_agent_file_larger_layout(page: AcePage) -> None:
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
     detail.show_deck(0, DeckId.FILES)
     await wait_for_state(page, detail.is_file_visible, description="Files deck visible")
+
+
+def pin_decks_paged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin every Main deck to paged rendering for a deterministic golden.
+
+    A multi-card document near the ``spread_max_screens`` threshold can settle
+    as spread or paged depending on layout timing, so snapshots of such
+    documents pin the mode instead of leaving it to the threshold.
+    """
+    from sase.ace.tui import agent_decks_settings
+
+    settings = agent_decks_settings.AgentDecksSettings(spread_max_screens=0)
+    monkeypatch.setattr(
+        agent_decks_settings, "parse_agent_decks_settings", lambda _cfg: settings
+    )
+
+
+def main_deck_scroll(page: AcePage, panel_index: int = 0) -> VerticalScroll:
+    """Return the scroll container of the deck shown in ``panel_index``."""
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    return detail.deck_area.panel(panel_index).active_scroll()
+
+
+async def select_main_card(
+    page: AcePage, card_id: str, panel_index: int = 0, *, max_presses: int = 8
+) -> None:
+    """Cycle the focused panel's Main cards with ``ctrl+j`` until ``card_id``."""
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    panel = detail.deck_area.panel(panel_index)
+    for _ in range(max_presses):
+        if panel.active_main_card() == card_id:
+            break
+        await page.press("ctrl+j")
+        await wait_for_visual_idle(page)
+    assert panel.active_main_card() == card_id
+    await wait_for_visual_idle(page)
+
+
+async def scroll_main_section_to_top(
+    page: AcePage, identity: str, panel_index: int = 0
+) -> None:
+    """Scroll a Main deck section title to the top row of its viewport.
+
+    The deck replacement for the deleted metadata section-stop actions. Paged
+    Main renders one card, so select that card first with ``ctrl+j``/``ctrl+k``;
+    spread Main renders every card, so its sections are always reachable.
+    """
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    panel = detail.deck_area.panel(panel_index)
+    view = panel.main_view
+    scroll = panel.active_scroll()
+    view.enable_section_layout_reserve()
+
+    def _anchor() -> PromptPanelSectionAnchor | None:
+        if (
+            view._section_anchor_generation != view._section_generation
+            or view._section_anchor_width != view.size.width
+        ):
+            return None
+        for anchor in view._section_anchors:
+            if anchor.role is not PromptPanelSectionRole.CARD and (
+                anchor.identity == identity
+            ):
+                return anchor
+        return None
+
+    await wait_for_state(
+        page,
+        lambda: _anchor() is not None,
+        description=f"Main section anchor {identity!r}",
+    )
+    anchor = _anchor()
+    assert anchor is not None
+    scroll.scroll_to(
+        y=view.virtual_region.y + anchor.row,
+        animate=False,
+        immediate=True,
+    )
+    await wait_for_visual_idle(page)
+    resolved = resolved_main_section(page, panel_index)
+    assert resolved == identity, f"expected {identity!r} at top, got {resolved!r}"
+
+
+def resolved_main_section(page: AcePage, panel_index: int = 0) -> str | None:
+    """Return the Main section occupying the top row of the deck viewport."""
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    panel = detail.deck_area.panel(panel_index)
+    view = panel.main_view
+    row = int(panel.active_scroll().scroll_y) - view.virtual_region.y
+    return view.resolve_section_at_row(row, width=view.size.width)
 
 
 def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:

@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
@@ -18,8 +17,11 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import 
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     page_svg_text,
+    main_deck_scroll,
     pin_agents_visual_now,
+    pin_decks_paged,
     prompt_header_and_body_text,
+    select_main_card,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -123,6 +125,7 @@ async def test_selected_gate_shell_output_png_snapshot(
     tmp_path: Path,
 ) -> None:
     pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 13, 8, 0))
+    pin_decks_paged(monkeypatch)
     patch_startup_loaders(
         monkeypatch,
         agents=[_selected_gate_agent(tmp_path)],
@@ -142,15 +145,14 @@ async def test_selected_gate_shell_output_png_snapshot(
         selected = page.app._agents[page.app.current_idx]
         assert selected.is_gate is True
         assert selected.gate_state == "settling"
-        # Document-level check: the jump footer panel now takes detail height,
-        # so this title can sit below the first viewport even at scroll zero.
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         assert "Run deployment preview" in prompt_header_and_body_text(prompt)
-        scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
-        scroll.scroll_to(y=16, animate=False, immediate=True)
-        await wait_for_visual_idle(page)
-        # The sticky header shrinks the body viewport, so keep scrolling
-        # until the gate output rows are visible instead of a fixed offset.
+        # Gate OUTPUT lives in the Output (reply) card of the Main deck.
+        await select_main_card(page, "reply")
+        scroll = main_deck_scroll(page)
+        # The header and jump panels shrink the deck viewport, so keep
+        # scrolling until the gate output rows are visible instead of using a
+        # fixed offset.
         for _ in range(14):
             visible = page_svg_text(page, title="ACE gate output scroll check")
             if "gate output line 01" in visible and "truncated" in visible:

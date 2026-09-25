@@ -241,7 +241,7 @@ def _populate_expanded_tool_calls(artifacts_dir: Path) -> None:
                     [
                         "src/sase/ace/tui/widgets/llm_calls_panel.py",
                         "src/sase/ace/tui/widgets/agent_detail.py",
-                        "src/sase/ace/tui/modals/zoom_panel_modal.py",
+                        "src/sase/ace/tui/widgets/decks/main_view.py",
                         "src/sase/ace/tui/actions/agents/_folding.py",
                         "src/sase/ace/tui/widgets/keybinding_footer.py",
                         "src/sase/ace/tui/commands/_app_metadata.py",
@@ -435,7 +435,7 @@ async def test_agents_llm_calls_panel_detail_level_png_snapshots(
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         if detail_level is ToolDetailLevel.FULL:
-            llm_calls_scroll = page.app.query_one("#agent-llm-calls-scroll")
+            llm_calls_scroll = page.app.query_one("#agent-deck-panel-0-tools-scroll")
             # A worker-completion repaint can race this explicit detail-level
             # change and leave the Static holding the worker's older render.
             # Rebuild once from the now-settled cached rows so Rich wrapping
@@ -448,10 +448,10 @@ async def test_agents_llm_calls_panel_detail_level_png_snapshots(
             # under CPU starvation, moving only the proportional thumb. Pin
             # that derived test-only geometry to the canonical full-detail
             # measurement without changing the panel content or golden.
-            canonical_size = Size(llm_calls_scroll.virtual_size.width, 79)
+            canonical_size = Size(llm_calls_scroll.virtual_size.width, 94)
             llm_calls_scroll.set_reactive(Widget.virtual_size, canonical_size)
             llm_calls_scroll._scroll_update(canonical_size)
-            assert llm_calls_scroll.virtual_size.height == 79
+            assert llm_calls_scroll.virtual_size.height == 94
             mark_current_visual_frame_converged(page)
 
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from .model import DeckId
+from .model import DeckId, RenderMode
 from .titles import CardTab, deck_subtitle, deck_title
+
+_BORDER_LABEL_RESERVED_CELLS = 4
 
 _FALLBACK_ACCENTS = {
     DeckId.MAIN: "#B48EAD",
@@ -23,9 +25,10 @@ class DeckPanelChromeMixin:
 
     def _resolve_accent(self, deck: DeckId) -> str:
         if deck is DeckId.MAIN:
+            # ``app.theme_variables`` is only rebuilt lazily by Textual's CSS
+            # pass, so it can still hold a previous theme's colors here.
             try:
-                variables = self.app.theme_variables  # type: ignore[attr-defined]
-                secondary = variables.get("secondary")
+                secondary = self.app.current_theme.secondary  # type: ignore[attr-defined]
                 if secondary:
                     return str(secondary)
             except Exception:
@@ -33,15 +36,43 @@ class DeckPanelChromeMixin:
             return _FALLBACK_ACCENTS[DeckId.MAIN]
         return _FALLBACK_ACCENTS[deck]
 
+    def _subscribe_theme_changes(self) -> None:
+        """Recolor the chrome live when the app theme changes."""
+        try:
+            self.app.theme_changed_signal.subscribe(  # type: ignore[attr-defined]
+                self, self._on_app_theme_changed
+            )
+        except Exception:
+            pass
+
+    def _on_app_theme_changed(self, _theme: object) -> None:
+        self.refresh_chrome()
+        try:
+            document = self._main_document  # type: ignore[attr-defined]
+            if document.cards and self._is_spread_active_for(DeckId.MAIN):
+                # The spread render key includes the accent, so this repaints
+                # the card separators without disturbing the scroll anchor.
+                self.main_view.show_document(  # type: ignore[attr-defined]
+                    document, preferred_card=None, mode=RenderMode.SPREAD
+                )
+        except Exception:
+            pass
+
     def _accent_for(self) -> dict[DeckId, str]:
         return {deck: self._resolve_accent(deck) for deck in DeckId}
 
     def _chrome_width(self) -> int:
+        """Return the cells a border title or subtitle can actually use.
+
+        ``size.width`` is the content width. Textual draws a border label into
+        that many cells, reserves 2 per corner and truncates with ``…``, so the
+        real budget is ``size.width - 4``.
+        """
         try:
             width = int(self.size.width)  # type: ignore[attr-defined]
         except Exception:
             width = 0
-        return width if width > 0 else 80
+        return max(1, width - _BORDER_LABEL_RESERVED_CELLS) if width > 0 else 80
 
     def _deck_switch_hint(self) -> str | None:
         """Return the live deck-switch hint for the empty-state card."""
@@ -112,16 +143,17 @@ class DeckPanelChromeMixin:
                 return None
         return 0
 
-    def _is_spread_active(self) -> bool:
+    def _is_spread_active_for(self, deck: DeckId) -> bool:
         try:
             modes = getattr(self, "_render_mode", None)
             if isinstance(modes, dict):
-                from .model import RenderMode
-
-                return modes.get(self._deck) is RenderMode.SPREAD
+                return modes.get(deck) is RenderMode.SPREAD
         except Exception:
             pass
         return False
+
+    def _is_spread_active(self) -> bool:
+        return self._is_spread_active_for(self._deck)
 
     def refresh_chrome(self) -> None:
         """Recompute the border title and subtitle."""

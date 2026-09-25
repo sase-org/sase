@@ -16,6 +16,7 @@ from sase.monitor_state import monitor_state_bucket
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
     prompt_header_and_body_text,
+    scroll_main_section_to_top,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -170,15 +171,9 @@ def _tribe_prompt_agents(tmp_path: Path) -> list[Agent]:
     return sort_and_reorder(rows, [])
 
 
-async def _jump_to_prompts(page: AcePage) -> AgentPromptPanel:
-    panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
-    for _ in range(10):
-        if panel.active_section_identity == "tribe:prompts":
-            break
-        await page.press("ctrl+j")
-    assert panel.active_section_identity == "tribe:prompts"
-    await wait_for_visual_idle(page)
-    return panel
+async def _jump_to_prompts(page: AcePage) -> None:
+    """Scroll the Summary card's PROMPTS section to the deck top."""
+    await scroll_main_section_to_top(page, "tribe:prompts")
 
 
 async def test_tribe_panel_prompts_png_snapshots(

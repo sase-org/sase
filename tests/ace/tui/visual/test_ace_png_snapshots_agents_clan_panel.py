@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
-from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_associated_plan import _AgentPlanEnrichment
@@ -20,6 +19,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    main_deck_scroll,
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -307,7 +307,8 @@ async def test_swarm_clan_panel_png_snapshots(
         assert_page_svg_contains(page, "across every fold level?")
         assert_page_svg_contains(page, "3 agents")
         assert_page_svg_contains(page, "1 family")
-        assert_page_svg_contains(page, "--code")
+        # The compact CLAN MEMBERS jump panel lists the family lane as
+        # ``.family``; its ``--code`` member appears only in the expanded roster.
         ace_png_visual.assert_page_png(
             page,
             "agents_clan_panel_swarm_120x40",
@@ -317,7 +318,7 @@ async def test_swarm_clan_panel_png_snapshots(
         await page.press("z", "z")
         assert page.app.panel_fold_level.value == "expanded"
         await wait_for_visual_idle(page)
-        prompt_scroll = page.app.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll = main_deck_scroll(page)
         prompt_scroll.show_vertical_scrollbar = False
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(

@@ -56,4 +56,31 @@ def deck_structural_exit_keys(app: Any) -> tuple[str, ...]:
         return ()
 
 
-__all__ = ["deck_search_panel", "deck_structural_exit_keys"]
+def search_help_subtitle(typing: bool, reverse_key: str, budget: int) -> str:
+    """Pick the widest inline-search help that fits ``budget`` cells.
+
+    A half-width deck panel cannot hold the full help, and Textual would clip
+    it with ``…``, so drop the optional hints (reverse, yank) and then all but
+    the dismiss hint instead. A non-positive ``budget`` means "not laid out".
+    """
+    if typing:
+        tiers = (
+            f"[enter] accept  [{reverse_key}] reverse  [esc/^c] cancel",
+            "[enter] accept  [esc/^c] cancel",
+            "[esc/^c] cancel",
+        )
+    else:
+        tiers = (
+            f"[n/N] next/prev  [{reverse_key}] reverse  [y] yank  [esc/q] close",
+            "[n/N] next/prev  [esc/q] close",
+            "[esc/q] close",
+        )
+    if budget <= 0:
+        return tiers[0]
+    for tier in tiers:
+        if len(tier) <= budget:
+            return tier
+    return tiers[-1]
+
+
+__all__ = ["deck_search_panel", "deck_structural_exit_keys", "search_help_subtitle"]
