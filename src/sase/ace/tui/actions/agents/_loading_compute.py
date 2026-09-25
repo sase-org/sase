@@ -238,7 +238,13 @@ def rebase_prepared_apply_boundary_on_proc_projection(
     boundary: PreparedApplyBoundary,
     snapshot: PreparedApplySnapshot,
 ) -> PreparedApplyBoundary:
-    """Replace proc-shell rows on a prepared boundary with *snapshot*'s projection."""
+    """Replace proc-shell rows on a prepared boundary with *snapshot*'s projection.
+
+    Only proc-shell rows are refreshed. The local roster is still the one the
+    worker prepared, so the boundary keeps the removal generation and dismissed
+    snapshot it was prepared under; the apply-time recheck compares the live
+    ones against those to drop rows removed since.
+    """
     from ...models.agent_proc_shells import merge_proc_shell_agents
 
     proc_shells = _proc_shells_from_apply_snapshot(snapshot)
@@ -270,8 +276,6 @@ def rebase_prepared_apply_boundary_on_proc_projection(
         proc_generation=snapshot.proc_generation,
         finalize=None,
         fleet_source_rows=snapshot.fleet_rows,
-        dismissed_agents_snapshot=frozenset(snapshot.dismissed_agents),
-        removal_generation=snapshot.removal_generation,
     )
 
 

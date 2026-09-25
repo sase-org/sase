@@ -176,6 +176,76 @@ def test_apply_rechecks_removal_recorded_after_worker_boundary() -> None:
     assert app._agents == []
 
 
+def _apply_after_removal(
+    app: _TombstoneApplyApp,
+    agent: Agent,
+    *,
+    move_proc_generation: bool = False,
+    stale_fold_levels: bool = False,
+) -> None:
+    """Prepare a worker boundary, remove *agent*, then apply the stale boundary."""
+    prep = PreparedApplyData(
+        filtered_agents=[agent],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    boundary = prepare_loaded_agents_apply_boundary(
+        prep,
+        app._make_prepared_apply_snapshot(
+            on_agents_tab=False, selected_identity=None, load_state=None
+        ),
+    )
+    app.record_explicit_removals({agent.identity})
+    app._dismissed_agents.add(agent.identity)
+    if move_proc_generation:
+        app._proc_generation += 1
+    fold_levels = app._fold_manager.snapshot()
+
+    app._apply_loaded_agents_prepared(
+        prep,
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels={"stale": fold_levels}
+        if stale_fold_levels
+        else fold_levels,
+    )
+
+
+def test_apply_recheck_survives_a_proc_projection_rebase() -> None:
+    """A proc-generation move between prep and apply rebases the worker boundary.
+
+    The rebase only swaps proc-shell rows; its local roster is still the one the
+    worker prepared before the removal, so it must keep the worker's removal
+    provenance or the recheck compares the live generation with itself.
+    """
+    app = _TombstoneApplyApp()
+    agent = _live_agent()
+
+    _apply_after_removal(app, agent, move_proc_generation=True)
+
+    assert app._agents_with_children == []
+    assert app._agents == []
+    assert app._agents_local_with_children == []
+
+
+def test_apply_recheck_survives_a_fold_level_rebuild() -> None:
+    """Changed fold levels rebuild the boundary from the same stale prepared roster."""
+    app = _TombstoneApplyApp()
+    agent = _live_agent()
+
+    _apply_after_removal(app, agent, stale_fold_levels=True)
+
+    assert app._agents_with_children == []
+    assert app._agents == []
+    assert app._agents_local_with_children == []
+
+
 def test_fleet_reprojection_cannot_resurrect_a_tombstoned_local_row() -> None:
     agent = _live_agent()
     app = _TombstoneFleetApp(agent)

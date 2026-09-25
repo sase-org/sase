@@ -236,6 +236,16 @@ class AgentLoadingApplyMixin(
                 merge_incomplete=False,
                 effective_runner_limit=boundary_limit,
             )
+            if precomputed_boundary is not None:
+                # ``prep`` is still the worker's roster, so the rebuilt boundary
+                # keeps the removal provenance it was prepared under; stamping
+                # the live generation would blind the recheck below to a row
+                # removed while the load was in flight.
+                boundary = replace(
+                    boundary,
+                    dismissed_agents_snapshot=precomputed_boundary.dismissed_agents_snapshot,
+                    removal_generation=precomputed_boundary.removal_generation,
+                )
         live_proc_generation = int(getattr(self, "_proc_generation", 0))
         if live_proc_generation != boundary.proc_generation:
             live_snapshot = self._make_prepared_apply_snapshot(

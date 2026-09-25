@@ -29,10 +29,14 @@ SLEEPER = (
 # A fake agent runner. It spawns one child of every shape a real runner tree
 # produces and then sleeps: a same-group child, a child in its own process
 # group (same session), a ``setsid`` child that inherits the launch scratch
-# key, and a same-group child that ignores SIGTERM.
+# key, and a same-group child that ignores SIGTERM. With ``--ignore-term`` the
+# runner itself also ignores SIGTERM (after spawning, so no child inherits the
+# disposition), like a real runner whose soft handler lets it outlive the
+# immediate SIGTERM until the durable stage escalates.
 RUNNER = f"""
 import os, signal, subprocess, sys, time
 ready = sys.argv[1]
+ignore_term = "--ignore-term" in sys.argv[2:]
 sleeper = {SLEEPER!r}
 def spawn(name, setup="pass", **kwargs):
     path = os.path.join(ready, name)
@@ -43,11 +47,19 @@ spawn("same_group")
 spawn("own_group", preexec_fn=os.setpgrp)
 spawn("setsid", start_new_session=True)
 spawn("ignores_term", "signal.signal(signal.SIGTERM, signal.SIG_IGN)")
+if ignore_term:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
 open(os.path.join(ready, "runner"), "w").write(str(os.getpid()))
 time.sleep(120)
 """
 
 CHILDREN = ("same_group", "own_group", "setsid", "ignores_term")
+
+# Runner pids ``launch_runner`` started during the current test. The suite-wide
+# termination guard treats these as real targets even after the runner dies: a
+# dead runner is no longer a descendant of pytest, yet its orphaned children
+# are exactly what the durable stage must still find and kill.
+LAUNCHED_RUNNER_PIDS: set[int] = set()
 
 
 def no_registry(_pid: int) -> ProcessRegistry:
@@ -95,15 +107,23 @@ def launch_runner(
     reap: list[int],
     *,
     new_session: bool = True,
+    runner_ignores_term: bool = False,
 ) -> tuple[subprocess.Popen[bytes], dict[str, int]]:
     ready = tmp_path / "ready"
     ready.mkdir()
     proc = subprocess.Popen(
-        [sys.executable, "-c", RUNNER, str(ready)],
+        [
+            sys.executable,
+            "-c",
+            RUNNER,
+            str(ready),
+            *(["--ignore-term"] if runner_ignores_term else []),
+        ],
         env={**os.environ, SASE_LAUNCH_SCRATCH_KEY_ENV: key},
         start_new_session=new_session,
     )
     reap.append(proc.pid)
+    LAUNCHED_RUNNER_PIDS.add(proc.pid)
     pids = wait_for_files(ready, ("runner", *CHILDREN))
     reap.extend(pids.values())
     return proc, pids
