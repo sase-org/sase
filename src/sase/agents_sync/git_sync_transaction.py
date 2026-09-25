@@ -21,10 +21,12 @@ from sase.agents_sync.models import (
     ProjectTarget,
     SyncOutcome,
 )
-from sase.agents_sync.prompt_archive.git_ops import clean_prompt_archive_worktree
+from sase.agents_sync.prompt_archive.git_ops import (
+    PUBLISHED_ARCHIVE_PATHS,
+    clean_prompt_archive_worktree,
+    publish_pending_archive_objects,
+)
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-
-_PROMPT_ARCHIVE_PATHS = ("prompts", "artifacts")
 
 IntegrateExportPass = Callable[
     [ProjectTarget, Path, AgentOwnerIdentity, GitRunner],
@@ -76,6 +78,11 @@ def _sync_project_transaction(
     integrate_export_pass: IntegrateExportPass,
 ) -> SyncOutcome:
     repo = target.sidecar_path
+    # Commit pending objects first so an identical object the remote already
+    # tracks rebases cleanly instead of blocking the pull.
+    pending_error = publish_pending_archive_objects(repo, git_runner)
+    if isinstance(pending_error, str):
+        return _error(target, pending_error)
     pulled = pull_agents_rebase(repo, git_runner, "agents_sync.pull")
     if pulled.returncode != 0:
         cleanup = abort_agents_rebase(repo, git_runner)
@@ -89,12 +96,7 @@ def _sync_project_transaction(
     except Exception as exc:  # noqa: BLE001 - project-scoped publication error
         return _error(target, str(exc), pulled=True)
 
-    committed_result = commit_agents_payload_if_dirty(
-        repo,
-        owner,
-        git_runner,
-        extra_paths=_PROMPT_ARCHIVE_PATHS,
-    )
+    committed_result = _commit_transaction_payload(repo, owner, git_runner)
     if isinstance(committed_result, str):
         return _error(target, committed_result, pulled=True)
     committed = committed_result
@@ -197,12 +199,7 @@ def _sync_project_transaction(
             pulled=True,
             push_attempts=1,
         )
-    retry_commit_result = commit_agents_payload_if_dirty(
-        repo,
-        owner,
-        git_runner,
-        extra_paths=_PROMPT_ARCHIVE_PATHS,
-    )
+    retry_commit_result = _commit_transaction_payload(repo, owner, git_runner)
     if isinstance(retry_commit_result, str):
         return _error(
             target,
@@ -262,6 +259,29 @@ def _sync_project_transaction(
         pushed=True,
         push_attempts=2,
         diagnostics=all_diagnostics,
+    )
+
+
+def _commit_transaction_payload(
+    repo: Path,
+    owner: AgentOwnerIdentity,
+    git_runner: GitRunner,
+) -> bool | str:
+    """Commit the export pass's objects, then its payload and prompt archive.
+
+    Objects land in their own commit so a rejected push can drop the payload
+    commit for retry without deleting objects whose only copy may be the one the
+    export just wrote.
+    """
+
+    published = publish_pending_archive_objects(repo, git_runner)
+    if isinstance(published, str):
+        return published
+    return commit_agents_payload_if_dirty(
+        repo,
+        owner,
+        git_runner,
+        extra_paths=PUBLISHED_ARCHIVE_PATHS,
     )
 
 

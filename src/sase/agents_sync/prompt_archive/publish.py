@@ -12,6 +12,7 @@ from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.git_ops import (
     clean_prompt_archive_worktree as _clean_prompt_archive_worktree,
     commit_prompt_archive_if_dirty as _commit_prompt_archive_if_dirty,
+    publish_pending_archive_objects as _publish_pending_archive_objects,
 )
 from sase.agents_sync.prompt_archive.preparation import (
     PreparedPromptArchive,
@@ -169,6 +170,13 @@ def _publish_prompt_archive(
         cleanup_error = _clean_prompt_archive_worktree(target.sidecar_path, git_runner)
         if cleanup_error is not None:
             return PromptArchivePublicationOutcome(queued=True, error=cleanup_error)
+        # Commit pending objects first so an identical object the remote already
+        # tracks rebases cleanly instead of blocking the pull.
+        objects_error = _publish_pending_archive_objects(
+            target.sidecar_path, git_runner
+        )
+        if isinstance(objects_error, str):
+            return PromptArchivePublicationOutcome(queued=True, error=objects_error)
         pulled = git_sync.pull_agents_rebase(
             target.sidecar_path,
             git_runner,

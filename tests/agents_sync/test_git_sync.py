@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 
 import pytest
+import sase_core_rs
 
 from sase.agents_sync import git_sync
 from sase.agents_sync.git import _noninteractive_git_env, run_git
@@ -110,6 +112,119 @@ def test_full_sync_transaction_commits_and_pushes_only_payload(
         "schema_version": 1,
         "agents": {},
     }
+
+
+def _object_relpath(content: bytes) -> str:
+    return sase_core_rs.artifact_object_relpath(hashlib.sha256(content).hexdigest())
+
+
+def _patch_object_writing_pass(
+    monkeypatch: pytest.MonkeyPatch,
+    contents: list[bytes],
+    *,
+    fail_after_write: bool = False,
+) -> list[int]:
+    """Patch the export pass to also write content-addressed archive objects."""
+
+    calls = patch_payload_pass(monkeypatch)
+    payload_pass = git_sync.reconcile_agent_hoods
+
+    def reconcile(target: ProjectTarget, repo: Path, **kwargs: object):
+        counts = payload_pass(target, repo, **kwargs)
+        for content in contents:
+            path = repo / _object_relpath(content)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        if fail_after_write:
+            raise RuntimeError("publication failed after object write")
+        return counts
+
+    monkeypatch.setattr(git_sync, "reconcile_agent_hoods", reconcile)
+    return calls
+
+
+def test_full_sync_commits_objects_written_by_the_export_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    contents = [b"object one", b"object two"]
+    _patch_object_writing_pass(monkeypatch, contents)
+
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
+
+    assert outcome.error is None
+    assert outcome.pushed
+    assert git(sidecar, "status", "--porcelain", "-uall").stdout == ""
+    verify = tmp_path / "verify"
+    git(tmp_path, "clone", str(remote), str(verify))
+    for content in contents:
+        assert (verify / _object_relpath(content)).read_bytes() == content
+    assert git(verify, "log", "--format=%s").stdout.splitlines()[:2] == [
+        "chore(agents): sync from local.athena",
+        "chore(agents): publish pending prompt-archive objects",
+    ]
+
+
+def test_full_sync_failure_keeps_objects_and_the_next_sync_publishes_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    content = b"object written before the failure"
+    relpath = _object_relpath(content)
+    _patch_object_writing_pass(monkeypatch, [content], fail_after_write=True)
+
+    failed = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
+
+    assert failed.error == "publication failed after object write"
+    assert (sidecar / relpath).read_bytes() == content
+    assert git(sidecar, "status", "--porcelain", "-uall").stdout == f"?? {relpath}\n"
+
+    _patch_object_writing_pass(monkeypatch, [])
+    recovered = git_sync._sync_project(sync_target, "athena", git_runner=run_git)
+
+    assert recovered.error is None and recovered.pushed
+    assert git(sidecar, "status", "--porcelain", "-uall").stdout == ""
+    assert git(sidecar, "ls-files", "--", relpath).stdout.strip() == relpath
+    assert git(remote, "cat-file", "-e", f"HEAD:{relpath}").returncode == 0
+
+
+def test_full_sync_push_race_retry_keeps_committed_objects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote, _seed, sidecar = setup_repo(tmp_path)
+    sync_target = target(tmp_path, remote, sidecar)
+    content = b"object that survives the retry"
+    relpath = _object_relpath(content)
+    _patch_object_writing_pass(monkeypatch, [content])
+    intruder = tmp_path / "intruder"
+    git(tmp_path, "clone", str(remote), str(intruder))
+    git(intruder, "config", "user.name", "Intruder")
+    git(intruder, "config", "user.email", "intruder@example.test")
+    push_calls = 0
+
+    def rejecting_runner(
+        cwd: Path, args: list[str], *, network: bool = False, op: str = ""
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal push_calls
+        if args == ["push"]:
+            push_calls += 1
+            if push_calls == 1:
+                (intruder / "remote.txt").write_text("remote\n")
+                git(intruder, "add", "remote.txt")
+                git(intruder, "commit", "-m", "remote race")
+                git(intruder, "push")
+        return run_git(cwd, args, network=network, op=op)
+
+    outcome = git_sync._sync_project(sync_target, "athena", git_runner=rejecting_runner)
+
+    assert outcome.error is None
+    assert outcome.push_attempts == 2
+    assert (sidecar / relpath).read_bytes() == content
+    assert git(sidecar, "status", "--porcelain", "-uall").stdout == ""
+    assert git(sidecar, "rev-list", "--count", "@{upstream}..HEAD").stdout == "0\n"
+    assert git(remote, "cat-file", "-e", f"HEAD:{relpath}").returncode == 0
 
 
 def test_full_sync_recovers_dirty_payload_before_pull(

@@ -126,6 +126,19 @@ each other. Clean tracked files inside known repositories are not duplicated; th
 prompt links point to hosted source blobs at the recorded revision. Non-file references
 such as `@agent:`, `@patch:`, and `@stitch:` remain links without copied bytes.
 
+Objects are committed in the same commit as the prompt that links them. `files/objects`
+is append-only: a pool copy lives in an ephemeral workspace, so a discarded object
+cannot be regenerated, and the cleanup that resets `prompts/` before each publication
+never resets, restores, or deletes under it. Before every `git pull --rebase`,
+publication also sweeps untracked paths under `files/objects` while holding the sidecar
+lock. Each one whose path is canonical (`files/objects/sha256/<xx>/<sha256>`, a regular
+file, prefix matching, and bytes hashing to its name) is committed as
+`chore(agents): publish pending prompt-archive objects`, which also publishes objects
+left behind by an interrupted publication or an older SASE. Committing first lets an
+identical object that another machine already published rebase cleanly. Any other file
+is moved, never deleted, to `<git-dir>/sase-quarantine/objects/<utc-timestamp>/` and
+logged, so it can never wedge the worktree.
+
 Prompt-archive publication is not a separate durable queue. The commit path publishes
 the archive directly, and the outbox request enqueued for that commit's hood also owns
 its prompt: when the archive cannot be written right away — the agents lock is busy, for

@@ -511,3 +511,134 @@ def test_publish_prompt_archive_without_artifacts_is_git_idempotent(
     assert prompt.is_file()
     assert "Archive this prompt." in prompt.read_text()
     assert not (verify / "artifacts/202608").exists()
+
+
+def _publish_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    prompt: str,
+) -> tuple[ProjectTarget, Path, Path]:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    target, remote = setup_target(tmp_path)
+    git(target.sidecar_path, "config", "user.name", "Tests")
+    git(target.sidecar_path, "config", "user.email", "tests@example.test")
+    artifacts_dir = tmp_path / "runs/20260801130000"
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"workspace_dir": str(target.primary_checkout)})
+    )
+    (artifacts_dir / "raw_xprompt.md").write_text(prompt)
+    monkeypatch.setattr(
+        archive_publish,
+        "resolve_sync_targets",
+        lambda _projects: TargetSelection((target,), ()),
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+    monkeypatch.setattr(
+        archive_publish,
+        "_hosted_resolver",
+        lambda *_args: _HostedLinks(),
+    )
+    monkeypatch.setattr("sase.file_references.format_with_prettier", lambda text: text)
+    return target, remote, artifacts_dir
+
+
+def _publish_worker(target: ProjectTarget, artifacts_dir: Path):
+    return publish_prompt_archive(
+        "worker",
+        "a" * 40,
+        project="Project",
+        commit_cwd=target.primary_checkout,
+        agent_artifacts_dir=artifacts_dir,
+    )
+
+
+def _stage_pool_artifact(
+    target: ProjectTarget,
+    artifacts_dir: Path,
+    content: bytes,
+) -> str:
+    digest = hashlib.sha256(content).hexdigest()
+    pool_name = sase_core_rs.prompt_artifact_pool_filename(digest, "diagram.png")
+    pool = target.primary_checkout / ".sase/artifacts/pool" / pool_name
+    pool.parent.mkdir(parents=True)
+    pool.write_bytes(content)
+    _write_manifest(
+        target.primary_checkout,
+        [
+            _record(
+                artifacts_dir=artifacts_dir,
+                raw_ref="@~/diagram.png",
+                label="diagram.png",
+                sha256=digest,
+                pool_relpath=f"pool/{pool_name}",
+            )
+        ],
+    )
+    return digest
+
+
+def test_publish_prompt_archive_commits_pool_staged_object_with_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, remote, artifacts_dir = _publish_environment(
+        tmp_path, monkeypatch, "Use @~/diagram.png.\n"
+    )
+    content = b"diagram bytes"
+    digest = _stage_pool_artifact(target, artifacts_dir, content)
+    object_relpath = sase_core_rs.artifact_object_relpath(digest)
+
+    outcome = _publish_worker(target, artifacts_dir)
+
+    assert outcome.published and outcome.error is None
+    sidecar = target.sidecar_path
+    assert (sidecar / object_relpath).read_bytes() == content
+    assert git(sidecar, "status", "--porcelain", "-uall").stdout == ""
+    assert git(sidecar, "ls-files", "--", object_relpath).stdout.strip() == (
+        object_relpath
+    )
+    assert git(sidecar, "rev-list", "--count", "@{upstream}..HEAD").stdout == "0\n"
+    verify = tmp_path / "verify-object"
+    git(tmp_path, "clone", str(remote), str(verify))
+    assert (verify / object_relpath).read_bytes() == content
+    assert (
+        "../../files/objects/"
+        in (verify / "prompts/202608/alice.athena.worker.md").read_text()
+    )
+
+
+def test_publish_prompt_archive_publishes_incident_shape_orphans(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target, remote, artifacts_dir = _publish_environment(
+        tmp_path, monkeypatch, "Archive this prompt.\n"
+    )
+    sidecar = target.sidecar_path
+    orphans = {}
+    for index in range(3):
+        content = f"tale plan snapshot {index}\n".encode()
+        digest = hashlib.sha256(content).hexdigest()
+        relpath = sase_core_rs.artifact_object_relpath(digest)
+        (sidecar / relpath).parent.mkdir(parents=True, exist_ok=True)
+        (sidecar / relpath).write_bytes(content)
+        orphans[relpath] = content
+    assert git(sidecar, "status", "--porcelain", "-uall").stdout.count("??") == 3
+
+    outcome = _publish_worker(target, artifacts_dir)
+
+    assert outcome.published and outcome.error is None
+    assert git(sidecar, "status", "--porcelain", "-uall").stdout == ""
+    verify = tmp_path / "verify-orphans"
+    git(tmp_path, "clone", str(remote), str(verify))
+    for relpath, content in orphans.items():
+        assert (verify / relpath).read_bytes() == content
+    assert git(verify, "log", "--format=%s").stdout.splitlines()[:2] == [
+        "chore(agents): archive prompt for alice.athena.worker",
+        "chore(agents): publish pending prompt-archive objects",
+    ]
