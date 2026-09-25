@@ -717,3 +717,140 @@ async def test_submit_happy_path_settles_on_exit_completion() -> None:
                 )
                 is False
             )
+
+
+async def test_real_input_history_filters_prefix_and_resets_new_walk() -> None:
+    """``↑``/``↓`` filter by prefix and a new walk starts from the newest."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            page.app.action_open_command_line()
+            await page.expect_modal("CommandLineScreen")
+            screen = page.app.screen
+            assert isinstance(screen, CommandLineScreen)
+            widget = screen.query_one(CommandLineInput)
+            screen._history.entries = [
+                history_store.CommandLineHistoryEntry(
+                    line="git status", last_used="260101_000005"
+                ),
+                history_store.CommandLineHistoryEntry(
+                    line="bead show sase-3", last_used="260101_000004"
+                ),
+                history_store.CommandLineHistoryEntry(
+                    line="bead show sase-2", last_used="260101_000003"
+                ),
+                history_store.CommandLineHistoryEntry(
+                    line="agent wait athena.1", last_used="260101_000002"
+                ),
+                history_store.CommandLineHistoryEntry(
+                    line="bead list", last_used="260101_000001"
+                ),
+            ]
+            widget.set_line("bead")
+            await page.pause()
+
+            await page.press("up")
+            assert widget.text == "bead show sase-3"
+            await page.press("up")
+            assert widget.text == "bead show sase-2"
+            await page.press("up")
+            assert widget.text == "bead list"
+            await page.press("down")
+            assert widget.text == "bead show sase-2"
+
+            widget.set_line("git")
+            await page.pause()
+            await page.press("up")
+            assert widget.text == "git status"
+
+            widget.set_line("bead")
+            await page.pause()
+            await page.press("up")
+            assert widget.text == "bead show sase-3"
+
+
+async def test_real_input_right_accepts_ghost_at_line_end() -> None:
+    """``→`` at the end of the line accepts the ghost remainder."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            page.app.action_open_command_line()
+            await page.expect_modal("CommandLineScreen")
+            screen = page.app.screen
+            assert isinstance(screen, CommandLineScreen)
+            widget = screen.query_one(CommandLineInput)
+            screen._history.entries = [
+                history_store.CommandLineHistoryEntry(
+                    line="bead list --status open", last_used="260101_000001"
+                )
+            ]
+            widget.set_line("bead")
+            await page.pause()
+            screen._update_ghost()
+            assert widget.suggestion == " list --status open"
+            await page.press("right")
+            assert widget.text == "bead list --status open"
+
+
+async def test_grammar_readiness_through_real_loader_with_in_process_grammar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The panel refreshes via the loader worker, not a direct callback."""
+    import json
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line import grammar as grammar_module
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+
+    try:
+        from sase.completion.build import build_spec
+        from sase.completion.command_line_grammar import CommandLineGrammar
+
+        handle = CommandLineGrammar.from_spec_json(json.dumps(build_spec().to_json()))
+    except AttributeError:
+        pytest.skip("installed sase_core_rs wheel predates CommandLineGrammar")
+    monkeypatch.setattr(
+        grammar_module, "_load_command_line_grammar_sync", lambda: handle
+    )
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            assert getattr(page.app, "_command_line_grammar", None) is None
+            page.app.action_open_command_line()
+            await page.expect_modal("CommandLineScreen")
+            screen = page.app.screen
+            assert isinstance(screen, CommandLineScreen)
+            await page.wait_for(
+                lambda _state: (
+                    getattr(page.app, "_command_line_grammar", None) is not None
+                )
+            )
+            await page.pause()
+            assert grammar_module.command_line_grammar_for(page.app) is not None
+            widget = screen.query_one(CommandLineInput)
+            widget.set_line("bead ")
+            await page.pause()
+            assert grammar_module.resolve_command_line(page.app, "bead ", 5) is not None

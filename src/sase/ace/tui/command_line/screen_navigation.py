@@ -103,7 +103,6 @@ class CommandLineScreenNavigationMixin:
             return
         if self._walk_anchor is None:
             self._walk_anchor = widget.text
-        self._history.anchor = self._walk_anchor
         cwd = self._working_context.cwd if self._working_context else None
         match = self._history.walk(self._walk_anchor, direction=direction, cwd=cwd)
         self._applying_history = True

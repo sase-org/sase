@@ -915,3 +915,85 @@ def test_procs_enter_routes_command_line_rows_to_panel() -> None:
         SimpleNamespace(tags=(), origin="ace", proc_id="p1")
     ).on_option_list_option_selected(event)
     assert calls == ["block", "agent"]
+
+
+async def test_real_R_press_reruns_declined_and_notices_otherwise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real ``R`` reruns declined blocks and warns on other blocks."""
+    from types import SimpleNamespace as _NS
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line import screen as screen_module
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.session import command_line_session_for
+
+    counter = {"n": 0}
+
+    def _fake_submit(**kwargs: object) -> object:
+        counter["n"] += 1
+        return _NS(proc_id=f"proc-real-r-{counter['n']}")
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+        mock_patch.object(screen_module, "submit_in_worker", side_effect=_fake_submit),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
+            session = command_line_session_for(page.app)
+            widget = screen.query_one(CommandLineInput)
+            widget._enter_normal_mode()
+            await page.pause()
+            await page.press("k")
+            await page.pause()
+            assert session.selected_block() is session.blocks[0]
+
+            notices: list[str] = []
+            monkeypatch.setattr(
+                page.app, "notify", lambda message, **kwargs: notices.append(message)
+            )
+            await page.press("R")
+            await page.pause()
+            assert notices == ["Rerun with -y is available for declined confirmations"]
+            assert len(session.blocks) == 1
+
+            session.blocks[-1].declined = True
+            await page.press("R")
+            await page.pause_until_cpu_idle()
+            assert len(session.blocks) == 2
+            assert session.blocks[-1].line == "bead list -y"
+
+
+async def test_real_i_a_colon_presses_return_to_insert(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real ``i``/``a``/``:`` presses leave the selection for INSERT mode."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.session import command_line_session_for
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_seeded_panel(page, monkeypatch, ["bead show sase-9"])
+            session = command_line_session_for(page.app)
+            widget = screen.query_one(CommandLineInput)
+
+            for key in ("i", "a", "colon"):
+                widget._enter_normal_mode()
+                await page.pause()
+                await page.press("k")
+                await page.pause()
+                assert session.selected_block() is not None
+                await page.press(key)
+                await page.pause()
+                assert session.selected_block() is None
+                assert getattr(widget, "_vim_mode", "insert") == "insert"

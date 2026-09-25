@@ -76,7 +76,8 @@ def test_hint_builders_render_live_names_and_omit_unbound() -> None:
 
     keymaps = load_keymap_registry({}).command_line
     assert "↑↓ history" in command_line_input_hints(keymaps)
-    assert "Ctrl+R search" in command_line_input_hints(keymaps)
+    assert "^R search" in command_line_input_hints(keymaps)
+    assert "esc hide" in command_line_input_hints(keymaps)
     assert "j/k move" in command_line_block_hints(keymaps)
     assert "; Command Palette" in command_line_idle_hint(keymaps)
 
@@ -91,7 +92,7 @@ def test_hint_builders_render_live_names_and_omit_unbound() -> None:
     assert "search" not in input_hints
     assert "↑↓ history" in input_hints
     block_hints = command_line_block_hints(rebound)
-    assert "Ctrl+J/k move" in block_hints
+    assert "^J/k move" in block_hints
     assert "remove" not in block_hints
     assert "f9 Command Palette" in command_line_idle_hint(rebound)
     assert (
@@ -262,3 +263,83 @@ async def test_unbound_actions_are_inactive_and_missing_from_hints(
             await page.pause()
             assert screen._history_search_active is False
             assert isinstance(page.app.screen, CommandLineScreen)
+
+
+def test_compact_key_display_renders_esc_and_caret() -> None:
+    """The one-line rows use ``esc`` and ``^R`` instead of long names."""
+    from sase.ace.tui.command_line.screen_constants import _compact_key_display
+
+    assert _compact_key_display("escape") == "esc"
+    assert _compact_key_display("ctrl+r") == "^R"
+    assert _compact_key_display("ctrl+j") == "^J"
+    assert _compact_key_display("up") == "↑"
+    assert _compact_key_display("down") == "↓"
+    assert _compact_key_display("unbound") == ""
+    assert _compact_key_display("semicolon") == ";"
+
+
+def test_menu_hints_leave_the_menu() -> None:
+    """The menu row no longer claims Esc enters NORMAL mode."""
+    from sase.ace.tui.command_line.screen_constants import COMMAND_LINE_MENU_HINTS
+
+    assert COMMAND_LINE_MENU_HINTS == "⏎ accept · ↑↓ move · esc leave"
+
+
+async def test_menu_moves_with_fixed_arrows_when_history_rebound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rebound history keys never steer the menu; ``↑``/``↓`` still do."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line.input import CommandLineInput
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+    from sase.history import command_line as history_store
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_panel(page, monkeypatch, history_prev="ctrl+b")
+            widget = screen.query_one(CommandLineInput)
+            assert isinstance(screen, CommandLineScreen)
+            widget.set_line("bead ")
+            await page.pause()
+            screen._popup_state.reset(
+                [
+                    {"insert_text": "list ", "display": "list", "match_runs": []},
+                    {"insert_text": "show ", "display": "show", "match_runs": []},
+                ],
+                typed_text="bead ",
+                replace_start=len("bead "),
+                replace_end=len("bead "),
+            )
+            screen._popup_state.on_tab()
+            assert screen._popup_state.menu_active is True
+
+            await page.press("down")
+            assert screen._popup_state.index == 1
+            await page.press("up")
+            assert screen._popup_state.index == 0
+
+            await page.press("ctrl+b")
+            assert screen._popup_state.index == 0
+            assert screen._popup_state.menu_active is True
+
+            await page.press("escape")
+            assert screen._popup_state.menu_active is False
+            screen._history.entries = [
+                history_store.CommandLineHistoryEntry(
+                    line="bead list --status open", last_used="260101_000001"
+                )
+            ]
+            widget.set_line("bead")
+            await page.pause()
+            await page.press("ctrl+b")
+            assert widget.text == "bead list --status open"
+            widget.set_line("bead")
+            await page.pause()
+            await page.press("up")
+            assert widget.text == "bead"

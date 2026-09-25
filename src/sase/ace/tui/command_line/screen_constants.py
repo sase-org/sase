@@ -10,7 +10,7 @@ from sase.ace.tui.keymaps.key_validation import (
     split_key_alternatives,
 )
 
-COMMAND_LINE_MENU_HINTS = "⏎ accept · ↑↓ move · esc normal"
+COMMAND_LINE_MENU_HINTS = "⏎ accept · ↑↓ move · esc leave"
 COMMAND_LINE_INDEXING_HINT = "indexing commands…"
 COMMAND_LINE_SEARCH_HINT = "history search · ⏎ load · esc exit"
 
@@ -28,6 +28,8 @@ def _compact_key_display(binding: str) -> str:
     """Render the first alternative of *binding* for the one-line key rows.
 
     Returns ``""`` for an ``unbound`` action so callers can omit it.
+    ``escape`` renders as ``esc`` and ``ctrl+<k>`` as ``^<K>`` to match the
+    UX mock; arrows keep their glyphs.
     """
     if not binding or is_unbound_key(binding):
         return ""
@@ -38,6 +40,12 @@ def _compact_key_display(binding: str) -> str:
     glyph = _ARROW_GLYPHS.get(first)
     if glyph is not None:
         return glyph
+    if first == "escape":
+        return "esc"
+    if first.lower().startswith("ctrl+"):
+        suffix = first.split("+", 1)[1]
+        if len(suffix) == 1 and suffix.isalnum():
+            return f"^{suffix.upper()}"
     return key_display_name(first)
 
 

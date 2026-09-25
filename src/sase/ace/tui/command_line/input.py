@@ -54,15 +54,18 @@ _ROLE_STYLE_NAMES = {
 _DIAGNOSTIC_STYLE_NAME = "cmdline.diagnostic"
 
 #: Fixed zsh menu-select keys offered to the screen's popup state machine
-#: before vim handling. The configurable history keys (``history_prev``,
-#: ``history_next``, ``history_search``) join this set at runtime from the
-#: live ``CommandLineKeymaps``.
+#: before vim handling. ``up``/``down`` stay fixed for menu movement even
+#: when the configurable history keys (``history_prev``, ``history_next``,
+#: ``history_search``) are rebound; those join this set at runtime from the
+#: live ``CommandLineKeymaps`` for history walks while the menu is closed.
 _MENU_KEYS = frozenset(
     {
         "tab",
         "shift+tab",
         "ctrl+n",
         "ctrl+p",
+        "up",
+        "down",
         "ctrl+f",
         "enter",
         "escape",

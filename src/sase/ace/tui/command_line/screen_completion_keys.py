@@ -33,9 +33,10 @@ class CommandLineScreenKeysMixin:
         """Apply the zsh menu-select key rules; True when the key is consumed.
 
         The fixed menu keys (Tab, Shift-Tab, ``ctrl+n``/``ctrl+p``,
-        ``ctrl+f``/Enter accept, Esc-leaves-menu) follow the zsh
+        ``up``/``down``, ``ctrl+f``/Enter accept, Esc-leaves-menu) follow the zsh
         menu-select contract. History prev/next/search come from the live
-        ``ace.keymaps.command_line`` scope instead of literals.
+        ``ace.keymaps.command_line`` scope instead of literals and only walk
+        history while the menu is closed.
         """
         key = getattr(event, "key", None) or ""
         keymaps = command_line_keymaps_for(self)
@@ -62,12 +63,15 @@ class CommandLineScreenKeysMixin:
             decision = state.on_ctrl_n()
         elif key == "ctrl+p":
             decision = state.on_ctrl_p()
+        elif state.menu_active and key == "down":
+            decision = state.on_ctrl_n()
+        elif state.menu_active and key == "up":
+            decision = state.on_ctrl_p()
         elif prev_match or next_match:
             if state.menu_active:
-                decision = state.on_ctrl_n() if next_match else state.on_ctrl_p()
-            else:
-                self.history_step(1 if prev_match else -1)
-                return True
+                return False
+            self.history_step(1 if prev_match else -1)
+            return True
         elif key == "ctrl+f":
             if not state.menu_active:
                 return False
