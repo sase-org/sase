@@ -147,9 +147,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
                 resolved_ids,
                 start=_owner_symbol_start(bead_context),
             )
-            author = None
-            if note is not None:
-                author = resolve_mutation_author(mutation.project)
+            author = resolve_mutation_author(mutation.project)
             closed = mutation.project.close(
                 resolved_ids,
                 reason=reason,

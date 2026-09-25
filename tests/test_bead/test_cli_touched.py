@@ -130,7 +130,7 @@ def _args(**overrides: object) -> argparse.Namespace:
 
 
 def test__touch_glyph_precedence_and_single_cell() -> None:
-    assert _touch_glyph({"created": 1, "closed": 1}) == "✚"
+    assert _touch_glyph({"created": 1, "closed": 1}) == "✓"
     assert _touch_glyph({"closed": 1, "reopened": 1}) == "✓"
     assert _touch_glyph({"reopened": 1, "noted": 2}) == "↻"
     assert _touch_glyph({"noted": 2}) == "✎"
@@ -383,6 +383,7 @@ def test_handle_json_envelope(
     assert row["first_at"] == "2026-09-19T00:00:00Z"
     assert row["last_at"] == "2026-09-19T00:00:00Z"
     assert row["actors"] == ["0oa"]
+    assert row["close"] is None
     assert "actor" not in row
 
 
@@ -435,6 +436,43 @@ def test_handle_json_includes_read_reasons(
     handle_bead_touched(_args(json=True))
     payload = json.loads(capsys.readouterr().out)
     assert payload["touches"][0]["read_reasons"] == ["Need the scope"]
+
+
+def test_handle_json_includes_close_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sase.core.bead_touch_index_facade import BeadTouchClose
+
+    _stub_touched(
+        monkeypatch,
+        tmp_path,
+        [
+            BeadTouch(
+                actor="0oa",
+                bead_id="sase-1",
+                title="Title sase-1",
+                issue_type="task",
+                status="closed",
+                verbs={"closed": 1},
+                first_at="2026-09-20T16:00:00Z",
+                last_at="2026-09-20T16:05:00Z",
+                close=BeadTouchClose(
+                    closed_at="2026-09-20T16:05:00Z",
+                    resolution="done",
+                    reason="checks green",
+                    standing=True,
+                ),
+            ),
+        ],
+    )
+    handle_bead_touched(_args(json=True))
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["touches"][0]["close"] == {
+        "closed_at": "2026-09-20T16:05:00Z",
+        "resolution": "done",
+        "reason": "checks green",
+        "standing": True,
+    }
 
 
 def test_handle_empty_reports_no_touches(

@@ -442,7 +442,7 @@ def test_direct_bundle_resumes_after_blocked_wait(
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     plan = LaunchPlanWire(
-        schema_version=1,
+        schema_version=2,
         launch_kind="multi_prompt",
         selected_project="sase",
         content_digest="d" * 64,
@@ -454,7 +454,7 @@ def test_direct_bundle_resumes_after_blocked_wait(
                 waits=[WaitTargetWire(kind="agent", name="builder")],
             )
         ],
-        approval_preview=["LaunchPlan v1"],
+        approval_preview=["LaunchPlan v2"],
     )
     resolved: list[bool] = [False]
 
@@ -523,7 +523,7 @@ def test_direct_proc_bundle_coordinator_completion_does_not_notify(
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     plan = LaunchPlanWire(
-        schema_version=1,
+        schema_version=2,
         launch_kind="multi_prompt",
         selected_project="sase",
         content_digest="d" * 64,
@@ -544,7 +544,7 @@ def test_direct_proc_bundle_coordinator_completion_does_not_notify(
                 ),
             )
         ],
-        approval_preview=["LaunchPlan v1"],
+        approval_preview=["LaunchPlan v2"],
     )
     bundle_dir, _payload = _write_direct_typed_launch_bundle(
         prompt='%proc("just check")',

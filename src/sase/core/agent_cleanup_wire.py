@@ -252,13 +252,10 @@ def cleanup_targets_for_core(
 ) -> list[dict[str, Any]]:
     """Cleanup-target projection for the Rust cleanup planner.
 
-    Core serializes ``agent_session_parallel`` and still reads the legacy
-    ``agent_family_parallel`` alias.
+    Core serializes ``agent_session_parallel`` and still accepts the
+    ``agent_family_parallel`` alias on read.
     """
-    payload: list[dict[str, Any]] = []
-    for target in targets:
-        payload.append(asdict(target))
-    return payload
+    return [asdict(target) for target in targets]
 
 
 def _identity_from_dict(data: dict[str, Any]) -> AgentCleanupIdentityWire:

@@ -33,7 +33,7 @@ def test_typed_launch_plan_from_dict_rehydrates_proc_payload() -> None:
         "launch_kind": "multi_prompt",
         "selected_project": "sase",
         "content_digest": "a" * 64,
-        "approval_preview": ["LaunchPlan v1"],
+        "approval_preview": ["LaunchPlan v2"],
         "units": [
             {
                 "logical_id": "unit-1",

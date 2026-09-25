@@ -134,6 +134,60 @@ def test_note_preview_wire_conversion_is_additive_and_defensive() -> None:
     assert malformed.note_preview is None
 
 
+def test_close_wire_conversion_is_additive_and_defensive() -> None:
+    touch = touch_index._touch_from_dict(
+        {
+            "actor": "owner.machine.beta",
+            "bead_id": "sase-close.2",
+            "close": {
+                "closed_at": "2026-09-25T17:34:01Z",
+                "resolution": "canceled",
+                "reason": "  duplicate  ",
+                "standing": True,
+            },
+        }
+    )
+    assert touch.close == touch_index.BeadTouchClose(
+        closed_at="2026-09-25T17:34:01Z",
+        resolution="canceled",
+        reason="duplicate",
+        standing=True,
+    )
+
+    missing = touch_index._touch_from_dict(
+        {"actor": "owner.machine.beta", "bead_id": "sase-close.2"}
+    )
+    assert missing.close is None
+
+    malformed = touch_index._touch_from_dict(
+        {
+            "actor": "owner.machine.beta",
+            "bead_id": "sase-close.2",
+            "close": {
+                "closed_at": "   ",
+                "resolution": 1,
+                "reason": None,
+                "standing": 1,
+            },
+        }
+    )
+    assert malformed.close is None
+
+    defaults = touch_index._touch_from_dict(
+        {
+            "actor": "owner.machine.beta",
+            "bead_id": "sase-close.2",
+            "close": {"closed_at": "2026-09-25T17:34:01Z", "standing": "true"},
+        }
+    )
+    assert defaults.close == touch_index.BeadTouchClose(
+        closed_at="2026-09-25T17:34:01Z",
+        resolution="done",
+        reason="",
+        standing=False,
+    )
+
+
 def test_touch_matches_agent_identity_rules() -> None:
     """Globalized, local, and legacy bare-local actors match; rest do not."""
     assert touch_index.touch_matches_agent(
@@ -220,3 +274,21 @@ def test_fold_touches_per_bead_carries_read_reasons() -> None:
         ]
     )
     assert folded[0].read_reasons == ("newer reason", "older reason")
+
+
+def test_fold_touches_per_bead_prefers_standing_close() -> None:
+    standing = touch_index.BeadTouchClose(
+        closed_at="2026-09-20T15:00:00Z",
+        standing=True,
+    )
+    newer = touch_index.BeadTouchClose(
+        closed_at="2026-09-20T16:00:00Z",
+        standing=False,
+    )
+    folded = touch_index.fold_touches_per_bead(
+        [
+            touch_index.BeadTouch(actor="a", bead_id="sase-1", close=newer),
+            touch_index.BeadTouch(actor="b", bead_id="sase-1", close=standing),
+        ]
+    )
+    assert folded[0].close == standing

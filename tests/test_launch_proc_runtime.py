@@ -49,12 +49,12 @@ from sase.xprompt.code_value import make_code_value
 
 def _plan(*units: LaunchUnitWire, project: str | None = None) -> LaunchPlanWire:
     return LaunchPlanWire(
-        schema_version=1,
+        schema_version=2,
         launch_kind="multi_prompt",
         selected_project=project,
         content_digest="d" * 64,
         units=list(units),
-        approval_preview=["LaunchPlan v1"],
+        approval_preview=["LaunchPlan v2"],
     )
 
 

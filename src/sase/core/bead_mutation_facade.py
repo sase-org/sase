@@ -335,6 +335,7 @@ def close(
     author: str | None = None,
     now: str | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
+    """Close issues, recording ``author`` on the note and every close event."""
     _guard_bead_store_write(beads_dir, "close")
     binding = require_rust_binding("bead_close")
     resolution_value = (

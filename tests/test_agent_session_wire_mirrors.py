@@ -279,6 +279,7 @@ def test_hold_armer_wire_emits_session_for_either_spelling(
         wire = agent_armer_wire_for_artifacts(str(artifacts_dir))
         assert wire["agent_session"] == "holder"
         assert "family" not in wire
+        assert "session" not in wire
 
 
 def test_hold_pending_identities_send_session_key(
@@ -320,6 +321,7 @@ def test_hold_pending_identities_send_session_key(
     assert len(captured["identities"]) == 1
     assert "agent_session" in captured["identities"][0]
     assert "family" not in captured["identities"][0]
+    assert "session" not in captured["identities"][0]
 
 
 def _installation_id() -> str:
@@ -356,7 +358,7 @@ def test_fleet_locator_wire_emits_new_and_matches_core_key() -> None:
 
 def _launch_plan_with_attach(parent_key: str, suffix_key: str) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "launch_kind": "auto",
         "selected_project": "sase",
         "content_digest": "a" * 64,
@@ -429,3 +431,4 @@ def test_launch_unit_real_round_trip_accepts_new_attach_spelling() -> None:
     )
     assert armer["agent_name"] == "parent--reviewer"
     assert armer["agent_session"] == "parent"
+    assert "family" not in armer

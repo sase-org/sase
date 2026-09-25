@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,9 +11,11 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType, Resolution, Status
 from sase.bead.project import BeadProject
+from sase.core import bead_touch_index_facade as touch_index
 from sase.main import bead_fast_path
 from sase.main.bead_fast_path import try_handle_bead_fast_path
 from sase.main.parser import create_parser
+from tests.main.parser_cli_helpers import parse_sase_args
 
 
 def test_close_note_parser_accepts_long_and_short_options() -> None:
@@ -195,3 +198,63 @@ def test_reclose_with_note_reports_both_outcomes_and_commits_note(
         reclosed = project.show(issue.id)
     assert reclosed.closed_at == first_closed_at
     assert reclosed.notes_text.endswith("] second look")
+
+
+def test_close_without_note_credits_acting_agent_not_creator(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as project:
+        issue = project.create(
+            "Close attribution",
+            IssueType.PLAN,
+            created_by="agent-a",
+        )
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-b")
+    args = create_parser().parse_args(["bead", "close", issue.id])
+
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store"):
+        bead_cli.handle_bead_close(args)
+
+    with BeadProject(project_dir) as project:
+        index_path = project_dir / "agent_bead_touches.json"
+        touch_index._refresh_touch_index(project.beads_dir, index_path)
+    query = touch_index.query_touch_index(index_path)
+    closer_rows = [
+        touch
+        for touch in query.touches
+        if touch.bead_id == issue.id and touch.actor == "agent-b"
+    ]
+    creator_rows = [
+        touch
+        for touch in query.touches
+        if touch.bead_id == issue.id and touch.actor == "agent-a"
+    ]
+    assert len(closer_rows) == 1
+    assert closer_rows[0].verbs.get("closed") == 1
+    assert closer_rows[0].close is not None
+    assert closer_rows[0].close.standing is True
+    assert all("closed" not in touch.verbs for touch in creator_rows)
+
+    stream_path = (
+        project_dir / "sdd" / "beads" / "events" / "streams" / f"{issue.id}.jsonl"
+    )
+    events = [
+        json.loads(line)
+        for line in stream_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    closed = next(event for event in events if event["operation"] == "issue_closed")
+    assert closed["actor"] == "agent-b"
+    assert closed["payload"]["closed_by"] == "agent-b"
+
+    capsys.readouterr()
+    bead_cli.handle_bead_history(
+        parse_sase_args(["bead", "history", issue.id, "--format", "json"])
+    )
+    history = json.loads(capsys.readouterr().out)
+    close_entries = [
+        entry for entry in history["entries"] if entry["operation"] == "issue_closed"
+    ]
+    assert close_entries[0]["actor"] == "agent-b"

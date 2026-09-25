@@ -157,7 +157,7 @@ def test_bead_glyphs_are_single_cell() -> None:
         assert cell_len(glyph) == 1
 
 
-def test_glyph_precedence_created_over_closed_over_edited_over_read() -> None:
+def test_glyph_precedence_closed_over_created_over_edited_over_read() -> None:
     assert (
         _bead_touch_glyph(
             _entry(
@@ -166,7 +166,7 @@ def test_glyph_precedence_created_over_closed_over_edited_over_read() -> None:
                 verbs={"created": 1, "closed": 1, "noted": 2},
             )
         )
-        == BEAD_CREATED_GLYPH
+        == BEAD_CLOSED_GLYPH
     )
     assert (
         _bead_touch_glyph(

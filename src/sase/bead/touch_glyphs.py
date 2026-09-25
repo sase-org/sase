@@ -58,14 +58,14 @@ TOUCH_VERB_ORDER = (
 def touch_glyph(verbs: Mapping[str, int]) -> str:
     """Return the row's single strongest verb glyph.
 
-    Precedence: created > closed > reopened > edited group > read >
+    Precedence: closed > created > reopened > edited group > read >
     viewed > removed, with ``◇`` for no verbs. ``own`` is a mark, not a
     verb, so it never selects the glyph.
     """
-    if "created" in verbs:
-        return CREATED_GLYPH
     if "closed" in verbs:
         return CLOSED_GLYPH
+    if "created" in verbs:
+        return CREATED_GLYPH
     if "reopened" in verbs:
         return REOPENED_GLYPH
     if any(verb in verbs for verb in EDITED_VERBS):

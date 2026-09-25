@@ -63,12 +63,12 @@ def run_plan(
 
 def plan(*units: LaunchUnitWire) -> LaunchPlanWire:
     return LaunchPlanWire(
-        schema_version=1,
+        schema_version=2,
         launch_kind="multi_prompt",
         selected_project="sase",
         content_digest="d" * 64,
         units=list(units),
-        approval_preview=["LaunchPlan v1"],
+        approval_preview=["LaunchPlan v2"],
     )
 
 

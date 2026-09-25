@@ -23,6 +23,7 @@ from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.bead_touch_index_facade import (
     BeadNotePreview,
     BeadTouch,
+    BeadTouchClose,
     BeadTouchQuery,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -38,6 +39,7 @@ def _touch(
     last_at: str = "",
     current_note_count: int = 0,
     note_preview: BeadNotePreview | None = None,
+    close: BeadTouchClose | None = None,
 ) -> BeadTouch:
     return BeadTouch(
         actor=actor,
@@ -48,6 +50,7 @@ def _touch(
         last_at=last_at,
         current_note_count=current_note_count,
         note_preview=note_preview,
+        close=close,
     )
 
 
@@ -397,6 +400,46 @@ def test_merge_entry_type_defaults() -> None:
     assert entry.verbs == {}
     assert entry.own is False
     assert entry.agent_label is None
+    assert entry.agent_close is None
+
+
+def test_merge_prefers_standing_close_then_newest() -> None:
+    older_standing = BeadTouchClose(
+        closed_at="2026-09-20T15:00:00Z",
+        resolution="done",
+        standing=True,
+    )
+    newer_undone = BeadTouchClose(
+        closed_at="2026-09-20T16:00:00Z",
+        resolution="done",
+        standing=False,
+    )
+    (standing_entry,) = merge_bead_touch_entries(
+        (
+            _display(_touch("a", "sase-1", close=newer_undone)),
+            _display(_touch("b", "sase-1", close=older_standing)),
+        ),
+        (),
+        (),
+    )
+    assert standing_entry.agent_close == older_standing
+
+    older = BeadTouchClose(closed_at="2026-09-20T15:00:00Z", standing=False)
+    newer = BeadTouchClose(
+        closed_at="2026-09-20T16:00:00Z",
+        resolution="canceled",
+        reason="duplicate",
+        standing=False,
+    )
+    (newest_entry,) = merge_bead_touch_entries(
+        (
+            _display(_touch("a", "sase-1", close=older)),
+            _display(_touch("b", "sase-1", close=newer)),
+        ),
+        (),
+        (),
+    )
+    assert newest_entry.agent_close == newer
 
 
 # --- own_bead_ids_for_agent --------------------------------------------------

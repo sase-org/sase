@@ -163,8 +163,7 @@ def _armer_from_typed_payload(
         "display": identity,
         "project": project or "unknown",
         "agent_name": identity,
-        # legacy agent-family spelling: core's hold preview wire still uses this key.
-        "family": (
+        "agent_session": (
             agent_session
             if isinstance(agent_session, str) and agent_session
             else identity

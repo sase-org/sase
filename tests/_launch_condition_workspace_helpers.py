@@ -37,12 +37,12 @@ def _plan(
     selected_project: str | None = "sase",
 ) -> LaunchPlanWire:
     return LaunchPlanWire(
-        schema_version=1,
+        schema_version=2,
         launch_kind="multi_prompt",
         selected_project=selected_project,
         content_digest="d" * 64,
         units=list(units or [_unit()]),
-        approval_preview=["LaunchPlan v1"],
+        approval_preview=["LaunchPlan v2"],
     )
 
 

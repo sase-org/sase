@@ -48,6 +48,16 @@ class BeadNotePreview:
 
 
 @dataclass(frozen=True)
+class BeadTouchClose:
+    """One actor's latest credited close for a bead, as reduced in core."""
+
+    closed_at: str
+    resolution: str = "done"
+    reason: str = ""
+    standing: bool = False
+
+
+@dataclass(frozen=True)
 class BeadTouch:
     """One ``(actor, bead)`` pair with aggregated verbs."""
 
@@ -62,6 +72,7 @@ class BeadTouch:
     read_reasons: tuple[str, ...] = ()
     current_note_count: int = 0
     note_preview: BeadNotePreview | None = None
+    close: BeadTouchClose | None = None
 
 
 @dataclass(frozen=True)
@@ -276,6 +287,7 @@ def _touch_from_dict(payload: Mapping[str, Any]) -> BeadTouch:
         last_at=str(payload.get("last_at", "")),
         current_note_count=current_note_count,
         note_preview=note_preview,
+        close=_close_from_dict(payload.get("close")),
     )
 
 
@@ -333,6 +345,49 @@ def _note_preview_from_dict(value: object) -> BeadNotePreview | None:
         edited_by=optional_text("edited_by"),
         truncated=value.get("truncated") is True,
     )
+
+
+def _close_from_dict(value: object) -> BeadTouchClose | None:
+    """Convert an additive close record, or safely reject malformed data."""
+    if not isinstance(value, Mapping):
+        return None
+    closed_at = value.get("closed_at")
+    if not isinstance(closed_at, str) or not closed_at.strip():
+        return None
+    resolution_raw = value.get("resolution")
+    resolution = (
+        resolution_raw.strip()
+        if isinstance(resolution_raw, str) and resolution_raw.strip()
+        else "done"
+    )
+    reason_raw = value.get("reason")
+    reason = reason_raw.strip() if isinstance(reason_raw, str) else ""
+    return BeadTouchClose(
+        closed_at=closed_at.strip(),
+        resolution=resolution,
+        reason=reason,
+        standing=value.get("standing") is True,
+    )
+
+
+def prefer_bead_touch_close(
+    current: BeadTouchClose | None,
+    candidate: BeadTouchClose | None,
+) -> BeadTouchClose | None:
+    """Pick a standing close over a non-standing one, else the newest."""
+    if candidate is None:
+        return current
+    if current is None:
+        return candidate
+    if candidate.standing != current.standing:
+        return candidate if candidate.standing else current
+    candidate_moment = _parse_touch_moment(candidate.closed_at)
+    current_moment = _parse_touch_moment(current.closed_at)
+    if candidate_moment is None:
+        return current
+    if current_moment is None or candidate_moment > current_moment:
+        return candidate
+    return current
 
 
 def touch_index_status(
@@ -477,6 +532,7 @@ class FoldedBeadTouch:
     last_at: str = ""
     actors: tuple[str, ...] = ()
     read_reasons: tuple[str, ...] = ()
+    close: BeadTouchClose | None = None
 
 
 def canonical_bead_touch_id(value: str | None) -> str:
@@ -541,6 +597,7 @@ class _FoldBucket:
         self._moments: list[tuple[datetime, str]] = []
         self._actors: set[str] = set()
         self._read_pairs: list[tuple[str, str]] = []
+        self.close: BeadTouchClose | None = None
 
     def add(self, touch: BeadTouch) -> None:
         actor = str(getattr(touch, "actor", "") or "").strip()
@@ -573,6 +630,7 @@ class _FoldBucket:
         last_at_value = str(getattr(touch, "last_at", "") or "")
         for reason in getattr(touch, "read_reasons", ()) or ():
             self._read_pairs.append((last_at_value, str(reason)))
+        self.close = prefer_bead_touch_close(self.close, getattr(touch, "close", None))
 
     def build(self) -> FoldedBeadTouch:
         first_at = ""
@@ -591,6 +649,7 @@ class _FoldBucket:
             last_at=last_at,
             actors=tuple(sorted(self._actors)),
             read_reasons=fold_read_reasons(self._read_pairs),
+            close=self.close,
         )
 
 
@@ -629,6 +688,7 @@ __all__ = [
     "TOUCH_INDEX_FILENAME",
     "BeadNotePreview",
     "BeadTouch",
+    "BeadTouchClose",
     "BeadTouchIndexStatus",
     "BeadTouchQuery",
     "BeadTouchRefresh",
@@ -637,6 +697,7 @@ __all__ = [
     "fold_read_reasons",
     "fold_touches_per_bead",
     "merge_view_touches",
+    "prefer_bead_touch_close",
     "query_touches_for_agent",
     "query_touch_index",
     "refresh_touch_index_best_effort",

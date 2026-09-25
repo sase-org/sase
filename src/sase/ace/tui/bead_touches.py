@@ -47,9 +47,11 @@ from sase.core.agent_identity_facade import (
 from sase.core.bead_touch_index_facade import (
     BeadNotePreview,
     BeadTouch,
+    BeadTouchClose,
     BeadTouchQuery,
     fold_read_reasons,
     merge_view_touches,
+    prefer_bead_touch_close,
     query_touch_index,
     touch_index_path,
     touch_matches_agent,
@@ -104,6 +106,7 @@ class BeadTouchEntry:
     current_note_count: int = 0
     note_preview: BeadNotePreview | None = None
     note_agent_label: str | None = None
+    agent_close: BeadTouchClose | None = None
 
 
 @dataclass
@@ -582,6 +585,7 @@ class _BeadBucket:
         self._note_candidate: (
             tuple[datetime, str, BeadNotePreview, str | None] | None
         ) = None
+        self.agent_close: BeadTouchClose | None = None
 
     def add_verbs(self, verbs: dict[str, int]) -> None:
         for verb, count in verbs.items():
@@ -619,6 +623,9 @@ class _BeadBucket:
         if self._note_candidate is None or candidate[:2] > self._note_candidate[:2]:
             self._note_candidate = candidate
 
+    def add_close(self, close: BeadTouchClose | None) -> None:
+        self.agent_close = prefer_bead_touch_close(self.agent_close, close)
+
     def entry(self) -> BeadTouchEntry:
         first_at = ""
         last_at = ""
@@ -643,6 +650,7 @@ class _BeadBucket:
             current_note_count=self.current_note_count,
             note_preview=note_preview,
             note_agent_label=note_agent_label,
+            agent_close=self.agent_close,
         )
 
 
@@ -693,6 +701,7 @@ def merge_bead_touch_entries(
         bucket.add_moment(display.touch.last_at)
         bucket.add_label(display.agent_label)
         bucket.add_note_preview(display.touch, display.agent_label)
+        bucket.add_close(display.touch.close)
 
     for read_display in reads:
         ref = (read_display.event.ref or "").strip()

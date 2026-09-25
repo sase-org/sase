@@ -256,12 +256,12 @@ def test_remote_dispatch_releases_prearmed_launch_hold(
         ),
     )
     plan = LaunchPlanWire(
-        schema_version=1,
+        schema_version=2,
         launch_kind="multi_prompt",
         selected_project="gh_sase-org__sase",
         content_digest="d" * 64,
         units=[unit],
-        approval_preview=["LaunchPlan v1"],
+        approval_preview=["LaunchPlan v2"],
     )
     response_dir = tmp_path / "bundle"
     response_dir.mkdir()

@@ -284,6 +284,18 @@ def _touch_to_dict(touch: Any) -> dict[str, Any]:
         "last_at": touch.last_at,
         "actors": list(touch.actors),
         "read_reasons": list(getattr(touch, "read_reasons", ()) or ()),
+        "close": _close_to_dict(getattr(touch, "close", None)),
+    }
+
+
+def _close_to_dict(close: Any) -> dict[str, Any] | None:
+    if close is None:
+        return None
+    return {
+        "closed_at": close.closed_at,
+        "resolution": close.resolution,
+        "reason": close.reason,
+        "standing": close.standing,
     }
 
 

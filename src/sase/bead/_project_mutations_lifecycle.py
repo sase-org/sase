@@ -37,6 +37,8 @@ class BeadProjectMutationLifecycleMixin:
         Descendants must already be closed unless ``force`` explicitly sweeps
         them with a non-done resolution and reason. When ``note`` is provided,
         append it to every explicitly listed issue in the same mutation.
+        ``author`` is the actor recorded on that note and on every close
+        event in the batch.
         """
         from sase.core import bead_mutation_facade as rust_beads
 
