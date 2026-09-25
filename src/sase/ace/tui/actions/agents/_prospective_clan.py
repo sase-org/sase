@@ -51,6 +51,12 @@ class _FoldStateProjection:
         return self._levels.get(key, FoldLevel.COLLAPSED)
 
 
+#: Public alias for the read-only fold-state adapter. The Node Finder
+#: snapshot builder projects every fold open through the same adapter
+#: instead of importing a private name across modules.
+FoldStateProjection = _FoldStateProjection
+
+
 def _projection_panel_fold_registry(owner: Any, panel_key: PanelKey) -> Any:
     """Return an isolated snapshot of one panel's grouping-fold state."""
     from ...models.agent_group_fold import (
@@ -277,8 +283,20 @@ def prospective_clan_members(
     ).members
 
 
+def apply_active_agent_query(owner: Any, agents: list[Agent]) -> list[Agent]:
+    """Apply the same cached structured query used by the Agents view.
+
+    Public alias of :func:`_apply_active_agent_query` for the Node Finder
+    snapshot builder, which needs the committed-query survivor set without
+    importing a private name across modules.
+    """
+    return _apply_active_agent_query(owner, agents)
+
+
 __all__ = [
+    "FoldStateProjection",
     "ProspectiveClanMember",
+    "apply_active_agent_query",
     "prospective_clan_members",
     "prospective_clan_projection",
 ]

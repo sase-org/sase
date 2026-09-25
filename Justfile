@@ -377,6 +377,12 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(PlanGateHistory)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
+        --epic-symbol 'sase-19i(build_node_finder_snapshot)' \
+        --epic-symbol 'sase-19i(filter_node_finder)' \
+        --epic-symbol 'sase-19i(next_jumpable_index)' \
+        --epic-symbol 'sase-19i(node_finder_action_text)' \
+        --epic-symbol 'sase-19i(node_finder_glyph)' \
+        --epic-symbol 'sase-19i(node_finder_reason_text)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -92,12 +92,16 @@ def _target_index(owner: Any, target_identity: AgentIdentity) -> int | None:
 def _ancestor_requirements(
     complete: list[Agent],
     target: Agent,
+    *,
+    parent_lookup: dict[str, Agent] | None = None,
 ) -> tuple[_AncestorRequirement, ...] | None:
     """Return a bounded, fully validated immediate-parent chain."""
     from ...models._agent_tree import agent_parent_fold_key, tree_parent_lookup
     from ...models.fold_state import FoldLevel
 
-    parents = tree_parent_lookup(complete)
+    parents = (
+        parent_lookup if parent_lookup is not None else tree_parent_lookup(complete)
+    )
     requirements: list[_AncestorRequirement] = []
     current = target
     visited: set[int] = set()
@@ -356,9 +360,42 @@ def reveal_agent_navigation_target(
     )
 
 
+def unmet_ancestor_folds(
+    complete: list[Agent],
+    fold_manager: Any,
+) -> dict[AgentIdentity, tuple[str, ...]]:
+    """Return each row's unmet ancestor fold keys, nearest first.
+
+    Reuses the exact reveal rule: clan folds need ``EXPANDED``, hidden steps
+    need ``FULLY_EXPANDED``, judged by :func:`_fold_requirement_is_met`.
+    One shared :func:`tree_parent_lookup` keeps the batch O(n · depth).
+    Rows with invalid ancestry are omitted, matching the reveal preflight.
+    """
+    from ...models._agent_tree import tree_parent_lookup
+
+    parents = tree_parent_lookup(complete)
+    unmet: dict[AgentIdentity, tuple[str, ...]] = {}
+    for agent in complete:
+        requirements = _ancestor_requirements(complete, agent, parent_lookup=parents)
+        if requirements is None:
+            continue
+        missing = tuple(
+            requirement.fold_key
+            for requirement in requirements
+            if not _fold_requirement_is_met(
+                fold_manager.get(requirement.fold_key),
+                requirement.level,
+            )
+        )
+        if missing:
+            unmet[agent.identity] = missing
+    return unmet
+
+
 __all__ = [
     "AgentIdentity",
     "AgentRevealFailure",
     "prepare_agent_navigation_target",
     "reveal_agent_navigation_target",
+    "unmet_ancestor_folds",
 ]
