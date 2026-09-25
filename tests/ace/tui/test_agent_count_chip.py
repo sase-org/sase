@@ -8,6 +8,7 @@ from sase.ace.tui.agent_count_chip import (
     AGENT_COUNT_CHIP_QUEUED_STYLE,
     format_agent_count_chip,
 )
+from sase.ace.tui.wait_status_presentation import WAIT_UNKNOWN_GLYPH_STYLE
 
 
 def _style_at(text: Text, position: int) -> str | None:
@@ -110,6 +111,24 @@ def test_agent_count_chip_suppresses_zero_metrics() -> None:
     )
 
     assert chip.plain == "[W7 D8]"
+
+
+def test_agent_count_chip_attaches_unknown_wait_to_waiting_metric() -> None:
+    chip = format_agent_count_chip(running=1, waiting=1, unknown_wait=1, done=3)
+
+    assert chip.plain == "[R1 W1?1 D3]"
+    waiting = chip.plain.index("W1?1")
+    assert _style_at(chip, waiting) == AGENT_COUNT_CHIP_NEUTRAL_STYLE
+    assert _style_at(chip, waiting + 1) == AGENT_COUNT_CHIP_METRIC_STYLES["waiting"]
+    assert _style_at(chip, waiting + 2) == WAIT_UNKNOWN_GLYPH_STYLE
+    assert _style_at(chip, waiting + 3) == WAIT_UNKNOWN_GLYPH_STYLE
+
+
+def test_agent_count_chip_unknown_wait_is_zero_suppressed_with_waiting() -> None:
+    assert format_agent_count_chip(waiting=12, unknown_wait=3).plain == "[W12?3]"
+    assert format_agent_count_chip(unknown_wait=2).plain == ""
+    assert format_agent_count_chip(running=1, done=3, unknown_wait=2).plain == "[R1 D3]"
+    assert format_agent_count_chip(waiting=1, unknown_wait=0).plain == "[W1]"
 
 
 def test_agent_count_chip_uses_canonical_bright_pink_queue_style() -> None:

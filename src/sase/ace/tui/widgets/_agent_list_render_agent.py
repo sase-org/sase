@@ -210,11 +210,14 @@ def format_agent_option(
             failed=visible_clan_counts.failed,
             unread=visible_clan_counts.unread,
             done=visible_clan_counts.done,
+            unknown_wait=(
+                clan_unknown_wait_count if visible_clan_counts.waiting else 0
+            ),
         )
         if clan_chip:
             text.append(" ")
             text.append_text(clan_chip)
-        if clan_unknown_wait_count > 0:
+        if clan_unknown_wait_count > 0 and not visible_clan_counts.waiting:
             text.append(" ")
             text.append(
                 f"{WAIT_UNKNOWN_GLYPH}{clan_unknown_wait_count}",

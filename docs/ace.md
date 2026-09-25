@@ -2323,11 +2323,11 @@ with no rank. The count chip remains concrete and independent, so `QUEUED #3/4 [
 keeps the rank next to the chip, and `QUEUED [Q3 W6]` reports three runner-slot waiters
 and six dependency, bead, or time waiters without merging the two categories.
 
-A clan row whose waiting members name unknown targets adds an orange `?N` chip after its
-count chip, as in `QUEUED [Q1 W3] ?2`. `N` counts distinct unknown agents, clan members,
-and beads across the clan's direct `WAITING` members, so a dependency shared by two
-members counts once. Expand the clan to see which member's `WAITING ?N` token names the
-stale target.
+A clan row whose waiting members name unknown targets attaches an orange `?N`
+immediately after the waiting count inside its count chip, as in `QUEUED [Q1 W3?2]`. `N`
+counts distinct unknown agents, clan members, and beads across the clan's direct
+`WAITING` members, so a dependency shared by two members counts once. Expand the clan to
+see which member's `WAITING ?N` token names the stale target.
 
 The uppercase `H` ladder starts with the selected workflow or sequential-session agent
 node when that agent node is still open. The first press retreats that agent node by

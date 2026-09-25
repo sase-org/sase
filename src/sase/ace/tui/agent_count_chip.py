@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from rich.text import Text
 
+from .wait_status_presentation import WAIT_UNKNOWN_GLYPH, WAIT_UNKNOWN_GLYPH_STYLE
+
 AGENT_COUNT_CHIP_NEUTRAL_STYLE = "#AFAFAF"
 AGENT_COUNT_CHIP_QUEUED_STYLE = "bold #5F87FF"
 AGENT_COUNT_CHIP_METRIC_STYLES: dict[str, str] = {
@@ -35,9 +37,10 @@ def format_agent_count_chip(
     failed: int = 0,
     unread: int = 0,
     done: int = 0,
+    unknown_wait: int = 0,
     chrome_style: str | None = None,
 ) -> Text:
-    """Return a zero-suppressing ``[S1 R2 ...]`` Rich status chip."""
+    """Return a zero-suppressing ``[S1 R2 W3?1 ...]`` Rich status chip."""
     counts = (stopped, running, queued, waiting, failed, unread, done)
     if not any(counts):
         return Text()
@@ -62,5 +65,10 @@ def format_agent_count_chip(
             letter_style = metric_style
         chip.append(label, style=letter_style)
         chip.append(str(count), style=metric_style)
+        if name == "waiting" and unknown_wait > 0:
+            chip.append(
+                f"{WAIT_UNKNOWN_GLYPH}{unknown_wait}",
+                style=WAIT_UNKNOWN_GLYPH_STYLE,
+            )
     chip.append("]", style=resolved_chrome_style)
     return chip

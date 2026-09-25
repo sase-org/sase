@@ -72,7 +72,7 @@ def _member(
     return make_agent(**kwargs)  # type: ignore[arg-type]
 
 
-def test_clan_row_renders_unknown_after_chip_with_style() -> None:
+def test_clan_row_renders_unknown_inside_waiting_chip_with_style() -> None:
     container = _container()
     running = _member(name="research.a", status="RUNNING")
     done_a = _member(name="research.b", status="DONE")
@@ -91,9 +91,9 @@ def test_clan_row_renders_unknown_after_chip_with_style() -> None:
         container, 0, is_selected=False, clan_unknown_wait_count=count
     )
 
-    assert "[R1 W1 D3]" in left.plain
+    assert "[R1 W1?1 D3]" in left.plain
     assert "?1" in left.plain
-    assert left.plain.index("[R1 W1 D3]") < left.plain.index("?1")
+    assert "] ?1" not in left.plain
     assert WAIT_UNKNOWN_GLYPH_STYLE in _styles_covering(left, "?1")
 
 
@@ -182,7 +182,7 @@ def test_row_context_carries_clan_unknown_and_format_uses_it() -> None:
 
     cache = AgentRenderCache()
     left, _, _ = format_agent_row(cache, inputs, container, 0, ctx, ())
-    assert "?1" in left.plain
+    assert "W1?1" in left.plain
 
 
 class _FakeApp:
@@ -275,6 +275,6 @@ def test_bead_warmup_patches_clan_container_for_unknown_bead() -> None:
         left, _, _ = format_agent_option(
             container, 0, is_selected=False, clan_unknown_wait_count=count
         )
-        assert "?1" in left.plain
+        assert "W1?1" in left.plain
     finally:
         _WAIT_BEAD_STATUS_CACHE.clear()
