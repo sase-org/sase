@@ -5,7 +5,7 @@ import pytest
 from sase.ace.tui.models.fold_scale import (
     AGENT_FOLD_SCALE,
     CLAN_FOLD_SCALE,
-    FAMILY_FOLD_SCALE,
+    AGENT_SESSION_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
     cycle_fold_level_forward,
     effective_fold_level,
@@ -22,8 +22,8 @@ from sase.ace.tui.models.fold_state import FoldLevel
 @pytest.mark.parametrize(
     ("level", "scale", "expected"),
     [
-        (FoldLevel.COLLAPSED, FAMILY_FOLD_SCALE, FoldLevel.EXPANDED),
-        (FoldLevel.EXHAUSTIVE, FAMILY_FOLD_SCALE, FoldLevel.FULLY_EXPANDED),
+        (FoldLevel.COLLAPSED, AGENT_SESSION_FOLD_SCALE, FoldLevel.EXPANDED),
+        (FoldLevel.EXHAUSTIVE, AGENT_SESSION_FOLD_SCALE, FoldLevel.FULLY_EXPANDED),
         (FoldLevel.EXHAUSTIVE, CLAN_FOLD_SCALE, FoldLevel.FULLY_EXPANDED),
         (FoldLevel.EXHAUSTIVE, TRIBE_FOLD_SCALE, FoldLevel.EXHAUSTIVE),
     ],
@@ -36,18 +36,18 @@ def test_effective_fold_level_clamps_to_kind_scale(
     assert effective_fold_level(level, scale) is expected
 
 
-def test_family_scale_cycles_and_positions_relative_to_two_levels() -> None:
-    assert fold_scale_position(FoldLevel.COLLAPSED, FAMILY_FOLD_SCALE) == (1, 2)
+def test_agent_session_scale_cycles_and_positions_relative_to_two_levels() -> None:
+    assert fold_scale_position(FoldLevel.COLLAPSED, AGENT_SESSION_FOLD_SCALE) == (1, 2)
     assert (
-        cycle_fold_level_forward(FoldLevel.COLLAPSED, FAMILY_FOLD_SCALE)
+        cycle_fold_level_forward(FoldLevel.COLLAPSED, AGENT_SESSION_FOLD_SCALE)
         is FoldLevel.FULLY_EXPANDED
     )
     assert (
-        cycle_fold_level_forward(FoldLevel.FULLY_EXPANDED, FAMILY_FOLD_SCALE)
+        cycle_fold_level_forward(FoldLevel.FULLY_EXPANDED, AGENT_SESSION_FOLD_SCALE)
         is FoldLevel.EXPANDED
     )
     assert (
-        toggle_fold_level(FoldLevel.EXPANDED, FAMILY_FOLD_SCALE)
+        toggle_fold_level(FoldLevel.EXPANDED, AGENT_SESSION_FOLD_SCALE)
         is FoldLevel.FULLY_EXPANDED
     )
 
@@ -69,10 +69,10 @@ def test_tribe_scale_cycles_all_four_levels_in_both_directions() -> None:
 @pytest.mark.parametrize(
     ("scale", "level", "expected"),
     [
-        (FAMILY_FOLD_SCALE, FoldLevel.COLLAPSED, FoldLevel.FULLY_EXPANDED),
-        (FAMILY_FOLD_SCALE, FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED),
-        (FAMILY_FOLD_SCALE, FoldLevel.FULLY_EXPANDED, FoldLevel.EXPANDED),
-        (FAMILY_FOLD_SCALE, FoldLevel.EXHAUSTIVE, FoldLevel.EXPANDED),
+        (AGENT_SESSION_FOLD_SCALE, FoldLevel.COLLAPSED, FoldLevel.FULLY_EXPANDED),
+        (AGENT_SESSION_FOLD_SCALE, FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED),
+        (AGENT_SESSION_FOLD_SCALE, FoldLevel.FULLY_EXPANDED, FoldLevel.EXPANDED),
+        (AGENT_SESSION_FOLD_SCALE, FoldLevel.EXHAUSTIVE, FoldLevel.EXPANDED),
         (CLAN_FOLD_SCALE, FoldLevel.COLLAPSED, FoldLevel.FULLY_EXPANDED),
         (CLAN_FOLD_SCALE, FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED),
         (CLAN_FOLD_SCALE, FoldLevel.FULLY_EXPANDED, FoldLevel.COLLAPSED),
@@ -99,7 +99,7 @@ def test_empty_fold_scale_is_rejected() -> None:
 @pytest.mark.parametrize(
     ("scale", "expected"),
     [
-        (FAMILY_FOLD_SCALE, FAMILY_FOLD_SCALE),
+        (AGENT_SESSION_FOLD_SCALE, AGENT_SESSION_FOLD_SCALE),
         (CLAN_FOLD_SCALE, CLAN_FOLD_SCALE),
         (TRIBE_FOLD_SCALE, TRIBE_FOLD_SCALE),
     ],
@@ -118,38 +118,38 @@ def test_direct_positions_resolve_exactly_within_each_scale(
 
 
 def test_direct_positions_reject_zero_negative_and_out_of_range() -> None:
-    assert fold_level_at_position(0, FAMILY_FOLD_SCALE) is None
+    assert fold_level_at_position(0, AGENT_SESSION_FOLD_SCALE) is None
     assert fold_level_at_position(-1, CLAN_FOLD_SCALE) is None
-    assert fold_level_at_position(3, FAMILY_FOLD_SCALE) is None
+    assert fold_level_at_position(3, AGENT_SESSION_FOLD_SCALE) is None
     assert fold_level_at_position(5, TRIBE_FOLD_SCALE) is None
 
 
-def test_family_direct_level_one_is_expanded_not_global_collapsed() -> None:
-    assert fold_level_at_position(1, FAMILY_FOLD_SCALE) is FoldLevel.EXPANDED
+def test_agent_session_direct_level_one_is_expanded_not_global_collapsed() -> None:
+    assert fold_level_at_position(1, AGENT_SESSION_FOLD_SCALE) is FoldLevel.EXPANDED
 
 
 def test_summary_selection_resolves_kind_specific_scale() -> None:
-    family = type(
-        "Family",
+    agent_session_root = type(
+        "AgentSession",
         (),
-        {"is_family_container_row": True, "is_clan_container": False},
+        {"is_agent_session_container_row": True, "is_clan_container": False},
     )()
     clan = type(
         "Clan",
         (),
-        {"is_family_container_row": False, "is_clan_container": True},
+        {"is_agent_session_container_row": False, "is_clan_container": True},
     )()
 
     assert (
-        resolve_summary_fold_scale(whole_panel_focused=False, agent=family)
-        == FAMILY_FOLD_SCALE
+        resolve_summary_fold_scale(whole_panel_focused=False, agent=agent_session_root)
+        == AGENT_SESSION_FOLD_SCALE
     )
     assert (
         resolve_summary_fold_scale(whole_panel_focused=False, agent=clan)
         == CLAN_FOLD_SCALE
     )
     assert (
-        resolve_summary_fold_scale(whole_panel_focused=True, agent=family)
+        resolve_summary_fold_scale(whole_panel_focused=True, agent=agent_session_root)
         == TRIBE_FOLD_SCALE
     )
     assert resolve_summary_fold_scale(whole_panel_focused=False, agent=None) is None
@@ -163,10 +163,12 @@ def test_summary_selection_resolves_kind_specific_scale() -> None:
     )
 
 
-def test_lane_fold_scale_uses_family_or_shared_agent_scale() -> None:
-    family = type("Family", (), {"is_family_container_row": True})()
-    plain = type("Plain", (), {"is_family_container_row": False})()
+def test_lane_fold_scale_uses_agent_session_or_shared_agent_scale() -> None:
+    agent_session_root = type(
+        "AgentSession", (), {"is_agent_session_container_row": True}
+    )()
+    plain = type("Plain", (), {"is_agent_session_container_row": False})()
 
     assert AGENT_FOLD_SCALE is CLAN_FOLD_SCALE
-    assert lane_fold_scale(family) is FAMILY_FOLD_SCALE
+    assert lane_fold_scale(agent_session_root) is AGENT_SESSION_FOLD_SCALE
     assert lane_fold_scale(plain) is AGENT_FOLD_SCALE

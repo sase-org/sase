@@ -10,7 +10,7 @@ from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
+from sase.ace.tui.models.agent_session_members import concrete_agent_session_shell_rows
 from sase.ace.tui.widgets import AgentList
 from sase.ace.tui.widgets.agent_jump_panel import AgentJumpPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -279,8 +279,8 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
         await wait_for_visual_idle(page)
 
         container = page.app._agents[page.app.current_idx]
-        assert container.is_family_container_row is True
-        shells = concrete_family_shell_rows(container)
+        assert container.is_agent_session_container_row is True
+        shells = concrete_agent_session_shell_rows(container)
         assert [shell.is_monitor for shell in shells] == [False, False, True]
         monitor = shells[2]
         assert monitor.parent_timestamp != container.raw_suffix
@@ -353,7 +353,7 @@ async def test_family_conversation_monitor_phase_png_snapshot(
         await wait_for_visual_idle(page)
 
         container = page.app._agents[page.app.current_idx]
-        assert container.is_family_container_row is True
+        assert container.is_agent_session_container_row is True
         await select_main_card(page, "reply")
         assert_page_svg_contains(page, "MONITOR")
         assert_page_svg_contains(page, "AGENT REPLY")

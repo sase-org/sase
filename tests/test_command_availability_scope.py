@@ -79,7 +79,7 @@ def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:
     catalog = _catalog_by_id()
     patch_fold = catalog["fold.cycle_stitches"]
     agent_fold = catalog["fold.agents.cycle_level"]
-    regular_agent = SimpleNamespace(is_family_container_row=False)
+    regular_agent = SimpleNamespace(is_agent_session_container_row=False)
 
     assert is_command_available(
         patch_fold, CommandContext(tab="changespecs")
@@ -96,8 +96,8 @@ def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:
 
 def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
     catalog = _catalog_by_id()
-    agent_session = SimpleNamespace(is_family_container_row=True)
-    clan = SimpleNamespace(is_family_container_row=False)
+    agent_session = SimpleNamespace(is_agent_session_container_row=True)
+    clan = SimpleNamespace(is_agent_session_container_row=False)
 
     agent_session_ctx = CommandContext(tab="agents", agent=agent_session)  # type: ignore[arg-type]
     clan_ctx = CommandContext(tab="agents", agent=clan)  # type: ignore[arg-type]
@@ -135,7 +135,7 @@ def test_agent_fold_palette_is_hidden_without_summary_selection() -> None:
     ctx = CommandContext(tab="agents", agent=None)
     group_ctx = CommandContext(
         tab="agents",
-        agent=SimpleNamespace(is_family_container_row=False),  # type: ignore[arg-type]
+        agent=SimpleNamespace(is_agent_session_container_row=False),  # type: ignore[arg-type]
         group_focused=True,
     )
 

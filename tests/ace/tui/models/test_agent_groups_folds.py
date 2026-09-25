@@ -304,26 +304,26 @@ def test_compute_banner_summary_excludes_workflow_children() -> None:
     assert summary.running == 1
 
 
-def test_compute_banner_summary_counts_sequential_families_once() -> None:
+def test_compute_banner_summary_counts_sequential_agent_sessions_once() -> None:
     agents: list[Agent] = []
-    for family in ("alpha", "beta"):
+    for agent_session_name in ("alpha", "beta"):
         planner = _agent(
-            cl_name=f"{family}-plan",
-            agent_name=f"{family}--plan",
-            raw_suffix=f"{family}-plan",
+            cl_name=f"{agent_session_name}-plan",
+            agent_name=f"{agent_session_name}--plan",
+            raw_suffix=f"{agent_session_name}-plan",
             status="TALE APPROVED",
             role_suffix="--plan",
-            agent_session=family,
+            agent_session=agent_session_name,
             agent_session_role="root",
         )
         coder = _agent(
-            cl_name=f"{family}-code",
-            agent_name=f"{family}--code",
-            raw_suffix=f"{family}-code",
+            cl_name=f"{agent_session_name}-code",
+            agent_name=f"{agent_session_name}--code",
+            raw_suffix=f"{agent_session_name}-code",
             parent_timestamp=planner.raw_suffix,
             status="WORKING TALE",
             role_suffix="--code",
-            agent_session=family,
+            agent_session=agent_session_name,
             agent_session_role="code",
         )
         planner.followup_agents = [coder]

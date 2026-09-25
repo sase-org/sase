@@ -205,7 +205,7 @@ def _family_container_index(page: AcePage) -> int:
     return next(
         index
         for index, agent in enumerate(page.app._agents)
-        if agent.is_family_container_row
+        if agent.is_agent_session_container_row
     )
 
 
@@ -407,7 +407,7 @@ async def test_agents_family_lane_neighbors_png_snapshot(
         await wait_for_visual_idle(page)
 
         lane = page.app._agents[page.app.current_idx]
-        assert lane.is_family_container_row is True
+        assert lane.is_agent_session_container_row is True
         jump_map = page.app._member_jump_maps[lane.identity]
         assert [target.role for target in jump_map.targets] == [
             "member",

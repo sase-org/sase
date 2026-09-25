@@ -333,7 +333,7 @@ def make_large_family(count: int) -> tuple[list[Agent], Agent, list[Agent]]:
     root.followup_agents = list(children)
     for child in children:
         child.agent_session_container = root
-    assert root.is_family_container_row
+    assert root.is_agent_session_container_row
     return [root, *children], root, children
 
 
@@ -353,9 +353,9 @@ def make_family(*, in_clan: bool) -> tuple[list[Agent], Agent, Agent]:
     )
     child.parent_timestamp = root.raw_suffix
     root.followup_agents = [child]
-    # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
+    # Production sets this in ``sort_and_reorder`` (``_attach_agent_session_containers``).
     child.agent_session_container = root
-    assert root.is_family_container_row
+    assert root.is_agent_session_container_row
     projected = project_clan_tree([root, child])
     projected_root = next(
         agent for agent in projected if agent.identity == root.identity

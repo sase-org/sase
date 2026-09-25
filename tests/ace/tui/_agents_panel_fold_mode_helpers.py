@@ -35,11 +35,11 @@ class _FoldApp(FoldNavigationMixin):
         self.selected_agent = (
             SimpleNamespace(
                 is_clan_container=clan,
-                is_family_container_row=family,
-                is_family_root_entry=family,
+                is_agent_session_container_row=family,
+                is_agent_session_root_entry=family,
                 is_workflow_child=False,
                 is_hidden_step=False,
-                is_family_member_child=False,
+                is_agent_session_member_child=False,
                 presented_agent_name="fold-test",
                 presented_identity_name="fold-test",
             )

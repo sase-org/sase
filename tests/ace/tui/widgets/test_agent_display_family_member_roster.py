@@ -181,10 +181,10 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
         model="claude/sonnet",
     )
     root.followup_agents = [member1, member2]
-    # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
+    # Production sets this in ``sort_and_reorder`` (``_attach_agent_session_containers``).
     member1.agent_session_container = root
     member2.agent_session_container = root
-    assert root.is_family_container_row is True
+    assert root.is_agent_session_container_row is True
 
     entries = family_roster_entries(root, exclude=member1)
     assert [entry.identity for entry in entries] == [root.identity, member2.identity]

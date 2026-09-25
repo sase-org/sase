@@ -5,7 +5,7 @@ from __future__ import annotations
 from sase.ace.tui.actions.agents._display_panel_titles import agent_panel_counts
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.models.agent_family_members import (
+from sase.ace.tui.models.agent_session_members import (
     shell_lane_counts,
 )
 

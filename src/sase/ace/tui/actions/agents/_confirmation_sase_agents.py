@@ -253,17 +253,17 @@ def _sequential_family_name(agent: Agent) -> str | None:
         getattr(agent, "plan_chain_root", False)
         or agent_session_role_value(agent) == "root"
     )
-    is_family_child = bool(
+    is_agent_session_child = bool(
         getattr(agent, "parent_timestamp", None)
         and not getattr(agent, "parent_workflow", None)
         and (getattr(agent, "role_suffix", None) or agent_session_role_value(agent))
     )
-    if not is_family_root and not is_family_child:
+    if not is_family_root and not is_agent_session_child:
         return None
     try:
-        from ...models._agent_status_family import agent_family_name
+        from ...models._agent_status_agent_session import stable_agent_session_name
 
-        return agent_family_name(agent)
+        return stable_agent_session_name(agent)
     except (AttributeError, TypeError):
         return None
 
@@ -275,7 +275,7 @@ def _sase_agent_name(
 ) -> str:
     if family_name:
         for row in (owner, target):
-            presenter = getattr(row, "presented_family_reference_name", None)
+            presenter = getattr(row, "presented_agent_session_reference_name", None)
             if callable(presenter):
                 try:
                     presented = presenter()

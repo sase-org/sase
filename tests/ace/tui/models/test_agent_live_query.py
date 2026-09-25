@@ -257,13 +257,13 @@ def test_machine_negation_excludes_imported_clan_container_subtree() -> None:
 
 
 def test_agent_live_query_entry_classifies_container_and_workflow_kinds() -> None:
-    family_child = _agent(agent_name="family-root--code", raw_suffix="child")
-    family = _agent(
+    agent_session_child = _agent(agent_name="family-root--code", raw_suffix="child")
+    agent_session_root = _agent(
         agent_name="family-root",
         agent_session="family-root",
         agent_session_role="root",
         plan_chain_root=True,
-        followup_agents=[family_child],
+        followup_agents=[agent_session_child],
     )
     clan = _agent(
         agent_name="athena.sase-zf",
@@ -284,7 +284,9 @@ def test_agent_live_query_entry_classifies_container_and_workflow_kinds() -> Non
         parent_timestamp="20260824100000",
     )
 
-    assert agent_live_query_entry(family, now=_NOW)["fields"]["kind"] == ("session",)
+    assert agent_live_query_entry(agent_session_root, now=_NOW)["fields"]["kind"] == (
+        "session",
+    )
     assert agent_live_query_entry(clan, now=_NOW)["fields"]["kind"] == ("clan",)
     assert agent_live_query_entry(workflow_child, now=_NOW)["fields"]["kind"] == (
         "member",

@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Literal, Protocol
 from textual.screen import ModalScreen
 
 from ...models.agent import Agent, AgentType
-from ...models.agent_family_members import (
-    concrete_family_shell_rows,
-    family_roster_container,
+from ...models.agent_session_members import (
+    concrete_agent_session_shell_rows,
+    agent_session_roster_container,
 )
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.agent_tribe_summary import AgentPanelFocus
@@ -69,7 +69,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if agent is None or not (
             agent.is_clan_container
             or agent_owns_sase_agent(agent)
-            or family_roster_container(agent) is not None
+            or agent_session_roster_container(agent) is not None
         ):
             return None
         return agent
@@ -104,8 +104,8 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if container.is_clan_container:
             return "member"
         if (
-            container.is_family_container_row
-            or family_roster_container(container) is not None
+            container.is_agent_session_container_row
+            or agent_session_roster_container(container) is not None
         ):
             return "shell"
         return "neighbor"
@@ -210,17 +210,17 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
                 for member in container.runtime_children
                 if not member.is_clan_container
             )
-        if container.is_family_container_row:
+        if container.is_agent_session_container_row:
             return any(
                 member.identity == target_identity
-                for member in concrete_family_shell_rows(container)
+                for member in concrete_agent_session_shell_rows(container)
             )
-        roster_container = family_roster_container(container)
+        roster_container = agent_session_roster_container(container)
         if roster_container is None:
             return False
         return any(
             member.identity == target_identity and member.identity != container.identity
-            for member in concrete_family_shell_rows(roster_container)
+            for member in concrete_agent_session_shell_rows(roster_container)
         )
 
     def _member_jump_target(

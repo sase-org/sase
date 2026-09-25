@@ -77,7 +77,7 @@ def _name_chip(agent: Agent) -> Text:
     if not presented_name:
         chip.append(_UNASSIGNED_AGENT_NAME_DISPLAY, style=_NAME_FALLBACK_STYLE)
         return chip
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         style = _FAMILY_NAME_STYLE
     elif agent.is_proc_shell:
         style = _PROC_SHELL_ID_STYLE
@@ -272,7 +272,7 @@ def build_agent_compact_lines(
     if agent.is_proc_shell:
         return _build_proc_shell_compact_lines(agent)
     first: list[Text] = [_name_chip(agent)]
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         first.append(_shell_count_chip(shell_section))
     else:
         model_value = model_value_text(
@@ -308,7 +308,7 @@ def build_agent_compact_lines(
     if activity_chip is not None:
         second.append(activity_chip)
     if (
-        agent.is_family_container_row
+        agent.is_agent_session_container_row
         and fold_level is not None
         and fold_scale is not None
     ):
@@ -376,10 +376,10 @@ def build_tribe_compact_lines(
         composition.append(
             f"{snapshot.clan_count} clan{'s' if snapshot.clan_count != 1 else ''}"
         )
-    if snapshot.family_count:
+    if snapshot.session_count:
         composition.append(
-            f"{snapshot.family_count} "
-            f"famil{'ies' if snapshot.family_count != 1 else 'y'}"
+            f"{snapshot.session_count} "
+            f"famil{'ies' if snapshot.session_count != 1 else 'y'}"
         )
     composition.append(
         f"{snapshot.lane_count} lane{'s' if snapshot.lane_count != 1 else ''}"

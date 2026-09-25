@@ -9,7 +9,7 @@ from sase.gate_shell.state import gate_state_is_terminal
 from sase.procs import ACTIVE_PROC_STATUSES
 
 from ..keymaps.key_validation import is_unbound_key
-from ..models.agent_family_members import family_roster_container
+from ..models.agent_session_members import agent_session_roster_container
 from ..models.agent_panels import is_reserved_default_panel
 from ..models.agent_status import is_resumable_done_status
 from .llm_calls_panel import ToolDetailLevel
@@ -234,7 +234,7 @@ class AgentBindingsMixin:
             if (
                 not panel_focused
                 and not group_focused
-                and family_roster_container(agent) is not None
+                and agent_session_roster_container(agent) is not None
             ):
                 bindings.append(("0-9", "shell"))
             if completed_count > 0:
@@ -274,7 +274,7 @@ class AgentBindingsMixin:
             if (
                 not panel_focused
                 and not group_focused
-                and family_roster_container(agent) is not None
+                and agent_session_roster_container(agent) is not None
             ):
                 bindings.append(("0-9", "shell"))
             if completed_count > 0:
@@ -323,8 +323,8 @@ class AgentBindingsMixin:
             if agent.is_clan_container:
                 bindings.append(("0-9", "member"))
             elif (
-                agent.is_family_container_row
-                or family_roster_container(agent) is not None
+                agent.is_agent_session_container_row
+                or agent_session_roster_container(agent) is not None
             ):
                 bindings.append(("0-9", "shell"))
             elif lane_neighbor_jump_available:

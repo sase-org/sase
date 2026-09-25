@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from sase.ace.tui.models._agent_parallel_family import (
-    aggregate_parallel_family_status,
+from sase.ace.tui.models._agent_parallel_agent_session import (
+    aggregate_parallel_agent_session_status,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -28,7 +28,7 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
 def test_aggregate_parallel_agent_session_status_priority(
     statuses: list[str], expected: str
 ) -> None:
-    assert aggregate_parallel_family_status(statuses) == expected
+    assert aggregate_parallel_agent_session_status(statuses) == expected
 
 
 def _parallel_agent_session() -> tuple[Agent, list[Agent]]:

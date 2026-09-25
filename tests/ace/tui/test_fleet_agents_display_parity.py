@@ -44,7 +44,7 @@ def test_project_fleet_agents_render_like_local_rows_modulo_host_chip() -> None:
     remote_rendered = _rendered_rows(remote_rows)
     for row, rendered in zip(remote_rows, remote_rendered, strict=True):
         if (
-            row.is_family_member_child
+            row.is_agent_session_member_child
             or row.is_monitor
             or row.is_gate
             or row.is_proc_shell

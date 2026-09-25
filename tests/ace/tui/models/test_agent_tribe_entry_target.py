@@ -46,7 +46,7 @@ def test_top_level_row_resolves_to_its_own_roster_unit() -> None:
     assert target.key_label == "x"
 
 
-def test_family_member_resolves_to_family_roster_unit() -> None:
+def test_agent_session_member_resolves_to_agent_session_roster_unit() -> None:
     root = _agent("build--plan", suffix="root")
     root.agent_session = "build"
     root.agent_session_role = "root"

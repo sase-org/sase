@@ -6,10 +6,10 @@ from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from ...models.agent_family_members import (
-    concrete_family_shell_rows,
-    family_roster_container,
-    row_is_family_shell,
+from ...models.agent_session_members import (
+    concrete_agent_session_shell_rows,
+    agent_session_roster_container,
+    row_is_agent_session_shell,
 )
 from ._agent_enter_builders import (
     gate_row_target,
@@ -100,7 +100,9 @@ def _newest_member_patch(
     best_project: str | None = None
     best_time = float("-inf")
     for row in rows:
-        if row_is_family_shell(row) or bool(getattr(row, "is_proc_shell", False)):
+        if row_is_agent_session_shell(row) or bool(
+            getattr(row, "is_proc_shell", False)
+        ):
             continue
         try:
             name = patch_name_for(row)
@@ -182,7 +184,7 @@ def resolve_agent_enter_targets(
 
     roster: tuple[Agent, ...] = ()
     if scope == "container":
-        roster = concrete_family_shell_rows(agent)
+        roster = concrete_agent_session_shell_rows(agent)
         pending_rows = [row for row in roster if is_pending_gate_row(row)]
         seen_gate_ids: set[str] = set()
         for row in pending_rows:
@@ -212,7 +214,7 @@ def resolve_agent_enter_targets(
             if is_settled_gate_row(row) and getattr(row, "gate_id", None)
         }
         member_shells: list[Agent] = [agent] + [
-            row for row in roster if not row_is_family_shell(row)
+            row for row in roster if not row_is_agent_session_shell(row)
         ]
         candidates = identity_matched_gate_notifications(
             member_shells, gate_notifications
@@ -240,9 +242,11 @@ def resolve_agent_enter_targets(
             patch_name, patch_project = _newest_member_patch(roster, patch_name_for)
     else:
         if scope == "member":
-            container = family_roster_container(agent)
+            container = agent_session_roster_container(agent)
             roster = (
-                concrete_family_shell_rows(container) if container is not None else ()
+                concrete_agent_session_shell_rows(container)
+                if container is not None
+                else ()
             )
             created: list[Agent] = []
             seen_gate_ids = set()

@@ -90,7 +90,7 @@ def _tree_signature(rows: list[Agent]) -> list[tuple[object, ...]]:
             parent_key(row),
             row.status,
             row.is_clan_container,
-            row.is_family_container_row,
+            row.is_agent_session_container_row,
             row.is_monitor,
             row.is_gate,
             row.is_proc_shell,

@@ -11,7 +11,7 @@ class AgentChildLinkage(Enum):
 
     ROOT = "root"
     WORKFLOW_STEP = "workflow_step"
-    FAMILY_MEMBER = "family_member"
+    AGENT_SESSION_MEMBER = "session_member"
 
 
 @dataclass(frozen=True)

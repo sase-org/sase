@@ -292,10 +292,10 @@ def test_keybinding_footer_agent_session_member_advertises_shell_digits() -> Non
     child.role_suffix = "--code"
     child.parent_timestamp = "20260101000000"
     root.followup_agents = [child]
-    # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
+    # Production sets this in ``sort_and_reorder`` (``_attach_agent_session_containers``).
     child.agent_session_container = root
-    assert root.is_family_container_row is True
-    assert child.is_family_container_row is False
+    assert root.is_agent_session_container_row is True
+    assert child.is_agent_session_container_row is False
 
     bindings = footer._compute_agent_bindings(child)
 

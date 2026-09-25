@@ -110,4 +110,4 @@ def test_remote_default_tribe_panel_counts_include_done_lanes() -> None:
     assert (counts.running, counts.waiting, counts.read) == (1, 1, 4)
     assert "[R1 W1 D4]" in title.plain
     nested = [row for row in rows if row.agent_name == "done.family--old"]
-    assert nested and nested[0].is_family_member_child
+    assert nested and nested[0].is_agent_session_member_child

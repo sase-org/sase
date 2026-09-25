@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent_family_members import (
+from sase.ace.tui.models.agent_session_members import (
     _MonitorLaneCounts,
     panel_shell_lane_counts,
 )
 
-from ._agent_family_members_helpers import _agent, _monitor_member
+from ._agent_session_members_helpers import _agent, _monitor_member
 
 
 def _panel_monitor_lane_counts(rows):
@@ -70,16 +70,16 @@ def test_panel_monitor_lane_counts_counts_a_top_level_monitor_row() -> None:
 def test_panel_monitor_lane_counts_reaches_monitor_nested_two_levels_down() -> None:
     clan = _agent("workers", role="root")
     clan.is_clan_container = True
-    family = _agent("alpha--0", role="root")
+    agent_session_root = _agent("alpha--0", role="root")
     monitor = _monitor_member(
         "alpha--mon",
-        root=family,
+        root=agent_session_root,
         monitor_id="m1",
         monitor_state="completed",
         stop_offset=5,
     )
-    family.followup_agents = [monitor]
-    clan.runtime_children = [family]
+    agent_session_root.followup_agents = [monitor]
+    clan.runtime_children = [agent_session_root]
 
     assert _panel_monitor_lane_counts([clan]) == _MonitorLaneCounts(
         running=0, settled=1

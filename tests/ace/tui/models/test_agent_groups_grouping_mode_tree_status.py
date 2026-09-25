@@ -183,8 +183,10 @@ def test_build_agent_tree_by_status_sorts_terminal_and_waiting_by_launch_recency
     ]
 
 
-def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> None:
-    family_root = _agent(
+def test_build_agent_tree_by_status_keeps_root_anchored_agent_session_contiguous() -> (
+    None
+):
+    agent_session_root = _agent(
         cl_name="family-root",
         agent_name="a9f",
         raw_suffix="ts-root",
@@ -221,7 +223,7 @@ def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> N
         start_time=datetime(2026, 4, 26, 8, 0, 0),
     )
     agents = [
-        family_root,
+        agent_session_root,
         newer_followup,
         workflow_child,
         newer_singleton,
@@ -230,8 +232,8 @@ def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> N
 
     entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
 
-    # Standalone lanes remain above the visible family subgroup and stay
-    # newest-first within that partition. The family's 09:00 root still anchors
+    # Standalone lanes remain above the visible agent session subgroup and stay
+    # newest-first within that partition. The agent session's 09:00 root still anchors
     # the complete name group, and its established root/follow-up/child preorder
     # remains intact.
     assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [

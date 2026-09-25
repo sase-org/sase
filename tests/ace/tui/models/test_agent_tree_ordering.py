@@ -44,13 +44,15 @@ def test_project_clan_tree_keeps_same_bucket_launch_order_stable() -> None:
     assert members == [newer, older]
 
 
-def test_project_clan_tree_sorts_family_unit_by_displayed_anchor_status() -> None:
-    family = _agent("research.family", "family", status="WAITING")
+def test_project_clan_tree_sorts_agent_session_unit_by_displayed_anchor_status() -> (
+    None
+):
+    agent_session_root = _agent("research.family", "family", status="WAITING")
     failed_followup = _agent(
         "research.family--failed",
         "family-failed",
         status="FAILED",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
@@ -58,7 +60,7 @@ def test_project_clan_tree_sorts_family_unit_by_displayed_anchor_status() -> Non
         "research.family--done",
         "family-done",
         status="DONE",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
@@ -66,12 +68,12 @@ def test_project_clan_tree_sorts_family_unit_by_displayed_anchor_status() -> Non
     failed_peer = _agent("research.failed", "failed", status="FAILED")
 
     _, *members = project_clan_tree(
-        [family, failed_followup, done_followup, done_peer, failed_peer]
+        [agent_session_root, failed_followup, done_followup, done_peer, failed_peer]
     )
 
     assert members == [
         failed_peer,
-        family,
+        agent_session_root,
         failed_followup,
         done_followup,
         done_peer,

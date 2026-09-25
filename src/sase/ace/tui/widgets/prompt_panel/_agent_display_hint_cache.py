@@ -13,9 +13,9 @@ from sase.project_display_names import project_display_name_map_signature
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models._agent_clan_sections import clan_section_member_rows
 from ...models.agent import Agent, wait_display_agent
-from ...models.agent_family_members import (
-    concrete_family_shell_rows,
-    family_roster_container,
+from ...models.agent_session_members import (
+    concrete_agent_session_shell_rows,
+    agent_session_roster_container,
 )
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
@@ -194,11 +194,11 @@ def agent_hint_render_cache_key(
         summary_key = None
         raw_xprompt = None
     else:
-        roster_container = family_roster_container(agent)
+        roster_container = agent_session_roster_container(agent)
         if roster_container is not None:
             member_states = tuple(
                 (member.identity, member.display_status)
-                for member in concrete_family_shell_rows(roster_container)
+                for member in concrete_agent_session_shell_rows(roster_container)
             )
             agent_state_digest = _digest_parts(agent, member_states)
         else:

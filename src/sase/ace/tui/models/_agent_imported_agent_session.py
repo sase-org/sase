@@ -1,4 +1,4 @@
-"""Synthesize family-container rows for imported sequential families."""
+"""Synthesize agent session-container rows for imported sequential agent sessions."""
 
 from __future__ import annotations
 
@@ -11,22 +11,22 @@ from ._agent_clan import aggregate_clan_status
 from .agent import Agent, AgentType
 
 
-def _imported_family_fold_suffix(
-    family_name: str,
+def _imported_agent_session_fold_suffix(
+    agent_session_name: str,
     owner: AgentOwnerIdentity,
     cl_name: str,
 ) -> str:
-    """Return a stable synthetic ``raw_suffix`` for one imported family."""
+    """Return a stable synthetic ``raw_suffix`` for one imported agent session."""
     digest = hashlib.sha256(
-        f"{owner.username}\0{owner.machine_name}\0{family_name}\0{cl_name}".encode()
+        f"{owner.username}\0{owner.machine_name}\0{agent_session_name}\0{cl_name}".encode()
     ).hexdigest()[:20]
     return f"ifam-{digest}"
 
 
-def materialize_imported_family_containers(agents: list[Agent]) -> list[Agent]:
-    """Insert synthetic family roots so imported members fold as one family.
+def materialize_imported_agent_session_containers(agents: list[Agent]) -> list[Agent]:
+    """Insert synthetic session roots so imported members fold as one session.
 
-    Existing imported-family containers are discarded first so this is safe
+    Existing imported-session containers are discarded first so this is safe
     after incomplete-history merges. Real ``parent_timestamp`` links are left
     alone; only in-memory synthetic parent links are reset.
     """
@@ -44,11 +44,11 @@ def materialize_imported_family_containers(agents: list[Agent]) -> list[Agent]:
     roots: set[tuple[str, str, str, str]] = set()
     for agent in real:
         owner = agent.imported_source_owner
-        family = agent.agent_session
-        if owner is None or not family:
+        session_name = agent.agent_session
+        if owner is None or not session_name:
             continue
-        key = (family, owner.username, owner.machine_name, agent.cl_name)
-        if agent.is_family_root_entry:
+        key = (session_name, owner.username, owner.machine_name, agent.cl_name)
+        if agent.is_agent_session_root_entry:
             roots.add(key)
             continue
         if agent.parent_timestamp:
@@ -59,10 +59,12 @@ def materialize_imported_family_containers(agents: list[Agent]) -> list[Agent]:
     for key, members in groups.items():
         if key in roots or not members:
             continue
-        family, username, machine, cl_name = key
+        session_name, username, machine, cl_name = key
         owner = AgentOwnerIdentity(username, machine)
-        suffix = _imported_family_fold_suffix(family, owner, cl_name)
-        containers[key] = _imported_family_container(family, owner, members, suffix)
+        suffix = _imported_agent_session_fold_suffix(session_name, owner, cl_name)
+        containers[key] = _imported_agent_session_container(
+            session_name, owner, members, suffix
+        )
 
     if not containers:
         return real
@@ -79,11 +81,11 @@ def materialize_imported_family_containers(agents: list[Agent]) -> list[Agent]:
     emitted: set[tuple[str, str, str, str]] = set()
     for agent in real:
         owner = agent.imported_source_owner
-        family = agent.agent_session
-        if owner is None or not family:
+        session_name = agent.agent_session
+        if owner is None or not session_name:
             projected.append(agent)
             continue
-        key = (family, owner.username, owner.machine_name, agent.cl_name)
+        key = (session_name, owner.username, owner.machine_name, agent.cl_name)
         container = containers.get(key)
         if container is None:
             projected.append(agent)
@@ -95,8 +97,8 @@ def materialize_imported_family_containers(agents: list[Agent]) -> list[Agent]:
     return projected
 
 
-def _imported_family_container(
-    family_name: str,
+def _imported_agent_session_container(
+    agent_session_name: str,
     owner: AgentOwnerIdentity,
     members: list[Agent],
     suffix: str,
@@ -119,8 +121,8 @@ def _imported_family_container(
         stop_time=max(stops) if stops and len(stops) == len(members) else None,
         raw_suffix=suffix,
         workflow=anchor.workflow,
-        agent_name=family_name,
-        agent_session=family_name,
+        agent_name=agent_session_name,
+        agent_session=agent_session_name,
         agent_session_role="root",
         source_machine=owner.machine_name,
         imported_source_owner=owner,
@@ -135,5 +137,5 @@ def _imported_family_container(
 
 
 __all__ = [
-    "materialize_imported_family_containers",
+    "materialize_imported_agent_session_containers",
 ]

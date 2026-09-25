@@ -21,7 +21,7 @@ def _agent(
     minute: int,
     status: str = "DONE",
     parent_timestamp: str | None = None,
-    family: str | None = None,
+    agent_session: str | None = None,
     **overrides: object,
 ) -> Agent:
     values: dict[str, object] = {
@@ -35,19 +35,21 @@ def _agent(
         "agent_clan": "research",
         "agent_clan_generation": _GENERATION,
         "parent_timestamp": parent_timestamp,
-        "agent_session": family,
+        "agent_session": agent_session,
     }
     values.update(overrides)
     return Agent(**values)  # type: ignore[arg-type]
 
 
-def test_in_memory_aggregate_includes_family_rows_and_all_section_facts() -> None:
-    family = "research.writer"
+def test_in_memory_aggregate_includes_agent_session_rows_and_all_section_facts() -> (
+    None
+):
+    agent_session = "research.writer"
     planner = _agent(
         "research.writer--plan",
         minute=0,
         status="FAILED",
-        family=family,
+        agent_session=agent_session,
         error_message="\n  Planning failed first\nextra detail",
         error_traceback="Traceback: boom",
         output_variables={"z_path": "/z", "a_path": "/a"},
@@ -63,7 +65,7 @@ def test_in_memory_aggregate_includes_family_rows_and_all_section_facts() -> Non
     coder = _agent(
         "research.writer--code",
         minute=1,
-        family=family,
+        agent_session=agent_session,
         parent_timestamp=planner.raw_suffix,
         output_variables={
             "result": {
@@ -97,7 +99,7 @@ def test_in_memory_aggregate_includes_family_rows_and_all_section_facts() -> Non
         ".writer--code",
         ".reader",
     ]
-    assert [member.family_depth for member in snapshot.members] == [0, 1, 0]
+    assert [member.agent_session_depth for member in snapshot.members] == [0, 1, 0]
     assert snapshot.members[0].activity == "checking plan"
     assert snapshot.members[0].waiting == ("for research.reader",)
     assert snapshot.members[0].retry == ("1/3", "running retry")

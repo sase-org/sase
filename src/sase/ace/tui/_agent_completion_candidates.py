@@ -13,9 +13,9 @@ from sase.ace.tui._agent_completion_prompt import (
     raw_vcs_tag_for_prompt,
     vcs_workflow_from_prompt,
 )
-from sase.ace.tui.models.agent_family_preview_cache import (
-    FAMILY_PREVIEW_CACHE_MISS,
-    cached_family_plan_preview,
+from sase.ace.tui.models.agent_session_preview_cache import (
+    AGENT_SESSION_PREVIEW_CACHE_MISS,
+    cached_agent_session_plan_preview,
 )
 
 if TYPE_CHECKING:
@@ -91,7 +91,7 @@ def _build_plain_agent_completion_candidates(
     for agent in all_agents:
         if (
             agent.is_clan_container
-            or agent.is_family_root_entry
+            or agent.is_agent_session_root_entry
             or agent.is_proc_shell
             or agent.is_monitor
             or (exclude_identity is not None and agent.identity == exclude_identity)
@@ -303,17 +303,19 @@ def _build_family_completion_candidates(
     *,
     exclude_identity: object | None,
 ) -> list[AgentCompletionCandidate]:
-    from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
+    from sase.ace.tui.models.agent_session_members import (
+        concrete_agent_session_shell_rows,
+    )
 
     candidates: list[AgentCompletionCandidate] = []
     seen_names: set[str] = set()
     for agent in all_agents:
-        if not agent.is_family_root_entry or agent.is_clan_container:
+        if not agent.is_agent_session_root_entry or agent.is_clan_container:
             continue
         name = agent_prompt_name(agent)
         if not name or name in seen_names:
             continue
-        members = _dedupe_real_member_rows(concrete_family_shell_rows(agent))
+        members = _dedupe_real_member_rows(concrete_agent_session_shell_rows(agent))
         if not members or (
             exclude_identity is not None
             and any(member.identity == exclude_identity for member in members)
@@ -346,8 +348,8 @@ def _build_family_completion_candidates(
 def _cached_plan_preview_for_family(
     agent: Agent,
 ) -> AgentSessionPlanPreview | None:
-    cached = cached_family_plan_preview(agent)
-    if cached is FAMILY_PREVIEW_CACHE_MISS or cached is None:
+    cached = cached_agent_session_plan_preview(agent)
+    if cached is AGENT_SESSION_PREVIEW_CACHE_MISS or cached is None:
         return None
     assert isinstance(cached, AgentSessionPlanPreview)
     return cached
@@ -358,7 +360,9 @@ def _build_tribe_completion_candidates(
     clan_groups: Sequence[_ClanCompletionGroup],
 ) -> list[AgentCompletionCandidate]:
     """Build canonical ``@tribe`` targets from already-loaded rows and clans."""
-    from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
+    from sase.ace.tui.models.agent_session_members import (
+        concrete_agent_session_shell_rows,
+    )
 
     clan_group_by_key = {(group.name, group.generation): group for group in clan_groups}
     encountered_clans: set[tuple[str, str | None]] = set()
@@ -401,8 +405,8 @@ def _build_tribe_completion_candidates(
         if agent.is_clan_container or not agent.tribe:
             continue
         members: Iterable[Agent]
-        if agent.is_family_root_entry:
-            members = concrete_family_shell_rows(agent)
+        if agent.is_agent_session_root_entry:
+            members = concrete_agent_session_shell_rows(agent)
         else:
             members = (agent,)
         add(agent.tribe, members, agent_carrier=agent.identity)
@@ -508,7 +512,7 @@ def _completion_label(agent: Agent, fallback: str) -> str:
     raw_name = agent.agent_name
     raw_family = agent.agent_session
     if (
-        agent.is_family_root_entry
+        agent.is_agent_session_root_entry
         and presented
         and raw_name
         and raw_family
@@ -532,10 +536,12 @@ def _model_label(agent: Agent) -> str | None:
 
 def _raw_prompt_for_agent(agent: Agent, all_agents: Sequence[Agent]) -> str:
     raw_content = agent.get_raw_xprompt_content() or ""
-    if not raw_content and agent.is_family_root_entry:
-        from sase.ace.tui.models.agent_family_members import concrete_family_member_rows
+    if not raw_content and agent.is_agent_session_root_entry:
+        from sase.ace.tui.models.agent_session_members import (
+            concrete_agent_session_member_rows,
+        )
 
-        for member in concrete_family_member_rows(agent):
+        for member in concrete_agent_session_member_rows(agent):
             if member is agent:
                 continue
             raw_content = member.get_raw_xprompt_content() or ""

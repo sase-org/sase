@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from sase.gate_shell.state import gate_state_is_terminal
 from sase.project_display_names import humanize_cl_name
 
-from ...models.agent_family_members import family_roster_container
+from ...models.agent_session_members import agent_session_roster_container
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -45,9 +45,9 @@ def classify_scope(agent: Agent) -> str:
         getattr(agent, "is_workflow_step_child", False)
     ):
         return "workflow_step"
-    if bool(getattr(agent, "is_family_container_row", False)):
+    if bool(getattr(agent, "is_agent_session_container_row", False)):
         return "container"
-    if family_roster_container(agent) is not None:
+    if agent_session_roster_container(agent) is not None:
         return "member"
     return "standalone"
 

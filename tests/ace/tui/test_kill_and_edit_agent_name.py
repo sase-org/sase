@@ -135,7 +135,7 @@ def test_kill_and_edit_family_root_keeps_clan_identity() -> None:
             agent_session="sase-pw.1",
             role_suffix="--plan",
             phase_bead_id="sase-pw.1",
-            is_family_root_entry=True,
+            is_agent_session_root_entry=True,
         )
     )
 

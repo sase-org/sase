@@ -435,7 +435,7 @@ def test_cached_reconcile_patches_expanded_member_and_clan_ancestor() -> None:
 def test_reconcile_marks_plan_family_root_unread_for_its_own_completion() -> None:
     """A plan-family root's own notification key must reach its own row.
 
-    Regression: ``concrete_family_member_rows`` substitutes the root for its
+    Regression: ``concrete_agent_session_member_rows`` substitutes the root for its
     concrete ``main`` workflow step when computing member counts, but that
     step never owns a distinct completion notification -- the runner writes
     completions under the root's own ``(cl_name, raw_suffix)``.

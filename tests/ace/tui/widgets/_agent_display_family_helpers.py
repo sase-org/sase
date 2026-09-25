@@ -59,9 +59,9 @@ def make_family(
         output_variables={"code_path": "/tmp/code.md"},
     )
     root.followup_agents = [child]
-    # Production sets this in ``sort_and_reorder`` (``_attach_family_containers``).
+    # Production sets this in ``sort_and_reorder`` (``_attach_agent_session_containers``).
     child.agent_session_container = root
-    assert root.is_family_container_row is True
+    assert root.is_agent_session_container_row is True
     return root, child
 
 

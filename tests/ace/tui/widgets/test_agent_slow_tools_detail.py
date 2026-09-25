@@ -8,7 +8,7 @@ import pytest
 from rich.console import Console
 from rich.text import Text
 
-from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, FAMILY_FOLD_SCALE
+from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, AGENT_SESSION_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_slow_tools import (
@@ -102,7 +102,7 @@ def test_digest_target_elides_at_a_token_boundary_with_one_ellipsis() -> None:
             ),
         ),
         (
-            FAMILY_FOLD_SCALE,
+            AGENT_SESSION_FOLD_SCALE,
             (SlowToolDetail.COMPACT, SlowToolDetail.FULL),
         ),
     ],

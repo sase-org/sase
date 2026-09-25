@@ -133,12 +133,12 @@ def build_sase_agent_neighbor_projection(
             row.agent.identity == lane_identity
             or agent_name_key(row.agent) in lane_keys
         ):
-            # A lane is never its own neighbor. An expanded family renders its
+            # A lane is never its own neighbor. An expanded agent session renders its
             # root member as a second row with a synthetic identity, so drop by
             # name key too rather than trusting identity alone. ``lane_row_names``
             # carries the owner's raw ``--<suffix>`` name, which is how that
             # duplicate root-member row is keyed once the lane itself keys on
-            # the bare family base.
+            # the bare session base.
             continue
         if row.agent.identity in suppressed:
             suppressed_count += 1

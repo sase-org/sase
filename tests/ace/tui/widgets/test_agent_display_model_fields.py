@@ -65,7 +65,7 @@ class TestLoaderFollowupPopulation:
         _apply_status_overrides([parent, coder])
         assert len(parent.followup_agents) == 1
         assert coder in parent.followup_agents
-        assert parent.is_family_container_row is True
+        assert parent.is_agent_session_container_row is True
 
     def test_feedback_attached(self) -> None:
         from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -127,4 +127,4 @@ class TestLoaderFollowupPopulation:
         )
         _apply_status_overrides([parent, step])
         assert len(parent.followup_agents) == 0
-        assert parent.is_family_container_row is False
+        assert parent.is_agent_session_container_row is False

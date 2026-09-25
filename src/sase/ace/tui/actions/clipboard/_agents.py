@@ -96,7 +96,7 @@ class ClipboardAgentsMixin(ClipboardBase):
                 severity="warning",
             )
             return
-        if agent.is_family_container_row:
+        if agent.is_agent_session_container_row:
             self.notify(  # type: ignore[attr-defined]
                 "The selected family container has no agent reference",
                 severity="warning",

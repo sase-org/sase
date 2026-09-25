@@ -38,7 +38,7 @@ def row_observation(agent: Agent) -> dict[str, object]:
             if agent.wait_display_source is None
             else agent.wait_display_source.identity
         ),
-        "is_family_container_row": agent.is_family_container_row,
+        "is_agent_session_container_row": agent.is_agent_session_container_row,
         "llm_provider": agent.llm_provider,
     }
 
@@ -131,4 +131,4 @@ def clan_container(agents: list[Agent]) -> Agent:
 
 
 def agent_session_root(agents: list[Agent]) -> Agent:
-    return next(agent for agent in agents if agent.is_family_container_row)
+    return next(agent for agent in agents if agent.is_agent_session_container_row)

@@ -6,7 +6,7 @@ from .fold_state import FoldLevel
 
 type FoldScale = tuple[FoldLevel, ...]
 
-FAMILY_FOLD_SCALE: FoldScale = (
+AGENT_SESSION_FOLD_SCALE: FoldScale = (
     FoldLevel.EXPANDED,
     FoldLevel.FULLY_EXPANDED,
 )
@@ -58,8 +58,8 @@ def resolve_summary_fold_scale(
 def lane_fold_scale(agent: object) -> FoldScale:
     """Return the fold scale owned by one sase agent's summary document."""
     return (
-        FAMILY_FOLD_SCALE
-        if getattr(agent, "is_family_container_row", False)
+        AGENT_SESSION_FOLD_SCALE
+        if getattr(agent, "is_agent_session_container_row", False)
         else AGENT_FOLD_SCALE
     )
 
@@ -119,7 +119,7 @@ def toggle_fold_level(level: FoldLevel, scale: FoldScale) -> FoldLevel:
 __all__ = [
     "AGENT_FOLD_SCALE",
     "CLAN_FOLD_SCALE",
-    "FAMILY_FOLD_SCALE",
+    "AGENT_SESSION_FOLD_SCALE",
     "TRIBE_FOLD_SCALE",
     "FoldScale",
     "cycle_fold_level_forward",

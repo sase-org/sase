@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
+from sase.ace.tui.models.agent_session_members import concrete_agent_session_shell_rows
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import (
     _gate_family_agents,
@@ -57,8 +57,8 @@ async def test_family_gate_shells_png_snapshots(
         await wait_for_visual_idle(page)
 
         container = page.app._agents[page.app.current_idx]
-        assert container.is_family_container_row is True
-        shells = concrete_family_shell_rows(container)
+        assert container.is_agent_session_container_row is True
+        shells = concrete_agent_session_shell_rows(container)
         assert [shell.is_gate for shell in shells] == [
             False,
             False,

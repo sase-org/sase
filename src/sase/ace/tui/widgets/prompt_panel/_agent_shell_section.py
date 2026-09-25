@@ -18,7 +18,7 @@ from sase.llm_provider.model_label import model_value_text
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
 from ...models.agent import Agent
-from ...models.agent_family_members import concrete_family_shell_rows
+from ...models.agent_session_members import concrete_agent_session_shell_rows
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _STEP_TYPE_COLORS
 from ._agent_context_common import (
     COLOR_EMPTY,
@@ -96,7 +96,7 @@ def build_family_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
     """Build one labelled shell lane per concrete family shell."""
     family_name = agent.presented_agent_name or ""
     lanes: list[ShellLane] = []
-    for member in concrete_family_shell_rows(agent):
+    for member in concrete_agent_session_shell_rows(agent):
         label = family_member_label(member, family_name)
         if member.is_monitor:
             lanes.append(
@@ -128,7 +128,7 @@ def build_family_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
         if value is None:
             value = Text("default", style=_SHELL_LANE_DEFAULT_STYLE)
         lanes.append(_AgentShellLane(label=label, value=value))
-    if not lanes and agent.is_family_container_row:
+    if not lanes and agent.is_agent_session_container_row:
         value = model_value_text(
             agent.model,
             agent.llm_provider,

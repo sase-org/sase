@@ -1,4 +1,4 @@
-"""Family identity, topology, and relationship helpers for agent statuses."""
+"""Agent session identity, topology, and relationship helpers for agent statuses."""
 
 from datetime import datetime
 
@@ -15,9 +15,9 @@ from ._agent_status_roles import agent_session_role
 from .agent import Agent, AgentType
 
 
-# Family-member roles/suffixes that mark a family as having entered a plan
+# Session-member roles/suffixes that mark a session as having entered a plan
 # chain. Ordinary question continuations are excluded: a question handoff on
-# its own does not make a family a plan family.
+# its own does not make a session a plan agent session.
 PLAN_CHAIN_MEMBER_ROLES = frozenset({"plan", "code", "epic", "commit", "feedback"})
 _PLAN_CHAIN_MEMBER_SUFFIXES = frozenset(
     {
@@ -46,14 +46,14 @@ def merge_feedback_plan_paths(parent: Agent, child: Agent) -> None:
             parent.feedback_plan_paths[timestamp] = path
 
 
-def is_plan_chain_family_member(agent: Agent) -> bool:
-    """Return True when a family member row belongs to a plan chain.
+def is_plan_chain_agent_session_member(agent: Agent) -> bool:
+    """Return True when a session member row belongs to a plan chain.
 
     The suffix clause catches a rename-on-attach continuation whose stored
     ``agent_session_role`` predates a later plan submission; its canonical
     suffix already reads ``--plan`` even if the stored role did not change.
     """
-    if agent.agent_session_parallel or not agent.is_family_member_child:
+    if agent.agent_session_parallel or not agent.is_agent_session_member_child:
         return False
     if agent_session_role(agent) in PLAN_CHAIN_MEMBER_ROLES:
         return True
@@ -71,8 +71,8 @@ def is_root_plan_workflow(agent: Agent) -> bool:
 
     True from durable root metadata recorded at promotion time
     (``plan_chain_root``, or a native ``--plan`` role suffix), or from a plan
-    chain the family entered later (``derived_plan_agent_session_root``, set by
-    :func:`mark_derived_plan_family_roots` when a promoted root's members
+    chain the session entered later (``derived_plan_agent_session_root``, set by
+    :func:`mark_derived_plan_agent_session_roots` when a promoted root's members
     reveal a plan chain that started after the root was promoted).
     """
     if agent.is_child_row or agent.agent_session_parallel:
@@ -97,27 +97,27 @@ def is_natively_recognized_plan_root(agent: Agent) -> bool:
     )
 
 
-def mark_derived_plan_family_roots(
+def mark_derived_plan_agent_session_roots(
     children_by_parent: dict[str, list[Agent]],
     parent_by_suffix: dict[str, Agent],
 ) -> None:
-    """Mark promoted family roots whose members reveal a later plan chain.
+    """Mark promoted session roots whose members reveal a later plan chain.
 
-    Sticky: only ever sets the marker, never clears it, so a family that has
+    Sticky: only ever sets the marker, never clears it, so a session that has
     entered a plan chain never leaves it across repeated normalization passes
     over the same in-memory rows (including after an artifact-delta merge
     that may carry a partial agent list).
     """
     for parent_timestamp, children in children_by_parent.items():
         parent = parent_by_suffix.get(parent_timestamp)
-        if parent is None or not parent.is_family_root_entry:
+        if parent is None or not parent.is_agent_session_root_entry:
             continue
-        if any(is_plan_chain_family_member(child) for child in children):
+        if any(is_plan_chain_agent_session_member(child) for child in children):
             parent.derived_plan_agent_session_root = True
 
 
-def agent_family_name(agent: Agent) -> str | None:
-    """Return the stable family name for a root or child row."""
+def stable_agent_session_name(agent: Agent) -> str | None:
+    """Return the stable session name for a root or child row."""
     if agent.agent_session:
         return agent.agent_session
     if agent.agent_name:
@@ -143,12 +143,12 @@ def is_main_workflow_agent_step(agent: Agent) -> bool:
     )
 
 
-def is_family_child(agent: Agent, parent: Agent) -> bool:
+def is_agent_session_child(agent: Agent, parent: Agent) -> bool:
     if not parent.raw_suffix or agent.parent_timestamp != parent.raw_suffix:
         return False
     if agent.is_workflow_step_child:
         return is_main_workflow_agent_step(agent)
-    return agent.is_family_member_child
+    return agent.is_agent_session_member_child
 
 
 def children_by_parent_timestamp(all_agents: list[Agent]) -> dict[str, list[Agent]]:
@@ -159,7 +159,7 @@ def children_by_parent_timestamp(all_agents: list[Agent]) -> dict[str, list[Agen
     return children_by_parent
 
 
-def has_later_family_continuation(
+def has_later_agent_session_continuation(
     agent: Agent,
     children_by_parent: dict[str, list[Agent]],
 ) -> bool:
@@ -170,7 +170,7 @@ def has_later_family_continuation(
     return any(
         sibling is not agent
         and sibling.parent_timestamp == agent.parent_timestamp
-        and sibling.is_family_member_child
+        and sibling.is_agent_session_member_child
         and child_launch_time(sibling) > launched_at
         for sibling in children_by_parent.get(agent.parent_timestamp, [])
     )

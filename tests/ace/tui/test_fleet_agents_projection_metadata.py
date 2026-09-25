@@ -76,8 +76,8 @@ def test_project_fleet_agents_carries_remote_family_lineage_into_agent_rows() ->
     assert child_row.agent_session_role == "member"
     assert child_row.role_suffix == "--code"
     assert child_row.parent_timestamp == root_row.raw_suffix
-    assert child_row.is_family_member_child is True
-    assert root_row.is_family_container_row is True
+    assert child_row.is_agent_session_member_child is True
+    assert root_row.is_agent_session_container_row is True
     assert child_row in root_row.followup_agents
     entry = agent_live_query_entry(child_row)
     assert entry["fields"]["kind"] == ("member",)

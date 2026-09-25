@@ -220,7 +220,7 @@ class TestAgentListFleetMarker:
             raw_suffix="20260509-100000",
         )
         root.followup_agents = [child]
-        assert root.is_family_container_row is True
+        assert root.is_agent_session_container_row is True
 
         root_left, _, _ = format_agent_option(
             root,

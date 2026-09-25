@@ -34,9 +34,9 @@ from ._agent_tree import (
     tree_parent_lookup,
 )
 from .agent import Agent, AgentType, compute_row_runtime
-from .agent_family_members import (
-    concrete_family_member_rows,
-    is_sequential_family_container,
+from .agent_session_members import (
+    concrete_agent_session_member_rows,
+    is_sequential_agent_session_container,
 )
 from .agent_nodes import is_agents_tab_agent_node
 from .agent_panels import PanelKey, agent_panel_label
@@ -148,7 +148,7 @@ class AgentTribeSummarySnapshot:
     status_bucket: str
     counts: TribeStatusCounts
     clan_count: int
-    family_count: int
+    session_count: int
     lane_count: int
     nested_count: int
     runtime_span: str
@@ -192,16 +192,16 @@ def _row_name(agent: Agent) -> str:
 def _unit_kind(agent: Agent) -> str:
     if agent.is_clan_container:
         return "clan"
-    if is_sequential_family_container(agent):
-        return "family"
+    if is_sequential_agent_session_container(agent):
+        return "session"
     if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
         return "workflow"
     return "agent"
 
 
 def _member_kind(agent: Agent) -> str:
-    if agent.is_family_container_row:
-        return "family"
+    if agent.is_agent_session_container_row:
+        return "session"
     if agent.is_monitor:
         return "monitor"
     if agent.is_gate:
@@ -232,8 +232,8 @@ def tribe_unit_real_rows(unit: Agent) -> tuple[Agent, ...]:
     """Return the real rows represented by one top-level tribe unit."""
     if unit.is_clan_container:
         return clan_section_member_rows(unit)
-    if is_sequential_family_container(unit):
-        return concrete_family_member_rows(unit)
+    if is_sequential_agent_session_container(unit):
+        return concrete_agent_session_member_rows(unit)
     return _dedupe_rows((unit, *_descendant_rows(unit)))
 
 
@@ -260,9 +260,13 @@ def _relative_child_label(unit: Agent, child: Agent) -> str:
         prefix = f"{clan_name}."
         if name.startswith(prefix):
             return name[len(prefix) - 1 :]
-    family_name = unit.presented_family_reference_name()
-    if family_name and name.startswith(family_name) and len(name) > len(family_name):
-        return name[len(family_name) :]
+    agent_session_name = unit.presented_agent_session_reference_name()
+    if (
+        agent_session_name
+        and name.startswith(agent_session_name)
+        and len(name) > len(agent_session_name)
+    ):
+        return name[len(agent_session_name) :]
     return name
 
 
@@ -373,7 +377,7 @@ def _unit_snapshot(
 ) -> _TribeUnitSnapshot:
     rows = tribe_unit_real_rows(unit)
     nested_rows = tuple(row for row in rows if row.identity != unit.identity)
-    unit_is_family = is_sequential_family_container(unit)
+    unit_is_agent_session = is_sequential_agent_session_container(unit)
     effective_bucket_by_identity = {
         projection.agent.identity: projection.bucket
         for projection in agent_status_projections((unit,))
@@ -395,13 +399,13 @@ def _unit_snapshot(
             digest=build_agent_member_digest(
                 row,
                 label=_relative_child_label(unit, row),
-                family_depth=1,
+                agent_session_depth=1,
             ),
             is_marked=row.identity in marked_ids,
             is_unread=(
                 row.identity in unread_ids
                 and is_agents_tab_agent_node(row)
-                and not unit_is_family
+                and not unit_is_agent_session
             ),
         )
         for row in nested_rows
@@ -411,7 +415,7 @@ def _unit_snapshot(
         root_digest = build_agent_member_digest(
             unit,
             label=_row_name(unit),
-            family_depth=0,
+            agent_session_depth=0,
         )
     return _TribeUnitSnapshot(
         identity=unit.identity,
@@ -506,10 +510,12 @@ def build_agent_tribe_summary_snapshot(
     )
     status = aggregate_agent_group_effective_status(aggregate_entries) or "EMPTY"
     status_bucket = aggregate_agent_group_bucket(aggregate_entries) or "Running"
-    family_identities = {
-        row.identity for row in real_rows if is_sequential_family_container(row)
+    agent_session_identities = {
+        row.identity for row in real_rows if is_sequential_agent_session_container(row)
     }
-    family_identities.update(unit.identity for unit in units if unit.kind == "family")
+    agent_session_identities.update(
+        unit.identity for unit in units if unit.kind == "session"
+    )
     nested_count = sum(
         len(agent_status_projections((root,)))
         if root.is_clan_container
@@ -517,7 +523,7 @@ def build_agent_tribe_summary_snapshot(
             projection.agent.identity != root.identity
             for projection in agent_status_projections((root,))
         )
-        if is_sequential_family_container(root)
+        if is_sequential_agent_session_container(root)
         else 0
         for root in roots
     )
@@ -532,7 +538,7 @@ def build_agent_tribe_summary_snapshot(
         status_bucket=status_bucket,
         counts=lane_counts,
         clan_count=sum(unit.kind == "clan" for unit in units),
-        family_count=len(family_identities),
+        session_count=len(agent_session_identities),
         lane_count=lane_count,
         nested_count=nested_count,
         runtime_span=_runtime_span(real_rows, now=reference),

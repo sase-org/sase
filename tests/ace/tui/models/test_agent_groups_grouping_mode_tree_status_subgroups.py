@@ -26,7 +26,9 @@ def test_build_agent_tree_by_status_groups_by_name_root_within_bucket() -> None:
     ]
 
 
-def test_build_agent_tree_by_status_groups_dotted_agent_family_under_root() -> None:
+def test_build_agent_tree_by_status_groups_dotted_agent_agent_session_under_root() -> (
+    None
+):
     root = _agent(
         cl_name="x",
         agent_name="a9f",

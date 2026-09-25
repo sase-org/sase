@@ -15,7 +15,7 @@ from sase.project_display_names import (
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
 from ...models._projected_record import resolve_step_output
-from ...models.agent_family_members import family_roster_container
+from ...models.agent_session_members import agent_session_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import (
@@ -340,9 +340,9 @@ class AgentDisplayRenderMixin(
             app = None
         lane_owner = agent_owns_sase_agent(agent)
         lane_summary_enabled = (
-            agent.is_family_container_row
+            agent.is_agent_session_container_row
             or lane_owner
-            or family_roster_container(agent) is not None
+            or agent_session_roster_container(agent) is not None
         )
         projection_resolver = getattr(app, "lane_neighbor_projection_for", None)
         lane_neighbors = (
@@ -369,7 +369,7 @@ class AgentDisplayRenderMixin(
             ),
         )
 
-        if agent.is_family_container_row:
+        if agent.is_agent_session_container_row:
             self._update_family_display(
                 agent,
                 header_text,

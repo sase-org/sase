@@ -16,7 +16,7 @@ from sase.core.agent_identity_facade import (
     AgentOwnerIdentity,
 )
 
-from ._agent_neighbors_helpers import _agent, _family_member, _family_root
+from ._agent_neighbors_helpers import _agent, _agent_session_member, _agent_session_root
 
 
 def test_agent_hood_is_immediate_dotted_namespace() -> None:
@@ -94,20 +94,22 @@ def test_agent_row_construction_does_not_read_machine_config(
     assert agent.presented_identity_name == "athena.foo"
 
 
-def test_family_display_and_kinship_identity_are_normalized_independently() -> None:
-    family = _agent("athena.foo--plan")
-    family.agent_session = "athena.foo"
-    family.agent_session_role = "root"
-    family.plan_chain_root = True
-    family.refresh_presented_agent_name(
+def test_agent_session_display_and_kinship_identity_are_normalized_independently() -> (
+    None
+):
+    agent_session_root = _agent("athena.foo--plan")
+    agent_session_root.agent_session = "athena.foo"
+    agent_session_root.agent_session_role = "root"
+    agent_session_root.plan_chain_root = True
+    agent_session_root.refresh_presented_agent_name(
         AgentIdentitySnapshot(
             AgentOwnerIdentity("alice", "athena"),
             ("athena", "zeus"),
         )
     )
 
-    assert family.presented_agent_name == "foo"
-    assert family.presented_identity_name == "foo--plan"
+    assert agent_session_root.presented_agent_name == "foo"
+    assert agent_session_root.presented_identity_name == "foo--plan"
 
 
 def test_neighbors_share_the_same_immediate_hood() -> None:
@@ -199,7 +201,7 @@ def test_index_matches_case_insensitively() -> None:
     assert index.neighbors_for(1) == (0,)
 
 
-def test_agent_descendant_uses_dotted_or_family_boundary_prefix() -> None:
+def test_agent_descendant_uses_dotted_or_agent_session_boundary_prefix() -> None:
     assert is_agent_descendant("foo.bar.baz", "foo.bar") is True
     assert is_agent_descendant("Foo.Bar.Baz", "foo.bar") is True
     assert is_agent_descendant("foo.bar.baz.deep", "foo.bar") is True
@@ -244,14 +246,16 @@ def test_index_tracks_visible_descendants_for_dotless_and_dotted_agents() -> Non
     assert index.descendant_count(1) == 1
 
 
-def test_index_suppresses_family_root_member_duplicate_from_descendants() -> None:
-    root = _family_root("fam", role="0")
+def test_index_suppresses_agent_session_root_member_duplicate_from_descendants() -> (
+    None
+):
+    root = _agent_session_root("fam", role="0")
     root.cl_name = "family-root"
     root.raw_suffix = "root"
-    main = _family_member("fam", role="0", parent=root)
+    main = _agent_session_member("fam", role="0", parent=root)
     main.cl_name = "main"
     main.raw_suffix = "main"
-    coder = _family_member("fam", role="code", parent=root)
+    coder = _agent_session_member("fam", role="code", parent=root)
     coder.cl_name = "coder"
     coder.raw_suffix = "coder"
 
@@ -282,7 +286,7 @@ def test_index_tracks_visible_ancestors_nearest_first() -> None:
     assert index.ancestors_for(0) == ()
 
 
-def test_index_tracks_family_chain_ancestors_and_descendants() -> None:
+def test_index_tracks_agent_session_chain_ancestors_and_descendants() -> None:
     rows = [
         AgentNeighborRow(0, 0, _agent("fam")),
         AgentNeighborRow(1, 0, _agent("fam--plan")),
@@ -363,7 +367,7 @@ def test_index_descendant_count_includes_dismissed_kin() -> None:
     assert index.descendant_count(0) == 3
 
 
-def test_index_descendant_count_includes_dismissed_family_chain() -> None:
+def test_index_descendant_count_includes_dismissed_agent_session_chain() -> None:
     rows = [
         AgentNeighborRow(0, 0, _agent("fam--plan")),
         AgentNeighborRow(1, 0, _agent("fam--plan--visible")),
@@ -396,7 +400,7 @@ def test_index_assigns_duplicate_nephew_and_cousin_to_closest_hood() -> None:
     assert index.neighbors_for(0) == (3, 1, 4, 2, 5)
 
 
-def test_family_mates_need_prefix_or_dotted_hood_relation() -> None:
+def test_agent_session_mates_need_prefix_or_dotted_hood_relation() -> None:
     rows = [
         AgentNeighborRow(0, 0, _agent("fam--plan")),
         AgentNeighborRow(1, 0, _agent("fam--fix")),
@@ -407,7 +411,7 @@ def test_family_mates_need_prefix_or_dotted_hood_relation() -> None:
 
     index = AgentNeighborIndex.from_visible_rows(rows)
 
-    # Top-level family mates share neither a boundary prefix nor a dotted hood.
+    # Top-level agent session mates share neither a boundary prefix nor a dotted hood.
     assert index.neighbors_for(0) == ()
     assert index.neighbors_for(1) == ()
     assert index.hood_neighbor_groups_for(2) == (("clan", (3,)),)

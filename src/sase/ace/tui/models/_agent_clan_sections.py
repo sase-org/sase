@@ -64,8 +64,8 @@ class ClanMemberDigest:
     label: str
     status: str
     model: str | None
-    family_depth: int
-    family_name: str | None
+    agent_session_depth: int
+    agent_session_name: str | None
     activity: str | None
     waiting: tuple[str, ...]
     retry: tuple[str, ...]
@@ -223,10 +223,10 @@ class ClanSectionSnapshot:
 
 
 def clan_section_member_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return every real clan row, including members nested in families.
+    """Return every real clan row, including members nested in agent sessions.
 
-    Direct clan members retain launch order.  Sequential family descendants
-    follow their family root in launch order.  Identity de-duplication handles
+    Direct clan members retain launch order.  Sequential agent session descendants
+    follow their session root in launch order.  Identity de-duplication handles
     compatibility fixtures that expose the same row through more than one
     runtime-child collection.
     """
@@ -241,7 +241,7 @@ def clan_section_member_rows(agent: Agent) -> tuple[Agent, ...]:
         children = tuple(
             child
             for child in row.runtime_children
-            if child.is_family_member_child and not child.agent_session_parallel
+            if child.is_agent_session_member_child and not child.agent_session_parallel
         )
         for child in sorted(children, key=_member_sort_key):
             append_row(child)
@@ -259,7 +259,7 @@ def aggregate_clan_in_memory(agent: Agent) -> ClanInMemorySnapshot:
         build_agent_member_digest(
             row,
             label=_clan_relative_label(row, clan_name),
-            family_depth=_family_depth(row),
+            agent_session_depth=_agent_session_depth(row),
         )
         for row in rows
     )
@@ -421,7 +421,7 @@ def build_agent_member_digest(
     row: Agent,
     *,
     label: str,
-    family_depth: int,
+    agent_session_depth: int,
 ) -> ClanMemberDigest:
     """Project one loaded row into the shared in-memory roster digest."""
     return ClanMemberDigest(
@@ -429,8 +429,8 @@ def build_agent_member_digest(
         label=label,
         status=row.display_status,
         model=row.model,
-        family_depth=family_depth,
-        family_name=row.agent_session,
+        agent_session_depth=agent_session_depth,
+        agent_session_name=row.agent_session,
         activity=row.activity,
         waiting=_waiting_digest(row),
         retry=_retry_digest(row),
@@ -481,8 +481,10 @@ def _retry_digest(row: Agent) -> tuple[str, ...]:
     return tuple(parts)
 
 
-def _family_depth(row: Agent) -> int:
-    return 1 if row.is_family_member_child and not row.agent_session_parallel else 0
+def _agent_session_depth(row: Agent) -> int:
+    return (
+        1 if row.is_agent_session_member_child and not row.agent_session_parallel else 0
+    )
 
 
 def _member_sort_key(row: Agent) -> tuple[bool, str, str]:

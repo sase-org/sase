@@ -46,10 +46,10 @@ def agent_gating_fold_key(
     """Return the fold key whose expansion reveals *agent*.
 
     Non-shell rows are gated by their own immediate parent, same as
-    :func:`agent_parent_fold_key`. A family shell row instead climbs its
+    :func:`agent_parent_fold_key`. A session shell row instead climbs its
     immediate-parent chain to the nearest ancestor that is not itself a
-    child row -- the family/workflow container whose fold actually reveals
-    the shell, skipping past any mid-family starter that owns no fold of
+    child row -- the agent session/workflow container whose fold actually reveals
+    the shell, skipping past any mid-agent session starter that owns no fold of
     its own. Returns ``None`` when a link in that chain is missing or the
     chain does not resolve within the number of known fold owners.
     """
@@ -94,8 +94,8 @@ def agent_tree_title(agent: Agent) -> str | None:
     """Return the Agents-tab left-side title, or ``None`` for sase shells.
 
     Bash/python workflow steps use their step name as identity. Sase shells
-    (family members, monitors, workflow ``agent`` steps) keep identity on the
-    right-hand ``%id`` annotation. Clan containers, family containers, and
+    (agent session members, monitors, workflow ``agent`` steps) keep identity on the
+    right-hand ``%id`` annotation. Clan containers, session containers, and
     standalone roots keep ``display_name``.
     """
     if agent.is_workflow_step_child and agent.step_type in _NAMED_WORKFLOW_STEP_TYPES:
@@ -109,13 +109,13 @@ def agent_tree_title(agent: Agent) -> str | None:
 
 
 def _is_untitled_sase_shell(agent: Agent) -> bool:
-    if agent.is_clan_container or agent.is_family_container_row:
+    if agent.is_clan_container or agent.is_agent_session_container_row:
         return False
     if agent.is_monitor or agent.is_gate:
         return True
     if agent.is_workflow_step_child and agent.step_type == "agent":
         return True
-    return agent.is_family_member_child
+    return agent.is_agent_session_member_child
 
 
 def tree_parent_lookup(agents: Iterable[Agent]) -> dict[str, Agent]:

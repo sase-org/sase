@@ -60,6 +60,8 @@ def _observation_locators(response: Mapping[str, Any]) -> list[dict[str, Any]]:
                 locator["project"]["origin"]["installation_id"],
                 locator["project"]["project_id"],
                 locator["agent_id"],
+                # legacy agent-family spelling: core emits "family_id" until
+                # core-contract; "agent_session_id" reads first.
                 locator.get("agent_session_id") or locator.get("family_id") or "",
             )
             encoded = "|".join(key)

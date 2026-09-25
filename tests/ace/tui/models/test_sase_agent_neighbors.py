@@ -34,10 +34,10 @@ def _agent(
     return Agent(**values)  # type: ignore[arg-type]
 
 
-def _family_root(family: str, *, role: str = "plan") -> Agent:
-    """Return a family root entry that renders under its bare family base."""
-    root = _agent(f"{family}--{role}")
-    root.agent_session = family
+def _agent_session_root(agent_session_root: str, *, role: str = "plan") -> Agent:
+    """Return a session root entry that renders under its bare session base."""
+    root = _agent(f"{agent_session_root}--{role}")
+    root.agent_session = agent_session_root
     root.agent_session_role = "root"
     root.plan_chain_root = True
     root.refresh_raw_presented_agent_name()
@@ -135,7 +135,7 @@ def test_projection_interleaves_dismissed_descendants_by_name() -> None:
     assert projection.rows[1].is_prospective is False
 
 
-def test_projection_suppresses_family_members_and_counts_them() -> None:
+def test_projection_suppresses_agent_session_members_and_counts_them() -> None:
     source = _agent("myclan.worker--plan")
     member = _agent("myclan.worker--impl")
     helper = _agent("myclan.worker--impl.helper")
@@ -154,7 +154,7 @@ def test_projection_suppresses_family_members_and_counts_them() -> None:
 
 def test_projection_never_lists_the_lane_as_its_own_neighbor() -> None:
     source = _agent("myclan.worker--plan")
-    # An expanded family renders its root member a second time under a
+    # An expanded agent session renders its root member a second time under a
     # synthetic identity, so identity-only suppression would keep it.
     duplicate = _agent("myclan.worker--plan", raw_suffix=None)
     peer = _agent("myclan.helper")
@@ -171,9 +171,11 @@ def test_projection_never_lists_the_lane_as_its_own_neighbor() -> None:
     assert projection.suppressed_lane_member_count == 0
 
 
-def test_projection_drops_the_duplicate_root_member_row_of_a_family_lane() -> None:
-    source = _family_root("myclan.worker")
-    # Once the lane keys on the bare family base, the expanded family's second
+def test_projection_drops_the_duplicate_root_member_row_of_a_agent_session_lane() -> (
+    None
+):
+    source = _agent_session_root("myclan.worker")
+    # Once the lane keys on the bare session base, the expanded agent session's second
     # root-member row is only reachable through ``lane_row_names``.
     duplicate = _agent("myclan.worker--plan", raw_suffix=None)
     peer = _agent("myclan.helper")
@@ -192,7 +194,7 @@ def test_projection_drops_the_duplicate_root_member_row_of_a_family_lane() -> No
 
 
 def test_projection_without_lane_row_names_leaks_the_duplicate_root_member() -> None:
-    source = _family_root("myclan.worker")
+    source = _agent_session_root("myclan.worker")
     duplicate = _agent("myclan.worker--plan", raw_suffix=None)
     peer = _agent("myclan.helper")
 
@@ -206,8 +208,8 @@ def test_projection_without_lane_row_names_leaks_the_duplicate_root_member() -> 
     assert [row.agent for row in projection.rows] == [duplicate, peer]
 
 
-def test_top_level_family_lane_projects_its_dotted_hood_mates() -> None:
-    root = _family_root("fam")
+def test_top_level_agent_session_lane_projects_its_dotted_hood_mates() -> None:
+    root = _agent_session_root("fam")
     helper = _agent("fam.helper")
     other = _agent("fam.other")
 
@@ -274,17 +276,17 @@ def test_agent_owns_sase_agent_truth_table() -> None:
     clan.is_clan_container = True
     hidden = _agent("hidden", is_hidden_step=True)
     workflow_child = _agent("workflow.step", parent_workflow="workflow")
-    family_member = _agent("family--code", parent_timestamp="family--plan")
-    family = _agent("family--plan")
-    family.agent_session = "family"
-    family.agent_session_role = "root"
-    family.followup_agents = [family_member]
+    agent_session_member = _agent("family--code", parent_timestamp="family--plan")
+    agent_session_root = _agent("family--plan")
+    agent_session_root.agent_session = "family"
+    agent_session_root.agent_session_role = "root"
+    agent_session_root.followup_agents = [agent_session_member]
 
-    assert family.is_family_container_row is True
-    assert agent_owns_sase_agent(family) is True
+    assert agent_session_root.is_agent_session_container_row is True
+    assert agent_owns_sase_agent(agent_session_root) is True
     assert agent_owns_sase_agent(plain) is True
     assert agent_owns_sase_agent(clan) is False
-    assert agent_owns_sase_agent(family_member) is False
+    assert agent_owns_sase_agent(agent_session_member) is False
     assert agent_owns_sase_agent(workflow_child) is False
     assert agent_owns_sase_agent(hidden) is False
     assert agent_owns_sase_agent(unnamed) is False

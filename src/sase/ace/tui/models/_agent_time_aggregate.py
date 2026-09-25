@@ -1,4 +1,4 @@
-"""Aggregate runtime across a row's family/clan descendant rows."""
+"""Aggregate runtime across a row's agent session/clan descendant rows."""
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -18,21 +18,21 @@ if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
 
-def aggregates_family_shells(agent: "Agent") -> bool:
-    """Return whether *agent*'s aggregate owns durable family-shell runtime.
+def aggregates_agent_session_shells(agent: "Agent") -> bool:
+    """Return whether *agent*'s aggregate owns durable session-shell runtime.
 
-    This is container-ness, not ``stop_time``. A settled family container
+    This is container-ness, not ``stop_time``. A settled session container
     still records ``stopped_at`` on the root artifacts dir, but it must keep
     spanning a running shell grandchild. Concrete agent shells only own their
     own interval; the shell already has its own roster row.
     """
-    return agent.is_clan_container or agent.is_family_container_row
+    return agent.is_clan_container or agent.is_agent_session_container_row
 
 
 def _represented_by_descendants(agent: "Agent", eligible: tuple["Agent", ...]) -> bool:
     """Return whether *agent*'s runtime is carried by descendant rows."""
     if not (
-        aggregates_family_shells(agent)
+        aggregates_agent_session_shells(agent)
         or any(
             child.is_workflow_step_child
             for child in getattr(agent, "runtime_children", ())
@@ -54,7 +54,7 @@ def runtime_child_rows(
     it never contributes its own interval to an ancestor at any level. Its
     own children are yielded in its place, so an agent a gate started is not
     dropped along with the gate. Monitor shells still contribute, but only to
-    family and clan container rows.
+    agent session and clan container rows.
     """
     if _seen is None:
         _seen = {id(agent)}
@@ -87,7 +87,7 @@ def _aggregate_runtime(
     if not children:
         return None
 
-    include_monitor_shells = aggregates_family_shells(agent)
+    include_monitor_shells = aggregates_agent_session_shells(agent)
     runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
     saw_non_monitor_member = False

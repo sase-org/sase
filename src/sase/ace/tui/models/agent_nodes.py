@@ -6,9 +6,9 @@ from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 
 from .agent import Agent
-from .agent_family_members import (
-    concrete_family_member_rows,
-    is_sequential_family_container,
+from .agent_session_members import (
+    concrete_agent_session_member_rows,
+    is_sequential_agent_session_container,
 )
 from .agent_types import AgentType
 
@@ -50,8 +50,8 @@ class _AgentNodeProjectionIndex:
 def is_agents_tab_agent_node(agent: Agent) -> bool:
     """Return whether *agent* is an Agents-tab agent node.
 
-    Agent nodes are standalone root rows and sequential-family containers.
-    Clan containers, family-member shells, workflow/step children, and durable
+    Agent nodes are standalone root rows and sequential-agent-session containers.
+    Clan containers, session-member shells, workflow/step children, and durable
     shell rows are rendered nodes but not unread/countable agent nodes.
     The decision intentionally ignores visual tree depth: a standalone agent
     nested under a clan remains a direct agent node.
@@ -66,7 +66,7 @@ def is_agents_tab_agent_node(agent: Agent) -> bool:
         return False
     if getattr(agent, "is_workflow_step_child", False):
         return False
-    if getattr(agent, "is_family_member_child", False):
+    if getattr(agent, "is_agent_session_member_child", False):
         return False
     return True
 
@@ -75,8 +75,8 @@ def _agent_node_owned_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return concrete rows whose completion notifications project to *agent*."""
     if not is_agents_tab_agent_node(agent):
         return ()
-    if is_sequential_family_container(agent):
-        rows = concrete_family_member_rows(agent)
+    if is_sequential_agent_session_container(agent):
+        rows = concrete_agent_session_member_rows(agent)
         return rows or (agent,)
     return (agent,)
 
@@ -109,12 +109,12 @@ def _agent_node_completion_rows(
     A node always owns the notification written under its own
     ``(cl_name, raw_suffix)``: the runner keys completions by the artifacts
     directory the node row was loaded from. Rows the node subsumes for status
-    counting are additive, never a substitute -- ``concrete_family_member_rows``
-    deliberately swaps a plan-family root for its concrete ``main`` workflow
+    counting are additive, never a substitute -- ``concrete_agent_session_member_rows``
+    deliberately swaps a plan-session root for its concrete ``main`` workflow
     step, and step rows carry the step name as ``cl_name``.
 
     A node contains every shell on its ``parent_timestamp`` chain, not only
-    direct children: a gate shell's launch monitor, or a family member's
+    direct children: a gate shell's launch monitor, or a session member's
     monitor, is owned by the nearest agent node reachable by following
     ``parent_timestamp`` links.
 
@@ -150,10 +150,10 @@ def agent_node_projection_index(
 ) -> _AgentNodeProjectionIndex:
     """Build an ownership index from a complete loaded roster.
 
-    A non-node row (a gate, monitor, or family-member shell) is owned by the
+    A non-node row (a gate, monitor, or session-member shell) is owned by the
     nearest agent node on its ``parent_timestamp`` chain, not only by a direct
-    parent: a gate shell's launch monitor, or a family member's monitor, still
-    reaches the family node through the intermediate shell.
+    parent: a gate shell's launch monitor, or a session member's monitor, still
+    reaches the session node through the intermediate shell.
     """
     roster = tuple(agents)
     node_agents: list[Agent] = []

@@ -16,7 +16,7 @@ from sase.ace.tui.models.sase_agent_neighbors import (
 )
 from sase.ace.tui.models.fold_scale import (
     AGENT_FOLD_SCALE,
-    FAMILY_FOLD_SCALE,
+    AGENT_SESSION_FOLD_SCALE,
     FoldScale,
 )
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -129,10 +129,11 @@ def _family_lane_case(tmp_path: Path) -> _LaneNeighborContractCase:
     projection = _lane_projection(lane, lane.presented_identity_name or "")
     return _LaneNeighborContractCase(
         kind="family-sase-agent",
-        scale=FAMILY_FOLD_SCALE,
+        scale=AGENT_SESSION_FOLD_SCALE,
         leading_member_count=2,
         rendered={
-            level: _render_lane(lane, projection, level) for level in FAMILY_FOLD_SCALE
+            level: _render_lane(lane, projection, level)
+            for level in AGENT_SESSION_FOLD_SCALE
         },
     )
 

@@ -54,7 +54,7 @@ def _agent(
     )
 
 
-def _active_family(*, clan: str | None = None) -> tuple[Agent, Agent]:
+def _active_agent_session(*, clan: str | None = None) -> tuple[Agent, Agent]:
     planner = _agent("alpha--plan", "TALE APPROVED", role="plan", clan=clan)
     coder = _agent(
         "alpha--code",
@@ -77,8 +77,8 @@ def test_sase_agents_count_each_standalone_agent() -> None:
     assert sase_agent_status_counts(agents, ()).total == 2
 
 
-def test_sase_agents_keep_sequential_family_as_one_lane() -> None:
-    planner, _coder = _active_family()
+def test_sase_agents_keep_sequential_agent_session_as_one_lane() -> None:
+    planner, _coder = _active_agent_session()
 
     counts = sase_agent_status_counts((planner,), ())
     assert counts.total == 1
@@ -86,8 +86,10 @@ def test_sase_agents_keep_sequential_family_as_one_lane() -> None:
     assert agent_summary_status_counts((planner,), ()).total == 2
 
 
-def test_sase_agents_count_clan_direct_members_without_family_descendants() -> None:
-    planner, coder = _active_family(clan="research")
+def test_sase_agents_count_clan_direct_members_without_agent_session_descendants() -> (
+    None
+):
+    planner, coder = _active_agent_session(clan="research")
     standalone = _agent("research-audit", "WAITING", role="solo", clan="research")
     container = project_clan_tree([planner, coder, standalone])[0]
 
@@ -128,7 +130,7 @@ def test_sase_agent_statuses_dedupe_terminal_owner_and_unread_state() -> None:
     assert counts.done == 0
 
 
-def test_sase_agents_keep_legacy_parallel_family_as_one_lane() -> None:
+def test_sase_agents_keep_legacy_parallel_agent_session_as_one_lane() -> None:
     root = _agent("parallel", "WAITING", role="root", parallel=True)
     members = [
         _agent(
@@ -153,22 +155,22 @@ def test_sase_agents_keep_legacy_parallel_family_as_one_lane() -> None:
 
 
 def test_sase_agent_screenshot_cardinality_is_31_for_56_concrete_agents() -> None:
-    family_root = _agent("large--plan", "DONE", role="plan")
-    family_members = [
+    agent_session_root = _agent("large--plan", "DONE", role="plan")
+    agent_session_members = [
         _agent(
             f"large--member-{index}",
             "DONE",
             role=f"member-{index}",
-            parent_timestamp=family_root.raw_suffix,
+            parent_timestamp=agent_session_root.raw_suffix,
         )
         for index in range(25)
     ]
-    family_root.followup_agents.extend(family_members)
-    family_root.runtime_children.extend(family_members)
+    agent_session_root.followup_agents.extend(agent_session_members)
+    agent_session_root.runtime_children.extend(agent_session_members)
     standalones = [
         _agent(f"standalone-{index}", "DONE", role="solo") for index in range(30)
     ]
-    top_level = (family_root, *standalones)
+    top_level = (agent_session_root, *standalones)
 
     lane_counts = sase_agent_status_counts(top_level, ())
     concrete_counts = agent_summary_status_counts(top_level, ())
@@ -178,7 +180,7 @@ def test_sase_agent_screenshot_cardinality_is_31_for_56_concrete_agents() -> Non
     assert concrete_counts.done == 56
 
 
-def test_finished_multi_member_family_is_one_done_lane() -> None:
+def test_finished_multi_member_agent_session_is_one_done_lane() -> None:
     root = _agent("alpha--plan", "DONE", role="plan")
     members = [
         _agent(
@@ -211,8 +213,8 @@ def test_nested_starting_lane_rolls_up_to_running() -> None:
     assert nested.running == 1
 
 
-def test_family_container_projects_members_and_settled_statuses() -> None:
-    planner, _coder = _active_family()
+def test_agent_session_container_projects_members_and_settled_statuses() -> None:
+    planner, _coder = _active_agent_session()
 
     counts = agent_summary_status_counts((planner,), ())
 
@@ -236,7 +238,7 @@ def test_summary_counts_use_custom_agent_status_bucket() -> None:
     assert counts.running == 0
 
 
-def test_planner_only_approved_family_stays_running() -> None:
+def test_planner_only_approved_agent_session_stays_running() -> None:
     planner = _agent("alpha--plan", "PLAN APPROVED", role="plan")
 
     counts = agent_summary_status_counts((planner,), ())
@@ -246,8 +248,8 @@ def test_planner_only_approved_family_stays_running() -> None:
     assert counts.done == 0
 
 
-def test_clan_projection_recurses_into_sequential_family() -> None:
-    planner, coder = _active_family(clan="research")
+def test_clan_projection_recurses_into_sequential_agent_session() -> None:
+    planner, coder = _active_agent_session(clan="research")
     container = project_clan_tree([planner, coder])[0]
 
     counts = agent_summary_status_counts((container,), ())
@@ -257,13 +259,15 @@ def test_clan_projection_recurses_into_sequential_family() -> None:
     assert counts.done == 1
 
 
-def test_clan_counts_settle_handed_off_family_planner_as_done() -> None:
-    family = _agent("alpha--plan", "TALE DONE", role="plan", clan="research")
+def test_clan_counts_settle_handed_off_agent_session_planner_as_done() -> None:
+    agent_session_root = _agent(
+        "alpha--plan", "TALE DONE", role="plan", clan="research"
+    )
     planner = _agent(
         "alpha--plan-step",
         "TALE APPROVED",
         role="plan-step",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan="research",
     )
     planner.agent_session_role = "plan"
@@ -273,21 +277,21 @@ def test_clan_counts_settle_handed_off_family_planner_as_done() -> None:
         "alpha--code",
         "TALE DONE",
         role="code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan="research",
     )
-    family.runtime_children = [planner, coder]
-    family.followup_agents = [coder]
+    agent_session_root.runtime_children = [planner, coder]
+    agent_session_root.followup_agents = [coder]
     standalone = _agent(
         "research.audit",
         "RUNNING",
         role="solo",
         clan="research",
     )
-    container = project_clan_tree([family, planner, coder, standalone])[0]
+    container = project_clan_tree([agent_session_root, planner, coder, standalone])[0]
 
-    assert family.is_family_container_row
-    assert clan_members(container) == (family, standalone)
+    assert agent_session_root.is_agent_session_container_row
+    assert clan_members(container) == (agent_session_root, standalone)
 
     clan_counts = clan_member_counts(container)
     lane_counts = sase_agent_status_counts((container,), ())
@@ -304,13 +308,13 @@ def test_clan_counts_settle_handed_off_family_planner_as_done() -> None:
     )
 
 
-def test_clan_counts_settle_answered_family_planner_as_done() -> None:
-    family = _agent("alpha--plan", "DONE", role="plan", clan="research")
+def test_clan_counts_settle_answered_agent_session_planner_as_done() -> None:
+    agent_session_root = _agent("alpha--plan", "DONE", role="plan", clan="research")
     planner = _agent(
         "alpha--plan-step",
         "ANSWERED",
         role="plan-step",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan="research",
         stop_offset=1,
     )
@@ -321,20 +325,20 @@ def test_clan_counts_settle_answered_family_planner_as_done() -> None:
         "alpha--1",
         "DONE",
         role="code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan="research",
     )
-    family.runtime_children = [planner, coder]
-    family.followup_agents = [coder]
+    agent_session_root.runtime_children = [planner, coder]
+    agent_session_root.followup_agents = [coder]
     standalone = _agent(
         "research.land",
         "RUNNING",
         role="solo",
         clan="research",
     )
-    container = project_clan_tree([family, planner, coder, standalone])[0]
+    container = project_clan_tree([agent_session_root, planner, coder, standalone])[0]
 
-    assert clan_members(container) == (family, standalone)
+    assert clan_members(container) == (agent_session_root, standalone)
 
     clan_counts = clan_member_counts(container)
     lane_counts = sase_agent_status_counts((container,), ())
@@ -352,7 +356,7 @@ def test_clan_counts_settle_answered_family_planner_as_done() -> None:
 
 
 def test_container_unread_is_attributed_once_to_projected_member() -> None:
-    root, coder = _active_family()
+    root, coder = _active_agent_session()
     planner = _agent(
         "alpha--plan-step",
         "TALE APPROVED",

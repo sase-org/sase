@@ -47,7 +47,7 @@ def _label(text: Text, label: str) -> None:
 
 
 def _name_style(agent: Agent) -> str:
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         return _FAMILY_NAME_STYLE
     if agent.is_proc_shell:
         return _PROC_SHELL_ID_STYLE

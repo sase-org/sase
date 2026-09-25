@@ -14,10 +14,10 @@ def filter_agents_by_fold_state(
     ``fold_counts`` maps each owning row's fold key to the rows that fold
     reveals: its immediate ordinary and hidden child counts. Synthetic clan
     folds own only their direct members; each member independently owns its
-    workflow/family children. A family shell row is instead counted and gated by
+    workflow/session children. A session shell row is instead counted and gated by
     its *gating* fold key (see :func:`agent_gating_fold_key`) -- the agent
-    family or workflow that reveals it -- rather than its immediate starter,
-    so a mid-family starter never owns a shell's fold.
+    agent session or workflow that reveals it -- rather than its immediate starter,
+    so a mid-agent session starter never owns a shell's fold.
     """
     owners_by_key: dict[str, Agent] = {}
     for agent in agents:
@@ -42,9 +42,9 @@ def filter_agents_by_fold_state(
             continue
         if (agent.is_monitor or agent.is_gate) and parent_key.startswith("clan:"):
             # A clan's counts are direct-member counts and clan_members
-            # already excludes family shell rows. A shell whose gating chain
+            # already excludes session shell rows. A shell whose gating chain
             # collapses onto the clan fold (a malformed/disk-shaped
-            # projection with no loaded family root) stays out too.
+            # projection with no loaded session root) stays out too.
             continue
         children_by_parent.setdefault(parent_key, []).append(agent)
 
@@ -100,7 +100,7 @@ def filter_agents_by_fold_state(
             return False
 
         # The hidden-step/FULLY_EXPANDED rule below stays keyed on the
-        # immediate parent; a family shell is never a hidden step, so only the
+        # immediate parent; a session shell is never a hidden step, so only the
         # COLLAPSED gate needs its own key for shell rows.
         level = fold_manager.get(parent_key)
         if agent.is_monitor or agent.is_gate:

@@ -16,7 +16,7 @@ canonical order, so panel layout is deterministic rather than depending on
 collapse time or set iteration order.
 
 Every structural descendant inherits its outer rendered root's effective tribe,
-so grouping never splits a clan or agent-family subtree across panels.
+so grouping never splits a clan or agent-session subtree across panels.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Cache-key, TTL, and root-then-member resolution tests for family previews."""
+"""Cache-key, TTL, and root-then-member resolution tests for agent session previews."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from pathlib import Path
 import pytest
 
 import sase.ace.tui.models.agent_associated_plan as plan_model
-import sase.ace.tui.models.agent_family_preview_cache as cache_model
+import sase.ace.tui.models.agent_session_preview_cache as cache_model
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.models.agent_family_preview_cache import (
-    FAMILY_PREVIEW_CACHE_MISS,
-    _family_plan_preview_cache_key,
-    cached_family_plan_preview,
-    should_resolve_family_plan_preview,
-    warm_family_plan_previews,
+from sase.ace.tui.models.agent_session_preview_cache import (
+    AGENT_SESSION_PREVIEW_CACHE_MISS,
+    _agent_session_plan_preview_cache_key,
+    cached_agent_session_plan_preview,
+    should_resolve_agent_session_plan_preview,
+    warm_agent_session_plan_previews,
 )
 from sase.agent_session_plan_preview import AgentSessionPlanPreview
 from tests.ace.tui.models._agent_associated_plan_helpers import write_epic, write_plan
@@ -24,16 +24,16 @@ from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 @pytest.fixture(autouse=True)
 def _clear_caches() -> Iterator[None]:
-    cache_model._FAMILY_PREVIEW_CACHE.clear()
+    cache_model._AGENT_SESSION_PREVIEW_CACHE.clear()
     plan_model._PLAN_FILE_CACHE.clear()
     plan_model._PLAN_ASSOCIATION_CACHE.clear()
     yield
-    cache_model._FAMILY_PREVIEW_CACHE.clear()
+    cache_model._AGENT_SESSION_PREVIEW_CACHE.clear()
     plan_model._PLAN_FILE_CACHE.clear()
     plan_model._PLAN_ASSOCIATION_CACHE.clear()
 
 
-def _family_root(**overrides: object) -> Agent:
+def _agent_session_root(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_name": "fam",
         "agent_session": "fam",
@@ -43,7 +43,7 @@ def _family_root(**overrides: object) -> Agent:
     return make_agent(**defaults)
 
 
-def _family_member(**overrides: object) -> Agent:
+def _agent_session_member(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
         "agent_name": "fam.2",
         "parent_timestamp": "ts1",
@@ -52,37 +52,37 @@ def _family_member(**overrides: object) -> Agent:
     return make_agent(**defaults)
 
 
-class TestFamilyPlanPreviewCacheKey:
-    def test_non_family_agent_has_no_key(self) -> None:
+class TestAgentSessionPlanPreviewCacheKey:
+    def test_non_agent_session_agent_has_no_key(self) -> None:
         agent = make_agent(agent_name="lonely")
-        assert _family_plan_preview_cache_key(agent) is None
+        assert _agent_session_plan_preview_cache_key(agent) is None
 
     def test_stable_across_a_simulated_reload(self) -> None:
-        first = _family_root(epic_bead_id="sase-1", phase_bead_id="sase-1.1")
-        second = _family_root(epic_bead_id="sase-1", phase_bead_id="sase-1.1")
+        first = _agent_session_root(epic_bead_id="sase-1", phase_bead_id="sase-1.1")
+        second = _agent_session_root(epic_bead_id="sase-1", phase_bead_id="sase-1.1")
 
-        assert _family_plan_preview_cache_key(first) == _family_plan_preview_cache_key(
-            second
-        )
+        assert _agent_session_plan_preview_cache_key(
+            first
+        ) == _agent_session_plan_preview_cache_key(second)
 
     def test_changes_when_association_field_changes(self) -> None:
-        first = _family_root(epic_bead_id="sase-1")
-        second = _family_root(epic_bead_id="sase-2")
+        first = _agent_session_root(epic_bead_id="sase-1")
+        second = _agent_session_root(epic_bead_id="sase-2")
 
-        assert _family_plan_preview_cache_key(first) != _family_plan_preview_cache_key(
-            second
-        )
+        assert _agent_session_plan_preview_cache_key(
+            first
+        ) != _agent_session_plan_preview_cache_key(second)
 
     def test_changes_when_a_concrete_member_is_attached(self, tmp_path: Path) -> None:
         replacement = write_plan(
             tmp_path / "replacement.md",
             "Implement the accepted replacement",
         )
-        root = _family_root(workspace_dir=str(tmp_path))
-        before = _family_plan_preview_cache_key(root)
+        root = _agent_session_root(workspace_dir=str(tmp_path))
+        before = _agent_session_plan_preview_cache_key(root)
 
         root.followup_agents.append(
-            _family_member(
+            _agent_session_member(
                 raw_suffix="20260822101010",
                 parent_timestamp=root.raw_suffix,
                 plan_path=str(replacement),
@@ -90,67 +90,69 @@ class TestFamilyPlanPreviewCacheKey:
             )
         )
 
-        assert before != _family_plan_preview_cache_key(root)
+        assert before != _agent_session_plan_preview_cache_key(root)
 
 
-class TestShouldResolveFamilyPlanPreview:
-    def test_false_for_non_family_row(self) -> None:
+class TestShouldResolveAgentSessionPlanPreview:
+    def test_false_for_non_agent_session_row(self) -> None:
         agent = make_agent(agent_name="plain")
-        assert should_resolve_family_plan_preview(agent) is False
+        assert should_resolve_agent_session_plan_preview(agent) is False
 
     def test_false_for_clan_container(self) -> None:
-        agent = _family_root(is_clan_container=True)
-        assert should_resolve_family_plan_preview(agent) is False
+        agent = _agent_session_root(is_clan_container=True)
+        assert should_resolve_agent_session_plan_preview(agent) is False
 
-    def test_true_for_an_unresolved_family_root(self) -> None:
-        agent = _family_root()
-        assert should_resolve_family_plan_preview(agent) is True
+    def test_true_for_an_unresolved_agent_session_root(self) -> None:
+        agent = _agent_session_root()
+        assert should_resolve_agent_session_plan_preview(agent) is True
 
     def test_false_once_warmed_within_ttl(self) -> None:
-        agent = _family_root()
-        warm_family_plan_previews([agent])
-        assert should_resolve_family_plan_preview(agent) is False
+        agent = _agent_session_root()
+        warm_agent_session_plan_previews([agent])
+        assert should_resolve_agent_session_plan_preview(agent) is False
 
 
-class TestCachedFamilyPlanPreview:
+class TestCachedAgentSessionPlanPreview:
     def test_reports_cache_miss_before_resolution(self) -> None:
-        agent = _family_root()
-        assert cached_family_plan_preview(agent) is FAMILY_PREVIEW_CACHE_MISS
+        agent = _agent_session_root()
+        assert (
+            cached_agent_session_plan_preview(agent) is AGENT_SESSION_PREVIEW_CACHE_MISS
+        )
 
     def test_reports_none_after_an_empty_resolution(self) -> None:
-        agent = _family_root()
-        warm_family_plan_previews([agent])
-        assert cached_family_plan_preview(agent) is None
+        agent = _agent_session_root()
+        warm_agent_session_plan_previews([agent])
+        assert cached_agent_session_plan_preview(agent) is None
 
     def test_reports_the_preview_after_a_resolved_root(self, tmp_path: Path) -> None:
         plan = write_plan(tmp_path / "tale.md", "Ship the thing", tier="tale")
-        agent = _family_root(
+        agent = _agent_session_root(
             archived_plan_path=str(plan),
             plan_path=str(plan),
             plan_committed=True,
             workspace_dir=str(tmp_path),
         )
 
-        warm_family_plan_previews([agent])
-        preview = cached_family_plan_preview(agent)
+        warm_agent_session_plan_previews([agent])
+        preview = cached_agent_session_plan_preview(agent)
 
         assert isinstance(preview, AgentSessionPlanPreview)
         assert preview.kind == "tale"
         assert preview.title == "Associated plan metadata"
 
 
-class TestWarmFamilyPlanPreviews:
+class TestWarmAgentSessionPlanPreviews:
     def test_resolves_the_root_entry_directly(self, tmp_path: Path) -> None:
         plan = write_plan(tmp_path / "tale.md", "Ship the thing", tier="tale")
-        agent = _family_root(
+        agent = _agent_session_root(
             archived_plan_path=str(plan),
             plan_path=str(plan),
             plan_committed=True,
             workspace_dir=str(tmp_path),
         )
 
-        changed = warm_family_plan_previews([agent])
-        key = _family_plan_preview_cache_key(agent)
+        changed = warm_agent_session_plan_previews([agent])
+        key = _agent_session_plan_preview_cache_key(agent)
 
         assert key is not None
         preview = changed[key]
@@ -165,19 +167,19 @@ class TestWarmFamilyPlanPreviews:
         write_epic(tmp_path / "plans" / "epic.md")
         monkeypatch.setattr(plan_model, "_lookup_issue", lambda *_a, **_kw: None)
 
-        member = _family_member(
+        member = _agent_session_member(
             epic_bead_id="sase-1",
             phase_bead_id="sase-1.1",
             epic_plan_ref="plans/epic.md",
             workspace_dir=str(tmp_path),
         )
-        root = _family_root(
+        root = _agent_session_root(
             workspace_dir=str(tmp_path),
             followup_agents=[member],
         )
 
-        changed = warm_family_plan_previews([root])
-        key = _family_plan_preview_cache_key(root)
+        changed = warm_agent_session_plan_previews([root])
+        key = _agent_session_plan_preview_cache_key(root)
 
         assert key is not None
         preview = changed[key]
@@ -199,7 +201,7 @@ class TestWarmFamilyPlanPreviews:
         )
         monkeypatch.setattr(plan_model, "_lookup_issue", lambda *_a, **_kw: None)
 
-        agent = _family_root(
+        agent = _agent_session_root(
             agent_name="fam",
             agent_session="fam",
             phase_bead_id="sase-1.1",
@@ -210,8 +212,8 @@ class TestWarmFamilyPlanPreviews:
             workspace_dir=str(tmp_path),
         )
 
-        changed = warm_family_plan_previews([agent])
-        key = _family_plan_preview_cache_key(agent)
+        changed = warm_agent_session_plan_previews([agent])
+        key = _agent_session_plan_preview_cache_key(agent)
 
         assert key is not None
         preview = changed[key]
@@ -233,14 +235,14 @@ class TestWarmFamilyPlanPreviews:
             "Accepted replacement proposal",
             title="Monitor kill lifecycle",
         )
-        code = _family_member(
+        code = _agent_session_member(
             agent_name="fam--code",
             raw_suffix="20260822101010",
             parent_timestamp="20260822100000",
             plan_path=str(accepted),
             workspace_dir=str(tmp_path),
         )
-        root = _family_root(
+        root = _agent_session_root(
             agent_name="fam--plan",
             raw_suffix="20260822100000",
             plan_chain_root=True,
@@ -249,8 +251,8 @@ class TestWarmFamilyPlanPreviews:
             followup_agents=[code],
         )
 
-        changed = warm_family_plan_previews([root])
-        key = _family_plan_preview_cache_key(root)
+        changed = warm_agent_session_plan_previews([root])
+        key = _agent_session_plan_preview_cache_key(root)
 
         assert key is not None
         preview = changed[key]
@@ -268,14 +270,14 @@ class TestWarmFamilyPlanPreviews:
         )
         broken = tmp_path / "monitor_kill_lifecycle.md"
         broken.write_text("not frontmatter\n", encoding="utf-8")
-        code = _family_member(
+        code = _agent_session_member(
             agent_name="fam--code",
             raw_suffix="20260822101010",
             parent_timestamp="20260822100000",
             plan_path=str(broken),
             workspace_dir=str(tmp_path),
         )
-        root = _family_root(
+        root = _agent_session_root(
             agent_name="fam--plan",
             raw_suffix="20260822100000",
             plan_chain_root=True,
@@ -284,8 +286,8 @@ class TestWarmFamilyPlanPreviews:
             followup_agents=[code],
         )
 
-        changed = warm_family_plan_previews([root])
-        key = _family_plan_preview_cache_key(root)
+        changed = warm_agent_session_plan_previews([root])
+        key = _agent_session_plan_preview_cache_key(root)
 
         assert key is not None
         preview = changed[key]
@@ -293,22 +295,22 @@ class TestWarmFamilyPlanPreviews:
         assert preview.title == "Inspectable monitor indicator"
 
     def test_caches_none_when_nothing_resolves(self, tmp_path: Path) -> None:
-        agent = _family_root(workspace_dir=str(tmp_path))
+        agent = _agent_session_root(workspace_dir=str(tmp_path))
 
-        changed = warm_family_plan_previews([agent])
-        key = _family_plan_preview_cache_key(agent)
+        changed = warm_agent_session_plan_previews([agent])
+        key = _agent_session_plan_preview_cache_key(agent)
 
         assert key is not None
         assert key in changed
         assert changed[key] is None
 
-    def test_never_raises_when_one_family_fails_to_resolve(
+    def test_never_raises_when_one_agent_session_fails_to_resolve(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         plan = write_plan(tmp_path / "tale.md", "Ship the thing", tier="tale")
-        good = _family_root(
+        good = _agent_session_root(
             agent_name="good",
             agent_session="good",
             archived_plan_path=str(plan),
@@ -316,7 +318,7 @@ class TestWarmFamilyPlanPreviews:
             plan_committed=True,
             workspace_dir=str(tmp_path),
         )
-        bad = _family_root(
+        bad = _agent_session_root(
             agent_name="bad",
             agent_session="bad",
             workspace_dir=str(tmp_path),
@@ -331,10 +333,10 @@ class TestWarmFamilyPlanPreviews:
 
         monkeypatch.setattr(cache_model, "resolve_agent_plan_enrichment", flaky_resolve)
 
-        changed = warm_family_plan_previews([bad, good])
+        changed = warm_agent_session_plan_previews([bad, good])
 
-        good_key = _family_plan_preview_cache_key(good)
-        bad_key = _family_plan_preview_cache_key(bad)
+        good_key = _agent_session_plan_preview_cache_key(good)
+        bad_key = _agent_session_plan_preview_cache_key(bad)
         assert good_key is not None
         assert bad_key is not None
         assert changed[good_key] is not None

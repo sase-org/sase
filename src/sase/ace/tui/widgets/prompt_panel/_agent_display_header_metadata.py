@@ -117,7 +117,7 @@ def _append_identity_fields(
     if presented_name:
         name_style = (
             _FAMILY_NAME_STYLE
-            if agent.is_family_container_row
+            if agent.is_agent_session_container_row
             else _PROC_SHELL_ID_STYLE
             if agent.is_proc_shell
             else _AGENT_NAME_ANNOTATION_STYLE
@@ -438,7 +438,7 @@ def _append_shell_or_model_fields(
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
 ) -> ResponsiveShellSection | None:
     """Append family ``Shells:`` lanes or a concrete-shell ``Model:`` field."""
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         lanes = build_family_shell_lanes(agent)
         section = ResponsiveShellSection(
             lanes=lanes[:SHELL_LANE_LIMIT],

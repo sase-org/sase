@@ -7,7 +7,7 @@ relationship rebuilds (``followup_agents``, ``runtime_children``,
 objects the UI is rendering unless this copy runs first.
 
 Each reachable ``Agent`` is copied once through a shared memo so overlapping
-collections (visible roster, capacity roster, family back-pointers) keep
+collections (visible roster, capacity roster, session back-pointers) keep
 intentional aliases inside the new graph and do not alias back to live rows.
 """
 

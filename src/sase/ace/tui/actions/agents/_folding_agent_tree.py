@@ -170,7 +170,9 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
     ) -> _AgentLeftNavigationTarget | None:
         """Validate and classify one canonical rendered-tree parent edge."""
         from ...models._agent_tree import agent_fold_key, tree_parent_lookup
-        from ...models.agent_family_members import is_sequential_family_container
+        from ...models.agent_session_members import (
+            is_sequential_agent_session_container,
+        )
 
         parent = tree_parent_lookup(self._agents).get(parent_key)
         if parent is None or parent is selected:
@@ -248,7 +250,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
 
         if parent.is_clan_container:
             kind: Literal["workflow", "family", "clan"] = "clan"
-        elif is_sequential_family_container(parent):
+        elif is_sequential_agent_session_container(parent):
             kind = "family"
         else:
             kind = "workflow"
@@ -298,7 +300,9 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
     ) -> Literal["workflow", "family", "clan"]:
         """Classify a canonical structural fold key for contextual labels."""
         from ...models._agent_tree import agent_fold_key
-        from ...models.agent_family_members import is_sequential_family_container
+        from ...models.agent_session_members import (
+            is_sequential_agent_session_container,
+        )
 
         owner = next(
             (
@@ -310,7 +314,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
         )
         if owner is not None and owner.is_clan_container:
             return "clan"
-        if owner is not None and is_sequential_family_container(owner):
+        if owner is not None and is_sequential_agent_session_container(owner):
             return "family"
         return "workflow"
 

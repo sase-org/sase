@@ -288,7 +288,7 @@ def test_family_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
 
     identities = rendered_section_ids(header, width=80)
 
-    assert family.is_family_container_row is True
+    assert family.is_agent_session_container_row is True
     assert header.plain.startswith("FAMILY\n")
     assert "family" not in identities
     assert identities[0] == "members"

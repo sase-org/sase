@@ -1,4 +1,4 @@
-"""Fold state and query filtering across clan, family, and workflow rows."""
+"""Fold state and query filtering across clan, agent session, and workflow rows."""
 
 from __future__ import annotations
 
@@ -16,11 +16,11 @@ from ._agent_tree_helpers import _agent
 
 
 def test_clan_and_members_fold_independently_through_recursive_ancestors() -> None:
-    family = _agent("research.family", "family")
-    family_member = _agent(
+    agent_session_root = _agent("research.family", "family")
+    agent_session_member = _agent(
         "research.family--code",
         "family-code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
@@ -51,14 +51,14 @@ def test_clan_and_members_fold_independently_through_recursive_ancestors() -> No
         generation=None,
     )
     projected = project_clan_tree(
-        [family, family_member, workflow, workflow_step, hidden_step]
+        [agent_session_root, agent_session_member, workflow, workflow_step, hidden_step]
     )
     container = projected[0]
     fold_key = agent_fold_key(container)
     assert fold_key is not None
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(agent_session_root)
     workflow_key = agent_fold_key(workflow)
-    assert family_key is not None
+    assert agent_session_key is not None
     assert workflow_key is not None
     manager = FoldStateManager()
 
@@ -66,34 +66,34 @@ def test_clan_and_members_fold_independently_through_recursive_ancestors() -> No
     assert collapsed == [container]
     assert counts == {
         fold_key: (2, 0),
-        family_key: (1, 0),
+        agent_session_key: (1, 0),
         workflow_key: (1, 1),
     }
     assert _compute_fold_annotation(container, counts, set()) == " ×2"
-    assert _compute_fold_annotation(family, counts, set()) == " ×1"
+    assert _compute_fold_annotation(agent_session_root, counts, set()) == " ×1"
     assert _compute_fold_annotation(workflow, counts, set()) == " ×2"
 
     manager.expand(fold_key)
     expanded, counts = filter_agents_by_fold_state(projected, manager)
-    assert expanded == [container, family, workflow]
+    assert expanded == [container, agent_session_root, workflow]
     assert _compute_fold_annotation(container, counts, {fold_key}) == ""
 
     manager.expand(workflow_key)
     member_expanded, counts = filter_agents_by_fold_state(projected, manager)
-    assert member_expanded == [container, family, workflow, workflow_step]
-    assert family_member not in member_expanded
+    assert member_expanded == [container, agent_session_root, workflow, workflow_step]
+    assert agent_session_member not in member_expanded
     assert _compute_fold_annotation(workflow, counts, {workflow_key}) == " ×2 −1"
 
     manager.expand(workflow_key)
     member_fully_expanded, counts = filter_agents_by_fold_state(projected, manager)
     assert member_fully_expanded == [
         container,
-        family,
+        agent_session_root,
         workflow,
         workflow_step,
         hidden_step,
     ]
-    assert family_member not in member_fully_expanded
+    assert agent_session_member not in member_fully_expanded
     assert (
         _compute_fold_annotation(
             workflow,
@@ -115,20 +115,20 @@ def test_clan_and_members_fold_independently_through_recursive_ancestors() -> No
 
 
 def test_clan_tree_query_retains_complete_immediate_parent_chain() -> None:
-    family = _agent("research.family", "family")
-    family_member = _agent(
+    agent_session_root = _agent("research.family", "family")
+    agent_session_member = _agent(
         "research.family--code",
         "family-code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
     peer = _agent("research.peer", "peer")
-    projected = project_clan_tree([family, family_member, peer])
+    projected = project_clan_tree([agent_session_root, agent_session_member, peer])
 
     filtered = filter_tree_rows(
         projected,
-        lambda row: row.raw_suffix == family_member.raw_suffix,
+        lambda row: row.raw_suffix == agent_session_member.raw_suffix,
     )
 
     assert filtered == projected

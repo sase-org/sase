@@ -1,4 +1,4 @@
-"""Pure in-memory projection of concrete agents and sequential families."""
+"""Pure in-memory projection of concrete agents and sequential agent sessions."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def monitor_row_is_settled(row: Agent) -> bool:
     """Return whether one monitor row belongs in the settled (grey) lane.
 
     A ``stop_time`` alone settles a row even when its ``monitor_state`` was
-    never reconciled to a terminal value: the family member row is over
+    never reconciled to a terminal value: the session member row is over
     either way, and the badge partition would otherwise strand the row in
     neither lane. Unknown/missing ``monitor_state`` with no ``stop_time``
     is not settled, matching :func:`monitor_state_is_terminal`'s doctrine
@@ -92,8 +92,8 @@ class ShellLaneCounts:
 NO_SHELL_LANES = ShellLaneCounts()
 
 
-def row_is_family_shell(row: Agent) -> bool:
-    """Return whether *row* is a non-agent family shell."""
+def row_is_agent_session_shell(row: Agent) -> bool:
+    """Return whether *row* is a non-agent session shell."""
     return row.is_monitor or row.is_gate
 
 
@@ -172,7 +172,7 @@ def panel_shell_lane_counts(rows: Iterable[Agent]) -> ShellLaneCounts:
     instead of silently dropping a row if that projection ever changes); and
     dedupe spans all roots in one shared tally rather than one tally per
     root, so a shell reachable from two different top-level rows (a clan
-    container and a member family can both reach the same shell) is
+    container and a member agent session can both reach the same shell) is
     counted exactly once.
     """
     tally = _ShellLaneTally()
@@ -181,22 +181,22 @@ def panel_shell_lane_counts(rows: Iterable[Agent]) -> ShellLaneCounts:
     return tally.shell_counts()
 
 
-def is_sequential_family_container(agent: Agent) -> bool:
-    """Return whether ``agent`` represents a loaded sequential family.
+def is_sequential_agent_session_container(agent: Agent) -> bool:
+    """Return whether ``agent`` represents a loaded sequential agent session.
 
     The second branch preserves compatibility with clan projections whose
-    direct family root may predate the explicit ``agent_session_role`` marker
-    but still owns loaded, serial family-member children. A monitor child
+    direct session root may predate the explicit ``agent_session_role`` marker
+    but still owns loaded, serial session-member children. A monitor child
     alone does not promote its starter to a container.
     """
     if agent.agent_session_parallel:
         return False
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         return True
     return bool(
         agent.agent_session
         and any(
-            child.is_family_member_child
+            child.is_agent_session_member_child
             and not child.agent_session_parallel
             and not child.is_monitor
             for child in (*agent.runtime_children, *agent.followup_agents)
@@ -219,8 +219,8 @@ def _shell_links(row: Agent) -> tuple[Agent, ...]:
     return (*row.runtime_children, *row.followup_agents)
 
 
-def _is_excluded_family_shell(row: Agent) -> bool:
-    """Return whether *row* is scaffolding rather than a concrete family shell."""
+def _is_excluded_agent_session_shell(row: Agent) -> bool:
+    """Return whether *row* is scaffolding rather than a concrete session shell."""
     return row.agent_session_parallel
 
 
@@ -235,11 +235,11 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
         if (
             agent.step_type == "agent"
             and not agent.agent_session_parallel
-            and not row_is_family_shell(agent)
+            and not row_is_agent_session_shell(agent)
         ):
             return (agent,)
         return ()
-    if row_is_family_shell(agent):
+    if row_is_agent_session_shell(agent):
         return ()
     if agent.is_proc_shell:
         return ()
@@ -252,7 +252,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
                 if child.is_workflow_step_child
                 and child.step_type == "agent"
                 and not child.agent_session_parallel
-                and not row_is_family_shell(child)
+                and not row_is_agent_session_shell(child)
             )
         )
         if agent_steps:
@@ -261,7 +261,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class _FamilyShellAnchors:
+class _AgentSessionShellAnchors:
     """Ordered agent-shell anchors plus the anchor standing in for the root.
 
     ``container_proxy`` is the shell that represents the container row's own
@@ -275,7 +275,7 @@ class _FamilyShellAnchors:
     container_proxy: Agent | None
 
 
-def _family_shell_anchors(agent: Agent) -> _FamilyShellAnchors:
+def _agent_session_shell_anchors(agent: Agent) -> _AgentSessionShellAnchors:
     """Return the ordered agent-shell chain before nested monitors are inserted."""
     planner = _concrete_planner_child(agent)
     candidates: list[Agent] = []
@@ -289,13 +289,13 @@ def _family_shell_anchors(agent: Agent) -> _FamilyShellAnchors:
 
     candidates.extend(_concrete_continuations(agent.runtime_children, planner))
     candidates.extend(_concrete_continuations(agent.followup_agents, planner))
-    return _FamilyShellAnchors(
+    return _AgentSessionShellAnchors(
         anchors=_dedupe_by_identity(candidates),
         container_proxy=container_proxy,
     )
 
 
-def _expand_nested_family_shells(
+def _expand_nested_agent_session_shells(
     container: Agent,
     anchors: Sequence[Agent],
     container_proxy: Agent | None,
@@ -320,7 +320,7 @@ def _expand_nested_family_shells(
         if id(row) in walked_ids:
             return
         walked_ids.add(id(row))
-        if row.identity in emitted or _is_excluded_family_shell(row):
+        if row.identity in emitted or _is_excluded_agent_session_shell(row):
             return
         emitted.add(row.identity)
         result.append(row)
@@ -334,10 +334,10 @@ def _expand_nested_family_shells(
             if child.identity in emitted:
                 walked_ids.add(child_id)
                 continue
-            if _is_excluded_family_shell(child):
+            if _is_excluded_agent_session_shell(child):
                 walked_ids.add(child_id)
                 continue
-            if row_is_family_shell(child):
+            if row_is_agent_session_shell(child):
                 emit(child)
                 continue
             if child.identity in anchor_identities:
@@ -365,59 +365,61 @@ def _expand_nested_family_shells(
     return tuple(result)
 
 
-def concrete_family_shell_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return ordered concrete family shells: agent shells and nested non-agent shells.
+def concrete_agent_session_shell_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return ordered concrete session shells: agent shells and nested non-agent shells.
 
     Plan workflow roots are aggregate rows. When their concrete main agent
     step is loaded, that step owns the planner phase; otherwise the root stays
     as the compatibility fallback. Rename-on-attach roots remain the first
-    real shell for families that do not have a concrete planner step.
+    real shell for agent sessions that do not have a concrete planner step.
 
     A non-agent shell is emitted immediately after the shell that started it. A
     shell attached to the container row is emitted after the anchor that
     represents that container (its planner step when one is loaded). Synthetic
-    planners, non-agent workflow steps, and parallel-family rows stay
+    planners, non-agent workflow steps, and parallel-agent-session rows stay
     excluded. The walk is a pure in-memory projection: linear in the loaded
-    family subtree, cycle-safe, identity-deduped, and ordered by causal
+    agent session subtree, cycle-safe, identity-deduped, and ordered by causal
     placement rather than timestamp.
     """
-    projection = _family_shell_anchors(agent)
-    return _expand_nested_family_shells(
+    projection = _agent_session_shell_anchors(agent)
+    return _expand_nested_agent_session_shells(
         agent,
         projection.anchors,
         projection.container_proxy,
     )
 
 
-def current_family_shell_row(agent: Agent) -> Agent | None:
-    """Return the current in-flight concrete shell for a sequential family."""
-    if agent.is_clan_container or not is_sequential_family_container(agent):
+def current_agent_session_shell_row(agent: Agent) -> Agent | None:
+    """Return the current in-flight concrete shell for a sequential agent session."""
+    if agent.is_clan_container or not is_sequential_agent_session_container(agent):
         return None
-    for row in reversed(concrete_family_shell_rows(agent)):
+    for row in reversed(concrete_agent_session_shell_rows(agent)):
         if agent_row_is_in_flight(row):
             return row
     return None
 
 
-def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return ordered concrete agent shells represented by a family container.
+def concrete_agent_session_member_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return ordered concrete agent shells represented by a session container.
 
     Monitor proc shells are omitted so agent, runner, status, and completion
-    counts stay agent-only. See :func:`concrete_family_shell_rows` for the
+    counts stay agent-only. See :func:`concrete_agent_session_shell_rows` for the
     roster sequence that includes them.
     """
     return tuple(
-        row for row in concrete_family_shell_rows(agent) if not row_is_family_shell(row)
+        row
+        for row in concrete_agent_session_shell_rows(agent)
+        if not row_is_agent_session_shell(row)
     )
 
 
-def family_roster_container(agent: Agent) -> Agent | None:
-    """Return the container row whose FAMILY SHELLS roster lists ``agent``.
+def agent_session_roster_container(agent: Agent) -> Agent | None:
+    """Return the container row whose SESSION SHELLS roster lists ``agent``.
 
     Container rows render their own roster and are never members of another
     row's roster, so they resolve to ``None``.
     """
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         return None
     container = agent.agent_session_container
     if container is None or container is agent:
@@ -426,17 +428,17 @@ def family_roster_container(agent: Agent) -> Agent | None:
 
 
 def _settled_member_bucket(member: Agent) -> str:
-    """Return the effective bucket for one non-final sequential-family member."""
+    """Return the effective bucket for one non-final sequential-agent-session member."""
     bucket = agent_status_bucket(member)
     if bucket not in _IN_FLIGHT_BUCKETS or agent_row_is_in_flight(member):
         return bucket
     return "Done"
 
 
-def family_member_status_buckets(members: Sequence[Agent]) -> tuple[str, ...]:
-    """Return effective buckets for an ordered sequential family.
+def agent_session_member_status_buckets(members: Sequence[Agent]) -> tuple[str, ...]:
+    """Return effective buckets for an ordered sequential agent session.
 
-    A family advances one member at a time: a successor is attached only once
+    A session advances one member at a time: a successor is attached only once
     its predecessor has finished, so a non-final member that is no longer
     executing has handed the work off and is settled.  Sticky handoff labels
     (``TALE APPROVED``), transient post-answer labels (``ANSWERED``), and every
@@ -458,22 +460,22 @@ def family_member_status_buckets(members: Sequence[Agent]) -> tuple[str, ...]:
 
 def concrete_agent_statuses(agent: Agent) -> tuple[ConcreteAgentStatus, ...]:
     """Project one non-clan unit into concrete rows and effective buckets."""
-    if is_sequential_family_container(agent):
-        rows = concrete_family_member_rows(agent)
-        buckets = family_member_status_buckets(rows)
+    if is_sequential_agent_session_container(agent):
+        rows = concrete_agent_session_member_rows(agent)
+        buckets = agent_session_member_status_buckets(rows)
     else:
         rows = _concrete_agent_rows(agent)
         buckets = tuple(agent_status_bucket(row) for row in rows)
     pairs = tuple(
         (row, bucket)
         for row, bucket in zip(rows, buckets, strict=True)
-        if not row_is_family_shell(row)
+        if not row_is_agent_session_shell(row)
     )
     return tuple(ConcreteAgentStatus(agent=row, bucket=bucket) for row, bucket in pairs)
 
 
 def _concrete_planner_child(agent: Agent) -> Agent | None:
-    if not agent.is_plan_family_root_entry:
+    if not agent.is_plan_agent_session_root_entry:
         return None
     return next(
         (
@@ -491,11 +493,13 @@ def _concrete_planner_child(agent: Agent) -> Agent | None:
 def _root_represents_member(agent: Agent) -> bool:
     if agent.is_imported_agent_session_container:
         return False
-    if agent.is_plan_family_root_entry:
+    if agent.is_plan_agent_session_root_entry:
         return True
-    family_name = agent.agent_session or agent.family_reference_name()
+    agent_session_name = agent.agent_session or agent.agent_session_reference_name()
     return not bool(
-        agent.agent_name and family_name and agent.agent_name == family_name
+        agent.agent_name
+        and agent_session_name
+        and agent.agent_name == agent_session_name
     )
 
 
@@ -508,8 +512,8 @@ def _concrete_continuations(
         for row in rows
         if row is not planner
         and not row.is_workflow_step_child
-        and not _is_excluded_family_shell(row)
-        and not row_is_family_shell(row)
+        and not _is_excluded_agent_session_shell(row)
+        and not row_is_agent_session_shell(row)
     )
 
 
@@ -544,15 +548,15 @@ __all__ = [
     "ShellLaneCounts",
     "agent_row_is_in_flight",
     "concrete_agent_statuses",
-    "concrete_family_member_rows",
-    "concrete_family_shell_rows",
-    "current_family_shell_row",
-    "family_member_status_buckets",
-    "family_roster_container",
+    "concrete_agent_session_member_rows",
+    "concrete_agent_session_shell_rows",
+    "current_agent_session_shell_row",
+    "agent_session_member_status_buckets",
+    "agent_session_roster_container",
     "gate_row_is_settled",
-    "is_sequential_family_container",
+    "is_sequential_agent_session_container",
     "monitor_row_is_settled",
     "panel_shell_lane_counts",
-    "row_is_family_shell",
+    "row_is_agent_session_shell",
     "shell_lane_counts",
 ]

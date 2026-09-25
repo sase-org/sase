@@ -198,7 +198,7 @@ def test_waiting_family_child_orders_under_running_parent_and_buckets_waiting() 
 
     assert ordered == [parent, child]
     assert parent.runtime_children == [child]
-    assert child.is_family_member_child
+    assert child.is_agent_session_member_child
     assert status_bucket_for(child) == "Waiting"
 
 
@@ -250,7 +250,7 @@ def test_sort_and_reorder_attaches_family_container_for_workflow_shaped_family()
     ordered = sort_and_reorder([coder, parent], [planner])
 
     assert ordered[:3] == [parent, planner, coder]
-    assert parent.is_family_container_row is True
+    assert parent.is_agent_session_container_row is True
     assert parent.agent_session_container is None
     assert planner.agent_session_container is parent
     assert coder.agent_session_container is parent
@@ -286,7 +286,7 @@ def test_sort_and_reorder_attaches_family_container_for_rename_on_attach_family(
 
     sort_and_reorder([child, parent], [])
 
-    assert parent.is_family_container_row is True
+    assert parent.is_agent_session_container_row is True
     assert child.agent_session_container is parent
     assert parent.agent_session_container is None
 
@@ -321,7 +321,7 @@ def test_sort_and_reorder_clears_stale_family_container_pointer() -> None:
     parent.followup_agents = []
     sort_and_reorder([child, parent], [])
 
-    assert parent.is_family_container_row is False
+    assert parent.is_agent_session_container_row is False
     assert child.agent_session_container is None
 
 
@@ -360,7 +360,7 @@ def test_sort_and_reorder_skips_parallel_family_rows() -> None:
 
     sort_and_reorder([parallel, real_child, parent], [])
 
-    assert parent.is_family_container_row is True
+    assert parent.is_agent_session_container_row is True
     assert parallel.agent_session_container is None
     assert real_child.agent_session_container is parent
 

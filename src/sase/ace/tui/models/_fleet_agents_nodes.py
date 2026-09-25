@@ -1,4 +1,4 @@
-"""Remote-only family node synthesis for fleet summary rows."""
+"""Remote-only agent session node synthesis for fleet summary rows."""
 
 from __future__ import annotations
 
@@ -20,11 +20,11 @@ _SummaryPair = tuple[Mapping[str, Any], Agent]
 
 
 def normalize_remote_host_nodes(summary_pairs: list[_SummaryPair]) -> list[Agent]:
-    """Select, link, and normalize one host's remote rows into family nodes.
+    """Select, link, and normalize one host's remote rows into agent session nodes.
 
     Membership and instance facts come from the fleet wire. This pass only
     constructs ``Agent`` rows, rewrites host-qualified parent links, and
-    reuses the local in-memory family primitives. It does not inspect PIDs,
+    reuses the local in-memory agent session primitives. It does not inspect PIDs,
     the filesystem, or imported archives.
     """
     if not summary_pairs:
@@ -33,7 +33,7 @@ def normalize_remote_host_nodes(summary_pairs: list[_SummaryPair]) -> list[Agent
     _resolve_host_parent_lineage(kept, aliases)
     _attach_same_logical_history(kept)
     _attach_unresolved_members_to_real_roots(kept)
-    agents = _materialize_missing_family_containers(kept)
+    agents = _materialize_missing_agent_session_containers(kept)
     apply_status_overrides(agents, classify_diff_badges=False)
     return sort_and_reorder(agents, [])
 
@@ -60,6 +60,8 @@ def _revision(summary: Mapping[str, Any]) -> int:
 
 def _summary_owner_lineage_keys(summary: Mapping[str, Any]) -> tuple[str, ...]:
     """Return owner-local identity tokens that may appear as parent keys."""
+    # legacy agent-family spelling: core emits "family_id" / "family_label"
+    # until core-contract; the "agent_session_id" / "session_label" keys first.
     labels = mapping(summary.get("labels"))
     logical_locator = mapping(summary.get("logical_locator"))
     exact_locator = mapping(summary.get("exact_locator"))
@@ -234,7 +236,11 @@ def _attach_same_logical_history(summary_pairs: list[_SummaryPair]) -> None:
             agent.parent_timestamp = host.raw_suffix
 
 
-def _family_identity_keys(summary: Mapping[str, Any], agent: Agent) -> tuple[str, ...]:
+def _agent_session_identity_keys(
+    summary: Mapping[str, Any], agent: Agent
+) -> tuple[str, ...]:
+    # legacy agent-family spelling: core emits "family_label" / "family_id"
+    # until core-contract; the "session_label" / "agent_session_id" keys first.
     labels = mapping(summary.get("labels"))
     logical_locator = mapping(summary.get("logical_locator"))
     keys = (
@@ -260,6 +266,8 @@ def _family_identity_keys(summary: Mapping[str, Any], agent: Agent) -> tuple[str
 
 def _is_owner_presented_root(summary: Mapping[str, Any], agent: Agent) -> bool:
     kind = optional_str(summary.get("row_kind"), agent.fleet_row_kind)
+    # legacy agent-family spelling: core emits "family_role" until
+    # core-contract; "agent_session_role" reads first.
     role = optional_str(
         summary.get("agent_session_role"),
         summary.get("family_role"),
@@ -278,16 +286,16 @@ def _attach_unresolved_members_to_real_roots(
     suffixes = {
         agent.raw_suffix for _summary, agent in summary_pairs if agent.raw_suffix
     }
-    roots_by_family: dict[tuple[str, str], Agent] = {}
+    roots_by_agent_session: dict[tuple[str, str], Agent] = {}
     for summary, agent in summary_pairs:
         if not agent.raw_suffix or not _is_owner_presented_root(summary, agent):
             continue
         origin = agent.fleet_origin_alias or "remote"
-        for family_key in _family_identity_keys(summary, agent):
-            roots_by_family.setdefault((origin, family_key), agent)
+        for agent_session_key in _agent_session_identity_keys(summary, agent):
+            roots_by_agent_session.setdefault((origin, agent_session_key), agent)
 
     for summary, agent in summary_pairs:
-        if agent is roots_by_family.get(
+        if agent is roots_by_agent_session.get(
             (agent.fleet_origin_alias or "remote", agent.agent_name or "")
         ):
             continue
@@ -299,18 +307,18 @@ def _attach_unresolved_members_to_real_roots(
         if parent and parent in suffixes:
             continue
         origin = agent.fleet_origin_alias or "remote"
-        for family_key in _family_identity_keys(summary, agent):
-            root = roots_by_family.get((origin, family_key))
+        for agent_session_key in _agent_session_identity_keys(summary, agent):
+            root = roots_by_agent_session.get((origin, agent_session_key))
             if root is None or root is agent or not root.raw_suffix:
                 continue
             agent.parent_timestamp = root.raw_suffix
             break
 
 
-def _materialize_missing_family_containers(
+def _materialize_missing_agent_session_containers(
     summary_pairs: list[_SummaryPair],
 ) -> list[Agent]:
-    """Insert a stable family root when members arrived without their parent."""
+    """Insert a stable session root when members arrived without their parent."""
     agents = [agent for _summary, agent in summary_pairs]
     suffixes = {agent.raw_suffix for agent in agents if agent.raw_suffix}
     existing_roots: dict[tuple[str, str], Agent] = {}
@@ -318,20 +326,20 @@ def _materialize_missing_family_containers(
         if not agent.raw_suffix or not _is_owner_presented_root(summary, agent):
             continue
         origin = agent.fleet_origin_alias or "remote"
-        for family_key in _family_identity_keys(summary, agent):
-            existing_roots.setdefault((origin, family_key), agent)
+        for agent_session_key in _agent_session_identity_keys(summary, agent):
+            existing_roots.setdefault((origin, agent_session_key), agent)
     groups: dict[tuple[str, str], list[Agent]] = defaultdict(list)
     for agent in agents:
         parent = agent.parent_timestamp
         if not parent or parent in suffixes:
             continue
         origin = agent.fleet_origin_alias or "remote"
-        family_key = agent.agent_session or parent
-        root = existing_roots.get((origin, family_key))
+        agent_session_key = agent.agent_session or parent
+        root = existing_roots.get((origin, agent_session_key))
         if root is not None and root.raw_suffix:
             agent.parent_timestamp = root.raw_suffix
             continue
-        groups[(origin, family_key)].append(agent)
+        groups[(origin, agent_session_key)].append(agent)
 
     if not groups:
         _clear_unresolved_parents(agents)
@@ -340,7 +348,7 @@ def _materialize_missing_family_containers(
     containers: dict[tuple[str, str], Agent] = {}
     members_by_id: dict[int, tuple[str, str]] = {}
     for key, members in groups.items():
-        container = _remote_family_container(key[0], key[1], members)
+        container = _remote_agent_session_container(key[0], key[1], members)
         containers[key] = container
         for member in members:
             member.parent_timestamp = container.raw_suffix
@@ -369,9 +377,9 @@ def _clear_unresolved_parents(agents: list[Agent]) -> None:
             agent.parent_timestamp = None
 
 
-def _remote_family_container(
+def _remote_agent_session_container(
     origin: str,
-    family_key: str,
+    agent_session_key: str,
     members: list[Agent],
 ) -> Agent:
     anchor = members[0]
@@ -391,9 +399,9 @@ def _remote_family_container(
         start_time=min(starts) if starts else None,
         run_start_time=min(run_starts) if run_starts else None,
         stop_time=max(stops) if stops and len(stops) == len(members) else None,
-        raw_suffix=f"fleet:{origin}:family:{family_key}",
-        agent_name=family_key,
-        agent_session=family_key,
+        raw_suffix=f"fleet:{origin}:session:{agent_session_key}",
+        agent_name=agent_session_key,
+        agent_session=agent_session_key,
         agent_session_role="root",
         project_display_name=anchor.project_display_name,
         fleet_origin_alias=origin,

@@ -19,10 +19,10 @@ from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
-from ..models.agent_family_members import (
+from ..models.agent_session_members import (
     NO_SHELL_LANES,
     ShellLaneCounts,
-    is_sequential_family_container,
+    is_sequential_agent_session_container,
     shell_lane_counts,
 )
 from ..models.agent_groups import GroupingMode, GroupRow
@@ -242,7 +242,9 @@ def agent_render_key(
         )
         for tribe in semantic_tribes
     )
-    is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
+    is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
+        agent
+    )
     lanes = (
         (shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES)
         if shell_lanes is None
@@ -269,7 +271,7 @@ def agent_render_key(
         agent.agent_clan_generation,
         agent.is_clan_container,
         agent.is_imported_agent_session_container,
-        agent.is_family_container_row,
+        agent.is_agent_session_container_row,
         agent.tree_parent_key,
         agent.tree_depth,
         agent.clan_tribes,

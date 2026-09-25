@@ -253,8 +253,8 @@ async def test_family_and_lone_planner_color_png_snapshot(
     rows = family_and_lone_planner_agents()
     family = next(row for row in rows if row.cl_name == "visual-real-family")
     lone_planner = next(row for row in rows if row.cl_name == "visual-lone-planner")
-    assert family.is_family_container_row is True
-    assert lone_planner.is_family_container_row is False
+    assert family.is_agent_session_container_row is True
+    assert lone_planner.is_agent_session_container_row is False
     patch_startup_loaders(monkeypatch, agents=rows)
 
     async with AcePage(query='"visual"', patches=patches()) as page:

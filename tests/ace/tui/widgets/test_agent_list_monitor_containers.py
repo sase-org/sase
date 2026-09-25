@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from sase.ace.tui.models._agent_clan import (
-    ClanStatusCounts as ParallelFamilyStatusCounts,
+    ClanStatusCounts as ParallelAgentSessionStatusCounts,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_family_members import (
-    is_sequential_family_container,
+from sase.ace.tui.models.agent_session_members import (
+    is_sequential_agent_session_container,
     shell_lane_counts,
 )
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
@@ -113,7 +113,7 @@ def test_non_container_row_never_renders_monitor_badge() -> None:
 
 
 def test_family_container_badge_does_not_alter_status_chip() -> None:
-    counts = ParallelFamilyStatusCounts(running=2, awaiting=1)
+    counts = ParallelAgentSessionStatusCounts(running=2, awaiting=1)
     container = make_family_container("running", "completed")
     container.is_clan_container = True
     container.agent_clan = "alpha"
@@ -165,7 +165,7 @@ def test_starter_with_only_monitor_child_renders_no_count_badge() -> None:
     starter.runtime_children = [monitor]
     starter.followup_agents = [monitor]
     assert _monitor_lane_counts(starter).running == 1
-    assert is_sequential_family_container(starter) is False
+    assert is_sequential_agent_session_container(starter) is False
 
     left, _suffix, _option_id = format_agent_option(starter, 0, is_selected=False)
 

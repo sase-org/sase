@@ -1,7 +1,7 @@
 """Time/duration formatting helpers for the Agent model.
 
 This module is the stable import facade. Wait/duration formatting, row-shape
-predicates and leaf-interval computation, and family/clan aggregation live in
+predicates and leaf-interval computation, and agent session/clan aggregation live in
 focused sibling modules; the top-level per-row computations agent.py and the
 Agents-tab widgets call remain here.
 """
@@ -14,7 +14,7 @@ from sase.agent.status_buckets import APPROVED_PLAN_STATUSES
 from sase.core.time import local_now
 
 from ._agent_time_aggregate import (
-    aggregates_family_shells as _aggregates_family_shells,
+    aggregates_agent_session_shells as _aggregates_agent_session_shells,
     runtime_child_rows as _runtime_child_rows,
     runtime_interval as _runtime_interval,
 )
@@ -97,7 +97,7 @@ def compute_lowest_row_runtime(
     """Return the smallest still-active total duration among *rows*.
 
     Each row contributes the same total its own row displays -- the aggregate
-    across its descendants -- so a family row contributes the family total,
+    across its descendants -- so a session row contributes the session total,
     not the runtime of the shell currently executing inside it. A row whose
     aggregate is not live falls back to its own interval, so a live row is
     never dropped just because its descendants have not started.
@@ -138,7 +138,7 @@ def runtime_suffix_ticks(
     _seen.add(agent_id)
 
     include_monitor_shells = (
-        _aggregates_family_shells(agent)
+        _aggregates_agent_session_shells(agent)
         if _include_monitor_shells is None
         else _include_monitor_shells
     )
@@ -198,7 +198,7 @@ def row_runtime_or_wait_ticks(
     _seen.add(agent_id)
 
     include_monitor_shells = (
-        _aggregates_family_shells(agent)
+        _aggregates_agent_session_shells(agent)
         if _include_monitor_shells is None
         else _include_monitor_shells
     )

@@ -16,15 +16,15 @@ from ._json_cache import (
 from ._meta_enrichment import enrich_agent_from_meta
 from ._workflow_loaders import get_workflow_timestamp_dirs
 
-FAMILY_PROGRESSED_PLAN_ACTIONS = frozenset({"epic", "tale", "commit"})
+AGENT_SESSION_PROGRESSED_PLAN_ACTIONS = frozenset({"epic", "tale", "commit"})
 _PLAN_STEP_NAMES = frozenset({"plan"})
 NON_TERMINAL_STEP_DISPLAY_STATUSES = frozenset({"RUNNING", "WAITING INPUT"})
 
 
-def _family_progressed_past_plan(timestamp_dir: Path) -> bool:
-    """Return True iff the family root recorded a plan-approval handoff.
+def _agent_session_progressed_past_plan(timestamp_dir: Path) -> bool:
+    """Return True iff the session root recorded a plan-approval handoff.
 
-    Reads ``agent_meta.json`` from *timestamp_dir* (the family-root agent's
+    Reads ``agent_meta.json`` from *timestamp_dir* (the agent session-root agent's
     artifacts directory) and checks for ``plan_approved == true`` paired
     with a recognized ``plan_action``.  When this is true, a plan step
     still showing ``RUNNING`` / ``WAITING INPUT`` is necessarily stale.
@@ -40,7 +40,7 @@ def _family_progressed_past_plan(timestamp_dir: Path) -> bool:
         return False
     if not meta.get("plan_approved"):
         return False
-    return meta.get("plan_action") in FAMILY_PROGRESSED_PLAN_ACTIONS
+    return meta.get("plan_action") in AGENT_SESSION_PROGRESSED_PLAN_ACTIONS
 
 
 def is_plan_step(step_name: str | None, role_suffix: str | None) -> bool:
@@ -85,7 +85,9 @@ def _load_workflow_agent_steps_for_dir(
         except Exception:
             pass
 
-    family_progressed_past_plan = _family_progressed_past_plan(timestamp_dir)
+    agent_session_progressed_past_plan = _agent_session_progressed_past_plan(
+        timestamp_dir
+    )
 
     # Find all prompt step marker files
     for marker_file in timestamp_dir.glob("prompt_step_*.json"):
@@ -208,12 +210,12 @@ def _load_workflow_agent_steps_for_dir(
                 agent, artifacts_dir_from_marker, workflow_child=True
             )
 
-            # Family root advanced past plan approval (EPIC/TALE APPROVED /
+            # Session root advanced past plan approval (EPIC/TALE APPROVED /
             # PLAN COMMITTED) but the planner's own marker is
             # still non-terminal — common when an in-process SDK provider
             # was SIGTERM'd before the executor could persist completion.
             if (
-                family_progressed_past_plan
+                agent_session_progressed_past_plan
                 and agent.status in NON_TERMINAL_STEP_DISPLAY_STATUSES
                 and is_plan_step(step_name, agent.role_suffix)
             ):

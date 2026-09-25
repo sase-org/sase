@@ -18,38 +18,38 @@ from ._agent_tree_helpers import _GENERATION, _agent
 
 
 def test_project_clan_tree_inserts_container_and_three_depths() -> None:
-    family = _agent("research.family", "family", tribe="epic")
-    family_member = _agent(
+    agent_session_root = _agent("research.family", "family", tribe="epic")
+    agent_session_member = _agent(
         "research.family--code",
         "family-code",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
         tribe="review",
     )
     solo = _agent("research.solo", "solo", status="DONE", tribe="review")
 
-    projected = project_clan_tree([family, family_member, solo])
+    projected = project_clan_tree([agent_session_root, agent_session_member, solo])
 
     container = projected[0]
     assert container.is_clan_container is True
     assert container.display_name == "research"
     assert container.agent_clan_generation == _GENERATION
     assert container.clan_tribes == ("epic", "review")
-    assert container.runtime_children == [family, solo]
-    assert projected == [container, family, family_member, solo]
+    assert container.runtime_children == [agent_session_root, solo]
+    assert projected == [container, agent_session_root, agent_session_member, solo]
     assert [row.tree_depth for row in projected] == [0, 1, 2, 1]
     clan_key = agent_fold_key(container)
-    assert family.tree_parent_key == clan_key
+    assert agent_session_root.tree_parent_key == clan_key
     assert solo.tree_parent_key == clan_key
-    assert family_member.tree_parent_key == family.raw_suffix
-    assert agent_fold_key(family) == family.raw_suffix
-    assert agent_parent_fold_key(family) == clan_key
-    assert agent_parent_fold_key(family_member) == family.raw_suffix
+    assert agent_session_member.tree_parent_key == agent_session_root.raw_suffix
+    assert agent_fold_key(agent_session_root) == agent_session_root.raw_suffix
+    assert agent_parent_fold_key(agent_session_root) == clan_key
+    assert agent_parent_fold_key(agent_session_member) == agent_session_root.raw_suffix
 
     lookup = tree_parent_lookup(projected)
-    assert _tree_parent(family_member, lookup) is family
-    assert _tree_parent(family, lookup) is container
+    assert _tree_parent(agent_session_member, lookup) is agent_session_root
+    assert _tree_parent(agent_session_root, lookup) is container
     anchors = presentation_anchor_lookup(projected, lookup)
     assert [anchors[id(row)] for row in projected] == [container] * 4
 
@@ -106,17 +106,17 @@ def test_clan_tree_does_not_invent_a_patch_banner_from_one_member() -> None:
 
 
 def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
-    family = _agent("sase-ns.6.6.6.1", "20260817055518")
-    family.agent_session = "sase-ns.6.6.6.1"
-    family.agent_session_role = "root"
+    agent_session_root = _agent("sase-ns.6.6.6.1", "20260817055518")
+    agent_session_root.agent_session = "sase-ns.6.6.6.1"
+    agent_session_root.agent_session_role = "root"
     starter = _agent(
         "sase-ns.6.6.6.1--2",
         "20260817070811",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
-    starter.agent_session = family.agent_session
+    starter.agent_session = agent_session_root.agent_session
     starter.agent_session_role = "code"
     monitor = _agent(
         "sase-ns.6.6.6.1--mon-1",
@@ -125,11 +125,11 @@ def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
         clan=None,
         generation=None,
     )
-    monitor.agent_session = family.agent_session
+    monitor.agent_session = agent_session_root.agent_session
     monitor.agent_session_role = "monitor"
     peer = _agent("sase-ns.6.6.6.2", "20260817060000", status="DONE")
 
-    projected = project_clan_tree([family, starter, monitor, peer])
+    projected = project_clan_tree([agent_session_root, starter, monitor, peer])
 
     container = projected[0]
     assert container.is_clan_container is True
@@ -137,25 +137,25 @@ def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
     assert monitor.agent_clan_generation is None
     assert monitor.tree_parent_key == starter.raw_suffix
     assert monitor.tree_depth == starter.tree_depth + 1 == 3
-    assert starter.tree_parent_key == family.raw_suffix
+    assert starter.tree_parent_key == agent_session_root.raw_suffix
     assert starter.tree_depth == 2
-    assert family.tree_depth == 1
+    assert agent_session_root.tree_depth == 1
     assert projected.index(monitor) == projected.index(starter) + 1
-    assert projected == [container, family, starter, monitor, peer]
+    assert projected == [container, agent_session_root, starter, monitor, peer]
 
 
 def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> None:
-    family = _agent("research.family", "family")
-    family.agent_session = "research.family"
-    family.agent_session_role = "root"
+    agent_session_root = _agent("research.family", "family")
+    agent_session_root.agent_session = "research.family"
+    agent_session_root.agent_session_role = "root"
     starter = _agent(
         "research.family--2",
         "starter",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
-    starter.agent_session = family.agent_session
+    starter.agent_session = agent_session_root.agent_session
     disk_monitor = _agent(
         "research.family--mon-1",
         "disk-mon",
@@ -163,20 +163,20 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
         clan=None,
         generation=None,
     )
-    disk_monitor.agent_session = family.agent_session
+    disk_monitor.agent_session = agent_session_root.agent_session
     disk_monitor.agent_session_role = "monitor"
     tagged_monitor = _agent(
         "research.family--mon-1",
         "tagged-mon",
         parent_timestamp=starter.raw_suffix,
-        clan=family.agent_clan,
-        generation=family.agent_clan_generation,
+        clan=agent_session_root.agent_clan,
+        generation=agent_session_root.agent_clan_generation,
     )
-    tagged_monitor.agent_session = family.agent_session
+    tagged_monitor.agent_session = agent_session_root.agent_session
     tagged_monitor.agent_session_role = "monitor"
 
-    disk_tree = project_clan_tree([family, starter, disk_monitor])
-    tagged_tree = project_clan_tree([family, starter, tagged_monitor])
+    disk_tree = project_clan_tree([agent_session_root, starter, disk_monitor])
+    tagged_tree = project_clan_tree([agent_session_root, starter, tagged_monitor])
 
     assert [row.tree_depth for row in disk_tree] == [
         row.tree_depth for row in tagged_tree
@@ -239,10 +239,10 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
     monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_label = "just check"
-    family = _agent("08b", "family", clan=None, generation=None)
-    family.agent_session = "08b"
-    family.agent_session_role = "root"
-    family.followup_agents = [coder]
+    agent_session_root = _agent("08b", "family", clan=None, generation=None)
+    agent_session_root.agent_session = "08b"
+    agent_session_root.agent_session_role = "root"
+    agent_session_root.followup_agents = [coder]
     parallel = _agent(
         "fanout",
         "fanout",
@@ -260,6 +260,6 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
     assert agent_tree_title(planner) is None
     assert agent_tree_title(coder) is None
     assert agent_tree_title(monitor) is None
-    assert agent_tree_title(family) == family.display_name
+    assert agent_tree_title(agent_session_root) == agent_session_root.display_name
     assert agent_tree_title(parallel) == parallel.display_name
     assert agent_tree_title(standalone) == standalone.display_name

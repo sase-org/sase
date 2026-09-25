@@ -62,7 +62,7 @@ def _tree_shape(agents: list[Agent]) -> list[tuple[object, ...]]:
         (
             agent.identity,
             agent.parent_timestamp,
-            agent.is_family_container_row,
+            agent.is_agent_session_container_row,
             agent.is_clan_container,
             agent.is_remote_agent_session_container,
             tuple(child.identity for child in agent.followup_agents),
@@ -87,7 +87,7 @@ def test_project_fleet_agents_builds_a_remote_family_container_with_shells() -> 
     gate = by_name["remote-family--gate"]
     proc = by_name["remote-family--proc"]
 
-    assert root.is_family_container_row is True
+    assert root.is_agent_session_container_row is True
     assert root.fleet_origin_alias == "apollo"
     assert {child.agent_name for child in root.followup_agents} == {
         "remote-family--code",
@@ -95,7 +95,7 @@ def test_project_fleet_agents_builds_a_remote_family_container_with_shells() -> 
         "remote-family--gate",
         "remote-family--proc",
     }
-    assert code.is_family_member_child is True
+    assert code.is_agent_session_member_child is True
     assert monitor.is_monitor is True
     assert gate.is_gate is True
     assert proc.is_proc_shell is True
@@ -154,7 +154,7 @@ def test_project_fleet_agents_drops_container_plus_concrete_duplicates() -> None
     root = next(row for row in projection.fleet_rows if row.agent_name == "sase-zr.1")
     assert root.fleet_current_instance is True
     assert root.fleet_row_kind == "agent_shell"
-    assert root.is_family_container_row is True
+    assert root.is_agent_session_container_row is True
 
 
 def test_project_fleet_agents_drops_superseded_non_current_top_level_instances() -> (
@@ -259,13 +259,13 @@ def test_project_fleet_agents_synthesizes_a_stable_root_when_page_omits_it() -> 
 
     first = project_fleet_agents(catalog_response=response)
     second = project_fleet_agents(catalog_response=response)
-    roots = [row for row in first.fleet_rows if not row.is_family_member_child]
+    roots = [row for row in first.fleet_rows if not row.is_agent_session_member_child]
     assert len(roots) == 1
     container = roots[0]
     assert container.is_remote_agent_session_container is True
-    assert container.is_family_container_row is True
+    assert container.is_agent_session_container_row is True
     assert container.agent_session == "crew"
-    assert container.raw_suffix == "fleet:apollo:family:crew"
+    assert container.raw_suffix == "fleet:apollo:session:crew"
     assert container.identity == second.fleet_rows[0].identity or any(
         row.identity == container.identity for row in second.fleet_rows
     )
@@ -278,7 +278,9 @@ def test_project_fleet_agents_preserves_selection_identity_across_refresh() -> N
         summaries=_remote_family_summaries(),
     )
     first = project_fleet_agents(catalog_response=response)
-    selected = next(row for row in first.fleet_rows if row.is_family_container_row)
+    selected = next(
+        row for row in first.fleet_rows if row.is_agent_session_container_row
+    )
     second = project_fleet_agents(catalog_response=response)
     assert any(row.identity == selected.identity for row in second.fleet_rows)
     assert _tree_shape(list(first.fleet_rows)) == _tree_shape(list(second.fleet_rows))
@@ -321,7 +323,7 @@ def test_project_mixed_agent_tree_matches_reproject_and_refilter_shapes() -> Non
     expected = project_mixed_agent_tree([local, local_peer], remote)
     assert any(row.is_clan_container for row in expected)
     assert any(
-        row.is_family_container_row and row.fleet_origin_alias == "apollo"
+        row.is_agent_session_container_row and row.fleet_origin_alias == "apollo"
         for row in expected
     )
 

@@ -197,7 +197,7 @@ def _only_gate(rows: list[Agent]) -> Agent:
 
 
 def _only_root(rows: list[Agent]) -> Agent:
-    roots = [row for row in rows if row.is_family_root_entry]
+    roots = [row for row in rows if row.is_agent_session_root_entry]
     assert len(roots) == 1, [(row.cl_name, row.status) for row in rows]
     return roots[0]
 

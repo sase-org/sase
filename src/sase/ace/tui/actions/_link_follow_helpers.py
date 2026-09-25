@@ -179,8 +179,8 @@ def _agent_candidate_names(agent: Any) -> tuple[str, ...]:
         if isinstance(value, str) and value:
             names.append(value)
     for method_name in (
-        "family_reference_name",
-        "presented_family_reference_name",
+        "agent_session_reference_name",
+        "presented_agent_session_reference_name",
         "presented_clan_reference_name",
     ):
         method = getattr(agent, method_name, None)

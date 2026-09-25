@@ -17,9 +17,9 @@ import pytest
 from sase.ace.tui.models._agent_loader_normalization import normalize_loaded_agents
 from sase.ace.tui.models._agent_clan import sase_agent_status_counts
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_family_members import (
+from sase.ace.tui.models.agent_session_members import (
     agent_row_is_in_flight,
-    row_is_family_shell,
+    row_is_agent_session_shell,
     shell_lane_counts,
 )
 from sase.ace.tui.models.agent_groups import GroupingMode, grouping_keys_for_agents
@@ -143,7 +143,7 @@ def _load() -> list[Agent]:
 
 def _root_and_gate(agents: list[Agent]) -> tuple[Agent, Agent]:
     gates = [agent for agent in agents if agent.is_gate]
-    roots = [agent for agent in agents if agent.is_family_root_entry]
+    roots = [agent for agent in agents if agent.is_agent_session_root_entry]
     assert len(gates) == 1, [agent.cl_name for agent in agents]
     assert len(roots) == 1, [agent.cl_name for agent in agents]
     return roots[0], gates[0]
@@ -321,8 +321,8 @@ def test_normalization_keeps_agent_session_shell_rows_keyed_on_state_not_pid() -
         start_time=None,
         pid=DEAD_PID,
     )
-    assert row_is_family_shell(gate) is True
-    assert row_is_family_shell(stale_agent) is False
+    assert row_is_agent_session_shell(gate) is True
+    assert row_is_agent_session_shell(stale_agent) is False
 
     kept = normalize_loaded_agents(
         [gate, stale_agent],

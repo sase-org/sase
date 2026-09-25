@@ -511,7 +511,7 @@ def compute_banner_summary(
 
     Only non-workflow-child agents are counted so the summary mirrors
     the user's mental model of "agents in this group".  Counts are
-    derived from the shared concrete-agent projection so family handoffs and
+    derived from the shared concrete-agent projection so agent session handoffs and
     container counts agree with the other summary surfaces, *except* for a
     remote-machine L0 banner in ``BY_MACHINE`` mode: that banner sources its
     counts from the host's own authoritative counts instead, so a bounded or

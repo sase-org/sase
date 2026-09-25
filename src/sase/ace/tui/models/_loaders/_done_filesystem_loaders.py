@@ -136,7 +136,7 @@ def load_done_agent_for_dir(
             # cascading still resolves it) but is a non-error terminal state,
             # so it must be checked before the generic completed mapping.
             #
-            # Queued family children cancelled by a failed parent use
+            # Queued session children cancelled by a failed parent use
             # ``outcome: "stopped"`` because they must render the same visible
             # status without satisfying downstream wait dependencies.
             status = "STOPPED"

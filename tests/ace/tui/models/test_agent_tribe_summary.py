@@ -29,7 +29,7 @@ def _agent(
     start_minute: int,
     clan: str | None = None,
     generation: str | None = None,
-    family: str | None = None,
+    agent_session: str | None = None,
     role: str | None = None,
     parent: str | None = None,
 ) -> Agent:
@@ -46,7 +46,7 @@ def _agent(
         agent_name=name,
         agent_clan=clan,
         agent_clan_generation=generation,
-        agent_session=family,
+        agent_session=agent_session,
         agent_session_role="root" if role == "plan" else role,
         role_suffix=f"--{role}" if role else None,
         plan_chain_root=role == "plan",
@@ -72,31 +72,31 @@ def _mixed_roots() -> tuple[list[Agent], dict[str, Agent]]:
     }
     clan_container = project_clan_tree([clan_member])[0]
 
-    family_root = _agent(
+    agent_session_root = _agent(
         "build--plan",
         "RUNNING",
         start_minute=5,
-        family="build",
+        agent_session="build",
         role="plan",
     )
-    family_child = _agent(
+    agent_session_child = _agent(
         "build--code",
         "WAITING",
         start_minute=10,
-        family="build",
+        agent_session="build",
         role="code",
-        parent=family_root.raw_suffix,
+        parent=agent_session_root.raw_suffix,
     )
-    family_child.activity = "waiting on review"
-    family_root.followup_agents = [family_child]
+    agent_session_child.activity = "waiting on review"
+    agent_session_root.followup_agents = [agent_session_child]
 
     standalone = _agent("standalone", "DONE", start_minute=20)
     standalone.step_output = {"meta_release_notes": "ready\nfull notes"}
-    return [clan_container, family_root, family_child, standalone], {
+    return [clan_container, agent_session_root, agent_session_child, standalone], {
         "clan": clan_container,
         "clan_member": clan_member,
-        "family": family_root,
-        "family_child": family_child,
+        "session": agent_session_root,
+        "agent_session_child": agent_session_child,
         "standalone": standalone,
     }
 
@@ -109,21 +109,21 @@ def test_snapshot_preserves_mixed_unit_order_and_aggregates_loaded_rows() -> Non
         roots,
         panel_collapsed=True,
         unread_ids={rows["standalone"].identity},
-        marked_ids={rows["family_child"].identity},
+        marked_ids={rows["agent_session_child"].identity},
         now=_NOW,
     )
 
     assert snapshot.container_identity == _tribe_panel_identity("epic")
     assert snapshot.label == "▲ @epic"
     assert snapshot.panel_collapsed is True
-    assert [unit.kind for unit in snapshot.units] == ["clan", "family", "agent"]
+    assert [unit.kind for unit in snapshot.units] == ["clan", "session", "agent"]
     assert [unit.label for unit in snapshot.units] == [
         "research",
         "build",
         "standalone",
     ]
     assert snapshot.clan_count == 1
-    assert snapshot.family_count == 1
+    assert snapshot.session_count == 1
     assert snapshot.lane_count == 3
     assert snapshot.nested_count == 2
     assert snapshot.runtime_span == "1h"
@@ -159,19 +159,21 @@ def test_attention_digest_and_default_identity_use_unit_statuses() -> None:
     ]
 
 
-def test_family_unit_counts_and_children_use_concrete_planner_projection() -> None:
+def test_agent_session_unit_counts_and_children_use_concrete_planner_projection() -> (
+    None
+):
     root = _agent(
         "build--plan",
         "WORKING TALE",
         start_minute=0,
-        family="build",
+        agent_session="build",
         role="plan",
     )
     planner = _agent(
         "build--plan-step",
         "TALE APPROVED",
         start_minute=0,
-        family="build",
+        agent_session="build",
         role="plan",
         parent=root.raw_suffix,
     )
@@ -183,7 +185,7 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
         "build--code",
         "WORKING TALE",
         start_minute=10,
-        family="build",
+        agent_session="build",
         role="code",
         parent=root.raw_suffix,
     )
@@ -199,25 +201,25 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
         now=_NOW,
     )
 
-    family = snapshot.units[0]
-    assert family.identity == root.identity
-    assert family.status == "WORKING TALE"
-    assert [child.identity for child in family.children] == [
+    agent_session = snapshot.units[0]
+    assert agent_session.identity == root.identity
+    assert agent_session.status == "WORKING TALE"
+    assert [child.identity for child in agent_session.children] == [
         planner.identity,
         coder.identity,
     ]
-    assert [child.status for child in family.children] == [
+    assert [child.status for child in agent_session.children] == [
         "TALE APPROVED",
         "WORKING TALE",
     ]
-    assert [child.model for child in family.children] == [
+    assert [child.model for child in agent_session.children] == [
         "claude/opus",
         "codex/gpt-5",
     ]
-    assert family.status_counts is None
-    assert family.is_unread is True
-    assert [child.is_unread for child in family.children] == [False, False]
-    assert [child.effective_bucket for child in family.children] == [
+    assert agent_session.status_counts is None
+    assert agent_session.is_unread is True
+    assert [child.is_unread for child in agent_session.children] == [False, False]
+    assert [child.effective_bucket for child in agent_session.children] == [
         "Done",
         "Running",
     ]
@@ -319,19 +321,19 @@ def test_workflow_unit_counts_agent_steps_once_and_never_as_nested() -> None:
     ]
 
 
-def test_finished_family_projects_all_members_to_done() -> None:
+def test_finished_agent_session_projects_all_members_to_done() -> None:
     planner = _agent(
         "build--plan",
         "TALE DONE",
         start_minute=0,
-        family="build",
+        agent_session="build",
         role="plan",
     )
     coder = _agent(
         "build--code",
         "TALE DONE",
         start_minute=10,
-        family="build",
+        agent_session="build",
         role="code",
         parent=planner.raw_suffix,
     )
@@ -344,8 +346,8 @@ def test_finished_family_projects_all_members_to_done() -> None:
         now=_NOW,
     )
 
-    family = snapshot.units[0]
-    assert family.status_counts is None
+    agent_session = snapshot.units[0]
+    assert agent_session.status_counts is None
     assert snapshot.counts.running == 0
     assert snapshot.counts.done == 1
     assert snapshot.lane_count == 1
@@ -371,25 +373,30 @@ def test_machine_qualified_children_compact_against_presented_containers() -> No
         clan="zeus.review",
         generation="foreign",
     )
-    family_root = _agent(
+    agent_session_root = _agent(
         "athena.build--plan",
         "RUNNING",
         start_minute=2,
-        family="athena.build",
+        agent_session="athena.build",
         role="plan",
     )
-    family_child = _agent(
+    agent_session_child = _agent(
         "athena.build--code",
         "WAITING",
         start_minute=3,
-        family="athena.build",
+        agent_session="athena.build",
         role="code",
-        parent=family_root.raw_suffix,
+        parent=agent_session_root.raw_suffix,
     )
-    family_root.followup_agents = [family_child]
+    agent_session_root.followup_agents = [agent_session_child]
 
     projected = project_clan_tree(
-        [local_clan_member, foreign_clan_member, family_root, family_child]
+        [
+            local_clan_member,
+            foreign_clan_member,
+            agent_session_root,
+            agent_session_child,
+        ]
     )
     for agent in projected:
         agent.refresh_presented_agent_name(identity)
@@ -408,22 +415,22 @@ def test_machine_qualified_children_compact_against_presented_containers() -> No
     assert [child.label for child in units["zeus.review"].children] == [".peer"]
 
 
-def test_local_machine_clan_with_family_projects_to_one_presented_unit() -> None:
+def test_local_machine_clan_with_agent_session_projects_to_one_presented_unit() -> None:
     identity = AgentIdentitySnapshot(
         AgentOwnerIdentity("alice", "athena"),
         ("athena", "zeus"),
     )
-    family_root = _agent(
+    agent_session_root = _agent(
         "athena.sase-8t.1--plan",
         "RUNNING",
         start_minute=0,
         clan="athena.sase-8t",
         generation="gen",
-        family="athena.sase-8t.1",
+        agent_session="athena.sase-8t.1",
         role="plan",
     )
     agents = [
-        family_root,
+        agent_session_root,
         _agent(
             "athena.sase-8t.2",
             "WAITING",
@@ -439,21 +446,21 @@ def test_local_machine_clan_with_family_projects_to_one_presented_unit() -> None
             generation="gen",
         ),
     ]
-    foreign_family_root = _agent(
+    foreign_agent_session_root = _agent(
         "zeus.review.1--plan",
         "RUNNING",
         start_minute=3,
         clan="zeus.review",
         generation="foreign",
-        family="zeus.review.1",
+        agent_session="zeus.review.1",
         role="plan",
     )
 
-    for agent in (*agents, foreign_family_root):
+    for agent in (*agents, foreign_agent_session_root):
         agent.refresh_presented_agent_name(identity)
 
-    assert family_root.presented_clan_reference_name() == "sase-8t"
-    assert foreign_family_root.presented_clan_reference_name() == "zeus.review"
+    assert agent_session_root.presented_clan_reference_name() == "sase-8t"
+    assert foreign_agent_session_root.presented_clan_reference_name() == "zeus.review"
 
     projected = project_clan_tree(agents)
     containers = [agent for agent in projected if agent.is_clan_container]
@@ -477,14 +484,14 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
             f"family-{index}--plan",
             "WORKING TALE" if index < 2 else "TALE DONE",
             start_minute=index * 5,
-            family=f"family-{index}",
+            agent_session=f"family-{index}",
             role="plan",
         )
         planner = _agent(
             f"family-{index}--plan-step",
             "TALE APPROVED",
             start_minute=index * 5,
-            family=f"family-{index}",
+            agent_session=f"family-{index}",
             role="plan",
             parent=root.raw_suffix,
         )
@@ -495,7 +502,7 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
             f"family-{index}--code",
             "WORKING TALE" if index < 2 else "TALE DONE",
             start_minute=index * 5 + 1,
-            family=f"family-{index}",
+            agent_session=f"family-{index}",
             role="code",
             parent=root.raw_suffix,
         )
@@ -525,7 +532,7 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
         now=_NOW,
     )
 
-    assert snapshot.family_count == 4
+    assert snapshot.session_count == 4
     assert snapshot.lane_count == 6
     assert snapshot.nested_count == 8
     assert snapshot.counts.running == 2

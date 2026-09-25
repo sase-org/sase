@@ -115,7 +115,7 @@ def _name_values(agent: Agent) -> tuple[str, ...]:
 def _kind_values(agent: Agent) -> tuple[str, ...]:
     if agent.is_clan_container:
         return ("clan",)
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         return ("session",)
     kinds: list[str] = []
     if agent.is_child_row:
@@ -134,8 +134,8 @@ def _kind_values(agent: Agent) -> tuple[str, ...]:
 def _session_values(agent: Agent) -> tuple[str, ...]:
     inferred = _session_from_name(agent.agent_name)
     values = [agent.agent_session, inferred]
-    if agent.agent_session or agent.is_family_root_entry:
-        values.append(agent.presented_family_reference_name())
+    if agent.agent_session or agent.is_agent_session_root_entry:
+        values.append(agent.presented_agent_session_reference_name())
     return _distinct(*values)
 
 

@@ -206,7 +206,7 @@ def test_agent_session_attach_metadata_matches_runner_followup_and_tui_agent_ses
         agent_session=str(member_meta[AGENT_SESSION_KEY]),
         agent_session_role=str(member_meta[AGENT_SESSION_ROLE_KEY]),
     )
-    assert tui_agent.is_family_member_child is True
+    assert tui_agent.is_agent_session_member_child is True
 
 
 def test_agent_session_attach_child_inherits_parent_clan_metadata(

@@ -29,7 +29,7 @@ class _FakeAgent:
     agent_session_parallel: bool = False
     role_suffix: str | None = None
     phase_bead_id: str | None = None
-    is_family_root_entry: bool = False
+    is_agent_session_root_entry: bool = False
     artifacts_dir_value: str | None = None
     agent_type: AgentType = AgentType.RUNNING
     workspace_num: int | None = None

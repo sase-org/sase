@@ -1,4 +1,4 @@
-"""Imported family members fold under a synthesized family container."""
+"""Imported agent session members fold under a synthesized session container."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui.actions.agents._revive_helpers import is_child_of
-from sase.ace.tui.models._agent_imported_family import (
-    materialize_imported_family_containers,
+from sase.ace.tui.models._agent_imported_agent_session import (
+    materialize_imported_agent_session_containers,
 )
 from sase.ace.tui.models._agent_loader_normalization import normalize_loaded_agents
 from sase.ace.tui.models._agent_tree import agent_is_tree_child, agent_tree_depth
@@ -43,7 +43,7 @@ def _imported_member(
     )
 
 
-def test_imported_family_renders_grouped_without_code_orphan_roots() -> None:
+def test_imported_agent_session_renders_grouped_without_code_orphan_roots() -> None:
     plan = _imported_member(
         name="bob.zeus.crew--plan",
         role="plan",
@@ -72,17 +72,17 @@ def test_imported_family_renders_grouped_without_code_orphan_roots() -> None:
     assert len(roots) == 1
     container = roots[0]
     assert container.is_imported_agent_session_container
-    assert container.is_family_root_entry
+    assert container.is_agent_session_root_entry
     assert container.agent_session == "bob.zeus.crew"
     members = [row for row in rows if row is not container]
     assert {row.agent_session_role for row in members} == {"plan", "code", "monitor"}
-    assert all(row.is_family_member_child for row in members)
+    assert all(row.is_agent_session_member_child for row in members)
     assert all(agent_tree_depth(row) > 0 for row in members)
     assert all(row.parent_timestamp == container.raw_suffix for row in members)
     assert "--code" not in {row.agent_name for row in roots}
 
 
-def test_reviving_imported_family_restores_root_and_members() -> None:
+def test_reviving_imported_agent_session_restores_root_and_members() -> None:
     plan = _imported_member(
         name="bob.zeus.crew--plan",
         role="plan",
@@ -101,7 +101,7 @@ def test_reviving_imported_family_restores_root_and_members() -> None:
         suffix="20260724120003",
         second=3,
     )
-    rows = materialize_imported_family_containers([plan, code, monitor])
+    rows = materialize_imported_agent_session_containers([plan, code, monitor])
     container = next(row for row in rows if row.is_imported_agent_session_container)
     members = [row for row in rows if row is not container]
     visible = [row for row in rows if not row.is_workflow_child]
@@ -152,14 +152,14 @@ def test_imported_source_owner_loads_from_meta_and_bundle(tmp_path: Path) -> Non
     assert loaded.imported_source_owner == SOURCE
 
 
-def test_synthetic_imported_family_parent_is_not_persisted() -> None:
+def test_synthetic_imported_agent_session_parent_is_not_persisted() -> None:
     code = _imported_member(
         name="bob.zeus.crew--code",
         role="code",
         suffix="20260724120002",
         second=2,
     )
-    rows = materialize_imported_family_containers([code])
+    rows = materialize_imported_agent_session_containers([code])
     member = next(row for row in rows if not row.is_imported_agent_session_container)
     assert member.parent_timestamp is not None
     bundle = to_bundle_dict(member)

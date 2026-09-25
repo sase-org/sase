@@ -89,7 +89,7 @@ class IdentityHeader:
 
 def identity_kind_for_agent(agent: Agent) -> tuple[str, str]:
     """Return the panel kind label and accent color for ``agent``."""
-    if agent.is_family_container_row:
+    if agent.is_agent_session_container_row:
         return ("FAMILY", FAMILY_IDENTITY_COLOR)
     if agent.is_proc_shell:
         return ("PROC SHELL", _PROC_SHELL_ROW_STYLE)

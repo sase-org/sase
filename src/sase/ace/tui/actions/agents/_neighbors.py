@@ -239,7 +239,7 @@ class AgentNeighborMixin:
         agent: Agent,
     ) -> SaseAgentNeighborProjection | None:
         """Return the lane-relative neighbor projection for a lane-owning row."""
-        from ...models.agent_family_members import concrete_family_shell_rows
+        from ...models.agent_session_members import concrete_agent_session_shell_rows
         from ...models.agent_hoods import sase_agent_name, agent_owns_sase_agent
         from ...models.sase_agent_neighbors import (
             build_sase_agent_neighbor_projection,
@@ -249,8 +249,8 @@ class AgentNeighborMixin:
             return None
 
         suppressed_identities = (
-            {member.identity for member in concrete_family_shell_rows(agent)}
-            if agent.is_family_container_row
+            {member.identity for member in concrete_agent_session_shell_rows(agent)}
+            if agent.is_agent_session_container_row
             else ()
         )
         return build_sase_agent_neighbor_projection(

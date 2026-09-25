@@ -7,7 +7,7 @@ from ._traceback_section import build_traceback_block
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, wait_display_agent
-from ...models.agent_family_members import family_roster_container
+from ...models.agent_session_members import agent_session_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
 from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
@@ -234,9 +234,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             clan_fold_level, clan_fold_overrides = panel_fold_state_from_widget(self)
             lane_owner = agent_owns_sase_agent(agent)
             lane_summary_enabled = (
-                agent.is_family_container_row
+                agent.is_agent_session_container_row
                 or lane_owner
-                or family_roster_container(agent) is not None
+                or agent_session_roster_container(agent) is not None
             )
             projection_resolver = getattr(
                 app,

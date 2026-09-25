@@ -40,7 +40,7 @@ from ._agent_loader_normalization import (
 )
 from ._agent_ordering import get_status_priority as _get_status_priority  # noqa: F401
 from ._agent_status_apply import apply_status_overrides as _apply_status_overrides
-from ._agent_status_family_core import (
+from ._agent_status_agent_session_core import (
     is_root_plan_workflow as _is_root_plan_workflow,  # noqa: F401
 )
 from ._agent_status_roles import (

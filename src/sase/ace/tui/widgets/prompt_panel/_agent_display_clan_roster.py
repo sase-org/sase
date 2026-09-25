@@ -14,7 +14,7 @@ from sase.agent.status_buckets import (
 from ...models._agent_clan import clan_members
 from ...models._agent_clan_sections import ClanMemberDigest
 from ...models.agent import Agent, AgentType, compute_row_runtime
-from ...models.agent_family_members import family_member_status_buckets
+from ...models.agent_session_members import agent_session_member_status_buckets
 from ._member_roster import MemberRosterChild, MemberRosterEntry
 
 
@@ -41,7 +41,7 @@ def family_children(member: Agent) -> tuple[Agent, ...]:
     return tuple(
         child
         for child in member.runtime_children
-        if child.is_family_member_child and not child.agent_session_parallel
+        if child.is_agent_session_member_child and not child.agent_session_parallel
     )
 
 
@@ -97,7 +97,7 @@ def _nested_family_suffix(
 
 def _presented_family_name(agent: Agent) -> str:
     """Derive a family container from raw relations and presented identity."""
-    return agent.presented_family_reference_name() or _row_name(agent)
+    return agent.presented_agent_session_reference_name() or _row_name(agent)
 
 
 def _member_kind(member: Agent) -> str:
@@ -187,7 +187,7 @@ def clan_roster_entries(
             continue
 
         rows = family_rows(member, children)
-        family_buckets = family_member_status_buckets(rows)
+        family_buckets = agent_session_member_status_buckets(rows)
         family_status_entries = tuple(
             (row.status, bucket)
             for row, bucket in zip(rows, family_buckets, strict=True)

@@ -39,7 +39,7 @@ def prepare_kill_edit_agent_prompt(
     if raw_prompt is None:
         return None
 
-    is_family_root = bool(getattr(agent, "is_family_root_entry", False))
+    is_family_root = bool(getattr(agent, "is_agent_session_root_entry", False))
     family_name: str | None = None
     agent_session = agent_session_value(agent)
     role_suffix = getattr(agent, "role_suffix", None)
@@ -62,7 +62,7 @@ def _kill_edit_family_reference_name(
     agent: object,
     agent_session: str | None,
 ) -> str | None:
-    presenter = getattr(agent, "presented_family_reference_name", None)
+    presenter = getattr(agent, "presented_agent_session_reference_name", None)
     if callable(presenter):
         presented = presenter()
         if presented:

@@ -171,5 +171,5 @@ def make_family_agent() -> Agent:
         role_suffix="--code",
     )
     root.followup_agents = [child]
-    assert root.is_family_container_row
+    assert root.is_agent_session_container_row
     return root

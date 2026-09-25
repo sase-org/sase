@@ -119,17 +119,17 @@ async def test_numbered_member_binding_is_conditional_on_container_rows() -> Non
         clan = SimpleNamespace(
             **common,
             is_clan_container=True,
-            is_family_container_row=False,
+            is_agent_session_container_row=False,
         )
         family = SimpleNamespace(
             **common,
             is_clan_container=False,
-            is_family_container_row=True,
+            is_agent_session_container_row=True,
         )
         regular = SimpleNamespace(
             **common,
             is_clan_container=False,
-            is_family_container_row=False,
+            is_agent_session_container_row=False,
         )
 
         assert ("0-9", "member") in footer._compute_agent_bindings(clan)
@@ -161,7 +161,7 @@ def test_clan_footer_keeps_row_cleanup_and_panel_chooser_labels() -> None:
         workspace_num=None,
         attempt_history=[],
         is_clan_container=True,
-        is_family_container_row=False,
+        is_agent_session_container_row=False,
     )
 
     bindings = set(footer._compute_agent_bindings(clan, completed_count=2))

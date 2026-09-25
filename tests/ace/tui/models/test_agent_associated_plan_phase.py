@@ -216,13 +216,13 @@ def test_phase_pending_authored_plan_keeps_parent_bead_and_uses_archive(
 
 
 @pytest.mark.parametrize(
-    ("family_role", "plan_action"),
+    ("session_role", "plan_action"),
     [("root", "tale"), ("code", None)],
     ids=["approved-root", "coder-without-action"],
 )
 def test_sase_83_phase_handoff_renders_parent_bead_and_committed_tale_plan(
     tmp_path: Path,
-    family_role: str,
+    session_role: str,
     plan_action: str | None,
 ) -> None:
     epic = write_epic(tmp_path / "plans" / "agent_cli_update_awareness.md")
@@ -237,9 +237,9 @@ def test_sase_83_phase_handoff_renders_parent_bead_and_committed_tale_plan(
     enrichment = resolve_agent_plan_enrichment(
         make_agent(
             agent_name=(
-                "sase-83.1--code" if family_role == "code" else "sase-83.1--plan"
+                "sase-83.1--code" if session_role == "code" else "sase-83.1--plan"
             ),
-            agent_session_role=family_role,
+            agent_session_role=session_role,
             epic_bead_id="sase-83",
             phase_bead_id="sase-83.1",
             epic_plan_ref="plans/agent_cli_update_awareness.md",

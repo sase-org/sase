@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.models._family_shell_membership import _is_concrete_family_shell
+from sase.ace.tui.models._agent_session_shell_membership import (
+    _is_concrete_agent_session_shell,
+)
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_tiered_agents
@@ -99,7 +101,7 @@ def _owner_signatures(
 
 
 def _owner_is_nested(agent: Agent) -> bool:
-    return bool(agent.parent_timestamp) or _is_concrete_family_shell(agent)
+    return bool(agent.parent_timestamp) or _is_concrete_agent_session_shell(agent)
 
 
 def _agent_label(agent: Agent) -> str:

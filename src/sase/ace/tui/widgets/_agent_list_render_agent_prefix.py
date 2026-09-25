@@ -10,7 +10,7 @@ from rich.text import Text
 
 from ..models._agent_tree import agent_is_tree_child, agent_tree_depth, agent_tree_title
 from ..models.agent import Agent, AgentType
-from ..models.agent_family_members import gate_row_is_settled, monitor_row_is_settled
+from ..models.agent_session_members import gate_row_is_settled, monitor_row_is_settled
 from ..models.tribe_display import (
     TRIBE_IDENTITY_FALLBACK_COLOR,
     compose_tribe_identity_style,
@@ -59,7 +59,7 @@ def _is_indented_member_shell(agent: Agent) -> bool:
     under another container. Member shells (family children, workflow
     steps, monitors, gates, procs) do not repeat the parent's chip.
     """
-    if agent.is_clan_container or agent.is_family_container_row:
+    if agent.is_clan_container or agent.is_agent_session_container_row:
         return False
     if not agent_is_tree_child(agent):
         return False
@@ -217,7 +217,7 @@ def append_agent_row_prefix(
 
     # Agent type indicator with color
     dt = agent.get_display_type(is_expanded=is_expanded)
-    is_family_container_row = agent.is_family_container_row
+    is_agent_session_container_row = agent.is_agent_session_container_row
 
     # Color: RUNNING blue for appears_as_agent, per-step-type for workflow steps.
     is_appears_as_agent = agent.appears_as_agent and not (
@@ -241,7 +241,7 @@ def append_agent_row_prefix(
     # already marks tree depth).  Other top-level types render as a
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
-    if not (agent.is_clan_container or is_family_container_row) and not (
+    if not (agent.is_clan_container or is_agent_session_container_row) and not (
         is_appears_as_agent
         or agent_is_tree_child(agent)
         or agent.is_monitor

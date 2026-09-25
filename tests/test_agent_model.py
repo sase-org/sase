@@ -197,12 +197,12 @@ def test_agent_child_linkage_classifies_roots_workflow_steps_and_agent_session_m
     assert workflow_step.is_child_row
     assert workflow_step.is_workflow_child
     assert workflow_step.is_workflow_step_child
-    assert not workflow_step.is_family_member_child
-    assert agent_session_member.child_linkage is AgentChildLinkage.FAMILY_MEMBER
+    assert not workflow_step.is_agent_session_member_child
+    assert agent_session_member.child_linkage is AgentChildLinkage.AGENT_SESSION_MEMBER
     assert agent_session_member.is_child_row
     assert agent_session_member.is_workflow_child
     assert not agent_session_member.is_workflow_step_child
-    assert agent_session_member.is_family_member_child
+    assert agent_session_member.is_agent_session_member_child
 
 
 # --- Hidden Step and Appears As Agent Tests ---

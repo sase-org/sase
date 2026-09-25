@@ -49,7 +49,7 @@ class AgentState:
 
     # Runtime-only proof that this row is backed by a runner whose PID was
     # verified live. The visible status is intentionally not authoritative:
-    # family normalization may replace RUNNING with semantic or failed child
+    # agent session normalization may replace RUNNING with semantic or failed child
     # states while the outer runner is still alive and waiting to retry.
     runner_is_live: bool = field(default=False, compare=False, repr=False)
 
@@ -167,7 +167,7 @@ class AgentState:
     # prompt/detail header renders this as a labeled Activity field.
     activity: str | None = None
 
-    # Monitor-member projection. Monitor rows are ordinary agent-family
+    # Monitor-member projection. Monitor rows are ordinary agent-session
     # members whose work is one supervised OS command rather than an LLM turn.
     monitor_id: str | None = None
     monitor_state: str | None = None
@@ -211,7 +211,7 @@ class AgentState:
     monitor_host_completion_message: str | None = None
     monitor_host_completion_reason: str | None = None
 
-    # Gate-member projection. Gate rows are ordinary agent-family members whose
+    # Gate-member projection. Gate rows are ordinary agent-session members whose
     # work is a durable human decision rather than an LLM turn.
     gate_id: str | None = None
     gate_kind: str | None = None
@@ -299,7 +299,7 @@ class AgentState:
     agent_name: str | None = None
 
     # Precomputed name used by the Agents-tab row annotation and detail header.
-    # Family root rows present the bare container name while retaining their
+    # Session root rows present the bare container name while retaining their
     # concrete persisted member name in ``agent_name``.
     presented_agent_name: str | None = field(
         default=None,
@@ -308,7 +308,7 @@ class AgentState:
     )
 
     # Precomputed identity used for hood/neighbor relationships. Unlike
-    # ``presented_agent_name``, this retains a concrete family member suffix;
+    # ``presented_agent_name``, this retains a concrete agent session member suffix;
     # only explicit prefixes belonging to the selected current owner are
     # removed during snapshot normalization.
     presented_identity_name: str | None = field(
@@ -365,7 +365,7 @@ class AgentState:
     runner_capacity_blockers: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     # True while this row's own pending_question.json marker exists. Root rows
-    # with this flag have yielded their runner slot; family status propagation
+    # with this flag have yielded their runner slot; agent session status propagation
     # must not be used as a substitute because a child question remains exempt.
     runner_slot_yielded: bool = False
 
@@ -433,7 +433,7 @@ class AgentState:
     # Role suffix annotation (e.g., ".plan", ".code", ".q") for follow-up agents
     role_suffix: str | None = None
 
-    # Agent-family metadata for plan/question/feedback/coder handoff flows.
+    # Agent-session metadata for plan/question/feedback/coder handoff flows.
     agent_session: str | None = None
     agent_session_role: str | None = None
     imported_source_owner: AgentOwnerIdentity | None = None
@@ -459,9 +459,9 @@ class AgentState:
     tree_parent_key: str | None = field(default=None, compare=False)
     tree_depth: int = field(default=0, compare=False)
     clan_tribes: tuple[str, ...] = field(default_factory=tuple, compare=False)
-    # Explicitly marks execution-neutral parallel family membership. Unlike
+    # Explicitly marks execution-neutral parallel-agent-session membership. Unlike
     # serial plan-chain linkage, these children own independent processes and
-    # must be included when their family root is killed or dismissed.
+    # must be included when their session root is killed or dismissed.
     agent_session_parallel: bool = False
     plan_chain_root: bool = False
 
@@ -487,7 +487,7 @@ class AgentState:
         repr=False,
     )
 
-    # Family container row whose FAMILY SHELLS roster lists this row. Runtime
+    # Session container row whose SESSION SHELLS roster lists this row. Runtime
     # presentation plumbing; not serialized. ``compare``/``repr`` must stay off:
     # this pointer closes a cycle with ``followup_agents``/``runtime_children``
     # and dataclass eq/repr (and the repr-based hint digest) would recurse.
@@ -498,7 +498,7 @@ class AgentState:
         default=False, compare=False, repr=False
     )
 
-    # Set when a family root's members reveal a plan chain that started after
+    # Set when a session root's members reveal a plan chain that started after
     # the root was promoted. Derived during status normalization; not
     # serialized. Sticky: normalization only ever sets this, never clears it.
     derived_plan_agent_session_root: bool = field(

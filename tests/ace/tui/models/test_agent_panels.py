@@ -372,17 +372,17 @@ def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
 
 
 def test_nested_monitor_inherits_clan_anchor_panel() -> None:
-    family = _agent(suffix="family", tribe="epic", name="research.family")
-    family.agent_clan = "research"
-    family.agent_clan_generation = "20260817080000"
-    family.agent_session = "research.family"
-    family.agent_session_role = "root"
+    agent_session_root = _agent(suffix="family", tribe="epic", name="research.family")
+    agent_session_root.agent_clan = "research"
+    agent_session_root.agent_clan_generation = "20260817080000"
+    agent_session_root.agent_session = "research.family"
+    agent_session_root.agent_session_role = "root"
     starter = _agent(
         suffix="starter",
         name="research.family--2",
         parent_timestamp="family",
     )
-    starter.agent_session = family.agent_session
+    starter.agent_session = agent_session_root.agent_session
     starter.agent_session_role = "code"
     monitor = _agent(
         suffix="monitor",
@@ -390,11 +390,11 @@ def test_nested_monitor_inherits_clan_anchor_panel() -> None:
         name="research.family--mon-1",
         parent_timestamp="starter",
     )
-    monitor.agent_session = family.agent_session
+    monitor.agent_session = agent_session_root.agent_session
     monitor.agent_session_role = "monitor"
     standalone = _agent(suffix="standalone", tribe="fix", name="standalone")
 
-    clan = project_clan_tree([family, starter, monitor])
+    clan = project_clan_tree([agent_session_root, starter, monitor])
     agents = [*clan, standalone]
 
     assert panel_key_per_agent(agents) == [None] * len(clan) + ["fix"]

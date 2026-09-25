@@ -1,4 +1,4 @@
-"""Shared helpers for the ``test_agent_family_*`` test modules."""
+"""Shared helpers for the ``test_agent_session_*`` test modules."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def _plan_root(*, name: str = "alpha--plan") -> Agent:
 def _plan_root_with_main_step(*, name: str = "alpha--plan") -> tuple[Agent, Agent]:
     """Build a plan root with its loaded concrete ``main`` workflow step.
 
-    Production plan-family containers share ``raw_suffix`` (and artifacts dir)
+    Production plan-session containers share ``raw_suffix`` (and artifacts dir)
     with the ``main`` step but differ in ``cl_name``, so the step becomes the
     first shell anchor while the container itself is dropped from the list.
     """

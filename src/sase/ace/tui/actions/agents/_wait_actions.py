@@ -13,8 +13,8 @@ from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     visible_agent_completion_agents,
 )
-from sase.ace.tui.models.agent_family_preview_cache import (
-    should_resolve_family_plan_preview,
+from sase.ace.tui.models.agent_session_preview_cache import (
+    should_resolve_agent_session_plan_preview,
 )
 from sase.project_display_names import humanize_cl_name
 from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait_and_queue
@@ -168,7 +168,9 @@ class AgentWaitActionsMixin:
     ) -> list[AgentCompletionCandidate]:
         """Return completion candidates sourced from all visible Agents-tab panels."""
         visible_agents = self._visible_agent_completion_agents()
-        if any(should_resolve_family_plan_preview(agent) for agent in visible_agents):
+        if any(
+            should_resolve_agent_session_plan_preview(agent) for agent in visible_agents
+        ):
             schedule = getattr(self, "_schedule_family_plan_preview_warmup", None)
             if callable(schedule):
                 schedule(source="completion")

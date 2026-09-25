@@ -134,7 +134,7 @@ def test_worker_pause_does_not_clear_live_agent_session_links(
     root = agent_session_root(live)
     before = row_observation(root)
     prefix = row_prefix(root)
-    assert root.is_family_container_row
+    assert root.is_agent_session_container_row
     assert "🎭" in prefix and "🤖" in prefix
 
     with _pause_runtime_clear(monkeypatch) as (started, release):
@@ -148,7 +148,7 @@ def test_worker_pause_does_not_clear_live_agent_session_links(
         assert row_observation(root) == before
         prepared = agent_session_root(result[0].fold.unfiltered_agents)
         assert prepared is not root
-        assert prepared.is_family_container_row
+        assert prepared.is_agent_session_container_row
         assert row_prefix(prepared) == prefix
 
 

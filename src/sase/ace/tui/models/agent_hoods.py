@@ -20,13 +20,13 @@ type AgentIdentity = tuple["AgentType", str, str | None]
 def sase_agent_name(agent: Agent) -> str | None:
     """Return the sase-agent name a row presents on the Agents tab.
 
-    A family root entry renders under its bare family base while its raw name
+    A session root entry renders under its bare session base while its raw name
     keeps the ``--<suffix>`` member part, so kinship must key on the sase-agent
     name to agree with ``sase.core.agent_identity_facade.agent_name_in_hood``.
     """
     if agent.is_clan_container:
         return None
-    if agent.is_family_root_entry:
+    if agent.is_agent_session_root_entry:
         return agent.presented_agent_name or agent.presented_identity_name
     return agent.presented_identity_name
 
@@ -48,14 +48,14 @@ def agent_owns_sase_agent(agent: Agent) -> bool:
         return False
     if agent.is_workflow_child or agent.is_hidden_step:
         return False
-    if agent.is_family_member_child:
+    if agent.is_agent_session_member_child:
         return False
     return agent_name_key(agent) is not None
 
 
-def _suppressed_family_root_member_key(agent: Agent) -> str | None:
-    """Return the concrete member name hidden behind a family root."""
-    if not agent.is_family_root_entry:
+def _suppressed_agent_session_root_member_key(agent: Agent) -> str | None:
+    """Return the concrete member name hidden behind a session root."""
+    if not agent.is_agent_session_root_entry:
         return None
     sase_agent_key = agent_name_key(agent)
     member_name = agent.presented_identity_name
@@ -199,7 +199,7 @@ class AgentNeighborIndex:
         descendant_keys_by_row: dict[int, tuple[int, ...]] = {}
         descendant_count_by_row: dict[int, int] = {}
         for row_key, name in name_by_key.items():
-            suppressed_name = _suppressed_family_root_member_key(
+            suppressed_name = _suppressed_agent_session_root_member_key(
                 row_by_key[row_key].agent
             )
             all_ranges = _descendant_ranges(all_names, name)

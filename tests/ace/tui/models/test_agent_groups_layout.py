@@ -52,7 +52,7 @@ def test_dotless_parent_groups_with_dotted_resume_child() -> None:
     assert _group_keys(entries, level=2) == [("repo", "demo", "foo")]
 
 
-def test_dotted_agent_family_groups_under_root_family() -> None:
+def test_dotted_agent_agent_session_groups_under_root_agent_session() -> None:
     root = _agent(
         cl_name="demo",
         agent_name="a9f",

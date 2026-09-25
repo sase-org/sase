@@ -1,7 +1,7 @@
 """Final agent ordering helpers for the TUI agent list."""
 
 from .agent import Agent, AgentType
-from .agent_family_members import concrete_family_shell_rows
+from .agent_session_members import concrete_agent_session_shell_rows
 
 
 def get_status_priority(status: str) -> int:
@@ -32,13 +32,13 @@ def sort_and_reorder(
 
     sorted_agents = agents_with_time + agents_without_time
 
-    # Separate family-member children from regular agents so they can be
+    # Separate session-member children from regular agents so they can be
     # grouped with their parent row (plan -> feedback rounds -> coder, and
     # queued WAITING children) instead of scattering by start time.
     followups_by_parent: dict[str, list[Agent]] = {}
     non_followup: list[Agent] = []
     for agent in sorted_agents:
-        if agent.is_family_member_child and agent.parent_timestamp:
+        if agent.is_agent_session_member_child and agent.parent_timestamp:
             followups_by_parent.setdefault(agent.parent_timestamp, []).append(agent)
         else:
             non_followup.append(agent)
@@ -149,7 +149,7 @@ def sort_and_reorder(
                 visiting.add(id(agent))
                 _append_followup_subtree(result, suffix, followups_by_parent, visiting)
                 visiting.discard(id(agent))
-        # Exact artifact-dir deltas may load a family child without its
+        # Exact artifact-dir deltas may load a session child without its
         # parent. Keep those follow-ups so the incomplete-history merge can
         # replace the cached child and remirror the container.
         if keep_orphaned_followups and followups_by_parent:
@@ -164,13 +164,13 @@ def sort_and_reorder(
         from ._agent_tree import project_clan_tree
 
         ordered = project_clan_tree(result)
-        _attach_family_containers(ordered)
+        _attach_agent_session_containers(ordered)
         return ordered
 
     from ._agent_tree import project_clan_tree
 
     ordered = project_clan_tree(sorted_agents)
-    _attach_family_containers(ordered)
+    _attach_agent_session_containers(ordered)
     return ordered
 
 
@@ -239,15 +239,15 @@ def _attach_runtime_children(
             parent.runtime_children.extend(children)
 
 
-def _attach_family_containers(rows: list[Agent]) -> None:
-    """Point each concrete family shell at the container row that lists it.
+def _attach_agent_session_containers(rows: list[Agent]) -> None:
+    """Point each concrete session shell at the container row that lists it.
 
     Nested monitors keep their immediate rendered-tree parent (the starter)
     and only gain this roster back-pointer.
     """
     for row in rows:
-        if not row.is_family_container_row:
+        if not row.is_agent_session_container_row:
             continue
-        for member in concrete_family_shell_rows(row):
+        for member in concrete_agent_session_shell_rows(row):
             if member is not row:
                 member.agent_session_container = row

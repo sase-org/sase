@@ -20,12 +20,12 @@ if TYPE_CHECKING:
     from .agent_types import AgentType
 
 from .agent_status import DISMISSABLE_STATUSES
-from .agent_family_members import (
+from .agent_session_members import (
     ConcreteAgentStatus,
     agent_row_is_in_flight,
     concrete_agent_statuses,
-    current_family_shell_row,
-    is_sequential_family_container,
+    current_agent_session_shell_row,
+    is_sequential_agent_session_container,
 )
 from .agent_nodes import is_agents_tab_agent_node
 from .agent_time import wait_display_agent
@@ -144,7 +144,7 @@ def apply_clan_container_status(
 
     When the aggregate bucket is Queued and exactly one unique member is
     queued, the clan attaches that member through ``wait_display_source``
-    (dereferencing a sequential-family root to its queued shell) so list-row
+    (dereferencing a sequential-agent-session root to its queued shell) so list-row
     and CLAN ``Status:`` extras can show the member's admission rank. Any
     other aggregate, including two queued members, clears the pointer so
     repeated projections cannot leave a stale rank after a companion queues
@@ -239,7 +239,7 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
             and child.presented_clan_reference_name() == clan_reference
             and child.agent_clan_generation == agent.agent_clan_generation
         )
-    # Legacy archives project parallel-family metadata into a clan at the wire
+    # Legacy archives project parallel-agent-session metadata into a clan at the wire
     # boundary, but directly constructed compatibility fixtures may still carry
     # only the old marker.
     if not agent.agent_session_parallel:
@@ -255,10 +255,10 @@ def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return the clan's own in-flight member rows, one per running lane.
 
     Each row is a direct clan member, never a shell nested inside one of the
-    clan's sequential families: a family lane is represented by the family
-    row itself so it contributes the family total rather than the runtime of
-    whichever shell is currently executing. A family lane counts as in
-    flight while any of its shells is executing, which outlives the family
+    clan's sequential agent sessions: a session lane is represented by the agent session
+    row itself so it contributes the session total rather than the runtime of
+    whichever shell is currently executing. A session lane counts as in
+    flight while any of its shells is executing, which outlives the agent session
     root row's own status and ``stop_time``. Nested clan containers are not
     clan members (matching :func:`clan_members` and
     ``_lane_summary_projections``), so they are not walked.
@@ -268,9 +268,9 @@ def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     rows: list[Agent] = []
     seen: set[tuple[AgentType, str, str | None]] = set()
     for member in clan_members(agent):
-        if current_family_shell_row(member) is None and not agent_row_is_in_flight(
+        if current_agent_session_shell_row(
             member
-        ):
+        ) is None and not agent_row_is_in_flight(member):
             continue
         if member.identity in seen:
             continue
@@ -439,7 +439,7 @@ def _summary_projections(
                 for projection in _summary_projections(member, unread_ids)
             )
         else:
-            # Preserve the legacy parallel-family projection: only the loaded
+            # Preserve the legacy parallel-agent-session projection: only the loaded
             # parallel members replace their compatibility aggregate root.
             projected = tuple(
                 _ProjectedSummaryAgent(
@@ -460,7 +460,7 @@ def _summary_projections(
         )
     else:
         statuses = concrete_agent_statuses(agent)
-        projected_from_container = is_sequential_family_container(agent) or any(
+        projected_from_container = is_sequential_agent_session_container(agent) or any(
             status.agent.identity != agent.identity for status in statuses
         )
         projected = tuple(

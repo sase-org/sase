@@ -8,7 +8,7 @@ from typing import Any
 from rich.console import Console
 from rich.style import Style
 
-import sase.ace.tui.models.agent_family_preview_cache as family_preview_cache
+import sase.ace.tui.models.agent_session_preview_cache as family_preview_cache
 from sase.agent_session_plan_preview import AgentSessionPlanPreview
 from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
@@ -136,7 +136,7 @@ def test_family_completion_candidate_attaches_cached_plan_preview(
     )
 
     monkeypatch.setattr(
-        "sase.ace.tui._agent_completion_candidates.cached_family_plan_preview",
+        "sase.ace.tui._agent_completion_candidates.cached_agent_session_plan_preview",
         lambda _agent: preview,
     )
 

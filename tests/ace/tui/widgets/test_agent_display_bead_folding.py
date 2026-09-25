@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.tui.models.agent_associated_plan import BeadSummary
-from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, FAMILY_FOLD_SCALE
+from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, AGENT_SESSION_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_bead_section import (
     BEAD_SECTION_ID,
@@ -24,8 +24,13 @@ from tests.ace.tui.widgets._agent_display_bead_section_helpers import (
 def test_bead_detail_level_uses_fold_scale_position() -> None:
     assert bead_detail_level(FoldLevel.COLLAPSED, AGENT_FOLD_SCALE).name == "DIGEST"
     assert bead_detail_level(FoldLevel.EXPANDED, AGENT_FOLD_SCALE).name == "FULL"
-    assert bead_detail_level(FoldLevel.EXPANDED, FAMILY_FOLD_SCALE).name == "DIGEST"
-    assert bead_detail_level(FoldLevel.FULLY_EXPANDED, FAMILY_FOLD_SCALE).name == "FULL"
+    assert (
+        bead_detail_level(FoldLevel.EXPANDED, AGENT_SESSION_FOLD_SCALE).name == "DIGEST"
+    )
+    assert (
+        bead_detail_level(FoldLevel.FULLY_EXPANDED, AGENT_SESSION_FOLD_SCALE).name
+        == "FULL"
+    )
 
 
 def test_bead_digest_folds_only_multiline_log_rows_and_keeps_row_order() -> None:

@@ -316,7 +316,7 @@ def is_ace_run_root(agent: Agent) -> bool:
 
 
 def _participates_in_runner_slots(agent: Agent) -> bool:
-    return is_ace_run_root(agent) or agent.is_family_member_child
+    return is_ace_run_root(agent) or agent.is_agent_session_member_child
 
 
 def is_live_slot_waiter(agent: Agent) -> bool:

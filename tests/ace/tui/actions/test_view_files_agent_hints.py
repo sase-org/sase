@@ -63,7 +63,7 @@ class _PendingAgentViewApp(FileViewingMixin):
         self.agent = SimpleNamespace(
             cl_name="pending-agent",
             identity=("pending-agent",),
-            is_family_container_row=False,
+            is_agent_session_container_row=False,
         )
         self.detail = _PendingAgentDetail()
         self.container = _PendingHintContainer()
@@ -122,7 +122,7 @@ async def test_family_with_displayed_artifact_mounts_view_hint_input() -> None:
     app.agent = SimpleNamespace(
         cl_name="family",
         identity=("family",),
-        is_family_container_row=True,
+        is_agent_session_container_row=True,
     )
     app.detail = _ReadyFamilyAgentDetail()
 
@@ -146,7 +146,7 @@ async def test_clan_with_summary_path_mounts_hint_input_without_warning() -> Non
     app.agent = SimpleNamespace(
         cl_name="research",
         identity=("research", "clan"),
-        is_family_container_row=False,
+        is_agent_session_container_row=False,
         is_clan_container=True,
     )
     app.detail = _ReadyFamilyAgentDetail()
@@ -188,7 +188,7 @@ class _ImmediateSubmitAgentViewApp(InputProcessingMixin, FileViewingMixin):
         self.agent = SimpleNamespace(
             cl_name="immediate-submit",
             identity=("immediate-submit",),
-            is_family_container_row=False,
+            is_agent_session_container_row=False,
         )
         self.detail = _ReadyFamilyAgentDetail()
         self.container = _PendingHintContainer()

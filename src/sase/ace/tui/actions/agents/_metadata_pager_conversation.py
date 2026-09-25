@@ -18,7 +18,7 @@ from sase.pager.owner import document_owner_from_path
 
 from ...models._agent_clan_sections import ClanDiskSection, clan_section_member_rows
 from ...models.agent import Agent
-from ...models.agent_family_members import concrete_family_shell_rows
+from ...models.agent_session_members import concrete_agent_session_shell_rows
 from ...widgets.prompt_panel._agent_clan_member_content import (
     load_clan_disk_member_snapshot,
 )
@@ -55,7 +55,7 @@ def build_agent_conversation_sections(agent: Agent) -> tuple[PagerSection, ...]:
     if agent.is_clan_container:
         members = clan_section_member_rows(agent)
     elif agent.followup_agents:
-        members = concrete_family_shell_rows(agent)
+        members = concrete_agent_session_shell_rows(agent)
     else:
         members = (agent,)
     attributed = agent.is_clan_container or bool(agent.followup_agents)

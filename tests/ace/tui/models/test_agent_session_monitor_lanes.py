@@ -1,14 +1,14 @@
-"""Per-family monitor lane-count tests."""
+"""Per-agent session monitor lane-count tests."""
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent_family_members import (
+from sase.ace.tui.models.agent_session_members import (
     _MonitorLaneCounts,
     monitor_row_is_settled,
     shell_lane_counts,
 )
 
-from ._agent_family_members_helpers import _agent, _monitor_member
+from ._agent_session_members_helpers import _agent, _monitor_member
 
 
 def _monitor_lane_counts(agent):
@@ -117,23 +117,23 @@ def test_monitor_lane_counts_aggregates_clan_members_at_depth_two() -> None:
     clan = _agent("workers", role="root")
     clan.is_clan_container = True
 
-    family_a = _agent("alpha--0", role="root")
+    agent_session_a = _agent("alpha--0", role="root")
     monitor_a = _monitor_member(
-        "alpha--mon", root=family_a, monitor_id="ma", monitor_state="running"
+        "alpha--mon", root=agent_session_a, monitor_id="ma", monitor_state="running"
     )
-    family_a.followup_agents = [monitor_a]
+    agent_session_a.followup_agents = [monitor_a]
 
-    family_b = _agent("beta--0", role="root")
+    agent_session_b = _agent("beta--0", role="root")
     monitor_b = _monitor_member(
         "beta--mon",
-        root=family_b,
+        root=agent_session_b,
         monitor_id="mb",
         monitor_state="completed",
         stop_offset=5,
     )
-    family_b.followup_agents = [monitor_b]
+    agent_session_b.followup_agents = [monitor_b]
 
-    clan.runtime_children = [family_a, family_b]
+    clan.runtime_children = [agent_session_a, agent_session_b]
 
     assert _monitor_lane_counts(clan) == _MonitorLaneCounts(running=1, settled=1)
 
@@ -143,7 +143,7 @@ def test_monitor_lane_counts_dedupes_overlap_and_terminates_on_cycles() -> None:
     monitor = _monitor_member(
         "alpha--mon", root=root, monitor_id="m1", monitor_state="running"
     )
-    # Real family rows attach the same member to both lists.
+    # Real agent session rows attach the same member to both lists.
     root.runtime_children = [monitor]
     root.followup_agents = [monitor]
     # A cycle back to the root: without a cycle guard this would recurse

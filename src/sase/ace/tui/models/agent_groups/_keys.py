@@ -28,8 +28,8 @@ from ._buckets import (
 )
 
 
-def _agent_family_base_from_row(agent: Agent, name: str) -> str | None:
-    """Infer a family base only for rows carrying known family metadata."""
+def _agent_session_base_from_row(agent: Agent, name: str) -> str | None:
+    """Infer a session base only for rows carrying known agent session metadata."""
     if canonical_plan_chain_suffix(agent.role_suffix) is not None:
         return agent_session_base(name, include_legacy_dash=True)
     return None
@@ -40,16 +40,18 @@ def _grouping_name(agent: Agent) -> str:
     if agent.is_clan_container:
         return ""
     if agent.agent_session:
-        return agent.presented_family_reference_name() or agent.agent_session
+        return agent.presented_agent_session_reference_name() or agent.agent_session
 
     if agent.presented_agent_name:
-        family_base = _agent_family_base_from_row(agent, agent.presented_agent_name)
-        return family_base or agent.presented_agent_name
+        agent_session_base_name = _agent_session_base_from_row(
+            agent, agent.presented_agent_name
+        )
+        return agent_session_base_name or agent.presented_agent_name
 
     name = agent.display_name or ""
-    family_base = _agent_family_base_from_row(agent, name)
-    if family_base:
-        return family_base
+    agent_session_base_name = _agent_session_base_from_row(agent, name)
+    if agent_session_base_name:
+        return agent_session_base_name
     if "." in name:
         return name
     return ""
@@ -347,7 +349,7 @@ def walk_anchors(
     Under ``BY_STATUS``, every display unit anchors on the outer presentation
     root's ``start_time``. :func:`walk_order` then shares one effective value
     across each visible name-root or dotted-prefix subgroup so a newer child or
-    follow-up cannot split or re-anchor its family. Other modes receive neutral
+    follow-up cannot split or re-anchor its agent session. Other modes receive neutral
     metadata.
 
     Agents with no usable anchor sort last within their bucket (``+inf``

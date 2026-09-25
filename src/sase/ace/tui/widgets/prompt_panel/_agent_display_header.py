@@ -15,10 +15,10 @@ from sase.ace.tui.llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
-from ...models.agent_family_members import family_roster_container
+from ...models.agent_session_members import agent_session_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.fold_scale import (
-    FAMILY_FOLD_SCALE,
+    AGENT_SESSION_FOLD_SCALE,
     effective_fold_level,
     lane_fold_scale,
 )
@@ -131,8 +131,10 @@ def build_header_text(
         lane_fold_level or FoldLevel.COLLAPSED,
         lane_scale,
     )
-    family_fold_enabled = agent.is_family_container_row and lane_fold_level is not None
-    roster_container = family_roster_container(agent)
+    family_fold_enabled = (
+        agent.is_agent_session_container_row and lane_fold_level is not None
+    )
+    roster_container = agent_session_roster_container(agent)
     lane_neighbors = lane_neighbors if agent_owns_sase_agent(agent) else None
     shown_neighbor_count = 0 if lane_neighbors is None else len(lane_neighbors.rows)
     family_heading_suffix: Text | None = None
@@ -189,10 +191,10 @@ def build_header_text(
             append_fold_header_line(
                 identity_text,
                 level=resolved_lane_fold_level,
-                scale=FAMILY_FOLD_SCALE,
+                scale=AGENT_SESSION_FOLD_SCALE,
             )
     else:
-        if agent.is_family_container_row:
+        if agent.is_agent_session_container_row:
             append_kind_header(header_text, "FAMILY", FAMILY_IDENTITY_COLOR)
         elif agent.is_proc_shell:
             append_kind_header(header_text, "PROC SHELL", _PROC_SHELL_ROW_STYLE)
@@ -226,7 +228,7 @@ def build_header_text(
         append_fold_header_line(
             header_text,
             level=resolved_lane_fold_level,
-            scale=FAMILY_FOLD_SCALE,
+            scale=AGENT_SESSION_FOLD_SCALE,
         )
     if family_entries:
         family_dest = roster_text if roster_text is not None else header_text
@@ -237,7 +239,7 @@ def build_header_text(
             section_fold_overrides=lane_overrides,
             entries=family_entries,
             numbering=document_numbering,
-            fold_scale=FAMILY_FOLD_SCALE if family_fold_enabled else lane_scale,
+            fold_scale=AGENT_SESSION_FOLD_SCALE if family_fold_enabled else lane_scale,
             heading_suffix=family_heading_suffix,
         )
 
@@ -453,7 +455,7 @@ def build_header_text(
                 wait_section=wait_section,
                 shell_section=shell_section,
                 fold_level=resolved_lane_fold_level if family_fold_enabled else None,
-                fold_scale=FAMILY_FOLD_SCALE if family_fold_enabled else None,
+                fold_scale=AGENT_SESSION_FOLD_SCALE if family_fold_enabled else None,
             ),
             has_hints=has_hints,
         )

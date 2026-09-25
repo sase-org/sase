@@ -115,7 +115,10 @@ def try_remove_rows(
         for other in widget._agents:
             if not (other.is_child_row and other.parent_timestamp == agent.raw_suffix):
                 continue
-            if other.is_family_member_child or other.parent_workflow == agent.workflow:
+            if (
+                other.is_agent_session_member_child
+                or other.parent_workflow == agent.workflow
+            ):
                 return False
 
     rows_to_remove.sort(key=lambda t: t[0], reverse=True)
@@ -328,7 +331,7 @@ def _is_plain_leaf_row(agent: Agent) -> bool:
     return not (
         agent.is_clan_container
         or agent.agent_clan
-        or agent.is_family_container_row
+        or agent.is_agent_session_container_row
         or agent.is_imported_agent_session_container
         or agent.agent_type is AgentType.WORKFLOW
         or agent.is_child_row

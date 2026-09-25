@@ -39,7 +39,7 @@ side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel
 already represents a single tribe bucket.
 
 Structural descendants inherit grouping identity from their outer rendered
-root so banners are never emitted inside a clan or agent-family subtree.
+root so banners are never emitted inside a clan or agent-session subtree.
 
 Each group has a binary collapsed/expanded state, tracked per-key in an
 :class:`AgentGroupFoldRegistry`.  When a group is collapsed its

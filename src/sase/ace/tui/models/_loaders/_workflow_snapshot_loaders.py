@@ -25,15 +25,15 @@ from ._diff_path import diff_path_from_step_output
 from ._meta_enrichment import enrich_agent_from_meta, enrich_agent_from_meta_wire
 from ._workflow_loaders import (
     ACTIVE_STATUSES,
-    SETTLED_FAMILY_SHELL_DONE_OUTCOMES,
-    family_shell_member_from_meta,
+    SETTLED_AGENT_SESSION_SHELL_DONE_OUTCOMES,
+    agent_session_shell_member_from_meta,
 )
 from ._workflow_failure_fallback import (
     build_workflow_failure_fallback,
     preferred_workflow_output_path,
 )
 from ._workflow_step_loaders import (
-    FAMILY_PROGRESSED_PLAN_ACTIONS,
+    AGENT_SESSION_PROGRESSED_PLAN_ACTIONS,
     NON_TERMINAL_STEP_DISPLAY_STATUSES,
     is_plan_step,
 )
@@ -56,7 +56,7 @@ def _snapshot_record_is_agent_session_shell_member(
         return False
     shell = meta.agent_session_shell
     gate_id = shell.id if shell is not None and shell.kind == "gate" else None
-    return family_shell_member_from_meta(
+    return agent_session_shell_member_from_meta(
         agent_session_role=meta.agent_session_role,
         role_suffix=meta.role_suffix,
         gate_id=gate_id,
@@ -219,9 +219,9 @@ def load_workflow_agents_from_snapshot(
         if (
             record is not None
             and record.done is not None
-            and record.done.outcome in SETTLED_FAMILY_SHELL_DONE_OUTCOMES
+            and record.done.outcome in SETTLED_AGENT_SESSION_SHELL_DONE_OUTCOMES
         ):
-            # A settled family-shell member's workflow_state.json is vestigial
+            # A settled session-shell member's workflow_state.json is vestigial
             # launch scaffolding; the done marker owns the terminal row.
             continue
 
@@ -320,10 +320,10 @@ def _build_workflow_agent_steps_for_record(
         elif parent_state.status == "completed":
             parent_wf_completed = True
 
-    family_progressed_past_plan = (
+    agent_session_progressed_past_plan = (
         record.agent_meta is not None
         and record.agent_meta.plan_approved
-        and record.agent_meta.plan_action in FAMILY_PROGRESSED_PLAN_ACTIONS
+        and record.agent_meta.plan_action in AGENT_SESSION_PROGRESSED_PLAN_ACTIONS
     )
 
     project_file = record.project_file
@@ -450,7 +450,7 @@ def _build_workflow_agent_steps_for_record(
                 )
 
             if (
-                family_progressed_past_plan
+                agent_session_progressed_past_plan
                 and agent.status in NON_TERMINAL_STEP_DISPLAY_STATUSES
                 and is_plan_step(step_name, agent.role_suffix)
             ):

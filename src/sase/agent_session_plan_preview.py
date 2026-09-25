@@ -56,7 +56,7 @@ class AgentSessionPlanPreview:
 
 #: Singleton for "resolved, nothing to show" — distinct from an unresolved
 #: cache miss, which callers must track separately (see
-#: ``agent_family_preview_cache``).
+#: ``agent_session_preview_cache``).
 EMPTY_AGENT_SESSION_PLAN_PREVIEW: Final = AgentSessionPlanPreview(
     kind=None,
     title=None,

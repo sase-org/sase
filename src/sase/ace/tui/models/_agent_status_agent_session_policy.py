@@ -1,4 +1,4 @@
-"""Status policy for concrete sequential family handoff rows."""
+"""Status policy for concrete sequential agent session handoff rows."""
 
 from sase.agent.status_buckets import (
     EPIC_APPROVED_STATUS,
@@ -10,8 +10,8 @@ from sase.agent.status_buckets import (
 )
 from sase.plan_chain import canonical_plan_chain_suffix
 
-from ._agent_status_family_core import (
-    has_later_family_continuation,
+from ._agent_status_agent_session_core import (
+    has_later_agent_session_continuation,
     is_main_workflow_agent_step,
     is_root_plan_workflow,
     root_child_suffix,
@@ -21,7 +21,7 @@ from .agent import Agent
 
 
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
-PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
+PLANNER_AGENT_SESSION_ROLES = frozenset({"plan", "feedback"})
 
 
 def _question_answered(agent: Agent) -> bool:
@@ -45,7 +45,7 @@ def done_handoff_status(parent: Agent, child: Agent) -> str:
 def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | None:
     """Return the visible status for an active approved-plan handoff."""
     if (
-        not child.is_family_member_child
+        not child.is_agent_session_member_child
         or child.agent_session_parallel
         or child.status != "RUNNING"
     ):
@@ -97,7 +97,7 @@ def _decision_published_by_gate_shell(agent: Agent) -> bool:
     ``gate_id`` without being the gate member (``is_gate`` is role-based).
     From that point the gate shell owns the decision status for its whole
     settled/pending pair, and the creating agent shell keeps its own terminal
-    status. Legacy pre-gate-shell families record no ``gate_id`` and keep the
+    status. Legacy pre-gate-shell agent sessions record no ``gate_id`` and keep the
     historical planner label, because they have no gate node to carry it.
     """
     return bool(agent.gate_id) and not agent.is_gate
@@ -109,7 +109,7 @@ def approved_followup_planner_status(agent: Agent) -> str | None:
         _decision_published_by_gate_shell(agent)
         or agent.parent_timestamp is None
         or agent.agent_session_parallel
-        or agent_session_role(agent) not in PLANNER_FAMILY_ROLES
+        or agent_session_role(agent) not in PLANNER_AGENT_SESSION_ROLES
     ):
         return None
     if not agent.plan_times:
@@ -125,14 +125,14 @@ def is_answered_continuation_asker(
     agent: Agent,
     children_by_parent: dict[str, list[Agent]],
 ) -> bool:
-    """Return True for a family child whose answered question handed off."""
+    """Return True for a session child whose answered question handed off."""
     if agent.status != "DONE":
         return False
-    if not agent.parent_timestamp or not agent.is_family_member_child:
+    if not agent.parent_timestamp or not agent.is_agent_session_member_child:
         return False
     if not agent.questions_times or not _question_answered(agent):
         return False
-    return has_later_family_continuation(agent, children_by_parent)
+    return has_later_agent_session_continuation(agent, children_by_parent)
 
 
 def is_answered_root_asker_step(
@@ -140,10 +140,10 @@ def is_answered_root_asker_step(
     parent_by_suffix: dict[str, Agent],
     children_by_parent: dict[str, list[Agent]],
 ) -> bool:
-    """Return True for a family root's own step whose answer handed off.
+    """Return True for a session root's own step whose answer handed off.
 
     A rename-on-attach root's own work renders as its concrete ``main``
-    workflow step, which is a workflow-step child rather than a family-member
+    workflow step, which is a workflow-step child rather than a session-member
     child, so :func:`is_answered_continuation_asker` skips it. Plan-chain roots
     are excluded because their question state is now owned by gate-shell rows.
     """
@@ -156,10 +156,10 @@ def is_answered_root_asker_step(
     if not agent.questions_times or not _question_answered(agent):
         return False
     parent = parent_by_suffix.get(agent.parent_timestamp)
-    if parent is None or not parent.is_family_root_entry:
+    if parent is None or not parent.is_agent_session_root_entry:
         return False
     if is_root_plan_workflow(parent):
         return False
     if canonical_plan_chain_suffix(agent.role_suffix) != root_child_suffix(parent):
         return False
-    return has_later_family_continuation(agent, children_by_parent)
+    return has_later_agent_session_continuation(agent, children_by_parent)

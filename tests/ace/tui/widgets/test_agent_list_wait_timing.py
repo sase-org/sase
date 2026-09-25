@@ -207,7 +207,7 @@ class TestRelativeWaitDurationRendering:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert agent.is_family_member_child
+        assert agent.is_agent_session_member_child
         assert "Patch: test_cl" in header.plain
         assert "Step: " not in header.plain
         assert "Wait: [agents] parent\n      [time]   2m" in header.plain

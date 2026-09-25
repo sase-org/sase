@@ -12,7 +12,7 @@ from sase.agent.status_buckets import (
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
-from ._agent_status_family import (
+from ._agent_status_agent_session import (
     active_approved_plan_handoff_status,
     append_unique_timestamps,
     approved_followup_planner_status,
@@ -25,16 +25,16 @@ from ._agent_status_family import (
     is_answered_root_asker_step,
     is_completed_epic_followup_child,
     is_completed_plan_handoff_child,
-    is_family_child,
+    is_agent_session_child,
     is_root_plan_workflow,
-    mark_derived_plan_family_roots,
+    mark_derived_plan_agent_session_roots,
     merge_feedback_plan_paths,
-    pull_plan_metadata_from_family_members,
+    pull_plan_metadata_from_agent_session_members,
     root_child_suffix,
 )
 from ._agent_status_roles import agent_session_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
-from .agent_family_members import agent_row_is_in_flight, row_is_family_shell
+from .agent_session_members import agent_row_is_in_flight, row_is_agent_session_shell
 
 
 DiffBadgeClassifier = Callable[[list[Agent]], None]
@@ -91,7 +91,7 @@ def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
     return True
 
 
-def _descendant_family_shells(
+def _descendant_agent_session_shells(
     roots: list[Agent],
     children_by_parent: dict[str, list[Agent]],
 ) -> list[Agent]:
@@ -108,7 +108,7 @@ def _descendant_family_shells(
         if id(row) in seen_ids:
             return
         seen_ids.add(id(row))
-        if row_is_family_shell(row) and row.identity not in seen_identities:
+        if row_is_agent_session_shell(row) and row.identity not in seen_identities:
             seen_identities.add(row.identity)
             found.append(row)
         suffix = row.raw_suffix
@@ -132,9 +132,9 @@ def apply_status_overrides(
     classify_diff_badges: bool = True,
     diff_badge_classifier: DiffBadgeClassifier | None = None,
 ) -> None:
-    """Normalize family presentation state based on concrete child rows.
+    """Normalize agent session presentation state based on concrete child rows.
 
-    Agent-family roots act as containers: their visible status mirrors the
+    Agent-session roots act as containers: their visible status mirrors the
     active, waiting, or newest concrete child/shell row.  This pass propagates
     child timestamps, plan metadata, diff paths, and meta_* fields back to the
     root for detail panels, labels concrete post-gate handoff rows, and leaves
@@ -153,8 +153,8 @@ def apply_status_overrides(
             parent_by_suffix[agent.raw_suffix] = agent
 
     children_by_parent = children_by_parent_timestamp(all_agents)
-    mark_derived_plan_family_roots(children_by_parent, parent_by_suffix)
-    pull_plan_metadata_from_family_members(children_by_parent, parent_by_suffix)
+    mark_derived_plan_agent_session_roots(children_by_parent, parent_by_suffix)
+    pull_plan_metadata_from_agent_session_members(children_by_parent, parent_by_suffix)
     for parent_timestamp, children in children_by_parent.items():
         parent = parent_by_suffix.get(parent_timestamp)
         if parent is None:
@@ -166,7 +166,7 @@ def apply_status_overrides(
     # so the metadata panel shows one entry per proposal/feedback/question round.
     for agent in all_agents:
         if (
-            agent.is_family_member_child
+            agent.is_agent_session_member_child
             and agent.parent_timestamp is not None
             and is_feedback_agent(agent)
         ):
@@ -201,7 +201,7 @@ def apply_status_overrides(
                     parent.status = "RUNNING"
 
     # Legacy concrete follow-up planner rows keep their post-approval status
-    # even when loaded without the family root that accepted their plan. Gate-
+    # even when loaded without the session root that accepted their plan. Gate-
     # shell creator rows are excluded because the gate shell now publishes the
     # decision status for both pending and settled states.
     for agent in all_agents:
@@ -211,7 +211,7 @@ def apply_status_overrides(
                 agent.status = approved_status
 
     for agent in all_agents:
-        if agent.is_family_member_child and agent.parent_timestamp is not None:
+        if agent.is_agent_session_member_child and agent.parent_timestamp is not None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 role = agent_session_role(agent)
@@ -254,11 +254,11 @@ def apply_status_overrides(
             agent.status = "ANSWERED"
             agent.stop_time = max(agent.questions_times)
 
-    # Active family code handoff rows display the coder-specific working state
+    # Active agent session code handoff rows display the coder-specific working state
     # while the implementation agent runs. Normalize before root mirroring so
-    # the family root mirrors WORKING PLAN / WORKING TALE instead of raw RUNNING.
+    # the session root mirrors WORKING PLAN / WORKING TALE instead of raw RUNNING.
     for agent in all_agents:
-        if not agent.is_family_member_child or agent.parent_timestamp is None:
+        if not agent.is_agent_session_member_child or agent.parent_timestamp is None:
             continue
         parent = parent_by_suffix.get(agent.parent_timestamp)
         if parent and is_root_plan_workflow(parent):
@@ -266,11 +266,11 @@ def apply_status_overrides(
             if handoff_status:
                 agent.status = handoff_status
 
-    # Completed family handoff rows are semantic terminal states rather than
+    # Completed agent session handoff rows are semantic terminal states rather than
     # plain DONE. Do this after QUESTION normalization so unanswered rows keep
     # their blocked status, and before root mirroring so the root sees it.
     for agent in all_agents:
-        if not agent.is_family_member_child or agent.parent_timestamp is None:
+        if not agent.is_agent_session_member_child or agent.parent_timestamp is None:
             continue
         parent = parent_by_suffix.get(agent.parent_timestamp)
         if not (parent and is_root_plan_workflow(parent)):
@@ -282,7 +282,7 @@ def apply_status_overrides(
 
     # Attach all follow-up agents to their parent's followup_agents list.
     for agent in all_agents:
-        if agent.is_family_member_child and agent.parent_timestamp is not None:
+        if agent.is_agent_session_member_child and agent.parent_timestamp is not None:
             parent = parent_by_suffix.get(agent.parent_timestamp)
             if parent:
                 parent.followup_agents.append(agent)
@@ -292,7 +292,7 @@ def apply_status_overrides(
         if agent.followup_agents:
             agent.followup_agents.sort(key=lambda a: a.start_time or datetime.min)
 
-    # Agent-family roots summarize live child activity first. Plan-workflow
+    # Agent-session roots summarize live child activity first. Plan-workflow
     # roots keep the historical newest-child fallback when no child is active
     # or queued. Plain-agent roots keep their own terminal status in that case
     # unless the newest shell is a monitor, which they then mirror.
@@ -302,7 +302,7 @@ def apply_status_overrides(
         children = [
             child
             for child in children_by_parent.get(parent.raw_suffix, [])
-            if child is not parent and is_family_child(child, parent)
+            if child is not parent and is_agent_session_child(child, parent)
         ]
         if not children:
             continue
@@ -338,7 +338,9 @@ def apply_status_overrides(
             continue
 
         is_plan_root = is_root_plan_workflow(parent)
-        descendant_shells = _descendant_family_shells(children, children_by_parent)
+        descendant_shells = _descendant_agent_session_shells(
+            children, children_by_parent
+        )
         candidates = list(children)
         if not is_plan_root and parent.agent_type == AgentType.RUNNING:
             candidates.append(parent)
@@ -361,7 +363,7 @@ def apply_status_overrides(
             active = [
                 agent
                 for agent in active
-                if not row_is_family_shell(agent)
+                if not row_is_agent_session_shell(agent)
                 or child_launch_time(agent) > settled_shell_time
             ]
         for shell in descendant_shells:
@@ -392,7 +394,7 @@ def apply_status_overrides(
 
         newest_pool = [*children, *descendant_shells]
         newest = max(newest_pool, key=child_launch_time)
-        if is_plan_root or row_is_family_shell(newest):
+        if is_plan_root or row_is_agent_session_shell(newest):
             _mirror_root_from_child(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a

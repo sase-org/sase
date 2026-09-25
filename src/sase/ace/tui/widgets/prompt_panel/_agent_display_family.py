@@ -14,14 +14,14 @@ from sase.monitor_state import MONITOR_GLYPH
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
 from ...models.agent_owner_badge import agent_owner_badge_label
-from ...models.agent_family_members import (
-    concrete_family_shell_rows as family_shell_rows,
-    family_member_status_buckets,
+from ...models.agent_session_members import (
+    concrete_agent_session_shell_rows as family_shell_rows,
+    agent_session_member_status_buckets,
     gate_row_is_settled,
     monitor_row_is_settled,
 )
 from ...models.fold_scale import (
-    FAMILY_FOLD_SCALE,
+    AGENT_SESSION_FOLD_SCALE,
     FoldScale,
     effective_fold_level,
 )
@@ -57,7 +57,7 @@ def effective_family_fold_level(
 ) -> FoldLevel:
     """Resolve a family section override against the shared panel level."""
     level = (overrides or {}).get(section_id, panel_level)
-    return effective_fold_level(level, FAMILY_FOLD_SCALE)
+    return effective_fold_level(level, AGENT_SESSION_FOLD_SCALE)
 
 
 def append_family_fold_heading(
@@ -75,7 +75,7 @@ def append_family_fold_heading(
         title,
         section_id=section_id,
         level=level,
-        scale=FAMILY_FOLD_SCALE,
+        scale=AGENT_SESSION_FOLD_SCALE,
         count=count,
         style=style,
     )
@@ -145,7 +145,7 @@ def family_roster_entries(
         shell.identity: bucket
         for shell, bucket in zip(
             agent_shells,
-            family_member_status_buckets(agent_shells),
+            agent_session_member_status_buckets(agent_shells),
             strict=True,
         )
     }
@@ -199,7 +199,7 @@ def append_family_member_roster(
     now: datetime | None = None,
     entries: Sequence[MemberRosterEntry] | None = None,
     numbering: MemberJumpNumbering | None = None,
-    fold_scale: FoldScale = FAMILY_FOLD_SCALE,
+    fold_scale: FoldScale = AGENT_SESSION_FOLD_SCALE,
     heading_suffix: Text | None = None,
 ) -> MemberJumpMap:
     """Render a family container's numbered roster."""

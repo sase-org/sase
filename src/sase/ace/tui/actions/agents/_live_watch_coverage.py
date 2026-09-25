@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ...models.agent_family_members import (
+from ...models.agent_session_members import (
     agent_row_is_in_flight,
     gate_row_is_settled,
 )

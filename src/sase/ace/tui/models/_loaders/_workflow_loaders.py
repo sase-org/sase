@@ -37,17 +37,17 @@ ACTIVE_STATUSES = frozenset(
 )
 
 #: ``done.json`` outcomes whose workflow_state.json row is vestigial launch
-#: scaffolding; the done-marker loader owns the terminal family-shell row.
-SETTLED_FAMILY_SHELL_DONE_OUTCOMES = frozenset({"monitored", "gated"})
+#: scaffolding; the done-marker loader owns the terminal session-shell row.
+SETTLED_AGENT_SESSION_SHELL_DONE_OUTCOMES = frozenset({"monitored", "gated"})
 
 
-def family_shell_member_from_meta(
+def agent_session_shell_member_from_meta(
     *,
     agent_session_role: str | None,
     role_suffix: str | None,
     gate_id: str | None,
 ) -> bool:
-    """Return whether metadata identifies a durable family-shell member."""
+    """Return whether metadata identifies a durable session-shell member."""
     from sase.gate_shell.state import is_real_gate_member
     from sase.monitor_state import is_monitor_member_role
 
@@ -56,13 +56,13 @@ def family_shell_member_from_meta(
     )
 
 
-def _mapping_is_family_shell_member(data: object) -> bool:
+def _mapping_is_agent_session_shell_member(data: object) -> bool:
     if not isinstance(data, dict):
         return False
     role = agent_session_role_value(data)
     suffix = data.get("role_suffix")
     gate_id = data.get("gate_id")
-    return family_shell_member_from_meta(
+    return agent_session_shell_member_from_meta(
         agent_session_role=role if isinstance(role, str) else None,
         role_suffix=suffix if isinstance(suffix, str) else None,
         gate_id=gate_id if isinstance(gate_id, str) else None,
@@ -203,15 +203,17 @@ def load_workflow_states(
                 # died while a child subprocess (e.g., claude CLI) continues
                 # executing the step.
                 has_in_progress = any(s.status == StepStatus.IN_PROGRESS for s in steps)
-                family_shell_member = False
+                agent_session_shell_member = False
                 if not has_in_progress:
                     try:
-                        family_shell_member = _mapping_is_family_shell_member(
-                            load_json_cached(timestamp_dir / "agent_meta.json")
+                        agent_session_shell_member = (
+                            _mapping_is_agent_session_shell_member(
+                                load_json_cached(timestamp_dir / "agent_meta.json")
+                            )
                         )
                     except (FileNotFoundError, json.JSONDecodeError, OSError):
-                        family_shell_member = False
-                if not has_in_progress and not family_shell_member:
+                        agent_session_shell_member = False
+                if not has_in_progress and not agent_session_shell_member:
                     display_status = "FAILED"
 
             # Read appears_as_agent and is_anonymous flags
@@ -301,7 +303,7 @@ def load_workflow_states(
 
 
 def _has_monitored_done_marker(artifacts_dir: Path) -> bool:
-    """Return True iff *artifacts_dir* has a settled family-shell done.json.
+    """Return True iff *artifacts_dir* has a settled session-shell done.json.
 
     Monitors write ``outcome: "monitored"``; gates write ``outcome: "gated"``.
     Either way the workflow_state.json row is vestigial launch scaffolding.
@@ -312,7 +314,7 @@ def _has_monitored_done_marker(artifacts_dir: Path) -> bool:
         return False
     return (
         isinstance(data, dict)
-        and data.get("outcome") in SETTLED_FAMILY_SHELL_DONE_OUTCOMES
+        and data.get("outcome") in SETTLED_AGENT_SESSION_SHELL_DONE_OUTCOMES
     )
 
 
@@ -351,7 +353,7 @@ def load_workflow_agents(
         if entry.artifacts_dir and _has_monitored_done_marker(
             Path(entry.artifacts_dir)
         ):
-            # A settled family-shell member's workflow_state.json is vestigial
+            # A settled session-shell member's workflow_state.json is vestigial
             # launch scaffolding; the done-marker loader owns the terminal row.
             continue
 

@@ -18,7 +18,7 @@ from sase.ace.tui.models.sase_agent_neighbors import (
     LaneNeighborRow,
     build_sase_agent_neighbor_projection,
 )
-from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, FAMILY_FOLD_SCALE
+from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, AGENT_SESSION_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
 from sase.ace.tui.widgets.prompt_panel._agent_display_neighbors import (
@@ -122,8 +122,8 @@ def test_neighbor_entries_share_labels_annotations_and_target_roles() -> None:
         (FoldLevel.COLLAPSED, AGENT_FOLD_SCALE),
         (FoldLevel.EXPANDED, AGENT_FOLD_SCALE),
         (FoldLevel.FULLY_EXPANDED, AGENT_FOLD_SCALE),
-        (FoldLevel.EXPANDED, FAMILY_FOLD_SCALE),
-        (FoldLevel.FULLY_EXPANDED, FAMILY_FOLD_SCALE),
+        (FoldLevel.EXPANDED, AGENT_SESSION_FOLD_SCALE),
+        (FoldLevel.FULLY_EXPANDED, AGENT_SESSION_FOLD_SCALE),
     ],
 )
 def test_neighbors_section_renders_every_neighbor_at_every_fold_level(

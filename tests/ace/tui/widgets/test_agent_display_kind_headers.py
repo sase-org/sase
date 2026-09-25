@@ -126,7 +126,7 @@ def test_unattached_family_root_opens_with_agent_shell() -> None:
         plan_chain_root=True,
     )
 
-    assert root.is_family_container_row is False
+    assert root.is_agent_session_container_row is False
     assert root.is_agent_entry is True
 
     header, _ = build_header_text(root, cheap=True)

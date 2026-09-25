@@ -53,7 +53,7 @@ async def test_family_panel_fold_levels_and_member_override_png_snapshots(
 
         container = page.app._agents[page.app.current_idx]
         container_identity = container.identity
-        assert container.is_family_container_row is True
+        assert container.is_agent_session_container_row is True
         assert len(page.app._member_jump_maps[container_identity].targets) == 3
         ace_png_visual.assert_page_png(
             page,
@@ -128,7 +128,7 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
         await wait_for_visual_idle(page)
 
         container = page.app._agents[page.app.current_idx]
-        assert container.is_family_container_row is True
+        assert container.is_agent_session_container_row is True
 
         await page.press("1")
         await page.wait_for(
@@ -138,7 +138,7 @@ async def test_family_member_panel_shows_sibling_roster_png_snapshot(
             )
         )
         member = page.app._agents[page.app.current_idx]
-        assert member.is_family_container_row is False
+        assert member.is_agent_session_container_row is False
         await wait_for_visual_idle(page)
 
         member_jump_map = page.app._member_jump_maps[member.identity]

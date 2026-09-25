@@ -9,7 +9,7 @@ from sase.ace.tui.llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent
-from ...models.agent_family_members import family_roster_container
+from ...models.agent_session_members import agent_session_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ._agent_clan_aggregation import (
     get_cached_clan_section_snapshot,
@@ -126,9 +126,9 @@ class AgentHintRenderMixin:
             app = None
         lane_owner = agent_owns_sase_agent(agent)
         lane_summary_enabled = (
-            agent.is_family_container_row
+            agent.is_agent_session_container_row
             or lane_owner
-            or family_roster_container(agent) is not None
+            or agent_session_roster_container(agent) is not None
         )
         projection_resolver = getattr(app, "lane_neighbor_projection_for", None)
         lane_neighbors = (
@@ -157,7 +157,7 @@ class AgentHintRenderMixin:
         )
         hint_counter = header_hint_state.hint_counter
 
-        if agent.is_family_container_row:
+        if agent.is_agent_session_container_row:
             self._update_family_display(  # type: ignore[attr-defined]
                 agent,
                 header_text,

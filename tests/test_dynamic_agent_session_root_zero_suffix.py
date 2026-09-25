@@ -195,7 +195,7 @@ def test_generic_root_presents_session_container_name() -> None:
     _apply_status_overrides([root])
 
     assert root.agent_name == "foo--0"
-    assert root.family_reference_name() == "foo"
+    assert root.agent_session_reference_name() == "foo"
     assert root.presented_agent_name == "foo"
     assert agent_prompt_name(root) == "foo"
 

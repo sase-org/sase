@@ -1,16 +1,16 @@
-"""Sequential family-member status projection tests."""
+"""Sequential agent session-member status projection tests."""
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent_family_members import (
+from sase.ace.tui.models.agent_session_members import (
     concrete_agent_statuses,
-    family_member_status_buckets,
+    agent_session_member_status_buckets,
 )
 
-from ._agent_family_members_helpers import _agent
+from ._agent_session_members_helpers import _agent
 
 
-def test_approved_non_final_family_member_projects_done() -> None:
+def test_approved_non_final_agent_session_member_projects_done() -> None:
     planner = _agent(
         "alpha--plan",
         role="plan",
@@ -22,20 +22,20 @@ def test_approved_non_final_family_member_projects_done() -> None:
         status="WORKING TALE",
     )
 
-    assert family_member_status_buckets((planner, coder)) == ("Done", "Running")
+    assert agent_session_member_status_buckets((planner, coder)) == ("Done", "Running")
 
 
-def test_approved_final_family_member_keeps_global_running_bucket() -> None:
+def test_approved_final_agent_session_member_keeps_global_running_bucket() -> None:
     planner = _agent(
         "alpha--plan",
         role="plan",
         status="PLAN APPROVED",
     )
 
-    assert family_member_status_buckets((planner,)) == ("Running",)
+    assert agent_session_member_status_buckets((planner,)) == ("Running",)
 
 
-def test_custom_final_family_member_bucket_override_wins() -> None:
+def test_custom_final_agent_session_member_bucket_override_wins() -> None:
     monitor = _agent(
         "alpha--mon",
         role="monitor",
@@ -43,11 +43,11 @@ def test_custom_final_family_member_bucket_override_wins() -> None:
         status_bucket="Done",
     )
 
-    assert family_member_status_buckets((monitor,)) == ("Done",)
+    assert agent_session_member_status_buckets((monitor,)) == ("Done",)
     assert concrete_agent_statuses(monitor) == ()
 
 
-def test_stopped_non_final_family_member_projects_done() -> None:
+def test_stopped_non_final_agent_session_member_projects_done() -> None:
     planner = _agent(
         "alpha--plan",
         role="plan",
@@ -60,7 +60,7 @@ def test_stopped_non_final_family_member_projects_done() -> None:
         status="DONE",
     )
 
-    assert family_member_status_buckets((planner, coder)) == ("Done", "Done")
+    assert agent_session_member_status_buckets((planner, coder)) == ("Done", "Done")
 
 
 def test_unknown_status_on_stopped_non_final_member_projects_done() -> None:
@@ -76,13 +76,13 @@ def test_unknown_status_on_stopped_non_final_member_projects_done() -> None:
         status="DONE",
     )
 
-    assert family_member_status_buckets((predecessor, successor)) == (
+    assert agent_session_member_status_buckets((predecessor, successor)) == (
         "Done",
         "Done",
     )
 
 
-def test_running_non_final_family_member_keeps_running_bucket() -> None:
+def test_running_non_final_agent_session_member_keeps_running_bucket() -> None:
     predecessor = _agent(
         "alpha--0",
         role="root",
@@ -94,7 +94,7 @@ def test_running_non_final_family_member_keeps_running_bucket() -> None:
         status="WAITING",
     )
 
-    assert family_member_status_buckets((predecessor, successor)) == (
+    assert agent_session_member_status_buckets((predecessor, successor)) == (
         "Running",
         "Waiting",
     )
@@ -118,11 +118,11 @@ def test_failed_and_question_non_final_members_keep_their_buckets() -> None:
         status="QUESTION",
     )
 
-    assert family_member_status_buckets((failed, successor)) == (
+    assert agent_session_member_status_buckets((failed, successor)) == (
         "Failed",
         "Done",
     )
-    assert family_member_status_buckets((question, successor)) == (
+    assert agent_session_member_status_buckets((question, successor)) == (
         "Stopped",
         "Done",
     )

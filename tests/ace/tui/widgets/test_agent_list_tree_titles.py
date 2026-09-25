@@ -136,7 +136,7 @@ def test_family_container_and_standalone_root_keep_titles() -> None:
     family_left, _, _ = format_agent_option(root, 0, is_selected=False)
     standalone_left, _, _ = format_agent_option(standalone, 1, is_selected=False)
 
-    assert root.is_family_container_row
+    assert root.is_agent_session_container_row
     assert "08b" in family_left.plain
     assert standalone.display_name == "sase"
     assert "sase" in standalone_left.plain

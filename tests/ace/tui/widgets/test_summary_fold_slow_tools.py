@@ -11,7 +11,7 @@ import pytest
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_scale import (
     AGENT_FOLD_SCALE,
-    FAMILY_FOLD_SCALE,
+    AGENT_SESSION_FOLD_SCALE,
     FoldScale,
 )
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -105,9 +105,10 @@ def _family_slow_tool_lane_case(tmp_path: Path) -> _SlowToolFoldContractCase:
     )
     return _SlowToolFoldContractCase(
         kind="family-sase-agent",
-        scale=FAMILY_FOLD_SCALE,
+        scale=AGENT_SESSION_FOLD_SCALE,
         rendered={
-            level: _render_slow_tool_lane(lane, level) for level in FAMILY_FOLD_SCALE
+            level: _render_slow_tool_lane(lane, level)
+            for level in AGENT_SESSION_FOLD_SCALE
         },
     )
 

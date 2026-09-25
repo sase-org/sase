@@ -376,7 +376,9 @@ class AgentDetailRenderMixin:
         if ready is not None and not ready.is_set():
             return
         with tui_trace("agents.view_hints_refresh") as extra:
-            extra["agent_session_container"] = current_agent.is_family_container_row
+            extra["agent_session_container"] = (
+                current_agent.is_agent_session_container_row
+            )
             is_current = getattr(agent_detail, "hint_document_is_current", None)
             if callable(is_current) and is_current(current_agent):
                 extra["cache"] = "current"

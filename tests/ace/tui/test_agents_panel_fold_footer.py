@@ -7,7 +7,7 @@ import pytest
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.fold_scale import (
     CLAN_FOLD_SCALE,
-    FAMILY_FOLD_SCALE,
+    AGENT_SESSION_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
 )
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -41,7 +41,7 @@ def test_agents_fold_footer_uses_nested_agent_submap() -> None:
 @pytest.mark.parametrize(
     ("scale", "direct_keys"),
     [
-        (FAMILY_FOLD_SCALE, ["1", "2"]),
+        (AGENT_SESSION_FOLD_SCALE, ["1", "2"]),
         (CLAN_FOLD_SCALE, ["1", "2", "3"]),
         (TRIBE_FOLD_SCALE, ["1", "2", "3", "4"]),
     ],

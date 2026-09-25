@@ -136,7 +136,7 @@ def test_nested_destination_marks_owning_family_and_names_exact_member() -> None
     rendered = _rendered_tribe(app)
 
     assert len(_cursor_lines(rendered)) == 1
-    assert "ns · family" in _cursor_lines(rendered)[0]
+    assert "ns · session" in _cursor_lines(rendered)[0]
     assert "TRIBE MEMBERS · 1 · l ❯ ns › --2" in rendered
 
     app.action_expand_or_layout()

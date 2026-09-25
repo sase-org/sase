@@ -12,7 +12,7 @@ from sase.agent.status_buckets import QUEUED_STATUS
 from ._live_watch_coverage import MAX_LIVE_AGENT_WATCHES
 from ._loading_state import AgentLoadingStateMixin
 from ..event_refresh._constants import _LIVE_FILE_REFRESH_STATUSES
-from ...models.agent_family_members import agent_row_is_in_flight
+from ...models.agent_session_members import agent_row_is_in_flight
 from ...util.pump_tasks import spawn_pump_free_task
 
 _InFlightPollSignature = tuple[int, int] | None

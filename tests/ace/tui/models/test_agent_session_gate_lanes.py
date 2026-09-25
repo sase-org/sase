@@ -1,8 +1,8 @@
-"""Per-family gate lane-count tests."""
+"""Per-agent session gate lane-count tests."""
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent_family_members import (
+from sase.ace.tui.models.agent_session_members import (
     ShellLaneCounts,
     _GateLaneCounts,
     _MonitorLaneCounts,
@@ -10,7 +10,7 @@ from sase.ace.tui.models.agent_family_members import (
     shell_lane_counts,
 )
 
-from ._agent_family_members_helpers import _agent, _gate_member, _monitor_member
+from ._agent_session_members_helpers import _agent, _gate_member, _monitor_member
 
 
 def _gate_lane_counts(agent):

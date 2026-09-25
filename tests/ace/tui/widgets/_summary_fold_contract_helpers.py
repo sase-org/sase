@@ -73,7 +73,7 @@ def make_family(
         phases.append(phase)
     root, child = phases
     root.followup_agents = [child]
-    assert root.is_family_container_row
+    assert root.is_agent_session_container_row
     return root
 
 

@@ -1,20 +1,20 @@
-"""Concrete sequential family-member projection tests."""
+"""Concrete sequential agent session-member projection tests."""
 
 from __future__ import annotations
 
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import AgentType
-from sase.ace.tui.models.agent_family_members import (
+from sase.ace.tui.models.agent_session_members import (
     _concrete_agent_rows,
     concrete_agent_statuses,
-    concrete_family_member_rows,
-    concrete_family_shell_rows,
-    current_family_shell_row,
-    is_sequential_family_container,
+    concrete_agent_session_member_rows,
+    concrete_agent_session_shell_rows,
+    current_agent_session_shell_row,
+    is_sequential_agent_session_container,
 )
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
-from ._agent_family_members_helpers import (
+from ._agent_session_members_helpers import (
     _agent,
     _gate_member,
     _monitor_member,
@@ -53,7 +53,7 @@ def test_concrete_planner_replaces_aggregate_root_and_mixed_links_dedupe() -> No
     root.runtime_children = [planner, feedback, coder, parallel]
     root.followup_agents = [feedback, coder, parallel]
 
-    assert concrete_family_member_rows(root) == (planner, feedback, coder)
+    assert concrete_agent_session_member_rows(root) == (planner, feedback, coder)
 
 
 def test_rename_on_attach_root_remains_the_first_real_member() -> None:
@@ -67,11 +67,11 @@ def test_rename_on_attach_root_remains_the_first_real_member() -> None:
     root.runtime_children = [coder]
     root.followup_agents = [coder]
 
-    assert concrete_family_member_rows(root) == (root, coder)
+    assert concrete_agent_session_member_rows(root) == (root, coder)
 
 
-def test_promoted_plan_family_root_no_longer_double_counted_as_member() -> None:
-    """A derived plan-family root's main step, not the root, is member #0.
+def test_promoted_plan_agent_session_root_no_longer_double_counted_as_member() -> None:
+    """A derived plan-session root's main step, not the root, is member #0.
 
     Mirrors the 'pv' bug family: a root promoted to '--0' (plan_chain_root
     stays False) whose plan chain only started later in a member. Once
@@ -117,7 +117,7 @@ def test_plan_root_without_concrete_planner_uses_root_fallback() -> None:
     root.runtime_children = [coder]
     root.followup_agents = [coder]
 
-    assert concrete_family_member_rows(root) == (root, coder)
+    assert concrete_agent_session_member_rows(root) == (root, coder)
 
 
 def test_bare_non_plan_container_stays_execution_neutral() -> None:
@@ -129,7 +129,7 @@ def test_bare_non_plan_container_stays_execution_neutral() -> None:
     )
     root.followup_agents = [coder]
 
-    assert concrete_family_member_rows(root) == (coder,)
+    assert concrete_agent_session_member_rows(root) == (coder,)
 
 
 def test_workflow_aggregate_projects_only_loaded_agent_steps() -> None:
@@ -168,7 +168,7 @@ def test_workflow_without_loaded_agent_steps_falls_back_to_root() -> None:
     assert _concrete_agent_rows(root) == (root,)
 
 
-def test_monitor_family_member_rows_do_not_count_as_agents() -> None:
+def test_monitor_agent_session_member_rows_do_not_count_as_agents() -> None:
     root = _agent("alpha--0", role="root")
     monitor = _agent(
         "alpha--mon",
@@ -181,12 +181,12 @@ def test_monitor_family_member_rows_do_not_count_as_agents() -> None:
     monitor.monitor_state = "running"
     root.followup_agents = [monitor]
 
-    assert concrete_family_shell_rows(root) == (root, monitor)
-    assert concrete_family_member_rows(root) == (root,)
+    assert concrete_agent_session_shell_rows(root) == (root, monitor)
+    assert concrete_agent_session_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
 
 
-def test_gate_family_member_rows_do_not_count_as_agents() -> None:
+def test_gate_agent_session_member_rows_do_not_count_as_agents() -> None:
     root = _agent("alpha--0", role="root")
     gate = _gate_member(
         "alpha--gate",
@@ -197,8 +197,8 @@ def test_gate_family_member_rows_do_not_count_as_agents() -> None:
     root.followup_agents = [gate]
 
     assert gate.is_gate is True
-    assert concrete_family_shell_rows(root) == (root, gate)
-    assert concrete_family_member_rows(root) == (root,)
+    assert concrete_agent_session_shell_rows(root) == (root, gate)
+    assert concrete_agent_session_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
 
 
@@ -215,12 +215,12 @@ def test_gate_starter_root_still_counts_as_concrete_agent() -> None:
     root.followup_agents = [gate]
 
     assert root.is_gate is False
-    assert concrete_family_shell_rows(root) == (root, gate)
-    assert concrete_family_member_rows(root) == (root,)
+    assert concrete_agent_session_shell_rows(root) == (root, gate)
+    assert concrete_agent_session_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
 
 
-def test_settling_gate_can_be_current_family_shell() -> None:
+def test_settling_gate_can_be_current_agent_session_shell() -> None:
     root = _agent("alpha--0", role="root")
     coder = _agent(
         "alpha--code",
@@ -239,7 +239,7 @@ def test_settling_gate_can_be_current_family_shell() -> None:
     )
     root.followup_agents = [coder, gate]
 
-    assert current_family_shell_row(root) is gate
+    assert current_agent_session_shell_row(root) is gate
 
 
 def test_monitor_starter_root_still_counts_as_concrete_agent() -> None:
@@ -258,8 +258,8 @@ def test_monitor_starter_root_still_counts_as_concrete_agent() -> None:
     root.followup_agents = [monitor]
 
     assert root.is_monitor is False
-    assert concrete_family_shell_rows(root) == (root, monitor)
-    assert concrete_family_member_rows(root) == (root,)
+    assert concrete_agent_session_shell_rows(root) == (root, monitor)
+    assert concrete_agent_session_member_rows(root) == (root,)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
 
 
@@ -274,7 +274,7 @@ def test_root_monitor_follows_its_planner_step_anchor() -> None:
     root.runtime_children = [main_step, monitor]
     root.followup_agents = [monitor]
 
-    assert concrete_family_shell_rows(root) == (main_step, monitor)
+    assert concrete_agent_session_shell_rows(root) == (main_step, monitor)
 
 
 def test_root_monitor_precedes_later_continuations() -> None:
@@ -303,7 +303,7 @@ def test_root_monitor_precedes_later_continuations() -> None:
     continuation.runtime_children = [continuation_monitor]
     continuation.followup_agents = [continuation_monitor]
 
-    assert concrete_family_shell_rows(root) == (
+    assert concrete_agent_session_shell_rows(root) == (
         main_step,
         root_monitor,
         continuation,
@@ -343,7 +343,7 @@ def test_planner_step_projection_keeps_every_monitor() -> None:
         continuation.identity,
         continuation_monitor.identity,
     }
-    assert {row.identity for row in concrete_family_shell_rows(root)} == loaded
+    assert {row.identity for row in concrete_agent_session_shell_rows(root)} == loaded
 
 
 def test_root_monitor_follows_root_when_no_step_is_loaded() -> None:
@@ -356,10 +356,10 @@ def test_root_monitor_follows_root_when_no_step_is_loaded() -> None:
     )
     root.followup_agents = [monitor]
 
-    assert concrete_family_shell_rows(root) == (root, monitor)
+    assert concrete_agent_session_shell_rows(root) == (root, monitor)
 
 
-def test_nested_monitor_follows_mid_family_continuation() -> None:
+def test_nested_monitor_follows_mid_agent_session_continuation() -> None:
     root = _agent("alpha--0", role="root")
     coder = _agent(
         "alpha--code",
@@ -384,8 +384,8 @@ def test_nested_monitor_follows_mid_family_continuation() -> None:
     coder.runtime_children = [monitor]
     coder.followup_agents = [monitor]
 
-    assert concrete_family_shell_rows(root) == (root, coder, monitor, review)
-    assert concrete_family_member_rows(root) == (root, coder, review)
+    assert concrete_agent_session_shell_rows(root) == (root, coder, monitor, review)
+    assert concrete_agent_session_member_rows(root) == (root, coder, review)
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [
         root,
         coder,
@@ -419,8 +419,8 @@ def test_shell_projection_dedupes_overlapping_links_and_identity() -> None:
     coder.runtime_children = [monitor]
     coder.followup_agents = [alias]
 
-    assert concrete_family_shell_rows(root) == (root, coder, monitor)
-    assert concrete_family_member_rows(root) == (root, coder)
+    assert concrete_agent_session_shell_rows(root) == (root, coder, monitor)
+    assert concrete_agent_session_member_rows(root) == (root, coder)
 
 
 def test_shell_projection_terminates_on_cycles() -> None:
@@ -442,10 +442,12 @@ def test_shell_projection_terminates_on_cycles() -> None:
     coder.runtime_children = [monitor]
     monitor.runtime_children = [root]
 
-    assert concrete_family_shell_rows(root) == (root, coder, monitor)
+    assert concrete_agent_session_shell_rows(root) == (root, coder, monitor)
 
 
-def test_attach_family_containers_reaches_nested_monitor_without_rerooting() -> None:
+def test_attach_agent_session_containers_reaches_nested_monitor_without_rerooting() -> (
+    None
+):
     root = _agent("alpha--0", role="root")
     root.plan_chain_root = True
     coder = _agent(
@@ -472,7 +474,7 @@ def test_attach_family_containers_reaches_nested_monitor_without_rerooting() -> 
     assert monitor not in root.runtime_children
 
 
-def test_monitor_only_child_does_not_make_starter_a_family_container() -> None:
+def test_monitor_only_child_does_not_make_starter_a_agent_session_container() -> None:
     starter = _agent("alpha--2", role="code")
     monitor = _agent(
         "alpha--mon-1",
@@ -486,10 +488,10 @@ def test_monitor_only_child_does_not_make_starter_a_family_container() -> None:
     starter.runtime_children = [monitor]
     starter.followup_agents = [monitor]
 
-    assert is_sequential_family_container(starter) is False
+    assert is_sequential_agent_session_container(starter) is False
 
 
-def test_member_plus_monitor_still_makes_a_family_container() -> None:
+def test_member_plus_monitor_still_makes_a_agent_session_container() -> None:
     starter = _agent("alpha--2", role="code")
     continuation = _agent(
         "alpha--3",
@@ -510,10 +512,10 @@ def test_member_plus_monitor_still_makes_a_family_container() -> None:
     starter.runtime_children = [continuation, monitor]
     starter.followup_agents = [continuation, monitor]
 
-    assert is_sequential_family_container(starter) is True
+    assert is_sequential_agent_session_container(starter) is True
 
 
-def test_current_family_shell_selects_active_promoted_root() -> None:
+def test_current_agent_session_shell_selects_active_promoted_root() -> None:
     root = _agent("alpha--0", role="root", status="RUNNING")
     waiting_child = _agent(
         "alpha--review",
@@ -524,10 +526,10 @@ def test_current_family_shell_selects_active_promoted_root() -> None:
     )
     root.followup_agents = [waiting_child]
 
-    assert current_family_shell_row(root) is root
+    assert current_agent_session_shell_row(root) is root
 
 
-def test_current_family_shell_selects_later_serial_continuation() -> None:
+def test_current_agent_session_shell_selects_later_serial_continuation() -> None:
     root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
     coder = _agent(
         "alpha--code",
@@ -546,10 +548,10 @@ def test_current_family_shell_selects_later_serial_continuation() -> None:
     root.runtime_children = [coder, queued]
     root.followup_agents = [coder, queued]
 
-    assert current_family_shell_row(root) is coder
+    assert current_agent_session_shell_row(root) is coder
 
 
-def test_current_family_shell_selects_nested_running_monitor() -> None:
+def test_current_agent_session_shell_selects_nested_running_monitor() -> None:
     root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
     coder = _agent(
         "alpha--code",
@@ -570,10 +572,10 @@ def test_current_family_shell_selects_nested_running_monitor() -> None:
     coder.runtime_children = [monitor]
     coder.followup_agents = [monitor]
 
-    assert current_family_shell_row(root) is monitor
+    assert current_agent_session_shell_row(root) is monitor
 
 
-def test_current_family_shell_returns_none_without_active_shell() -> None:
+def test_current_agent_session_shell_returns_none_without_active_shell() -> None:
     root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
     coder = _agent(
         "alpha--code",
@@ -586,10 +588,12 @@ def test_current_family_shell_returns_none_without_active_shell() -> None:
     root.runtime_children = [coder]
     root.followup_agents = [coder]
 
-    assert current_family_shell_row(root) is None
+    assert current_agent_session_shell_row(root) is None
 
 
-def test_current_family_shell_ignores_waiting_and_parallel_families() -> None:
+def test_current_agent_session_shell_ignores_waiting_and_parallel_agent_sessions() -> (
+    None
+):
     root = _agent("alpha--0", role="root", status="DONE", stop_offset=1)
     waiting = _agent(
         "alpha--review",
@@ -613,11 +617,13 @@ def test_current_family_shell_ignores_waiting_and_parallel_families() -> None:
     parallel.runtime_children = [parallel_child]
     parallel.followup_agents = [parallel_child]
 
-    assert current_family_shell_row(root) is None
-    assert current_family_shell_row(parallel) is None
+    assert current_agent_session_shell_row(root) is None
+    assert current_agent_session_shell_row(parallel) is None
 
 
-def test_current_family_shell_uses_newest_active_candidate_in_chain_order() -> None:
+def test_current_agent_session_shell_uses_newest_active_candidate_in_chain_order() -> (
+    None
+):
     root = _agent("alpha--0", role="root", status="RUNNING")
     coder = _agent(
         "alpha--code",
@@ -629,4 +635,4 @@ def test_current_family_shell_uses_newest_active_candidate_in_chain_order() -> N
     root.runtime_children = [coder]
     root.followup_agents = [coder]
 
-    assert current_family_shell_row(root) is coder
+    assert current_agent_session_shell_row(root) is coder

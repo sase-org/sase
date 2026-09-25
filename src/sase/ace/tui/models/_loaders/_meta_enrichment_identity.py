@@ -151,7 +151,7 @@ def is_main_workflow_agent_step(agent: Agent) -> bool:
     )
 
 
-def _root_family_name_from_meta(data: dict[str, object]) -> str | None:
+def _root_agent_session_name_from_meta(data: dict[str, object]) -> str | None:
     role_suffix = canonical_plan_chain_suffix(data.get("role_suffix"))
     is_root = (
         data.get("plan_chain_root")
@@ -160,9 +160,9 @@ def _root_family_name_from_meta(data: dict[str, object]) -> str | None:
     )
     if not is_root:
         return None
-    family = agent_session_value(data)
-    if isinstance(family, str) and family:
-        return family
+    session_name = agent_session_value(data)
+    if isinstance(session_name, str) and session_name:
+        return session_name
     name = data.get("name")
     if isinstance(name, str) and name:
         return name
@@ -179,21 +179,21 @@ def apply_workflow_child_identity_from_meta(
     agent: Agent,
     data: dict[str, object],
 ) -> None:
-    """Derive concrete family identity for the main agent workflow step."""
+    """Derive concrete session identity for the main agent workflow step."""
     if not is_main_workflow_agent_step(agent):
         return
-    family = _root_family_name_from_meta(data)
-    if family is None:
+    session_name = _root_agent_session_name_from_meta(data)
+    if session_name is None:
         return
     child_suffix = _root_child_suffix_from_meta(data)
-    child_name = agent_session_phase_name(family, child_suffix)
+    child_name = agent_session_phase_name(session_name, child_suffix)
     agent.agent_name = child_name
-    agent.agent_session = family
+    agent.agent_session = session_name
     agent.agent_session_role = agent_session_role_for_suffix(child_suffix)
     agent.role_suffix = child_suffix
 
 
-def _root_family_name_from_meta_wire(meta: AgentMetaWire) -> str | None:
+def _root_agent_session_name_from_meta_wire(meta: AgentMetaWire) -> str | None:
     role_suffix = canonical_plan_chain_suffix(meta.role_suffix)
     is_root = (
         meta.plan_chain_root
@@ -220,12 +220,12 @@ def apply_workflow_child_identity_from_meta_wire(
     """Wire-aware mirror of :func:`apply_workflow_child_identity_from_meta`."""
     if not is_main_workflow_agent_step(agent):
         return
-    family = _root_family_name_from_meta_wire(meta)
-    if family is None:
+    session_name = _root_agent_session_name_from_meta_wire(meta)
+    if session_name is None:
         return
     child_suffix = _root_child_suffix_from_meta_wire(meta)
-    child_name = agent_session_phase_name(family, child_suffix)
+    child_name = agent_session_phase_name(session_name, child_suffix)
     agent.agent_name = child_name
-    agent.agent_session = family
+    agent.agent_session = session_name
     agent.agent_session_role = agent_session_role_for_suffix(child_suffix)
     agent.role_suffix = child_suffix

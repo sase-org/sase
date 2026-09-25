@@ -1,4 +1,4 @@
-"""Tests for family-sase-agent behavior in the agent neighbor index."""
+"""Tests for agent session-sase-agent behavior in the agent neighbor index."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from sase.ace.tui.models.agent_hoods import (
 )
 from sase.core.agent_identity_facade import agent_name_in_hood
 
-from ._agent_neighbors_helpers import _agent, _family_member, _family_root
+from ._agent_neighbors_helpers import _agent, _agent_session_member, _agent_session_root
 
 
-def test_lane_name_is_the_family_base_for_a_family_root_entry() -> None:
-    root = _family_root("fam")
-    member = _family_member("fam", role="code", parent=root)
+def test_lane_name_is_the_agent_session_base_for_a_agent_session_root_entry() -> None:
+    root = _agent_session_root("fam")
+    member = _agent_session_member("fam", role="code", parent=root)
     single = _agent("fam.helper")
     clan = _agent("workers")
     clan.is_clan_container = True
@@ -42,22 +42,22 @@ def test_lane_name_key_still_rejects_malformed_and_empty_names() -> None:
     assert agent_name_key(_agent("foo..bar")) is None
     assert agent_name_key(_agent("Foo.Bar")) == "foo.bar"
 
-    empty_family = _family_root("fam")
-    empty_family.agent_session = None
-    empty_family.agent_name = None
-    empty_family.refresh_raw_presented_agent_name()
-    assert sase_agent_name(empty_family) is None
+    empty_agent_session = _agent_session_root("fam")
+    empty_agent_session.agent_session = None
+    empty_agent_session.agent_name = None
+    empty_agent_session.refresh_raw_presented_agent_name()
+    assert sase_agent_name(empty_agent_session) is None
 
 
-def test_lane_name_leaves_agent_hood_unchanged_for_family_roots() -> None:
-    assert agent_hood(_family_root("visual.worker")) == "visual"
+def test_lane_name_leaves_agent_hood_unchanged_for_agent_session_roots() -> None:
+    assert agent_hood(_agent_session_root("visual.worker")) == "visual"
     assert agent_hood(_agent("visual.worker")) == "visual"
-    assert agent_hood(_family_root("fam")) is None
+    assert agent_hood(_agent_session_root("fam")) is None
     assert agent_hood(_agent("fam")) is None
 
 
-def test_top_level_family_lane_joins_the_hood_matching_its_name() -> None:
-    root = _family_root("fam")
+def test_top_level_agent_session_lane_joins_the_hood_matching_its_name() -> None:
+    root = _agent_session_root("fam")
     helper = _agent("fam.helper")
     other = _agent("fam.other")
     rows = [
@@ -75,8 +75,8 @@ def test_top_level_family_lane_joins_the_hood_matching_its_name() -> None:
     assert index.neighbors_for(2) == (1,)
 
 
-def test_nested_family_lane_is_an_ancestor_of_its_dotted_hood_mates() -> None:
-    root = _family_root("a.b")
+def test_nested_agent_session_lane_is_an_ancestor_of_its_dotted_hood_mates() -> None:
+    root = _agent_session_root("a.b")
     helper = _agent("a.b.helper")
     outer = _agent("a.other")
     rows = [
@@ -89,14 +89,14 @@ def test_nested_family_lane_is_an_ancestor_of_its_dotted_hood_mates() -> None:
 
     assert index.ancestors_for(1) == (0,)
     assert index.descendants_for(0) == (1,)
-    # The family and its hood-mate now meet in ``a.b``, not only in ``a``.
+    # The session and its hood-mate now meet in ``a.b``, not only in ``a``.
     assert index.hood_neighbor_groups_for(1) == (("a", (2,)),)
     assert index.hood_neighbor_groups_for(0) == (("a", (2,)),)
 
 
 def test_lane_hood_membership_agrees_with_the_core_identity_rule() -> None:
-    root = _family_root("visual.worker")
-    member = _family_member("visual.worker", role="impl", parent=root)
+    root = _agent_session_root("visual.worker")
+    member = _agent_session_member("visual.worker", role="impl", parent=root)
     rows_by_agent = [
         root,
         member,
@@ -107,7 +107,7 @@ def test_lane_hood_membership_agrees_with_the_core_identity_rule() -> None:
     index = AgentNeighborIndex.from_visible_rows(
         [AgentNeighborRow(idx, 0, agent) for idx, agent in enumerate(rows_by_agent)]
     )
-    # Family member children are not lanes and intentionally keep their raw
+    # Agent session member children are not lanes and intentionally keep their raw
     # ``--`` key, so parity is scoped to the lane rows.
     lane_indices = [
         idx for idx, agent in enumerate(rows_by_agent) if agent_owns_sase_agent(agent)

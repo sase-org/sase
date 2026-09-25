@@ -61,10 +61,10 @@ def append_tribe_identity(
         composition.append(
             f"{snapshot.clan_count} clan{'s' if snapshot.clan_count != 1 else ''}"
         )
-    if snapshot.family_count:
+    if snapshot.session_count:
         composition.append(
-            f"{snapshot.family_count} "
-            f"famil{'ies' if snapshot.family_count != 1 else 'y'}"
+            f"{snapshot.session_count} "
+            f"famil{'ies' if snapshot.session_count != 1 else 'y'}"
         )
     composition.append(
         f"{snapshot.lane_count} lane{'s' if snapshot.lane_count != 1 else ''}"

@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui.models.agent import AgentType
-from sase.ace.tui.models.fold_scale import FAMILY_FOLD_SCALE
+from sase.ace.tui.models.fold_scale import AGENT_SESSION_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     DetailHeaderSummary,
@@ -99,7 +99,7 @@ def test_family_rows_summarize_shells_and_fold(tmp_path: Path) -> None:
     compact = build_agent_compact_lines(
         agent=root,
         fold_level=FoldLevel.COLLAPSED,
-        fold_scale=FAMILY_FOLD_SCALE,
+        fold_scale=AGENT_SESSION_FOLD_SCALE,
     )
     first, second = _rows(compact)
     assert "shells" in first

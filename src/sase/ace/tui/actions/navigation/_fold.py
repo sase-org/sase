@@ -310,7 +310,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         agent = get_selected()
         if agent is None or not agent_owns_sase_agent(agent):
             return
-        if getattr(agent, "is_family_container_row", False):
+        if getattr(agent, "is_agent_session_container_row", False):
             return
         neighbor_count = getattr(self, "_selected_agent_neighbor_count", None)
         if callable(neighbor_count) and neighbor_count(agent) > 0:

@@ -351,6 +351,9 @@ def _agent_from_summary(
         ),
         role_suffix=role_suffix,
         agent_session=session_name,
+        # legacy agent-family spelling: core emits "agent_family_role" /
+        # "agent_family_parallel" until core-contract; the agent_session_*
+        # facts read first.
         agent_session_role=optional_str(
             fact("agent_session_role"), fact("agent_family_role")
         )

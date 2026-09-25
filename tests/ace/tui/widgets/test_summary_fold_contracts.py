@@ -23,7 +23,7 @@ from sase.ace.tui.models.agent_tribe_summary import (
 )
 from sase.ace.tui.models.fold_scale import (
     CLAN_FOLD_SCALE,
-    FAMILY_FOLD_SCALE,
+    AGENT_SESSION_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
     FoldScale,
 )
@@ -188,13 +188,17 @@ def _family_case(tmp_path: Path) -> _FoldContractCase:
         with_prompt_content=False,
     )
     populated = {
-        level: render_family(populated_agent, level) for level in FAMILY_FOLD_SCALE
+        level: render_family(populated_agent, level)
+        for level in AGENT_SESSION_FOLD_SCALE
     }
     return _FoldContractCase(
         kind="family",
-        scale=FAMILY_FOLD_SCALE,
+        scale=AGENT_SESSION_FOLD_SCALE,
         populated=populated,
-        empty={level: render_family(empty_agent, level) for level in FAMILY_FOLD_SCALE},
+        empty={
+            level: render_family(empty_agent, level)
+            for level in AGENT_SESSION_FOLD_SCALE
+        },
         unloaded=populated,
         roster_title="FAMILY SHELLS",
         content_section="FAMILY SHELLS",

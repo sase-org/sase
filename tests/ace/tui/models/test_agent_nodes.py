@@ -47,7 +47,7 @@ def _agent(name: str, **overrides: object) -> Agent:
             True,
         ),
         (
-            "family container",
+            "session container",
             _agent(
                 "build--plan",
                 agent_session="build",
@@ -67,7 +67,7 @@ def _agent(name: str, **overrides: object) -> Agent:
             False,
         ),
         (
-            "family member shell",
+            "session member shell",
             _agent(
                 "build--code",
                 parent_timestamp="suffix-build--plan",
@@ -107,7 +107,9 @@ def test_agents_tab_agent_node_truth_table(
     assert is_agents_tab_agent_node(row) is expected, label
 
 
-def test_family_container_detection_counts_as_agent_node_after_member_load() -> None:
+def test_agent_session_container_detection_counts_as_agent_node_after_member_load() -> (
+    None
+):
     root = _agent("build", agent_session="build", agent_session_role="root")
     child = _agent(
         "build--code",
@@ -117,12 +119,14 @@ def test_family_container_detection_counts_as_agent_node_after_member_load() -> 
     )
     root.followup_agents = [child]
 
-    assert root.is_family_container_row
+    assert root.is_agent_session_container_row
     assert is_agents_tab_agent_node(root)
     assert not is_agents_tab_agent_node(child)
 
 
-def _plan_family_root_with_main_step_and_continuation() -> tuple[Agent, Agent, Agent]:
+def _plan_agent_session_root_with_main_step_and_continuation() -> tuple[
+    Agent, Agent, Agent
+]:
     """Build the shape from the regression: a plan root whose ``main`` workflow
     step shares the root's own ``raw_suffix``, plus a real continuation member.
     """
@@ -151,8 +155,8 @@ def _plan_family_root_with_main_step_and_continuation() -> tuple[Agent, Agent, A
     return root, main_step, continuation
 
 
-def test_plan_family_root_owns_its_key_not_its_main_step_key() -> None:
-    root, _, continuation = _plan_family_root_with_main_step_and_continuation()
+def test_plan_agent_session_root_owns_its_key_not_its_main_step_key() -> None:
+    root, _, continuation = _plan_agent_session_root_with_main_step_and_continuation()
 
     keys = agent_node_completion_keys(root)
 
@@ -161,8 +165,10 @@ def test_plan_family_root_owns_its_key_not_its_main_step_key() -> None:
     assert ("main", root.raw_suffix) not in keys
 
 
-def test_plan_family_root_projection_index_matches_its_own_key() -> None:
-    root, main_step, continuation = _plan_family_root_with_main_step_and_continuation()
+def test_plan_agent_session_root_projection_index_matches_its_own_key() -> None:
+    root, main_step, continuation = (
+        _plan_agent_session_root_with_main_step_and_continuation()
+    )
     index = agent_node_projection_index([root, main_step, continuation])
     projection = index.by_node_identity[root.identity]
     root_key = (root.cl_name, root.raw_suffix)
@@ -179,7 +185,7 @@ def test_standalone_node_yields_exactly_one_completion_key() -> None:
     assert keys == ((solo.cl_name, solo.raw_suffix),)
 
 
-def test_sequential_family_container_owns_member_keys_and_its_own_key() -> None:
+def test_sequential_agent_session_container_owns_member_keys_and_its_own_key() -> None:
     root = _agent(
         "alpha--0",
         agent_session="alpha",
@@ -200,7 +206,7 @@ def test_sequential_family_container_owns_member_keys_and_its_own_key() -> None:
     assert (coder.cl_name, coder.raw_suffix) in keys
 
 
-def _gate_launch_family() -> tuple[Agent, Agent, Agent]:
+def _gate_launch_agent_session() -> tuple[Agent, Agent, Agent]:
     """Build the production epic-launch shape: node → gate → monitor."""
     node = _agent(
         "build--plan",
@@ -229,8 +235,8 @@ def _gate_launch_family() -> tuple[Agent, Agent, Agent]:
     return node, gate, monitor
 
 
-def test_gate_launch_monitor_is_owned_by_family_node() -> None:
-    node, gate, monitor = _gate_launch_family()
+def test_gate_launch_monitor_is_owned_by_agent_session_node() -> None:
+    node, gate, monitor = _gate_launch_agent_session()
 
     index = agent_node_projection_index([node, gate, monitor])
     projection = index.by_node_identity[node.identity]
@@ -241,7 +247,7 @@ def test_gate_launch_monitor_is_owned_by_family_node() -> None:
     assert projection_has_active_completion(projection, {monitor_key})
 
 
-def test_family_member_monitor_is_owned_by_family_node() -> None:
+def test_agent_session_member_monitor_is_owned_by_agent_session_node() -> None:
     node = _agent(
         "build--plan",
         raw_suffix="node-suffix",
@@ -343,7 +349,7 @@ def test_ownership_dangling_chain_stays_unowned() -> None:
 
 
 def test_projection_index_keeps_workflow_step_child_out_of_keys() -> None:
-    roster = _plan_family_root_with_main_step_and_continuation()
+    roster = _plan_agent_session_root_with_main_step_and_continuation()
     index = agent_node_projection_index(list(roster))
     node = roster[0]
     projection = index.by_node_identity[node.identity]
@@ -352,8 +358,8 @@ def test_projection_index_keeps_workflow_step_child_out_of_keys() -> None:
     assert ("main", node.raw_suffix) not in projection.completion_keys
 
 
-def test_nested_monitors_do_not_cross_families() -> None:
-    first_node, first_gate, first_monitor = _gate_launch_family()
+def test_nested_monitors_do_not_cross_agent_sessions() -> None:
+    first_node, first_gate, first_monitor = _gate_launch_agent_session()
     second_node = _agent(
         "other--plan",
         raw_suffix="other-node-suffix",

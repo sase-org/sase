@@ -134,7 +134,7 @@ def test_family_container_ticks_through_settled_starter_to_monitor(
     starter.runtime_children.append(monitor_shell())
     container = agent_session_container(starter)
 
-    assert container.is_family_container_row is True
+    assert container.is_agent_session_container_row is True
     assert ticks(container) is True
     assert ticks(starter) is False
 

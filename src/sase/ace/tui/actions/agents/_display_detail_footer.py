@@ -371,7 +371,7 @@ class AgentFooterDisplayMixin:
                 lane_neighbor_jump_available=(
                     current_agent is not None
                     and agent_owns_sase_agent(current_agent)
-                    and not current_agent.is_family_container_row
+                    and not current_agent.is_agent_session_container_row
                     and neighbor_count > 0
                 ),
                 tmux_choice_count=(

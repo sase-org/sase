@@ -1,9 +1,9 @@
-"""Plan and display metadata propagation helpers for family rows."""
+"""Plan and display metadata propagation helpers for agent session rows."""
 
-from ._agent_status_family_core import (
+from ._agent_status_agent_session_core import (
     child_launch_time,
     is_natively_recognized_plan_root,
-    is_plan_chain_family_member,
+    is_plan_chain_agent_session_member,
     is_root_plan_workflow,
 )
 from .agent import Agent
@@ -29,11 +29,11 @@ def copy_missing_plan_metadata(target: Agent, source: Agent) -> None:
         target.phase_bead_id = source.phase_bead_id
 
 
-def pull_plan_metadata_from_family_members(
+def pull_plan_metadata_from_agent_session_members(
     children_by_parent: dict[str, list[Agent]],
     parent_by_suffix: dict[str, Agent],
 ) -> None:
-    """Backfill a derived plan-family root's flavor from its planner member.
+    """Backfill a derived plan-session root's flavor from its planner member.
 
     Native plan-chain roots keep their pre-existing metadata untouched. Their
     artifact directory is the planner's own, so pulling member metadata onto
@@ -50,7 +50,7 @@ def pull_plan_metadata_from_family_members(
         ):
             continue
         members = sorted(
-            (child for child in children if is_plan_chain_family_member(child)),
+            (child for child in children if is_plan_chain_agent_session_member(child)),
             key=child_launch_time,
             reverse=True,
         )

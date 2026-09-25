@@ -1,16 +1,16 @@
-"""TTL-cached agent-family plan/bead preview resolution for sase's TUI.
+"""TTL-cached agent-session plan/bead preview resolution for sase's TUI.
 
 Mirrors :mod:`sase.ace.tui.models.agent_bead`'s ``_BeadDisplayCache`` shape.
-The cache expresses three states for one family's cache key:
+The cache expresses three states for one session's cache key:
 
-* **cache miss** (:data:`FAMILY_PREVIEW_CACHE_MISS`) — never resolved; render
+* **cache miss** (:data:`AGENT_SESSION_PREVIEW_CACHE_MISS`) — never resolved; render
   the prompt-snippet rung.
 * ``None`` — resolved, nothing to show; render the prompt-snippet rung and
   stop retrying until the (short) empty-result TTL expires.
 * :class:`~sase.agent_session_plan_preview.AgentSessionPlanPreview` — render
   the plan/bead ladder.
 
-Resolution (:func:`warm_family_plan_previews`) may touch plan and bead
+Resolution (:func:`warm_agent_session_plan_previews`) may touch plan and bead
 storage and must only run off the Textual event loop; the getters below are
 pure memory reads safe from a render or keystroke path (see
 ``sase/memory/tui_perf.md`` rule 11).
@@ -34,14 +34,14 @@ from sase.agent_session_plan_preview import (
 from ._agent_associated_plan_types import AgentPlanEnrichment
 from .agent import Agent
 from .agent_associated_plan import resolve_agent_plan_enrichment
-from .agent_family_members import concrete_family_member_rows
+from .agent_session_members import concrete_agent_session_member_rows
 
-FAMILY_PREVIEW_CACHE_MISS: Final = object()
+AGENT_SESSION_PREVIEW_CACHE_MISS: Final = object()
 _CACHE_TTL_SECONDS = 300.0
 _CACHE_EMPTY_TTL_SECONDS = 60.0
 _CACHE_MAX_ENTRIES = 256
 
-FamilyPreviewMemberToken = tuple[
+AgentSessionPreviewMemberToken = tuple[
     str,
     str | None,
     str | None,
@@ -56,11 +56,11 @@ FamilyPreviewMemberToken = tuple[
     str | None,
     int | None,
 ]
-FamilyPreviewCacheKey = tuple[str, tuple[FamilyPreviewMemberToken, ...]]
+AgentSessionPreviewCacheKey = tuple[str, tuple[AgentSessionPreviewMemberToken, ...]]
 
 
-class _FamilyPreviewCache:
-    """Small TTL-bounded cache for resolved agent-family plan previews."""
+class _AgentSessionPreviewCache:
+    """Small TTL-bounded cache for resolved agent-session plan previews."""
 
     def __init__(
         self,
@@ -73,24 +73,24 @@ class _FamilyPreviewCache:
         self._empty_ttl_seconds = empty_ttl_seconds
         self._max_entries = max_entries
         self._entries: OrderedDict[
-            FamilyPreviewCacheKey, tuple[float, AgentSessionPlanPreview | None]
+            AgentSessionPreviewCacheKey, tuple[float, AgentSessionPlanPreview | None]
         ] = OrderedDict()
         self._lock = RLock()
 
     def get(
         self,
-        key: FamilyPreviewCacheKey,
+        key: AgentSessionPreviewCacheKey,
     ) -> AgentSessionPlanPreview | None | object:
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
-                return FAMILY_PREVIEW_CACHE_MISS
+                return AGENT_SESSION_PREVIEW_CACHE_MISS
 
             _, value = entry
             self._entries.move_to_end(key)
             return value
 
-    def should_resolve(self, key: FamilyPreviewCacheKey) -> bool:
+    def should_resolve(self, key: AgentSessionPreviewCacheKey) -> bool:
         """Return whether *key* has no entry or needs TTL revalidation."""
         now = monotonic()
         with self._lock:
@@ -104,7 +104,7 @@ class _FamilyPreviewCache:
 
     def set(
         self,
-        key: FamilyPreviewCacheKey,
+        key: AgentSessionPreviewCacheKey,
         value: AgentSessionPlanPreview | None,
     ) -> None:
         ttl_seconds = (
@@ -122,28 +122,33 @@ class _FamilyPreviewCache:
             self._entries.clear()
 
 
-_FAMILY_PREVIEW_CACHE = _FamilyPreviewCache(max_entries=_CACHE_MAX_ENTRIES)
+_AGENT_SESSION_PREVIEW_CACHE = _AgentSessionPreviewCache(max_entries=_CACHE_MAX_ENTRIES)
 
 
-def _family_plan_preview_cache_key(agent: Agent) -> FamilyPreviewCacheKey | None:
-    """Return the memory-only inputs that can change a family's preview.
+def _agent_session_plan_preview_cache_key(
+    agent: Agent,
+) -> AgentSessionPreviewCacheKey | None:
+    """Return the memory-only inputs that can change a agent session's preview.
 
-    ``None`` for a non-family row: ``family_reference_name()`` falls back to
+    ``None`` for a non-agent session row: ``agent_session_reference_name()`` falls back to
     the bare agent name for those, which would otherwise collide with a real
-    family sharing the same name.
+    agent session sharing the same name.
     """
-    if not agent.is_family_root_entry:
+    if not agent.is_agent_session_root_entry:
         return None
-    name = agent.family_reference_name()
+    name = agent.agent_session_reference_name()
     if name is None:
         return None
     return (
         name,
-        tuple(_family_member_token(row) for row in _family_resolution_order(agent)),
+        tuple(
+            _agent_session_member_token(row)
+            for row in _agent_session_resolution_order(agent)
+        ),
     )
 
 
-def _family_member_token(agent: Agent) -> FamilyPreviewMemberToken:
+def _agent_session_member_token(agent: Agent) -> AgentSessionPreviewMemberToken:
     return (
         agent.agent_name or "",
         agent.raw_suffix,
@@ -161,64 +166,66 @@ def _family_member_token(agent: Agent) -> FamilyPreviewMemberToken:
     )
 
 
-def cached_family_plan_preview(agent: Agent) -> AgentSessionPlanPreview | None | object:
-    """Return the cached preview state for *agent*'s family.
+def cached_agent_session_plan_preview(
+    agent: Agent,
+) -> AgentSessionPlanPreview | None | object:
+    """Return the cached preview state for *agent*'s agent session.
 
-    Returns :data:`FAMILY_PREVIEW_CACHE_MISS` when never resolved, ``None``
+    Returns :data:`AGENT_SESSION_PREVIEW_CACHE_MISS` when never resolved, ``None``
     when resolved but empty, or the preview otherwise.
     """
-    key = _family_plan_preview_cache_key(agent)
+    key = _agent_session_plan_preview_cache_key(agent)
     if key is None:
         return None
-    return _FAMILY_PREVIEW_CACHE.get(key)
+    return _AGENT_SESSION_PREVIEW_CACHE.get(key)
 
 
-def should_resolve_family_plan_preview(agent: Agent) -> bool:
-    """Return whether *agent* is a family row whose preview needs resolving."""
-    if not agent.is_family_root_entry or agent.is_clan_container:
+def should_resolve_agent_session_plan_preview(agent: Agent) -> bool:
+    """Return whether *agent* is a session row whose preview needs resolving."""
+    if not agent.is_agent_session_root_entry or agent.is_clan_container:
         return False
-    key = _family_plan_preview_cache_key(agent)
+    key = _agent_session_plan_preview_cache_key(agent)
     if key is None:
         return False
-    return _FAMILY_PREVIEW_CACHE.should_resolve(key)
+    return _AGENT_SESSION_PREVIEW_CACHE.should_resolve(key)
 
 
-def warm_family_plan_previews(
+def warm_agent_session_plan_previews(
     candidates: Iterable[Agent],
-) -> dict[FamilyPreviewCacheKey, AgentSessionPlanPreview | None]:
-    """Resolve uncached/expired family previews off the event loop.
+) -> dict[AgentSessionPreviewCacheKey, AgentSessionPlanPreview | None]:
+    """Resolve uncached/expired agent session previews off the event loop.
 
     Opens one :class:`BeadIssueLookupSession` for the whole batch. Resolves
-    each family's concrete members newest first, then the root as a
+    each session's concrete members newest first, then the root as a
     compatibility fallback, taking the first non-empty result. Never raises:
     one bad plan file or bead store must not lose the rest of the batch.
     Returns a key-indexed mapping of every key resolved this call, so the
     caller can decide what changed.
     """
-    resolved: dict[FamilyPreviewCacheKey, AgentSessionPlanPreview | None] = {}
+    resolved: dict[AgentSessionPreviewCacheKey, AgentSessionPlanPreview | None] = {}
     with BeadIssueLookupSession() as lookup_session:
         for agent in candidates:
-            key = _family_plan_preview_cache_key(agent)
+            key = _agent_session_plan_preview_cache_key(agent)
             if key is None or key in resolved:
                 continue
             try:
-                preview = _resolve_family_plan_preview(
+                preview = _resolve_agent_session_plan_preview(
                     agent,
                     lookup_session=lookup_session,
                 )
             except Exception:
                 continue
-            _FAMILY_PREVIEW_CACHE.set(key, preview)
+            _AGENT_SESSION_PREVIEW_CACHE.set(key, preview)
             resolved[key] = preview
     return resolved
 
 
-def _resolve_family_plan_preview(
+def _resolve_agent_session_plan_preview(
     agent: Agent,
     *,
     lookup_session: BeadIssueLookupSession,
 ) -> AgentSessionPlanPreview | None:
-    for candidate in _family_resolution_order(agent):
+    for candidate in _agent_session_resolution_order(agent):
         enrichment = resolve_agent_plan_enrichment(
             candidate,
             lookup_session=lookup_session,
@@ -229,8 +236,8 @@ def _resolve_family_plan_preview(
     return None
 
 
-def _family_resolution_order(agent: Agent) -> tuple[Agent, ...]:
-    members = concrete_family_member_rows(agent)
+def _agent_session_resolution_order(agent: Agent) -> tuple[Agent, ...]:
+    members = concrete_agent_session_member_rows(agent)
     if len(members) <= 1:
         return members or (agent,)
     ordered = list(reversed(members))
@@ -264,10 +271,10 @@ def _preview_from_enrichment(
 
 
 __all__ = [
-    "FAMILY_PREVIEW_CACHE_MISS",
-    "FamilyPreviewCacheKey",
-    "FamilyPreviewMemberToken",
-    "cached_family_plan_preview",
-    "should_resolve_family_plan_preview",
-    "warm_family_plan_previews",
+    "AGENT_SESSION_PREVIEW_CACHE_MISS",
+    "AgentSessionPreviewCacheKey",
+    "AgentSessionPreviewMemberToken",
+    "cached_agent_session_plan_preview",
+    "should_resolve_agent_session_plan_preview",
+    "warm_agent_session_plan_previews",
 ]

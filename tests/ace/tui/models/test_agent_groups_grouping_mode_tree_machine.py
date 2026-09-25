@@ -105,7 +105,9 @@ def test_build_agent_tree_by_machine_status_subgroups_priority_order() -> None:
     ]
 
 
-def test_build_agent_tree_by_machine_family_splits_across_status_buckets() -> None:
+def test_build_agent_tree_by_machine_agent_session_splits_across_status_buckets() -> (
+    None
+):
     """A name-root split across buckets forms one root group per bucket."""
     running_a = _agent(cl_name="a", agent_name="coder.a", status="RUNNING")
     running_b = _agent(cl_name="b", agent_name="coder.b", status="RUNNING")
@@ -196,7 +198,7 @@ def test_banner_label_for_by_machine_status_subgroup_key_is_plain_bucket_name() 
     assert banner_label_for_group_key(("apollo", "Running")) == "Running"
 
 
-def test_build_agent_tree_by_machine_nests_remote_family_under_host() -> None:
+def test_build_agent_tree_by_machine_nests_remote_agent_session_under_host() -> None:
     from sase.ace.tui.models.fleet_agents import project_fleet_agents
     from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
 
@@ -227,8 +229,8 @@ def test_build_agent_tree_by_machine_nests_remote_family_under_host() -> None:
     assert _group_keys(entries, level=0) == [("apollo",)]
     agent_indices = [entry.agent_idx for entry in entries if entry.kind == "agent"]
     assert len(agent_indices) == 2
-    family = agents[agent_indices[0]]
+    agent_session_root = agents[agent_indices[0]]
     child = agents[agent_indices[1]]
-    assert family.is_family_container_row is True
-    assert family.fleet_origin_alias == "apollo"
-    assert child.parent_timestamp == family.raw_suffix
+    assert agent_session_root.is_agent_session_container_row is True
+    assert agent_session_root.fleet_origin_alias == "apollo"
+    assert child.parent_timestamp == agent_session_root.raw_suffix

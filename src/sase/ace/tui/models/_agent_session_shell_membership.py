@@ -1,8 +1,8 @@
-"""Attach unparented concrete family shells to their real family root.
+"""Attach unparented concrete session shells to their real session root.
 
 Modern owner records often carry ``family_id`` / a plan-chain name suffix
 without ``parent_timestamp``. A ``--plan`` gate with ``family_id`` is a
-nested shell, never a second family container.
+nested shell, never a second session container.
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from .agent import Agent
 _SHELL_ROLES = frozenset({"plan", "code", "gate", "monitor", "proc", "member"})
 
 
-def _is_concrete_family_shell(agent: Agent) -> bool:
-    """Return whether *agent* is a nested family shell, not a root."""
+def _is_concrete_agent_session_shell(agent: Agent) -> bool:
+    """Return whether *agent* is a nested session shell, not a root."""
     if agent.is_monitor or agent.is_gate or agent.is_proc_shell:
         return True
     role = agent_session_role_for_suffix(
@@ -32,25 +32,25 @@ def _is_concrete_family_shell(agent: Agent) -> bool:
     )
 
 
-def attach_unparented_family_shells(agents: list[Agent]) -> None:
-    """Fill missing ``parent_timestamp`` from the family's real root."""
-    roots_by_family: dict[str, Agent] = {}
+def attach_unparented_agent_session_shells(agents: list[Agent]) -> None:
+    """Fill missing ``parent_timestamp`` from the agent session's real root."""
+    roots_by_agent_session: dict[str, Agent] = {}
     for agent in agents:
-        family = agent.agent_session
-        if not family or agent.parent_timestamp:
+        session_name = agent.agent_session
+        if not session_name or agent.parent_timestamp:
             continue
-        if _is_concrete_family_shell(agent):
+        if _is_concrete_agent_session_shell(agent):
             continue
         if agent.raw_suffix:
-            roots_by_family.setdefault(family, agent)
+            roots_by_agent_session.setdefault(session_name, agent)
 
     for agent in agents:
-        if agent.parent_timestamp or not _is_concrete_family_shell(agent):
+        if agent.parent_timestamp or not _is_concrete_agent_session_shell(agent):
             continue
-        family = agent.agent_session
-        if not family:
+        session_name = agent.agent_session
+        if not session_name:
             continue
-        root = roots_by_family.get(family)
+        root = roots_by_agent_session.get(session_name)
         if root is None or root is agent or not root.raw_suffix:
             continue
         agent.parent_timestamp = root.raw_suffix

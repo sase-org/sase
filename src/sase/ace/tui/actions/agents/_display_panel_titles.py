@@ -27,7 +27,7 @@ from ...agent_count_chip import (
 )
 from ...models._agent_clan import sase_agent_status_counts
 from ...models._agent_tree import agent_is_tree_child
-from ...models.agent_family_members import panel_shell_lane_counts
+from ...models.agent_session_members import panel_shell_lane_counts
 from ...models.agent_panels import agent_panel_label
 from ...models.tribe_display import compose_tribe_identity_style
 

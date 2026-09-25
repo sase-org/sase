@@ -1,10 +1,10 @@
-"""Tests for nested-monitor family-root liveness without display rerooting.
+"""Tests for nested-monitor agent session-root liveness without display rerooting.
 
-A monitor started by a mid-family continuation persists a direct
+A monitor started by a mid-agent session continuation persists a direct
 ``parent_timestamp`` back to that continuation (durable data monitor
-settlement relies on to fork the starter safely), not to the family root.
+settlement relies on to fork the starter safely), not to the session root.
 The Agents tab now keeps that starter link and nests the monitor under the
-starter; family-root liveness is preserved by status propagation.
+starter; agent session-root liveness is preserved by status propagation.
 """
 
 from datetime import datetime, timedelta
@@ -26,20 +26,20 @@ _STARTED = datetime(2026, 8, 10, 9, 0, 0)
 
 def _root(
     *,
-    family: str = "fam",
+    agent_session_root: str = "fam",
     project_file: str = "/tmp/family.sase",
     raw_suffix: str = "20260810090000",
 ) -> Agent:
     return Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name=family,
+        cl_name=agent_session_root,
         project_file=project_file,
         status="DONE",
         start_time=_STARTED,
         raw_suffix=raw_suffix,
         role_suffix="--plan",
-        agent_name=family,
-        agent_session=family,
+        agent_name=agent_session_root,
+        agent_session=agent_session_root,
         agent_session_role="root",
         plan_chain_root=True,
     )
@@ -125,14 +125,14 @@ def test_nested_monitor_renders_under_starter() -> None:
     assert ordered.index(monitor) == ordered.index(coder) + 1
 
 
-def test_nested_monitor_family_lane_counts_running_without_extra_agent() -> None:
+def test_nested_monitor_agent_session_lane_counts_running_without_extra_agent() -> None:
     """A live nested monitor is one running lane, not an extra counted agent.
 
     Neither loaded LLM-driving row (root, coder) is itself an in-flight
     process once the coder has handed off -- only the plain OS-level monitor
     is -- so the concrete-agent summary settles both to Done with no running
     entry and, crucially, no third (phantom) entry for the monitor. The lane
-    view is what mirrors the monitor's activity: the family is one lane and
+    view is what mirrors the monitor's activity: the session is one lane and
     it reads Running.
     """
     root = _root()
@@ -156,8 +156,8 @@ def test_nested_monitor_family_lane_counts_running_without_extra_agent() -> None
 
 
 def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> None:
-    """Clan -> family root -> ``--2`` -> disk-shaped monitor at depth 3."""
-    family = Agent(
+    """Clan -> session root -> ``--2`` -> disk-shaped monitor at depth 3."""
+    agent_session_root = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="sase-ns.6.6.6.1",
         project_file="/tmp/sase.sase",
@@ -177,65 +177,65 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
     plan = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="main",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE APPROVED",
-        start_time=family.start_time,
-        raw_suffix=family.raw_suffix,
-        parent_timestamp=family.raw_suffix,
+        start_time=agent_session_root.start_time,
+        raw_suffix=agent_session_root.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         parent_workflow="ace-run",
         step_type="agent",
         step_index=0,
         total_steps=1,
         role_suffix="--plan",
         agent_name="sase-ns.6.6.6.1--plan",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
     )
     code = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--code",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE DONE",
         start_time=datetime(2026, 8, 17, 6, 10, 0),
         stop_time=datetime(2026, 8, 17, 6, 40, 0),
         raw_suffix="20260817061000",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--code",
         agent_name="sase-ns.6.6.6.1--code",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="code",
     )
     one = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--1",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE DONE",
         start_time=datetime(2026, 8, 17, 6, 50, 0),
         stop_time=datetime(2026, 8, 17, 7, 0, 0),
         raw_suffix="20260817065000",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--1",
         agent_name="sase-ns.6.6.6.1--1",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="code",
     )
     two = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--2",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE DONE",
         start_time=datetime(2026, 8, 17, 7, 8, 11),
         stop_time=datetime(2026, 8, 17, 7, 14, 0),
         raw_suffix="20260817070811",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--2",
         agent_name="sase-ns.6.6.6.1--2",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="code",
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--mon-1",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="MONITORING",
         status_bucket="Running",
         start_time=datetime(2026, 8, 17, 7, 15, 11),
@@ -243,14 +243,14 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
         parent_timestamp=two.raw_suffix,
         role_suffix="--mon-1",
         agent_name="sase-ns.6.6.6.1--mon-1",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="monitor",
         monitor_id="m1",
         monitor_state="running",
     )
 
     ordered = normalize_loaded_agents(
-        [family, code, one, two, monitor],
+        [agent_session_root, code, one, two, monitor],
         [plan],
         is_process_running=lambda _pid: False,
     )
@@ -268,14 +268,14 @@ def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> No
     assert ordered[0].is_clan_container is True
 
 
-def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
+def test_screenshot_monitor_hidden_until_clan_and_agent_session_are_expanded() -> None:
     """End-to-end through normalize_loaded_agents + the real fold filter.
 
     At the default (fully collapsed) fold state no monitor row renders.
-    After expanding the clan and then the family, exactly one monitor row
+    After expanding the clan and then the agent session, exactly one monitor row
     is visible, nested at depth 3 under ``--2``.
     """
-    family = Agent(
+    agent_session_root = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="sase-ns.6.6.6.1",
         project_file="/tmp/sase.sase",
@@ -295,65 +295,65 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
     plan = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="main",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE APPROVED",
-        start_time=family.start_time,
-        raw_suffix=family.raw_suffix,
-        parent_timestamp=family.raw_suffix,
+        start_time=agent_session_root.start_time,
+        raw_suffix=agent_session_root.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         parent_workflow="ace-run",
         step_type="agent",
         step_index=0,
         total_steps=1,
         role_suffix="--plan",
         agent_name="sase-ns.6.6.6.1--plan",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
     )
     code = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--code",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE DONE",
         start_time=datetime(2026, 8, 17, 6, 10, 0),
         stop_time=datetime(2026, 8, 17, 6, 40, 0),
         raw_suffix="20260817061000",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--code",
         agent_name="sase-ns.6.6.6.1--code",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="code",
     )
     one = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--1",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE DONE",
         start_time=datetime(2026, 8, 17, 6, 50, 0),
         stop_time=datetime(2026, 8, 17, 7, 0, 0),
         raw_suffix="20260817065000",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--1",
         agent_name="sase-ns.6.6.6.1--1",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="code",
     )
     two = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--2",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="TALE DONE",
         start_time=datetime(2026, 8, 17, 7, 8, 11),
         stop_time=datetime(2026, 8, 17, 7, 14, 0),
         raw_suffix="20260817070811",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         role_suffix="--2",
         agent_name="sase-ns.6.6.6.1--2",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="code",
     )
     monitor = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase-ns.6.6.6.1--mon-1",
-        project_file=family.project_file,
+        project_file=agent_session_root.project_file,
         status="MONITORING",
         status_bucket="Running",
         start_time=datetime(2026, 8, 17, 7, 15, 11),
@@ -361,14 +361,14 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
         parent_timestamp=two.raw_suffix,
         role_suffix="--mon-1",
         agent_name="sase-ns.6.6.6.1--mon-1",
-        agent_session=family.agent_session,
+        agent_session=agent_session_root.agent_session,
         agent_session_role="monitor",
         monitor_id="m1",
         monitor_state="running",
     )
 
     ordered = normalize_loaded_agents(
-        [family, code, one, two, monitor],
+        [agent_session_root, code, one, two, monitor],
         [plan],
         is_process_running=lambda _pid: False,
     )
@@ -378,14 +378,14 @@ def test_screenshot_monitor_hidden_until_clan_and_family_are_expanded() -> None:
     assert not any(row.is_monitor for row in default_visible)
 
     container = next(row for row in ordered if row.is_clan_container)
-    family_row = next(row for row in ordered if row.agent_session_role == "root")
+    agent_session_row = next(row for row in ordered if row.agent_session_role == "root")
     clan_key = agent_fold_key(container)
-    family_key = agent_fold_key(family_row)
+    agent_session_key = agent_fold_key(agent_session_row)
     assert clan_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
 
     mgr.expand(clan_key)
-    mgr.expand(family_key)
+    mgr.expand(agent_session_key)
     expanded_visible, _counts = filter_agents_by_fold_state(ordered, mgr)
     monitors = [row for row in expanded_visible if row.is_monitor]
     assert len(monitors) == 1

@@ -14,9 +14,9 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from ...models.agent_family_preview_cache import (
-    should_resolve_family_plan_preview,
-    warm_family_plan_previews,
+from ...models.agent_session_preview_cache import (
+    should_resolve_agent_session_plan_preview,
+    warm_agent_session_plan_previews,
 )
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
@@ -85,7 +85,7 @@ class AgentFamilyPreviewMixin(AgentLoadingStateMixin):
                 candidates=len(candidates),
                 source=self._family_preview_scan_source,
             ):
-                await asyncio.to_thread(warm_family_plan_previews, candidates)
+                await asyncio.to_thread(warm_agent_session_plan_previews, candidates)
         except Exception:
             log.exception("Family plan-preview warmup failed")
         finally:
@@ -100,6 +100,6 @@ class AgentFamilyPreviewMixin(AgentLoadingStateMixin):
         """Snapshot visible family rows whose preview cache needs resolution."""
         candidates: list[Agent] = []
         for agent in self._agents:
-            if should_resolve_family_plan_preview(agent):
+            if should_resolve_agent_session_plan_preview(agent):
                 candidates.append(agent)
         return candidates

@@ -480,7 +480,7 @@ def dedup_by_pid(agents: list[Agent]) -> list[Agent]:
     """Final safety net: collapse duplicate projections that share a PID.
 
     PID is only a candidate key: present, different artifact suffixes identify
-    distinct non-VCS runs or family phases and must both survive. Rows for the
+    distinct non-VCS runs or session phases and must both survive. Rows for the
     same artifact (or legacy rows missing a suffix) retain the established
     WORKFLOW > RUNNING preference. VCS workspace claims remain higher-priority
     duplicates and are collapsed regardless of artifact suffix. The pass

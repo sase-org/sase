@@ -69,28 +69,28 @@ class Agent(AgentState):
         self.refresh_raw_presented_agent_name()
 
     @property
-    def is_family_root_entry(self) -> bool:
-        """Whether this top-level row anchors a persisted agent family."""
+    def is_agent_session_root_entry(self) -> bool:
+        """Whether this top-level row anchors a persisted agent session."""
         return not self.is_workflow_child and (
             self.plan_chain_root or self.agent_session_role == "root"
         )
 
     @property
-    def is_family_container_row(self) -> bool:
-        """Whether this root has at least one real agent-family member."""
-        return self.is_family_root_entry and bool(self.followup_agents)
+    def is_agent_session_container_row(self) -> bool:
+        """Whether this root has at least one real agent-session member."""
+        return self.is_agent_session_root_entry and bool(self.followup_agents)
 
     @property
-    def is_plan_family_root_entry(self) -> bool:
-        """Whether this family root has plan-family projection semantics.
+    def is_plan_agent_session_root_entry(self) -> bool:
+        """Whether this session root has plan-session projection semantics.
 
         True from root metadata recorded at promotion time (``plan_chain_root``
         or a ``--plan``-flavored ``role_suffix``), or from a plan chain the
-        family entered later (``derived_plan_agent_session_root``, set during status
+        agent session entered later (``derived_plan_agent_session_root``, set during status
         normalization when a promoted root's members reveal a plan chain that
         started after the root was promoted).
         """
-        if not self.is_family_root_entry:
+        if not self.is_agent_session_root_entry:
             return False
         if self.plan_chain_root:
             return True
@@ -102,9 +102,9 @@ class Agent(AgentState):
             or (suffix and suffix.startswith(f"{PLAN_CHAIN_PLAN_SUFFIX}-"))
         )
 
-    def family_reference_name(self) -> str | None:
-        """Return the family-container name used by prompt references."""
-        if not self.is_family_root_entry:
+    def agent_session_reference_name(self) -> str | None:
+        """Return the agent session-container name used by prompt references."""
+        if not self.is_agent_session_root_entry:
             return self.agent_name
         if self.agent_session:
             return self.agent_session
@@ -131,26 +131,26 @@ class Agent(AgentState):
                 return presented_name[: -len(suffix)]
         return raw_clan
 
-    def presented_family_reference_name(self) -> str | None:
-        """Return the local-display family identity without external reads."""
-        raw_family = self.agent_session
-        if not raw_family:
-            return self.presented_agent_name or self.family_reference_name()
+    def presented_agent_session_reference_name(self) -> str | None:
+        """Return the local-display agent session identity without external reads."""
+        raw_agent_session = self.agent_session
+        if not raw_agent_session:
+            return self.presented_agent_name or self.agent_session_reference_name()
         raw_name = self.agent_name or ""
         presented_name = self.presented_identity_name or raw_name
-        if raw_name.startswith(raw_family):
-            suffix = raw_name[len(raw_family) :]
+        if raw_name.startswith(raw_agent_session):
+            suffix = raw_name[len(raw_agent_session) :]
             if suffix and presented_name.endswith(suffix):
                 return presented_name[: -len(suffix)]
-        if self.is_family_root_entry and presented_name:
+        if self.is_agent_session_root_entry and presented_name:
             return presented_name
-        return raw_family
+        return raw_agent_session
 
     def refresh_raw_presented_agent_name(self) -> None:
         """Refresh the presentation source without config or selector I/O."""
         self.presented_identity_name = self.agent_name
-        if self.is_family_root_entry:
-            self.presented_agent_name = self.family_reference_name()
+        if self.is_agent_session_root_entry:
+            self.presented_agent_name = self.agent_session_reference_name()
         elif self.is_clan_container and self.agent_clan:
             self.presented_agent_name = self.agent_clan
         else:
@@ -418,14 +418,14 @@ class Agent(AgentState):
         if self.is_imported_agent_session_container and self.agent_session:
             return (
                 AgentType.RUNNING,
-                f"imported-family:{self.agent_session}",
+                f"imported-session:{self.agent_session}",
                 self.raw_suffix,
             )
         if self.is_remote_agent_session_container and self.agent_session:
             origin = self.fleet_origin_alias or ""
             return (
                 AgentType.RUNNING,
-                f"remote-family:{origin}:{self.agent_session}",
+                f"remote-session:{origin}:{self.agent_session}",
                 self.raw_suffix,
             )
         return (self.agent_type, self.cl_name, self.raw_suffix)
@@ -445,13 +445,13 @@ class Agent(AgentState):
         """Classify this row's parent linkage.
 
         Workflow steps carry ``parent_workflow`` and render as workflow
-        children. Family members/follow-ups carry only ``parent_timestamp`` and
+        children. Session members/follow-ups carry only ``parent_timestamp`` and
         render under the parent agent without being workflow steps.
         """
         if self.parent_workflow is not None:
             return AgentChildLinkage.WORKFLOW_STEP
         if self.parent_timestamp is not None:
-            return AgentChildLinkage.FAMILY_MEMBER
+            return AgentChildLinkage.AGENT_SESSION_MEMBER
         return AgentChildLinkage.ROOT
 
     @property
@@ -465,15 +465,15 @@ class Agent(AgentState):
         return self.child_linkage is AgentChildLinkage.WORKFLOW_STEP
 
     @property
-    def is_family_member_child(self) -> bool:
-        """True when this row is a family/follow-up child row."""
-        return self.child_linkage is AgentChildLinkage.FAMILY_MEMBER
+    def is_agent_session_member_child(self) -> bool:
+        """True when this row is a session/follow-up child row."""
+        return self.child_linkage is AgentChildLinkage.AGENT_SESSION_MEMBER
 
     @property
     def is_workflow_child(self) -> bool:
         """Historical alias for rows folded under another row.
 
-        This remains true for both workflow-step children and family-member
+        This remains true for both workflow-step children and session-member
         children so existing fold/navigation behavior is preserved. New code
         that needs the child kind should use :attr:`child_linkage`.
         """

@@ -58,7 +58,7 @@ class _Agent:
     agent_session_parallel: bool = False
     role_suffix: str | None = None
     phase_bead_id: str | None = None
-    is_family_root_entry: bool = False
+    is_agent_session_root_entry: bool = False
     is_clan_container: bool = False
     restartable: bool = True
     missing_requirements: tuple[str, ...] = ()

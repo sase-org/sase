@@ -547,21 +547,21 @@ def test_clan_queued_rank_reprojection_clears_wait_display_source() -> None:
     assert "#" not in _format(reprojection).plain
 
 
-def test_clan_mirrors_lone_queued_family_shell_rank() -> None:
-    family = _member("research.family", "family", status="QUEUED")
+def test_clan_mirrors_lone_queued_agent_session_shell_rank() -> None:
+    agent_session_root = _member("research.family", "family", status="QUEUED")
     shell = _agent(
         "research.family--code",
         "family-code",
         status="QUEUED",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
     shell.runner_slot_queue_position = 3
     shell.runner_slot_queue_size = 4
-    family.wait_display_source = shell
+    agent_session_root.wait_display_source = shell
     members = [
-        family,
+        agent_session_root,
         shell,
         _member("research.one", "one", status="DONE"),
         _member("research.two", "two", status="DONE"),

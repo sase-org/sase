@@ -6,7 +6,7 @@ from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_by_key, clan_context_for
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 
-from ._agent_imported_family import materialize_imported_family_containers
+from ._agent_imported_agent_session import materialize_imported_agent_session_containers
 from ._agent_ordering import sort_and_reorder
 from ._agent_status_apply import apply_status_overrides
 from ._dedup import (
@@ -17,8 +17,8 @@ from ._dedup import (
     remove_vcs_workspace_claims,
 )
 from .agent import Agent
-from ._family_shell_membership import attach_unparented_family_shells
-from .agent_family_members import row_is_family_shell
+from ._agent_session_shell_membership import attach_unparented_agent_session_shells
+from .agent_session_members import row_is_agent_session_shell
 
 
 _LIVE_PLAN_AGENT_BUCKETS = frozenset(
@@ -51,7 +51,7 @@ def _filter_dead_pids(
 ) -> list[Agent]:
     """Drop agent rows whose recorded PID is dead.
 
-    OS process liveness gates *agent* rows. A family shell's own
+    OS process liveness gates *agent* rows. A session shell's own
     ``gate_state`` / ``monitor_state`` gates shell rows — a pending gate
     shell has no process at all, and may inherit its creator's dead pid.
     """
@@ -59,7 +59,7 @@ def _filter_dead_pids(
     verified_agents: list[Agent] = []
     completed_statuses = ("DONE", "FAILED")
     for agent in agents:
-        if row_is_family_shell(agent):
+        if row_is_agent_session_shell(agent):
             verified_agents.append(agent)
         elif agent.status in completed_statuses:
             verified_agents.append(agent)
@@ -90,8 +90,8 @@ def normalize_loaded_agents(
 
     agents = _filter_dead_pids(agents, is_process_running=is_process_running)
     agents = _deduplicate(agents)
-    agents = materialize_imported_family_containers(agents)
-    attach_unparented_family_shells(agents)
+    agents = materialize_imported_agent_session_containers(agents)
+    attach_unparented_agent_session_shells(agents)
     # Persisted diff-badge classification reads every referenced diff file and
     # dominates startup (~0.4 s over 213 rows). It is display enrichment that
     # nothing downstream depends on, so it is deferred to a background pass

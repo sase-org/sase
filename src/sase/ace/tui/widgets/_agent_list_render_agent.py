@@ -20,10 +20,10 @@ from ..wait_status_presentation import (
 from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import agent_has_confirmed_bead
-from ..models.agent_family_members import (
+from ..models.agent_session_members import (
     NO_SHELL_LANES,
     ShellLaneCounts,
-    is_sequential_family_container,
+    is_sequential_agent_session_container,
     shell_lane_counts,
 )
 from ..models.agent_nodes import is_agents_tab_agent_node
@@ -178,7 +178,7 @@ def format_agent_option(
         wait_dependency_counts=wait_dependency_counts,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
     )
-    is_family_container_row = agent.is_family_container_row
+    is_agent_session_container_row = agent.is_agent_session_container_row
 
     # Fold annotation for workflow parents.  ``×N +M`` / ``×N −M`` (with
     # extra hidden/shown info) renders dim; the bare ``×N`` collapsed
@@ -221,7 +221,9 @@ def format_agent_option(
                 style=WAIT_UNKNOWN_GLYPH_STYLE,
             )
 
-    is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
+    is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
+        agent
+    )
     lanes = (
         (shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES)
         if shell_lanes is None
@@ -276,7 +278,7 @@ def format_agent_option(
         presented_name = f"[{agent.proc_language}]" if agent.proc_language else None
     else:
         presented_name = agent.presented_agent_name or agent.agent_name
-        if is_family_container_row:
+        if is_agent_session_container_row:
             identity_name_style = _FAMILY_NAME_STYLE
 
     if presented_name:
@@ -373,7 +375,9 @@ def cached_format_agent_option(
         if agent.is_clan_container
         else None
     )
-    is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
+    is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
+        agent
+    )
     lanes = shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES
     key = agent_render_key(
         agent,
