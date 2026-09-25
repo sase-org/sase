@@ -7,6 +7,7 @@ from sase.core.machine_setup_facade import (
     classify_tailnet_health,
     reconcile_machine_enrollments,
 )
+from sase.dispatch.models import FLEET_PROTOCOL_VERSION
 
 
 def test_classify_tailnet_health_distinguishes_unrelated_from_legacy() -> None:
@@ -55,7 +56,9 @@ def test_classify_tailnet_discovery_never_infers_pin() -> None:
                     "endpoint": "https://apollo.tail297af1.ts.net",
                     "payload": {
                         "status": "ok",
-                        "fleet": {"supported_protocol_versions": [1]},
+                        "fleet": {
+                            "supported_protocol_versions": [FLEET_PROTOCOL_VERSION]
+                        },
                     },
                 }
             ],

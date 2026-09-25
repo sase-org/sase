@@ -290,7 +290,8 @@ def test_queue_capacity_completion_describes_limit() -> None:
 
     assert [candidate.insertion for candidate in candidates] == ["capacity="]
     assert directive_arg_metadata(candidates[0]).description == (
-        "This launch's capacity budget, replacing max_running_agents"
+        "This launch's capacity budget, replacing max_running_agents, "
+        "or <M>x multiplier of this machine's max_running_agents budget"
     )
 
 
