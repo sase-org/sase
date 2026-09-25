@@ -67,9 +67,9 @@ def _agent_row_text(entry: AgentCatalogRow) -> Text:
 
 def _agent_key_value(entry: AgentCatalogRow, mode_id: str) -> str:
     if mode_id == "by_family":
-        if entry.family:
-            return entry.family
-        if "family" in entry.kind:
+        if entry.agent_session:
+            return entry.agent_session
+        if "session" in entry.kind:
             return entry.name
         return _UNGROUPED
     if mode_id == "by_state":

@@ -317,7 +317,7 @@ def _register_list_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         help="List gate shells (rich table by default, -j/--json for JSON)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "List gate-shell family members, newest first, mirroring `sase "
+            "List gate-shell agent session members, newest first, mirroring `sase "
             "monitor list`. By default this shows only pending gate shells, "
             "including any still holding a workspace claim; pass --all to "
             "include settled ones too."

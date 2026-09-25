@@ -94,6 +94,7 @@ def _evaluate_rows(
     link_facets: Mapping[str, AgentCatalogLinkFacets] | None,
 ) -> tuple[tuple[AgentCatalogRow, ...], int, int | None, bool]:
     profile = _agents_profile()
+    query = _normalize_legacy_family_query(query, profile)
     remainder, query_cap = extract_limit(query)
     has_query_limit = remainder != query
     match_query = _presentation_scoped_query(remainder)
@@ -124,6 +125,15 @@ def _agents_profile() -> Any:
     if profile is None:
         raise ValueError("built-in agents query profile is not registered")
     return profile
+
+
+def _normalize_legacy_family_query(query: str, profile: Any) -> str:
+    """Rewrite retired ``family:``/``kind:family`` terms to session terms."""
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+
+    return normalize_agent_session_query_text(query, profile)
 
 
 def _effective_limit(
@@ -230,7 +240,7 @@ def _row_json(
         "attention": row.attention,
         "retry": row.retry,
         "attempt": row.retry_attempt,
-        "family": row.family,
+        "agent_session": row.agent_session,
         "role": row.role,
         "clan": row.clan,
         "tribe": row.tribe,

@@ -174,7 +174,10 @@ class AgentsQueryMixin(_MixinBase):
         if not remainder.strip():
             return None
         try:
-            return evaluate_artifact_query_many(self.query_source, query_index)
+            return evaluate_artifact_query_many(
+                _normalize_session_query(self.query_source, self._query_profile),
+                query_index,
+            )
         except ProfileQueryError:
             return None
 
@@ -549,6 +552,7 @@ class AgentsQueryMixin(_MixinBase):
 
     def _canonical_agents_query(self, source: str) -> str:
         try:
+            source = _normalize_session_query(source, self._query_profile)
             remainder, cap = extract_limit(source)
         except LimitTokenError as exc:
             raise ProfileQueryError(exc.message, exc.start) from exc
@@ -646,6 +650,15 @@ class AgentsQueryMixin(_MixinBase):
         )
         if callable(cancel):
             cancel("agents")
+
+
+def _normalize_session_query(source: str, profile: CompiledQueryProfile) -> str:
+    """Rewrite retired ``family:``/``kind:family`` terms to session terms."""
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+
+    return normalize_agent_session_query_text(source, profile)
 
 
 __all__ = ["AgentFilterBar", "AgentsQueryMixin"]

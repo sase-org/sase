@@ -68,7 +68,7 @@ def test_agents_query_index_maps_catalog_fields_and_project_display_name() -> No
         _row(
             "sase-r8.9.land",
             canonical_global_name="bbugyi200.athena.sase-r8.9.land",
-            family="sase-r8.9",
+            agent_session="sase-r8.9",
             role="code",
             state="dismissed",
             status="failed",
@@ -82,8 +82,8 @@ def test_agents_query_index_maps_catalog_fields_and_project_display_name() -> No
         ),
         _row(
             "0b4",
-            kind=("family",),
-            family=None,
+            kind=("session",),
+            agent_session=None,
             llm_provider="claude",
             status="WAITING",
             attention=True,

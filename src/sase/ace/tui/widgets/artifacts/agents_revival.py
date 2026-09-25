@@ -160,11 +160,11 @@ class AgentsRevivalMixin(_MixinBase):
         snapshot = self._current_snapshot()
         if snapshot is None:
             return ()
-        if "family" in entry.kind:
+        if "session" in entry.kind:
             return tuple(
                 row
                 for row in snapshot.rows
-                if row.revivable and row.family == entry.name
+                if row.revivable and row.agent_session == entry.name
             )
         if "clan" in entry.kind:
             return tuple(
@@ -240,8 +240,8 @@ def _row_matches_terms(row: AgentCatalogRow, terms: Mapping[str, str]) -> bool:
 
 
 def _revivable_family_query(entry: AgentCatalogRow) -> str:
-    if "family" in entry.kind:
-        return f"{AGENTS_REVIVABLE_QUERY} AND family:{entry.name}"
+    if "session" in entry.kind:
+        return f"{AGENTS_REVIVABLE_QUERY} AND session:{entry.name}"
     if "clan" in entry.kind:
         return f"{AGENTS_REVIVABLE_QUERY} AND clan:{entry.name}"
     return AGENTS_REVIVABLE_QUERY

@@ -106,7 +106,7 @@ def agent_catalog_query_entry(
         _add_field(fields, "artifact", link_facet.artifacts)
     _add_field(fields, "label", label_values)
     _add_field(fields, "text", text_values)
-    _add_if_present(fields, "family", row.family)
+    _add_if_present(fields, "session", row.agent_session)
     _add_if_present(fields, "role", row.role)
     _add_if_present(fields, "clan", row.clan)
     _add_if_present(fields, "tribe", row.tribe)
@@ -307,7 +307,7 @@ def _text_values(
     return _distinct(
         *label_values,
         *row.kind,
-        row.family,
+        row.agent_session,
         row.role,
         row.clan,
         row.tribe,

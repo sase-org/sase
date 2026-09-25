@@ -103,7 +103,7 @@ def test_agent_live_query_entry_projects_every_live_derived_field() -> None:
     assert entry["stable_id"] == "sase-zf.1--code"
     assert "sase-zf.1--code" in fields["name"]
     assert fields["kind"] == ("agent",)
-    assert fields["family"] == ("sase-zf.1",)
+    assert fields["session"] == ("sase-zf.1",)
     assert fields["clan"] == ("athena.sase-zf",)
     assert fields["project"] == ("gh_sase-org__sase", "sase")
     assert fields["role"] == ("code",)
@@ -284,7 +284,7 @@ def test_agent_live_query_entry_classifies_container_and_workflow_kinds() -> Non
         parent_timestamp="20260824100000",
     )
 
-    assert agent_live_query_entry(family, now=_NOW)["fields"]["kind"] == ("family",)
+    assert agent_live_query_entry(family, now=_NOW)["fields"]["kind"] == ("session",)
     assert agent_live_query_entry(clan, now=_NOW)["fields"]["kind"] == ("clan",)
     assert agent_live_query_entry(workflow_child, now=_NOW)["fields"]["kind"] == (
         "member",

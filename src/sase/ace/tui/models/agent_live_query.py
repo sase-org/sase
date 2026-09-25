@@ -51,7 +51,7 @@ def agent_live_query_entry(
 
     _add_field(fields, "name", _name_values(agent))
     _add_field(fields, "kind", _kind_values(agent))
-    _add_field(fields, "family", _family_values(agent))
+    _add_field(fields, "session", _session_values(agent))
     _add_field(fields, "clan", _clan_values(agent))
     _add_field(fields, "project", _project_values(agent))
     _add_field(fields, "role", _role_values(agent))
@@ -116,7 +116,7 @@ def _kind_values(agent: Agent) -> tuple[str, ...]:
     if agent.is_clan_container:
         return ("clan",)
     if agent.is_family_container_row:
-        return ("family",)
+        return ("session",)
     kinds: list[str] = []
     if agent.is_child_row:
         kinds.append("member")
@@ -131,15 +131,15 @@ def _kind_values(agent: Agent) -> tuple[str, ...]:
     return tuple(kinds)
 
 
-def _family_values(agent: Agent) -> tuple[str, ...]:
-    inferred = _family_from_name(agent.agent_name)
+def _session_values(agent: Agent) -> tuple[str, ...]:
+    inferred = _session_from_name(agent.agent_name)
     values = [agent.agent_session, inferred]
     if agent.agent_session or agent.is_family_root_entry:
         values.append(agent.presented_family_reference_name())
     return _distinct(*values)
 
 
-def _family_from_name(name: str | None) -> str | None:
+def _session_from_name(name: str | None) -> str | None:
     if not name:
         return None
     for separator in ("--", "."):

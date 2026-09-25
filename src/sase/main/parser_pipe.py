@@ -6,14 +6,14 @@ import argparse
 
 
 def register_pipe_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the in-process family-successor hand-off command."""
+    """Register the in-process agent session successor hand-off command."""
     pipe_parser = subparsers.add_parser(
         "pipe",
         usage="sase pipe [-h] [-f] [-j] [-m MODEL] [-n TOKEN] [-r TEXT] PROMPT",
-        help="Hand this agent's turn to the next family member and end this turn",
+        help="Hand this agent's turn to the next agent session member and end this turn",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "End this agent's turn and continue the run as the next family "
+            "End this agent's turn and continue the run as the next agent session "
             "member in the same workspace, with the prompt you write. This is "
             "not a launch, a monitor, or fan-out: one successor, serially, in "
             "the same process. This command kills the calling agent; say "
@@ -64,7 +64,7 @@ def register_pipe_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="TOKEN",
         help=(
-            "Successor role token: review yields <family>--review. Default: "
+            "Successor role token: review yields <session>--review. Default: "
             "the next free numbered member (--@)"
         ),
     )

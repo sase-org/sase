@@ -88,7 +88,7 @@ def load_agent_detail(row: AgentCatalogRow) -> AgentDetailData:
 
 def _agent_page_url(row: AgentCatalogRow) -> str | None:
     """Best-effort hosted sidecar page URL; ``None`` on any resolution gap."""
-    if not row.project or row.dismissed or "family" in row.kind or "clan" in row.kind:
+    if not row.project or row.dismissed or "session" in row.kind or "clan" in row.kind:
         return None
     try:
         from sase.core.paths import sase_projects_dir
@@ -151,7 +151,7 @@ def build_agent_detail(
     _field(text, "Patch", row.patch)
 
     _heading(text, "FAMILY & LINEAGE")
-    _field(text, "Family", row.family)
+    _field(text, "Family", row.agent_session)
     _field(text, "Role", row.role)
     _field(text, "Clan", row.clan)
     _field(text, "Tribe", row.tribe)

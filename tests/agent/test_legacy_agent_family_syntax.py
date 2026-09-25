@@ -155,3 +155,100 @@ def test_attach_env_writer_and_loader_follow_the_flag() -> None:
     with override_flags(legacy_agent_family_syntax=False):
         assert load_agent_session_attach_plan_from_env(legacy) is None
         assert load_agent_session_attach_plan_from_env(written) == plan
+
+
+def _agents_profile() -> object:
+    from sase.ace.query_profile.pane_registry import compiled_profile_for_builtin_pane
+
+    profile = compiled_profile_for_builtin_pane("agents")
+    assert profile is not None
+    return profile
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_canonical_session_query_terms_work_in_both_flag_states(
+    enabled: bool,
+) -> None:
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+
+    profile = _agents_profile()
+    with override_flags(legacy_agent_family_syntax=enabled):
+        assert (
+            normalize_agent_session_query_text('session:"research.12"', profile)
+            == 'session:"research.12"'
+        )
+        assert (
+            normalize_agent_session_query_text("session:research.12", profile)
+            == "session:research.12"
+        )
+        assert (
+            normalize_agent_session_query_text("kind:session", profile)
+            == "kind:session"
+        )
+
+
+def test_legacy_query_terms_are_an_enabled_alias_and_disabled_error() -> None:
+    from sase.ace.query.profile_reference_support import ProfileQueryError
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+
+    profile = _agents_profile()
+    with override_flags(legacy_agent_family_syntax=True):
+        assert (
+            normalize_agent_session_query_text('family:"research.12"', profile)
+            == "session:research.12"
+        )
+        assert (
+            normalize_agent_session_query_text("kind:family", profile) == "kind:session"
+        )
+        assert (
+            normalize_agent_session_query_text(
+                'family:"research.12" AND NOT kind:workflow-child', profile
+            )
+            == "session:research.12 AND NOT kind:workflow-child"
+        )
+
+    with override_flags(legacy_agent_family_syntax=False):
+        for query in ('family:"research.12"', "kind:family"):
+            with pytest.raises(ProfileQueryError, match=r"session"):
+                normalize_agent_session_query_text(query, profile)
+
+
+def test_legacy_query_alias_preserves_host_limit_token() -> None:
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+
+    profile = _agents_profile()
+    with override_flags(legacy_agent_family_syntax=True):
+        assert (
+            normalize_agent_session_query_text("family:x limit:5", profile)
+            == "session:x limit:5"
+        )
+        assert (
+            normalize_agent_session_query_text("kind:family limit:0", profile)
+            == "kind:session limit:0"
+        )
+
+
+def test_canonical_query_text_passes_through_untouched() -> None:
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+
+    profile = _agents_profile()
+    with override_flags(legacy_agent_family_syntax=False):
+        assert normalize_agent_session_query_text("", profile) == ""
+        assert normalize_agent_session_query_text("limit:5", profile) == "limit:5"
+        assert (
+            normalize_agent_session_query_text("name:family", profile) == "name:family"
+        )
+
+
+def test_agent_query_completion_and_hints_show_only_session() -> None:
+    profile = _agents_profile()
+    assert "session" in profile.filterable_fields()
+    assert "family" not in profile.filterable_fields()

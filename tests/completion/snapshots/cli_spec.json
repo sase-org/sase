@@ -985,7 +985,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "59a1f3076a06081d",
+                "description_digest": "49557f12b9e7d9b5",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "create",
@@ -1262,7 +1262,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "f629c1a7afa29121",
+                "description_digest": "547650a4ceffd6c3",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "run",
@@ -3542,7 +3542,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "77856b4f75f2144d",
+            "description_digest": "bb3292e0ca560a36",
             "hidden": false,
             "mutex_groups": [],
             "name": "wait",
@@ -15144,16 +15144,12 @@
                 "value_hint": "text"
               },
               {
-                "choices": [
-                  "family",
-                  "shell",
-                  "none"
-                ],
+                "choices": null,
                 "default": null,
                 "dest": "next_fork",
                 "hidden": false,
                 "kind": null,
-                "metavar": null,
+                "metavar": "{session,shell,none}",
                 "repeatable": false,
                 "required": false,
                 "strings": [
@@ -21003,7 +20999,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "32750e8ee6836baa",
+            "description_digest": "1d531583ff900da0",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -24307,7 +24303,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "5bad3a61bc3aa588",
+        "description_digest": "20e3587f5baa8028",
         "hidden": false,
         "mutex_groups": [],
         "name": "pipe",
@@ -24464,7 +24460,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "d68d1d4ef4e33279",
+            "description_digest": "9fc6d467187bdeb5",
             "hidden": false,
             "mutex_groups": [],
             "name": "approve",
@@ -24481,6 +24477,22 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
                 ],
                 "takes_value": false,
                 "value_hint": null
@@ -24518,6 +24530,22 @@
                 "strings": [
                   "-m",
                   "--model"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "metavar": "NAME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-P",
+                  "--project"
                 ],
                 "takes_value": true,
                 "value_hint": null

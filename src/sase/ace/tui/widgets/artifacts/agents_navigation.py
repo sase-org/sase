@@ -10,7 +10,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from sase.agents.catalog import AgentCatalogRow
-from sase.agents.catalog._family import family_and_role
+from sase.agents.catalog._agent_session import agent_session_and_role
 
 from .agents_data import AgentsSnapshot
 from .agents_list import AgentRow, agent_row_target
@@ -49,13 +49,13 @@ def _catalog_hood(name: str) -> str | None:
 
 
 def _effective_family(row: AgentCatalogRow) -> str | None:
-    """Return the ``family:`` value the query index carries for *row*."""
-    family, _role = family_and_role(row.name)
+    """Return the ``session:`` value the query index carries for *row*."""
+    family, _role = agent_session_and_role(row.name)
     if family is not None:
         return family
-    if row.family is not None:
-        return row.family
-    if "family" in row.kind:
+    if row.agent_session is not None:
+        return row.agent_session
+    if "session" in row.kind:
         return row.name
     return None
 
@@ -309,9 +309,9 @@ class AgentsNavigationMixin(_MixinBase):
         """Return the Agent hood/family context query for *target*.
 
         Hood members land on ``name:<hood>.*`` (plus ``OR name:<hood>``
-        when the hood root itself is a catalog row), family shells on
-        ``family:<family>``, a hood root with members on both its own
-        name and the hood glob, and a lone agent on its own name.
+        when the hood root itself is a catalog row), agent-session shells
+        on ``session:<agent-session>``, a hood root with members on both
+        its own name and the hood glob, and a lone agent on its own name.
         ``member_count`` comes from one pass over the unfiltered
         snapshot so the limit policy can raise a cutting ``limit:``.
         """
@@ -336,7 +336,7 @@ class AgentsNavigationMixin(_MixinBase):
             return None
         family = _effective_family(row)
         if family is None:
-            family, _role = family_and_role(name)
+            family, _role = agent_session_and_role(name)
         if family is not None:
             count = sum(
                 1
@@ -344,7 +344,7 @@ class AgentsNavigationMixin(_MixinBase):
                 if _effective_family(candidate) == family
             )
             return RevealContext(
-                alternatives=(("family", family),),
+                alternatives=(("session", family),),
                 label=f"family {family}",
                 member_count=count or 1,
             )

@@ -299,18 +299,24 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
     preflight = verify_agent_artifact_index(index_path, projects_root)
     if dry_run:
         dismissed, dismissed_bundle_skipped = _load_dismissed_identities_for_gc()
-        family_reconcile = _family_dismissal_reconcile_payload(index_path, dry_run=True)
+        agent_session_reconcile = _agent_session_dismissal_reconcile_payload(
+            index_path, dry_run=True
+        )
         payload = {
             "corrupt_rows": preflight.corrupt_rows,
-            "dismissed_family_candidate_rows": family_reconcile["candidate_rows"],
-            "dismissed_family_rows_backfilled": family_reconcile["rows_backfilled"],
-            "dismissed_family_rows_skipped_decode_errors": family_reconcile[
+            "dismissed_agent_session_candidate_rows": agent_session_reconcile[
+                "candidate_rows"
+            ],
+            "dismissed_agent_session_rows_backfilled": agent_session_reconcile[
+                "rows_backfilled"
+            ],
+            "dismissed_agent_session_rows_skipped_decode_errors": agent_session_reconcile[
                 "rows_skipped_decode_errors"
             ],
-            "dismissed_family_rows_skipped_live_or_unknown": family_reconcile[
+            "dismissed_agent_session_rows_skipped_live_or_unknown": agent_session_reconcile[
                 "rows_skipped_live_or_unknown"
             ],
-            "dismissed_family_rows_skipped_no_dismissed_root": family_reconcile[
+            "dismissed_agent_session_rows_skipped_no_dismissed_root": agent_session_reconcile[
                 "rows_skipped_no_dismissed_root"
             ],
             "dismissed_rows_replaced": 0,
@@ -334,7 +340,7 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
             f"{payload['missing_rows_indexed']} rows would be indexed, "
             f"{payload['rows_deleted']} stale rows would be deleted, "
             f"{payload['rows_hidden']} dismissed identities would be hidden, "
-            f"{payload['dismissed_family_rows_backfilled']} family member "
+            f"{payload['dismissed_agent_session_rows_backfilled']} agent session member "
             f"identities would be back-filled ({index_path})"
         )
         return
@@ -342,7 +348,9 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
     update = rebuild_agent_artifact_index(index_path, projects_root)
     dismissed, dismissed_bundle_skipped = _load_dismissed_identities_for_gc()
     hidden_update = replace_agent_artifact_index_dismissed_agents(index_path, dismissed)
-    family_reconcile = _family_dismissal_reconcile_payload(index_path, dry_run=False)
+    agent_session_reconcile = _agent_session_dismissal_reconcile_payload(
+        index_path, dry_run=False
+    )
     prune_update = prune_hidden_terminal_agent_artifact_index_rows(index_path)
 
     payload = agent_scan_wire_to_json_dict(update)
@@ -354,15 +362,19 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
     payload.update(
         {
             "corrupt_rows": preflight.corrupt_rows,
-            "dismissed_family_candidate_rows": family_reconcile["candidate_rows"],
-            "dismissed_family_rows_backfilled": family_reconcile["rows_backfilled"],
-            "dismissed_family_rows_skipped_decode_errors": family_reconcile[
+            "dismissed_agent_session_candidate_rows": agent_session_reconcile[
+                "candidate_rows"
+            ],
+            "dismissed_agent_session_rows_backfilled": agent_session_reconcile[
+                "rows_backfilled"
+            ],
+            "dismissed_agent_session_rows_skipped_decode_errors": agent_session_reconcile[
                 "rows_skipped_decode_errors"
             ],
-            "dismissed_family_rows_skipped_live_or_unknown": family_reconcile[
+            "dismissed_agent_session_rows_skipped_live_or_unknown": agent_session_reconcile[
                 "rows_skipped_live_or_unknown"
             ],
-            "dismissed_family_rows_skipped_no_dismissed_root": family_reconcile[
+            "dismissed_agent_session_rows_skipped_no_dismissed_root": agent_session_reconcile[
                 "rows_skipped_no_dismissed_root"
             ],
             "dismissed_rows_replaced": hidden_update.rows_deleted,
@@ -384,7 +396,7 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
         f"{payload['rows_indexed']} rows indexed, "
         f"{payload['rows_deleted']} stale rows deleted, "
         f"{payload['rows_hidden']} dismissed identities hidden, "
-        f"{payload['dismissed_family_rows_backfilled']} family member "
+        f"{payload['dismissed_agent_session_rows_backfilled']} agent session member "
         "identities back-filled, "
         f"{payload['hidden_terminal_rows_pruned']} hidden terminal rows pruned, "
         f"{payload['revived_bundles_purged']} revived bundles purged, "
@@ -392,12 +404,12 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
     )
 
 
-def _family_dismissal_reconcile_payload(
+def _agent_session_dismissal_reconcile_payload(
     index_path: Path,
     *,
     dry_run: bool,
 ) -> dict[str, int]:
-    """Return family-dismissal reconciliation counts, treating old cores as zero."""
+    """Return agent-session-dismissal reconciliation counts, treating old cores as zero."""
     keys = {
         "candidate_rows": 0,
         "rows_backfilled": 0,

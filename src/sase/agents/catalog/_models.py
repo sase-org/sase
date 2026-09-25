@@ -19,7 +19,7 @@ class AgentCatalogRow:
     kind: tuple[str, ...]
     project: str | None
     state: str | None
-    family: str | None
+    agent_session: str | None
     role: str | None
     clan: str | None
     tribe: str | None

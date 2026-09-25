@@ -17,7 +17,7 @@ from ._derive import (
     is_durably_revivable,
     known_project_keys,
 )
-from ._family import family_and_role
+from ._agent_session import agent_session_and_role
 from ._models import AgentCatalogBuildError, AgentCatalogRow, AgentCatalogSnapshot
 from ._sources import (
     ArtifactIndexRecord,
@@ -131,7 +131,7 @@ def _build_row(
         dismissed_record = child_by_suffix.get(raw_suffix)
         is_workflow_child = dismissed_record is not None
 
-    family, role = family_and_role(name)
+    agent_session, role = agent_session_and_role(name)
 
     agent_type = _first(
         index_record.agent_type if index_record else None,
@@ -196,7 +196,7 @@ def _build_row(
             index_record.project_name if index_record else None,
         ),
         state=state,
-        family=family,
+        agent_session=agent_session,
         role=role,
         clan=clan,
         tribe=index_record.clan_tribe if index_record else None,

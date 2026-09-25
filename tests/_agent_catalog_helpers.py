@@ -15,7 +15,7 @@ def make_agent_catalog_row(name: str, **overrides: Any) -> AgentCatalogRow:
         "kind": ("agent",),
         "project": None,
         "state": None,
-        "family": None,
+        "agent_session": None,
         "role": None,
         "clan": None,
         "tribe": None,

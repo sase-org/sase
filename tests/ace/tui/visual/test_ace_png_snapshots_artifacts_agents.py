@@ -41,7 +41,7 @@ def _row(name: str, **overrides: Any) -> AgentCatalogRow:
         "kind": ("agent",),
         "project": "sase",
         "state": "active",
-        "family": None,
+        "agent_session": None,
         "role": "code",
         "clan": "sase-tj",
         "tribe": "epic",
@@ -77,8 +77,8 @@ def _populated_rows() -> tuple[AgentCatalogRow, ...]:
     return (
         _row(
             "sase-tj.10",
-            kind=("family",),
-            family=None,
+            kind=("session",),
+            agent_session=None,
             role=None,
             workflow="epic",
             status="RUNNING",
@@ -86,7 +86,7 @@ def _populated_rows() -> tuple[AgentCatalogRow, ...]:
         ),
         _row(
             "sase-tj.10.3",
-            family="sase-tj.10",
+            agent_session="sase-tj.10",
             role="visual",
             workflow="visual",
             status="RUNNING",
@@ -96,7 +96,7 @@ def _populated_rows() -> tuple[AgentCatalogRow, ...]:
         ),
         _row(
             "sase-tj.10.2",
-            family="sase-tj.10",
+            agent_session="sase-tj.10",
             role="navigation",
             workflow="code",
             state="done",
@@ -106,7 +106,7 @@ def _populated_rows() -> tuple[AgentCatalogRow, ...]:
         _row(
             "sase-tj.audit",
             state="dismissed",
-            family=None,
+            agent_session=None,
             role="review",
             workflow="review",
             status="FAILED",
@@ -121,12 +121,12 @@ def _populated_rows() -> tuple[AgentCatalogRow, ...]:
     )
 
 
-def _family_rows() -> tuple[AgentCatalogRow, ...]:
+def _agent_session_rows() -> tuple[AgentCatalogRow, ...]:
     return (
         _row(
             "visual-family",
-            kind=("family",),
-            family=None,
+            kind=("session",),
+            agent_session=None,
             role=None,
             workflow="epic",
             status="RUNNING",
@@ -134,7 +134,7 @@ def _family_rows() -> tuple[AgentCatalogRow, ...]:
         ),
         _row(
             "visual-family.plan",
-            family="visual-family",
+            agent_session="visual-family",
             role="plan",
             workflow="plan",
             status="DONE",
@@ -142,7 +142,7 @@ def _family_rows() -> tuple[AgentCatalogRow, ...]:
         ),
         _row(
             "visual-family.code",
-            family="visual-family",
+            agent_session="visual-family",
             role="code",
             workflow="code",
             status="RUNNING",
@@ -268,7 +268,7 @@ async def test_artifacts_agents_family_grouped_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    snapshot = _snapshot(_family_rows())
+    snapshot = _snapshot(_agent_session_rows())
     _install_agents_fixture(monkeypatch, snapshot)
 
     async with AcePage(query='"visual"', patches=patches()) as page:

@@ -206,7 +206,7 @@ def register_agent_wait_parser(agents_sub: argparse._SubParsersAction) -> None:
             "Block until the agents you name (or every agent running right now, "
             "with -a) reach a terminal state, then exit with a status code that "
             "says what happened. NAME is resolved the same way %wait resolves "
-            "it: clan, then agent family, then workflow, then exact agent name. "
+            "it: clan, then agent session, then workflow, then exact agent name. "
             "Exit codes: 0 every target succeeded, 1 at least one failed, 2 a "
             "usage error, 3 at least one target is blocked on a human (without "
             "-w), 4 the timeout expired, 130/143 interrupted by SIGINT/SIGTERM. "
@@ -268,5 +268,5 @@ def register_agent_wait_parser(agents_sub: argparse._SubParsersAction) -> None:
         "names",
         metavar="NAME",
         nargs="*",
-        help="Agent, family, clan, or workflow name to wait for (repeatable)",
+        help="Agent, agent session, clan, or workflow name to wait for (repeatable)",
     )

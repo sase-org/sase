@@ -41,7 +41,7 @@ _JSON_KEYS = {
     "attention",
     "retry",
     "attempt",
-    "family",
+    "agent_session",
     "role",
     "clan",
     "tribe",
@@ -125,20 +125,20 @@ def test_agent_search_parser_and_help_are_complete_and_sorted() -> None:
 def test_agent_search_parser_accepts_options_before_and_after_query() -> None:
     parser = create_parser(only="agent")
     before = parser.parse_args(
-        ["agent", "search", "-j", "-l", "5", "-p", "sase", "kind:family"]
+        ["agent", "search", "-j", "-l", "5", "-p", "sase", "kind:session"]
     )
     after = parser.parse_args(
-        ["agent", "search", "kind:family", "-j", "-l", "5", "-p", "sase"]
+        ["agent", "search", "kind:session", "-j", "-l", "5", "-p", "sase"]
     )
     interleaved = parser.parse_args(
-        ["agent", "search", "kind:family", "-l", "5", "-p", "sase", "-j"]
+        ["agent", "search", "kind:session", "-l", "5", "-p", "sase", "-j"]
     )
 
     for args in (before, after, interleaved):
         assert args.json is True
         assert args.limit == 5
         assert args.project == "sase"
-        assert args.query == ["kind:family"]
+        assert args.query == ["kind:session"]
 
 
 def test_agent_search_boolean_dialect_has_no_leading_dash_spelling() -> None:
@@ -155,12 +155,12 @@ def test_agent_search_handles_options_parsed_after_the_query(
     monkeypatch: Any,
     capsys: Any,
 ) -> None:
-    snapshot = _snapshot(_row("visible", kind=("family",)))
+    snapshot = _snapshot(_row("visible", kind=("session",)))
     _patch_sources(monkeypatch, snapshot)
     parser = create_parser(only="agent")
 
     args = parser.parse_args(
-        ["agent", "search", "kind:family", "-j", "-l", "5", "-p", "sase"]
+        ["agent", "search", "kind:session", "-j", "-l", "5", "-p", "sase"]
     )
     code = handle_agents_search(args)
 
@@ -175,11 +175,11 @@ def test_agent_search_query_followed_by_limit_flag_does_not_hit_tokenizer_error(
 ) -> None:
     """Regression test for a REMAINDER-nargs bug: ``-l 3`` after the query used to
     be swallowed into the query text and reach the tokenizer as literal characters."""
-    snapshot = _snapshot(_row("visible", kind=("family",)))
+    snapshot = _snapshot(_row("visible", kind=("session",)))
     _patch_sources(monkeypatch, snapshot)
     parser = create_parser(only="agent")
 
-    args = parser.parse_args(["agent", "search", "kind:family", "-l", "3"])
+    args = parser.parse_args(["agent", "search", "kind:session", "-l", "3"])
     code = handle_agents_search(args)
 
     assert code == 0
@@ -196,7 +196,7 @@ def test_agent_search_json_filters_with_shared_profile(
         _row(
             "research.12--code",
             role="code",
-            family="research.12",
+            agent_session="research.12",
             state="dismissed",
             status="failed",
             revivable=True,
@@ -238,7 +238,7 @@ def test_agent_catalog_query_entry_emits_stable_rust_wire_shape() -> None:
     finished = _epoch("2026-08-01T00:05:00+00:00")
     row = _row(
         "research.12--code",
-        family="research.12",
+        agent_session="research.12",
         role="code",
         clan="athena.sase-tt",
         tribe="epic",
@@ -286,7 +286,7 @@ def test_agent_catalog_query_entry_emits_stable_rust_wire_shape() -> None:
                 "attention": [True],
                 "retry": [True],
                 "linked": [False],
-                "family": ["research.12"],
+                "session": ["research.12"],
                 "role": ["code"],
                 "clan": ["athena.sase-tt"],
                 "tribe": ["epic"],
@@ -351,7 +351,7 @@ def test_agent_search_default_scope_excludes_hidden_and_workflow_children(
     snapshot = _snapshot(
         _row("visible"),
         _row("hidden", hidden=True),
-        _row("child", kind=("member", "workflow-child"), family="fam"),
+        _row("child", kind=("member", "workflow-child"), agent_session="fam"),
     )
     _patch_sources(monkeypatch, snapshot)
 
@@ -504,3 +504,58 @@ def _epoch(value: str) -> float:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.timestamp()
+
+
+def test_agent_search_session_field_and_kind_match_session_rows(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    snapshot = _snapshot(
+        _row("research.12--code", agent_session="research.12", kind=("session",)),
+        _row("solo"),
+    )
+    _patch_sources(monkeypatch, snapshot)
+
+    for query in (
+        ["session:research.12"],
+        ["kind:session"],
+        ['session:"research.12"'],
+    ):
+        code = handle_agents_search(
+            argparse.Namespace(json=True, limit=0, project=None, query=query)
+        )
+        assert code == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert [row["name"] for row in payload] == ["research.12--code"]
+        assert payload[0]["agent_session"] == "research.12"
+        assert "family" not in payload[0]
+
+
+def test_agent_search_legacy_family_terms_follow_the_flag(
+    monkeypatch: Any,
+    capsys: Any,
+) -> None:
+    from sase.feature_flags import override_flags
+
+    snapshot = _snapshot(
+        _row("research.12--code", agent_session="research.12", kind=("session",)),
+        _row("solo"),
+    )
+    _patch_sources(monkeypatch, snapshot)
+
+    with override_flags(legacy_agent_family_syntax=True):
+        for query in (["family:research.12"], ["kind:family"]):
+            code = handle_agents_search(
+                argparse.Namespace(json=True, limit=0, project=None, query=query)
+            )
+            assert code == 0
+            payload = json.loads(capsys.readouterr().out)
+            assert [row["name"] for row in payload] == ["research.12--code"]
+
+    with override_flags(legacy_agent_family_syntax=False):
+        for query in (["family:research.12"], ["kind:family"]):
+            code = handle_agents_search(
+                argparse.Namespace(json=True, limit=0, project=None, query=query)
+            )
+            assert code == 2
+            assert "session" in capsys.readouterr().err

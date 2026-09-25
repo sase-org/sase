@@ -19,9 +19,7 @@ class WaitTargetKind(StrEnum):
 
     AGENT = "agent"
     CLAN = "clan"
-    # legacy agent-family spelling: wait -j still emits "family" until
-    # query-cli-json changes its user-facing output contract.
-    AGENT_SESSION = "family"
+    AGENT_SESSION = "session"
     WORKFLOW = "workflow"
 
 

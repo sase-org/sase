@@ -91,6 +91,7 @@ def agents_history_query_key(
     if use_unified:
         profile = agents_live_query_profile()
         try:
+            raw = _normalize_session_query(raw, profile)
             canonical = canonical_query_for_profile(raw, profile)
         except ProfileQueryError:
             canonical = raw
@@ -209,6 +210,7 @@ def evaluate_agents_live_query(
     message is enriched with the legacy-token hint when applicable.
     """
     try:
+        query = _normalize_session_query(query, index.profile)
         canonical = canonical_query_for_profile(query, index.profile)
         result = evaluate_artifact_query_many(query, index, canonical_query=canonical)
     except ProfileQueryError as exc:
@@ -220,6 +222,15 @@ def evaluate_agents_live_query(
         matched_row_ids=frozenset(result.matched_row_ids),
     )
     return facade, None
+
+
+def _normalize_session_query(raw: str, profile: CompiledQueryProfile) -> str:
+    """Rewrite retired ``family:``/``kind:family`` terms to session terms."""
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+
+    return normalize_agent_session_query_text(raw, profile)
 
 
 def agents_live_property_query_term(key: str, value: str) -> str:
@@ -246,6 +257,7 @@ def apply_agents_live_query_filter(
 
     compiled_profile = profile if profile is not None else agents_live_query_profile()
     try:
+        raw = _normalize_session_query(raw, compiled_profile)
         canonical = canonical_query_for_profile(raw, compiled_profile)
     except ProfileQueryError as exc:
         return (

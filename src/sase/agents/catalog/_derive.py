@@ -22,10 +22,10 @@ def classify_kind(
     fields already use elsewhere in the Artifacts query corpus.
     """
     kinds: list[str] = []
-    # legacy agent-family spelling: registries still store "family" until rebuild.
-    # The emitted "family" kind stays for session-pages.
+    # legacy agent-family spelling: registries still store "family" until
+    # rebuild, so both container kinds are accepted here.
     if container_kind in {"session", "family"}:
-        kinds.append("family")
+        kinds.append("session")
     elif container_kind == "clan":
         kinds.append("clan")
     elif reservation_kind in _LEAF_RESERVATION_KINDS:

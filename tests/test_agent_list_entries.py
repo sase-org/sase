@@ -101,7 +101,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["runner_slot_queue_size"] == 1
     assert payload["runner_capacity_blockers"] == blockers
     assert payload["parent_agent_name"] is None
-    assert payload["agent_family"] is None
+    assert payload["agent_session"] is None
     assert payload["tribe"] is None
     assert payload["runner_slot_holders"] == ["phase"]
 
@@ -528,7 +528,7 @@ def test_agent_list_entries_names_parallel_child_blocking_waiter(
     assert by_name["waiter"].wait.runner_slot_holders == ("epic--phase",)
     child_payload = _agent_to_json(by_name["epic--phase"])
     assert child_payload["parent_agent_name"] == "epic"
-    assert child_payload["agent_family"] == "epic"
+    assert child_payload["agent_session"] == "epic"
 
 
 def test_agent_list_entries_reuses_listing_snapshot_for_child_summary(
@@ -598,3 +598,14 @@ def test_agent_list_entries_reuses_listing_snapshot_for_child_summary(
     assert [entry.name for entry in entries] == ["parent"]
     assert entries[0].children.count == 1
     assert entries[0].children.status_counts == (("Failed", 1),)
+
+
+def test_agent_list_json_uses_agent_session_keys_without_family_aliases() -> None:
+    from sase.agents.cli_list import _agent_to_json
+
+    payload = _agent_to_json(_build_agent_list_entry(agent(name="solo")))
+
+    assert "agent_session" in payload
+    assert "agent_session_role" in payload
+    assert "agent_family" not in payload
+    assert "agent_family_role" not in payload

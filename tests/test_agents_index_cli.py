@@ -218,9 +218,9 @@ def test_index_gc_dry_run_reports_without_mutating(
     payload = json.loads(capsys.readouterr().out)
     assert payload["dry_run"] is True
     assert payload["rows_hidden"] == 1
-    assert payload["dismissed_family_candidate_rows"] == 3
-    assert payload["dismissed_family_rows_backfilled"] == 2
-    assert payload["dismissed_family_rows_skipped_live_or_unknown"] == 1
+    assert payload["dismissed_agent_session_candidate_rows"] == 3
+    assert payload["dismissed_agent_session_rows_backfilled"] == 2
+    assert payload["dismissed_agent_session_rows_skipped_live_or_unknown"] == 1
 
 
 def test_index_status_missing_index_recommends_repair(

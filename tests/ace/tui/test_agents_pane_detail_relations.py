@@ -54,8 +54,8 @@ def _snapshot(*rows: AgentCatalogRow) -> AgentsSnapshot:
 
 
 def test_family_relation_links_member_to_container_not_itself() -> None:
-    container = _agent_row("0b4", kind=("family",), family=None)
-    member = _agent_row("0b4--0", kind=("member",), family="0b4", role="code")
+    container = _agent_row("0b4", kind=("session",), agent_session=None)
+    member = _agent_row("0b4--0", kind=("member",), agent_session="0b4", role="code")
     index = build_agents_relation_index(
         _snapshot(container, member), contract=_contract()
     )
@@ -145,12 +145,12 @@ def test_known_target_for_ref_returns_none_for_unknown_agent() -> None:
 
 
 def test_by_family_grouping_clusters_container_with_its_members() -> None:
-    container = _agent_row("0b4", kind=("family",), family=None)
-    member_a = _agent_row("0b4--0", family="0b4")
-    member_b = _agent_row("0b4--1", family="0b4")
-    standalone = _agent_row("solo-agent", family=None)
+    container = _agent_row("0b4", kind=("session",), agent_session=None)
+    member_a = _agent_row("0b4--0", agent_session="0b4")
+    member_b = _agent_row("0b4--1", agent_session="0b4")
+    standalone = _agent_row("solo-agent", agent_session=None)
     snapshot = _snapshot(container, member_a, member_b, standalone)
-    mode = PaneGroupingModeDecl(id="by_family", label="Family", keys=("family",))
+    mode = PaneGroupingModeDecl(id="by_family", label="Family", keys=("session",))
 
     result = build_grouped_agent_rows(
         snapshot, mode=mode, fold_registry=GroupFoldRegistry()

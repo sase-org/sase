@@ -45,7 +45,7 @@ KNOWN_FALLBACK_FIELDS = frozenset(
         "attention",
         "before",
         "clan",
-        "family",
+        "session",
         "hidden",
         "max",
         "min",
@@ -92,6 +92,7 @@ def compile_agents_live_query_pushdown(
         )
 
     try:
+        raw = _normalize_session_query(raw)
         parsed = parse_query_for_profile(raw, agents_live_query_profile())
     except ProfileQueryError as exc:
         return _AgentsLiveQueryPushdownPlan(
@@ -121,6 +122,16 @@ def compile_agents_live_query_pushdown(
     )
 
 
+def _normalize_session_query(raw: str) -> str:
+    """Rewrite retired ``family:``/``kind:family`` terms to session terms."""
+    from sase.agent.legacy_agent_family_syntax import (
+        normalize_agent_session_query_text,
+    )
+    from .agent_live_query_engine import agents_live_query_profile
+
+    return normalize_agent_session_query_text(raw, agents_live_query_profile())
+
+
 def _candidate_filter_for_expr(expr: QueryExpr) -> CandidateFilterWire | None:
     if isinstance(expr, PropertyMatch):
         return _candidate_filter_for_property(expr)
@@ -141,7 +152,7 @@ def _candidate_filter_for_expr(expr: QueryExpr) -> CandidateFilterWire | None:
         # keep. Machine is the exception: index-resident values are exactly
         # {"here"} ∪ {source_machine} ∪ {imported_source_owner.machine_name},
         # matching live evaluation, and candidate selection also loads
-        # family/clan/workflow relatives of those matches, so NotExpr around
+        # agent-session/clan/workflow relatives of those matches, so NotExpr around
         # a machine-only exact filter stays exact for the final tree.
         inner = _candidate_filter_for_expr(expr.operand)
         if inner is None or not _is_exact_machine_filter(inner):

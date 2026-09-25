@@ -34,7 +34,7 @@ class _CatalogMember:
     artifact_dir: str
     timestamp: str
     parent_timestamp: str | None
-    family: str | None
+    agent_session: str | None
     clan: str | None
     clan_generation: str | None
     clan_tribe: str | None
@@ -201,10 +201,10 @@ def _proc_catalog_entries() -> list[dict[str, Any]]:
 def _derive_group_entries(snapshot: Any, agents: Iterable[Any]) -> list[dict[str, Any]]:
     members = _catalog_members(snapshot, agents)
     hoods = _hood_entries(members)
-    families = _family_entries(members, snapshot)
+    agent_sessions = _agent_session_entries(members, snapshot)
     clans, clan_members = _clan_entries(members)
     tribes = _tribe_entries(members, clan_members)
-    return [*hoods, *families, *clans, *tribes]
+    return [*hoods, *agent_sessions, *clans, *tribes]
 
 
 def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMember]:
@@ -232,7 +232,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
         if not name:
             continue
 
-        family = (meta.agent_session or "").strip() or agent_session_base(name)
+        agent_session = (meta.agent_session or "").strip() or agent_session_base(name)
         clan = (meta.agent_clan or "").strip() or None
         if clan is None and meta.agent_session_parallel and meta.agent_session:
             clan = meta.agent_session
@@ -276,7 +276,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 artifact_dir=record.artifact_dir,
                 timestamp=record.timestamp,
                 parent_timestamp=meta.parent_timestamp,
-                family=family,
+                agent_session=agent_session,
                 clan=clan,
                 clan_generation=generation,
                 clan_tribe=clan_tribe,
@@ -332,35 +332,35 @@ def _record_status(record: Any) -> str:
     return active_status_for_record(record)
 
 
-def _family_entries(
+def _agent_session_entries(
     members: list[_CatalogMember],
     snapshot: Any,
 ) -> list[dict[str, Any]]:
     grouped: dict[str, list[_CatalogMember]] = {}
     for member in members:
-        if member.family:
-            grouped.setdefault(member.family, []).append(member)
+        if member.agent_session:
+            grouped.setdefault(member.agent_session, []).append(member)
 
     pending: list[tuple[str, list[_CatalogMember]]] = []
-    for family, known_members in grouped.items():
-        generation = _newest_family_generation(known_members)
+    for agent_session, known_members in grouped.items():
+        generation = _newest_agent_session_generation(known_members)
         if generation:
-            pending.append((family, generation))
+            pending.append((agent_session, generation))
 
-    enrichments = _family_plan_enrichments(pending, snapshot)
+    enrichments = _agent_session_plan_enrichments(pending, snapshot)
     entries: list[dict[str, Any]] = []
-    for family, generation in pending:
+    for agent_session, generation in pending:
         count = len(generation)
         entry: dict[str, Any] = {
-            "name": family,
-            "kind": "family",
+            "name": agent_session,
+            "kind": "session",
             "member_count": count,
-            "detail": f"family · {count} {_members_label(count)}",
+            "detail": f"session · {count} {_members_label(count)}",
         }
-        result = enrichments.get(family)
+        result = enrichments.get(agent_session)
         if result is not None:
             try:
-                _apply_family_plan_preview(
+                _apply_agent_session_plan_preview(
                     entry,
                     result,
                     count=count,
@@ -411,7 +411,7 @@ def _hood_entries(members: list[_CatalogMember]) -> list[dict[str, Any]]:
     return entries
 
 
-def _family_plan_enrichments(
+def _agent_session_plan_enrichments(
     pending: list[tuple[str, list[_CatalogMember]]],
     snapshot: Any,
 ) -> dict[str, AgentSessionPlanPreviewResult]:
@@ -424,19 +424,19 @@ def _family_plan_enrichments(
             snapshot,
             [
                 (
-                    family,
+                    agent_session,
                     tuple(
                         (member.artifact_dir, member.timestamp) for member in generation
                     ),
                 )
-                for family, generation in pending
+                for agent_session, generation in pending
             ],
         )
     except Exception:
         return {}
 
 
-def _apply_family_plan_preview(
+def _apply_agent_session_plan_preview(
     entry: dict[str, Any],
     result: AgentSessionPlanPreviewResult,
     *,
@@ -456,18 +456,18 @@ def _apply_family_plan_preview(
     if detail:
         entry["detail"] = detail
     elif fallback:
-        entry["detail"] = f"family · {count} {_members_label(count)} · {fallback}"
+        entry["detail"] = f"session · {count} {_members_label(count)} · {fallback}"
     documentation = agent_session_plan_preview_documentation(
         result.preview,
         fallback_title=fallback,
     )
     if not documentation:
         return
-    footer = f"family · {count} {_members_label(count)} · {status}"
+    footer = f"session · {count} {_members_label(count)} · {status}"
     entry["documentation"] = f"{documentation}\n\n---\n\n{footer}"
 
 
-def _newest_family_generation(
+def _newest_agent_session_generation(
     members: list[_CatalogMember],
 ) -> list[_CatalogMember]:
     roots = [member for member in members if member.parent_timestamp is None]

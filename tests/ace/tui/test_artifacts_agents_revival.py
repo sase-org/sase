@@ -65,17 +65,23 @@ def test_single_revivable_selected_row_revives_directly() -> None:
     assert request.seed_query is None
 
 
-def test_family_row_with_many_revivable_members_seeds_narrow_query() -> None:
-    family = _row("feature-family", kind=("family",), dismissed=False)
-    first = _row("first", family="feature-family", dismissed=True, revivable=True)
-    second = _row("second", family="feature-family", dismissed=True, revivable=True)
+def test_session_row_with_many_revivable_members_seeds_narrow_query() -> None:
+    family = _row("feature-family", kind=("session",), dismissed=False)
+    first = _row(
+        "first", agent_session="feature-family", dismissed=True, revivable=True
+    )
+    second = _row(
+        "second", agent_session="feature-family", dismissed=True, revivable=True
+    )
     pane = _Pane((family, first, second))
     pane.select(family)
 
     request = pane.revive_request(())
 
     assert request.rows == ()
-    assert request.seed_query == (f"{AGENTS_REVIVABLE_QUERY} AND family:feature-family")
+    assert request.seed_query == (
+        f"{AGENTS_REVIVABLE_QUERY} AND session:feature-family"
+    )
     assert request.severity == "information"
 
 
@@ -111,7 +117,7 @@ def _row(
     *,
     kind: tuple[str, ...] = ("agent",),
     state: str | None = None,
-    family: str | None = None,
+    agent_session: str | None = None,
     clan: str | None = None,
     dismissed: bool = False,
     revivable: bool = False,
@@ -122,7 +128,7 @@ def _row(
         kind=kind,
         project="sase",
         state=state,
-        family=family,
+        agent_session=agent_session,
         clan=clan,
         raw_suffix=f"{name}-suffix",
         artifacts_dir=f"/tmp/{name}",

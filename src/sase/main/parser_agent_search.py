@@ -34,7 +34,7 @@ def register_agent_search_parser(agents_sub: argparse._SubParsersAction) -> None
             "  sase agent search\n"
             "  sase agent search 'revivable:true AND project:sase AND role:code'\n"
             "  sase agent search 'provider:codex AND status:FAILED AND since:7d'\n"
-            "  sase agent search 'family:\"research.12\" AND NOT kind:workflow-child'\n"
+            "  sase agent search 'session:\"research.12\" AND NOT kind:workflow-child'\n"
             "  sase agent search 'state:active AND (attention:true OR status:WAITING)'\n"
             "  sase agent search 'linked:true AND relation:read'\n"
             "  sase agent search 'retry:true AND model:\"gpt-6-sol\" AND min:5m'\n"

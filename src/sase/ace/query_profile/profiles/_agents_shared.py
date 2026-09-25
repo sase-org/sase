@@ -9,7 +9,7 @@ from ..types import QueryFieldSpec
 AGENT_KIND_VALUES: tuple[str, ...] = (
     "agent",
     "member",
-    "family",
+    "session",
     "clan",
     "workflow",
     "workflow-child",
@@ -71,7 +71,7 @@ def agent_kind_field() -> QueryFieldSpec:
         key="kind",
         value_kind="enum",
         static_values=AGENT_KIND_VALUES,
-        hint="agent, member, family, clan, workflow, or workflow-child",
+        hint="agent, member, session, clan, workflow, or workflow-child",
     )
 
 
@@ -106,9 +106,9 @@ def shared_agent_exact_string_fields() -> tuple[QueryFieldSpec, ...]:
             hint="agent name or canonical global name; name:<hood>.* lists a hood",
         ),
         QueryFieldSpec(
-            key="family",
+            key="session",
             exact_match=True,
-            hint="family name derived from the agent name",
+            hint="agent-session name derived from the agent name",
         ),
         QueryFieldSpec(
             key="clan",

@@ -379,3 +379,28 @@ def test_json_envelope_schema(capsys: pytest.CaptureFixture[str]) -> None:
     assert "artifacts_dir" in target
     assert "error" in target
     assert "blocked_reason" in target
+
+
+def test_json_envelope_emits_session_target_kind(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    snapshot = _snapshot(
+        _record(
+            "20260823120000",
+            name="crew--code",
+            outcome="completed",
+            agent_session="crew",
+        )
+    )
+
+    rc = handle_agents_wait(
+        _args(names=["crew"], json_mode=True),
+        snapshot_provider=lambda: snapshot,
+        install_signal_handlers=False,
+        sleep=_no_sleep,
+    )
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert len(payload["targets"]) == 1
+    assert payload["targets"][0]["kind"] == "session"

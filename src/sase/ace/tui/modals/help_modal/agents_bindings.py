@@ -480,7 +480,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     ("cl:VAL", "Substring on Patch name"),
                     ("project:VAL", "Exact project; Tab-completed"),
                     ("name:VAL", "Exact agent name"),
-                    ("family:VAL  clan:VAL", "Exact family / clan name"),
+                    ("session:VAL  clan:VAL", "Exact session / clan name"),
                     ("role:VAL", "code | plan | monitor"),
                     ("workflow:VAL", "Substring on workflow name"),
                     ("model:VAL", "Substring on model"),

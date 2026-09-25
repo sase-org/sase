@@ -21,7 +21,7 @@ from sase.agents.catalog._derive import (
     is_dismissed,
     is_retrying,
 )
-from sase.agents.catalog._family import family_and_role
+from sase.agents.catalog._agent_session import agent_session_and_role
 from sase.agents.catalog._sources import ArtifactIndexRecord
 
 
@@ -169,7 +169,7 @@ class TestSnapshotFixtures:
         assert row.model == "claude-opus-5"
         assert row.llm_provider == "claude"
 
-    def test_family_container_row(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_agent_session_container_row(self, monkeypatch: pytest.MonkeyPatch) -> None:
         entries = {
             "fam1": {
                 "name": "fam1",
@@ -184,9 +184,28 @@ class TestSnapshotFixtures:
 
         row = _rows_by_name(build_agent_catalog_snapshot())["fam1"]
 
-        assert row.kind == ("family",)
+        assert row.kind == ("session",)
         assert row.from_artifact_index is False
         assert row.from_dismissed_archive is False
+
+    def test_session_container_kind_emits_session(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        entries = {
+            "sess1": {
+                "name": "sess1",
+                "container_kind": "session",
+                "reservation_kind": "session",
+                "state": "active",
+                "project_name": "gh_sase-org__sase",
+                "canonical_global_name": "bbugyi200.athena.sess1",
+            }
+        }
+        _patch_sources(monkeypatch, entries=entries)
+
+        row = _rows_by_name(build_agent_catalog_snapshot())["sess1"]
+
+        assert row.kind == ("session",)
 
     def test_clan_container_row(self, monkeypatch: pytest.MonkeyPatch) -> None:
         entries = {
@@ -206,7 +225,7 @@ class TestSnapshotFixtures:
         assert row.kind == ("clan",)
         assert row.clan == "myclan.gen"
 
-    def test_family_member_row_carries_family_and_role(
+    def test_agent_session_member_row_carries_agent_session_and_role(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         entries = {
@@ -222,7 +241,7 @@ class TestSnapshotFixtures:
         row = _rows_by_name(build_agent_catalog_snapshot())["fam1--code"]
 
         assert row.kind == ("member",)
-        assert row.family == "fam1"
+        assert row.agent_session == "fam1"
         assert row.role == "code"
 
     def test_owner_qualified_name_keeps_bare_and_canonical_forms(
@@ -371,9 +390,9 @@ class TestSnapshotAggregates:
         assert snapshot.thin_count == 1
 
 
-class TestFamilyAndRole:
+class TestAgentSessionAndRole:
     @pytest.mark.parametrize(
-        ("name", "expected_family", "expected_role"),
+        ("name", "expected_agent_session", "expected_role"),
         [
             ("000--mon", "000", "mon"),
             ("001--2", "001", None),
@@ -383,10 +402,10 @@ class TestFamilyAndRole:
             ("plainname", None, None),
         ],
     )
-    def test_family_and_role(
-        self, name: str, expected_family: str | None, expected_role: str | None
+    def test_agent_session_and_role(
+        self, name: str, expected_agent_session: str | None, expected_role: str | None
     ) -> None:
-        assert family_and_role(name) == (expected_family, expected_role)
+        assert agent_session_and_role(name) == (expected_agent_session, expected_role)
 
 
 class TestDeriveHelpers:

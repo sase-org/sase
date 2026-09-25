@@ -399,7 +399,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
                 PaneGroupingModeDecl(
                     id="by_family",
                     label="Family",
-                    keys=("family",),
+                    keys=("session",),
                 ),
                 PaneGroupingModeDecl(
                     id="by_state",

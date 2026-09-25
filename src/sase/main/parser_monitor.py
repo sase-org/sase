@@ -24,14 +24,14 @@ MONITOR_PROFILE_CHOICES = ("verify",)
 
 
 def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register long-running-command monitor family members."""
+    """Register long-running-command monitor agent session members."""
 
     monitor_parser = subparsers.add_parser(
         "monitor",
         help="Start, stop, list, and inspect monitored long-running commands",
         description=(
             "Hand a slow command off to a detached supervisor that runs as a "
-            "real agent-family member, with streaming output, a timeout, and "
+            "real agent session member, with streaming output, a timeout, and "
             "an optional follow-up agent. Running `sase monitor` defaults to "
             "`sase monitor list`."
         ),
@@ -47,7 +47,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help="List monitors (rich table by default, -j/--json for JSON)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "List monitor family members, newest first. By default this "
+            "List monitor agent session members, newest first. By default this "
             "shows only active (running) monitors; pass --all to include "
             "finished ones too. Note: here -a is --all; unlike `monitor "
             "start`, use -l/--agent to filter by agent."
@@ -204,7 +204,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
 
     start_parser = monitor_sub.add_parser(
         "start",
-        help="Start a command as a monitor family member",
+        help="Start a command as a monitor agent session member",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Start a command under a detached supervisor and return. The "

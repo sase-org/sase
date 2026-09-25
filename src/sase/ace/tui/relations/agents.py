@@ -91,8 +91,8 @@ class _AgentsRelationSource(RelationSource):
 
         for row in self._rows:
             source = _agent_target(row.name)
-            if family_decl is not None and row.family:
-                container = self._by_name.get(row.family)
+            if family_decl is not None and row.agent_session:
+                container = self._by_name.get(row.agent_session)
                 if container is not None and container.name != row.name:
                     edges.append(
                         emit_edge(family_decl, source, _agent_target(container.name))

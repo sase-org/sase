@@ -138,16 +138,18 @@ def _render_pipe_summary(
     """Rich hand-off summary matching the monitor command surface."""
     text = Text()
     text.append("This ends your turn.\n", style="bold yellow")
-    text.append("The next family member starts immediately with the prompt below.\n\n")
+    text.append(
+        "The next agent session member starts immediately with the prompt below.\n\n"
+    )
     text.append("from  ", style="dim")
     text.append(agent_name or "(unnamed agent)", style="bold")
     text.append("\n")
     name_token = payload.get("name_token")
     text.append("to    ", style="dim")
     if isinstance(name_token, str) and name_token:
-        text.append(f"<family>--{name_token}", style="bold cyan")
+        text.append(f"<session>--{name_token}", style="bold cyan")
     else:
-        text.append("next numbered family member", style="bold cyan")
+        text.append("next numbered agent session member", style="bold cyan")
     text.append("\n")
     model = payload.get("model")
     text.append("model ", style="dim")

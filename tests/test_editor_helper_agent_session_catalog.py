@@ -121,9 +121,9 @@ def _catalog_by_target(
     return {(entry["kind"], entry["name"]): entry for entry in data["entries"]}
 
 
-def _family_record(
+def _agent_session_record(
     timestamp: str,
-    family: str,
+    agent_session: str,
     *,
     suffix: str = "--plan",
     parent_timestamp: str | None = None,
@@ -131,14 +131,14 @@ def _family_record(
 ) -> object:
     return _scan_record(
         timestamp,
-        f"{family}{suffix}",
-        agent_session=family,
+        f"{agent_session}{suffix}",
+        agent_session=agent_session,
         parent_timestamp=parent_timestamp,
         **kwargs,
     )
 
 
-def test_editor_helper_family_catalog_epic_detail_and_documentation(
+def test_editor_helper_agent_session_catalog_epic_detail_and_documentation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -146,14 +146,14 @@ def test_editor_helper_family_catalog_epic_detail_and_documentation(
     epic.write_text(_EPIC_PLAN, encoding="utf-8")
     by_target = _catalog_by_target(
         monkeypatch,
-        [_family_record("20260816010101", "previewers", plan_path=str(epic))],
+        [_agent_session_record("20260816010101", "previewers", plan_path=str(epic))],
     )
 
-    family = by_target[("family", "previewers")]
-    assert family["detail"] == (
+    agent_session = by_target[("session", "previewers")]
+    assert agent_session["detail"] == (
         "epic · 2 phases · 2 waves · Plan-aware agent-family completion previews"
     )
-    documentation = str(family["documentation"])
+    documentation = str(agent_session["documentation"])
     assert documentation.startswith("**Epic** · 2 phases · 2 waves")
     assert "## Plan-aware agent-family completion previews" in documentation
     assert (
@@ -164,10 +164,10 @@ def test_editor_helper_family_catalog_epic_detail_and_documentation(
         "- `preview` — Shared family plan-preview value and TUI resolution cache "
         "(medium)" in documentation
     )
-    assert documentation.endswith("family · 1 member · DONE")
+    assert documentation.endswith("session · 1 member · DONE")
 
 
-def test_editor_helper_family_catalog_tale_detail(
+def test_editor_helper_agent_session_catalog_tale_detail(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -175,17 +175,21 @@ def test_editor_helper_family_catalog_tale_detail(
     tale.write_text(_TALE_PLAN, encoding="utf-8")
     by_target = _catalog_by_target(
         monkeypatch,
-        [_family_record("20260816010101", "wordsmiths", sdd_plan_path=str(tale))],
+        [
+            _agent_session_record(
+                "20260816010101", "wordsmiths", sdd_plan_path=str(tale)
+            )
+        ],
     )
 
-    family = by_target[("family", "wordsmiths")]
-    assert family["detail"] == (
+    agent_session = by_target[("session", "wordsmiths")]
+    assert agent_session["detail"] == (
         "tale · Complete common words from the middle of a word"
     )
-    assert str(family["documentation"]).startswith("**Tale**")
+    assert str(agent_session["documentation"]).startswith("**Tale**")
 
 
-def test_editor_helper_family_catalog_phase_and_task_beads(
+def test_editor_helper_agent_session_catalog_phase_and_task_beads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.bead.model import Issue, IssueType, PhaseSize
@@ -217,35 +221,35 @@ def test_editor_helper_family_catalog_phase_and_task_beads(
     by_target = _catalog_by_target(
         monkeypatch,
         [
-            _family_record(
+            _agent_session_record(
                 "20260816010101",
                 "rows",
                 phase_bead_id="sase-n9.2",
                 epic_bead_id="sase-n9",
             ),
-            _family_record("20260816020202", "fixers", phase_bead_id="sase-t1"),
+            _agent_session_record("20260816020202", "fixers", phase_bead_id="sase-t1"),
         ],
     )
 
-    phase = by_target[("family", "rows")]
+    phase = by_target[("session", "rows")]
     assert phase["detail"] == (
         "phase · Prompt-input completion rows and panel subtitle"
     )
     assert "_Part of Plan-aware agent-family completion previews_" in str(
         phase["documentation"]
     )
-    assert by_target[("family", "fixers")]["detail"] == (
+    assert by_target[("session", "fixers")]["detail"] == (
         "task · Fix the flaky selection-health test"
     )
 
 
-def test_editor_helper_family_catalog_snippet_fallback_and_directive_strip(
+def test_editor_helper_agent_session_catalog_snippet_fallback_and_directive_strip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     by_target = _catalog_by_target(
         monkeypatch,
         [
-            _family_record(
+            _agent_session_record(
                 "20260816010101",
                 "snippers",
                 raw_prompt_snippet=(
@@ -253,7 +257,7 @@ def test_editor_helper_family_catalog_snippet_fallback_and_directive_strip(
                     "selection-health test"
                 ),
             ),
-            _family_record(
+            _agent_session_record(
                 "20260816020202",
                 "directives",
                 raw_prompt_snippet="---\nname: x\n---\n%wait:foo\n#gh:sase\n",
@@ -261,15 +265,15 @@ def test_editor_helper_family_catalog_snippet_fallback_and_directive_strip(
         ],
     )
 
-    assert by_target[("family", "snippers")]["detail"] == (
-        "family · 1 member · Fix the flaky selection-health test"
+    assert by_target[("session", "snippers")]["detail"] == (
+        "session · 1 member · Fix the flaky selection-health test"
     )
-    assert "documentation" not in by_target[("family", "snippers")]
-    assert by_target[("family", "directives")]["detail"] == "family · 1 member"
-    assert "documentation" not in by_target[("family", "directives")]
+    assert "documentation" not in by_target[("session", "snippers")]
+    assert by_target[("session", "directives")]["detail"] == "session · 1 member"
+    assert "documentation" not in by_target[("session", "directives")]
 
 
-def test_editor_helper_family_catalog_recency_cap_skips_older_families(
+def test_editor_helper_agent_session_catalog_recency_cap_skips_older_agent_sessions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -281,19 +285,19 @@ def test_editor_helper_family_catalog_recency_cap_skips_older_families(
     by_target = _catalog_by_target(
         monkeypatch,
         [
-            _family_record("20260816010101", "old", plan_path=str(tale)),
-            _family_record("20260816020202", "mid", plan_path=str(tale)),
-            _family_record("20260816030303", "new", plan_path=str(tale)),
+            _agent_session_record("20260816010101", "old", plan_path=str(tale)),
+            _agent_session_record("20260816020202", "mid", plan_path=str(tale)),
+            _agent_session_record("20260816030303", "new", plan_path=str(tale)),
         ],
     )
 
     expected = "tale · Complete common words from the middle of a word"
-    assert by_target[("family", "old")]["detail"] == "family · 1 member"
-    assert by_target[("family", "mid")]["detail"] == expected
-    assert by_target[("family", "new")]["detail"] == expected
+    assert by_target[("session", "old")]["detail"] == "session · 1 member"
+    assert by_target[("session", "mid")]["detail"] == expected
+    assert by_target[("session", "new")]["detail"] == expected
 
 
-def test_editor_helper_family_catalog_plan_and_bead_failures_degrade(
+def test_editor_helper_agent_session_catalog_plan_and_bead_failures_degrade(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -310,25 +314,27 @@ def test_editor_helper_family_catalog_plan_and_bead_failures_degrade(
     by_target = _catalog_by_target(
         monkeypatch,
         [
-            _family_record(
+            _agent_session_record(
                 "20260816010101",
                 "missing",
                 plan_path="/tmp/sase-n9-missing-plan.md",
                 raw_prompt_snippet="Use the launch prompt instead",
             ),
-            _family_record("20260816020202", "broken", plan_path=str(unreadable)),
-            _family_record("20260816030303", "beads", phase_bead_id="sase-n9.2"),
+            _agent_session_record(
+                "20260816020202", "broken", plan_path=str(unreadable)
+            ),
+            _agent_session_record("20260816030303", "beads", phase_bead_id="sase-n9.2"),
         ],
     )
 
-    assert by_target[("family", "missing")]["detail"] == (
-        "family · 1 member · Use the launch prompt instead"
+    assert by_target[("session", "missing")]["detail"] == (
+        "session · 1 member · Use the launch prompt instead"
     )
-    assert by_target[("family", "broken")]["detail"] == "family · 1 member"
-    assert by_target[("family", "beads")]["detail"] == "family · 1 member"
+    assert by_target[("session", "broken")]["detail"] == "session · 1 member"
+    assert by_target[("session", "beads")]["detail"] == "session · 1 member"
 
 
-def test_editor_helper_family_catalog_root_then_member_uses_child_plan(
+def test_editor_helper_agent_session_catalog_root_then_member_uses_child_plan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -337,8 +343,8 @@ def test_editor_helper_family_catalog_root_then_member_uses_child_plan(
     by_target = _catalog_by_target(
         monkeypatch,
         [
-            _family_record("20260816010101", "later", suffix="--plan"),
-            _family_record(
+            _agent_session_record("20260816010101", "later", suffix="--plan"),
+            _agent_session_record(
                 "20260816010102",
                 "later",
                 suffix="--code",
@@ -348,14 +354,14 @@ def test_editor_helper_family_catalog_root_then_member_uses_child_plan(
         ],
     )
 
-    family = by_target[("family", "later")]
-    assert family["member_count"] == 2
-    assert family["detail"] == (
+    agent_session = by_target[("session", "later")]
+    assert agent_session["member_count"] == 2
+    assert agent_session["detail"] == (
         "tale · Complete common words from the middle of a word"
     )
 
 
-def test_editor_helper_family_catalog_newer_member_plan_beats_root_plan(
+def test_editor_helper_agent_session_catalog_newer_member_plan_beats_root_plan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -384,13 +390,13 @@ def test_editor_helper_family_catalog_newer_member_plan_beats_root_plan(
     by_target = _catalog_by_target(
         monkeypatch,
         [
-            _family_record(
+            _agent_session_record(
                 "20260816010101",
                 "monitoring",
                 suffix="--plan",
                 plan_path=str(rejected),
             ),
-            _family_record(
+            _agent_session_record(
                 "20260816010102",
                 "monitoring",
                 suffix="--code",
@@ -400,12 +406,12 @@ def test_editor_helper_family_catalog_newer_member_plan_beats_root_plan(
         ],
     )
 
-    family = by_target[("family", "monitoring")]
-    assert family["member_count"] == 2
-    assert family["detail"] == "tale · Monitor kill lifecycle"
+    agent_session = by_target[("session", "monitoring")]
+    assert agent_session["member_count"] == 2
+    assert agent_session["detail"] == "tale · Monitor kill lifecycle"
 
 
-def test_editor_helper_family_catalog_malformed_newer_plan_falls_back_to_root(
+def test_editor_helper_agent_session_catalog_malformed_newer_plan_falls_back_to_root(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -425,13 +431,13 @@ def test_editor_helper_family_catalog_malformed_newer_plan_falls_back_to_root(
     by_target = _catalog_by_target(
         monkeypatch,
         [
-            _family_record(
+            _agent_session_record(
                 "20260816010101",
                 "monitoring",
                 suffix="--plan",
                 plan_path=str(fallback),
             ),
-            _family_record(
+            _agent_session_record(
                 "20260816010102",
                 "monitoring",
                 suffix="--code",
@@ -441,6 +447,22 @@ def test_editor_helper_family_catalog_malformed_newer_plan_falls_back_to_root(
         ],
     )
 
-    family = by_target[("family", "monitoring")]
-    assert family["member_count"] == 2
-    assert family["detail"] == "tale · Inspectable monitor indicator"
+    agent_session = by_target[("session", "monitoring")]
+    assert agent_session["member_count"] == 2
+    assert agent_session["detail"] == "tale · Inspectable monitor indicator"
+
+
+def test_editor_helper_agent_session_catalog_emits_session_kind_and_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    by_target = _catalog_by_target(
+        monkeypatch,
+        [
+            _agent_session_record("20260816010101", "crews", suffix="--code"),
+        ],
+    )
+
+    entry = by_target[("session", "crews")]
+    assert entry["kind"] == "session"
+    assert entry["detail"] == "session · 1 member"
+    assert ("family", "crews") not in by_target

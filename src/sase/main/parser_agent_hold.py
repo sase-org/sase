@@ -42,7 +42,7 @@ def _add_selector_arguments(parser: argparse.ArgumentParser) -> None:
         default=[],
         metavar="NAME",
         help=(
-            "Block this agent, family, clan, workflow, or proc shell name "
+            "Block this agent, agent session, clan, workflow, or proc shell name "
             "(repeatable; role-suffixed names stay exact)"
         ),
     )
