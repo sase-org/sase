@@ -113,7 +113,7 @@ def _sources(resolution: AgentEnterResolution) -> list[str]:
     return [target.source for target in resolution.targets]
 
 
-def _family(
+def _agent_session(
     *,
     members: list[Agent],
     root_name: str = "fam-root",

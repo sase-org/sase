@@ -22,7 +22,7 @@ from ._fleet_display_parity_shared import (
 
 
 def test_remote_default_tribe_panel_counts_include_done_lanes() -> None:
-    """A mixed remote panel uses the shared family/clan counters, including done."""
+    """A mixed remote panel uses the shared session/clan counters, including done."""
     installation_id = fleet_installation_id("a")
 
     def summary(agent_id: str, run_id: str, status: str, **overrides: object) -> dict:
@@ -44,30 +44,30 @@ def test_remote_default_tribe_panel_counts_include_done_lanes() -> None:
         alias=_PARITY_REMOTE_ALIAS,
         installation_id=installation_id,
         summaries=(
-            summary("run.one", "run-one", "RUNNING", family_id=None),
+            summary("run.one", "run-one", "RUNNING", legacy_family_id=None),
             summary(
                 "wait.one",
                 "wait-one",
                 "WAITING",
-                family_id=None,
+                legacy_family_id=None,
                 started_at_unix=_PARITY_STARTED_AT + 60,
             ),
             summary(
-                "done.family",
+                "done.session",
                 "done-root",
                 "TALE DONE",
-                family_id="done.family",
-                family_role="root",
+                legacy_family_id="done.session",
+                legacy_family_role="root",
                 started_at_unix=_PARITY_STARTED_AT - 4000,
                 stopped_at_unix=_PARITY_STARTED_AT - 2000,
                 current_instance=False,
             ),
             summary(
-                "done.family--old",
+                "done.session--old",
                 "done-old",
                 "TALE DONE",
-                family_id="done.family",
-                family_role="historical_shell",
+                legacy_family_id="done.session",
+                legacy_family_role="historical_shell",
                 row_kind="historical_shell",
                 parent_timestamp="done-root",
                 started_at_unix=_PARITY_STARTED_AT - 4000,
@@ -78,7 +78,7 @@ def test_remote_default_tribe_panel_counts_include_done_lanes() -> None:
                 "done.two",
                 "done-two",
                 "DONE",
-                family_id=None,
+                legacy_family_id=None,
                 started_at_unix=_PARITY_STARTED_AT - 1800,
                 stopped_at_unix=_PARITY_STARTED_AT - 1200,
                 current_instance=False,
@@ -87,7 +87,7 @@ def test_remote_default_tribe_panel_counts_include_done_lanes() -> None:
                 "done.three",
                 "done-three",
                 "DONE",
-                family_id=None,
+                legacy_family_id=None,
                 started_at_unix=_PARITY_STARTED_AT - 900,
                 stopped_at_unix=_PARITY_STARTED_AT - 600,
                 current_instance=False,
@@ -96,7 +96,7 @@ def test_remote_default_tribe_panel_counts_include_done_lanes() -> None:
                 "done.four",
                 "done-four",
                 "DONE",
-                family_id=None,
+                legacy_family_id=None,
                 started_at_unix=_PARITY_STARTED_AT - 500,
                 stopped_at_unix=_PARITY_STARTED_AT - 400,
                 current_instance=False,
@@ -109,5 +109,5 @@ def test_remote_default_tribe_panel_counts_include_done_lanes() -> None:
     assert counts.lane_count == 6
     assert (counts.running, counts.waiting, counts.read) == (1, 1, 4)
     assert "[R1 W1 D4]" in title.plain
-    nested = [row for row in rows if row.agent_name == "done.family--old"]
+    nested = [row for row in rows if row.agent_name == "done.session--old"]
     assert nested and nested[0].is_agent_session_member_child

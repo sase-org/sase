@@ -237,7 +237,7 @@ def test_workflow_tree_attribution_collapses_to_one_panel_when_merged() -> None:
     assert keys == {None}
 
 
-def test_a_workflow_family_leaving_one_panel_rebuilds_only_that_panel(
+def test_a_workflow_agent_session_leaving_one_panel_rebuilds_only_that_panel(
     monkeypatch: Any,
 ) -> None:
     flow = _workflow_agent("flow", suffix="wf1", tribe="apple")

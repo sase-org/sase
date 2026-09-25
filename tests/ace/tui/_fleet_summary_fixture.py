@@ -47,7 +47,7 @@ def fleet_summary(
     provider: str = "codex",
     bounded_intent: str = "exercise fleet projection",
     needs_attention: bool = False,
-    family_id: str | None = "family-1",
+    legacy_family_id: str | None = "family-1",
     freshness: str = "fresh",
     connection_health: str = "online",
     observed_at_unix: float = 1_800_000_000.0,
@@ -59,7 +59,11 @@ def fleet_summary(
     queue_capacity: int | None = None,
     queue_capacity_explicit: bool = False,
     row_kind: str = "agent_shell",
-    family_role: str = "root",
+    legacy_family_role: str = "root",
+    agent_session_id: str | None = None,
+    agent_session_role: str | None = None,
+    session_label: str | None = None,
+    agent_session: str | None = None,
     parent_timestamp: str | None = None,
     current_instance: bool | None = None,
     container_projected_concrete_agent: bool = False,
@@ -74,14 +78,25 @@ def fleet_summary(
     tribe: str | None = None,
     status_bucket: str | None = None,
 ) -> dict[str, Any]:
-    """Build one valid resolved remote row summary."""
+    """Build one valid resolved remote row summary.
+
+    Legacy wire fixture: core still emits ``family_id`` / ``family_role`` /
+    ``family_label`` until core-contract, so the default shape carries the
+    legacy keys (see the ``legacy_family_*`` kwargs). Pass the new-shape
+    kwargs for the new spelling, which the fleet projection models read
+    first: ``agent_session_id`` swaps the locator key, ``agent_session_role``
+    swaps the top-level role key (each replaces its legacy alias — the core
+    rejects both spellings together). ``session_label`` and ``agent_session``
+    cover the remaining model read paths at the helper level.
+    """
     del patch_name  # Remote summaries expose project labels, not Patch labels.
     origin_id = installation_id or fleet_installation_id()
     logical = fleet_logical_locator(
         installation_id=origin_id,
         project_id=project_id,
         agent_id=agent_id,
-        family_id=family_id,
+        legacy_family_id=legacy_family_id,
+        agent_session_id=agent_session_id,
     )
     exact = fleet_exact_locator(logical, agent_id=agent_id, run_id=run_id)
     logical_key = logical_key or fleet_logical_key(logical)
@@ -118,14 +133,16 @@ def fleet_summary(
         "logical_key": logical_key,
         "exact_key": exact_key,
         "row_kind": row_kind,
-        "family_role": family_role,
+        # legacy agent-family spelling: core emits "family_role" until core-contract.
+        "family_role": legacy_family_role,
         "labels": {
             "schema_version": 1,
             "project_label": project_label
             if project_label is not None
             else project_name,
             "agent_label": agent_name or agent_id,
-            "family_label": family_id,
+            # legacy agent-family spelling: core emits "family_label" until core-contract.
+            "family_label": legacy_family_id,
             "owner_label": "bryan",
             "alias": None,
         },
@@ -161,6 +178,17 @@ def fleet_summary(
         "occupied_runner_slot": bool(occupied_runner_slot),
         "container_projected_concrete_agent": container_projected_concrete_agent,
     }
+    # New-shape keys replace (never duplicate) the legacy wire keys: the
+    # core validates the two spellings as aliases of one field.
+    if agent_session_role is not None:
+        del summary["family_role"]
+        summary["agent_session_role"] = agent_session_role
+    if session_label is not None:
+        labels = summary["labels"]
+        assert isinstance(labels, dict)
+        labels["session_label"] = session_label
+    if agent_session is not None:
+        summary["agent_session"] = agent_session
     if parent_timestamp is not None:
         summary["parent_timestamp"] = parent_timestamp
     if started_at_unix is not None:

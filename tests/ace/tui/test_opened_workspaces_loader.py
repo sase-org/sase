@@ -140,7 +140,7 @@ def test_results_are_newest_first_and_limit_caps(
     assert [event.name for event in result] == ["repo-6", "repo-5", "repo-4"]
 
 
-def test_context_aggregates_family_with_role_labels(
+def test_context_aggregates_agent_session_with_role_labels(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

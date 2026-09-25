@@ -1,4 +1,4 @@
-"""Agent-family context tests for the memory-reads loader."""
+"""Agent-session context tests for the memory-reads loader."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) 
     assert [item.agent_label for item in result] == [None]
 
 
-def test_context_aggregates_family_with_role_labels(
+def test_context_aggregates_agent_session_with_role_labels(
     fake_project: Path, tmp_path: Path
 ) -> None:
     plan_dir = tmp_path / "artifacts" / "plan"
@@ -106,7 +106,7 @@ def test_context_aggregates_family_with_role_labels(
 
     result = load_memory_reads_for_agent_context(root)
 
-    # Newest first across the whole family, each labeled by its producer.
+    # Newest first across the whole agent_session, each labeled by its producer.
     assert [(item.event.canonical_path, item.agent_label) for item in result] == [
         ("tui_perf.md", "coder"),
         ("generated_skills.md", "q"),

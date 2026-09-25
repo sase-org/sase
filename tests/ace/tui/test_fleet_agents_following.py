@@ -69,6 +69,8 @@ def _canonical_locator(
             "project_id": "sase-main",
         },
         "agent_id": agent_id,
+        # legacy agent-family spelling: the core echoes promotion output
+        # with "family_id" until core-contract.
         "family_id": family_id,
     }
 
@@ -80,7 +82,7 @@ def test_fleet_followed_batch_agent_session_promotions_promote_explicit_singleto
     singleton = fleet_logical_locator(
         installation_id=installation_id,
         agent_id="worker",
-        family_id=None,
+        legacy_family_id=None,
     )
     response = fleet_host_response(
         installation_id=installation_id,
@@ -108,18 +110,19 @@ def test_fleet_followed_batch_agent_session_promotions_promote_explicit_singleto
     )
 
 
-def test_fleet_followed_batch_agent_session_promotions_skip_ambiguous_families() -> (
+def test_fleet_followed_batch_agent_session_promotions_skip_ambiguous_agent_sessions() -> (
     None
 ):
     installation_id = fleet_installation_id("e")
     singleton = fleet_logical_locator(
         installation_id=installation_id,
         agent_id="worker",
-        family_id=None,
+        legacy_family_id=None,
     )
     first = fleet_summary(installation_id=installation_id, agent_id="worker")
     second = copy.deepcopy(first)
-    second["logical_locator"]["family_id"] = "family-2"
+    # legacy agent-family spelling: core emits "family_id" until core-contract.
+    second["logical_locator"]["family_id"] = "session-2"
     response = fleet_host_response(
         installation_id=installation_id,
         summaries=(first, second),
@@ -134,28 +137,28 @@ def test_fleet_followed_batch_agent_session_promotions_skip_ambiguous_families()
     )
 
 
-def test_fleet_followed_batch_agent_session_promotions_skip_family_and_dispatch_records() -> (
+def test_fleet_followed_batch_agent_session_promotions_skip_agent_session_and_dispatch_records() -> (
     None
 ):
     installation_id = fleet_installation_id("f")
     singleton = fleet_logical_locator(
         installation_id=installation_id,
         agent_id="worker",
-        family_id=None,
+        legacy_family_id=None,
     )
-    family = fleet_logical_locator(
+    agent_session_locator = fleet_logical_locator(
         installation_id=installation_id,
         agent_id="worker",
-        family_id="family-1",
+        legacy_family_id="session-1",
     )
     dispatch_record = {
         **fleet_follow_snapshot(singleton).records[0],
         "created_by": "dispatch",
     }
-    family_record = fleet_follow_snapshot(family).records[0]
+    agent_session_record = fleet_follow_snapshot(agent_session_locator).records[0]
     snapshot = FollowStoreSnapshot(
         schema_version=1,
-        records=(dispatch_record, family_record),
+        records=(dispatch_record, agent_session_record),
         tombstones=(),
         path="/tmp/follows.json",
     )

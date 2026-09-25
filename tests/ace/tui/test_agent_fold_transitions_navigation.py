@@ -409,7 +409,7 @@ def test_h_direct_clan_member_navigates_to_clan_then_tribe() -> None:
 
 
 def test_h_rejects_stale_ambiguous_and_self_referential_parent_edges() -> None:
-    agents, _family, member = make_sequential_agent_session(tribe="research")
+    agents, _agent_session, member = make_sequential_agent_session(tribe="research")
     agents.append(make_agent(raw_suffix="ops", tribe="ops"))
     member.tree_parent_key = "missing"
     member.tree_depth = 1
@@ -420,7 +420,9 @@ def test_h_rejects_stale_ambiguous_and_self_referential_parent_edges() -> None:
     assert stale.current_idx == agents.index(member)
     assert stale._expanded_panel_focus is False
 
-    ambiguous_agents, _family, member = make_sequential_agent_session(tribe="research")
+    ambiguous_agents, _agent_session, member = make_sequential_agent_session(
+        tribe="research"
+    )
     duplicate = make_agent(raw_suffix="session", tribe="research")
     ambiguous_agents.append(duplicate)
     ambiguous_agents.append(make_agent(raw_suffix="ops", tribe="ops"))
@@ -435,7 +437,9 @@ def test_h_rejects_stale_ambiguous_and_self_referential_parent_edges() -> None:
     ambiguous.action_hooks_or_collapse()
     assert ambiguous._expanded_panel_focus is False
 
-    self_agents, _family, self_member = make_sequential_agent_session(tribe="research")
+    self_agents, _agent_session, self_member = make_sequential_agent_session(
+        tribe="research"
+    )
     self_agents.append(make_agent(raw_suffix="ops", tribe="ops"))
     self_member.tree_parent_key = self_member.raw_suffix
     self_member.tree_depth = 1

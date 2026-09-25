@@ -268,7 +268,7 @@ def test_hint_enumeration_is_focused_panel_only_and_dedupes_workflow_owner() -> 
     assert len(targets) == len(set(targets))
 
 
-def test_hint_enumeration_includes_clan_and_family_fold_owners() -> None:
+def test_hint_enumeration_includes_clan_and_agent_session_fold_owners() -> None:
     clan = _agent(
         "crew",
         "alpha",
@@ -276,23 +276,23 @@ def test_hint_enumeration_includes_clan_and_family_fold_owners() -> None:
         is_clan_container=True,
         agent_clan="crew",
     )
-    family = _agent("family", "alpha", plan_chain_root=True)
+    agent_session = _agent("session", "alpha", plan_chain_root=True)
     member = _agent(
-        "family.member",
+        "session.member",
         "alpha",
-        parent_timestamp="family",
+        parent_timestamp="session",
     )
-    family.followup_agents = [member]
+    agent_session.followup_agents = [member]
     app = _StubApp(
-        agents=[clan, family, member],
+        agents=[clan, agent_session, member],
         collapsed_panels=set(),
-        fold_counts={"family": (1, 0)},
+        fold_counts={"session": (1, 0)},
     )
 
     targets = app._enumerate_panel_fold_hint_targets()
 
     assert ("agent", "alpha", 0, "clan:crew") in targets
-    assert ("agent", "alpha", 1, "family") in targets
+    assert ("agent", "alpha", 1, "session") in targets
 
 
 def test_collapsed_focused_panel_warns_without_arming() -> None:

@@ -307,9 +307,9 @@ def test_bulk_kill_and_edit_one_mark_uses_marked_flow() -> None:
     assert app.edit_calls[0]["prompts"] == ["Just do it"]
 
 
-def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
-    family_member = _FakeAgent(
-        cl_name="family",
+def test_bulk_kill_and_edit_rewrites_exact_marked_agent_session_member() -> None:
+    agent_session_member = _FakeAgent(
+        cl_name="session",
         raw_suffix="20260723120000",
         raw_prompt="Implement the plan",
         agent_name="sase-8u.4.2--code",
@@ -319,8 +319,8 @@ def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
         status="DONE",
         pid=None,
     )
-    app = _FakeBulkEditApp([family_member])
-    _mark_in_order(app, family_member)
+    app = _FakeBulkEditApp([agent_session_member])
+    _mark_in_order(app, agent_session_member)
 
     app._bulk_kill_marked_agents_and_edit()
     _confirm(app)
@@ -330,9 +330,11 @@ def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
     ]
 
 
-def test_bulk_kill_and_edit_running_family_member_names_lane_and_member() -> None:
-    family_member = _FakeAgent(
-        cl_name="family-change",
+def test_bulk_kill_and_edit_running_agent_session_member_names_lane_and_member() -> (
+    None
+):
+    agent_session_member = _FakeAgent(
+        cl_name="session-change",
         raw_suffix="20260723120000",
         raw_prompt="Implement the plan",
         agent_name="sase-8u.4.2--code",
@@ -342,8 +344,8 @@ def test_bulk_kill_and_edit_running_family_member_names_lane_and_member() -> Non
         status="RUNNING",
         pid=222,
     )
-    app = _FakeBulkEditApp([family_member])
-    _mark_in_order(app, family_member)
+    app = _FakeBulkEditApp([agent_session_member])
+    _mark_in_order(app, agent_session_member)
 
     app._bulk_kill_marked_agents_and_edit()
 

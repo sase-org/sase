@@ -157,11 +157,11 @@ def test_only_the_incremental_apply_path_attempts_inserts(monkeypatch: Any) -> N
     assert "display_row_insert" not in _display_costs(app)
 
 
-def test_an_arrival_before_an_existing_workflow_family_is_still_inserted(
+def test_an_arrival_before_an_existing_workflow_agent_session_is_still_inserted(
     monkeypatch: Any,
 ) -> None:
-    # The arrival shifts the family's roster index and its panel-local
-    # position, but the family itself is unchanged, so no tree change is named
+    # The arrival shifts the session's roster index and its panel-local
+    # position, but the session itself is unchanged, so no tree change is named
     # and the panel takes the in-place insert.
     flow = _workflow_agent("flow", suffix="wf1", tribe="apple")
     apple = _agent("apple-one", tribe="apple", suffix="a1")
@@ -180,7 +180,7 @@ def test_an_arrival_before_an_existing_workflow_family_is_still_inserted(
     assert "display_full_rebuild" not in costs
 
 
-def test_a_family_shifted_by_an_arrival_in_another_panel_is_not_touched(
+def test_an_agent_session_shifted_by_an_arrival_in_another_panel_is_not_touched(
     monkeypatch: Any,
 ) -> None:
     arrival = _agent("apple-two", tribe="apple", suffix="a2")
@@ -191,8 +191,8 @@ def test_a_family_shifted_by_an_arrival_in_another_panel_is_not_touched(
     flow_widget = app._widgets[_widget_sel("banana")]
     repaints = flow_widget.update_list_calls
 
-    # The arrival lands ahead of the family in the roster, shifting its global
-    # index; the family's own panel did not change at all.
+    # The arrival lands ahead of the session in the roster, shifting its global
+    # index; the session's own panel did not change at all.
     _apply(app, [apple, flow, banana], [arrival, apple, flow, banana])
 
     assert flow_widget.update_list_calls == repaints

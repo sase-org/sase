@@ -322,7 +322,7 @@ def make_clan(count: int, *, mixed_tribes: bool = False) -> tuple[list[Agent], A
     return projected, container
 
 
-def make_large_family(count: int) -> tuple[list[Agent], Agent, list[Agent]]:
+def make_large_agent_session(count: int) -> tuple[list[Agent], Agent, list[Agent]]:
     root = make_agent("big--0", session="big", role="plan")
     children = [
         make_agent(f"big--{index}", session="big", role="code")

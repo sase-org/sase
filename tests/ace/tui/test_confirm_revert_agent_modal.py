@@ -60,6 +60,8 @@ def test_preview_not_ok_when_error_or_empty() -> None:
 def test_preview_sdd_paths_dedup_in_order() -> None:
     preview = RevertPreview(
         agent_name="foo",
+        # legacy agent-family spelling: the modal still accepts the retired
+        # "family" revert scope (see LEGACY_REVERT_SCOPE).
         scope="family",
         workspace_dir="/ws",
         commits=(

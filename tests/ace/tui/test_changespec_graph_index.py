@@ -54,9 +54,9 @@ def test_index_groups_siblings_by_base_name() -> None:
         _cs("foo__2", status="Reverted"),
     ]
     idx = build_patch_graph_index(specs)
-    family = idx.siblings_by_base_name["foo"]
+    siblings = idx.siblings_by_base_name["foo"]
     # Sorted ascending by suffix number, plain "foo" first (suffix 0).
-    assert [cs.name for cs in family] == ["foo", "foo__1", "foo__2"]
+    assert [cs.name for cs in siblings] == ["foo", "foo__1", "foo__2"]
 
 
 def test_update_relationships_from_index_avoids_per_row_rebuilds() -> None:

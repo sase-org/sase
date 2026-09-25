@@ -40,17 +40,17 @@ def _fold_clans(
     return app
 
 
-def _family_lane(family: str, *roles: str) -> list[Agent]:
-    """Return a family root entry plus its member rows, root first."""
-    root = make_agent(f"{family}--plan", status="DONE")
-    root.agent_session = family
+def _agent_session_lane(agent_session: str, *roles: str) -> list[Agent]:
+    """Return an agent session root entry plus its member rows, root first."""
+    root = make_agent(f"{agent_session}--plan", status="DONE")
+    root.agent_session = agent_session
     root.agent_session_role = "root"
     root.plan_chain_root = True
     root.refresh_raw_presented_agent_name()
     members = []
     for role in roles:
-        member = make_agent(f"{family}--{role}", status="DONE")
-        member.agent_session = family
+        member = make_agent(f"{agent_session}--{role}", status="DONE")
+        member.agent_session = agent_session
         member.agent_session_role = role
         member.parent_timestamp = root.raw_suffix
         members.append(member)
@@ -71,8 +71,8 @@ def _clan_member(
     return member
 
 
-def test_top_level_family_lane_projection_lists_dotted_hood_mates() -> None:
-    root, member = _family_lane("fam", "code")
+def test_top_level_agent_session_lane_projection_lists_dotted_hood_mates() -> None:
+    root, member = _agent_session_lane("fam", "code")
     helper = make_agent("fam.helper")
     other = make_agent("fam.other")
     app = NeighborApp([root, member, helper, other])
@@ -137,19 +137,19 @@ def test_folded_clan_neighbor_excludes_starting_and_dismissed_members() -> None:
     assert app._selected_agent_neighbor_count(origin) == 0
 
 
-def test_folded_clan_neighbor_excludes_inner_family_member() -> None:
+def test_folded_clan_neighbor_excludes_inner_agent_session_member() -> None:
     origin = make_agent("foo.other")
-    family = _clan_member(
-        "foo.family--plan",
+    agent_session = _clan_member(
+        "foo.session--plan",
         clan="workers",
         generation="one",
     )
-    family.agent_session = "foo.family"
-    child = make_agent("foo.family--code", status="DONE")
-    child.agent_session = "foo.family"
-    child.parent_timestamp = family.raw_suffix
-    family.runtime_children = [child]
-    complete = project_clan_tree([origin, family, child])
+    agent_session.agent_session = "foo.session"
+    child = make_agent("foo.session--code", status="DONE")
+    child.agent_session = "foo.session"
+    child.parent_timestamp = agent_session.raw_suffix
+    agent_session.runtime_children = [child]
+    complete = project_clan_tree([origin, agent_session, child])
     app = _fold_clans(complete, origin)
 
     index = app._agent_neighbor_index()
@@ -157,31 +157,31 @@ def test_folded_clan_neighbor_excludes_inner_family_member() -> None:
         target.identity for target in index.neighbor_targets_for(origin.identity)
     }
 
-    assert family.identity in identities
+    assert agent_session.identity in identities
     assert child.identity not in identities
 
 
-def test_folded_clan_neighbor_includes_expanded_inner_family_member() -> None:
+def test_folded_clan_neighbor_includes_expanded_inner_agent_session_member() -> None:
     origin = make_agent("foo.other")
-    family = _clan_member(
-        "foo.family--plan",
+    agent_session = _clan_member(
+        "foo.session--plan",
         clan="workers",
         generation="one",
     )
-    family.agent_session = "foo.family"
-    child = make_agent("foo.family--code", status="DONE")
-    child.agent_session = "foo.family"
-    child.parent_timestamp = family.raw_suffix
-    family.runtime_children = [child]
-    complete = project_clan_tree([origin, family, child])
+    agent_session.agent_session = "foo.session"
+    child = make_agent("foo.session--code", status="DONE")
+    child.agent_session = "foo.session"
+    child.parent_timestamp = agent_session.raw_suffix
+    agent_session.runtime_children = [child]
+    complete = project_clan_tree([origin, agent_session, child])
     app = _fold_clans(complete, origin)
-    assert family.raw_suffix is not None
-    app._fold_manager.expand(family.raw_suffix)
+    assert agent_session.raw_suffix is not None
+    app._fold_manager.expand(agent_session.raw_suffix)
 
     identities = {
         target.identity
         for target in app._agent_neighbor_index().neighbor_targets_for(origin.identity)
     }
 
-    assert family.identity in identities
+    assert agent_session.identity in identities
     assert child.identity in identities

@@ -18,10 +18,10 @@ from ._agent_tree_helpers import _GENERATION, _agent
 
 
 def test_project_clan_tree_inserts_container_and_three_depths() -> None:
-    agent_session_root = _agent("research.family", "family", tribe="epic")
+    agent_session_root = _agent("research.session", "session", tribe="epic")
     agent_session_member = _agent(
-        "research.family--code",
-        "family-code",
+        "research.session--code",
+        "session-code",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
@@ -145,11 +145,11 @@ def test_project_clan_tree_nests_disk_shaped_monitor_under_starter() -> None:
 
 
 def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> None:
-    agent_session_root = _agent("research.family", "family")
-    agent_session_root.agent_session = "research.family"
+    agent_session_root = _agent("research.session", "session")
+    agent_session_root.agent_session = "research.session"
     agent_session_root.agent_session_role = "root"
     starter = _agent(
-        "research.family--2",
+        "research.session--2",
         "starter",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
@@ -157,7 +157,7 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
     )
     starter.agent_session = agent_session_root.agent_session
     disk_monitor = _agent(
-        "research.family--mon-1",
+        "research.session--mon-1",
         "disk-mon",
         parent_timestamp=starter.raw_suffix,
         clan=None,
@@ -166,7 +166,7 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
     disk_monitor.agent_session = agent_session_root.agent_session
     disk_monitor.agent_session_role = "monitor"
     tagged_monitor = _agent(
-        "research.family--mon-1",
+        "research.session--mon-1",
         "tagged-mon",
         parent_timestamp=starter.raw_suffix,
         clan=agent_session_root.agent_clan,
@@ -194,7 +194,7 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
         "setup",
         "setup",
         parent_workflow="ace-run",
-        parent_timestamp="family",
+        parent_timestamp="session",
         step_type="bash",
         clan=None,
         generation=None,
@@ -204,7 +204,7 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
         "prepare",
         "prepare",
         parent_workflow="ace-run",
-        parent_timestamp="family",
+        parent_timestamp="session",
         step_type="python",
         clan=None,
         generation=None,
@@ -214,7 +214,7 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
         "main",
         "plan",
         parent_workflow="ace-run",
-        parent_timestamp="family",
+        parent_timestamp="session",
         step_type="agent",
         clan=None,
         generation=None,
@@ -224,7 +224,7 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
     coder = _agent(
         "sase",
         "code",
-        parent_timestamp="family",
+        parent_timestamp="session",
         clan=None,
         generation=None,
     )
@@ -232,14 +232,14 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
     monitor = _agent(
         "monitor",
         "mon",
-        parent_timestamp="family",
+        parent_timestamp="session",
         clan=None,
         generation=None,
     )
     monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
     monitor.monitor_label = "just check"
-    agent_session_root = _agent("08b", "family", clan=None, generation=None)
+    agent_session_root = _agent("08b", "session", clan=None, generation=None)
     agent_session_root.agent_session = "08b"
     agent_session_root.agent_session_role = "root"
     agent_session_root.followup_agents = [coder]
@@ -247,7 +247,7 @@ def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
         "fanout",
         "fanout",
         parent_workflow="ace-run",
-        parent_timestamp="family",
+        parent_timestamp="session",
         step_type="parallel",
         clan=None,
         generation=None,

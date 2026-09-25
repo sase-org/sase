@@ -21,12 +21,12 @@ def _style_at(text: Text, position: int) -> str | None:
 
 
 def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -> None:
-    agent_session_root = _agent("research.family", "family", tribe="epic")
-    agent_session_root.agent_session = "research.family"
+    agent_session_root = _agent("research.session", "session", tribe="epic")
+    agent_session_root.agent_session = "research.session"
     agent_session_root.agent_session_role = "root"
     agent_session_member = _agent(
-        "research.family--code",
-        "family-code",
+        "research.session--code",
+        "session-code",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
@@ -43,7 +43,7 @@ def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -
         fold_annotation=" ×2",
         now=datetime(2026, 7, 17, 10, 5, 0),
     )
-    family_text, _, _ = format_agent_option(
+    agent_session_text, _, _ = format_agent_option(
         agent_session_root,
         1,
         is_selected=False,
@@ -61,29 +61,29 @@ def test_clan_and_member_rows_render_identity_colors_tribes_and_depth_guides() -
     assert _style_at(container_text, container_text.plain.rindex("research")) == (
         "#D75FFF"
     )
-    assert family_text.plain.startswith("  └─ research.family")
-    assert family_text.plain.endswith("research.family")
+    assert agent_session_text.plain.startswith("  └─ research.session")
+    assert agent_session_text.plain.endswith("research.session")
     assert (
         _style_at(
-            family_text,
-            family_text.plain.rindex("research.family"),
+            agent_session_text,
+            agent_session_text.plain.rindex("research.session"),
         )
         == "#00AFFF"
     )
     assert agent_session_member.tree_depth == 2
     assert member_text.plain.startswith("  │  └─ (RUNNING)")
-    assert "research.family--code" in member_text.plain
-    assert not member_text.plain.startswith("  │  └─ research.family--code")
+    assert "research.session--code" in member_text.plain
+    assert not member_text.plain.startswith("  │  └─ research.session--code")
 
 
 def test_agent_session_identity_color_requires_a_real_member() -> None:
-    agent_session_root = _agent("cx", "family", clan=None, generation=None)
+    agent_session_root = _agent("cx", "session", clan=None, generation=None)
     agent_session_root.agent_session = "cx"
     agent_session_root.agent_session_role = "root"
     agent_session_root.appears_as_agent = True
     member = _agent(
         "cx--code",
-        "family-code",
+        "session-code",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
@@ -106,7 +106,9 @@ def test_agent_session_identity_color_requires_a_real_member() -> None:
     )
     anonymous_workflow.appears_as_agent = True
 
-    family_text, _, _ = format_agent_option(agent_session_root, 0, is_selected=False)
+    agent_session_text, _, _ = format_agent_option(
+        agent_session_root, 0, is_selected=False
+    )
     planner_text, _, _ = format_agent_option(lone_planner, 1, is_selected=False)
     plain_text, _, _ = format_agent_option(plain, 2, is_selected=False)
     workflow_text, _, _ = format_agent_option(
@@ -116,9 +118,12 @@ def test_agent_session_identity_color_requires_a_real_member() -> None:
     )
 
     assert agent_session_root.is_agent_session_container_row is True
-    assert family_text.plain.startswith("cx")
-    assert family_text.plain.endswith("cx")
-    assert _style_at(family_text, family_text.plain.rindex("cx")) == "#00AFFF"
+    assert agent_session_text.plain.startswith("cx")
+    assert agent_session_text.plain.endswith("cx")
+    assert (
+        _style_at(agent_session_text, agent_session_text.plain.rindex("cx"))
+        == "#00AFFF"
+    )
     assert lone_planner.is_agent_session_container_row is False
     assert planner_text.plain.startswith("solo")
     assert _style_at(planner_text, planner_text.plain.rindex("solo")) == "#FFD700"
@@ -135,10 +140,10 @@ def test_agent_session_identity_color_requires_a_real_member() -> None:
 
     agent_session_root.agent_name = None
     agent_session_root.presented_agent_name = None
-    nameless_family_text, _, _ = format_agent_option(
+    nameless_agent_session_text, _, _ = format_agent_option(
         agent_session_root, 4, is_selected=False
     )
-    assert not nameless_family_text.plain.endswith(" ")
+    assert not nameless_agent_session_text.plain.endswith(" ")
 
 
 def test_clan_row_renders_unread_count_in_both_fold_states() -> None:
@@ -177,26 +182,26 @@ def test_remote_agent_session_container_renders_without_agent_bracket() -> None:
     from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
 
     root = fleet_summary(
-        agent_id="remote-family",
+        agent_id="remote-session",
         run_id="20260910120000",
-        agent_name="remote-family",
-        family_id="remote-family",
-        family_role="root",
+        agent_name="remote-session",
+        legacy_family_id="remote-session",
+        legacy_family_role="root",
     )
     member = fleet_summary(
-        agent_id="remote-family--code",
+        agent_id="remote-session--code",
         run_id="20260910120100",
-        agent_name="remote-family--code",
-        family_id="remote-family",
-        family_role="member",
+        agent_name="remote-session--code",
+        legacy_family_id="remote-session",
+        legacy_family_role="member",
         parent_timestamp="20260910120000",
     )
     monitor = fleet_summary(
-        agent_id="remote-family--mon",
+        agent_id="remote-session--mon",
         run_id="20260910120200",
-        agent_name="remote-family--mon",
-        family_id="remote-family",
-        family_role="monitor",
+        agent_name="remote-session--mon",
+        legacy_family_id="remote-session",
+        legacy_family_role="monitor",
         row_kind="monitor",
         parent_timestamp="20260910120000",
         occupied_runner_slot=False,
@@ -218,15 +223,15 @@ def test_remote_agent_session_container_renders_without_agent_bracket() -> None:
         {agent_session_root.raw_suffix: (len(nested), 0)},
         set(),
     )
-    family_text, _, _ = format_agent_option(
+    agent_session_text, _, _ = format_agent_option(
         agent_session_root,
         0,
         is_selected=False,
         fold_annotation=annotation,
     )
-    assert "[agent]" not in family_text.plain
+    assert "[agent]" not in agent_session_text.plain
     assert annotation.startswith(" ×")
-    assert annotation in family_text.plain
+    assert annotation in agent_session_text.plain
     monitor_row = next(row for row in nested if row.is_monitor)
     monitor_text, _, _ = format_agent_option(monitor_row, 1, is_selected=False)
     assert monitor_row.is_agent_session_member_child is True

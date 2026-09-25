@@ -34,7 +34,7 @@ def build_retrying_plan_agent_session(
         root_dir / "running.json",
         {
             "pid": RUNNER_PID,
-            "cl_name": "retry-family",
+            "cl_name": "retry-session",
             "model": "gpt-5",
             "llm_provider": "codex",
         },
@@ -43,7 +43,7 @@ def build_retrying_plan_agent_session(
         root_dir / "workflow_state.json",
         {
             "workflow_name": "ace-run",
-            "context": {"cl_name": "retry-family"},
+            "context": {"cl_name": "retry-session"},
             "status": "completed",
             "pid": RUNNER_PID,
             "appears_as_agent": True,
@@ -55,8 +55,8 @@ def build_retrying_plan_agent_session(
     _write_json(
         root_dir / "agent_meta.json",
         {
-            "name": "retry-family",
-            "agent_session": "retry-family",
+            "name": "retry-session",
+            "agent_session": "retry-session",
             "agent_session_role": "root",
             "plan_chain_root": True,
             "role_suffix": "--plan",
@@ -85,17 +85,17 @@ def build_retrying_plan_agent_session(
         {
             "outcome": "failed",
             "finished_at": 1783353574.0,
-            "cl_name": "retry-family--code",
+            "cl_name": "retry-session--code",
             "project_file": str(project_file),
-            "name": "retry-family--code",
+            "name": "retry-session--code",
             "error": "provider temporarily unavailable",
         },
     )
     _write_json(
         code_dir / "agent_meta.json",
         {
-            "name": "retry-family--code",
-            "agent_session": "retry-family",
+            "name": "retry-session--code",
+            "agent_session": "retry-session",
             "agent_session_role": "code",
             "role_suffix": "--code",
             "parent_timestamp": ROOT_TIMESTAMP,

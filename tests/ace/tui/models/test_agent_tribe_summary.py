@@ -481,17 +481,17 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
     agents: list[Agent] = []
     for index in range(4):
         root = _agent(
-            f"family-{index}--plan",
+            f"session-{index}--plan",
             "WORKING TALE" if index < 2 else "TALE DONE",
             start_minute=index * 5,
-            agent_session=f"family-{index}",
+            agent_session=f"session-{index}",
             role="plan",
         )
         planner = _agent(
-            f"family-{index}--plan-step",
+            f"session-{index}--plan-step",
             "TALE APPROVED",
             start_minute=index * 5,
-            agent_session=f"family-{index}",
+            agent_session=f"session-{index}",
             role="plan",
             parent=root.raw_suffix,
         )
@@ -499,10 +499,10 @@ def test_reference_tribe_counts_six_lane_statuses_and_eight_nested() -> None:
         planner.parent_workflow = "ace-run"
         planner.step_type = "agent"
         coder = _agent(
-            f"family-{index}--code",
+            f"session-{index}--code",
             "WORKING TALE" if index < 2 else "TALE DONE",
             start_minute=index * 5 + 1,
-            agent_session=f"family-{index}",
+            agent_session=f"session-{index}",
             role="code",
             parent=root.raw_suffix,
         )

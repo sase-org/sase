@@ -150,14 +150,14 @@ def test_changed_active_search_query_falls_back_to_full_rebuild(
     assert app._agent_display_last_search_query == "status:DONE"
 
 
-def test_row_patch_refreshes_family_lane_panel_title_without_rebuild(
+def test_row_patch_refreshes_agent_session_lane_panel_title_without_rebuild(
     monkeypatch: Any,
 ) -> None:
-    # Family-member children no longer carry a left-side title, so the
+    # Session-member children no longer carry a left-side title, so the
     # container name has to supply the row-width slack that a suffix patch
     # (unread + pencil) needs.
     planner = _agent(
-        "build-family-root",
+        "build-session-root",
         tribe="apple",
         suffix="build-plan",
         status="TALE APPROVED",

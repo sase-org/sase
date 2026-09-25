@@ -73,7 +73,7 @@ def test_rename_on_attach_root_remains_the_first_real_member() -> None:
 def test_promoted_plan_agent_session_root_no_longer_double_counted_as_member() -> None:
     """A derived plan-session root's main step, not the root, is member #0.
 
-    Mirrors the 'pv' bug family: a root promoted to '--0' (plan_chain_root
+    Mirrors the 'pv' bug agent_session: a root promoted to '--0' (plan_chain_root
     stays False) whose plan chain only started later in a member. Once
     ``derived_plan_agent_session_root`` is set, the root must stop standing in as
     member #0 or the lane header's "N agents · M awaiting" count double-counts

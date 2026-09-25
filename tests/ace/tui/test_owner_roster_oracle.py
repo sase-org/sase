@@ -147,8 +147,8 @@ def _assert_required_fixture_identities(
     assert "lane--plan" in nested
     assert "lane--gate-pending" in nested
     assert visible.count("lane") == 1
-    # A completed plan-chain family has no root record: its shells nest under
-    # the family on both sides and no standalone row is invented for it.
+    # A completed plan-chain session has no root record: its shells nest under
+    # the session on both sides and no standalone row is invented for it.
     assert {"chain--plan", "chain--mon", "chain--1"} <= set(nested)
     assert "chain" not in visible
 

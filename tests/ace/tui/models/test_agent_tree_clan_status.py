@@ -548,10 +548,10 @@ def test_clan_queued_rank_reprojection_clears_wait_display_source() -> None:
 
 
 def test_clan_mirrors_lone_queued_agent_session_shell_rank() -> None:
-    agent_session_root = _member("research.family", "family", status="QUEUED")
+    agent_session_root = _member("research.session", "session", status="QUEUED")
     shell = _agent(
-        "research.family--code",
-        "family-code",
+        "research.session--code",
+        "session-code",
         status="QUEUED",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,

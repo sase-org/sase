@@ -224,58 +224,60 @@ def test_unread_jump_reveals_clan_from_expanded_tribe_focus() -> None:
     assert app._panel_group.focused_key == "alpha"
 
 
-def test_unread_jump_lands_on_direct_family_row_but_not_inner_child() -> None:
-    family = make_agent(
-        name="research.family--plan-0",
+def test_unread_jump_lands_on_direct_agent_session_row_but_not_inner_child() -> None:
+    agent_session = make_agent(
+        name="research.session--plan-0",
         status="DONE",
-        raw_suffix="family",
+        raw_suffix="session",
         stop_time=datetime(2026, 7, 18, 12, 0, 0),
     )
-    family.agent_name = "research.family--plan-0"
-    family.agent_session = "research.family"
-    family.agent_clan = "research"
-    family.agent_clan_generation = "generation"
+    agent_session.agent_name = "research.session--plan-0"
+    agent_session.agent_session = "research.session"
+    agent_session.agent_clan = "research"
+    agent_session.agent_clan_generation = "generation"
     child = make_agent(
-        name="research.family--code",
+        name="research.session--code",
         status="DONE",
         raw_suffix="child",
         stop_time=datetime(2026, 7, 18, 13, 0, 0),
     )
-    child.agent_name = "research.family--code"
-    child.agent_session = "research.family"
-    child.parent_timestamp = family.raw_suffix
-    family.runtime_children = [child]
-    complete = project_clan_tree([family, child])
+    child.agent_name = "research.session--code"
+    child.agent_session = "research.session"
+    child.parent_timestamp = agent_session.raw_suffix
+    agent_session.runtime_children = [child]
+    complete = project_clan_tree([agent_session, child])
     app = _CollapsedClanUnreadJumpApp(complete)
-    app._unread_completed_agent_ids.update({family.identity, child.identity})
+    app._unread_completed_agent_ids.update({agent_session.identity, child.identity})
 
     assert app._jump_to_next_unread_done_agent()
 
-    assert app._agents[app.current_idx].identity == family.identity
+    assert app._agents[app.current_idx].identity == agent_session.identity
     assert child.identity in app._unread_completed_agent_ids
 
 
-def test_unread_jump_does_not_reveal_member_hidden_by_inner_family_fold() -> None:
-    family = make_agent(
-        name="research.family--plan-0",
+def test_unread_jump_does_not_reveal_member_hidden_by_inner_agent_session_fold() -> (
+    None
+):
+    agent_session = make_agent(
+        name="research.session--plan-0",
         status="RUNNING",
-        raw_suffix="family",
+        raw_suffix="session",
     )
-    family.agent_name = "research.family--plan-0"
-    family.agent_session = "research.family"
-    family.agent_clan = "research"
-    family.agent_clan_generation = "generation"
+    agent_session.agent_name = "research.session--plan-0"
+    agent_session.agent_session = "research.session"
+    agent_session.agent_clan = "research"
+    agent_session.agent_clan_generation = "generation"
     child = make_agent(
-        name="research.family--code",
+        name="research.session--code",
         status="DONE",
         raw_suffix="child",
         stop_time=datetime(2026, 7, 18, 13, 0, 0),
     )
-    child.agent_name = "research.family--code"
-    child.agent_session = "research.family"
-    child.parent_timestamp = family.raw_suffix
-    family.runtime_children = [child]
-    app = _CollapsedClanUnreadJumpApp(project_clan_tree([family, child]))
+    child.agent_name = "research.session--code"
+    child.agent_session = "research.session"
+    child.parent_timestamp = agent_session.raw_suffix
+    agent_session.runtime_children = [child]
+    app = _CollapsedClanUnreadJumpApp(project_clan_tree([agent_session, child]))
     app._unread_completed_agent_ids.add(child.identity)
 
     assert not app._has_unread_completed_agent()

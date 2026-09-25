@@ -56,7 +56,19 @@ def test_rewrite_retry_prompt_preserves_tribe_keyword() -> None:
     )
 
 
-def test_rewrite_retry_prompt_uses_concrete_name_for_family_member() -> None:
+def test_rewrite_retry_prompt_uses_concrete_name_for_agent_session_member() -> None:
+    assert (
+        _rewrite_retry_prompt_name(
+            "%id(reviewer, session=foo)\nDo work",
+            "foo--reviewer.r0",
+        )
+        == "%id:foo--reviewer.r0\nDo work"
+    )
+
+
+def test_rewrite_retry_prompt_still_reads_legacy_family_member() -> None:
+    # legacy agent-family spelling: retired "family=" %id syntax still loads
+    # while the legacy_agent_family_syntax flag allows it.
     assert (
         _rewrite_retry_prompt_name(
             "%id(reviewer, family=foo)\nDo work",

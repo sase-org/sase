@@ -115,7 +115,7 @@ def test_grouping_change_moves_cursor_with_the_render_order() -> None:
     assert app._agents[app.current_idx].agent_name == "raw-first"
 
 
-def test_nested_destination_marks_owning_family_and_names_exact_member() -> None:
+def test_nested_destination_marks_owning_agent_session_and_names_exact_member() -> None:
     root = make_agent(name="ns--plan", project="one", tribe="alpha")
     root.agent_session = "ns"
     root.agent_session_role = "root"

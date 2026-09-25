@@ -148,7 +148,7 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
 
     parsed_events.append(
         make_event(
-            terms=("Agent Family",),
+            terms=("Agent Session",),
             timestamp="2026-05-24T10:10:00+00:00",
             agent_name="alpha",
             artifacts_dir=str(artifacts_a),
@@ -167,7 +167,7 @@ def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
 
     assert [
         item.event.terms for item in load_glossary_reads_for_agent_context(agent_a)
-    ] == [("Agent Family",), ("Agent Hood",)]
+    ] == [("Agent Session",), ("Agent Hood",)]
     assert [
         item.event.terms for item in load_glossary_reads_for_agent_context(agent_b)
     ] == [("Stitch",)]

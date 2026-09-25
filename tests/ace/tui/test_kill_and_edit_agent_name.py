@@ -43,7 +43,7 @@ def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
     assert app.notifications == []
 
 
-def test_kill_and_edit_family_phase_forces_exact_member_attachment() -> None:
+def test_kill_and_edit_agent_session_phase_forces_exact_member_attachment() -> None:
     app = _App(
         _Agent(
             "%id:sase-8a.3\n%auto\nDo work",
@@ -127,7 +127,7 @@ def test_kill_and_edit_agent_blocks_non_restartable_archive() -> None:
     ]
 
 
-def test_kill_and_edit_family_root_keeps_clan_identity() -> None:
+def test_kill_and_edit_agent_session_root_keeps_clan_identity() -> None:
     app = _App(
         _Agent(
             _EPIC_ROOT_PROMPT,

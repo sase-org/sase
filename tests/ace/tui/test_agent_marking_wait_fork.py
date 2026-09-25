@@ -17,7 +17,7 @@ def test_wait_for_agent_no_marks_uses_single_agent_path() -> None:
     assert call["display_name"] == "wait(alice)"
 
 
-def test_wait_for_agent_family_root_uses_root_name() -> None:
+def test_wait_for_agent_session_root_uses_root_name() -> None:
     a1 = _make_agent(
         raw_suffix="20240101120000",
         agent_name="alice-plan",
@@ -33,7 +33,7 @@ def test_wait_for_agent_family_root_uses_root_name() -> None:
     assert app.prompt_bar_calls[0]["display_name"] == "wait(alice)"
 
 
-def test_fork_agent_family_root_uses_root_name() -> None:
+def test_fork_agent_session_root_uses_root_name() -> None:
     a1 = _make_agent(
         raw_suffix="20240101120000",
         status="DONE",
@@ -50,7 +50,7 @@ def test_fork_agent_family_root_uses_root_name() -> None:
     assert app.prompt_bar_calls[0]["display_name"] == "fork(alice)"
 
 
-def test_fork_epic_created_family_root_uses_root_name() -> None:
+def test_fork_epic_created_agent_session_root_uses_root_name() -> None:
     a1 = _make_agent(
         raw_suffix="20240101120000",
         status="EPIC CREATED",

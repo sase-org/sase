@@ -52,7 +52,7 @@ def test_retry_edit_qualified_local_agent_uses_prompt_facing_name(
     "sase.agent.names.allocate_retry_name",
     return_value="athena.sase-8a.3.r0",
 )
-def test_retry_edit_qualified_local_family_phase_allocates_from_presented_base(
+def test_retry_edit_qualified_local_agent_session_phase_allocates_from_presented_base(
     mock_allocate: Mock,
 ) -> None:
     app = _App(

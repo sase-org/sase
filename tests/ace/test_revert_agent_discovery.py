@@ -44,38 +44,44 @@ def test_discover_matches_legacy_and_prefixed_tags(tmp_path: Path) -> None:
     assert all(c.agent_tag == "foo" for c in commits)
 
 
-def test_discover_family_matching(tmp_path: Path) -> None:
+def test_discover_agent_session_matching(tmp_path: Path) -> None:
     repo = tmp_path / "ws"
     _init_repo(repo)
     _commit(repo, _msg("plan", "feat--plan"), {"p.txt": "p\n"})
     _commit(repo, _msg("code", "feat--code"), {"c.txt": "c\n"})
     _commit(repo, _msg("other", "other--plan"), {"o.txt": "o\n"})
 
-    family = _discover_agent_commits(str(repo), "feat--plan", agent_session_base="feat")
+    agent_session = _discover_agent_commits(
+        str(repo), "feat--plan", agent_session_base="feat"
+    )
     exact = _discover_agent_commits(str(repo), "feat--plan")
 
-    assert {c.subject for c in family} == {"plan", "code"}
+    assert {c.subject for c in agent_session} == {"plan", "code"}
     assert {c.subject for c in exact} == {"plan"}
 
 
-def test_discover_lane_tagged_commits_match_family_members(tmp_path: Path) -> None:
-    """A lane tag reverts through the family base without naming a member."""
+def test_discover_lane_tagged_commits_match_agent_session_members(
+    tmp_path: Path,
+) -> None:
+    """A lane tag reverts through the session base without naming a member."""
     repo = tmp_path / "ws"
     _init_repo(repo)
     _commit(repo, _msg("lane", "feat"), {"l.txt": "l\n"})
     _commit(repo, _msg("legacy member", "feat--plan"), {"p.txt": "p\n"})
     _commit(repo, _msg("other lane", "other"), {"o.txt": "o\n"})
 
-    family = _discover_agent_commits(str(repo), "feat--code", agent_session_base="feat")
+    agent_session = _discover_agent_commits(
+        str(repo), "feat--code", agent_session_base="feat"
+    )
 
     # Both the lane spelling and the legacy member spelling belong to the lane.
-    assert {c.subject for c in family} == {"lane", "legacy member"}
+    assert {c.subject for c in agent_session} == {"lane", "legacy member"}
 
 
-def test_discover_bulk_dedupes_lane_commits_across_family_and_member(
+def test_discover_bulk_dedupes_lane_commits_across_agent_session_and_member(
     tmp_path: Path,
 ) -> None:
-    """Selecting a family container and one member reverts each commit once."""
+    """Selecting an agent session container and one member reverts each commit once."""
     repo = tmp_path / "ws"
     _init_repo(repo)
     _commit(repo, _msg("lane", "feat"), {"l.txt": "l\n"})

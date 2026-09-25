@@ -31,11 +31,19 @@ def fleet_logical_locator(
     installation_id: str | None = None,
     project_id: str = "sase-main",
     agent_id: str = "agent-1",
-    family_id: str | None = "family-1",
+    legacy_family_id: str | None = "family-1",
+    agent_session_id: str | None = None,
 ) -> dict[str, Any]:
-    """Build the logical-locator shape consumed by fleet projections."""
+    """Build the logical-locator shape consumed by fleet projections.
+
+    Legacy wire fixture: core still emits ``family_id`` until core-contract,
+    so the default shape carries the legacy key. Pass ``agent_session_id``
+    for the new shape instead (the core accepts it as the ``family_id``
+    replacement, never alongside it); new-shape keys are read first by the
+    fleet projection models.
+    """
     origin_id = installation_id or fleet_installation_id()
-    return {
+    locator: dict[str, Any] = {
         "schema_version": 1,
         "project": {
             "schema_version": 1,
@@ -46,8 +54,13 @@ def fleet_logical_locator(
             "project_id": project_id,
         },
         "agent_id": agent_id,
-        "family_id": family_id,
     }
+    if agent_session_id is not None:
+        locator["agent_session_id"] = agent_session_id
+    else:
+        # legacy agent-family spelling: core emits "family_id" until core-contract.
+        locator["family_id"] = legacy_family_id
+    return locator
 
 
 def fleet_logical_key(locator: Mapping[str, Any]) -> str:

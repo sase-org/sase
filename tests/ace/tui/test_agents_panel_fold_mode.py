@@ -26,7 +26,7 @@ def test_agents_panel_level_cycles_forward_and_toggles_extremes() -> None:
     assert app.panel_fold_level is FoldLevel.COLLAPSED
 
 
-def test_family_panel_level_cycles_within_two_level_scale() -> None:
+def test_agent_session_panel_level_cycles_within_two_level_scale() -> None:
     app = _FoldApp(clan=False, session=True)
 
     _press(app, "z")
@@ -185,7 +185,7 @@ def test_direct_dispatch_uses_configured_agent_and_patch_subkeys() -> None:
     assert patch.deltas_collapsed is FoldLevel.EXPANDED
 
 
-def test_invalid_family_direct_level_preserves_state_and_overrides() -> None:
+def test_invalid_agent_session_direct_level_preserves_state_and_overrides() -> None:
     app = _FoldApp(clan=False, session=True)
     app.panel_fold_level = FoldLevel.EXPANDED
     app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
@@ -221,7 +221,7 @@ def test_agents_section_cycle_and_toggle_use_effective_panel_level() -> None:
     )
 
 
-def test_family_section_cycle_and_toggle_use_family_scale() -> None:
+def test_agent_session_section_cycle_and_toggle_use_agent_session_scale() -> None:
     app = _FoldApp(clan=False, session=True)
 
     _press(app, "a")
@@ -237,7 +237,7 @@ def test_family_section_cycle_and_toggle_use_family_scale() -> None:
     ["agent-xprompt", "agent-prompt", "agent-reply"],
 )
 @pytest.mark.parametrize("key", ["a", "A"])
-def test_family_conversation_sections_ignore_section_fold_commands(
+def test_agent_session_conversation_sections_ignore_section_fold_commands(
     section_id: str,
     key: str,
 ) -> None:

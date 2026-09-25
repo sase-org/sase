@@ -46,21 +46,25 @@ def test_project_fleet_agents_keeps_running_for_alive_liveness() -> None:
     assert row.status_bucket == "Running"
 
 
-def test_project_fleet_agents_carries_remote_family_lineage_into_agent_rows() -> None:
-    """Remote family metadata feeds the common Agent model and agents-live."""
+def test_project_fleet_agents_carries_remote_agent_session_lineage_into_agent_rows() -> (
+    None
+):
+    """Remote session metadata feeds the common Agent model and agents-live."""
     root = fleet_summary(
-        agent_id="family-root",
+        agent_id="session-root",
         run_id="20260910120000",
-        agent_name="remote-family",
-        family_id="remote-family",
+        agent_name="remote-session",
+        legacy_family_id="remote-session",
     )
+    # legacy agent-family spelling: core emits "family_role" until core-contract.
     root["family_role"] = "root"
     child = fleet_summary(
-        agent_id="family-code",
+        agent_id="session-code",
         run_id="20260910120100",
-        agent_name="remote-family--code",
-        family_id="remote-family",
+        agent_name="remote-session--code",
+        legacy_family_id="remote-session",
     )
+    # legacy agent-family spelling: core emits "family_role" until core-contract.
     child["family_role"] = "member"
     child["parent_timestamp"] = "20260910120000"
     response = fleet_host_response(alias="apollo", summaries=(root, child))
@@ -68,11 +72,11 @@ def test_project_fleet_agents_carries_remote_family_lineage_into_agent_rows() ->
     projection = project_fleet_agents(catalog_response=response)
 
     by_name = {row.agent_name: row for row in projection.fleet_rows}
-    root_row = by_name["remote-family"]
-    child_row = by_name["remote-family--code"]
+    root_row = by_name["remote-session"]
+    child_row = by_name["remote-session--code"]
     assert root_row.agent_session is None
     assert root_row.agent_session_role == "root"
-    assert child_row.agent_session == "remote-family"
+    assert child_row.agent_session == "remote-session"
     assert child_row.agent_session_role == "member"
     assert child_row.role_suffix == "--code"
     assert child_row.parent_timestamp == root_row.raw_suffix
@@ -82,7 +86,7 @@ def test_project_fleet_agents_carries_remote_family_lineage_into_agent_rows() ->
     entry = agent_live_query_entry(child_row)
     assert entry["fields"]["kind"] == ("member",)
     assert entry["fields"]["role"] == ("member", "code")
-    assert entry["fields"]["session"] == ("remote-family",)
+    assert entry["fields"]["session"] == ("remote-session",)
 
 
 def test_project_fleet_agents_downgrades_fresh_chip_for_a_cached_aged_host() -> None:
@@ -155,7 +159,9 @@ def test_project_fleet_agents_falls_back_to_started_at_for_legacy_runtime() -> N
 
 def test_project_fleet_agents_keeps_legacy_summaries_without_schema_v4_fields() -> None:
     """Older gateways that omit additive v4 fields still render a row."""
-    summary = fleet_summary(status="running", agent_id="legacy-solo", family_id=None)
+    summary = fleet_summary(
+        status="running", agent_id="legacy-solo", legacy_family_id=None
+    )
     for field in (
         "started_at_unix",
         "run_started_at_unix",

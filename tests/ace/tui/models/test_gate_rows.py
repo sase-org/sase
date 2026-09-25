@@ -126,7 +126,7 @@ def test_filesystem_gate_meta_projects_detail_fields(tmp_path: Path) -> None:
                 "gate_output_truncated": True,
                 "gate_creator_agent": "alpha--0",
                 "gate_next_action": "Continue after approval.",
-                "gate_next_fork": "family",
+                "gate_next_fork": "session",
                 "gate_next_output": "results,tail",
                 "gate_next_model": "gpt-5",
                 "gate_elapsed_seconds": 12.5,

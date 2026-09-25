@@ -47,18 +47,18 @@ def test_project_clan_tree_keeps_same_bucket_launch_order_stable() -> None:
 def test_project_clan_tree_sorts_agent_session_unit_by_displayed_anchor_status() -> (
     None
 ):
-    agent_session_root = _agent("research.family", "family", status="WAITING")
+    agent_session_root = _agent("research.session", "session", status="WAITING")
     failed_followup = _agent(
-        "research.family--failed",
-        "family-failed",
+        "research.session--failed",
+        "session-failed",
         status="FAILED",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
     )
     done_followup = _agent(
-        "research.family--done",
-        "family-done",
+        "research.session--done",
+        "session-done",
         status="DONE",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,

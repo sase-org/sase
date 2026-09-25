@@ -203,18 +203,18 @@ def test_build_agent_tree_by_machine_nests_remote_agent_session_under_host() -> 
     from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
 
     root = fleet_summary(
-        agent_id="remote-family",
+        agent_id="remote-session",
         run_id="20260910120000",
-        agent_name="remote-family",
-        family_id="remote-family",
-        family_role="root",
+        agent_name="remote-session",
+        legacy_family_id="remote-session",
+        legacy_family_role="root",
     )
     member = fleet_summary(
-        agent_id="remote-family--code",
+        agent_id="remote-session--code",
         run_id="20260910120100",
-        agent_name="remote-family--code",
-        family_id="remote-family",
-        family_role="member",
+        agent_name="remote-session--code",
+        legacy_family_id="remote-session",
+        legacy_family_role="member",
         parent_timestamp="20260910120000",
     )
     projection = project_fleet_agents(

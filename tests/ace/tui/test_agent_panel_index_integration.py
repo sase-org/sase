@@ -515,7 +515,7 @@ def test_real_status_transition_reveals_previously_hidden_starting_row() -> None
 
 
 def test_info_panel_projects_parallel_agent_session_member_statuses() -> None:
-    family_one_root, family_one_members = _parallel_agent_session(
+    agent_session_one_root, agent_session_one_members = _parallel_agent_session(
         suffix="session-one",
         root_status="WAITING",
         member_statuses=(
@@ -527,7 +527,7 @@ def test_info_panel_projects_parallel_agent_session_member_statuses() -> None:
             "DONE",
         ),
     )
-    family_two_root, family_two_members = _parallel_agent_session(
+    agent_session_two_root, agent_session_two_members = _parallel_agent_session(
         suffix="session-two",
         root_status="DONE",
         member_statuses=(
@@ -543,9 +543,9 @@ def test_info_panel_projects_parallel_agent_session_member_statuses() -> None:
     serial_child = _agent(
         suffix="serial-child",
         status="FAILED",
-        parent_timestamp=family_one_root.raw_suffix,
+        parent_timestamp=agent_session_one_root.raw_suffix,
     )
-    family_one_root.runtime_children.append(serial_child)
+    agent_session_one_root.runtime_children.append(serial_child)
     ordinary_agents = [
         _agent(suffix="ordinary-running-one"),
         _agent(suffix="ordinary-running-two"),
@@ -553,16 +553,16 @@ def test_info_panel_projects_parallel_agent_session_member_statuses() -> None:
     ]
     bare = _Bare(
         [
-            family_one_root,
-            *family_one_members,
+            agent_session_one_root,
+            *agent_session_one_members,
             serial_child,
-            family_two_root,
-            *family_two_members,
+            agent_session_two_root,
+            *agent_session_two_members,
             *ordinary_agents,
         ]
     )
     bare._unread_completed_agent_ids = {
-        family_one_members[4].identity,
+        agent_session_one_members[4].identity,
         serial_child.identity,
     }
 

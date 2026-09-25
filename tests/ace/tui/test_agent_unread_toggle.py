@@ -275,27 +275,27 @@ def test_keyboard_navigation_onto_clan_never_acknowledges_member() -> None:
     assert app.patch_calls == []
 
 
-def test_family_member_completion_notifications_project_to_one_node(
+def test_agent_session_member_completion_notifications_project_to_one_node(
     notification_dismiss: Mock,
 ) -> None:
     notification_dismiss.return_value = 2
-    family = make_agent(name="build", status="DONE", raw_suffix="family")
-    family.agent_name = "build"
-    family.agent_session = "build"
-    family.agent_session_role = "root"
+    agent_session = make_agent(name="build", status="DONE", raw_suffix="session")
+    agent_session.agent_name = "build"
+    agent_session.agent_session = "build"
+    agent_session.agent_session_role = "root"
     plan = make_agent(name="build--plan", status="DONE", raw_suffix="plan")
     plan.agent_name = "build--plan"
     plan.agent_session = "build"
     plan.agent_session_role = "plan"
-    plan.parent_timestamp = family.raw_suffix
+    plan.parent_timestamp = agent_session.raw_suffix
     code = make_agent(name="build--code", status="DONE", raw_suffix="code")
     code.agent_name = "build--code"
     code.agent_session = "build"
     code.agent_session_role = "code"
-    code.parent_timestamp = family.raw_suffix
-    family.runtime_children = [plan, code]
-    family.followup_agents = [plan, code]
-    app = UnreadJumpApp([family, plan, code], current_idx=1)
+    code.parent_timestamp = agent_session.raw_suffix
+    agent_session.runtime_children = [plan, code]
+    agent_session.followup_agents = [plan, code]
+    app = UnreadJumpApp([agent_session, plan, code], current_idx=1)
 
     app._reconcile_unread_from_completion_notifications(
         [
@@ -304,7 +304,7 @@ def test_family_member_completion_notifications_project_to_one_node(
         ]
     )
 
-    assert app._unread_completed_agent_ids == {family.identity}
+    assert app._unread_completed_agent_ids == {agent_session.identity}
     assert plan.identity not in app._unread_completed_agent_ids
     assert code.identity not in app._unread_completed_agent_ids
 
@@ -314,19 +314,19 @@ def test_family_member_completion_notifications_project_to_one_node(
     assert app._unread_completed_agent_ids == set()
     notification_dismiss.assert_called_once_with(
         [
-            {"cl_name": family.cl_name, "raw_suffix": family.raw_suffix},
+            {"cl_name": agent_session.cl_name, "raw_suffix": agent_session.raw_suffix},
             {"cl_name": plan.cl_name, "raw_suffix": plan.raw_suffix},
             {"cl_name": code.cl_name, "raw_suffix": code.raw_suffix},
         ]
     )
-    assert app.patch_calls == [family]
+    assert app.patch_calls == [agent_session]
 
 
-def test_plan_family_root_dismissal_includes_its_own_notification_key() -> None:
-    """A plan-family root's own completion key must be dismissible.
+def test_plan_agent_session_root_dismissal_includes_its_own_notification_key() -> None:
+    """A plan-session root's own completion key must be dismissible.
 
     Regression: notification ownership borrowed the status-count projection,
-    which substitutes a plan-family root for its concrete ``main`` workflow
+    which substitutes a plan-session root for its concrete ``main`` workflow
     step. That step never owns a distinct completion notification, so the
     root's own key was dropped from the dismiss/mark-read key set.
     """
@@ -349,18 +349,18 @@ def test_plan_family_root_dismissal_includes_its_own_notification_key() -> None:
     assert {"cl_name": root.cl_name, "raw_suffix": root.raw_suffix} in key_dicts
 
 
-def test_manual_toggle_rejects_family_member_shell() -> None:
-    family = make_agent(name="build", status="DONE", raw_suffix="family")
-    family.agent_name = "build"
-    family.agent_session = "build"
-    family.agent_session_role = "root"
+def test_manual_toggle_rejects_agent_session_member_shell() -> None:
+    agent_session = make_agent(name="build", status="DONE", raw_suffix="session")
+    agent_session.agent_name = "build"
+    agent_session.agent_session = "build"
+    agent_session.agent_session_role = "root"
     child = make_agent(name="build--code", status="DONE", raw_suffix="code")
     child.agent_name = "build--code"
     child.agent_session = "build"
     child.agent_session_role = "code"
-    child.parent_timestamp = family.raw_suffix
-    family.followup_agents = [child]
-    app = UnreadJumpApp([family, child], current_idx=1)
+    child.parent_timestamp = agent_session.raw_suffix
+    agent_session.followup_agents = [child]
+    app = UnreadJumpApp([agent_session, child], current_idx=1)
 
     app._toggle_agent_unread()
 

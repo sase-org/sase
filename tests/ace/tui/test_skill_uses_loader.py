@@ -413,7 +413,7 @@ def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) 
     assert [item.agent_label for item in result] == [None]
 
 
-def test_context_aggregates_family_with_role_labels(
+def test_context_aggregates_agent_session_with_role_labels(
     fake_project: Path, tmp_path: Path
 ) -> None:
     plan_dir = tmp_path / "artifacts" / "plan"

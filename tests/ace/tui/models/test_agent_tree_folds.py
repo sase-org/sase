@@ -16,10 +16,10 @@ from ._agent_tree_helpers import _agent
 
 
 def test_clan_and_members_fold_independently_through_recursive_ancestors() -> None:
-    agent_session_root = _agent("research.family", "family")
+    agent_session_root = _agent("research.session", "session")
     agent_session_member = _agent(
-        "research.family--code",
-        "family-code",
+        "research.session--code",
+        "session-code",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,
@@ -115,10 +115,10 @@ def test_clan_and_members_fold_independently_through_recursive_ancestors() -> No
 
 
 def test_clan_tree_query_retains_complete_immediate_parent_chain() -> None:
-    agent_session_root = _agent("research.family", "family")
+    agent_session_root = _agent("research.session", "session")
     agent_session_member = _agent(
-        "research.family--code",
-        "family-code",
+        "research.session--code",
+        "session-code",
         parent_timestamp=agent_session_root.raw_suffix,
         clan=None,
         generation=None,

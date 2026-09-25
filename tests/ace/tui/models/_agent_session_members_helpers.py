@@ -24,7 +24,7 @@ def _agent(
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name=name,
-        project_file="/tmp/family.sase",
+        project_file="/tmp/session.sase",
         status=status,
         start_time=_STARTED + timedelta(minutes=start_offset),
         status_bucket=status_bucket,

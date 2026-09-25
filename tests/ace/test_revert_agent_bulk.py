@@ -43,13 +43,13 @@ def test_bulk_preview_combined_newest_first(tmp_path: Path) -> None:
     assert preview.target_count == 2
 
 
-def test_bulk_preview_dedups_overlapping_family_matches(tmp_path: Path) -> None:
+def test_bulk_preview_dedups_overlapping_agent_session_matches(tmp_path: Path) -> None:
     repo = tmp_path / "ws"
     _init_repo(repo)
     _commit(repo, _msg("plan", "feat--plan"), {"p.txt": "p\n"})
     _commit(repo, _msg("code", "feat--code"), {"c.txt": "c\n"})
 
-    # Both targets share family base "feat" so each matches both commits;
+    # Both targets share session base "feat" so each matches both commits;
     # the combined set must still list each commit exactly once.
     targets = [
         _target(repo, "feat--plan", agent_session_base="feat"),

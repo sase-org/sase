@@ -250,7 +250,7 @@ def test_index_suppresses_agent_session_root_member_duplicate_from_descendants()
     None
 ):
     root = _agent_session_root("fam", role="0")
-    root.cl_name = "family-root"
+    root.cl_name = "session-root"
     root.raw_suffix = "root"
     main = _agent_session_member("fam", role="0", parent=root)
     main.cl_name = "main"

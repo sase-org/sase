@@ -110,7 +110,7 @@ def test_prepare_kill_and_edit_prompt_contract(
     assert prepare_kill_and_edit_prompt(raw_prompt, agent_name) == expected
 
 
-def test_prepare_kill_and_edit_prompt_family_root_keeps_clan() -> None:
+def test_prepare_kill_and_edit_prompt_agent_session_root_keeps_clan() -> None:
     rewritten = prepare_kill_and_edit_prompt(
         _EPIC_ROOT_PROMPT,
         "sase-pw.1--plan",
@@ -135,7 +135,7 @@ def test_prepare_kill_and_edit_epic_root_without_flag_still_keeps_clan() -> None
     assert rewritten == _EPIC_ROOT_RELAUNCH
 
 
-def test_prepare_kill_and_edit_prompt_plain_family_root_keeps_prompt() -> None:
+def test_prepare_kill_and_edit_prompt_plain_agent_session_root_keeps_prompt() -> None:
     rewritten = prepare_kill_and_edit_prompt(
         "#gh:gh_sase-org__sase #plan",
         "06d--plan",
@@ -151,7 +151,7 @@ def test_prepare_kill_and_edit_prompt_keeps_prompt_without_identity() -> None:
     assert prepare_kill_and_edit_prompt("Do work", None) == "Do work"
 
 
-def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
+def test_prepare_kill_and_edit_prompt_refuses_self_attaching_agent_session() -> None:
     with pytest.raises(KillAndEditPromptError, match="attaches the agent to itself"):
         prepare_kill_and_edit_prompt(
             "Do work",
@@ -204,7 +204,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
         ),
     ],
 )
-def test_prepare_kill_and_edit_prompt_restarts_exact_family_member(
+def test_prepare_kill_and_edit_prompt_restarts_exact_agent_session_member(
     raw_prompt: str,
     kwargs: dict[str, str],
     expected: str,

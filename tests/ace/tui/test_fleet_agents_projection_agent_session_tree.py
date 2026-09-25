@@ -10,46 +10,46 @@ from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
 
 def _remote_agent_session_summaries() -> tuple[dict[str, object], ...]:
     root = fleet_summary(
-        agent_id="remote-family",
+        agent_id="remote-session",
         run_id="20260910120000",
-        agent_name="remote-family",
-        family_id="remote-family",
-        family_role="root",
+        agent_name="remote-session",
+        legacy_family_id="remote-session",
+        legacy_family_role="root",
     )
     code = fleet_summary(
-        agent_id="remote-family--code",
+        agent_id="remote-session--code",
         run_id="20260910120100",
-        agent_name="remote-family--code",
-        family_id="remote-family",
-        family_role="member",
+        agent_name="remote-session--code",
+        legacy_family_id="remote-session",
+        legacy_family_role="member",
         parent_timestamp="20260910120000",
     )
     monitor = fleet_summary(
-        agent_id="remote-family--mon",
+        agent_id="remote-session--mon",
         run_id="20260910120200",
-        agent_name="remote-family--mon",
-        family_id="remote-family",
-        family_role="monitor",
+        agent_name="remote-session--mon",
+        legacy_family_id="remote-session",
+        legacy_family_role="monitor",
         row_kind="monitor",
         parent_timestamp="20260910120000",
         occupied_runner_slot=False,
     )
     gate = fleet_summary(
-        agent_id="remote-family--gate",
+        agent_id="remote-session--gate",
         run_id="20260910120300",
-        agent_name="remote-family--gate",
-        family_id="remote-family",
-        family_role="gate",
+        agent_name="remote-session--gate",
+        legacy_family_id="remote-session",
+        legacy_family_role="gate",
         row_kind="gate",
         parent_timestamp="20260910120000",
         occupied_runner_slot=False,
     )
     proc = fleet_summary(
-        agent_id="remote-family--proc",
+        agent_id="remote-session--proc",
         run_id="20260910120400",
-        agent_name="remote-family--proc",
-        family_id="remote-family",
-        family_role="proc",
+        agent_name="remote-session--proc",
+        legacy_family_id="remote-session",
+        legacy_family_role="proc",
         row_kind="proc",
         parent_timestamp="20260910120000",
         occupied_runner_slot=False,
@@ -83,19 +83,19 @@ def test_project_fleet_agents_builds_a_remote_agent_session_container_with_shell
     projection = project_fleet_agents(catalog_response=response)
     rows = list(projection.fleet_rows)
     by_name = {row.agent_name: row for row in rows}
-    root = by_name["remote-family"]
-    code = by_name["remote-family--code"]
-    monitor = by_name["remote-family--mon"]
-    gate = by_name["remote-family--gate"]
-    proc = by_name["remote-family--proc"]
+    root = by_name["remote-session"]
+    code = by_name["remote-session--code"]
+    monitor = by_name["remote-session--mon"]
+    gate = by_name["remote-session--gate"]
+    proc = by_name["remote-session--proc"]
 
     assert root.is_agent_session_container_row is True
     assert root.fleet_origin_alias == "apollo"
     assert {child.agent_name for child in root.followup_agents} == {
-        "remote-family--code",
-        "remote-family--mon",
-        "remote-family--gate",
-        "remote-family--proc",
+        "remote-session--code",
+        "remote-session--mon",
+        "remote-session--gate",
+        "remote-session--proc",
     }
     assert code.is_agent_session_member_child is True
     assert monitor.is_monitor is True
@@ -121,8 +121,8 @@ def test_project_fleet_agents_drops_container_plus_concrete_duplicates() -> None
         agent_id="sase-zr.1",
         run_id="run-current",
         agent_name="sase-zr.1",
-        family_id="sase-zr",
-        family_role="root",
+        legacy_family_id="sase-zr",
+        legacy_family_role="root",
         current_instance=True,
         revision=4,
     )
@@ -130,8 +130,8 @@ def test_project_fleet_agents_drops_container_plus_concrete_duplicates() -> None
         agent_id="sase-zr.1",
         run_id="run-container",
         agent_name="sase-zr.1",
-        family_id="sase-zr",
-        family_role="root",
+        legacy_family_id="sase-zr",
+        legacy_family_role="root",
         row_kind="container_header",
         current_instance=False,
         container_projected_concrete_agent=True,
@@ -141,8 +141,8 @@ def test_project_fleet_agents_drops_container_plus_concrete_duplicates() -> None
         agent_id="sase-zr.1--code",
         run_id="run-code",
         agent_name="sase-zr.1--code",
-        family_id="sase-zr",
-        family_role="member",
+        legacy_family_id="sase-zr",
+        legacy_family_role="member",
         parent_timestamp="run-current",
     )
     response = fleet_host_response(
@@ -166,7 +166,7 @@ def test_project_fleet_agents_drops_superseded_non_current_top_level_instances()
         agent_id="solo",
         run_id="run-new",
         agent_name="solo",
-        family_id=None,
+        legacy_family_id=None,
         current_instance=True,
         revision=5,
     )
@@ -174,7 +174,7 @@ def test_project_fleet_agents_drops_superseded_non_current_top_level_instances()
         agent_id="solo",
         run_id="run-old",
         agent_name="solo",
-        family_id=None,
+        legacy_family_id=None,
         current_instance=False,
         status="done",
         revision=2,
@@ -183,8 +183,8 @@ def test_project_fleet_agents_drops_superseded_non_current_top_level_instances()
         agent_id="solo",
         run_id="run-history",
         agent_name="solo--old",
-        family_id="solo",
-        family_role="historical_shell",
+        legacy_family_id="solo",
+        legacy_family_role="historical_shell",
         row_kind="historical_shell",
         current_instance=False,
         parent_timestamp="run-new",
@@ -211,8 +211,8 @@ def test_project_fleet_agents_nests_under_real_root_instead_of_synthesizing() ->
         agent_id="crew",
         run_id="20260910120000",
         agent_name="crew",
-        family_id="crew",
-        family_role="root",
+        legacy_family_id="crew",
+        legacy_family_role="root",
         status="TALE DONE",
         current_instance=False,
     )
@@ -220,8 +220,8 @@ def test_project_fleet_agents_nests_under_real_root_instead_of_synthesizing() ->
         agent_id="crew--plan",
         run_id="20260910113000",
         agent_name="crew--plan",
-        family_id="crew",
-        family_role="historical_shell",
+        legacy_family_id="crew",
+        legacy_family_role="historical_shell",
         row_kind="historical_shell",
         parent_timestamp="crew",
         status="TALE DONE",
@@ -243,16 +243,16 @@ def test_project_fleet_agents_synthesizes_a_stable_root_when_page_omits_it() -> 
         agent_id="crew--code",
         run_id="20260910120100",
         agent_name="crew--code",
-        family_id="crew",
-        family_role="member",
+        legacy_family_id="crew",
+        legacy_family_role="member",
         parent_timestamp="20260910120000",
     )
     monitor = fleet_summary(
         agent_id="crew--mon",
         run_id="20260910120200",
         agent_name="crew--mon",
-        family_id="crew",
-        family_role="monitor",
+        legacy_family_id="crew",
+        legacy_family_role="monitor",
         row_kind="monitor",
         parent_timestamp="20260910120000",
         occupied_runner_slot=False,

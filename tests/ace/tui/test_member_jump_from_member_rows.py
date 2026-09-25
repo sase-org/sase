@@ -9,7 +9,7 @@ from ._member_jump_navigation_helpers import (
     make_agent,
     make_agent_session,
     make_jump_map,
-    make_large_family,
+    make_large_agent_session,
     select_member,
 )
 
@@ -38,7 +38,7 @@ def test_agent_session_member_jump_to_self_is_rejected_as_stale() -> None:
     assert app.notifications[-1] == "Shell roster changed; jump cancelled"
 
 
-def test_agent_session_member_jump_target_no_longer_in_family_cancels_as_stale() -> (
+def test_agent_session_member_jump_target_no_longer_in_agent_session_cancels_as_stale() -> (
     None
 ):
     complete, root, child = make_agent_session(in_clan=False)
@@ -57,7 +57,7 @@ def test_agent_session_member_jump_target_no_longer_in_family_cancels_as_stale()
 def test_two_digit_agent_session_member_buffers_against_own_container_identity() -> (
     None
 ):
-    complete, root, children = make_large_family(12)
+    complete, root, children = make_large_agent_session(12)
     selected = children[5]
     others = [root, *[member for member in children if member is not selected]]
     app = JumpHarness(complete, root)
@@ -74,7 +74,7 @@ def test_two_digit_agent_session_member_buffers_against_own_container_identity()
     assert app._agents[app.current_idx].identity == others[10].identity
 
 
-def _family_with_nested_monitor() -> tuple[list[Agent], Agent, Agent, Agent]:
+def _agent_session_with_nested_monitor() -> tuple[list[Agent], Agent, Agent, Agent]:
     from sase.ace.tui.models._agent_tree import project_clan_tree
 
     complete, root, child = make_agent_session(in_clan=False)
@@ -99,8 +99,8 @@ def _family_with_nested_monitor() -> tuple[list[Agent], Agent, Agent, Agent]:
     return projected, projected_root, projected_child, projected_monitor
 
 
-def test_family_container_digit_jumps_to_nested_monitor() -> None:
-    complete, root, child, monitor = _family_with_nested_monitor()
+def test_agent_session_container_digit_jumps_to_nested_monitor() -> None:
+    complete, root, child, monitor = _agent_session_with_nested_monitor()
     app = JumpHarness(complete, root)
     app._fold_manager.expand(root.raw_suffix or "")
     app._refilter_agents()
@@ -117,8 +117,8 @@ def test_family_container_digit_jumps_to_nested_monitor() -> None:
     assert app.notifications == []
 
 
-def test_selected_family_shell_digit_jumps_to_nested_monitor_sibling() -> None:
-    complete, root, child, monitor = _family_with_nested_monitor()
+def test_selected_agent_session_shell_digit_jumps_to_nested_monitor_sibling() -> None:
+    complete, root, child, monitor = _agent_session_with_nested_monitor()
     app = JumpHarness(complete, root)
     select_member(app, root, child)
     app._member_jump_maps[child.identity] = make_jump_map(child, [root, monitor])
@@ -129,7 +129,7 @@ def test_selected_family_shell_digit_jumps_to_nested_monitor_sibling() -> None:
     assert app.notifications == []
 
 
-def test_family_missing_digit_uses_shell_language() -> None:
+def test_agent_session_missing_digit_uses_shell_language() -> None:
     complete, root, child = make_agent_session(in_clan=False)
     app = JumpHarness(complete, root)
     app._member_jump_maps[root.identity] = make_jump_map(root, [root, child])

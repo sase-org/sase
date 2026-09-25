@@ -47,7 +47,7 @@ def _monitor_agent(**overrides: object) -> Agent:
     return make_waiting_agent(**defaults)
 
 
-def test_fork_agent_tale_done_family_root_uses_family_name() -> None:
+def test_fork_agent_tale_done_agent_session_root_uses_agent_session_name() -> None:
     agent = make_waiting_agent(
         status="TALE DONE",
         agent_name="aww-plan",
@@ -69,7 +69,7 @@ def test_fork_agent_tale_done_family_root_uses_family_name() -> None:
     ]
 
 
-def test_fork_agent_plan_done_family_root_uses_family_name() -> None:
+def test_fork_agent_plan_done_agent_session_root_uses_agent_session_name() -> None:
     agent = make_waiting_agent(
         status="PLAN DONE",
         agent_name="planner-plan",

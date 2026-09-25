@@ -432,8 +432,10 @@ def test_cached_reconcile_patches_expanded_member_and_clan_ancestor() -> None:
     assert app.refresh_calls == []
 
 
-def test_reconcile_marks_plan_family_root_unread_for_its_own_completion() -> None:
-    """A plan-family root's own notification key must reach its own row.
+def test_reconcile_marks_plan_agent_session_root_unread_for_its_own_completion() -> (
+    None
+):
+    """A plan-session root's own notification key must reach its own row.
 
     Regression: ``concrete_agent_session_member_rows`` substitutes the root for its
     concrete ``main`` workflow step when computing member counts, but that
@@ -461,7 +463,7 @@ def test_reconcile_marks_plan_family_root_unread_for_its_own_completion() -> Non
     assert root.identity in app._unread_completed_agent_ids
 
 
-def _make_gate_launch_family(
+def _make_gate_launch_agent_session(
     *, status: str = "EPIC CREATED"
 ) -> tuple[Agent, Agent, Agent]:
     node = make_agent(name="build--plan", status=status, raw_suffix="node-suffix")
@@ -484,7 +486,7 @@ def _make_gate_launch_family(
 
 
 def test_reconcile_marks_node_unread_for_nested_gate_monitor_settlement() -> None:
-    node, gate, monitor = _make_gate_launch_family()
+    node, gate, monitor = _make_gate_launch_agent_session()
     app = _ProjectionApp([node, gate, monitor])
 
     app._reconcile_unread_from_completion_notifications(

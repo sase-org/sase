@@ -1,4 +1,4 @@
-"""Tests for compact agent-family context member labels."""
+"""Tests for compact agent-session context member labels."""
 
 from __future__ import annotations
 

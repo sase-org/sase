@@ -93,9 +93,11 @@ class _ClanDismissApp(TrackedProcRecorderMixin, AgentsMixin):
         return super()._submit_cleanup_proc(**kwargs)
 
 
-def test_action_kill_agent_on_clan_container_dismisses_family_and_monitor() -> None:
+def test_action_kill_agent_on_clan_container_dismisses_agent_session_and_monitor() -> (
+    None
+):
     plan_root = _done_row("sase-ps.plan", "20260818102050")
-    family_root = _done_row(
+    agent_session_root = _done_row(
         "sase-ps.plan--1",
         "20260818114621",
         parent_timestamp="20260818102050",
@@ -109,7 +111,7 @@ def test_action_kill_agent_on_clan_container_dismisses_family_and_monitor() -> N
         agent_session_role="monitor",
         role_suffix="--mon",
     )
-    projected = project_clan_tree([plan_root, family_root, monitor])
+    projected = project_clan_tree([plan_root, agent_session_root, monitor])
     container = next(agent for agent in projected if agent.is_clan_container)
     app = _ClanDismissApp(projected)
     app.current_idx = projected.index(container)
@@ -121,7 +123,7 @@ def test_action_kill_agent_on_clan_container_dismisses_family_and_monitor() -> N
 
     dismissed = app._dismissed_agents
     assert plan_root.identity in dismissed
-    assert family_root.identity in dismissed
+    assert agent_session_root.identity in dismissed
     assert monitor.identity in dismissed
 
     remaining = project_clan_tree(app._agents_with_children)
@@ -136,6 +138,6 @@ def test_action_kill_agent_on_clan_container_dismisses_family_and_monitor() -> N
     }
     assert payload_identities >= {
         (plan_root.cl_name, plan_root.raw_suffix),
-        (family_root.cl_name, family_root.raw_suffix),
+        (agent_session_root.cl_name, agent_session_root.raw_suffix),
         (monitor.cl_name, monitor.raw_suffix),
     }

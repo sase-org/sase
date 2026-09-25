@@ -388,7 +388,7 @@ async def test_plain_plan_root_relaunch_keeps_prompt(
     assert app.killed == []
 
 
-async def test_self_attaching_family_rewrite_notifies_and_kills_nothing(
+async def test_self_attaching_agent_session_rewrite_notifies_and_kills_nothing(
     tmp_path: Path,
 ) -> None:
     row = _self_attaching_agent_session_row(tmp_path)

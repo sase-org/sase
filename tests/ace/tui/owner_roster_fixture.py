@@ -18,7 +18,7 @@ from sase.core.agent_scan_facade import (
 
 @dataclass(frozen=True)
 class OwnerRosterFixture:
-    """Hermetic SASE home with a modern family lifecycle on disk."""
+    """Hermetic SASE home with a modern agent session lifecycle on disk."""
 
     home: Path
     observations: dict[str, str]
@@ -59,49 +59,51 @@ def write_owner_roster_fixture(
     recycled_ts = ts(4)
     fresh_ts = ts(2)
     _write_project(project, pid=pid, timestamp=fresh_ts)
-    _write_alive(artifacts / root_ts, "lane", family="lane", role="root", pid=pid)
-    _write_plan_shell(artifacts / plan_ts, "lane--plan", family="lane")
+    _write_alive(
+        artifacts / root_ts, "lane", agent_session="lane", role="root", pid=pid
+    )
+    _write_plan_shell(artifacts / plan_ts, "lane--plan", agent_session="lane")
     _write_alive(
         artifacts / code_ts,
         "lane--code",
-        family="lane",
+        agent_session="lane",
         role="code",
         pid=pid,
     )
     _write_monitor(
         artifacts / monitor_ts,
         "lane--mon",
-        family="lane",
+        agent_session="lane",
         finished_at=(now - timedelta(minutes=14)).timestamp(),
     )
     _write_gate(
         artifacts / gate_ts,
         "lane--gate",
-        family="lane",
+        agent_session="lane",
         pending=False,
         finished_at=(now - timedelta(minutes=12)).timestamp(),
     )
-    _write_proc(artifacts / proc_ts, "lane--proc", family="lane")
+    _write_proc(artifacts / proc_ts, "lane--proc", agent_session="lane")
     _write_gate(
         artifacts / pending_gate_ts,
         "lane--gate-pending",
-        family="lane",
+        agent_session="lane",
         pending=True,
     )
     _write_done(
         artifacts / done_root_ts,
         "settled",
-        family="settled",
+        agent_session="settled",
         finished_at=(now - timedelta(minutes=40)).timestamp(),
     )
     _write_done(
         artifacts / done_member_ts,
         "settled--code",
-        family="settled",
+        agent_session="settled",
         finished_at=(now - timedelta(minutes=38)).timestamp(),
         parent=done_root_ts,
     )
-    _write_fact_families(artifacts, root, now=now, pid=pid, ts=ts)
+    _write_fact_agent_sessions(artifacts, root, now=now, pid=pid, ts=ts)
     _write_dead(artifacts / dismissed_ts, "dismissed-old")
     _write_dead(artifacts / recycled_ts, "recycled")
     _write_alive(artifacts / fresh_ts, "fresh-launch", pid=pid)
@@ -132,7 +134,7 @@ def write_owner_roster_fixture(
         "dismissed-old": "alive",
         "recycled": "identity_mismatch",
         "fresh-launch": "alive",
-        **FACT_FAMILY_OBSERVATIONS,
+        **FACT_AGENT_SESSION_OBSERVATIONS,
     }
     return OwnerRosterFixture(
         home=home,
@@ -179,7 +181,7 @@ def _write_alive(
     artifact: Path,
     name: str,
     *,
-    family: str | None = None,
+    agent_session: str | None = None,
     role: str | None = None,
     pid: int,
 ) -> None:
@@ -190,8 +192,8 @@ def _write_alive(
     }
     if "--" in name:
         meta["role_suffix"] = _role_suffix(name)
-    if family:
-        meta["agent_session"] = family
+    if agent_session:
+        meta["agent_session"] = agent_session
     if role:
         meta["agent_session_role"] = role
     _write_json(artifact / "agent_meta.json", meta)
@@ -205,13 +207,13 @@ def _write_dead(artifact: Path, name: str) -> None:
     _write_json(artifact / "running.json", {"pid": 0})
 
 
-def _write_plan_shell(artifact: Path, name: str, *, family: str) -> None:
+def _write_plan_shell(artifact: Path, name: str, *, agent_session: str) -> None:
     artifact.mkdir(parents=True, exist_ok=True)
     _write_json(
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_session": family,
+            "agent_session": agent_session,
             "agent_session_role": "gate",
             "role_suffix": _role_suffix(name),
             **_gate_meta("plan-gate", "pending", "PLAN REVIEW"),
@@ -222,14 +224,14 @@ def _write_plan_shell(artifact: Path, name: str, *, family: str) -> None:
 
 
 def _write_monitor(
-    artifact: Path, name: str, *, family: str, finished_at: float
+    artifact: Path, name: str, *, agent_session: str, finished_at: float
 ) -> None:
     artifact.mkdir(parents=True, exist_ok=True)
     _write_json(
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_session": family,
+            "agent_session": agent_session,
             "agent_session_role": "monitor",
             "role_suffix": _role_suffix(name),
             "monitor_id": "mon-1",
@@ -248,7 +250,7 @@ def _write_gate(
     artifact: Path,
     name: str,
     *,
-    family: str,
+    agent_session: str,
     pending: bool,
     finished_at: float | None = None,
 ) -> None:
@@ -257,7 +259,7 @@ def _write_gate(
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_session": family,
+            "agent_session": agent_session,
             "agent_session_role": "gate",
             "role_suffix": _role_suffix(name),
             **_gate_meta(name, "pending" if pending else "completed", "REVIEW"),
@@ -278,13 +280,13 @@ def _write_gate(
         )
 
 
-def _write_proc(artifact: Path, name: str, *, family: str) -> None:
+def _write_proc(artifact: Path, name: str, *, agent_session: str) -> None:
     artifact.mkdir(parents=True, exist_ok=True)
     _write_json(
         artifact / "agent_meta.json",
         {
             "name": name,
-            "agent_session": family,
+            "agent_session": agent_session,
             "agent_session_role": "proc",
             "role_suffix": _role_suffix(name),
             "proc_id": "proc-1",
@@ -306,12 +308,12 @@ def _write_done(
     artifact: Path,
     name: str,
     *,
-    family: str,
+    agent_session: str,
     finished_at: float,
     parent: str | None = None,
 ) -> None:
     artifact.mkdir(parents=True, exist_ok=True)
-    meta: dict[str, object] = {"name": name, "agent_session": family}
+    meta: dict[str, object] = {"name": name, "agent_session": agent_session}
     if parent:
         meta["parent_timestamp"] = parent
     _write_json(artifact / "agent_meta.json", meta)
@@ -325,7 +327,7 @@ def _write_done(
     )
 
 
-FACT_FAMILY_OBSERVATIONS = {
+FACT_AGENT_SESSION_OBSERVATIONS = {
     "tale-fam": "dead",
     "tale-fam--plan": "dead",
     "tale-fam--code": "dead",
@@ -369,7 +371,7 @@ def _sync_stopped_at(artifacts: Path) -> None:
 
 
 def _gate_meta(gate_id: str, state: str, label: str) -> dict[str, object]:
-    """Persisted flat ``gate_*`` keys; the scanner folds them into ``family_shell``."""
+    """Persisted flat ``gate_*`` keys; the scanner folds them into ``agent_session_shell``."""
     return {
         "gate_id": gate_id,
         "gate_kind": "approval",
@@ -385,7 +387,7 @@ def _iso(now: datetime, minutes: int) -> str:
     return (now - timedelta(minutes=minutes)).astimezone().isoformat()
 
 
-def _write_fact_families(
+def _write_fact_agent_sessions(
     artifacts: Path,
     root: Path,
     *,
@@ -393,14 +395,14 @@ def _write_fact_families(
     pid: int,
     ts: Callable[[int], str],
 ) -> None:
-    """Plan-chain, active, waiting, pending-review, and answered families."""
+    """Plan-chain, active, waiting, pending-review, and answered sessions."""
     stamp = ts
 
     def member(
         ts_value: str,
         name: str,
         *,
-        family: str,
+        agent_session: str,
         role: str,
         parent: str | None,
         done: bool = True,
@@ -411,7 +413,7 @@ def _write_fact_families(
         artifact.mkdir(parents=True, exist_ok=True)
         meta: dict[str, object] = {
             "name": name,
-            "agent_session": family,
+            "agent_session": agent_session,
             "agent_session_role": role,
             "role_suffix": "--" + name.rsplit("--", 1)[1],
             "run_started_at": _stamp_iso(ts_value),
@@ -434,7 +436,7 @@ def _write_fact_families(
             _write_json(artifact / "running.json", {"pid": pid})
             _write_workflow_state(artifact, name, pid=pid, status="running")
 
-    def family_root(
+    def agent_session_root(
         ts_value: str,
         name: str,
         *,
@@ -471,42 +473,48 @@ def _write_fact_families(
             _write_json(artifact / "running.json", {"pid": pid})
             _write_workflow_state(artifact, name, pid=pid, status="running")
 
-    def plan_shell(ts_value: str, name: str, *, family: str, parent: str) -> None:
+    def plan_shell(
+        ts_value: str, name: str, *, agent_session: str, parent: str
+    ) -> None:
         member(
             ts_value,
             name,
-            family=family,
+            agent_session=agent_session,
             role="gate",
             parent=parent,
-            extra=_gate_meta(f"{family}-gate", "completed", "PLAN"),
+            extra=_gate_meta(f"{agent_session}-gate", "completed", "PLAN"),
         )
 
     # 0n: tale plan chain, settled.
     t_root, t_plan, t_code = stamp(90), stamp(89), stamp(88)
-    family_root(t_root, "tale-fam", action="tale", done=True)
-    plan_shell(t_plan, "tale-fam--plan", family="tale-fam", parent=t_root)
-    member(t_code, "tale-fam--code", family="tale-fam", role="code", parent=t_root)
+    agent_session_root(t_root, "tale-fam", action="tale", done=True)
+    plan_shell(t_plan, "tale-fam--plan", agent_session="tale-fam", parent=t_root)
+    member(
+        t_code, "tale-fam--code", agent_session="tale-fam", role="code", parent=t_root
+    )
     # 0k: epic plan chain, settled.
     e_root, e_plan, e_epic = stamp(87), stamp(86), stamp(85)
-    family_root(e_root, "epic-fam", action="epic", done=True)
-    plan_shell(e_plan, "epic-fam--plan", family="epic-fam", parent=e_root)
-    member(e_epic, "epic-fam--epic", family="epic-fam", role="epic", parent=e_root)
-    # Active family whose coder is still running.
+    agent_session_root(e_root, "epic-fam", action="epic", done=True)
+    plan_shell(e_plan, "epic-fam--plan", agent_session="epic-fam", parent=e_root)
+    member(
+        e_epic, "epic-fam--epic", agent_session="epic-fam", role="epic", parent=e_root
+    )
+    # Active session whose coder is still running.
     a_root, a_plan, a_code = stamp(84), stamp(83), stamp(82)
-    family_root(a_root, "active-fam", action="tale", done=False, alive=True)
-    plan_shell(a_plan, "active-fam--plan", family="active-fam", parent=a_root)
+    agent_session_root(a_root, "active-fam", action="tale", done=False, alive=True)
+    plan_shell(a_plan, "active-fam--plan", agent_session="active-fam", parent=a_root)
     member(
         a_code,
         "active-fam--code",
-        family="active-fam",
+        agent_session="active-fam",
         role="code",
         parent=a_root,
         done=False,
         alive=True,
     )
-    # Waiting family root.
+    # Waiting session root.
     w_root = artifacts / stamp(81)
-    _write_alive(w_root, "wait-fam", family="wait-fam", role="root", pid=pid)
+    _write_alive(w_root, "wait-fam", agent_session="wait-fam", role="root", pid=pid)
     _write_json(w_root / "waiting.json", {"waiting_for": ["tale-fam"]})
     # Pending review: submitted, unapproved plan with a tier file.
     review = artifacts / stamp(80)
@@ -535,12 +543,12 @@ def _write_fact_families(
     )
     # Answered continuation: the asker child handed off to a later child.
     s_root, s_ask, s_code = stamp(78), stamp(77), stamp(76)
-    family_root(s_root, "asker", action="tale", done=True)
+    agent_session_root(s_root, "asker", action="tale", done=True)
     ask_session = artifacts / s_ask / "question_session"
     member(
         s_ask,
         "asker--ask",
-        family="asker",
+        agent_session="asker",
         role="plan",
         parent=s_root,
         extra={
@@ -552,16 +560,16 @@ def _write_fact_families(
     ask_session.mkdir(parents=True, exist_ok=True)
     _write_json(ask_session / "question_request.json", {})
     _write_json(ask_session / "question_response.json", {})
-    member(s_code, "asker--code", family="asker", role="code", parent=s_root)
-    # Production shape of a completed plan-chain family: no separate root
-    # record exists. The plan shell is its own family root (role "root", no
+    member(s_code, "asker--code", agent_session="asker", role="code", parent=s_root)
+    # Production shape of a completed plan-chain agent_session: no separate root
+    # record exists. The plan shell is its own session root (role "root", no
     # parent) and every later shell points back at it.
     c_plan, c_mon, c_one = stamp(75), stamp(74), stamp(73)
-    member(c_plan, "chain--plan", family="chain", role="root", parent=None)
+    member(c_plan, "chain--plan", agent_session="chain", role="root", parent=None)
     member(
         c_mon,
         "chain--mon",
-        family="chain",
+        agent_session="chain",
         role="monitor",
         parent=c_plan,
         extra={
@@ -572,7 +580,7 @@ def _write_fact_families(
             "monitor_command": "just check",
         },
     )
-    member(c_one, "chain--1", family="chain", role="root", parent=c_plan)
+    member(c_one, "chain--1", agent_session="chain", role="root", parent=c_plan)
     # A directory that only holds a side file is not an agent on either side.
     bare = artifacts / stamp(72)
     bare.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-"""Plan-then-commit Beads reveals: family context queries end to end."""
+"""Plan-then-commit Beads reveals: session context queries end to end."""
 
 from __future__ import annotations
 

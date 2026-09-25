@@ -157,7 +157,7 @@ def test_owner_and_catalog_agree_per_identity_and_dimension(
 
 
 def _start_times(rows: list[Agent]) -> dict[str, object]:
-    # The catalog gives every family member its root's start (an existing
+    # The catalog gives every session member its root's start (an existing
     # presentation rule), so the per-row start time is only comparable for
     # roots and standalone rows.
     return {
@@ -254,7 +254,7 @@ def test_owner_and_catalog_agree_on_identity_set_and_panels(
     assert panels(remote_rows) == panels(owner_rows)
 
 
-def test_tale_and_epic_families_carry_rich_status_without_bare_plan_rows(
+def test_tale_and_epic_agent_sessions_carry_rich_status_without_bare_plan_rows(
     fixture: OwnerRosterFixture,
 ) -> None:
     remote = _by_name(_remote_rows(fixture, compact=False))
@@ -266,7 +266,7 @@ def test_tale_and_epic_families_carry_rich_status_without_bare_plan_rows(
         assert shell.gate_id is not None
 
 
-def test_active_and_waiting_families_and_answered_question(
+def test_active_and_waiting_agent_sessions_and_answered_question(
     fixture: OwnerRosterFixture,
 ) -> None:
     remote = _by_name(_remote_rows(fixture, compact=False))

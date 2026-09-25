@@ -27,7 +27,7 @@ _STARTED = datetime(2026, 8, 10, 9, 0, 0)
 def _root(
     *,
     agent_session_root: str = "fam",
-    project_file: str = "/tmp/family.sase",
+    project_file: str = "/tmp/session.sase",
     raw_suffix: str = "20260810090000",
 ) -> Agent:
     return Agent(

@@ -163,14 +163,16 @@ def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
     assert _title_text(_pw(app, "apple")).plain == ("@apple · 1 [R1]")
 
 
-def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> None:
+def test_panel_title_projects_parallel_agent_session_member_statuses_per_panel() -> (
+    None
+):
     ordinary_running = _agent(
         name="ordinary-running",
         tribe="apple",
         suffix="ordinary-running",
     )
     apple_root = _agent(
-        name="apple-family",
+        name="apple-session",
         tribe="apple",
         suffix="apple-root",
         status="WAITING",
@@ -197,7 +199,7 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
     apple_root.runtime_children.extend([*apple_members, apple_serial_child])
 
     banana_root = _agent(
-        name="banana-family",
+        name="banana-session",
         tribe="banana",
         suffix="banana-root",
         status="RUNNING",
@@ -239,13 +241,13 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    # Family roots count once as agent nodes. Loaded member shells and serial
+    # Session roots count once as agent nodes. Loaded member shells and serial
     # descendants do not widen panel title totals or chips.
     assert _title_text(_pw(app, "apple")).plain == ("@apple · 2 [R1 W1]")
     assert _title_text(_pw(app, "banana")).plain == ("@banana · 1 [R1]")
 
 
-def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
+def test_panel_title_uses_agent_session_owner_status_in_all_layouts() -> None:
     planner = _agent(
         name="build--plan",
         tribe="apple",
@@ -294,16 +296,16 @@ def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
 
 
 def test_settled_monitor_badge_is_panel_scoped() -> None:
-    apple_root = _agent(name="apple-family", tribe="apple", suffix="apple-root")
-    apple_root.agent_session = "apple-family"
+    apple_root = _agent(name="apple-session", tribe="apple", suffix="apple-root")
+    apple_root.agent_session = "apple-session"
     apple_root.agent_session_role = "root"
     apple_monitor = _agent(
-        name="apple-family--mon",
+        name="apple-session--mon",
         tribe="apple",
         suffix="apple-mon",
         parent_timestamp=apple_root.raw_suffix,
     )
-    apple_monitor.agent_session = "apple-family"
+    apple_monitor.agent_session = "apple-session"
     apple_monitor.agent_session_role = "monitor"
     apple_monitor.role_suffix = "--mon"
     apple_monitor.monitor_id = "m1"
@@ -325,27 +327,27 @@ def test_settled_monitor_badge_is_panel_scoped() -> None:
 
 
 def test_running_monitor_badge_is_panel_scoped() -> None:
-    apple_root = _agent(name="apple-family", tribe="apple", suffix="apple-root")
-    apple_root.agent_session = "apple-family"
+    apple_root = _agent(name="apple-session", tribe="apple", suffix="apple-root")
+    apple_root.agent_session = "apple-session"
     apple_root.agent_session_role = "root"
     apple_running_monitor = _agent(
-        name="apple-family--mon-run",
+        name="apple-session--mon-run",
         tribe="apple",
         suffix="apple-mon-run",
         parent_timestamp=apple_root.raw_suffix,
     )
-    apple_running_monitor.agent_session = "apple-family"
+    apple_running_monitor.agent_session = "apple-session"
     apple_running_monitor.agent_session_role = "monitor"
     apple_running_monitor.role_suffix = "--mon"
     apple_running_monitor.monitor_id = "m1"
     apple_running_monitor.monitor_state = "running"
     apple_done_monitor = _agent(
-        name="apple-family--mon-done",
+        name="apple-session--mon-done",
         tribe="apple",
         suffix="apple-mon-done",
         parent_timestamp=apple_root.raw_suffix,
     )
-    apple_done_monitor.agent_session = "apple-family"
+    apple_done_monitor.agent_session = "apple-session"
     apple_done_monitor.agent_session_role = "monitor"
     apple_done_monitor.role_suffix = "--mon"
     apple_done_monitor.monitor_id = "m2"

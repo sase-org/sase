@@ -346,8 +346,8 @@ def test_follow_link_uses_chip_target_hint_when_pane_resolver_has_no_answer() ->
     assert pane.selected_entry_target() == target
 
 
-def test_follow_link_no_longer_falls_back_to_family_reveal_rung() -> None:
-    """The FAMILY-role reveal rung is gone; a miss reports honestly instead."""
+def test_follow_link_miss_reports_honestly_without_container_fallback() -> None:
+    """A reveal miss reports honestly instead of falling back to the removed container rung."""
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.9"))
     app = _App(

@@ -276,9 +276,9 @@ def test_agent_owns_sase_agent_truth_table() -> None:
     clan.is_clan_container = True
     hidden = _agent("hidden", is_hidden_step=True)
     workflow_child = _agent("workflow.step", parent_workflow="workflow")
-    agent_session_member = _agent("family--code", parent_timestamp="family--plan")
-    agent_session_root = _agent("family--plan")
-    agent_session_root.agent_session = "family"
+    agent_session_member = _agent("session--code", parent_timestamp="session--plan")
+    agent_session_root = _agent("session--plan")
+    agent_session_root.agent_session = "session"
     agent_session_root.agent_session_role = "root"
     agent_session_root.followup_agents = [agent_session_member]
 

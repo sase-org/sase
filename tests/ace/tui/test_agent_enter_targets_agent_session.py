@@ -17,7 +17,7 @@ from sase.ace.tui.actions.agents._patch_navigation import (
 from sase.ace.tui.models.agent import Agent, AgentType
 
 from ._agent_enter_targets_helpers import (
-    _family,
+    _agent_session,
     _gate_row,
     _matching_action_data,
     _notification,
@@ -31,7 +31,7 @@ from ._agent_unread_helpers import make_agent
 def test_container_collects_member_gate_rows() -> None:
     gate = _gate_row("010101", notification_id="n-gate")
     member = make_agent(name="worker", raw_suffix="20260918010202")
-    root = _family(members=[member, gate])
+    root = _agent_session(members=[member, gate])
     resolution = _resolve(root)
     kinds = _sources(resolution)
     assert "gate_row" in kinds
@@ -41,7 +41,7 @@ def test_container_collects_member_gate_rows() -> None:
 
 def test_container_matches_member_identity_notifications() -> None:
     member = make_agent(name="worker", raw_suffix="20260918010202")
-    root = _family(members=[member])
+    root = _agent_session(members=[member])
     notification = _notification(
         "n-plan",
         "PlanApproval",
@@ -63,7 +63,7 @@ def test_member_creator_back_reference_matches() -> None:
     assert member.is_gate is False
     gate = _gate_row("010101", gate_id="gate-creator-1")
     member = replace(member, followup_agents=[gate])
-    root = _family(members=[member])
+    root = _agent_session(members=[member])
     gate.agent_session_container = root
     resolution = _resolve(member)
     assert [t.key for t in resolution.targets] == [
@@ -82,7 +82,7 @@ def test_member_gate_creator_agent_matches() -> None:
         gate_creator_agent="creator-agent",
     )
     member = replace(member, followup_agents=[gate])
-    root = _family(members=[member])
+    root = _agent_session(members=[member])
     gate.agent_session_container = root
     resolution = _resolve(member)
     assert resolution.targets[0].key == "gate:gate-other-1"
@@ -118,7 +118,7 @@ def test_settled_bundle_drops_notification_only_target() -> None:
         stop_time=datetime(2026, 9, 18, 13, 0, 0),
         bundle_path="/tmp/bundles/gate-settled",
     )
-    root = _family(members=[member, settled_gate], root_cl="~")
+    root = _agent_session(members=[member, settled_gate], root_cl="~")
     stale = _notification(
         "n-stale",
         "CustomGate",
@@ -155,7 +155,7 @@ def test_old_plan_approval_found_behind_newer_notifications() -> None:
 def test_container_falls_back_to_newest_member_patch() -> None:
     member = make_agent(name="member-patch", raw_suffix="20260918010202")
     gate = _gate_row("010101")
-    root = _family(members=[member, gate], root_cl="~")
+    root = _agent_session(members=[member, gate], root_cl="~")
     resolution = _resolve(root)
     assert resolution.targets[-1].key == "patch:member-patch"
     assert resolution.targets[-1].project_file == member.project_file
@@ -227,7 +227,7 @@ def test_stale_pending_gate_row_links_notification_by_request_id() -> None:
         notification_id=None,
         bundle_path=None,
     )
-    root = _family(members=[member, gate], root_cl="~")
+    root = _agent_session(members=[member, gate], root_cl="~")
     notification = _notification(
         "n-tale",
         "PlanApproval",
@@ -263,7 +263,7 @@ def test_settled_gate_id_drops_notification_only_target() -> None:
         stop_time=datetime(2026, 9, 18, 13, 0, 0),
     )
     assert settled_gate.gate_bundle_path is None
-    root = _family(members=[member, settled_gate], root_cl="~")
+    root = _agent_session(members=[member, settled_gate], root_cl="~")
     stale = _notification(
         "n-stale-2",
         "CustomGate",
@@ -303,7 +303,7 @@ def test_ordering_gates_newest_first_patch_last() -> None:
         start_status="LAUNCH",
         start_time=datetime(2026, 9, 18, 12, 0, 0),
     )
-    root = _family(members=[old_gate, new_gate])
+    root = _agent_session(members=[old_gate, new_gate])
     resolution = _resolve(root)
     assert [t.key for t in resolution.targets] == [
         "gate:gate-new",

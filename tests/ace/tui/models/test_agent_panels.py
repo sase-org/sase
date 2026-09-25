@@ -372,22 +372,22 @@ def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
 
 
 def test_nested_monitor_inherits_clan_anchor_panel() -> None:
-    agent_session_root = _agent(suffix="family", tribe="epic", name="research.family")
+    agent_session_root = _agent(suffix="session", tribe="epic", name="research.session")
     agent_session_root.agent_clan = "research"
     agent_session_root.agent_clan_generation = "20260817080000"
-    agent_session_root.agent_session = "research.family"
+    agent_session_root.agent_session = "research.session"
     agent_session_root.agent_session_role = "root"
     starter = _agent(
         suffix="starter",
-        name="research.family--2",
-        parent_timestamp="family",
+        name="research.session--2",
+        parent_timestamp="session",
     )
     starter.agent_session = agent_session_root.agent_session
     starter.agent_session_role = "code"
     monitor = _agent(
         suffix="monitor",
         tribe="review",
-        name="research.family--mon-1",
+        name="research.session--mon-1",
         parent_timestamp="starter",
     )
     monitor.agent_session = agent_session_root.agent_session

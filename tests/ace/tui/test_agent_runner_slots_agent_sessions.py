@@ -1,4 +1,4 @@
-"""Tests for runner-slot occupancy across families, clans, and monitor handoffs."""
+"""Tests for runner-slot occupancy across sessions, clans, and monitor handoffs."""
 
 from __future__ import annotations
 
@@ -75,7 +75,9 @@ def test_refresh_runner_slot_context_counts_each_parallel_clan_member() -> None:
     _assert_capacity_metrics(capacity, (10, 2, 0))
 
 
-def test_refresh_runner_slot_context_counts_monitor_holding_family_slot() -> None:
+def test_refresh_runner_slot_context_counts_monitor_holding_agent_session_slot() -> (
+    None
+):
     """A session whose root died mid-handoff still holds one slot via its monitor.
 
     ``root`` stands in for a session container whose status already mirrors
@@ -97,7 +99,9 @@ def test_refresh_runner_slot_context_counts_monitor_holding_family_slot() -> Non
     _assert_capacity_metrics(capacity, (10, 1, 0))
 
 
-def test_refresh_runner_slot_context_counts_post_handoff_followup_family_slot() -> None:
+def test_refresh_runner_slot_context_counts_post_handoff_followup_agent_session_slot() -> (
+    None
+):
     """A session whose monitor settled and launched a follow-up still holds one slot."""
     root = _agent("root", status="RUNNING")
     followup = _agent(

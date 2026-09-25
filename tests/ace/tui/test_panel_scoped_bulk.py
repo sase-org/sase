@@ -362,9 +362,9 @@ def _clan_member_panel_app() -> tuple[_FakeApp, Agent, Agent, Agent, Agent, Agen
         agent_clan="alpha",
         agent_clan_generation="g1",
     )
-    family_shell = _agent(
+    agent_session_shell = _agent(
         name="alpha.direct--1",
-        suffix="alpha-family",
+        suffix="alpha-session",
         tribe="epic",
         agent_clan="alpha",
         agent_clan_generation="g1",
@@ -389,10 +389,10 @@ def _clan_member_panel_app() -> tuple[_FakeApp, Agent, Agent, Agent, Agent, Agen
         agent_clan="review",
         agent_clan_generation="g2",
     )
-    rows = _projected_clans(direct, family_shell, running, standalone, review)
+    rows = _projected_clans(direct, agent_session_shell, running, standalone, review)
     visible = [agent for agent in rows if not agent_is_tree_child(agent)]
     app = _FakeApp(visible, focused_key="epic", agents_with_children=rows)
-    return app, direct, family_shell, running, standalone, review
+    return app, direct, agent_session_shell, running, standalone, review
 
 
 def _dismiss_candidates(agents: list[Agent]) -> list[Agent]:
@@ -412,7 +412,9 @@ def _kill_candidates(agents: list[Agent]) -> list[Agent]:
 
 
 def test_panel_dismiss_selects_clan_members_not_container() -> None:
-    app, direct, family_shell, running, standalone, review = _clan_member_panel_app()
+    app, direct, agent_session_shell, running, standalone, review = (
+        _clan_member_panel_app()
+    )
 
     panel = app._agents_in_focused_panel()
     assert any(agent.is_clan_container for agent in panel)
@@ -420,7 +422,7 @@ def test_panel_dismiss_selects_clan_members_not_container() -> None:
     dismissable = _dismiss_candidates(candidates)
     assert {agent.identity for agent in dismissable} == {
         direct.identity,
-        family_shell.identity,
+        agent_session_shell.identity,
         standalone.identity,
     }
     assert all(not agent.is_clan_container for agent in candidates)
@@ -436,7 +438,9 @@ def test_panel_dismiss_selects_clan_members_not_container() -> None:
 
 
 def test_panel_kill_and_dismiss_selects_clan_members_not_container() -> None:
-    app, direct, family_shell, running, standalone, review = _clan_member_panel_app()
+    app, direct, agent_session_shell, running, standalone, review = (
+        _clan_member_panel_app()
+    )
 
     panel = app._agents_in_focused_panel()
     candidates = expand_clan_containers_for_cleanup(panel, app._agents_with_children)
@@ -446,7 +450,7 @@ def test_panel_kill_and_dismiss_selects_clan_members_not_container() -> None:
     assert {agent.identity for agent in killable} == {running.identity}
     assert {agent.identity for agent in dismissable} == {
         direct.identity,
-        family_shell.identity,
+        agent_session_shell.identity,
         standalone.identity,
     }
     assert all(not agent.is_clan_container for agent in candidates)

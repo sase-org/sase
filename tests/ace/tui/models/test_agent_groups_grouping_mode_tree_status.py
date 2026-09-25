@@ -187,7 +187,7 @@ def test_build_agent_tree_by_status_keeps_root_anchored_agent_session_contiguous
     None
 ):
     agent_session_root = _agent(
-        cl_name="family-root",
+        cl_name="session-root",
         agent_name="a9f",
         raw_suffix="ts-root",
         role_suffix="-plan",
@@ -196,7 +196,7 @@ def test_build_agent_tree_by_status_keeps_root_anchored_agent_session_contiguous
         start_time=datetime(2026, 4, 26, 9, 0, 0),
     )
     newer_followup = _agent(
-        cl_name="family-followup",
+        cl_name="session-followup",
         agent_name="a9f.w1",
         raw_suffix="ts-followup",
         role_suffix="-plan",
@@ -205,7 +205,7 @@ def test_build_agent_tree_by_status_keeps_root_anchored_agent_session_contiguous
         start_time=datetime(2026, 4, 26, 12, 0, 0),
     )
     workflow_child = _agent(
-        cl_name="family-step",
+        cl_name="session-step",
         agent_name="step.bash",
         parent_workflow="a9f.w1",
         parent_timestamp="ts-followup",

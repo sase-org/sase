@@ -107,6 +107,7 @@ def _preview() -> _Preview:
             "project_id": "sase",
         },
         "agent_id": "op-1",
+        # legacy agent-family spelling: core emits "family_id" until core-contract.
         "family_id": None,
     }
     return _Preview(
