@@ -146,7 +146,7 @@ async def test_real_loader_plan_agent_session_retry_countdown_png_snapshot(
     )
     patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
 
-    async with AcePage(query='"retry-family"', patches=patches()) as page:
+    async with AcePage(query='"retry-session"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
         loaded = page.app._agents[0]
