@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+import sys
 from typing import TYPE_CHECKING
 
 from sase.bead.cli_work_cleanup_targets import (
@@ -20,6 +21,8 @@ from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.agent.names._registry_batch import RegisteredNameReservationSnapshot
+    from sase.bead.cli_work_cleanup_targets import _OwnerRecordLookup
 
 
 def preview_bead_work_force_reuse(
@@ -120,14 +123,58 @@ def select_bead_work_launch(
             view = load_agent_owner_view()
         with timer.stage("registry_read", relevant_row_reads=len(slots)):
             registry_snapshot = registered_name_reservation_snapshot()
+    owner_by_name = _lookup_slot_owners(slots, registry_snapshot)
+    drifted_names = _drifted_owner_names(slots, view=view, owner_by_name=owner_by_name)
+    if drifted_names:
+        listed = ", ".join(drifted_names)
+        print(
+            "agent-name registry is missing "
+            f"{len(drifted_names)} owner(s) found in agent artifacts "
+            f"({listed}); rebuilding the registry before cleanup selection",
+            file=sys.stderr,
+        )
+        from sase.agent.names import rebuild_name_registry
+
+        if timer is None:
+            rebuild_name_registry()
+            registry_snapshot = registered_name_reservation_snapshot()
+        else:
+            with timer.stage(
+                "registry_drift_repair",
+                drifted_owner_count=len(drifted_names),
+            ):
+                rebuild_name_registry()
+                registry_snapshot = registered_name_reservation_snapshot()
+        owner_by_name = _lookup_slot_owners(slots, registry_snapshot)
     targets: list[CleanupTarget] = []
     owner_present_by_slot: dict[str, int] = {}
     preserved_slots: set[str] = set()
     blocked_slots: set[str] = set()
 
     for slot in slots:
-        owner = registry_snapshot.lookup(slot.owner_name)
+        owner = owner_by_name.get(slot.owner_name)
         if owner is None:
+            records = view.records_for_agent_name(slot.owner_name)
+            if records:
+                dirs = ", ".join(
+                    str(getattr(record, "artifact_dir", "")) for record in records
+                )
+                blocked = CleanupTarget(
+                    name=slot.owner_name,
+                    action="BLOCKED",
+                    current_state="blocked",
+                    detail=(
+                        f"agent name '{slot.owner_name}' has artifact owner(s) "
+                        f"at {dirs} that the agent-name registry does not "
+                        "record even after a rebuild; run `sase doctor -v` "
+                        "and retry"
+                    ),
+                    expected_bead_id=slot.expected_bead_id,
+                    slot_id=slot.slot_id,
+                    artifacts_dir=str(getattr(records[0], "artifact_dir", "")),
+                )
+                blocked_slots.add(slot.slot_id)
+                targets.append(blocked)
             continue
         try:
             classified = classify_slot_owner(
@@ -299,3 +346,38 @@ def _select_preserved_slots_from_registry(
         targets=tuple(targets),
         launch_names=frozenset(),
     )
+
+
+def _lookup_slot_owners(
+    slots: tuple[BeadWorkSlot, ...],
+    snapshot: RegisteredNameReservationSnapshot,
+) -> dict[str, dict[str, object] | None]:
+    """Look up each distinct slot owner once against *snapshot*."""
+    owners: dict[str, dict[str, object] | None] = {}
+    for slot in slots:
+        if slot.owner_name in owners:
+            continue
+        owners[slot.owner_name] = snapshot.lookup(slot.owner_name)
+    return owners
+
+
+def _drifted_owner_names(
+    slots: tuple[BeadWorkSlot, ...],
+    *,
+    view: _OwnerRecordLookup,
+    owner_by_name: dict[str, dict[str, object] | None],
+) -> tuple[str, ...]:
+    """Return owner names present in artifacts but missing from the registry."""
+    drifted: list[str] = []
+    seen: set[str] = set()
+    for slot in slots:
+        if slot.owner_name in seen:
+            continue
+        if owner_by_name.get(slot.owner_name) is not None:
+            continue
+        records = view.records_for_agent_name(slot.owner_name)
+        if not records:
+            continue
+        seen.add(slot.owner_name)
+        drifted.append(slot.owner_name)
+    return tuple(sorted(drifted))
