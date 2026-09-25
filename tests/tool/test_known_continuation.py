@@ -15,7 +15,6 @@ import yaml
 
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import tool_run_list, tool_run_triage_show
-from sase.feature_flags.snapshot import override_flags
 from sase.tool.adopt import execute_adopted_run
 from sase.tool.argv import ResolvedToolArgv
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -175,21 +174,16 @@ def test_stage_decision_requires_all_known_or_flaky() -> None:
     assert stage_decision(None)[0:2] == ("stop", "no_items")
 
 
-def test_agent_default_continuation_mode_needs_agent_and_flag(
+def test_agent_default_continuation_mode_needs_agent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _home(monkeypatch, tmp_path)
     from sase.tool.executor import agent_default_continuation_mode
 
-    with override_flags(tool_failure_triage=True):
-        assert agent_default_continuation_mode(_resolved(), "agent-1") == "known"
-        assert agent_default_continuation_mode(_resolved(), "  ") == "never"
-        assert agent_default_continuation_mode(_resolved(), None) == "never"
-        assert (
-            agent_default_continuation_mode(_resolved(stages="none"), "agent-1") is None
-        )
-    with override_flags(tool_failure_triage=False):
-        assert agent_default_continuation_mode(_resolved(), "agent-1") == "never"
+    assert agent_default_continuation_mode(_resolved(), "agent-1") == "known"
+    assert agent_default_continuation_mode(_resolved(), "  ") == "never"
+    assert agent_default_continuation_mode(_resolved(), None) == "never"
+    assert agent_default_continuation_mode(_resolved(stages="none"), "agent-1") is None
 
 
 def test_adopted_worker_inherits_recorded_starter_agent(
@@ -235,12 +229,8 @@ def test_adopted_worker_inherits_recorded_starter_agent(
     monkeypatch.setattr(adopt_module, "tool_run_claim", _claim)
     monkeypatch.setattr(adopt_module, "run_recorded_body", _body)
 
-    with override_flags(tool_failure_triage=True):
-        assert execute_adopted_run("run-1") == 0
-        assert seen["mode"] == "known"
-    with override_flags(tool_failure_triage=False):
-        assert execute_adopted_run("run-1") == 0
-        assert seen["mode"] == "never"
+    assert execute_adopted_run("run-1") == 0
+    assert seen["mode"] == "known"
 
 
 def test_agent_run_continues_past_all_known_stage(
@@ -263,8 +253,7 @@ def test_agent_run_continues_past_all_known_stage(
     capsys.readouterr()
 
     monkeypatch.setenv("SASE_AGENT_NAME", "e2e-agent")
-    with override_flags(tool_failure_triage=True):
-        assert _run() == 1
+    assert _run() == 1
     captured = capsys.readouterr()
     assert "verdict: no_new_failures" in captured.err
 
@@ -323,8 +312,7 @@ def test_agent_run_stops_on_a_new_item(
     monkeypatch.chdir(root)
 
     monkeypatch.setenv("SASE_AGENT_NAME", "e2e-agent")
-    with override_flags(tool_failure_triage=True):
-        assert _run() == 4
+    assert _run() == 4
     run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
     records = _events_for(run_id)
     stopped = [r for r in records if r.get("kind") == "stopped"]
@@ -354,8 +342,7 @@ def test_agent_run_stops_on_generic_output(
     monkeypatch.chdir(root)
 
     monkeypatch.setenv("SASE_AGENT_NAME", "e2e-agent")
-    with override_flags(tool_failure_triage=True):
-        assert _run() == 3
+    assert _run() == 3
     run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
     records = _events_for(run_id)
     stopped = [r for r in records if r.get("kind") == "stopped"]
@@ -368,7 +355,7 @@ def test_agent_run_stops_on_generic_output(
     assert all(i["label"]["class"] == "unknown" for i in items)
 
 
-def test_human_run_defaults_to_never_with_flag_on(
+def test_human_run_defaults_to_never(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _home(monkeypatch, tmp_path)
@@ -382,37 +369,12 @@ def test_human_run_defaults_to_never_with_flag_on(
     root = _project(tmp_path, script)
     monkeypatch.chdir(root)
 
-    with override_flags(tool_failure_triage=True):
-        assert _run() == 7
+    assert _run() == 7
     run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
     records = _events_for(run_id)
     stopped = [r for r in records if r.get("kind") == "stopped"]
     assert [r["reason"] for r in stopped] == ["mode_never"]
     assert not any(r.get("kind") == "continued" for r in records)
-
-
-def test_flag_off_keeps_agent_runs_fail_fast(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _home(monkeypatch, tmp_path)
-    script = " && ".join(
-        (
-            _stage("one", "sh -c 'exit 7'"),
-            _stage("two", "true"),
-            _finish(),
-        )
-    )
-    root = _project(tmp_path, script)
-    monkeypatch.chdir(root)
-
-    monkeypatch.setenv("SASE_AGENT_NAME", "e2e-agent")
-    with override_flags(tool_failure_triage=False):
-        assert _run() == 7
-    run_id = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]["run_id"]
-    records = _events_for(run_id)
-    assert [r["reason"] for r in records if r.get("kind") == "stopped"] == [
-        "mode_never"
-    ]
 
 
 def _helper_env(

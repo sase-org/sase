@@ -84,6 +84,14 @@ re-run a child whose result is uncertain. See [[glossary:tool-catalog]].
 `check` catalog entry and recipe guard, so run the wrapped form from inside that
 checkout and a raw agent `just check` there is refused just like here.
 
+### Reading `sase tool run` triage
+
+Treat UNKNOWN as yours. Do not call a failure unrelated without a KNOWN/FLAKY label or
+equivalent evidence, and do not `+1` a bead when its item already names that bead as a
+possible owner. Agent runs continue past all-KNOWN/FLAKY stages by default; `-x`
+restores fail-fast and `-k` continues every failed stage. See
+[[glossary:triage-verdict]].
+
 A `verify` monitor start reserves its ToolRun up front and prints the id before the turn
 ends; `sase tool show RUN -F`, `sase tool stop RUN`, and `sase tool wait RUN` work on
 that id from any later shell. `sase tool run -H` is the non-agent hand-off (it returns

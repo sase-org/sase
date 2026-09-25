@@ -5377,11 +5377,6 @@
           "default": true,
           "deprecated": true
         },
-        "tool_failure_triage": {
-          "type": "boolean",
-          "description": "Agent-visible failure triage: the sase tool run footer shows labeled items and a verdict line, agent runs of stages: run_silent tools continue past all-KNOWN/FLAKY stages, and verify-monitor follow-ups include the triage section",
-          "default": false
-        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",

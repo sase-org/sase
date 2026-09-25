@@ -15,7 +15,6 @@ import yaml
 
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import tool_run_list, tool_run_show, tool_run_triage_show
-from sase.feature_flags.snapshot import override_flags
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 
 
@@ -182,9 +181,6 @@ def test_named_failed_stage_retains_output_and_settles_triage(
     monkeypatch.chdir(root)
 
     assert _run() == 1
-    assert "verdict:" not in capsys.readouterr().err
-    with override_flags(tool_failure_triage=True):
-        assert _run() == 1
     captured = capsys.readouterr()
     assert "triage unavailable:" not in captured.err, captured.err
     shown, records = _newest()

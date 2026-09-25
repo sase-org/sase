@@ -12,7 +12,6 @@ from sase.core.tool_run import (
     tool_run_observe,
     tool_run_triage_settle,
 )
-from sase.feature_flags import override_flags
 from sase.monitor.followup_prompt import compose_followup_prompt
 
 from ._followup_prompt_fixtures import _COMMON
@@ -87,37 +86,28 @@ def _prompt(**kwargs: object) -> str:
     return compose_followup_prompt(**payload)  # type: ignore[arg-type]
 
 
-def test_flag_off_followup_omits_triage_section() -> None:
-    with override_flags(tool_failure_triage=False):
-        prompt = _prompt(tool_run_id="run-reserved", triage=_TRIAGE)
-    assert "## Failure triage" not in prompt
-    assert "verdict: new_failures" not in prompt
-    assert "## Selected diagnostics" not in prompt
-
-
-def test_flag_on_followup_inserts_triage_before_diagnostics() -> None:
+def test_followup_inserts_triage_before_diagnostics() -> None:
     diagnostics = "pytest failed\n"
-    with override_flags(tool_failure_triage=True):
-        prompt = _prompt(
-            tool_run_id="run-reserved",
-            triage=_TRIAGE,
-            diagnostic_manifest={
-                "schema_version": 1,
-                "producer": "test",
-                "manifest_ref": "file:explicit:diagnostics",
-                "complete": False,
-                "stages": [
-                    {
-                        "stage_id": "pytest",
-                        "name": "pytest",
-                        "status": "failed",
-                        "exit_code": 1,
-                        "diagnostic_refs": ["file:explicit:pytest-log"],
-                    }
-                ],
-            },
-            selected_diagnostics_text=diagnostics,
-        )
+    prompt = _prompt(
+        tool_run_id="run-reserved",
+        triage=_TRIAGE,
+        diagnostic_manifest={
+            "schema_version": 1,
+            "producer": "test",
+            "manifest_ref": "file:explicit:diagnostics",
+            "complete": False,
+            "stages": [
+                {
+                    "stage_id": "pytest",
+                    "name": "pytest",
+                    "status": "failed",
+                    "exit_code": 1,
+                    "diagnostic_refs": ["file:explicit:pytest-log"],
+                }
+            ],
+        },
+        selected_diagnostics_text=diagnostics,
+    )
     triage_at = prompt.index("## Failure triage")
     diagnostics_at = prompt.index("## Selected diagnostics")
     assert triage_at < diagnostics_at
@@ -228,8 +218,7 @@ def test_reserved_run_followup_loads_stored_triage(
     run_id = _seed_owned_run(
         monkeypatch, tmp_path, owner_kind="monitor", owner_id="mon-reserved"
     )
-    with override_flags(tool_failure_triage=True):
-        prompt = _prompt(tool_run_id=run_id, monitor_id="other-monitor")
+    prompt = _prompt(tool_run_id=run_id, monitor_id="other-monitor")
     assert "## Failure triage" in prompt
     assert f"sase tool show {run_id} -j" in prompt
     assert "UNKNOWN lint (mypy):" in prompt
@@ -242,8 +231,7 @@ def test_wrapped_just_check_followup_resolves_monitor_owner(
     run_id = _seed_owned_run(
         monkeypatch, tmp_path, owner_kind="monitor", owner_id="m4kqm4kqm4kq"
     )
-    with override_flags(tool_failure_triage=True):
-        prompt = _prompt(tool_run_id=None)
+    prompt = _prompt(tool_run_id=None)
     assert "## Failure triage" in prompt
     assert f"sase tool show {run_id} -j" in prompt
     assert "UNKNOWN lint (mypy):" in prompt

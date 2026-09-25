@@ -151,6 +151,35 @@ SIGKILL after 2 seconds, but only while the group leader still matches the recor
 child's start identity; a reused PID is never signaled. `sase tool runs` and
 `sase tool show` reconcile lost runs without signaling anything.
 
+## Failure triage
+
+Every settled named-tool failure is extracted into durable **failure items**. An item is
+classified as `NEW`, `KNOWN`, `FLAKY`, or `UNKNOWN`: `KNOWN` needs an independent
+witness; `FLAKY` needs the reproducible-flake baseline; and missing or insufficient
+evidence is `UNKNOWN`, not an assertion that the failure belongs elsewhere. A verdict
+summarizes the stored items (`new_failures`, `no_new_failures`, or unavailable triage)
+without changing the command outcome. `sase tool show RUN` and `sase tool show RUN -j`
+retain the items, evidence, possible owners, stage decisions, and verdict after logs are
+reaped.
+
+For `stages: run_silent` tools, agent-attributed runs use `known` continuation: a failed
+stage continues only when it has one or more items and every item is KNOWN or FLAKY.
+`-x` restores fail-fast and `-k` continues every failed stage. All three modes preserve
+the first continued failure's exit code when `tools/run_silent --finish` closes the
+recipe. If a continued failure reaches a child exit of zero without that finish record,
+the wrapper reports a failed run and exits `1` rather than manufacturing success. A
+plain recipe line after a continued failure is not a `run_silent` stage and keeps that
+line's own exit code, just as `just` does.
+
+`sase tool failures` groups current signatures by class, tool and stage, and reports
+runs, agents, first/last seen, and possible owners. Its default scope is the catalog
+repository; linked-repository runs are a separate identity and never witness this
+repository's items. Rows created before catalog-owned identity was fixed remain history.
+Renaming a stage description starts a new stage key and therefore breaks continuity.
+Thin ledgers deliberately produce mostly UNKNOWN items until independent evidence has
+accumulated. Classification uses the stored rule version and evidence, with the
+`min_witnesses` and `touched_requires_clean_witness` knobs recorded alongside it.
+
 ## Hand-off and lifecycle control
 
 A handed-off run has a durable identity before its caller lets go. The launcher reserves

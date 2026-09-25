@@ -36,6 +36,7 @@ import _smoke_tool_runs_cases_basic as basic  # noqa: E402
 import _smoke_tool_runs_cases_evidence as evidence  # noqa: E402
 import _smoke_tool_runs_cases_handoff as handoff  # noqa: E402
 import _smoke_tool_runs_cases_owners as owners  # noqa: E402
+import _smoke_tool_runs_cases_triage as triage  # noqa: E402
 from _smoke_tool_runs_lib import FAIL, NOT_RUN, PASS, Harness, case  # noqa: E402
 
 
@@ -97,6 +98,17 @@ GROUPS: tuple[Group, ...] = (
     (("dod-10-concurrent",), evidence.concurrency),
     (("dod-10-torn-replay",), evidence.torn_replay),
     (("dod-13-overhead",), owners.overhead),
+    (
+        (
+            "dod-7-triage-known",
+            "dod-7-triage-new",
+            "dod-7-triage-exit-parity",
+            "dod-7-triage-safety-net",
+            "dod-2-triage-show-after-reap",
+            "dod-9-triage-failures",
+        ),
+        triage.failure_triage,
+    ),
 )
 
 

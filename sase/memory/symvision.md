@@ -11,6 +11,8 @@ description:
 `symvision` is the published unused/misused-symbol linter. SASE installs
 `symvision>=0.1.0,<0.2.0`; it scans `src/` and runs as the `symvision` stage of
 `just lint` / `just check`, or alone via `just _lint-symvision` / `just symvision`.
+Master-red Symvision items are labeled KNOWN in `sase tool run check`; NEW or UNKNOWN
+Symvision items are yours.
 
 **Test references never count.** A path with a `test` / `tests` / `testing` component
 (or a `test_*.py` file) only satisfies the private-symbol "imported from a non-test

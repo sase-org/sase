@@ -65,6 +65,10 @@ it talks to the real store and CLI for catalog, foreground run, signals, lost-ru
 recovery, fail-open recording, and query contracts. Later-phase live owner cases remain
 labeled phase-pending unless `--live` is passed.
 
+Its E3 triage group uses only fixture recipes in an isolated `SASE_HOME`: it proves
+all-KNOWN continuation reaches `test (scoped)`, NEW/UNKNOWN stops, exit-code parity and
+the missing-`--finish` safety net, retained triage after reaping, and failure grouping.
+
 ## Triage backtest
 
 `tools/tool_triage_backtest` replays retained ToolRun logs through the pure triage

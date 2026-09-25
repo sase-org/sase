@@ -509,6 +509,14 @@ By default, the follow-up inherits the starter's model and reasoning effort. Pas
 model alias; an optional `@effort` suffix travels with the selection. `%model` text in
 `--next` remains literal prompt text and does not control routing.
 
+### Failure triage in follow-ups
+
+When a failed monitor has a settled ToolRun with triage, its follow-up prompt inserts a
+`## Failure triage` section before selected diagnostics. It gives the verdict, NEW and
+UNKNOWN items with their evidence and possible owners, KNOWN/FLAKY counts, and the exact
+`sase tool show RUN -j` command. The section is absent only when no stored triage is
+available; it never changes the monitor result or the command's exit code.
+
 Continuation history is replayed from versioned parent links rather than reconstructed
 from shell names. Each ancestor is hydrated once in order, including local authored
 prompt segments, host instructions, final responses, checkpoints, and monitor-result

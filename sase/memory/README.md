@@ -116,15 +116,15 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
-- Lines: 84
-- Approx. tokens: 1193
+- Lines: 87
+- Approx. tokens: 1248
 
 ### `sase/memory/glossary.md`
 
 - Kind: memory web descriptor
 - Description: No description set.
-- Lines: 36
-- Approx. tokens: 469
+- Lines: 37
+- Approx. tokens: 478
 
 ### `sase/memory/task_types.md`
 
@@ -158,8 +158,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: If you changed any file tracked by git in the sase repo (excluding file
   changes in the separate repos contained in the sase/repos/ directory), you MUST read
   this note before you finish your turn.
-- Lines: 137
-- Approx. tokens: 2001
+- Lines: 144
+- Approx. tokens: 2097
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -206,8 +206,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before fixing Symvision lint failures, including unused symbols,
   private misuse, pragmas, and epic whitelists.
-- Lines: 105
-- Approx. tokens: 1253
+- Lines: 107
+- Approx. tokens: 1281
 
 ### `sase/memory/tui.md`
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1347
-- Total approx. tokens: 17825
+- Total lines: 1360
+- Total approx. tokens: 18013
 
 ## Commands
 

@@ -22,8 +22,6 @@ from sase.core.tool_run import (
     tool_run_triage_settle,
     tool_run_triage_show,
 )
-from sase.feature_flags.registry import FeatureFlag
-from sase.feature_flags.snapshot import current_flags
 from sase.telemetry.metrics import (
     TOOL_RUN_ATTEMPTS,
     TOOL_RUN_RECORDING_ERRORS,
@@ -310,17 +308,16 @@ def agent_default_continuation_mode(
 ) -> str | None:
     """Return the handshake mode for a recorded run with *agent* attribution.
 
-    With the failure-triage flag on, an agent-attributed run of a
-    ``stages: run_silent`` named tool continues past all-KNOWN/FLAKY
-    stages; every other run keeps fail-fast. Adopted monitor workers
-    pass the run's stored agent so a starter-agent reservation inherits
-    the same default through its recorded attribution.
+    An agent-attributed run of a ``stages: run_silent`` named tool continues
+    past all-KNOWN/FLAKY stages; every other run keeps fail-fast. Adopted
+    monitor workers pass the run's stored agent so a starter-agent reservation
+    inherits the same default through its recorded attribution.
     """
 
     default_mode = _default_continuation_mode(resolved)
     if default_mode is None:
         return None
-    if agent and agent.strip() and _failure_triage_enabled():
+    if agent and agent.strip():
         return "known"
     return default_mode
 
@@ -646,18 +643,9 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             stages=list(ingestor.stages.values()) if ingestor is not None else (),
             truncation=truncation,
             triage=triage,
-            triage_enabled=_failure_triage_enabled(),
+            triage_enabled=True,
         )
     return cli_code
-
-
-def _failure_triage_enabled() -> bool:
-    """Read the beta gate at use time; never resolve flags at import time."""
-
-    try:
-        return current_flags().enabled(FeatureFlag.tool_failure_triage)
-    except Exception:  # noqa: BLE001 - a display gate must fail closed.
-        return False
 
 
 def _settle_failure_triage(

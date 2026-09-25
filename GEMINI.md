@@ -201,7 +201,10 @@ costs, and the condition that would reopen it.
     rung lower on each reappearance; every alias should span more than one provider.
 16. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
     in sase-core with no Python fallback and no env-var backend switch.
-17. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
+17. **Triage Annotates; It Never Changes an Exit Code**
+    (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
+    witness; triage classifies failure evidence without changing command outcomes.
+18. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
     `check-full-is-explicit`]_ just check is the agent default and just check-full gates
     landing, because host capacity is the constraint, not test speed.
 
@@ -218,16 +221,17 @@ Hood (hood, agent neighborhood); Agent Instruction File (agents.md file); Agent
 Neighbor; Agent Node; Agent Relation Jump Target (agent jump target); Agent Shell; Agent
 Tribe; Artifact; Artifact Markdown File (artifact md file, artifact md); Artifact
 Reference (ref); Core Memory (core memory); Current Project; Deck Panel (deck layout);
-Feature Flag; Flag Bead (flag bead); Gate Shell; Job (Chop); LLM Calls; Memory Strand;
-Memory Web; Nav Item (navigation item); Nav Section (navigation section); Node Panel;
-Oneshot Service Proc (oneshot, background command); Patch; Proc; Proc Shell; Project Tag
-(xprompt project tag); Reference Memory (reference memory); Required Plugin (required
-plugin); Routine (Lumberjack); Sase Agent (agent); Sase Agent Session (agent session);
-Sase Gate (gate); Sase Monitor (monitor); Sase Node (node); Sase Project; Sase Repo;
-Sase Scheduler (scheduler, AXE); Sase Service (service host); Sase Shell (shell); Sase
-Workspace (workspace); Service Proc; Stitch; Strand Keyword; Task Type (task type); Tool
-Catalog; Tool Run; Usage Window (usage-window); Xprompt; Xprompt Memory (memory file,
-sase memory); Xprompt Part; Xprompt Swarm; Xprompt Workflow
+Failure Signature; Feature Flag; Flag Bead (flag bead); Gate Shell; Job (Chop); LLM
+Calls; Memory Strand; Memory Web; Nav Item (navigation item); Nav Section (navigation
+section); Node Panel; Oneshot Service Proc (oneshot, background command); Patch; Proc;
+Proc Shell; Project Tag (xprompt project tag); Reference Memory (reference memory);
+Required Plugin (required plugin); Routine (Lumberjack); Sase Agent (agent); Sase Agent
+Session (agent session); Sase Gate (gate); Sase Monitor (monitor); Sase Node (node);
+Sase Project; Sase Repo; Sase Scheduler (scheduler, AXE); Sase Service (service host);
+Sase Shell (shell); Sase Workspace (workspace); Service Proc; Stitch; Strand Keyword;
+Task Type (task type); Tool Catalog; Tool Run; Triage Verdict; Usage Window
+(usage-window); Xprompt; Xprompt Memory (memory file, sase memory); Xprompt Part;
+Xprompt Swarm; Xprompt Workflow
 
 ### 3.3 Task Bead Types (task_types)
 

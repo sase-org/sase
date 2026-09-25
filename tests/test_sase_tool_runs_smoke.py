@@ -34,6 +34,7 @@ HARNESS_MODULES = (
     "_smoke_tool_runs_cases_evidence.py",
     "_smoke_tool_runs_cases_handoff.py",
     "_smoke_tool_runs_cases_owners.py",
+    "_smoke_tool_runs_cases_triage.py",
     "_smoke_tool_runs_helper.py",
     "_smoke_tool_runs_lib.py",
 )
@@ -78,6 +79,14 @@ def test_group_ids_are_unique_and_every_case_maps_to_a_dod() -> None:
     assert "dod-13-overhead" in ids
     # The 21-second sampling case and every DoD owner case are in the default run.
     assert {"dod-6-samples", "dod-9-retention", "dod-9-aggregate-cap"} <= set(ids)
+    assert {
+        "dod-7-triage-known",
+        "dod-7-triage-new",
+        "dod-7-triage-exit-parity",
+        "dod-7-triage-safety-net",
+        "dod-2-triage-show-after-reap",
+        "dod-9-triage-failures",
+    } <= set(ids)
 
 
 def test_dod_summary_separates_fail_not_run_and_pass() -> None:

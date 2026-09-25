@@ -11,3 +11,6 @@ runs in the foreground or is handed off to a monitor or proc that owns it
 (`sase tool run -H` outside agents, `sase monitor start` inside them); either way the
 run keeps one durable id that stays followable (`show -F`), waitable (`wait`), and
 stoppable (`stop`) until it settles to an outcome or a typed uncertainty.
+
+Its failed stages can carry [[glossary:failure-signature]]s and a
+[[glossary:triage-verdict]] without changing the recorded outcome.

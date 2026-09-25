@@ -76,7 +76,10 @@ costs, and the condition that would reopen it.
 16. **The Rust Core Is Required** (`rust-core-required`)
     - Shared backend behavior lives in sase-core with no Python fallback and no env-var
       backend switch.
-17. **Verification Is Two-Speed** (`two-speed-verification`)
+17. **Triage Annotates; It Never Changes an Exit Code**
+    (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
+    witness; triage classifies failure evidence without changing command outcomes.
+18. **Verification Is Two-Speed** (`two-speed-verification`)
     - _[superseded by `check-full-is-explicit`]_ just check is the agent default and
       just check-full gates landing, because host capacity is the constraint, not test
       speed.
