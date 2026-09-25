@@ -85,7 +85,53 @@ def test_query_actor_filter_and_missing_index_are_harmless(
         status = touch_index.touch_index_status(
             project.beads_dir, tmp_path / "absent.json"
         )
-        assert status.state == "missing"
+    assert status.state == "missing"
+
+
+def test_note_preview_wire_conversion_is_additive_and_defensive() -> None:
+    touch = touch_index._touch_from_dict(
+        {
+            "actor": "owner.machine.alpha",
+            "bead_id": "sase-note.2",
+            "current_note_count": 2,
+            "note_preview": {
+                "id": "sase-note.2:7",
+                "author": "owner.machine.alpha",
+                "timestamp": "2026-09-25T12:34:56Z",
+                "text": "Current edited note",
+                "edited_at": "2026-09-25T12:35:00Z",
+                "edited_by": "owner.machine.beta",
+                "truncated": True,
+            },
+        }
+    )
+
+    assert touch.current_note_count == 2
+    assert touch.note_preview == touch_index.BeadNotePreview(
+        id="sase-note.2:7",
+        author="owner.machine.alpha",
+        timestamp="2026-09-25T12:34:56Z",
+        text="Current edited note",
+        edited_at="2026-09-25T12:35:00Z",
+        edited_by="owner.machine.beta",
+        truncated=True,
+    )
+
+    malformed = touch_index._touch_from_dict(
+        {
+            "actor": "owner.machine.alpha",
+            "bead_id": "sase-note.2",
+            "current_note_count": "not-a-count",
+            "note_preview": {
+                "id": "sase-note.2:7",
+                "author": "owner.machine.alpha",
+                "timestamp": "not-a-timestamp",
+                "text": "would be unsafe",
+            },
+        }
+    )
+    assert malformed.current_note_count == 0
+    assert malformed.note_preview is None
 
 
 def test_touch_matches_agent_identity_rules() -> None:

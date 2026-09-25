@@ -45,6 +45,7 @@ from sase.core.agent_identity_facade import (
     globalize_owned_agent_name,
 )
 from sase.core.bead_touch_index_facade import (
+    BeadNotePreview,
     BeadTouch,
     BeadTouchQuery,
     fold_read_reasons,
@@ -100,6 +101,9 @@ class BeadTouchEntry:
     own: bool = False
     agent_label: str | None = None
     read_reasons: tuple[str, ...] = ()
+    current_note_count: int = 0
+    note_preview: BeadNotePreview | None = None
+    note_agent_label: str | None = None
 
 
 @dataclass
@@ -573,6 +577,11 @@ class _BeadBucket:
         self.own = False
         self._labels: set[str] = set()
         self._read_pairs: list[tuple[str, str]] = []
+        self.current_note_count = 0
+        self._note_ids: set[str] = set()
+        self._note_candidate: (
+            tuple[datetime, str, BeadNotePreview, str | None] | None
+        ) = None
 
     def add_verbs(self, verbs: dict[str, int]) -> None:
         for verb, count in verbs.items():
@@ -596,6 +605,20 @@ class _BeadBucket:
     def add_read_reason(self, timestamp: str | None, reason: str | None) -> None:
         self._read_pairs.append((str(timestamp or ""), str(reason or "")))
 
+    def add_note_preview(self, touch: BeadTouch, label: str | None) -> None:
+        """Fold one actor's current notes without double-counting a note ID."""
+        preview = touch.note_preview
+        if preview is None or not preview.id or preview.id in self._note_ids:
+            return
+        self._note_ids.add(preview.id)
+        self.current_note_count += max(touch.current_note_count, 0)
+        moment = _parse_moment(preview.timestamp)
+        if moment is None:
+            return
+        candidate = (moment, preview.id, preview, label)
+        if self._note_candidate is None or candidate[:2] > self._note_candidate[:2]:
+            self._note_candidate = candidate
+
     def entry(self) -> BeadTouchEntry:
         first_at = ""
         last_at = ""
@@ -604,6 +627,10 @@ class _BeadBucket:
             first_at = ordered[0][1]
             last_at = ordered[-1][1]
         label = next(iter(self._labels)) if len(self._labels) == 1 else None
+        note_preview = None
+        note_agent_label = None
+        if self._note_candidate is not None:
+            _, _, note_preview, note_agent_label = self._note_candidate
         return BeadTouchEntry(
             bead_id=self.bead_id,
             title=self.title,
@@ -613,6 +640,9 @@ class _BeadBucket:
             own=self.own,
             agent_label=label,
             read_reasons=fold_read_reasons(self._read_pairs),
+            current_note_count=self.current_note_count,
+            note_preview=note_preview,
+            note_agent_label=note_agent_label,
         )
 
 
@@ -662,6 +692,7 @@ def merge_bead_touch_entries(
         bucket.add_moment(display.touch.first_at)
         bucket.add_moment(display.touch.last_at)
         bucket.add_label(display.agent_label)
+        bucket.add_note_preview(display.touch, display.agent_label)
 
     for read_display in reads:
         ref = (read_display.event.ref or "").strip()

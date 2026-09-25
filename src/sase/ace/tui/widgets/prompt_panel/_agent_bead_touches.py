@@ -7,6 +7,7 @@ from rich.text import Text
 
 from sase.ace.tui.bead_hint_targets import bead_hint_target as _bead_hint_target
 from sase.ace.tui.bead_touches import BeadTouchEntry
+from sase.core.bead_touch_index_facade import BeadNotePreview
 from sase.bead.touch_glyphs import touch_glyph
 
 from ._agent_context_common import (
@@ -15,14 +16,17 @@ from ._agent_context_common import (
     COLOR_ROLE,
     COLOR_SUMMARY,
     COLOR_TRUNCATION,
+    REASON_LINE_CELL_LIMIT,
     append_context_reason,
     append_lane_row,
     format_local_hhmm,
 )
 from ._agent_display_state import HeaderHintState
+from ._helpers import wrap_text_by_cells
 
 MAX_VISIBLE_BEADS = 5
 _SUBSECTION_ROW_PREFIX = "  "
+_MAX_NOTE_TEXT_LINES = 3
 
 __all__ = [
     "MAX_VISIBLE_BEADS",
@@ -60,6 +64,76 @@ def _chip(verb: str, count: int) -> str:
     if count > 1:
         return f"{verb} ×{count}"
     return verb
+
+
+def _safe_note_text(value: str) -> str:
+    """Return display data with whitespace normalized and controls removed."""
+    without_controls = "".join(
+        " " if character.isspace() else character
+        for character in value
+        if ord(character) >= 32 and ord(character) != 127
+    )
+    return " ".join(without_controls.split())
+
+
+def _append_note_line(text: Text, *, indent: int, content: str, style: str) -> None:
+    text.append(" " * indent + "│ ", style=COLOR_BEAD_SUBHEADER)
+    text.append(content + "\n", style=style)
+
+
+def _append_bead_note_preview(
+    text: Text,
+    *,
+    preview: BeadNotePreview,
+    current_note_count: int,
+    indent: int,
+    role_label: str | None = None,
+) -> None:
+    """Render one bounded, attributed note block beneath its bead row.
+
+    This is intentionally a pure Text helper: the loader has already read the
+    cached touch index off the event loop, and rendering performs no bead
+    lookup.  The note text is data, never Rich markup, and its display limit
+    is independent from the cache's Unicode-safe prefix limit.
+    """
+    body = _safe_note_text(preview.text)
+    if not body:
+        return
+    author = _safe_note_text(preview.author)
+    if not author:
+        return
+    metadata = f"{format_local_hhmm(preview.timestamp)} · {author}"
+    role = _safe_note_text(role_label or "")
+    if role:
+        metadata += f" · {role}"
+    if preview.edited_at:
+        metadata += " · edited"
+
+    prefix_cells = cell_len(" " * indent + "│ ")
+    available = max(1, REASON_LINE_CELL_LIMIT - prefix_cells)
+    for line in wrap_text_by_cells(metadata, available):
+        _append_note_line(text, indent=indent, content=line, style=COLOR_SUMMARY)
+
+    body_lines = wrap_text_by_cells(body, available)
+    for line in body_lines[:_MAX_NOTE_TEXT_LINES]:
+        _append_note_line(text, indent=indent, content=line, style="")
+
+    if len(body_lines) > _MAX_NOTE_TEXT_LINES or preview.truncated:
+        _append_note_line(
+            text,
+            indent=indent,
+            content="… full note in bead detail",
+            style=COLOR_TRUNCATION,
+        )
+    earlier = max(current_note_count - 1, 0)
+    if earlier:
+        noun = "note" if earlier == 1 else "notes"
+        _append_note_line(
+            text,
+            indent=indent,
+            content=f"+{earlier} earlier {noun} in bead detail",
+            style=COLOR_TRUNCATION,
+        )
 
 
 def append_agent_bead_touch_rows(
@@ -110,7 +184,19 @@ def append_agent_bead_touch_rows(
             text.append(" · ", style=COLOR_SUMMARY)
             text.append(chip, style=COLOR_ROLE if chip == "own" else COLOR_SUMMARY)
         text.append("\n")
-        reason_text = item.read_reasons[0] if item.read_reasons else item.title
+        if item.note_preview is not None:
+            _append_bead_note_preview(
+                text,
+                preview=item.note_preview,
+                current_note_count=item.current_note_count,
+                indent=reason_indent,
+                role_label=item.note_agent_label,
+            )
+        reason_text = (
+            f"read: {item.read_reasons[0]}"
+            if item.note_preview is not None and item.read_reasons
+            else (item.read_reasons[0] if item.read_reasons else item.title)
+        )
         if reason_text.strip():
             append_context_reason(text, reason_text, indent=reason_indent)
 

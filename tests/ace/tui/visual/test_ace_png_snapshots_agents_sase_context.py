@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.bead_touches import _BeadTouchDisplayEvent
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_associated_plan import (
@@ -22,6 +23,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailContextLane
 from sase.bead.model import Issue, IssueType
+from sase.core.bead_touch_index_facade import BeadNotePreview, BeadTouch
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     choose_agent_metadata_view,
@@ -37,6 +39,77 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+async def test_agents_bead_note_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The Context card keeps an attributed note preview within its row budget."""
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-bead-note-preview",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 9, 25, 14, 0, 0),
+        raw_suffix="20260925140000",
+        agent_name="visual.bead-note-preview",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    preview = BeadNotePreview(
+        id="sase-visual.7:note-2",
+        author="visual.bead-note-preview",
+        timestamp="2026-09-25T14:03:00Z",
+        text=" ".join(
+            (
+                "Render the compact current note preview without changing the existing "
+                "bead hint target or making navigation read live bead streams."
+            ).split()
+            * 4
+        ),
+        edited_at="2026-09-25T14:04:00Z",
+        truncated=True,
+    )
+    touch = BeadTouch(
+        actor="visual.bead-note-preview",
+        bead_id="sase-visual.7",
+        title="Render compact Context-card note previews",
+        verbs={"noted": 2},
+        first_at="2026-09-25T14:02:00Z",
+        last_at="2026-09-25T14:05:00Z",
+        current_note_count=2,
+        note_preview=preview,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
+        lambda _agent: (_BeadTouchDisplayEvent(touch=touch),),
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "sase-visual.7")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "SASE CONTEXT")
+        assert_page_svg_contains(page, "Beads:")
+        assert_page_svg_contains(page, "sase-visual.7")
+        assert_page_svg_contains(page, "visual.bead-note-preview")
+        assert_page_svg_contains(page, "edited")
+        assert_page_svg_contains(page, "full")
+        assert_page_svg_contains(page, "note in bead detail")
+        assert_page_svg_contains(page, "+1 earlier")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_bead_note_preview_120x40",
+            title="ACE agents Context-card bead note preview",
+        )
 
 
 async def test_agents_sase_plan_metadata_png_snapshot(

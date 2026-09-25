@@ -12,6 +12,7 @@ from rich.text import Text
 
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.bead_touches import BeadTouchEntry
+from sase.core.bead_touch_index_facade import BeadNotePreview
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_artifacts_lane import (
     append_agent_artifacts_lane,
@@ -69,6 +70,9 @@ def _entry(
     own: bool = False,
     label: str | None = None,
     read_reasons: tuple[str, ...] = (),
+    current_note_count: int = 0,
+    note_preview: BeadNotePreview | None = None,
+    note_label: str | None = None,
 ) -> BeadTouchEntry:
     return BeadTouchEntry(
         bead_id=bead_id,
@@ -79,6 +83,9 @@ def _entry(
         own=own,
         agent_label=label,
         read_reasons=read_reasons,
+        current_note_count=current_note_count,
+        note_preview=note_preview,
+        note_agent_label=note_label,
     )
 
 
@@ -320,6 +327,46 @@ def test_no_reason_line_without_reason_or_title() -> None:
         ),
     )
     assert "↳" not in text.plain
+
+
+def test_note_preview_is_attributed_bounded_and_keeps_read_reason() -> None:
+    body = " ".join(f"wide界word-{index:02d}" for index in range(40))
+    preview = BeadNotePreview(
+        id="sase-14j.5:7",
+        author="owner.machine.coder",
+        timestamp="2026-05-24T14:02:00+00:00",
+        text=f"{body}\n\x1b[31m[not markup]",
+        edited_at="2026-05-24T14:03:00+00:00",
+        truncated=True,
+    )
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14j.5",
+                "2026-05-24T14:00:00+00:00",
+                verbs={"noted": 2},
+                title="Fallback title must not repeat",
+                current_note_count=2,
+                note_preview=preview,
+                note_label="coder",
+                read_reasons=("Inspect the regression",),
+            ),
+        ),
+    )
+
+    plain = text.plain
+    assert "14:02 · owner.machine.coder · coder · edited" in plain
+    assert len([line for line in plain.splitlines() if "wide界word" in line]) == 3
+    assert "… full note in bead detail" in plain
+    assert "+1 earlier note in bead detail" in plain
+    assert "↳ read: Inspect the regression" in plain
+    assert "Fallback title" not in plain
+    assert "\x1b" not in plain
+    assert "[not markup]" not in plain
+    for line in plain.splitlines():
+        assert cell_len(line) <= REASON_LINE_CELL_LIMIT
 
 
 def test_overflow_footer_and_cap() -> None:

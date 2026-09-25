@@ -1655,6 +1655,14 @@ and the panel can tell which of the two actually has content. Repaints coalesce 
 the same debouncer that drives the rest of the header, leaving hint mode and scroll
 position undisturbed.
 
+Within `SASE CONTEXT / ARTIFACTS / Beads`, a selected agent's newest current structured
+bead note appears beneath its bead row with its original author and append time. The
+card shows at most three wrapped note-text lines, then points to the existing numbered
+bead detail for the full note and any earlier notes. Edits retain the original author,
+retracted notes disappear, and an audited read reason remains as a separate `read:`
+continuation. The cached touch index supplies these previews off the interactive render
+path; it never opens bead streams or resolves bead detail while navigating.
+
 For planner/author and lander rows, the lane body contains the complete normalized
 `Title`, `Goal`, and canonical `Path`; a tale additionally gets a `Size` row between
 `Goal` and `Path`, showing the authored `xsmall`/`small`/`medium` chip, or the `medium`

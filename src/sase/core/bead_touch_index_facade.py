@@ -30,6 +30,24 @@ TOUCH_INDEX_FILENAME = "agent_bead_touches.json"
 
 
 @dataclass(frozen=True)
+class BeadNotePreview:
+    """One current, structured note supplied by the touch-index cache.
+
+    The Rust reducer owns note replay and attribution.  This is deliberately
+    only a tolerant wire conversion so old indexes and malformed cache rows
+    degrade to no preview instead of breaking the Context card.
+    """
+
+    id: str
+    author: str
+    timestamp: str
+    text: str
+    edited_at: str | None = None
+    edited_by: str | None = None
+    truncated: bool = False
+
+
+@dataclass(frozen=True)
 class BeadTouch:
     """One ``(actor, bead)`` pair with aggregated verbs."""
 
@@ -42,6 +60,8 @@ class BeadTouch:
     first_at: str = ""
     last_at: str = ""
     read_reasons: tuple[str, ...] = ()
+    current_note_count: int = 0
+    note_preview: BeadNotePreview | None = None
 
 
 @dataclass(frozen=True)
@@ -238,6 +258,13 @@ def _touch_from_dict(payload: Mapping[str, Any]) -> BeadTouch:
                 continue
             if total > 0:
                 verbs[str(verb)] = total
+    current_note_count = _positive_int(payload.get("current_note_count"))
+    note_preview = _note_preview_from_dict(payload.get("note_preview"))
+    if current_note_count == 0:
+        # A preview without its required current-note count is malformed.  Do
+        # not let an incomplete newer wire produce a blank or misattributed UI
+        # block on an otherwise usable older index.
+        note_preview = None
     return BeadTouch(
         actor=str(payload.get("actor", "")),
         bead_id=str(payload.get("bead_id", "")),
@@ -247,6 +274,64 @@ def _touch_from_dict(payload: Mapping[str, Any]) -> BeadTouch:
         verbs=verbs,
         first_at=str(payload.get("first_at", "")),
         last_at=str(payload.get("last_at", "")),
+        current_note_count=current_note_count,
+        note_preview=note_preview,
+    )
+
+
+def _positive_int(value: object) -> int:
+    """Return a non-negative integer wire value, rejecting bools and junk."""
+    if isinstance(value, bool):
+        return 0
+    if not isinstance(value, int | float | str):
+        return 0
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(parsed, 0)
+
+
+def _note_preview_from_dict(value: object) -> BeadNotePreview | None:
+    """Convert an additive schema-2 preview, or safely reject malformed data."""
+    if not isinstance(value, Mapping):
+        return None
+    note_id = value.get("id")
+    author = value.get("author")
+    timestamp = value.get("timestamp")
+    text = value.get("text")
+    if not all(
+        isinstance(field, str) and field.strip()
+        for field in (note_id, author, timestamp, text)
+    ):
+        return None
+    assert isinstance(note_id, str)
+    assert isinstance(author, str)
+    assert isinstance(timestamp, str)
+    assert isinstance(text, str)
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+
+    def optional_text(key: str) -> str | None:
+        candidate = value.get(key)
+        return (
+            candidate.strip()
+            if isinstance(candidate, str) and candidate.strip()
+            else None
+        )
+
+    return BeadNotePreview(
+        id=note_id.strip(),
+        author=author.strip(),
+        timestamp=timestamp,
+        text=text,
+        edited_at=optional_text("edited_at"),
+        edited_by=optional_text("edited_by"),
+        truncated=value.get("truncated") is True,
     )
 
 
@@ -542,6 +627,7 @@ def fold_touches_per_bead(
 
 __all__ = [
     "TOUCH_INDEX_FILENAME",
+    "BeadNotePreview",
     "BeadTouch",
     "BeadTouchIndexStatus",
     "BeadTouchQuery",

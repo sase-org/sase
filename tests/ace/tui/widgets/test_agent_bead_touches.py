@@ -20,7 +20,11 @@ from sase.ace.tui.bead_touches import (
 )
 from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
-from sase.core.bead_touch_index_facade import BeadTouch, BeadTouchQuery
+from sase.core.bead_touch_index_facade import (
+    BeadNotePreview,
+    BeadTouch,
+    BeadTouchQuery,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -32,6 +36,8 @@ def _touch(
     title: str = "",
     first_at: str = "",
     last_at: str = "",
+    current_note_count: int = 0,
+    note_preview: BeadNotePreview | None = None,
 ) -> BeadTouch:
     return BeadTouch(
         actor=actor,
@@ -40,6 +46,8 @@ def _touch(
         verbs=dict(verbs or {}),
         first_at=first_at,
         last_at=last_at,
+        current_note_count=current_note_count,
+        note_preview=note_preview,
     )
 
 
@@ -162,6 +170,82 @@ def test_merge_single_touch_carries_verbs_title_and_timestamps() -> None:
     assert entry.last_at == "2026-09-20T16:41:02Z"
     assert entry.own is False
     assert entry.agent_label is None
+
+
+def test_merge_selects_newest_note_across_session_members_with_its_role() -> None:
+    first = BeadNotePreview(
+        id="sase-14j.4:1",
+        author="alpha",
+        timestamp="2026-09-20T16:00:00Z",
+        text="planner note",
+    )
+    newest = BeadNotePreview(
+        id="sase-14j.4:2",
+        author="beta",
+        timestamp="2026-09-20T16:01:00Z",
+        text="coder note",
+    )
+    (entry,) = merge_bead_touch_entries(
+        (
+            _display(
+                _touch(
+                    "alpha",
+                    "sase-14j.4",
+                    current_note_count=1,
+                    note_preview=first,
+                ),
+                "plan",
+            ),
+            _display(
+                _touch(
+                    "beta",
+                    "sase-14j.4",
+                    current_note_count=1,
+                    note_preview=newest,
+                ),
+                "coder",
+            ),
+        ),
+        (),
+    )
+
+    assert entry.current_note_count == 2
+    assert entry.note_preview == newest
+    assert entry.note_agent_label == "coder"
+    assert entry.agent_label is None
+
+
+def test_merge_deduplicates_a_repeated_note_preview_id() -> None:
+    preview = BeadNotePreview(
+        id="sase-14j.4:1",
+        author="alpha",
+        timestamp="2026-09-20T16:00:00Z",
+        text="one note",
+    )
+    (entry,) = merge_bead_touch_entries(
+        (
+            _display(
+                _touch(
+                    "alpha",
+                    "sase-14j.4",
+                    current_note_count=1,
+                    note_preview=preview,
+                )
+            ),
+            _display(
+                _touch(
+                    "alpha",
+                    "sase-14j.4",
+                    current_note_count=1,
+                    note_preview=preview,
+                )
+            ),
+        ),
+        (),
+    )
+
+    assert entry.current_note_count == 1
+    assert entry.note_preview == preview
 
 
 def test_merge_ranks_newest_touch_first_with_id_tiebreak() -> None:
