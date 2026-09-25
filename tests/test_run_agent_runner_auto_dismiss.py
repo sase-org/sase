@@ -15,26 +15,25 @@ from sase.running_field import WorkspaceClaim
 
 
 def test_auto_dismiss_completed_agent_syncs_dismissed_projection() -> None:
-    dismissed: set[tuple[AgentType, str, str | None]] = set()
+    identities = {
+        (AgentType.RUNNING, "feature_x", "20260510130000"),
+        (AgentType.WORKFLOW, "feature_x", "20260510130000"),
+    }
+    on_disk = identities | {(AgentType.RUNNING, "other", "20260510120000")}
 
     with (
         patch(
-            "sase.ace.dismissed_agents.load_dismissed_agents", return_value=dismissed
-        ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as save,
+            "sase.ace.dismissed_agents.add_dismissed_agents", return_value=on_disk
+        ) as add,
         patch(
             "sase.axe.run_agent_runner_lifecycle.sync_dismissed_agent_artifact_index"
         ) as sync_index,
     ):
         auto_dismiss_completed_agent("feature_x", "20260510130000")
 
-    identities = {
-        (AgentType.RUNNING, "feature_x", "20260510130000"),
-        (AgentType.WORKFLOW, "feature_x", "20260510130000"),
-    }
-    assert dismissed == identities
-    save.assert_called_once_with(dismissed)
-    sync_index.assert_called_once_with(dismissed, added=identities)
+    # Only this run's identities are merged; the index syncs what is on disk.
+    add.assert_called_once_with(identities)
+    sync_index.assert_called_once_with(on_disk, added=identities)
 
 
 def test_workspace_release_sigterm_handler_releases_claim(

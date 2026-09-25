@@ -237,26 +237,28 @@ class AgentDismissMemoryMixin:
     def _persist_dismissed_agent(
         self, identity: tuple[AgentType, str, str | None]
     ) -> None:
-        """Add an agent identity to the dismissed set and save to disk."""
-        from ....dismissed_agents import save_dismissed_agents
+        """Add an agent identity to the dismissed set and the on-disk index."""
+        from ....dismissed_agents import add_dismissed_agents
 
         self._dismissed_agents.add(identity)
         self._bump_dismiss_revive_epoch()
         revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
         if revived_suffixes and identity[2] is not None:
             revived_suffixes.discard(identity[2])
-        if save_dismissed_agents(self._dismissed_agents):
-            try:
-                synced = sync_dismissed_agent_artifact_index(
-                    self._dismissed_agents, added={identity}
-                )
-            except Exception:
-                log.exception("Failed to sync dismissed-agent artifact index")
+        try:
+            dismissed = add_dismissed_agents({identity})
+        except OSError:
+            log.exception("Failed to add identity to the dismissed-agents index")
+            return
+        try:
+            synced = sync_dismissed_agent_artifact_index(dismissed, added={identity})
+        except Exception:
+            log.exception("Failed to sync dismissed-agent artifact index")
+            _notify_dismissed_index_sync_failed(self)
+        else:
+            if not synced:
+                log.error("Dismissed-agent artifact index sync returned false")
                 _notify_dismissed_index_sync_failed(self)
-            else:
-                if not synced:
-                    log.error("Dismissed-agent artifact index sync returned false")
-                    _notify_dismissed_index_sync_failed(self)
 
     def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:
         """Return identities hidden immediately after dismissing agents."""

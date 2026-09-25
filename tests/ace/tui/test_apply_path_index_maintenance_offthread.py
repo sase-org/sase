@@ -156,7 +156,10 @@ def test_apply_schedules_artifact_index_maintenance_offthread() -> None:
     )
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch(
+            "sase.ace.dismissed_agents.update_dismissed_agents",
+            return_value={identity},
+        ),
         patch(
             "sase.core.agent_artifact_index_lifecycle."
             "sync_dismissed_agent_artifact_index",

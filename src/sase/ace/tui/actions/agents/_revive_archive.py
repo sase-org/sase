@@ -139,7 +139,7 @@ class AgentReviveArchiveMixin:
         """Repair the compact dismissed identity projection from bundle identities."""
         from ....dismissed_agents import (
             load_dismissed_bundle_identities,
-            save_dismissed_agents,
+            update_dismissed_agents,
         )
 
         found_identities: set[tuple[AgentType, str, str | None]] = set()
@@ -160,7 +160,10 @@ class AgentReviveArchiveMixin:
             else list(dismissed_objects_snapshot)
         )
 
-        def _apply() -> tuple[set[tuple[AgentType, str, str | None]], bool]:
+        def _apply() -> tuple[
+            set[tuple[AgentType, str, str | None]],
+            set[tuple[AgentType, str, str | None]],
+        ]:
             return self._apply_repaired_dismissed_projection(
                 found_identities,
                 initial_dismissed,
@@ -173,14 +176,21 @@ class AgentReviveArchiveMixin:
         # cannot race an off-thread assignment.
         call_from_thread = getattr(self, "call_from_thread", None)
         if dismissed_snapshot is not None and callable(call_from_thread):
-            next_dismissed, changed = call_from_thread(_apply)
+            added, removed = call_from_thread(_apply)
         else:
-            next_dismissed, changed = _apply()
-        if changed and save_dismissed_agents(next_dismissed):
-            try:
-                sync_dismissed_agent_artifact_index(next_dismissed, force=True)
-            except Exception:
-                pass
+            added, removed = _apply()
+        if not added and not removed:
+            return
+        # Merge only this repair's delta so dismissals other writers added
+        # meanwhile survive.
+        try:
+            persisted = update_dismissed_agents(added, removed)
+        except OSError:
+            return
+        try:
+            sync_dismissed_agent_artifact_index(persisted, force=True)
+        except Exception:
+            pass
 
     def _apply_repaired_dismissed_projection(
         self,
@@ -188,8 +198,15 @@ class AgentReviveArchiveMixin:
         initial_dismissed: set[tuple[AgentType, str, str | None]],
         dismissed_objects: list[Agent],
         explicit_removals: object | None,
-    ) -> tuple[set[tuple[AgentType, str, str | None]], bool]:
-        """Apply one worker's repair result on the UI thread."""
+    ) -> tuple[
+        set[tuple[AgentType, str, str | None]],
+        set[tuple[AgentType, str, str | None]],
+    ]:
+        """Apply one worker's repair result on the UI thread.
+
+        Returns the identities the repair added to and removed from the live
+        dismissed set, for the caller to merge into the on-disk index.
+        """
         from ._removal_tombstones import EMPTY_EXPLICIT_REMOVALS
 
         del initial_dismissed
@@ -219,10 +236,11 @@ class AgentReviveArchiveMixin:
             or identity[2] in found_suffixes
             or identity[2] in kill_record_suffixes
         }
-        changed = next_dismissed != current
-        if changed:
+        added = next_dismissed - current
+        removed = current - next_dismissed
+        if added or removed:
             self._dismissed_agents = next_dismissed
-        return next_dismissed, changed
+        return added, removed
 
     def _load_dismissed_archive(self) -> list[Agent]:
         """Compatibility hook for tests and older callers: repair only."""

@@ -55,7 +55,8 @@ class AgentLoadingApplyMixin(
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
-        dismissed_changes_include_removals: bool = False,
+        removed_dismissed_identities: set[tuple[AgentType, str, str | None]]
+        | None = None,
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
@@ -64,9 +65,10 @@ class AgentLoadingApplyMixin(
         """UI-thread step that folds prepared filter output into ``self``.
 
         Updates the dismissed set with the recovered-bundle and
-        auto-dismiss deltas, persists the merged set in a *single*
-        :func:`save_dismissed_agents` call (replaces the old per-agent
-        write loop), then drops the prepared agent list onto
+        auto-dismiss deltas, persists just those additions (and any
+        *removed_dismissed_identities*) with a *single* locked merge into the
+        on-disk index so it cannot overwrite other writers, then drops the
+        prepared agent list onto
         ``self._agents`` and runs the finalize pipeline. The fold filter,
         query evaluation, status overrides, registry GC, tab-bar update,
         and panel refresh all happen in :meth:`_finalize_agent_list` on
@@ -88,7 +90,7 @@ class AgentLoadingApplyMixin(
                 selected_identity=selected_identity,
                 load_state=load_state,
                 persist_dismissed_changes=persist_dismissed_changes,
-                dismissed_changes_include_removals=dismissed_changes_include_removals,
+                removed_dismissed_identities=removed_dismissed_identities,
                 incomplete_merge_already_applied=incomplete_merge_already_applied,
                 precomputed_boundary=precomputed_boundary,
                 precomputed_fold_levels=precomputed_fold_levels,
@@ -110,7 +112,8 @@ class AgentLoadingApplyMixin(
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
-        dismissed_changes_include_removals: bool = False,
+        removed_dismissed_identities: set[tuple[AgentType, str, str | None]]
+        | None = None,
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
@@ -149,13 +152,20 @@ class AgentLoadingApplyMixin(
         if prep.auto_dismissed_identities:
             self._dismissed_agents.update(prep.auto_dismissed_identities)
         if persist_dismissed_changes:
-            from ....dismissed_agents import save_dismissed_agents
+            from ....dismissed_agents import update_dismissed_agents
 
-            if save_dismissed_agents(self._dismissed_agents):
+            try:
+                persisted = update_dismissed_agents(
+                    additions=added_identities,
+                    removals=removed_dismissed_identities or (),
+                )
+            except OSError:
+                persisted = None
+            if persisted is not None:
                 self._schedule_artifact_index_maintenance(
-                    dismissed=set(self._dismissed_agents),
+                    dismissed=persisted,
                     added=added_identities or None,
-                    force=dismissed_changes_include_removals,
+                    force=bool(removed_dismissed_identities),
                     source="apply",
                 )
             else:

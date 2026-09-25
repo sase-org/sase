@@ -89,8 +89,13 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
     )
 
     transaction = str(payload.get("transaction") or "")
-    dismissed_snapshot = identities_from_json(payload.get("dismissed_identities"))
-    added = identities_from_json(payload.get("added_identities"))
+    # Every writer merges only its own batch into the dismissed index, so two
+    # payloads applied in either order leave the union on disk. Payloads from
+    # an older TUI carried a full ``dismissed_identities`` snapshot instead;
+    # its identities are still only ever added, never written back wholesale.
+    added = identities_from_json(
+        payload.get("added_identities", payload.get("dismissed_identities"))
+    )
     agents_with_children = agents_from_json(payload.get("agents_with_children"))
     cleanup_plan = _cleanup_plan_from_payload(payload.get("cleanup_plan"))
     if cleanup_plan is not None:
@@ -109,7 +114,7 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
                 agent_from_json(agent_payload),
                 str(payload.get("kind") or "running"),  # type: ignore[arg-type]
                 agents_with_children,
-                dismissed_snapshot,
+                added,
                 cleanup_plan,
                 agents_from_json(payload.get("related_agents")),
             )
@@ -134,7 +139,7 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
         persist_bulk_kill_transaction(
             kill_items,
             agents_from_json(payload.get("dismissable")),
-            dismissed_snapshot,
+            added,
             agents_with_children,
             cleanup_plan,
             recent_group,
@@ -151,7 +156,6 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
         if isinstance(agent_payload, dict):
             persist_single_dismiss_transaction(
                 agent_from_json(agent_payload),
-                dismissed_snapshot,
                 agents_with_children,
                 cleanup_plan,
                 added,
@@ -165,7 +169,6 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
 
         persist_bulk_dismiss_transaction(
             agents_from_json(payload.get("agents")),
-            dismissed_snapshot,
             agents_with_children,
             cleanup_plan,
             added,
@@ -181,7 +184,6 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
         if group is not None:
             persist_marked_agent_group_save(
                 agents_from_json(payload.get("agents")),
-                dismissed_snapshot,
                 added,
                 group,
                 payload.get("group_name")
@@ -189,14 +191,13 @@ def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:
                 else None,
             )
         return
-    if dismissed_snapshot:
-        from sase.ace.dismissed_agents import save_dismissed_agents
+    if added:
+        from sase.ace.dismissed_agents import add_dismissed_agents
         from sase.core.agent_artifact_index_lifecycle import (
             sync_dismissed_agent_artifact_index,
         )
 
-        if save_dismissed_agents(dismissed_snapshot):
-            sync_dismissed_agent_artifact_index(dismissed_snapshot)
+        sync_dismissed_agent_artifact_index(add_dismissed_agents(added))
     if cleanup_plan is not None:
         from sase.ace.tui.actions.agents._dismiss_persistence import (
             persist_cleanup_side_effect_intents,

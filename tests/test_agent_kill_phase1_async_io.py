@@ -78,7 +78,7 @@ def test_kill_immediate_does_no_notification_io() -> None:
         patch("sase.ace.tui.actions.agents._killing.os.killpg"),
         patch("sase.notifications.load_notifications") as mock_load_notifs,
         patch("sase.notifications.mark_dismissed") as mock_mark_dismissed,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save_dismissed,
+        patch("sase.ace.dismissed_agents.add_dismissed_agents") as mock_save_dismissed,
         patch("sase.ace.changespec.parse_project_file") as mock_parse_project,
         patch(
             "sase.ace.tui.actions.agents._killing_utils.delete_agent_artifacts"
@@ -184,7 +184,7 @@ def test_kill_persistence_refreshes_count_async() -> None:
 
     with (
         patch("sase.ace.tui.actions.agents._killing.persist_kill_side_effects"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents"),
         patch("sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"),
     ):
         app._submit_kill_persistence_proc(agent, "running", [agent], {agent.identity})
@@ -195,8 +195,8 @@ def test_kill_persistence_refreshes_count_async() -> None:
     assert app.sync_count_refreshes == 0
 
 
-def test_kill_persistence_uses_captured_dismissed_snapshot() -> None:
-    """Worker writes the snapshot captured on the UI thread, not a fresh read."""
+def test_kill_persistence_adds_only_the_captured_batch_identities() -> None:
+    """Worker merges the batch captured on the UI thread, not the live set."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
     class MockApp(TrackedProcRecorderMixin, AgentsMixin):
@@ -223,21 +223,21 @@ def test_kill_persistence_uses_captured_dismissed_snapshot() -> None:
 
     app = MockApp()
     agent = _make_running_agent()
-    snapshot = {agent.identity}
-    # Mutate ``_dismissed_agents`` after the snapshot to verify the worker
-    # uses the snapshot rather than re-reading the live set.
+    added = {agent.identity}
+    # The live set holds another identity; the worker must add only its batch
+    # so it never writes back (or resurrects) unrelated dismissals.
     other = _make_running_agent(cl_name="other", pid=222)
     app._dismissed_agents = {agent.identity, other.identity}
 
     with (
         patch("sase.ace.tui.actions.agents._killing.persist_kill_side_effects"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.add_dismissed_agents") as mock_save,
         patch("sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"),
     ):
-        app._submit_kill_persistence_proc(agent, "running", [agent], snapshot)
+        app._submit_kill_persistence_proc(agent, "running", [agent], added)
         run_tracked_proc(app, app.tracked_procs[0])
 
-    mock_save.assert_called_once_with(snapshot)
+    mock_save.assert_called_once_with(added)
 
 
 def test_bulk_kill_no_sync_count_refresh() -> None:

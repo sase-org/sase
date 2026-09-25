@@ -23,7 +23,10 @@ def test_repair_dismissed_projection_after_save() -> None:
             "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
             return_value={archived.identity},
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.update_dismissed_agents",
+            return_value={archived.identity},
+        ) as mock_update,
         patch(
             "sase.ace.tui.actions.agents._revive.sync_dismissed_agent_artifact_index"
         ) as mock_sync_index,
@@ -31,8 +34,9 @@ def test_repair_dismissed_projection_after_save() -> None:
         app._repair_dismissed_projection()
 
     assert app._dismissed_agents == {archived.identity}
-    mock_save.assert_called_once_with(app._dismissed_agents)
-    mock_sync_index.assert_called_once_with(app._dismissed_agents, force=True)
+    # Only this repair's delta is merged into the on-disk index.
+    mock_update.assert_called_once_with({archived.identity}, {stale.identity})
+    mock_sync_index.assert_called_once_with({archived.identity}, force=True)
 
 
 def test_do_revive_agent_removes_suffix_aliases() -> None:
@@ -55,8 +59,11 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
         (AgentType.WORKFLOW, "keep_me", "20260202101010"),
     }
 
+    keep = (AgentType.WORKFLOW, "keep_me", "20260202101010")
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch(
+            "sase.ace.dismissed_agents.remove_dismissed_agents", return_value={keep}
+        ) as mock_remove,
         patch(
             "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
         ) as mock_mark,
@@ -69,14 +76,24 @@ def test_do_revive_agent_removes_suffix_aliases() -> None:
     ):
         delta = app._do_revive_agent(parent)
 
-    assert app._dismissed_agents == {(AgentType.WORKFLOW, "keep_me", "20260202101010")}
+    assert app._dismissed_agents == {keep}
+    # Revive removes only its own identities and suffix aliases, never a
+    # full-snapshot write that could drop other writers' dismissals.
+    mock_remove.assert_called_once_with(
+        {
+            parent.identity,
+            child.identity,
+            (AgentType.RUNNING, "alias_running", "20260201101010"),
+            (AgentType.WORKFLOW, "alias_child", "child_suffix_1"),
+        }
+    )
     assert delta.revived_identities == (parent.identity, child.identity)
     assert delta.revived_artifact_dirs == (parent.artifacts_dir, parent.artifacts_dir)
     assert not delta.failed
     assert delta.generation_changed
     assert delta.has_changes
     mock_mark.assert_called_once_with({"20260201101010", "child_suffix_1"})
-    mock_sync_index.assert_called_once_with(app._dismissed_agents, added=())
+    mock_sync_index.assert_called_once_with({keep}, added=())
     mock_upsert_index.assert_called_once_with(
         [parent.artifacts_dir, parent.artifacts_dir]
     )
@@ -105,7 +122,7 @@ def test_do_revive_agent_resolves_parent_artifact_dir_for_child_restore() -> Non
     app._dismissed_agents = {parent.identity, child.identity}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
         patch(
             "sase.ace.tui.actions.agents._revive_execution.resolve_agent_artifact_path",
@@ -145,7 +162,7 @@ def test_do_revive_agent_selects_revived_agent_panel_after_reload() -> None:
     app.current_attempt_number = 7
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(dismissed)
@@ -170,7 +187,7 @@ def test_do_revive_agent_blocks_non_revivable_archive() -> None:
     app._dismissed_agents = {dismissed.identity}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents") as mock_save,
         patch(
             "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
         ) as mock_mark,
@@ -201,7 +218,7 @@ def test_do_revive_agent_clears_stale_banner_focus() -> None:
     app._current_group_key = ("stale",)
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(dismissed)
@@ -246,7 +263,7 @@ def test_do_revive_agents_batch_removes_suffix_aliases() -> None:
     }
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents") as mock_save,
         patch(
             "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
         ) as mock_mark,
@@ -280,7 +297,7 @@ def test_do_revive_agents_batch_skips_non_revivable_archive() -> None:
     app._dismissed_agents = {one.identity, two.identity}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch(
             "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
         ) as mock_mark,
@@ -306,7 +323,7 @@ def test_do_revive_agent_uses_artifact_delta_for_known_dir() -> None:
     app._dismissed_agents = {dismissed.identity}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(dismissed)
@@ -325,7 +342,7 @@ def test_do_revive_agents_batch_uses_artifact_delta_for_known_dirs() -> None:
     app._dismissed_agents = {one.identity, two.identity}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agents([one, two])
@@ -344,7 +361,7 @@ def test_do_revive_agent_skips_agents_tab_refilter_from_artifacts_tab() -> None:
     app._dismissed_agents = {dismissed.identity}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         delta = app._do_revive_agent(dismissed)
@@ -371,7 +388,7 @@ def test_do_revive_agents_delta_records_partial_artifact_restore_failure() -> No
     app._restore_agent_artifacts = restore  # type: ignore[method-assign]
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         delta = app._do_revive_agents([one, two])
@@ -392,7 +409,7 @@ def test_do_revive_agent_missing_artifact_dir_falls_back_to_full_history() -> No
     app._dismissed_agents = {dismissed.identity}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
         patch(
             "sase.ace.tui.actions.agents._revive.upsert_agent_artifact_index_artifacts"
@@ -442,7 +459,7 @@ def test_do_revive_agents_batch_selects_first_selected_parent() -> None:
     }
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agents([parent_one, parent_two])

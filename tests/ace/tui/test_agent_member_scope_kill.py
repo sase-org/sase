@@ -316,7 +316,7 @@ def test_durable_bulk_transaction_runs_member_intents(monkeypatch: Any) -> None:
     stopped: list[list[Agent]] = []
     cancelled: list[list[Agent]] = []
     monkeypatch.setattr(
-        dismissed_agents, "save_dismissed_agents", lambda snapshot: True
+        dismissed_agents, "add_dismissed_agents", lambda added: set(added)
     )
     monkeypatch.setattr(
         intents,
@@ -352,7 +352,7 @@ def test_durable_member_stop_failure_reports_resurface(monkeypatch: Any) -> None
 
     gate = _gate()
     monkeypatch.setattr(
-        dismissed_agents, "save_dismissed_agents", lambda snapshot: True
+        dismissed_agents, "add_dismissed_agents", lambda added: set(added)
     )
 
     def _fail(_agents: list[Agent]) -> set[Any]:
@@ -370,7 +370,7 @@ def test_durable_member_stop_failure_reports_resurface(monkeypatch: Any) -> None
         {
             "action": "kill",
             "transaction": "bulk_kill",
-            "dismissed_identities": [],
+            "added_identities": [],
             "agents_with_children": serialize_agents([gate]),
             "cleanup_plan": None,
             "kill_items": [],

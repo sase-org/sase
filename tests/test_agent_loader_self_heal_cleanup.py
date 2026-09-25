@@ -184,7 +184,10 @@ def test_apply_loaded_agents_repairs_dismissed_index_from_bundle() -> None:
     bundled._loaded_from_dismissed_bundle = True
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.update_dismissed_agents",
+            return_value={bundled.identity},
+        ) as mock_save,
         patch("sase.ace.tui.actions.agents._killing.delete_agent_artifacts"),
     ):
         app._apply_loaded_agents(
@@ -192,7 +195,7 @@ def test_apply_loaded_agents_repairs_dismissed_index_from_bundle() -> None:
         )
 
     assert bundled.identity in app._dismissed_agents
-    mock_save.assert_called_once_with(app._dismissed_agents)
+    mock_save.assert_called_once_with(additions={bundled.identity}, removals=())
     assert app._artifact_index_maintenance_pending_request == (
         {bundled.identity},
         {bundled.identity},

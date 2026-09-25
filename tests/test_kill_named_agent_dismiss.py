@@ -221,7 +221,7 @@ def test_kill_named_agent_index_write_failure_does_not_flip_success(
         ),
         patch("sase.running_field.release_workspace"),
         patch(
-            "sase.ace.dismissed_agents.save_dismissed_agents",
+            "sase.ace.dismissed_agents.add_dismissed_agents",
             side_effect=RuntimeError("disk full"),
         ),
     ):

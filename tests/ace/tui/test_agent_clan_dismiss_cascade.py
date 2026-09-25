@@ -132,7 +132,7 @@ def test_action_kill_agent_on_clan_container_dismisses_family_and_monitor() -> N
 
     assert app.cleanup_payloads
     payload_identities = {
-        (item[1], item[2]) for item in app.cleanup_payloads[0]["dismissed_identities"]
+        (item[1], item[2]) for item in app.cleanup_payloads[0]["added_identities"]
     }
     assert payload_identities >= {
         (plan_root.cl_name, plan_root.raw_suffix),

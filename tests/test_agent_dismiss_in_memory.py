@@ -164,7 +164,10 @@ def test_persist_dismissed_agent_syncs_projection() -> None:
     app._revived_agent_raw_suffixes = {"20240101120000"}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            return_value={identity},
+        ) as mock_add,
         patch(
             "sase.ace.tui.actions.agents._dismiss_memory."
             "sync_dismissed_agent_artifact_index"
@@ -174,8 +177,8 @@ def test_persist_dismissed_agent_syncs_projection() -> None:
 
     assert identity in app._dismissed_agents
     assert app._revived_agent_raw_suffixes == set()
-    mock_save.assert_called_once_with(app._dismissed_agents)
-    mock_sync_index.assert_called_once_with(app._dismissed_agents, added={identity})
+    mock_add.assert_called_once_with({identity})
+    mock_sync_index.assert_called_once_with({identity}, added={identity})
 
 
 def test_persist_dismissed_agent_false_sync_notifies() -> None:
@@ -184,7 +187,7 @@ def test_persist_dismissed_agent_false_sync_notifies() -> None:
     identity = make_agent(raw_suffix="20240101120000").identity
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents", return_value=set()),
         patch(
             "sase.ace.tui.actions.agents._dismiss_memory."
             "sync_dismissed_agent_artifact_index",
@@ -217,7 +220,7 @@ def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None: 
             "sase.ace.tui.actions.agents._dismissing.delete_agent_artifacts"
         ) as mock_delete,
         patch("sase.ace.dismissed_agents.save_dismissed_bundle") as mock_bundle,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.add_dismissed_agents") as mock_save,
     ):
         app._dismiss_done_agent(agent)
 
@@ -274,7 +277,7 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
             return_value=None,
         ),
         patch("sase.ace.dismissed_agents.save_dismissed_bundle") as mock_bundle,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.add_dismissed_agents") as mock_save,
     ):
         app._dismiss_done_agent(parent)
 
@@ -311,7 +314,7 @@ def test_dismiss_done_patch_agent_does_not_full_reload() -> None:
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.add_dismissed_agents") as mock_save,
     ):
         app._dismiss_done_agent(agent)
 
@@ -377,7 +380,7 @@ def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
         patch(
             "sase.ace.tui.actions.agents._dismissing.persist_bulk_dismiss_side_effects"
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents"),
         patch(
             "sase.notifications.store._rust_apply_notification_state_update",
             return_value=outcome,

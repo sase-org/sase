@@ -392,11 +392,11 @@ def test_agent_persist_cleanup_applies_json_identities(
     )
     saved: list[Any] = []
 
-    def fake_save(snapshot: Any) -> bool:
-        saved.append(snapshot)
-        return True
+    def fake_add(identities: Any) -> set[Any]:
+        saved.append(set(identities))
+        return set(identities)
 
-    monkeypatch.setattr("sase.ace.dismissed_agents.save_dismissed_agents", fake_save)
+    monkeypatch.setattr("sase.ace.dismissed_agents.add_dismissed_agents", fake_add)
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle.sync_dismissed_agent_artifact_index",
         lambda *_a, **_k: None,

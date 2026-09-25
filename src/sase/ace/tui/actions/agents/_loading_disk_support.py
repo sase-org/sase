@@ -395,15 +395,19 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
                 removed = set(self._dismissed_agents) & orphaned
                 if removed:
                     self._dismissed_agents -= removed
-                    from ....dismissed_agents import (
-                        save_dismissed_agents,
-                        snapshot_dismissed_agents,
-                    )
+                    from ....dismissed_agents import remove_dismissed_agents
 
-                    snapshot = snapshot_dismissed_agents(self._dismissed_agents)
-                    if await asyncio.to_thread(save_dismissed_agents, snapshot):
+                    # Merge-remove only the orphans so this write cannot
+                    # drop identities other writers added meanwhile.
+                    try:
+                        persisted = await asyncio.to_thread(
+                            remove_dismissed_agents, removed
+                        )
+                    except OSError:
+                        log.exception("Failed to remove orphaned dismissed agents")
+                    else:
                         self._schedule_artifact_index_maintenance(
-                            dismissed=set(self._dismissed_agents),
+                            dismissed=persisted,
                             force=True,
                             source="loader_cleanup",
                         )
@@ -523,6 +527,6 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
             persist_dismissed_changes=bool(orphaned)
             or bool(prep.recovered_bundle_identities)
             or bool(prep.auto_dismissed_identities),
-            dismissed_changes_include_removals=bool(orphaned),
+            removed_dismissed_identities=orphaned or None,
             effective_runner_limit=effective_runner_limit,
         )

@@ -174,7 +174,6 @@ def _dismiss_through_cleanup_subprocess(agent: Agent, tmp_path: Path) -> Agent:
                 "transaction": "single_dismiss",
                 "agent": serialize_agent(agent),
                 "agents_with_children": [serialize_agent(agent)],
-                "dismissed_identities": json_identities([agent.identity]),
                 "added_identities": json_identities([agent.identity]),
             }
         )

@@ -108,7 +108,7 @@ def test_save_marked_group_uses_tracked_task_and_refreshes_on_success() -> None:
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents", return_value=set()),
         patch("sase.ace.dismissed_agents.save_dismissed_agent_group"),
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
         patch(
@@ -184,7 +184,7 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
     saved_bundles: list[Agent] = []
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_bundle") as mock_bundle,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents", return_value=set()),
         patch(
             "sase.ace.dismissed_agents.save_dismissed_agent_group",
             side_effect=lambda group: saved_groups.append(group) or group,
@@ -235,7 +235,7 @@ def test_blank_save_preserves_generated_group_title() -> None:
     saved_groups: list[Any] = []
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents", return_value=set()),
         patch(
             "sase.ace.dismissed_agents.save_dismissed_agent_group",
             side_effect=lambda group: saved_groups.append(group) or group,
@@ -262,14 +262,14 @@ def test_marked_group_persistence_dismisses_completion_notifications() -> None:
 
     with (
         patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=False),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents", side_effect=OSError),
         patch("sase.ace.dismissed_agents.save_dismissed_agent_group"),
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
         patch(
             "sase.notifications.dismiss_agent_completion_notifications_matching_agents"
         ) as dismiss_completions,
     ):
-        _persist_marked_agent_group_save(agents, identities, identities, group)
+        _persist_marked_agent_group_save(agents, identities, group)
 
     dismiss_completions.assert_called_once_with(
         [

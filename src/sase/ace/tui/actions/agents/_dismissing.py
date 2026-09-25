@@ -30,6 +30,7 @@ from ._dismiss_persistence import (
     agents_related_to_dismissal,
 )
 from ._dismiss_persistence import (
+    add_dismissed_batch,
     persist_bulk_dismiss_side_effects,
     persist_cleanup_side_effect_intents,
     persist_dismiss_side_effects,
@@ -190,7 +191,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         )
         cache_recent_dismissed_agent_group(self, recent_group)
 
-        new_identities = dismissed_identities - self._dismissed_agents
         for identity in dismissed_identities:
             self._agent_status_overrides.pop(identity, None)
             getattr(self, "_agents_arrival_status_overlays", {}).pop(identity, None)
@@ -217,27 +217,27 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         if callable(clear_completion_notifications):
             clear_completion_notifications(related_agents)
 
-        from ....dismissed_agents import snapshot_dismissed_agents
-
         self._submit_bulk_dismiss_persistence_task(
             list(agents),
-            snapshot_dismissed_agents(self._dismissed_agents),
             agents_with_children_snapshot,
             cleanup_plan,
-            new_identities,
+            dismissed_identities,
             recent_group,
         )
 
     def _submit_bulk_dismiss_persistence_task(
         self,
         agents: list[Agent],
-        dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
         added: set[AgentIdentity] | None = None,
         recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
-        """Submit a batch dismissal's persistence as a tracked proc."""
+        """Submit a batch dismissal's persistence as a tracked proc.
+
+        *added* is the batch's identities; the durable proc merges them into
+        the dismissed index instead of writing a full snapshot.
+        """
         overlap = {a.identity for a in agents} & self._dismiss_persistence_inflight
         if overlap:
             # An earlier proc already persists these rows. Drop only them: the
@@ -272,7 +272,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
                 if cleanup_plan is not None
                 else None
             ),
-            "dismissed_identities": json_identities(dismissed_snapshot),
             "identity": ",".join(sorted(str(item) for item in identities)),
             "message": f"Dismissed {count} agent{s}",
             "recent_group": (
@@ -348,7 +347,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             agents_for_recent_group(identities, agents_with_children_snapshot)
         )
         cache_recent_dismissed_agent_group(self, recent_group)
-        new_identities = identities - self._dismissed_agents
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
             getattr(self, "_agents_arrival_status_overlays", {}).pop(identity, None)
@@ -373,14 +371,11 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
                 agents_related_to_dismissal(agent, agents_with_children_snapshot)
             )
 
-        from ....dismissed_agents import snapshot_dismissed_agents
-
         self._submit_dismiss_persistence_task(
             agent,
-            snapshot_dismissed_agents(self._dismissed_agents),
             agents_with_children_snapshot,
             cleanup_plan,
-            new_identities,
+            identities,
             recent_group,
             on_settled=on_settled,
         )
@@ -388,7 +383,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
     def _submit_dismiss_persistence_task(
         self,
         agent: Agent,
-        dismissed_snapshot: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
         added: set[AgentIdentity] | None = None,
@@ -397,6 +391,9 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         on_settled: Callable[[], None] | None = None,
     ) -> None:
         """Submit single-agent dismiss persistence as a tracked proc.
+
+        *added* is the dismissal's identities; the durable proc merges them
+        into the dismissed index instead of writing a full snapshot.
 
         *on_settled*, when given, is composed with the in-flight-release
         callback below so it always fires exactly once: from the proc's
@@ -427,7 +424,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
                 if cleanup_plan is not None
                 else None
             ),
-            "dismissed_identities": json_identities(dismissed_snapshot),
             "identity": str(identity),
             "message": f"Dismissed {agent.display_name}",
             "recent_group": (
@@ -457,7 +453,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
 
 def _persist_single_dismiss_transaction(
     agent: Agent,
-    dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None = None,
     added: set[AgentIdentity] | None = None,
@@ -466,10 +461,7 @@ def _persist_single_dismiss_transaction(
     register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Persist all side effects for one optimistic dismiss operation."""
-    from ....dismissed_agents import (
-        record_recent_dismissed_agent_group,
-        save_dismissed_agents,
-    )
+    from ....dismissed_agents import record_recent_dismissed_agent_group
 
     # Safety net: a row dismissed without a kill whose runner is provably still
     # alive (for example a FAILED row in retry backoff) must not keep running.
@@ -503,11 +495,12 @@ def _persist_single_dismiss_transaction(
         )
     if recent_group is not None:
         record_recent_dismissed_agent_group(recent_group)
-    if save_dismissed_agents(dismissed_snapshot):
+    dismissed = add_dismissed_batch(added or ())
+    if dismissed is not None:
         try:
             synced = sync_dismissed_agent_artifact_index(
-                dismissed_snapshot,
-                added=added,
+                dismissed,
+                added=added or (),
             )
         except Exception:
             log.exception("Failed to sync dismissed-agent artifact index")
@@ -536,7 +529,6 @@ def _unique_related_agents_for_dismissal(
 
 def _persist_bulk_dismiss_transaction(
     agents: list[Agent],
-    dismissed_snapshot: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None = None,
     added: set[AgentIdentity] | None = None,
@@ -545,10 +537,7 @@ def _persist_bulk_dismiss_transaction(
     register_expected_deletion: Callable[[str | None], None] | None = None,
 ) -> None:
     """Persist all side effects for an optimistic batch dismiss operation."""
-    from ....dismissed_agents import (
-        record_recent_dismissed_agent_group,
-        save_dismissed_agents,
-    )
+    from ....dismissed_agents import record_recent_dismissed_agent_group
 
     # Safety net: see ``_persist_single_dismiss_transaction``.
     survivors: list[Survivor] = terminate_agents(
@@ -591,11 +580,12 @@ def _persist_bulk_dismiss_transaction(
             dismiss_notifications_for_agents(related)
     if recent_group is not None:
         record_recent_dismissed_agent_group(recent_group)
-    if save_dismissed_agents(dismissed_snapshot):
+    dismissed = add_dismissed_batch(added or ())
+    if dismissed is not None:
         try:
             synced = sync_dismissed_agent_artifact_index(
-                dismissed_snapshot,
-                added=added,
+                dismissed,
+                added=added or (),
             )
         except Exception:
             log.exception("Failed to sync dismissed-agent artifact index")

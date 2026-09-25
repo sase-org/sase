@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import itertools
 import sys
 import threading
 from collections.abc import Iterable
@@ -59,7 +58,7 @@ from .dismissed_agents_state import (
     add_dismissed_agents as _add_dismissed_agents_impl,
     load_dismissed_agents as _load_dismissed_agents_impl,
     remove_dismissed_agents as _remove_dismissed_agents_impl,
-    save_dismissed_agents as _save_dismissed_agents_impl,
+    update_dismissed_agents as _update_dismissed_agents_impl,
 )
 
 if TYPE_CHECKING:
@@ -132,6 +131,14 @@ def remove_dismissed_agents(
     return _remove_dismissed_agents_impl(_dismissed_agents_file(), identities)
 
 
+def update_dismissed_agents(
+    additions: Iterable[tuple[AgentType, str, str | None]] = (),
+    removals: Iterable[tuple[AgentType, str, str | None]] = (),
+) -> set[tuple[AgentType, str, str | None]]:
+    """Apply removals then additions in one locked write, returning the result."""
+    return _update_dismissed_agents_impl(_dismissed_agents_file(), additions, removals)
+
+
 def dismissed_agents_file_signature() -> tuple[int, int] | None:
     try:
         stat = _dismissed_agents_file().stat()
@@ -186,62 +193,6 @@ def dismissed_bundle_identities_snapshot() -> set[tuple[AgentType, str, str | No
         _dismissed_bundle_identities_snapshot_signature = signature
         _dismissed_bundle_identities_snapshot_initialized = True
         return set(_dismissed_bundle_identities_snapshot_cache)
-
-
-_DISMISSED_SAVE_LOCK = threading.Lock()
-_dismissed_snapshot_generations = itertools.count(1)
-_last_saved_dismissed_generation: dict[Path, int] = {}
-
-
-class _DismissedAgentsSnapshot(set):
-    """Dismissed-identity snapshot stamped with its capture generation."""
-
-    generation: int = 0
-
-
-def snapshot_dismissed_agents(
-    dismissed: Iterable[tuple[AgentType, str, str | None]],
-) -> _DismissedAgentsSnapshot:
-    """Copy *dismissed* for handoff to a background persistence worker.
-
-    Capture on the thread that mutates the live set so generation order
-    matches mutation order; :func:`save_dismissed_agents` then skips any
-    snapshot that a newer snapshot (or live-set save) has already
-    persisted, so concurrent persistence workers cannot overwrite newer
-    state with an older full-set snapshot.
-    """
-    snapshot = _DismissedAgentsSnapshot(dismissed)
-    with _DISMISSED_SAVE_LOCK:
-        snapshot.generation = next(_dismissed_snapshot_generations)
-    return snapshot
-
-
-def save_dismissed_agents(
-    dismissed: set[tuple[AgentType, str, str | None]],
-) -> bool:
-    """Save the dismissed set, skipping snapshots a newer save supersedes.
-
-    Returns False when the write failed or when *dismissed* is a
-    generation-stamped snapshot that an equal-or-newer generation has
-    already persisted for the same file; callers gate the artifact-index
-    sync on this result, so a superseded snapshot never reaches disk or
-    the index.
-    """
-    global _last_saved_dismissed_generation
-    target = _dismissed_agents_file()
-    with _DISMISSED_SAVE_LOCK:
-        generation = getattr(dismissed, "generation", 0)
-        if generation:
-            if generation <= _last_saved_dismissed_generation.get(target, 0):
-                return False
-        else:
-            # An unstamped save passes the live set from the owning thread,
-            # which reflects every previously captured snapshot's mutations.
-            generation = next(_dismissed_snapshot_generations)
-        if not _save_dismissed_agents_impl(target, dismissed):
-            return False
-        _last_saved_dismissed_generation[target] = generation
-        return True
 
 
 def save_dismissed_bundle(agent: Agent) -> bool:

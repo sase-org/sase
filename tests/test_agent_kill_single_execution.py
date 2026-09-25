@@ -340,7 +340,7 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
         patch(
             "sase.ace.tui.actions.agents._kill_persistence._persist_hook_kill"
         ) as mock_persist_hook,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents"),
         patch("sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"),
     ):
         run_tracked_proc(app, app.tracked_procs[0])

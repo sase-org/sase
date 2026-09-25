@@ -87,6 +87,33 @@ class AgentReviveStateMixin:
             if identity[2] is None or identity[2] not in suffixes
         }
 
+    def _persist_revived_dismissals(
+        self,
+        identities: set[tuple[AgentType, str, str | None]],
+        suffixes: set[str],
+    ) -> set[tuple[AgentType, str, str | None]] | None:
+        """Remove revived identities from the on-disk dismissed index.
+
+        Removes *identities* plus any other on-disk alias that shares a
+        revived suffix, merging under the index lock so dismissals other
+        writers added meanwhile survive. Returns the resulting on-disk set,
+        or None when the index could not be written.
+        """
+        from ....dismissed_agents import remove_dismissed_agents
+
+        try:
+            remaining = remove_dismissed_agents(identities)
+            aliases = {
+                identity
+                for identity in remaining
+                if identity[2] is not None and identity[2] in suffixes
+            }
+            if aliases:
+                remaining = remove_dismissed_agents(aliases)
+        except OSError:
+            return None
+        return remaining
+
     def _record_revived_agent_suffixes(self, suffixes: set[str]) -> None:
         """Remember revived suffixes across incomplete Tier 1 refreshes."""
         if not suffixes:

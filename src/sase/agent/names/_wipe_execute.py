@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from sase.agent.names._common import is_process_alive
 from sase.agent.names._registry import rebuild_name_registry
@@ -20,7 +18,6 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.force_reuse_stop_barrier import decide_force_reuse_stop_barrier
-from sase.core.paths import sase_home
 
 _FORCE_REUSE_STOP_GRACE_SECONDS = 1.0
 _FORCE_REUSE_SIGKILL_CONFIRM_SECONDS = 0.25
@@ -318,34 +315,28 @@ def _remove_bundle_paths(
 def _remove_dismissed_index_entries(suffixes: set[str], errors: list[str]) -> int:
     if not suffixes:
         return 0
-    path = sase_home() / "dismissed_agents.json"
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return 0
-    except (OSError, json.JSONDecodeError) as exc:
-        errors.append(f"failed reading dismissed index {path}: {exc}")
-        return 0
-    if not isinstance(data, list):
-        return 0
+    from sase.ace.dismissed_agents import (
+        dismissed_agents_file_signature,
+        load_dismissed_agents,
+        remove_dismissed_agents,
+    )
 
-    kept: list[Any] = []
-    removed = 0
-    for entry in data:
-        raw_suffix = _dismissed_index_raw_suffix(entry)
-        if raw_suffix in suffixes:
-            removed += 1
-        else:
-            kept.append(entry)
-    if removed == 0:
+    if dismissed_agents_file_signature() is None:
         return 0
-
+    doomed = {
+        identity
+        for identity in load_dismissed_agents()
+        if identity[2] is not None and identity[2] in suffixes
+    }
+    if not doomed:
+        return 0
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(kept, indent=2) + "\n", encoding="utf-8")
+        # Merge-remove only the wiped identities so a concurrent TUI or runner
+        # dismissal is not overwritten by a stale full-file rewrite.
+        remove_dismissed_agents(doomed)
     except OSError as exc:
-        errors.append(f"failed writing dismissed index {path}: {exc}")
-    return removed
+        errors.append(f"failed writing dismissed index: {exc}")
+    return len(doomed)
 
 
 def _dismiss_related_notifications(plan: WipePlan, errors: list[str]) -> int:
@@ -368,16 +359,6 @@ def _dismiss_related_notifications(plan: WipePlan, errors: list[str]) -> int:
     except Exception as exc:
         errors.append(f"failed dismissing notifications: {exc}")
         return 0
-
-
-def _dismissed_index_raw_suffix(entry: Any) -> str | None:
-    if isinstance(entry, list) and len(entry) == 3 and isinstance(entry[2], str):
-        return entry[2]
-    if isinstance(entry, dict):
-        raw = entry.get("raw_suffix")
-        if isinstance(raw, str):
-            return raw
-    return None
 
 
 def _project_dir_from_artifact(path: Path) -> Path | None:

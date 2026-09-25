@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, cast
 
 from ._clan_cleanup import clan_members_for_container
 from ._dismiss_cleanup import agent_identity_from_wire
+from ._dismiss_persistence import add_dismissed_batch
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
 from ._kill_termination import (
     AgentSurvivorsError,
@@ -70,7 +71,7 @@ def persist_single_kill_transaction(
     agent: Agent,
     kind: KillKind,
     agents_with_children_snapshot: list[Agent],
-    dismissed_snapshot: set[AgentIdentity],
+    added: set[AgentIdentity],
     cleanup_plan: AgentCleanupPlanWire | None,
     related_agents: list[Agent],
     *,
@@ -84,14 +85,14 @@ def persist_single_kill_transaction(
     claims released and artifacts deleted, and never for an agent that could
     not be verified dead; those are reported as an error once everything else
     is persisted.
-    """
-    from ....dismissed_agents import save_dismissed_agents
 
+    *added* is this operation's identities. They merge into the on-disk
+    dismissed index, so concurrent cleanup procs never overwrite each other.
+    """
     killing_compat = _killing_compat_module()
-    # The save is skipped (and the index sync with it) when a newer snapshot
-    # already reached disk.
-    if save_dismissed_agents(dismissed_snapshot):
-        killing_compat.sync_dismissed_agent_artifact_index(dismissed_snapshot)
+    dismissed = add_dismissed_batch(added)
+    if dismissed is not None:
+        killing_compat.sync_dismissed_agent_artifact_index(dismissed)
     killing_compat.dismiss_notifications_for_agents(related_agents)
 
     targets = single_kill_targets(
@@ -132,7 +133,7 @@ def persist_single_kill_transaction(
 def persist_bulk_kill_transaction(
     kill_items: list[BulkKillItem],
     dismissable: list[Agent],
-    dismissed_snapshot: set[AgentIdentity],
+    added: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None,
     recent_group: SavedAgentGroupWire | None,
@@ -148,13 +149,13 @@ def persist_bulk_kill_transaction(
     terminate and verify, then release workspaces and delete artifacts for
     every agent that is verifiably dead. A member stop or cancel that does
     not settle fails the transaction with the identities to resurface.
+    *added* is this operation's identities, merged into the dismissed index.
     """
-    from ....dismissed_agents import save_dismissed_agents
-
     killing_compat = _killing_compat_module()
-    if save_dismissed_agents(dismissed_snapshot):
+    dismissed = add_dismissed_batch(added)
+    if dismissed is not None:
         try:
-            killing_compat.sync_dismissed_agent_artifact_index(dismissed_snapshot)
+            killing_compat.sync_dismissed_agent_artifact_index(dismissed)
         except Exception:
             pass
     dismissed_rows = [item.agent for item in kill_items] + list(dismissable)
@@ -191,7 +192,7 @@ def persist_bulk_kill_transaction(
     args: list[object] = [
         kill_items,
         dismissable,
-        dismissed_snapshot,
+        added,
         agents_with_children_snapshot,
     ]
     if cleanup_plan is not None or recent_group is not None:

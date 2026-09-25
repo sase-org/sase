@@ -11,6 +11,16 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
+    # The additive index API and the thin helpers that wrap it. None of these
+    # syncs the projection itself: every caller of the write does, above.
+    "src/sase/ace/dismissed_agents_state.py:add_dismissed_agents": (),
+    "src/sase/ace/dismissed_agents_state.py:remove_dismissed_agents": (),
+    "src/sase/core/dismissed_agents_facade.py:add_dismissed_agents": (),
+    "src/sase/core/dismissed_agents_facade.py:remove_dismissed_agents": (),
+    "src/sase/ace/tui/actions/agents/_dismiss_persistence.py:add_dismissed_batch": (),
+    "src/sase/ace/tui/actions/agents/_revive_state.py:_persist_revived_dismissals": (),
+    # ``execute_wipe_plan`` force-syncs the projection after this write.
+    "src/sase/agent/names/_wipe_execute.py:_remove_dismissed_index_entries": (),
     "src/sase/ace/tui/actions/agents/_dismiss_memory.py:_persist_dismissed_agent": (
         _SYNC_DISMISSED_INDEX,
     ),

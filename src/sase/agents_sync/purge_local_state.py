@@ -26,9 +26,8 @@ from sase.core.agent_types import AgentIdentity, AgentType
 from sase.core.dismissed_agents_facade import (
     dismissed_bundles_dir,
     iter_dismissed_bundle_paths,
-    load_dismissed_agents,
-    persist_dismissed_agents as save_dismissed_agents,
     rebuild_dismissed_bundle_index,
+    remove_dismissed_agents,
 )
 from sase.core.paths import sase_home, sase_projects_dir
 
@@ -271,9 +270,9 @@ def _apply_closure(closure: _Closure) -> PurgeLocalStateOutcome:
     rebuild_dismissed_bundle_index()
 
     if closure.dismissed_identities:
-        dismissed = load_dismissed_agents()
-        updated = dismissed - set(closure.dismissed_identities)
-        if updated != dismissed and not save_dismissed_agents(updated):
+        try:
+            remove_dismissed_agents(closure.dismissed_identities)
+        except OSError:
             errors.append("failed to save dismissed identities after purge")
     sync_dismissed_agent_artifact_index(force=True)
 

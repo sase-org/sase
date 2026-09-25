@@ -126,7 +126,7 @@ def test_execute_monitor_stop_intents_fails_closed_when_monitor_stays_running() 
                 },
                 "kill_items": [],
                 "dismissable": [],
-                "dismissed_identities": [],
+                "added_identities": [],
             }
         )
 
@@ -175,7 +175,7 @@ def test_persist_cleanup_stops_monitors_before_dismissal() -> None:
             "sase.ace.tui.actions.agents._kill_transactions.persist_bulk_kill_transaction",
             side_effect=_persist,
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=False),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents", return_value=set()),
     ):
         success, _message, _payload = _apply_cleanup_payload_for_result(
             {
@@ -209,7 +209,7 @@ def test_persist_cleanup_stops_monitors_before_dismissal() -> None:
                 },
                 "kill_items": [],
                 "dismissable": [],
-                "dismissed_identities": [],
+                "added_identities": [],
             }
         )
 

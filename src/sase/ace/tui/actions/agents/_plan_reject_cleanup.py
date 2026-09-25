@@ -120,24 +120,15 @@ def _persist_durable_kill(
     agent: Agent, kind: KillKind, agents_snapshot: list[Agent]
 ) -> set[AgentIdentity]:
     """Run the same durable kill transaction the TUI persists in the background."""
-    from ....dismissed_agents import (
-        load_dismissed_agents,
-        snapshot_dismissed_agents,
-    )
-
     cleanup_plan = plan_single_agent_kill_cleanup(agent, agents_snapshot)
     identities = collect_planned_kill_identities(agent, agents_snapshot, cleanup_plan)
-
-    dismissed = load_dismissed_agents()
-    dismissed.update(identities)
-    dismissed_snapshot = snapshot_dismissed_agents(dismissed)
 
     related_agents = agents_related_to_kill(agent, agents_snapshot)
     persist_single_kill_transaction(
         agent,
         kind,
         agents_snapshot,
-        dismissed_snapshot,
+        identities,
         cleanup_plan,
         related_agents,
     )

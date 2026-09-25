@@ -9,6 +9,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 
 from ._dismiss_cleanup import AgentIdentity
+from ._dismiss_persistence import add_dismissed_batch
 from ._marking_kill import AgentMarkedKillMixin
 from ._recent_dismissal_groups import cache_recent_dismissed_agent_group
 from ._saved_group_records import (
@@ -25,7 +26,6 @@ if TYPE_CHECKING:
 
 def _persist_marked_agent_group_save(
     agents: list[Agent],
-    dismissed_snapshot: set[AgentIdentity],
     added: set[AgentIdentity],
     group: SavedAgentGroupWire,
     group_name: str | None = None,
@@ -36,7 +36,6 @@ def _persist_marked_agent_group_save(
     from ....dismissed_agents import (
         record_recent_dismissed_agent_group,
         save_dismissed_agent_group,
-        save_dismissed_agents,
         save_dismissed_bundle,
     )
 
@@ -55,9 +54,10 @@ def _persist_marked_agent_group_save(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix} for agent in agents]
     )
 
-    if save_dismissed_agents(dismissed_snapshot):
+    dismissed = add_dismissed_batch(added)
+    if dismissed is not None:
         try:
-            sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
+            sync_dismissed_agent_artifact_index(dismissed, added=added)
         except Exception:
             pass
 
@@ -135,7 +135,6 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
             return
 
         identities = {agent.identity for agent in agents}
-        added = identities - self._dismissed_agents
         group = build_saved_agent_group(
             agents, group_name=group_name, resolve_bundle_paths=False
         )
@@ -162,12 +161,9 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
         else:
             self.notify(message)  # type: ignore[attr-defined]
 
-        from ....dismissed_agents import snapshot_dismissed_agents
-
         self._submit_marked_group_save_persistence_task(
             list(agents),
-            snapshot_dismissed_agents(self._dismissed_agents),
-            added,
+            identities,
             group,
             normalize_saved_group_name(group_name),
         )
@@ -175,7 +171,6 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
     def _submit_marked_group_save_persistence_task(
         self,
         agents: list[Agent],
-        dismissed_snapshot: set[AgentIdentity],
         added: set[AgentIdentity],
         group: SavedAgentGroupWire,
         group_name: str | None = None,
@@ -198,7 +193,6 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
             "action": "save",
             "added_identities": json_identities(added),
             "agents": serialize_agents(agents),
-            "dismissed_identities": json_identities(dismissed_snapshot),
             "group": saved_agent_group_wire_to_json_dict(group),
             "group_name": group_name,
             "identity": ",".join(sorted(str(item) for item in identities)),

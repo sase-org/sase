@@ -74,7 +74,7 @@ def load_dismissed_agents(
         return set()
 
 
-def save_dismissed_agents(
+def _save_dismissed_agents(
     dismissed_agents_file: Path,
     dismissed: set[tuple[AgentType, str, str | None]],
 ) -> bool:
@@ -115,24 +115,33 @@ def save_dismissed_agents(
         return False
 
 
-def add_dismissed_agents(
+def update_dismissed_agents(
     dismissed_agents_file: Path,
-    identities: Iterable[DismissedIdentity],
+    additions: Iterable[DismissedIdentity] = (),
+    removals: Iterable[DismissedIdentity] = (),
 ) -> set[DismissedIdentity]:
-    """Add identities to the dismissed index, returning the resulting set.
+    """Apply removals then additions to the dismissed index, returning the result.
 
-    Uses the atomic locked merge when the Rust binding is available so
-    concurrent writers cannot lose each other's dismissals; otherwise falls
-    back to load-modify-save.
+    Uses the atomic locked merge in the Rust binding so concurrent writers
+    (persist-cleanup procs, runners, other TUIs) cannot lose each other's
+    dismissals; without the binding it falls back to load-modify-save.
+
+    Raises:
+        OSError: If the index could not be written.
     """
-    additions = [_identity_to_entry(identity) for identity in identities]
+    added = list(additions)
+    removed = list(removals)
+    if not added and not removed:
+        return load_dismissed_agents(dismissed_agents_file)
     try:
         from sase.core.agent_cleanup_execution import (
             try_update_dismissed_agents_index,
         )
 
         updated = try_update_dismissed_agents_index(
-            dismissed_agents_file, additions, []
+            dismissed_agents_file,
+            [_identity_to_entry(identity) for identity in added],
+            [_identity_to_entry(identity) for identity in removed],
         )
     except (OSError, ValueError):
         updated = None
@@ -143,45 +152,24 @@ def add_dismissed_agents(
             if (identity := _entry_to_identity(entry)) is not None
         }
     current = load_dismissed_agents(dismissed_agents_file)
-    current.update(
-        identity
-        for entry in additions
-        if (identity := _entry_to_identity(entry)) is not None
-    )
-    save_dismissed_agents(dismissed_agents_file, current)
+    current.difference_update(removed)
+    current.update(added)
+    if not _save_dismissed_agents(dismissed_agents_file, current):
+        raise OSError(f"failed to write dismissed index {dismissed_agents_file}")
     return current
+
+
+def add_dismissed_agents(
+    dismissed_agents_file: Path,
+    identities: Iterable[DismissedIdentity],
+) -> set[DismissedIdentity]:
+    """Add identities to the dismissed index, returning the resulting set."""
+    return update_dismissed_agents(dismissed_agents_file, additions=identities)
 
 
 def remove_dismissed_agents(
     dismissed_agents_file: Path,
     identities: Iterable[DismissedIdentity],
 ) -> set[DismissedIdentity]:
-    """Remove identities from the dismissed index, returning the resulting set.
-
-    Uses the atomic locked merge when the Rust binding is available so
-    concurrent writers cannot lose each other's dismissals; otherwise falls
-    back to load-modify-save.
-    """
-    removals = [_identity_to_entry(identity) for identity in identities]
-    try:
-        from sase.core.agent_cleanup_execution import (
-            try_update_dismissed_agents_index,
-        )
-
-        updated = try_update_dismissed_agents_index(dismissed_agents_file, [], removals)
-    except (OSError, ValueError):
-        updated = None
-    if updated is not None:
-        return {
-            identity
-            for entry in updated
-            if (identity := _entry_to_identity(entry)) is not None
-        }
-    current = load_dismissed_agents(dismissed_agents_file)
-    current.difference_update(
-        identity
-        for entry in removals
-        if (identity := _entry_to_identity(entry)) is not None
-    )
-    save_dismissed_agents(dismissed_agents_file, current)
-    return current
+    """Remove identities from the dismissed index, returning the resulting set."""
+    return update_dismissed_agents(dismissed_agents_file, removals=identities)

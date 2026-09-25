@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -26,10 +27,20 @@ def load_dismissed_agents() -> set[AgentIdentity]:
     return dismissed_agents.load_dismissed_agents()
 
 
-def persist_dismissed_agents(dismissed: set[AgentIdentity]) -> bool:
-    from sase.ace.dismissed_agents import save_dismissed_agents as impl
+def add_dismissed_agents(identities: Iterable[AgentIdentity]) -> set[AgentIdentity]:
+    """Add identities to the dismissed index, returning the resulting on-disk set."""
+    from sase.ace import dismissed_agents
 
-    return impl(dismissed)
+    return dismissed_agents.add_dismissed_agents(identities)
+
+
+def remove_dismissed_agents(
+    identities: Iterable[AgentIdentity],
+) -> set[AgentIdentity]:
+    """Remove identities from the dismissed index, returning the resulting set."""
+    from sase.ace import dismissed_agents
+
+    return dismissed_agents.remove_dismissed_agents(identities)
 
 
 def rebuild_dismissed_bundle_index() -> tuple[int, int]:
@@ -80,13 +91,14 @@ def upsert_bundle_summary(root: Path, path: Path, bundle: dict[str, Any]) -> boo
 
 
 __all__ = [
+    "add_dismissed_agents",
     "archive_index_exists",
     "dismissed_agent_groups_dir",
     "dismissed_bundles_dir",
     "iter_dismissed_bundle_paths",
     "load_dismissed_agents",
     "load_dismissed_bundle_summaries",
-    "persist_dismissed_agents",
     "rebuild_dismissed_bundle_index",
+    "remove_dismissed_agents",
     "upsert_bundle_summary",
 ]

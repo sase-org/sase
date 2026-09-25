@@ -10,8 +10,8 @@ import pytest
 from sase.agents_sync.purge_local_state import purge_local_import_state
 from sase.core.agent_types import AgentType
 from sase.core.dismissed_agents_facade import (
+    add_dismissed_agents,
     load_dismissed_agents,
-    persist_dismissed_agents,
 )
 
 
@@ -121,7 +121,7 @@ def _seed_full_closure(state: Path, projects: Path) -> dict[str, Path]:
     (local_dir / "agent_meta.json").write_text(
         json.dumps({"name": "local-run"}), encoding="utf-8"
     )
-    persist_dismissed_agents(
+    add_dismissed_agents(
         {
             (AgentType.RUNNING, "proj", "20260601120000"),
             (AgentType.RUNNING, "proj", "20260601140000"),

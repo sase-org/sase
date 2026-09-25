@@ -15,7 +15,7 @@ The tests cover three properties:
    refresh triggers during the burst collapse into the existing
    ``_agents_refresh_pending`` flag.
 3. ``_apply_loaded_agents`` batches the auto-dismiss disk writes into a
-   single ``save_dismissed_agents`` flush — the post-launch refresh's
+   single locked dismissed-index merge — the post-launch refresh's
    biggest source of UI-thread disk I/O — so a many-agent reload no
    longer fans out into N synchronous writes.
 """
@@ -193,14 +193,14 @@ def _make_hidden_done(suffix: str, cl: str = "x") -> Agent:
 
 
 def test_apply_batches_auto_dismiss_into_one_disk_write() -> None:
-    """N hidden+DONE agents → exactly 1 save_dismissed_agents call.
+    """N hidden+DONE agents → exactly 1 dismissed-index write.
 
     Pre-Phase-2 each auto-dismissed agent triggered one synchronous
-    ``save_dismissed_agents`` disk write on the UI thread, so a refresh
-    that auto-dismissed K agents performed K JSON writes during the
-    user's first post-launch j/k burst.  After Phase 2 the prep step
-    accumulates the identities into a single delta and the apply step
-    flushes the merged set once.
+    dismissed-index disk write on the UI thread, so a refresh that
+    auto-dismissed K agents performed K JSON writes during the user's
+    first post-launch j/k burst.  After Phase 2 the prep step accumulates
+    the identities into a single delta and the apply step merges it into
+    the on-disk index once.
     """
     app = _FakeApplyApp()
     agents = [
@@ -209,7 +209,8 @@ def test_apply_batches_auto_dismiss_into_one_disk_write() -> None:
 
     with (
         patch(
-            "sase.ace.dismissed_agents.save_dismissed_agents", return_value=True
+            "sase.ace.dismissed_agents.update_dismissed_agents",
+            side_effect=lambda additions=(), removals=(): set(additions),
         ) as mock_save,
     ):
         app._apply_loaded_agents(
@@ -250,7 +251,7 @@ def test_apply_skips_save_when_no_dismissed_changes() -> None:
     )
 
     with patch(
-        "sase.ace.dismissed_agents.save_dismissed_agents", return_value=True
+        "sase.ace.dismissed_agents.update_dismissed_agents", return_value=set()
     ) as mock_save:
         app._apply_loaded_agents(
             [a_running],

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 from ._dismiss_cleanup import agent_wire_identity, wire_identity_key
@@ -18,6 +19,28 @@ from sase.core.agent_artifact_index_lifecycle import (
 
 if TYPE_CHECKING:
     from ...models import Agent
+    from ...models.agent import AgentType
+
+log = logging.getLogger(__name__)
+
+
+def add_dismissed_batch(
+    added: Iterable[tuple[AgentType, str, str | None]],
+) -> set[tuple[AgentType, str, str | None]] | None:
+    """Add one batch's identities to the on-disk dismissed index.
+
+    The write merges under a file lock, so concurrent procs, runners, and
+    TUIs never lose each other's dismissals. Returns the resulting on-disk
+    set for the artifact-index sync, or None when the write failed: a failed
+    publish must not stop the rest of the cleanup transaction.
+    """
+    from ....dismissed_agents import add_dismissed_agents
+
+    try:
+        return add_dismissed_agents(added)
+    except Exception:
+        log.exception("Failed to add identities to the dismissed-agents index")
+        return None
 
 
 def _release_held_workspace_claims(

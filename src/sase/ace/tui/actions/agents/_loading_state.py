@@ -266,7 +266,8 @@ class AgentLoadingStateMixin:
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None = None,
         persist_dismissed_changes: bool,
-        dismissed_changes_include_removals: bool = False,
+        removed_dismissed_identities: set[tuple[AgentType, str, str | None]]
+        | None = None,
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,

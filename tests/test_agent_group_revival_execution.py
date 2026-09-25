@@ -53,7 +53,7 @@ def test_revive_saved_group_restores_parent_child_and_marks_group() -> None:
             "sase.ace.dismissed_agents.load_dismissed_bundles",
             return_value=[parent, child],
         ) as mock_load_bundles,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch(
             "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
         ) as mock_mark_bundles,
@@ -110,7 +110,7 @@ def test_revive_saved_group_warns_for_missing_refs_and_revives_valid_refs() -> N
             "sase.ace.dismissed_agents.load_dismissed_bundles",
             return_value=[parent],
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
         patch(
             "sase.ace.dismissed_agents.mark_dismissed_agent_group_revived"
@@ -191,7 +191,7 @@ def test_revive_recent_group_loads_cache_first_and_marks_recent_and_saved() -> N
             "sase.ace.dismissed_agents.load_dismissed_bundles",
             return_value=[parent],
         ) as mock_load_bundles,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
         patch(
             "sase.ace.dismissed_agents.mark_recent_dismissed_agent_group_revived"

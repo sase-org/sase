@@ -55,10 +55,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         selection_scope: object | None = None,
     ) -> AgentReviveDelta:
         """Revive a dismissed agent by removing it from the dismissed set."""
-        from ....dismissed_agents import (
-            mark_bundles_revived_by_suffixes,
-            save_dismissed_agents,
-        )
+        from ....dismissed_agents import mark_bundles_revived_by_suffixes
         from ...models import Agent
         from ...modals import SelectionItem
         from ._revive_log import (
@@ -173,7 +170,16 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                         {agent.identity, *(child.identity for child in child_agents)}
                     )
 
-                if save_dismissed_agents(self._dismissed_agents):
+                revived_identities = {
+                    agent.identity,
+                    *(child.identity for child in child_agents),
+                }
+                remaining = self._persist_revived_dismissals(
+                    (original_dismissed_agents - self._dismissed_agents)
+                    | revived_identities,
+                    revived_suffixes,
+                )
+                if remaining is not None:
                     # Mark bundle projections visible before syncing the
                     # artifact index so the legacy dismissed view no longer
                     # re-derives these identities.
@@ -182,7 +188,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     stage = "dismissed_set_update"
                     try:
                         sync_dismissed_agent_artifact_index(
-                            self._dismissed_agents,
+                            remaining,
                             added=(),
                         )
                         dismissed_index_synced = True
@@ -288,13 +294,10 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
     ) -> AgentReviveDelta | bool:
         """Revive multiple dismissed agents in a single batch.
 
-        Batches disk operations for efficiency: one save_dismissed_agents()
-        call and one _load_agents() call instead of N each.
+        Batches disk operations for efficiency: one dismissed-index removal
+        and one _load_agents() call instead of N each.
         """
-        from ....dismissed_agents import (
-            mark_bundles_revived_by_suffixes,
-            save_dismissed_agents,
-        )
+        from ....dismissed_agents import mark_bundles_revived_by_suffixes
         from ...models import Agent as AgentModel
         from ...modals import SelectionItem
         from ._revive_log import (
@@ -482,8 +485,18 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                     for identity in identities_map.get(agent.identity, {agent.identity})
                 )
 
-            # Phase 3: Single disk write for dismissed set
-            if save_dismissed_agents(self._dismissed_agents):
+            # Phase 3: Single locked disk removal for the dismissed set
+            revived_identities = {
+                identity
+                for agent in succeeded
+                for identity in identities_map.get(agent.identity, {agent.identity})
+            }
+            remaining = self._persist_revived_dismissals(
+                (original_dismissed_agents - self._dismissed_agents)
+                | revived_identities,
+                succeeded_suffixes,
+            )
+            if remaining is not None:
                 # Mark bundle projections visible before syncing the artifact
                 # index so the legacy dismissed view stops re-deriving them.
                 stage = "bundle_marking"
@@ -491,7 +504,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
                 stage = "dismissed_set_update"
                 try:
                     sync_dismissed_agent_artifact_index(
-                        self._dismissed_agents,
+                        remaining,
                         added=(),
                     )
                     dismissed_index_synced = True

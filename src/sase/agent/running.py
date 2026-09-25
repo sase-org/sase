@@ -487,17 +487,12 @@ def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:
     """
     try:
         from sase.core.agent_types import AgentType
-        from sase.core.dismissed_agents_facade import (
-            load_dismissed_agents,
-            persist_dismissed_agents as save_dismissed_agents,
-        )
+        from sase.core.dismissed_agents_facade import add_dismissed_agents
 
         identity = (AgentType.RUNNING, cl_name or "unknown", raw_suffix)
-        dismissed = load_dismissed_agents()
-        if identity not in dismissed:
-            dismissed.add(identity)
-            if save_dismissed_agents(dismissed):
-                sync_dismissed_agent_artifact_index(dismissed, added={identity})
+        # Merge under the index lock: the TUI and other runners write it too.
+        dismissed = add_dismissed_agents({identity})
+        sync_dismissed_agent_artifact_index(dismissed, added={identity})
     except Exception:
         pass
 

@@ -83,7 +83,7 @@ class _Events:
         self.survivors: set[int] = set()
         self.live_verified: set[int] = set()
         monkeypatch.setattr(
-            "sase.ace.dismissed_agents.save_dismissed_agents", self._save
+            "sase.ace.dismissed_agents.add_dismissed_agents", self._save
         )
         monkeypatch.setattr(
             f"{_KILLING}.sync_dismissed_agent_artifact_index", self._sync
@@ -104,9 +104,9 @@ class _Events:
             lambda pid, artifacts_dir=None: pid in self.live_verified,
         )
 
-    def _save(self, snapshot: object) -> bool:
+    def _save(self, added: Any) -> set[Any]:
         self.events.append("save")
-        return True
+        return set(added)
 
     def _sync(self, snapshot: object) -> None:
         self.events.append("sync")
@@ -365,7 +365,9 @@ def test_durable_transaction_releases_only_after_the_process_tree_is_dead(
         return False
 
     monkeypatch.setattr("sase.agent.user_kill.read_process_registry", no_registry)
-    monkeypatch.setattr("sase.ace.dismissed_agents.save_dismissed_agents", lambda _s: 0)
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.add_dismissed_agents", lambda _s: set()
+    )
     monkeypatch.setattr(f"{_KILLING}.persist_kill_side_effects", effects)
     monkeypatch.setattr(f"{_KILLING}.dismiss_notifications_for_agents", lambda _a: None)
     real_terminate = _kill_termination.user_kill.terminate_agent_processes
@@ -453,7 +455,7 @@ def test_bulk_dismiss_guard_drops_only_the_in_flight_rows(tmp_path: Path) -> Non
     app._dismiss_persistence_inflight = {first.identity}
 
     app._submit_bulk_dismiss_persistence_task(  # type: ignore[attr-defined]
-        [first, second], {first.identity, second.identity}, [first, second]
+        [first, second], [first, second], None, {first.identity, second.identity}
     )
 
     assert len(app.tracked_procs) == 1

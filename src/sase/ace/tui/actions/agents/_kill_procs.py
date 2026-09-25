@@ -26,7 +26,7 @@ class AgentKillPersistenceProcMixin:
         self,
         kill_items: list[BulkKillItem],
         dismissable: list[Agent],
-        dismissed_snapshot: set[AgentIdentity],
+        added: set[AgentIdentity],
         agents_with_children_snapshot: list[Agent],
         cleanup_plan: object | None = None,
         recent_group: SavedAgentGroupWire | None = None,
@@ -41,7 +41,8 @@ class AgentKillPersistenceProcMixin:
         callback below so it always fires exactly once: from the proc's
         settled callback when submission succeeds, or immediately when
         submission is rejected. *proc_stops* and *gate_cancels* ride the
-        same durable transaction so member rows stop in one step.
+        same durable transaction so member rows stop in one step. *added* is
+        the batch's identities, merged into the dismissed index by the proc.
         """
         from . import _killing as killing_compat
 
@@ -91,6 +92,7 @@ class AgentKillPersistenceProcMixin:
 
         payload = {
             "action": "kill",
+            "added_identities": json_identities(added),
             "agents_with_children": serialize_agents(agents_with_children_snapshot),
             "cleanup_plan": (
                 agent_cleanup_wire_to_json_dict(cleanup_plan)
@@ -98,7 +100,6 @@ class AgentKillPersistenceProcMixin:
                 else None
             ),
             "dismissable": serialize_agents(dismissable),
-            "dismissed_identities": json_identities(dismissed_snapshot),
             "identity": ",".join(sorted(str(item) for item in inflight)),
             "kill_items": [
                 {
@@ -148,7 +149,7 @@ class AgentKillPersistenceProcMixin:
         agent: Agent,
         kind: KillKind,
         agents_with_children_snapshot: list[Agent] | None = None,
-        dismissed_snapshot: set[AgentIdentity] | None = None,
+        added: set[AgentIdentity] | None = None,
         cleanup_plan: AgentCleanupPlanWire | None = None,
         *,
         on_settled: Callable[[], None] | None = None,
@@ -169,10 +170,8 @@ class AgentKillPersistenceProcMixin:
 
         if agents_with_children_snapshot is None:
             agents_with_children_snapshot = list(self._agents_with_children)
-        if dismissed_snapshot is None:
-            from ....dismissed_agents import snapshot_dismissed_agents
-
-            dismissed_snapshot = snapshot_dismissed_agents(self._dismissed_agents)
+        if added is None:
+            added = {agent.identity}
         related_agents = self._agents_related_to_kill(  # type: ignore[attr-defined]
             agent, agents_with_children_snapshot
         )
@@ -183,6 +182,7 @@ class AgentKillPersistenceProcMixin:
 
         payload = {
             "action": "kill",
+            "added_identities": json_identities(added),
             "agent": serialize_agent(agent),
             "agents_with_children": serialize_agents(agents_with_children_snapshot),
             "cleanup_plan": (
@@ -190,7 +190,6 @@ class AgentKillPersistenceProcMixin:
                 if cleanup_plan is not None
                 else None
             ),
-            "dismissed_identities": json_identities(dismissed_snapshot),
             "identity": str(identity),
             "kind": kind,
             "message": f"Killed {agent.display_name}",

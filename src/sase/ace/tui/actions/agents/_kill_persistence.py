@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
 
 from ._dismiss_persistence import (
+    add_dismissed_batch,
     persist_cleanup_side_effect_intents,
     persist_dismiss_side_effects,
 )
@@ -82,7 +83,7 @@ def persist_kill_side_effects(
 def persist_bulk_kill_side_effects(
     kill_items: list[BulkKillItem],
     dismissable: list[Agent],
-    dismissed_snapshot: set[AgentIdentity],
+    added: set[AgentIdentity],
     agents_with_children_snapshot: list[Agent],
     cleanup_plan: object | None = None,
     recent_group: SavedAgentGroupWire | None = None,
@@ -92,15 +93,12 @@ def persist_bulk_kill_side_effects(
 ) -> None:
     """Apply filesystem/project-file side effects for a bulk kill operation.
 
-    *publish_dismissal* saves the dismissed-agents snapshot and syncs the
-    artifact index after the side effects. The bulk kill transaction publishes
-    the dismissal before terminating processes and passes False so a second,
-    later save cannot overwrite what other writers stored in between.
+    *publish_dismissal* merges *added* into the dismissed-agents index and
+    syncs the artifact index after the side effects. The bulk kill
+    transaction publishes the dismissal before terminating processes and
+    passes False so the identities are not published twice.
     """
-    from ....dismissed_agents import (
-        record_recent_dismissed_agent_group,
-        save_dismissed_agents,
-    )
+    from ....dismissed_agents import record_recent_dismissed_agent_group
 
     consumed_intents = persist_cleanup_side_effect_intents(
         cleanup_plan,
@@ -142,11 +140,13 @@ def persist_bulk_kill_side_effects(
         )
     if recent_group is not None:
         record_recent_dismissed_agent_group(recent_group)
-    if publish_dismissal and save_dismissed_agents(dismissed_snapshot):
-        try:
-            sync_dismissed_agent_artifact_index(dismissed_snapshot)
-        except Exception:
-            pass
+    if publish_dismissal:
+        dismissed = add_dismissed_batch(added)
+        if dismissed is not None:
+            try:
+                sync_dismissed_agent_artifact_index(dismissed)
+            except Exception:
+                pass
 
 
 def _persist_running_kill(agent: Agent) -> None:

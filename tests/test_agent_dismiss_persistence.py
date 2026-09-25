@@ -204,7 +204,10 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            return_value={agent.identity},
+        ) as mock_save,
         patch(
             "sase.ace.tui.actions.agents._dismissing."
             "sync_dismissed_agent_artifact_index"
@@ -270,7 +273,10 @@ def test_dismiss_persistence_false_index_sync_notifies_and_refreshes(tmp_path) -
             "sase.ace.tui.actions.agents._dismissing.persist_cleanup_side_effect_intents",
             return_value=True,
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            return_value={agent.identity},
+        ) as mock_save,
         patch(
             "sase.ace.tui.actions.agents._dismissing."
             "sync_dismissed_agent_artifact_index",
@@ -410,7 +416,10 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            return_value={parent.identity, child.identity},
+        ) as mock_save,
         patch(
             "sase.ace.tui.actions.agents._dismissing."
             "sync_dismissed_agent_artifact_index",
@@ -457,7 +466,10 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
         patch(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            return_value={a1.identity, a2.identity},
+        ) as mock_save,
         patch(
             "sase.ace.tui.actions.agents._dismissing."
             "sync_dismissed_agent_artifact_index",
@@ -471,7 +483,7 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
     assert mock_persist_intents.call_args[0][1] == [a1, a2]
     mock_dismiss_many.assert_not_called()
     mock_save.assert_called_once()
-    assert mock_save.call_args[0][0] == {a1.identity, a2.identity}
+    assert set(mock_save.call_args[0][0]) == {a1.identity, a2.identity}
     assert app.notification_refreshes_async == 1
     assert app.notification_refreshes == 0
 
@@ -511,7 +523,10 @@ def test_bulk_dismiss_passes_added_to_artifact_index_sync() -> None:
             "sase.ace.tui.actions.agents._dismissing.persist_cleanup_side_effect_intents",
             return_value=True,
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch(
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            return_value={a1.identity, a2.identity},
+        ),
         patch(
             "sase.ace.tui.actions.agents._dismissing."
             "sync_dismissed_agent_artifact_index"

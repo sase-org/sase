@@ -16,10 +16,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
 from sase.core.agent_types import AgentType
-from sase.core.dismissed_agents_facade import (
-    load_dismissed_agents,
-    persist_dismissed_agents as save_dismissed_agents,
-)
+from sase.core.dismissed_agents_facade import add_dismissed_agents
 from sase.core.dismissed_agent_completion import GATE_OUTCOME, MONITOR_OUTCOME
 from sase.axe.run_agent_gate_handoff import gate_handoff_claim_moved
 from sase.axe.run_agent_monitor_handoff import monitor_handoff_claim_transferred
@@ -94,16 +91,15 @@ class RunnerShutdownDeps:
 def auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None:
     """Persist auto-dismiss identities for a completed background run."""
     try:
-        dismissed = load_dismissed_agents()
         # Dismiss both RUNNING and WORKFLOW identities -- dedup may pick
         # either depending on whether workflow_state.json exists.
         identities = {
             (AgentType.RUNNING, cl_name, artifacts_timestamp),
             (AgentType.WORKFLOW, cl_name, artifacts_timestamp),
         }
-        dismissed.update(identities)
-        if save_dismissed_agents(dismissed):
-            sync_dismissed_agent_artifact_index(dismissed, added=identities)
+        # Merge under the index lock: the TUI and other runners write it too.
+        dismissed = add_dismissed_agents(identities)
+        sync_dismissed_agent_artifact_index(dismissed, added=identities)
     except Exception:
         pass  # Best effort
 

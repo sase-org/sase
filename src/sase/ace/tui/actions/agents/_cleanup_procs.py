@@ -47,15 +47,6 @@ class CleanupProcMixin:
 
         request_payload = dict(payload or {})
         request_payload.setdefault("action", proc_type)
-        dismissed = request_payload.get("dismissed_identities")
-        if isinstance(dismissed, (set, list, tuple)) and dismissed:
-            first = next(iter(dismissed))
-            if isinstance(first, tuple):
-                request_payload["dismissed_identities"] = json_identities(dismissed)
-            elif isinstance(first, list) and first and not isinstance(first[0], str):
-                request_payload["dismissed_identities"] = json_identities(
-                    tuple(item) for item in dismissed if isinstance(item, list)
-                )
         added = request_payload.get("added_identities")
         if isinstance(added, (set, list, tuple)) and added:
             first = next(iter(added))

@@ -18,7 +18,7 @@ from sase.ace.changespec import (
     MentorStatusLine,
 )
 from sase.ace.comments.operations import mark_comment_agents_as_killed
-from sase.ace.dismissed_agents import save_dismissed_agents, save_dismissed_bundle
+from sase.ace.dismissed_agents import add_dismissed_agents, save_dismissed_bundle
 from sase.ace.hooks.processes import (
     mark_hook_agents_as_killed,
     mark_mentor_agents_as_killed,
@@ -63,7 +63,7 @@ def test_dismissed_index_and_bundle_layout_use_legacy_paths(
         patch("sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE", dismissed_file),
         patch("sase.ace.dismissed_agents._DISMISSED_BUNDLES_DIR", bundles_dir),
     ):
-        assert save_dismissed_agents(
+        assert add_dismissed_agents(
             {
                 (AgentType.RUNNING, "demo", "20260430010203"),
                 (AgentType.WORKFLOW, "flow", None),

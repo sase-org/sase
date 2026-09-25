@@ -438,7 +438,10 @@ def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
         patch(
             "sase.ace.tui.actions.agents._kill_persistence.persist_dismiss_side_effects"
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch(
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            return_value={running.identity, done.identity},
+        ),
         patch(
             "sase.ace.tui.actions.agents._kill_persistence."
             "sync_dismissed_agent_artifact_index"
@@ -465,8 +468,8 @@ def test_persist_bulk_kill_side_effects_uses_one_notification_update() -> None:
     ]
 
 
-def test_single_kill_transaction_skips_artifact_index_when_save_skipped() -> None:
-    """A stale or failed dismissed-set save must not sync stale index state."""
+def test_single_kill_transaction_skips_artifact_index_when_save_fails() -> None:
+    """A failed dismissed-index write must not sync stale index state."""
     from sase.ace.tui.actions.agents._kill_transactions import (
         persist_single_kill_transaction,
     )
@@ -488,8 +491,8 @@ def test_single_kill_transaction_skips_artifact_index_when_save_skipped() -> Non
             return_value=True,
         ),
         patch(
-            "sase.ace.dismissed_agents.save_dismissed_agents",
-            return_value=False,
+            "sase.ace.dismissed_agents.add_dismissed_agents",
+            side_effect=OSError("disk full"),
         ) as mock_save,
         patch(
             "sase.ace.tui.actions.agents._killing.sync_dismissed_agent_artifact_index"

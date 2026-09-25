@@ -204,13 +204,17 @@ async def test_cleanup_applies_orphan_and_cache_bookkeeping_after_await() -> Non
             "sase.ace.tui.actions.agents._loading_disk.compute_loader_cleanup",
             return_value=({agent.identity}, {"/tmp/cleaned"}),
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch(
+            "sase.ace.dismissed_agents.remove_dismissed_agents", return_value=set()
+        ) as mock_remove,
     ):
         app._schedule_loader_cleanup(
             {agent.identity}, [agent], source="test", load_kind="full"
         )
         await _drain_cleanup_procs(app)
 
+    # Only the orphaned identity is removed from disk, never a full rewrite.
+    mock_remove.assert_called_once_with({agent.identity})
     assert agent.identity not in app._dismissed_agents
     assert "/tmp/cleaned" in _loading._CLEANED_ARTIFACT_DIRS
     assert app.index_maintenance_calls == [

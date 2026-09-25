@@ -251,7 +251,7 @@ class _CleanupProcApp(AgentsMixin):
 
 _KILL_PATCHES = (
     "sase.ace.tui.actions.agents._killing.persist_kill_side_effects",
-    "sase.ace.dismissed_agents.save_dismissed_agents",
+    "sase.ace.dismissed_agents.add_dismissed_agents",
     "sase.ace.tui.actions.agents._killing.sync_dismissed_agent_artifact_index",
     "sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents",
 )

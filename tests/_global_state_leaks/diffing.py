@@ -128,7 +128,6 @@ def _is_cache_like_global_name(name: str) -> bool:
         in {
             "_cleaned_artifact_dirs",
             "_context",
-            "_last_saved_dismissed_generation",
             "_peek_snapshot",
         }
     )

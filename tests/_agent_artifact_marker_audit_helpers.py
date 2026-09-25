@@ -50,6 +50,15 @@ _UPSERT_INDEX = "upsert_agent_artifact_index_artifacts"
 _DELETE_INDEX = "delete_agent_artifact_index_artifacts"
 _DELETE_INDEX_BOUNDED = "delete_agent_artifact_index_artifacts_bounded"
 _SYNC_DISMISSED_INDEX = "sync_dismissed_agent_artifact_index"
+# Calls that write the on-disk dismissed index: the additive core API plus the
+# thin helpers that wrap it for the cleanup and revive transactions.
+_DISMISSED_INDEX_WRITER_NAMES = (
+    "add_dismissed_agents",
+    "remove_dismissed_agents",
+    "update_dismissed_agents",
+    "add_dismissed_batch",
+    "_persist_revived_dismissals",
+)
 _SCHEDULE_DISMISSED_INDEX = "_schedule_artifact_index_maintenance"
 
 
@@ -409,8 +418,9 @@ def _build_audit_snapshot(root: Path) -> _AuditSnapshot:
             )
 
             if any(
-                _function_name_used_by_call(call, "save_dismissed_agents")
+                _function_name_used_by_call(call, writer)
                 for call in ordered_calls
+                for writer in _DISMISSED_INDEX_WRITER_NAMES
             ):
                 dismissed_save_contexts[context] = tuple(
                     dict.fromkeys(

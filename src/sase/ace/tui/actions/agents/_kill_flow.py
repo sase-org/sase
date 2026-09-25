@@ -139,12 +139,9 @@ class AgentKillFlowMixin:
                 agent,
                 cleanup_plan,
             )
-        from ....dismissed_agents import snapshot_dismissed_agents
-
-        # Snapshot the dismissed set BEFORE the optimistic mutation so re-entrant
-        # kills cannot corrupt the set the persistence worker writes back.
-        dismissed_snapshot = snapshot_dismissed_agents(self._dismissed_agents)
-        dismissed_snapshot.update(immediate_identities)
+        # The persistence proc merges only this kill's identities into the
+        # dismissed index, so it cannot overwrite what other writers stored.
+        added = set(immediate_identities)
         self._apply_killed_agents_in_memory(immediate_identities)  # type: ignore[attr-defined]
 
         if failed_targets:
@@ -159,7 +156,7 @@ class AgentKillFlowMixin:
             self._submit_bulk_kill_persistence_proc(  # type: ignore[attr-defined]
                 items,
                 [],
-                dismissed_snapshot,
+                added,
                 agents_with_children_snapshot,
                 cleanup_plan=None,
                 on_settled=on_settled,
@@ -169,7 +166,7 @@ class AgentKillFlowMixin:
                 agent,
                 kind,
                 agents_with_children_snapshot,
-                dismissed_snapshot,
+                added,
                 cleanup_plan,
                 on_settled=on_settled,
             )
@@ -358,12 +355,10 @@ class AgentKillFlowMixin:
             )
 
         if kill_items or dismiss_candidates or member_agents:
-            from ....dismissed_agents import snapshot_dismissed_agents
-
             self._submit_bulk_kill_persistence_proc(  # type: ignore[attr-defined]
                 kill_items,
                 dismiss_candidates,
-                snapshot_dismissed_agents(self._dismissed_agents),
+                removed_ids,
                 agents_with_children_snapshot,
                 cleanup_plan,
                 recent_group,

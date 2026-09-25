@@ -198,7 +198,7 @@ def test_revive_existing_meta_without_name_preserves_stored_lookup(
     with (
         patch_home(tmp_path),
         patch.dict(os.environ, {"HOME": str(tmp_path)}),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(agent)

@@ -122,7 +122,7 @@ def test_owner_cleanup_stops_monitor_child_and_suppresses_followup(
             },
             "kill_items": [],
             "dismissable": [],
-            "dismissed_identities": [],
+            "added_identities": [],
         }
     )
     assert success is True, message

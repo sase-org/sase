@@ -65,7 +65,7 @@ def test_ace_root_only_kill_cleanup_dismisses_child_question(
             "sase.notifications.store.NOTIFICATIONS_FILE",
             str(notifications_dir / "notifications.jsonl"),
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=False),
+        patch("sase.ace.dismissed_agents.add_dismissed_agents", return_value=set()),
     ):
         append_notification(
             Notification(
@@ -156,7 +156,7 @@ def test_run_kill_persistence_does_not_refresh_on_success() -> None:
         patch(
             "sase.ace.tui.actions.agents._killing.persist_kill_side_effects"
         ) as mock_persist,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.add_dismissed_agents") as mock_save,
         patch(
             "sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"
         ) as mock_dismiss_notifs,
@@ -218,7 +218,7 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
             "sase.ace.tui.actions.agents._killing.persist_kill_side_effects",
             side_effect=RuntimeError("boom"),
         ) as mock_persist,
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch("sase.ace.dismissed_agents.add_dismissed_agents") as mock_save,
     ):
         app._submit_kill_persistence_proc(agent, "hook", [agent])
         run_tracked_proc(app, app.tracked_procs[0])
@@ -226,7 +226,7 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
     mock_persist.assert_called_once_with(agent, "hook", [agent])
     # The dismissal is published before the side effects, so it survives a
     # side-effect failure and other TUIs still see the removal.
-    mock_save.assert_called_once_with(set())
+    mock_save.assert_called_once_with({agent.identity})
     assert app.refresh_schedules == 1
     assert app._notifications == [("Kill cleanup failed: boom", "error")]
     assert app._kill_persistence_inflight == set()

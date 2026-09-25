@@ -165,7 +165,7 @@ def test_revive_grouping_restores_children_loaded_from_child_bundle_filenames(
     app._dismissed_agents = {agent.identity for agent in loaded}
 
     with (
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch(
             "sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"
         ) as mock_mark,
@@ -197,9 +197,12 @@ def test_revive_archive_repairs_identity_index_on_demand() -> None:
             "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
             return_value={archived.identity},
         ),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.dismissed_agents.update_dismissed_agents",
+            return_value={archived.identity},
+        ) as mock_update,
     ):
         app._repair_dismissed_projection()
 
     assert app._dismissed_agents == {archived.identity}
-    mock_save.assert_called_once_with(app._dismissed_agents)
+    mock_update.assert_called_once_with({archived.identity}, {orphan})

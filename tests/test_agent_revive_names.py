@@ -22,7 +22,7 @@ def test_revive_preserves_dismissal_prefixed_name(tmp_path: Path) -> None:
 
     with (
         patch_home(tmp_path),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(agent)
@@ -50,7 +50,7 @@ def test_revive_preserves_active_agent_waiting_for(tmp_path: Path) -> None:
 
     with (
         patch_home(tmp_path),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(revived)
@@ -80,7 +80,7 @@ def test_revive_preserves_artifact_wait_for_on_disk(tmp_path: Path) -> None:
 
     with (
         patch_home(tmp_path),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(revived)
@@ -104,7 +104,7 @@ def test_revive_legacy_bundle_without_prefix_keeps_name(tmp_path: Path) -> None:
 
     with (
         patch_home(tmp_path),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(agent)
@@ -143,7 +143,7 @@ def test_revive_with_taken_name_keeps_stored_name(tmp_path: Path) -> None:
 
     with (
         patch_home(tmp_path),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(agent)
@@ -172,7 +172,7 @@ def test_revive_workflow_parent_preserves_children_prefix(tmp_path: Path) -> Non
 
     with (
         patch_home(tmp_path),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agent(parent)
@@ -200,7 +200,7 @@ def test_batch_revive_preserves_names_for_all_agents(tmp_path: Path) -> None:
 
     with (
         patch_home(tmp_path),
-        patch("sase.ace.dismissed_agents.save_dismissed_agents"),
+        patch("sase.ace.dismissed_agents.remove_dismissed_agents"),
         patch("sase.ace.dismissed_agents.mark_bundles_revived_by_suffixes"),
     ):
         app._do_revive_agents([parent_one, parent_two])
