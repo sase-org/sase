@@ -141,7 +141,7 @@ def test_family_page_header_renders_single_distinct_bead() -> None:
         "run-right", "foo.bar--right", "alice.athena.foo.bar--right", "completed"
     )
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo.bar",
         ("run-left", "run-right"),
     )
@@ -167,7 +167,7 @@ def test_family_page_header_renders_single_distinct_bead() -> None:
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         bead_links=bead_links,
-    )["families/alice.athena.foo.bar.md"].decode()
+    )["sessions/alice.athena.foo.bar.md"].decode()
 
     assert "Bead: [sase-ar.6](https://example/beads/sase-ar.6)" in family_page
     assert "Beads:" not in family_page
@@ -187,7 +187,7 @@ def test_family_page_header_caps_distinct_beads_and_reports_remainder() -> None:
         for letter in letters
     )
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo.bar",
         tuple(run.source_run_id for run in members),
     )
@@ -213,7 +213,7 @@ def test_family_page_header_caps_distinct_beads_and_reports_remainder() -> None:
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         bead_links=bead_links,
-    )["families/alice.athena.foo.bar.md"].decode()
+    )["sessions/alice.athena.foo.bar.md"].decode()
 
     assert "Beads: sase-a, sase-b, sase-c, sase-d, sase-e, … +1 more" in family_page
     assert "sase-f" not in family_page

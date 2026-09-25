@@ -20,6 +20,7 @@ from sase.agents_sync.v2_models import (
     RelationshipKind,
     RunState,
     V2ContainerRecord,
+    canonical_container_kind,
     V2FileReference,
     V2HoodSnapshot,
     V2ProjectIdentity,
@@ -222,16 +223,19 @@ def _build_containers(
                         key=lambda item: (item.committed_at, item.sha),
                     )
                 )
-                if kind == "family"
+                if kind == "session"
                 else ()
             ),
         )
-        for kind, groups in (("family", families), ("clan", clans))
+        for kind, groups in (("session", families), ("clan", clans))
         for name, members in sorted(groups.items())
     ]
-    by_key = {(item.kind, item.global_name): item for item in containers}
+    by_key = {
+        (canonical_container_kind(item.kind), item.global_name): item
+        for item in containers
+    }
     for item in previous:
-        key = (item.kind, item.global_name)
+        key = (canonical_container_kind(item.kind), item.global_name)
         current = by_key.get(key)
         if current is None:
             by_key[key] = item

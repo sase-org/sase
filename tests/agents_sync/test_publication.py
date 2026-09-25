@@ -73,8 +73,8 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
     }
     assert "alice.athena.foo.bar" in snapshot.structural_ancestors
     assert "alice.athena.foo.bar.baz" in snapshot.structural_ancestors
-    assert (repo / "families" / "alice.athena.foo.bar.baz.md").is_file()
-    family = (repo / "families" / "alice.athena.foo.bar.baz.md").read_text()
+    assert (repo / "sessions" / "alice.athena.foo.bar.baz.md").is_file()
+    family = (repo / "sessions" / "alice.athena.foo.bar.baz.md").read_text()
     agent = (
         repo / "agents" / "alice.athena.foo.bar.baz--code" / "README.md"
     ).read_text()
@@ -108,8 +108,8 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
     golden_root = Path(__file__).with_name("goldens")
     rendered = {
         "solo.md": repo / "agents" / "alice.athena.foo" / "README.md",
-        "rootless-family.md": repo / "families" / "alice.athena.foo.rootless.md",
-        "deep-family.md": repo / "families" / "alice.athena.foo.bar.baz.md",
+        "rootless-session.md": repo / "sessions" / "alice.athena.foo.rootless.md",
+        "deep-session.md": repo / "sessions" / "alice.athena.foo.bar.baz.md",
         "active-no-chat.md": (
             repo / "agents" / "alice.athena.foo.bar.baz--code" / "README.md"
         ),
@@ -209,7 +209,7 @@ def test_targeted_publication_accepts_family_container_request(
     assert {"foo.rootless--left", "foo.rootless--right"} <= {
         run.local_name for run in snapshot.runs
     }
-    assert (repo / "families" / "alice.athena.foo.rootless.md").is_file()
+    assert (repo / "sessions" / "alice.athena.foo.rootless.md").is_file()
     assert (repo / "agents" / "alice.athena.foo.rootless--left" / "README.md").is_file()
     assert (
         repo / "agents" / "alice.athena.foo.rootless--right" / "README.md"

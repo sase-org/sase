@@ -29,6 +29,8 @@ def _publish_readme(owner: AgentOwnerIdentity):
         (repo / "schema.json").write_text("{}\n")
         (repo / "families").mkdir(exist_ok=True)
         (repo / "families" / ".gitkeep").write_text("")
+        (repo / "sessions").mkdir(exist_ok=True)
+        (repo / "sessions" / ".gitkeep").write_text("")
         manifest = V2OwnerManifest(
             owner,
             V2ProjectIdentity("proj", "Project"),

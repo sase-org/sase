@@ -143,12 +143,24 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
     for hood, raw_entry in sorted(raw_hoods.items()):
         validate_component(hood, label="hood")
         row = json_object(raw_entry, f"hood {hood!r}")
-        required = {"digest", "run_count", "family_count"}
+        count_key = (
+            "agent_session_count"
+            if "agent_session_count" in row
+            else "family_count"
+            if "family_count" in row
+            else None
+        )
+        required: set[str] = {"digest", "run_count"}
+        if count_key is not None:
+            required.add(count_key)
+        else:
+            required.add("agent_session_count")
         missing = required - set(row)
         if missing:
             raise AgentsSyncFormatError(
                 f"hood {hood!r} is missing required keys: {', '.join(sorted(missing))}"
             )
+        assert count_key is not None
         digest = validate_digest(row["digest"], f"hood {hood!r} digest")
         files: tuple[str, ...] | None = None
         if "files" in row:
@@ -166,7 +178,7 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
                     digest,
                     files,
                     nonnegative_int(row["run_count"], "run_count"),
-                    nonnegative_int(row["family_count"], "family_count"),
+                    nonnegative_int(row[count_key], count_key),
                 ),
             )
         )

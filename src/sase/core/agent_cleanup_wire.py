@@ -250,23 +250,14 @@ def agent_cleanup_wire_to_json_dict(record: Any) -> Any:
 def cleanup_targets_for_core(
     targets: list[AgentCleanupTargetWire],
 ) -> list[dict[str, Any]]:
-    """Legacy-keyed cleanup-target projection for the Rust cleanup planner.
+    """Cleanup-target projection for the Rust cleanup planner.
 
-    Boundary helper (wire-cutover): the pinned core
-    ``AgentCleanupTargetWire`` still declares ``agent_session_parallel`` only
-    as ``agent_family_parallel`` and has no alias for the new spelling, so it
-    would silently ignore the field. Python therefore sends the legacy
-    spelling of that one field on the binding path until core-contract
-    renames the struct. ACE callers keep using
-    :func:`agent_cleanup_wire_to_json_dict`, which emits only new spellings.
+    Core serializes ``agent_session_parallel`` and still reads the legacy
+    ``agent_family_parallel`` alias.
     """
     payload: list[dict[str, Any]] = []
     for target in targets:
-        record = asdict(target)
-        # legacy agent-family spelling: core has no ``agent_session_parallel``
-        # alias yet (core-contract).
-        record["agent_family_parallel"] = record.pop("agent_session_parallel")
-        payload.append(record)
+        payload.append(asdict(target))
     return payload
 
 

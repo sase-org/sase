@@ -266,7 +266,7 @@ def test_agent_url_links_registered_agent_session_lane(
 
     assert resolver.agent_url("alice.athena.foo.bar") == (
         "https://github.com/sase-org/sase--agents/blob/main/"
-        "families/alice.athena.foo.bar.md"
+        "sessions/alice.athena.foo.bar.md"
     )
 
 
@@ -310,14 +310,14 @@ def test_agent_url_reuses_and_refreshes_agent_name_registry_snapshot(
 
     resolver.snapshot_agent_name_registry()
 
-    assert "/families/alice.athena.foo.md" in (resolver.agent_url("foo") or "")
+    assert "/sessions/alice.athena.foo.md" in (resolver.agent_url("foo") or "")
     assert "/agents/alice.athena.bar/README.md" in (resolver.agent_url("bar") or "")
     assert registry_reads == 1
 
     agent_session_names.add("bar")
     resolver.snapshot_agent_name_registry()
 
-    assert "/families/alice.athena.bar.md" in (resolver.agent_url("bar") or "")
+    assert "/sessions/alice.athena.bar.md" in (resolver.agent_url("bar") or "")
     assert registry_reads == 2
 
 

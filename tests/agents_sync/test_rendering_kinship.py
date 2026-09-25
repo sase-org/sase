@@ -72,7 +72,7 @@ def test_family_is_one_lane_and_never_lists_its_members() -> None:
     code = _run("foo.family--code", state="failed")
     sibling = _run("foo.sibling")
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo.family",
         (root.source_run_id, code.source_run_id),
     )
@@ -86,7 +86,7 @@ def test_family_is_one_lane_and_never_lists_its_members() -> None:
     sibling_projection = kinship.for_lane("foo.sibling")
     family_row = sibling_projection.rows[0]
     assert family_row.lane_name == "foo.family"
-    assert family_row.is_family is True
+    assert family_row.is_session is True
     assert family_row.member_count == 2
     assert family_row.state == "completed 1, failed 1"
 

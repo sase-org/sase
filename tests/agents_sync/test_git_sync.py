@@ -305,11 +305,11 @@ def test_payload_commit_force_stages_user_ignored_hood(
     _remote, _seed, sidecar = setup_repo(tmp_path)
     (sidecar / "README.md").write_text("# Hoods\n")
     (sidecar / "schema.json").write_text("{}\n")
-    for directory in ("users", "families"):
+    for directory in ("users", "families", "sessions"):
         root = sidecar / directory
         root.mkdir()
         (root / ".gitkeep").write_text("")
-    git(sidecar, "add", "README.md", "schema.json", "users", "families")
+    git(sidecar, "add", "README.md", "schema.json", "users", "families", "sessions")
     git(
         sidecar,
         "-c",

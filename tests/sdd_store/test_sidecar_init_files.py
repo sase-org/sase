@@ -73,6 +73,7 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
         "assets/agents-directory-map.png",
         "agents/.gitkeep",
         "families/.gitkeep",
+        "sessions/.gitkeep",
         "users/.gitkeep",
     }
     written = ensure_sdd_sidecar_initialized("agents", root)
@@ -91,10 +92,11 @@ def test_agents_sidecar_generated_files_are_privacy_forward_and_idempotent(
         "schema_version": 2,
         "format": "sase-agents-sidecar",
         "authority": "owner-sharded",
-        "relationship_schema_version": 2,
+        "relationship_schema_version": 3,
     }
     assert (root / "agents" / ".gitkeep").read_text(encoding="utf-8") == ""
     assert (root / "families" / ".gitkeep").read_text(encoding="utf-8") == ""
+    assert (root / "sessions" / ".gitkeep").read_text(encoding="utf-8") == ""
     assert (root / "users" / ".gitkeep").read_text(encoding="utf-8") == ""
     assert plan_sdd_sidecar_init_actions("agents", root) == ()
 

@@ -33,6 +33,9 @@ from sase.core.agent_identity_facade import (
     parse_agent_session_name,
 )
 
+AGENT_SESSION_PAGES_DIR = "sessions"
+LEGACY_AGENT_FAMILY_PAGES_DIR = "families"
+
 
 @dataclass(frozen=True, slots=True)
 class SaseAgentRef:
@@ -122,8 +125,20 @@ def sase_agent_page_path(
     if ref.member_local_name is not None:
         return agent_link_target(ref.member_local_name, owner, identity).path
     if ref.is_agent_session:
-        return f"families/{ref.global_name}.md"
+        return agent_session_page_path(ref.global_name)
     return agent_link_target(ref.local_name, owner, identity).path
+
+
+def agent_session_page_path(global_name: str) -> str:
+    """Return the canonical sidecar page path for an agent session."""
+
+    return f"{AGENT_SESSION_PAGES_DIR}/{global_name}.md"
+
+
+def legacy_agent_family_redirect_path(global_name: str) -> str:
+    """Return the permanent redirect stub path for pre-rename footer links."""
+
+    return f"{LEGACY_AGENT_FAMILY_PAGES_DIR}/{global_name}.md"
 
 
 def sase_agent_name(name: str) -> str:
@@ -163,12 +178,16 @@ lane_name = sase_agent_name
 
 
 __all__ = [
+    "AGENT_SESSION_PAGES_DIR",
     "AgentLaneRef",  # legacy compatibility alias
+    "LEGACY_AGENT_FAMILY_PAGES_DIR",
     "SaseAgentRef",
+    "agent_session_page_path",
     "lane_name",  # legacy compatibility alias
     "lane_page_path",  # legacy compatibility alias
     "lane_ref_for_agent",  # legacy compatibility alias
     "lane_ref_for_lane_name",  # legacy compatibility alias
+    "legacy_agent_family_redirect_path",
     "sase_agent_name",
     "sase_agent_page_path",
     "sase_agent_ref_for_name",

@@ -126,10 +126,14 @@ def _sorted_commit_rows(
 
 
 def _destination_is_family_page(destination: str) -> bool:
-    """Return whether a linked footer destination names a family page."""
+    """Return whether a linked footer destination names a session page.
+
+    Historical commit footers used ``families/``; current footers use
+    ``sessions/``. Both path segments identify an agent-session page.
+    """
 
     path = unquote(urlsplit(destination).path)
-    return "families" in {part for part in path.split("/") if part}
+    return bool({"families", "sessions"} & {part for part in path.split("/") if part})
 
 
 def _sase_agent_footer_is_family(

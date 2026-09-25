@@ -50,6 +50,7 @@ from sase.agents_sync.v2_models import (
     V2HoodSnapshot,
     V2OwnerHoodEntry,
     V2ProjectIdentity,
+    is_session_container,
 )
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
@@ -199,7 +200,7 @@ def _recovered_hood_entry(
         content_digest(snapshot_bytes),
         None if slim else hood_file_set(snapshot),
         len(snapshot.runs),
-        sum(item.kind == "family" for item in snapshot.containers),
+        sum(is_session_container(item.kind) for item in snapshot.containers),
     )
 
 

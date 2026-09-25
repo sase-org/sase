@@ -15,6 +15,7 @@ from sase.agents_sync.v2_models import (
     V2HoodSnapshot,
     V2ProjectIdentity,
     V2RunRecord,
+    canonical_container_kind,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
@@ -74,7 +75,7 @@ def test_container_commits_round_trip_and_legacy_snapshots_remain_readable() -> 
         runs=(run,),
         containers=(
             V2ContainerRecord(
-                "family",
+                "session",
                 "alice.athena.foo",
                 ("run-1",),
                 commits,
@@ -93,7 +94,7 @@ def test_container_commits_round_trip_and_legacy_snapshots_remain_readable() -> 
     legacy = snapshot.to_json_dict()
     legacy["containers"][0].pop("commits")  # type: ignore[index, union-attr]
     assert _hood_snapshot_from_json(legacy).containers == (
-        V2ContainerRecord("family", "alice.athena.foo", ("run-1",)),
+        V2ContainerRecord("session", "alice.athena.foo", ("run-1",)),
     )
 
 
@@ -110,7 +111,7 @@ def test_empty_container_commits_have_stable_canonical_digest() -> None:
         "foo",
         "alice.athena.foo",
         runs=(run,),
-        containers=(V2ContainerRecord("family", "alice.athena.foo", ("run-1",)),),
+        containers=(V2ContainerRecord("session", "alice.athena.foo", ("run-1",)),),
     )
 
     first = v2_json_bytes(snapshot.to_json_dict())
@@ -128,7 +129,7 @@ def test_container_commit_validation_is_strict() -> None:
         PROJECT,
         "foo",
         "alice.athena.foo",
-        containers=(V2ContainerRecord("family", "alice.athena.foo", ()),),
+        containers=(V2ContainerRecord("session", "alice.athena.foo", ()),),
     ).to_json_dict()
     container = snapshot["containers"][0]  # type: ignore[index]
     container["commits"] = [  # type: ignore[index]
@@ -159,3 +160,40 @@ def test_snapshot_count_limit_is_enforced_before_relationship_validation() -> No
     malformed["runs"] = [malformed["runs"][0]] * (MAX_RUNS + 1)  # type: ignore[index]
     with pytest.raises(AgentsSyncFormatError, match="count limit"):
         _hood_snapshot_from_json(malformed)
+
+
+def test_snapshot_reads_legacy_family_container_kind() -> None:
+    encoded = _snapshot().to_json_dict()
+    encoded["containers"] = [
+        {
+            "kind": "family",
+            "global_name": "alice.athena.foo",
+            "owner": {"username": "alice", "machine_name": "athena"},
+            "member_source_run_ids": ["run-1"],
+        }
+    ]
+    decoded = _hood_snapshot_from_json(encoded)
+    assert decoded.containers == (
+        V2ContainerRecord("session", "alice.athena.foo", ("run-1",)),
+    )
+    assert decoded.to_json_dict()["containers"][0]["kind"] == "session"
+
+
+def test_canonical_container_kind_maps_legacy_family() -> None:
+    assert canonical_container_kind("family") == "session"
+    assert canonical_container_kind("session") == "session"
+    assert canonical_container_kind("clan") == "clan"
+
+
+def test_snapshot_rejects_invalid_container_kind() -> None:
+    encoded = _snapshot().to_json_dict()
+    encoded["containers"] = [
+        {
+            "kind": "tribe",
+            "global_name": "alice.athena.foo",
+            "owner": {"username": "alice", "machine_name": "athena"},
+            "member_source_run_ids": ["run-1"],
+        }
+    ]
+    with pytest.raises(AgentsSyncFormatError, match="invalid kind"):
+        _hood_snapshot_from_json(encoded)

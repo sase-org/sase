@@ -143,7 +143,11 @@ def test_owner_manifest_uses_dedicated_larger_read_caps() -> None:
     too_many = {
         **encoded,
         "hoods": {
-            f"hood{index:05d}": {"digest": "a" * 64, "run_count": 0, "family_count": 0}
+            f"hood{index:05d}": {
+                "digest": "a" * 64,
+                "run_count": 0,
+                "agent_session_count": 0,
+            }
             for index in range(MAX_MANIFEST_HOODS + 1)
         },
     }
@@ -189,3 +193,18 @@ def test_old_reader_lenient_skips_a_slim_manifest_entry() -> None:
 
     fat_entry = {**slim_entry, "files": []}
     _legacy_hood_entry_shape_check(fat_entry, "foo")  # does not raise
+
+
+def test_owner_manifest_reads_legacy_family_count() -> None:
+    encoded = {
+        "schema_version": 2,
+        "owner": {"username": "alice", "machine_name": "athena"},
+        "project": {"key": "proj", "name": "Project"},
+        "hoods": {
+            "foo": {"digest": "a" * 64, "run_count": 2, "family_count": 1},
+        },
+    }
+    decoded = _owner_manifest_from_json(encoded)
+    assert decoded.hoods[0][1].agent_session_count == 1
+    assert decoded.to_json_dict()["hoods"]["foo"]["agent_session_count"] == 1
+    assert "family_count" not in decoded.to_json_dict()["hoods"]["foo"]

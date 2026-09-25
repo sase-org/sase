@@ -3,9 +3,8 @@
 Covers bead ``sase-17m.3.1.3``: the scan markers/conversion, cleanup,
 group-archive, runner-slot capacity, hold identity, and fleet locator mirrors
 hydrate legacy- and new-shaped dicts identically, writers emit only new
-spellings (except the documented core-contract boundary for
-``agent_family_parallel``), and payloads sent to core round-trip through the
-real ``sase_core_rs`` bindings.
+spellings, and payloads sent to core round-trip through the real
+``sase_core_rs`` bindings.
 """
 
 from __future__ import annotations
@@ -216,7 +215,7 @@ def test_group_archive_reads_legacy_emits_new() -> None:
     assert "canonical_global_family" not in emitted
 
 
-def test_capacity_session_keys_shape_uses_legacy_parallel_boundary() -> None:
+def test_capacity_session_keys_shape_uses_new_parallel_spelling() -> None:
     keys = capacity_session_keys_for_core(
         agent_session="acme",
         agent_session_role="member",
@@ -228,9 +227,7 @@ def test_capacity_session_keys_shape_uses_legacy_parallel_boundary() -> None:
     assert keys == {
         "agent_session": "acme",
         "agent_session_role": "member",
-        # legacy agent-family spelling: the pinned core capacity struct has no
-        # ``agent_session_parallel`` alias yet (core-contract follow-up).
-        "agent_family_parallel": True,
+        "agent_session_parallel": True,
         "agent_session_shell_kind": "monitor",
         "agent_session_shell_id": "m1",
         "agent_session_shell_state": "running",

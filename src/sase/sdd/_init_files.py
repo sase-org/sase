@@ -39,7 +39,7 @@ SDD_SIDECAR_KINDS = SDD_SIDECAR_GUIDE_KINDS
 _LEGACY_DIRECTORY_GUIDE_KINDS = (PLANS_SIDECAR_ROLE, "research")
 AGENTS_SIDECAR_SCHEMA = (
     '{"authority":"owner-sharded","format":"sase-agents-sidecar",'
-    '"relationship_schema_version":2,"schema_version":2}\n'
+    '"relationship_schema_version":3,"schema_version":2}\n'
 )
 
 
@@ -129,6 +129,10 @@ def expected_sdd_sidecar_files(
             ),
             SddExpectedTextFile(
                 path=sidecar_root / "families" / ".gitkeep",
+                content="",
+            ),
+            SddExpectedTextFile(
+                path=sidecar_root / "sessions" / ".gitkeep",
                 content="",
             ),
             SddExpectedTextFile(

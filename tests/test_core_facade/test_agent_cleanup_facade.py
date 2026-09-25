@@ -49,7 +49,7 @@ def _require_schema_5_cleanup_binding() -> None:
 def _fail_if_python_cleanup_planner_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     def _python_must_not_run(*_args: Any, **_kwargs: Any) -> Any:
         raise AssertionError(
-            "schema-5 rust cleanup path fell back to the Python planner"
+            "schema-6 rust cleanup path fell back to the Python planner"
         )
 
     monkeypatch.setattr(
@@ -119,14 +119,10 @@ def test_plan_agent_cleanup_sends_legacy_parallel_key_to_rust_binding(
     plan_agent_cleanup(targets, request)
 
     [target_payload] = captured
-    # legacy agent-family spelling: core still declares only
-    # ``agent_family_parallel`` for this target field.
-    assert all("agent_session_parallel" not in item for item in target_payload)
-    assert [item["agent_family_parallel"] for item in target_payload] == [
+    assert [item["agent_session_parallel"] for item in target_payload] == [
         target.agent_session_parallel for target in targets
     ]
-    assert any(item["agent_family_parallel"] is True for item in target_payload)
-    # ACE callers keep the new spelling.
+    assert any(item["agent_session_parallel"] is True for item in target_payload)
     assert all(
         "agent_family_parallel" not in item
         for item in agent_cleanup_wire_to_json_dict(targets)

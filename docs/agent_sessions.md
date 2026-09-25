@@ -539,7 +539,7 @@ targets.
 A sase agent is either a session or a single agent that does not belong to one. Commit
 provenance is anchored on the sase agent, not on the concrete shell that happened to be
 running: a commit by `fam--code` is tagged `SASE_AGENT=<username>.<machine>.fam` and
-links to `families/<username>.<machine>.fam.md` with no member anchor, while a solo
+links to `sessions/<username>.<machine>.fam.md` with no member anchor, while a solo
 agent's footer is exactly what it has always been. The same projection is used for the
 sidecar publication identity and for the agent rows on plan headers and bead pages, so a
 session appears once as itself instead of once per member.

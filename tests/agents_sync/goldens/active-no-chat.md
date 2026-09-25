@@ -1,6 +1,6 @@
 # Agent: foo.bar.baz--code
 
-[Agent Hoods](../../README.md) / [alice](../../users/alice/README.md) / [athena](../../users/alice/machines/athena/README.md) / [foo](../../users/alice/machines/athena/hoods/foo/README.md) / [foo.bar.baz](../../families/alice.athena.foo.bar.baz.md) / foo.bar.baz--code
+[Agent Hoods](../../README.md) / [alice](../../users/alice/README.md) / [athena](../../users/alice/machines/athena/README.md) / [foo](../../users/alice/machines/athena/hoods/foo/README.md) / [foo.bar.baz](../../sessions/alice.athena.foo.bar.baz.md) / foo.bar.baz--code
 
 **Global name:** `alice.athena.foo.bar.baz--code` · **State:** active · **Source run:** `run-03`
 
@@ -40,4 +40,4 @@
 | [foo.bar.kazam](../alice.athena.foo.bar.kazam/README.md) | foo.bar hood | failed |
 | [foo.archive](../alice.athena.foo.archive/README.md) | foo hood | dismissed |
 | [foo.boom](../alice.athena.foo.boom/README.md) | foo hood | waiting |
-| [foo.rootless](../../families/alice.athena.foo.rootless.md) (family · 2) | foo hood | completed 2 |
+| [foo.rootless](../../sessions/alice.athena.foo.rootless.md) (session · 2) | foo hood | completed 2 |

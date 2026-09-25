@@ -60,7 +60,7 @@ class ExportCounts:
     hoods_published: int = 0
     hoods_refreshed: int = 0
     hoods_unchanged: int = 0
-    families_published: int = 0
+    agent_sessions_published: int = 0
     runs_published: int = 0
     schema_version: int = 2
 
@@ -91,7 +91,7 @@ class SyncOutcome:
     hoods_published: int = 0
     hoods_refreshed: int = 0
     hoods_unchanged: int = 0
-    families_published: int = 0
+    agent_sessions_published: int = 0
     runs_published: int = 0
     schema_version: int = SYNC_RESULT_SCHEMA_VERSION
 
@@ -110,7 +110,7 @@ class SyncOutcome:
             "hoods_published": self.hoods_published,
             "hoods_refreshed": self.hoods_refreshed,
             "hoods_unchanged": self.hoods_unchanged,
-            "families_published": self.families_published,
+            "agent_sessions_published": self.agent_sessions_published,
             "runs_published": self.runs_published,
             "committed": self.committed,
             "pushed": self.pushed,

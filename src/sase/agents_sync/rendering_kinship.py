@@ -14,7 +14,9 @@ from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2HoodSnapshot,
     V2RunRecord,
+    is_session_container,
 )
+from sase.sase_agent import agent_session_page_path
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     agent_link_target,
@@ -32,7 +34,7 @@ class _NodeKinshipRow:
     relation: str
     page_path: str
     state: str
-    is_family: bool
+    is_session: bool
     member_count: int
 
 
@@ -89,17 +91,17 @@ class _Node:
     name: str
     page_path: str
     runs: tuple[V2RunRecord, ...]
-    is_family: bool
+    is_session: bool
     chain: tuple[str, ...]
 
     def row(self, relation: str) -> _NodeKinshipRow:
-        state = state_counts(self.runs) if self.is_family else self.runs[0].state
+        state = state_counts(self.runs) if self.is_session else self.runs[0].state
         return _NodeKinshipRow(
             lane_name=self.name,
             relation=relation,
             page_path=self.page_path,
             state=state,
-            is_family=self.is_family,
+            is_session=self.is_session,
             member_count=len(self.runs),
         )
 
@@ -108,13 +110,13 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
     """Build every agent-node-relative kinship roster for one hood snapshot."""
 
     by_id = {run.source_run_id: run for run in snapshot.runs}
-    family_by_member: dict[str, V2ContainerRecord] = {}
+    session_by_member: dict[str, V2ContainerRecord] = {}
     nodes: list[_Node] = []
     owner_prefix = f"{snapshot.owner.username}.{snapshot.owner.machine_name}."
     identity = AgentIdentitySnapshot(snapshot.owner)
 
     for container in snapshot.containers:
-        if container.kind != "family":
+        if not is_session_container(container.kind):
             continue
         members = tuple(
             by_id[source_id] for source_id in container.member_source_run_ids
@@ -123,17 +125,17 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
         nodes.append(
             _Node(
                 name=node_name,
-                page_path=f"families/{container.global_name}.md",
+                page_path=agent_session_page_path(container.global_name),
                 runs=members,
-                is_family=True,
+                is_session=True,
                 chain=agent_name_ancestors(node_name, identity),
             )
         )
         for source_id in container.member_source_run_ids:
-            family_by_member[source_id] = container
+            session_by_member[source_id] = container
 
     for run in snapshot.runs:
-        if run.source_run_id in family_by_member:
+        if run.source_run_id in session_by_member:
             continue
         target = agent_link_target(run.local_name, snapshot.owner, identity)
         page_path = target.path
@@ -144,7 +146,7 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
                 name=run.local_name,
                 page_path=page_path,
                 runs=(run,),
-                is_family=False,
+                is_session=False,
                 chain=agent_name_ancestors(run.local_name, identity),
             )
         )
@@ -154,12 +156,12 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
     projections = tuple(
         _node_projection(node, ordered_nodes, by_name) for node in ordered_nodes
     )
-    family_node_names = {
+    session_node_names = {
         source_id: container.global_name.removeprefix(owner_prefix)
-        for source_id, container in family_by_member.items()
+        for source_id, container in session_by_member.items()
     }
     source_lanes = tuple(
-        (run.source_run_id, family_node_names.get(run.source_run_id, run.local_name))
+        (run.source_run_id, session_node_names.get(run.source_run_id, run.local_name))
         for run in snapshot.runs
     )
     hood_page_path = (
@@ -191,8 +193,8 @@ def render_neighbors_section(
         for row in group.rows:
             label = f"[{md_escape(row.lane_name)}]("
             label += relative_page_url(source_path, row.page_path) + ")"
-            if row.is_family:
-                label += f" (family · {row.member_count})"
+            if row.is_session:
+                label += f" (session · {row.member_count})"
             lines.append(
                 f"| {label} | {md_cell(row.relation)} | {md_cell(row.state)} |"
             )

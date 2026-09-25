@@ -54,7 +54,7 @@ def test_renderer_escapes_markdown_tables_and_contains_no_volatile_text() -> Non
         "![Project-scoped agent hoods pass through explicit privacy consent "
         "into an owner-sharded agents sidecar, where deterministic sync "
         "publishes prompts, chats, commits, states, and browsable owner, "
-        "machine, hood, family, and agent pages.]"
+        "machine, hood, session, and agent pages.]"
         "(assets/agents-directory-map.png)"
     )
     assert image_markdown in root
@@ -84,7 +84,7 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
         "completed",
     )
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo.bar",
         ("run-family",),
     )
@@ -108,7 +108,10 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
     )
     family_agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
     solo_agent_page = payload["agents/alice.athena.foo.solo/README.md"].decode()
-    family_page = payload["families/alice.athena.foo.bar.md"].decode()
+    family_page = payload["sessions/alice.athena.foo.bar.md"].decode()
+    redirect = payload["families/alice.athena.foo.bar.md"].decode()
+    assert "`sessions/alice.athena.foo.bar.md`" in redirect
+    assert "../sessions/alice.athena.foo.bar.md" in redirect
 
     agent_ancestors = (
         "[Agent Hoods](../../README.md) / "
@@ -118,7 +121,7 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
     )
     assert (
         agent_ancestors
-        + " / [foo.bar](../../families/alice.athena.foo.bar.md) / foo.bar--code"
+        + " / [foo.bar](../../sessions/alice.athena.foo.bar.md) / foo.bar--code"
         in family_agent_page
     )
     assert agent_ancestors + " / foo.solo" in solo_agent_page
@@ -149,7 +152,7 @@ def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
         "failed",
     )
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo.bar",
         ("run-family",),
     )
@@ -172,7 +175,7 @@ def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
         {("alice", "athena", "foo"): snapshot},
     )
     family_agent_path = "agents/alice.athena.foo.bar--code/README.md"
-    family_path = "families/alice.athena.foo.bar.md"
+    family_path = "sessions/alice.athena.foo.bar.md"
     sibling_path = "agents/alice.athena.foo.sibling/README.md"
 
     family_agent_page = payload[family_agent_path].decode()
@@ -183,7 +186,8 @@ def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
     assert "[foo.sibling](../alice.athena.foo.sibling/README.md)" in family_agent_page
     assert "[foo.sibling](../agents/alice.athena.foo.sibling/README.md)" in family_page
     assert (
-        "[foo.bar](../../families/alice.athena.foo.bar.md) (family · 1)" in sibling_page
+        "[foo.bar](../../sessions/alice.athena.foo.bar.md) (session · 1)"
+        in sibling_page
     )
 
     for source_path in (family_agent_path, family_path, sibling_path):
@@ -222,7 +226,7 @@ def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() 
         metadata=(("output_variables", {"plan_file": "plans/foo.md"}),),
     )
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo.bar",
         ("run-code", "run-plan"),
     )
@@ -245,7 +249,7 @@ def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() 
         {("alice", "athena", "foo"): snapshot},
     )
     agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
-    family_page = payload["families/alice.athena.foo.bar.md"].decode()
+    family_page = payload["sessions/alice.athena.foo.bar.md"].decode()
 
     assert "- Variables: [2](#variables)" in agent_page
     assert agent_page.index("| `a_long` |") < agent_page.index("| `z_notes` |")

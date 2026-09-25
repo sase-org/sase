@@ -302,6 +302,8 @@ def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
         (repo / "schema.json").write_text("{}\n")
         (repo / "families").mkdir(exist_ok=True)
         (repo / "families" / ".gitkeep").write_text("")
+        (repo / "sessions").mkdir(exist_ok=True)
+        (repo / "sessions" / ".gitkeep").write_text("")
         agent_page = repo / "agents" / hood / "README.md"
         agent_page.parent.mkdir(parents=True, exist_ok=True)
         agent_page.write_text(f"# {hood}\n")

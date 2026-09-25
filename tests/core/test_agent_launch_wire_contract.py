@@ -28,7 +28,7 @@ def test_agent_launch_schema_version_pinned() -> None:
 
 def test_typed_launch_plan_from_dict_rehydrates_proc_payload() -> None:
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "launch_kind": "multi_prompt",
         "selected_project": "sase",
         "content_digest": "a" * 64,
@@ -104,7 +104,7 @@ def test_agent_unit_queue_weight_round_trips_json_shape() -> None:
     assert payload["queue_weight_explicit"] is True
     plan = launch_plan_from_dict(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "launch_kind": "single",
             "selected_project": "sase",
             "content_digest": "a" * 64,

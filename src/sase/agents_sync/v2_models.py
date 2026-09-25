@@ -7,9 +7,17 @@ from typing import Any, Literal
 
 from sase.agents_sync.models import CommitRecord
 from sase.core.agent_archive_facade import AgentArchiveCapabilities
-from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.agent_identity_facade import (
+    AGENT_RELATIONSHIP_SCHEMA_VERSION,
+    AgentOwnerIdentity,
+)
 
 V2_SCHEMA_VERSION = 2
+SESSION_CONTAINER_KIND: Literal["session"] = "session"
+LEGACY_FAMILY_CONTAINER_KIND: Literal["family"] = "family"
+SESSION_CONTAINER_KINDS = frozenset(
+    {SESSION_CONTAINER_KIND, LEGACY_FAMILY_CONTAINER_KIND}
+)
 
 RunState = Literal[
     "active",
@@ -19,7 +27,7 @@ RunState = Literal[
     "stopped",
     "dismissed",
 ]
-ContainerKind = Literal["family", "clan"]
+ContainerKind = Literal["session", "clan"]
 RelationshipKind = Literal["parent", "workflow_parent", "retry", "wait"]
 
 
@@ -229,7 +237,7 @@ class V2HoodSnapshot:
     def relationship_batch(self) -> dict[str, object]:
         owner = _owner_dict(self.owner)
         return {
-            "schema_version": self.schema_version,
+            "schema_version": AGENT_RELATIONSHIP_SCHEMA_VERSION,
             "owner": owner,
             "runs": [
                 {
@@ -273,13 +281,13 @@ class V2OwnerHoodEntry:
     digest: str
     files: tuple[str, ...] | None
     run_count: int
-    family_count: int
+    agent_session_count: int
 
     def to_json_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
             "digest": self.digest,
             "run_count": self.run_count,
-            "family_count": self.family_count,
+            "agent_session_count": self.agent_session_count,
         }
         if self.files is not None:
             data["files"] = list(self.files)
@@ -310,7 +318,7 @@ class V2PublicationCounts:
     hoods_published: int = 0
     hoods_refreshed: int = 0
     hoods_unchanged: int = 0
-    families_published: int = 0
+    agent_sessions_published: int = 0
     runs_published: int = 0
     diagnostics: tuple[str, ...] = ()
     schema_version: int = V2_SCHEMA_VERSION
@@ -327,8 +335,29 @@ def _owner_dict(owner: AgentOwnerIdentity) -> dict[str, str]:
     }
 
 
+def canonical_container_kind(kind: str) -> ContainerKind:
+    """Return the canonical container kind, mapping legacy family to session."""
+
+    if kind in SESSION_CONTAINER_KINDS:
+        return SESSION_CONTAINER_KIND
+    if kind == "clan":
+        return "clan"
+    raise ValueError(f"invalid container kind: {kind!r}")
+
+
+def is_session_container(kind: str) -> bool:
+    """Return whether *kind* is an agent-session container, including legacy."""
+
+    return kind in SESSION_CONTAINER_KINDS
+
+
 __all__ = [
     "ContainerKind",
+    "LEGACY_FAMILY_CONTAINER_KIND",
+    "SESSION_CONTAINER_KIND",
+    "SESSION_CONTAINER_KINDS",
+    "canonical_container_kind",
+    "is_session_container",
     "RelationshipKind",
     "RunState",
     "V2ContainerRecord",

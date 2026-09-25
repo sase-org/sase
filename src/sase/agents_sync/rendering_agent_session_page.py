@@ -1,4 +1,4 @@
-"""Family browsing page rendering."""
+"""Agent-session browsing page rendering."""
 
 from __future__ import annotations
 
@@ -29,11 +29,12 @@ from sase.core.agent_identity_facade import (
     AgentSessionNameKind,
     parse_agent_session_name,
 )
+from sase.sase_agent import agent_session_page_path
 
 
-def render_family_page(
+def render_agent_session_page(
     snapshot: V2HoodSnapshot,
-    family: V2ContainerRecord,
+    container: V2ContainerRecord,
     by_id: dict[str, V2RunRecord],
     *,
     commit_url_base: str | None,
@@ -41,12 +42,12 @@ def render_family_page(
     kinship: HoodKinshipProjection,
     member_bead_links: tuple[BeadPageLink | None, ...] = (),
 ) -> str:
-    """Render one family container and its member lineage."""
+    """Render one agent-session container and its member lineage."""
 
-    members = tuple(by_id[source_id] for source_id in family.member_source_run_ids)
+    members = tuple(by_id[source_id] for source_id in container.member_source_run_ids)
     member_roles = tuple((_member_role(run), run) for run in members)
-    local_family = _local_family_name(snapshot, family)
-    source_path = f"families/{family.global_name}.md"
+    local_session = _local_session_name(snapshot, container)
+    source_path = agent_session_page_path(container.global_name)
     header_line = (
         f"Owner: `{md_code(snapshot.owner.username)}."
         f"{md_code(snapshot.owner.machine_name)}` · "
@@ -56,9 +57,9 @@ def render_family_page(
     if bead_fact is not None:
         header_line += f" · {bead_fact}"
     lines = [
-        f"# Family: {md_escape(local_family)}",
+        f"# Session: {md_escape(local_session)}",
         "",
-        _breadcrumb(snapshot, source_path, local_family),
+        _breadcrumb(snapshot, source_path, local_session),
         "",
         header_line,
         "",
@@ -94,8 +95,8 @@ def render_family_page(
             if value
         )
         refs = dict(run.files)
-        prompt = _family_file_link(refs.get("prompt"), "Prompt")
-        chat = _family_file_link(refs.get("chat"), "Chat")
+        prompt = _session_file_link(refs.get("prompt"), "Prompt")
+        chat = _session_file_link(refs.get("chat"), "Chat")
         anchor = f'<a id="member-{md_html_id(role)}"></a>'
         commit_count = (
             f"[{len(run.commits)}]"
@@ -114,21 +115,21 @@ def render_family_page(
         (commit, _member_role(run)) for run in members for commit in run.commits
     )
     member_commit_shas = {commit.sha for commit, _role in member_commits}
-    family_commits = (
+    session_commits = (
         *member_commits,
         *(
             (commit, "—")
-            for commit in family.commits
+            for commit in container.commits
             if commit.sha not in member_commit_shas
         ),
     )
-    if family_commits:
+    if session_commits:
         lines.extend(
             [
                 "## Commits",
                 "",
                 *render_family_commits(
-                    family_commits,
+                    session_commits,
                     commit_url_base=commit_url_base,
                     commit_repo_name=commit_repo_name,
                 ),
@@ -139,14 +140,32 @@ def render_family_page(
     lines.extend(
         render_neighbors_section(
             kinship,
-            lane_name=local_family,
+            lane_name=local_session,
             source_path=source_path,
         )
     )
     return "\n".join(lines)
 
 
-def _breadcrumb(snapshot: V2HoodSnapshot, source_path: str, local_family: str) -> str:
+def render_legacy_family_redirect_stub(global_name: str) -> str:
+    """Render a permanent redirect stub for historical families/ footer links."""
+
+    destination = agent_session_page_path(global_name)
+    return "\n".join(
+        [
+            f"# Moved to sessions/{global_name}.md",
+            "",
+            "This agent session page now lives at "
+            f"[`{destination}`](../{destination}).",
+            "",
+            "Historical commit-footer links keep this path so old `SASE_AGENT` "
+            "destinations continue to resolve.",
+            "",
+        ]
+    )
+
+
+def _breadcrumb(snapshot: V2HoodSnapshot, source_path: str, local_session: str) -> str:
     owner = snapshot.owner
     return (
         f"[Agent Hoods]({relative_page_url(source_path, 'README.md')}) / "
@@ -156,20 +175,22 @@ def _breadcrumb(snapshot: V2HoodSnapshot, source_path: str, local_family: str) -
         f"({relative_page_url(source_path, f'users/{owner.username}/machines/{owner.machine_name}/README.md')}) / "
         f"[{md_escape(snapshot.local_hood)}]"
         f"({relative_page_url(source_path, f'users/{owner.username}/machines/{owner.machine_name}/hoods/{snapshot.local_hood}/README.md')}) / "
-        f"{md_escape(local_family)}"
+        f"{md_escape(local_session)}"
     )
 
 
-def _local_family_name(snapshot: V2HoodSnapshot, family: V2ContainerRecord) -> str:
-    return family.global_name.removeprefix(
+def _local_session_name(snapshot: V2HoodSnapshot, container: V2ContainerRecord) -> str:
+    return container.global_name.removeprefix(
         f"{snapshot.owner.username}.{snapshot.owner.machine_name}."
     )
 
 
-def _family_file_link(reference: V2FileReference | None, label: str) -> str:
+def _session_file_link(reference: V2FileReference | None, label: str) -> str:
     if reference is None:
         return "—"
-    return f"[{label}]({relative_page_url('families/x.md', reference.path)})"
+    return (
+        f"[{label}]({relative_page_url(agent_session_page_path('x'), reference.path)})"
+    )
 
 
 _MAX_HEADER_BEADS = 5
@@ -207,4 +228,7 @@ def _text(value: object) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-__all__ = ["render_family_page"]
+__all__ = [
+    "render_agent_session_page",
+    "render_legacy_family_redirect_stub",
+]

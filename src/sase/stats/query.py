@@ -25,7 +25,7 @@ RuntimeGroupBy = Literal[
 ]
 # legacy agent-family spelling: stored or configured group-bys carry
 # ``"family"``; new writers emit only ``"session"``. Core accepts the alias
-# and still returns ``"family"`` until core-contract.
+# and returns ``"session"``.
 LEGACY_RUNTIME_GROUP_BY = "family"
 
 

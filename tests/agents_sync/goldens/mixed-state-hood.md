@@ -2,7 +2,7 @@
 
 [Agent Hoods](../../../../../../README.md) / [alice](../../../../README.md) / [athena](../../README.md) / foo
 
-**Global hood:** `alice.athena.foo` · **Runs:** 10 · **Families:** 2 · **States:** active 1, completed 6, dismissed 1, failed 1, waiting 1
+**Global hood:** `alice.athena.foo` · **Runs:** 10 · **Sessions:** 2 · **States:** active 1, completed 6, dismissed 1, failed 1, waiting 1
 
 | Agent | State | Model / provider | Timing | Commits | Files |
 |---|---|---|---|---:|---|

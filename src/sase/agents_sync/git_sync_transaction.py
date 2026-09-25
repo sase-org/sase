@@ -111,7 +111,7 @@ def _sync_project_transaction(
             hoods_published=exported.hoods_published,
             hoods_refreshed=exported.hoods_refreshed,
             hoods_unchanged=exported.hoods_unchanged,
-            families_published=exported.families_published,
+            agent_sessions_published=exported.agent_sessions_published,
             runs_published=exported.runs_published,
             committed=False,
             diagnostics=exported.diagnostics,
@@ -133,7 +133,7 @@ def _sync_project_transaction(
             hoods_published=exported.hoods_published,
             hoods_refreshed=exported.hoods_refreshed,
             hoods_unchanged=exported.hoods_unchanged,
-            families_published=exported.families_published,
+            agent_sessions_published=exported.agent_sessions_published,
             runs_published=exported.runs_published,
             committed=committed,
             pushed=True,
@@ -150,7 +150,7 @@ def _sync_project_transaction(
             hoods_published=exported.hoods_published,
             hoods_refreshed=exported.hoods_refreshed,
             hoods_unchanged=exported.hoods_unchanged,
-            families_published=exported.families_published,
+            agent_sessions_published=exported.agent_sessions_published,
             runs_published=exported.runs_published,
             committed=committed,
             push_attempts=1,
@@ -233,9 +233,9 @@ def _sync_project_transaction(
             hoods_unchanged=max(
                 exported.hoods_unchanged, retry_exported.hoods_unchanged
             ),
-            families_published=max(
-                exported.families_published,
-                retry_exported.families_published,
+            agent_sessions_published=max(
+                exported.agent_sessions_published,
+                retry_exported.agent_sessions_published,
             ),
             runs_published=max(exported.runs_published, retry_exported.runs_published),
             committed=retry_committed,
@@ -251,8 +251,8 @@ def _sync_project_transaction(
         hoods_published=max(exported.hoods_published, retry_exported.hoods_published),
         hoods_refreshed=max(exported.hoods_refreshed, retry_exported.hoods_refreshed),
         hoods_unchanged=max(exported.hoods_unchanged, retry_exported.hoods_unchanged),
-        families_published=max(
-            exported.families_published, retry_exported.families_published
+        agent_sessions_published=max(
+            exported.agent_sessions_published, retry_exported.agent_sessions_published
         ),
         runs_published=max(exported.runs_published, retry_exported.runs_published),
         committed=retry_committed,

@@ -41,7 +41,7 @@ def test_commit_tables_link_escape_and_format_utc(
             commits=(CommitRecord(sha, "unsafe | `tick` <tag>", 1),),
         )
         family = V2ContainerRecord(
-            "family",
+            "session",
             "alice.athena.foo.bar",
             ("run-family",),
         )
@@ -73,7 +73,7 @@ def test_commit_tables_link_escape_and_format_utc(
             commit_repo_name="project",
         )
         agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
-        family_page = payload["families/alice.athena.foo.bar.md"].decode()
+        family_page = payload["sessions/alice.athena.foo.bar.md"].decode()
 
         expected_commit = (
             "[`aaaaaaa`](https://github.com/acme/project/commit/" + sha + ")"
@@ -110,7 +110,7 @@ def test_family_page_unions_lane_commits_with_member_attribution_winning() -> No
         commits=(member_commit,),
     )
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo.bar",
         ("run-family",),
         (
@@ -136,7 +136,7 @@ def test_family_page_unions_lane_commits_with_member_attribution_winning() -> No
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         commit_repo_name="project",
-    )["families/alice.athena.foo.bar.md"].decode()
+    )["sessions/alice.athena.foo.bar.md"].decode()
 
     assert "| — | project | `bbbbbbb` | lane subject |" in family_page
     assert "| code | project | `aaaaaaa` | member subject |" in family_page
@@ -207,7 +207,7 @@ def test_commit_rendering_is_bounded_and_validates_link_shas() -> None:
         commits=commits,
     )
     family = V2ContainerRecord(
-        "family",
+        "session",
         "alice.athena.foo",
         ("run-1",),
     )
@@ -240,7 +240,7 @@ def test_commit_rendering_is_bounded_and_validates_link_shas() -> None:
         {("alice", "athena", "foo"): snapshot},
         commit_url_base=None,
         commit_repo_name="project",
-    )["families/alice.athena.foo.md"].decode()
+    )["sessions/alice.athena.foo.md"].decode()
     assert "… and 1 more commits" in family_page
     assert (
         github_commit_url(

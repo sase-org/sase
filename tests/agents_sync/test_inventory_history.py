@@ -141,9 +141,11 @@ def test_inventory_synthesizes_run_for_linked_commit_without_local_artifact(
     assert (repo / "agents" / "alice.athena.missing.agent" / "README.md").is_file()
 
 
+@pytest.mark.parametrize("page_dir", ("families", "sessions"))
 def test_inventory_diagnoses_unrepresentable_family_history_without_phantom_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    page_dir: str,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
     monkeypatch.setattr(inventory, "_indexed_records", lambda _target: ((), []))
@@ -153,7 +155,7 @@ def test_inventory_diagnoses_unrepresentable_family_history_without_phantom_run(
         f"{sha}\x001\x00family lane\x00family lane\n\n"
         "SASE_AGENT=[alice.athena.crew][2]\n\n"
         "[2]: https://github.com/acme/project--agents/blob/main/"
-        "families/alice.athena.crew.md\x00"
+        f"{page_dir}/alice.athena.crew.md\x00"
     )
 
     def runner(

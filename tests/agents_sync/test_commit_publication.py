@@ -49,6 +49,8 @@ def test_push_failure_is_queued_and_next_commit_drains_idempotently(
         (repo / "schema.json").write_text("{}\n")
         (repo / "families").mkdir(exist_ok=True)
         (repo / "families" / ".gitkeep").write_text("")
+        (repo / "sessions").mkdir(exist_ok=True)
+        (repo / "sessions" / ".gitkeep").write_text("")
         manifest = V2OwnerManifest(
             owner,
             V2ProjectIdentity("proj", "Project"),

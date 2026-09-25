@@ -80,11 +80,13 @@ def file_reference(path: str, payload: bytes) -> V2FileReference:
 
 
 def v2_schema_document() -> dict[str, object]:
+    from sase.core.agent_identity_facade import AGENT_RELATIONSHIP_SCHEMA_VERSION
+
     return {
         "schema_version": V2_SCHEMA_VERSION,
         "format": "sase-agents-sidecar",
         "authority": "owner-sharded",
-        "relationship_schema_version": V2_SCHEMA_VERSION,
+        "relationship_schema_version": AGENT_RELATIONSHIP_SCHEMA_VERSION,
     }
 
 

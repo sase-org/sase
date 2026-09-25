@@ -15,7 +15,7 @@ from sase.core import agent_identity_facade as facade
 def _batch() -> dict[str, Any]:
     owner = {"username": "alice", "machine_name": "athena"}
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "owner": owner,
         "runs": [
             {
@@ -31,9 +31,7 @@ def _batch() -> dict[str, Any]:
         ],
         "containers": [
             {
-                # legacy agent-family spelling: sase-core still names this
-                # container kind ``family``.
-                "kind": "family",
+                "kind": "session",
                 "global_name": "alice.athena.foo",
                 "owner": owner,
                 "member_source_run_ids": ["run-1", "run-2"],
@@ -70,25 +68,20 @@ def test_facade_delegates_every_operation_with_static_binding_names(
             "owner_root": None,
             "local_name": "foo--code",
             "hood": "foo",
-            # legacy agent-family spelling: sase-core still serializes the
-            # session name as ``family_name``.
-            "family_name": "foo",
+            "agent_session_name": "foo",
             "member_role": "code",
         },
         "parse_agent_session_name": {
             "kind": "member",
-            # legacy agent-family spelling: see ``parse_owned_agent_name`` above.
-            "family_name": "foo",
+            "agent_session_name": "foo",
             "member_role": "code",
         },
         "agent_local_hood": "foo",
         "agent_name_in_hood": True,
         "agent_name_ancestors": ["foo", "foo.bar"],
         "agent_link_target": {
-            # legacy agent-family spelling: sase-core still emits the ``family``
-            # link kind and the sidecar ``families/`` page path.
-            "kind": "family",
-            "path": "families/alice.athena.foo.md",
+            "kind": "session",
+            "path": "sessions/alice.athena.foo.md",
             "anchor": "member-code",
         },
         "validate_agent_relationship_batch": {
@@ -102,8 +95,7 @@ def test_facade_delegates_every_operation_with_static_binding_names(
                 "alice.athena.foo",
                 "alice.athena.foo--code",
             ],
-            # legacy agent-family spelling: core keys containers by kind.
-            "container_order": ["family:alice.athena.foo"],
+            "container_order": ["session:alice.athena.foo"],
             "relationship_order": [0],
         },
     }

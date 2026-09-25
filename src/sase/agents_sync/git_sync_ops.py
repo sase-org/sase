@@ -28,6 +28,7 @@ _AGENTS_PAYLOAD_PATHS = (
     "users",
     "agents",
     "families",
+    "sessions",
 )
 _LEGACY_MANIFEST_PATH = "manifest.json"
 
@@ -39,12 +40,7 @@ def commit_agents_payload_if_dirty(
     *,
     extra_paths: tuple[str, ...] = (),
 ) -> bool | str:
-    payload_paths = (
-        (_LEGACY_MANIFEST_PATH, *_AGENTS_PAYLOAD_PATHS)
-        if (repo / _LEGACY_MANIFEST_PATH).exists()
-        or _tracked_legacy_manifest(repo, git_runner)
-        else _AGENTS_PAYLOAD_PATHS
-    )
+    payload_paths = _existing_or_tracked_payload_paths(repo, git_runner)
     staged_paths = (
         *payload_paths,
         *(
@@ -53,6 +49,8 @@ def commit_agents_payload_if_dirty(
             if (repo / path).exists() or _tracked_path(repo, path, git_runner)
         ),
     )
+    if not staged_paths:
+        return False
     staged = git_runner(
         repo,
         ["add", "--force", "--", *staged_paths],
@@ -95,6 +93,24 @@ def commit_agents_payload_if_dirty(
     return True
 
 
+def _candidate_payload_paths(repo: Path, git_runner: GitRunner) -> tuple[str, ...]:
+    if (repo / _LEGACY_MANIFEST_PATH).exists() or _tracked_legacy_manifest(
+        repo, git_runner
+    ):
+        return (_LEGACY_MANIFEST_PATH, *_AGENTS_PAYLOAD_PATHS)
+    return _AGENTS_PAYLOAD_PATHS
+
+
+def _existing_or_tracked_payload_paths(
+    repo: Path, git_runner: GitRunner
+) -> tuple[str, ...]:
+    return tuple(
+        path
+        for path in _candidate_payload_paths(repo, git_runner)
+        if (repo / path).exists() or _tracked_path(repo, path, git_runner)
+    )
+
+
 def _tracked_path(repo: Path, path: str, git_runner: GitRunner) -> bool:
     tracked = git_runner(
         repo,
@@ -127,12 +143,7 @@ def clean_agents_payload_worktree(
     """
 
     _clear_stale_agents_index_lock(repo, git_runner)
-    payload_paths = (
-        (_LEGACY_MANIFEST_PATH, *_AGENTS_PAYLOAD_PATHS)
-        if (repo / _LEGACY_MANIFEST_PATH).exists()
-        or _tracked_legacy_manifest(repo, git_runner)
-        else _AGENTS_PAYLOAD_PATHS
-    )
+    payload_paths = _existing_or_tracked_payload_paths(repo, git_runner)
     reset = git_runner(
         repo,
         ["reset", "--quiet", "HEAD", "--", *payload_paths],

@@ -24,6 +24,7 @@ from sase.agents_sync.v2_models import (
     V2HoodSnapshot,
     V2RunRecord,
 )
+from sase.sase_agent import agent_session_page_path
 
 
 def render_agent_page(
@@ -136,7 +137,7 @@ def _breadcrumb(
         )
         parts.append(
             f"[{md_escape(local_family)}]"
-            f"({relative_page_url(source_path, f'families/{family.global_name}.md')})"
+            f"({relative_page_url(source_path, agent_session_page_path(family.global_name))})"
         )
     parts.append(md_escape(run.local_name))
     return " / ".join(parts)

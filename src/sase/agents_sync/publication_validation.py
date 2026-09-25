@@ -16,6 +16,7 @@ from sase.agents_sync.v2_models import (
     V2OwnerHoodEntry,
     V2OwnerManifest,
     V2RunRecord,
+    is_session_container,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 
@@ -148,11 +149,11 @@ def hood_file_set(snapshot: V2HoodSnapshot) -> tuple[str, ...]:
     for run in snapshot.runs:
         files.update(reference.path for _kind, reference in run.files)
         files.add(f"agents/{run.global_name}/README.md")
-    files.update(
-        f"families/{container.global_name}.md"
-        for container in snapshot.containers
-        if container.kind == "family"
-    )
+    for container in snapshot.containers:
+        if not is_session_container(container.kind):
+            continue
+        files.add(f"sessions/{container.global_name}.md")
+        files.add(f"families/{container.global_name}.md")
     return tuple(sorted(files))
 
 

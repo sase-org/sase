@@ -163,7 +163,7 @@ def _stub_full_sync(
         # The rest of the payload path set has to exist for staging to run.
         (repo / "README.md").write_text("# Agents\n", encoding="utf-8")
         (repo / "schema.json").write_text("{}\n", encoding="utf-8")
-        for directory in ("users", "families"):
+        for directory in ("users", "families", "sessions"):
             (repo / directory).mkdir(exist_ok=True)
             (repo / directory / ".gitkeep").write_text("", encoding="utf-8")
         return V2PublicationCounts(hoods_published=1)

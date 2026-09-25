@@ -120,21 +120,11 @@ def capacity_session_keys_for_core(
     shell_id: str | None = None,
     shell_state: str | None = None,
 ) -> dict[str, Any]:
-    """Legacy-keyed runner-slot session projection for the Rust capacity engine.
-
-    Boundary helper (wire-cutover): the pinned core capacity struct accepts
-    the ``agent_session*`` spellings as aliases except for
-    ``agent_session_parallel``, which it still declares only as
-    ``agent_family_parallel``. Python therefore keeps sending the legacy
-    spelling of that one field here until core-contract renames the struct.
-    Every other Python surface already uses the ``agent_session*`` names.
-    """
+    """Runner-slot session projection for the Rust capacity engine."""
     return {
         "agent_session": agent_session,
         "agent_session_role": agent_session_role,
-        # legacy agent-family spelling: core has no ``agent_session_parallel``
-        # alias yet (see module docstring reference above / core-contract).
-        "agent_family_parallel": agent_session_parallel,
+        "agent_session_parallel": agent_session_parallel,
         "agent_session_shell_kind": shell_kind,
         "agent_session_shell_id": shell_id,
         "agent_session_shell_state": shell_state,

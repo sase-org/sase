@@ -370,7 +370,7 @@ def _integrate_export_pass(
         hoods_published=published.hoods_published,
         hoods_refreshed=published.hoods_refreshed,
         hoods_unchanged=published.hoods_unchanged,
-        families_published=published.families_published,
+        agent_sessions_published=published.agent_sessions_published,
         runs_published=published.runs_published,
     )
 

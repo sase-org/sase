@@ -9,7 +9,7 @@ agent's top-level hood. It can publish active prompts before a transcript exists
 with terminal state, commits, or chat. The repository's configured visibility controls who can access that data. Set
 the `agents` sidecar visibility to `private` before creation to restrict access, or set `disabled: true` to opt out.
 
-![Project-scoped agent hoods pass through explicit privacy consent into an owner-sharded agents sidecar, where deterministic sync publishes prompts, chats, commits, states, and browsable owner, machine, hood, family, and agent pages.](assets/agents-directory-map.png)
+![Project-scoped agent hoods pass through explicit privacy consent into an owner-sharded agents sidecar, where deterministic sync publishes prompts, chats, commits, states, and browsable owner, machine, hood, session, and agent pages.](assets/agents-directory-map.png)
 
 ## Snapshot layout
 
@@ -17,7 +17,8 @@ the `agents` sidecar visibility to `private` before creation to restrict access,
 - `users/<username>/machines/<machine>/manifest.json` is one owner's authority file.
 - `users/<username>/machines/<machine>/hoods/<hood>/snapshot.json` captures a complete hood.
 - `agents/<global-name>/` contains allowlisted metadata, state, commits, prompt, and optional chat.
-- `families/<global-family>.md` and the generated `README.md` pages provide deterministic browsing.
+- `sessions/<global-session>.md` and the generated `README.md` pages provide deterministic browsing.
+- `families/<global-session>.md` stubs permanently redirect to the matching `sessions/` page so historical commit-footer links keep resolving.
 - `prompts/<YYYYMM>/<name>.md` stores canonical committed run prompts. Each prompt links back to its plan when it has
   one, links to the published agent page, and rewrites captured `@...` references into clickable inline links.
 - `prompts/<YYYYMM>/README.md` is the generated month index for prompt archive browsing.

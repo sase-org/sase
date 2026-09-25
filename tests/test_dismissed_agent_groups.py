@@ -241,6 +241,42 @@ def test_version_one_tag_record_loads_and_rewrites_canonically(
     assert "tag" not in persisted["agent_refs"][0]
 
 
+def test_version_two_pre_rename_record_loads_and_rewrites_canonically(
+    tmp_path: Path,
+) -> None:
+    groups_dir = tmp_path / "groups"
+    groups_dir.mkdir()
+    payload = saved_agent_group_wire_to_json_dict(
+        _group("legacy-v2", "2026-05-27T12:00:00Z")
+    )
+    payload["schema_version"] = 2
+    payload.pop("canonical_global_agent_session", None)
+    payload["canonical_global_family"] = "alice.athena.legacy-v2"
+    group_path = groups_dir / "legacy-v2.json"
+    group_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with (
+        patch("sase.ace.dismissed_agents._DISMISSED_AGENT_GROUPS_DIR", groups_dir),
+        patch(
+            "sase.ace.dismissed_agent_groups.require_rust_binding",
+            side_effect=AttributeError("exercise Python migration"),
+        ),
+    ):
+        loaded = load_dismissed_agent_group("legacy-v2")
+        rewritten = mark_dismissed_agent_group_revived(
+            "legacy-v2", revived_at="2026-05-27T13:00:00Z"
+        )
+
+    assert loaded is not None
+    assert loaded.schema_version == AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION
+    assert loaded.canonical_global_agent_session == "alice.athena.legacy-v2"
+    assert rewritten is not None
+    persisted = json.loads(group_path.read_text())
+    assert persisted["schema_version"] == AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION
+    assert persisted["canonical_global_agent_session"] == "alice.athena.legacy-v2"
+    assert "canonical_global_family" not in persisted
+
+
 def test_recent_dismissed_agent_groups_are_capped_newest_first(
     tmp_path: Path,
 ) -> None:

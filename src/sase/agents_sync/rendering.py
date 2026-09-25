@@ -7,7 +7,10 @@ from collections.abc import Mapping
 
 from sase.agents_sync.bead_links import BeadPageLink
 from sase.agents_sync.rendering_agent_page import render_agent_page
-from sase.agents_sync.rendering_family_page import render_family_page
+from sase.agents_sync.rendering_agent_session_page import (
+    render_agent_session_page,
+    render_legacy_family_redirect_stub,
+)
 from sase.agents_sync.rendering_index_pages import (
     render_hood_page,
     render_machine_page,
@@ -20,6 +23,11 @@ from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2HoodSnapshot,
     V2OwnerManifest,
+    is_session_container,
+)
+from sase.sase_agent import (
+    agent_session_page_path,
+    legacy_agent_family_redirect_path,
 )
 
 
@@ -84,18 +92,18 @@ def _render_run_pages(
     payload: dict[str, bytes] = {}
     by_id = {run.source_run_id: run for run in snapshot.runs}
     kinship = build_hood_kinship(snapshot)
-    families_by_member: dict[str, V2ContainerRecord] = {}
+    sessions_by_member: dict[str, V2ContainerRecord] = {}
     for container in snapshot.containers:
-        if container.kind != "family":
+        if not is_session_container(container.kind):
             continue
         for source_id in container.member_source_run_ids:
-            families_by_member[source_id] = container
+            sessions_by_member[source_id] = container
         member_bead_links = tuple(
             bead_links.get(by_id[source_id].global_name)
             for source_id in container.member_source_run_ids
         )
-        payload[f"families/{container.global_name}.md"] = page_bytes(
-            render_family_page(
+        payload[agent_session_page_path(container.global_name)] = page_bytes(
+            render_agent_session_page(
                 snapshot,
                 container,
                 by_id,
@@ -105,12 +113,15 @@ def _render_run_pages(
                 member_bead_links=member_bead_links,
             )
         )
+        payload[legacy_agent_family_redirect_path(container.global_name)] = page_bytes(
+            render_legacy_family_redirect_stub(container.global_name)
+        )
     for run in snapshot.runs:
         payload[f"agents/{run.global_name}/README.md"] = page_bytes(
             render_agent_page(
                 snapshot,
                 run,
-                family=families_by_member.get(run.source_run_id),
+                family=sessions_by_member.get(run.source_run_id),
                 commit_url_base=commit_url_base,
                 commit_repo_name=commit_repo_name,
                 kinship=kinship,

@@ -388,13 +388,14 @@ from a tracked stitch. Commits authored upstream in a linked repository classify
 **Legacy `SASE_AGENT` values:** commits written before provenance moved to the sase
 agent carry a concrete member name and a `#member-<role>` anchor — for example
 `SASE_AGENT=[bbugyi200.athena.pc--code][2]` pointing at
-`families/bbugyi200.athena.pc.md#member-code`. History is never rewritten, so every
-reader (inventory history, import evidence, revert discovery, image-attachment scanning,
-plan and bead associations, the PR body footer) accepts both spellings permanently: a
-member-named tag keeps its exact per-run attribution, while a sase-agent-named tag is
-attributed to the sase agent. Readers that need a link for a tag prefer the destination
-recorded in the footer itself, because that URL already distinguishes a session page
-from a solo agent page for commits from either era.
+`families/bbugyi200.athena.pc.md#member-code`. Current footers use `sessions/` instead;
+history is never rewritten, so every reader (inventory history, import evidence, revert
+discovery, image-attachment scanning, plan and bead associations, the PR body footer)
+accepts both path segments permanently: a member-named tag keeps its exact per-run
+attribution, while a sase-agent-named tag is attributed to the sase agent. Readers that
+need a link for a tag prefer the destination recorded in the footer itself, because that
+URL already distinguishes a session page from a solo agent page for commits from either
+era.
 
 Internal fields added by `CommitWorkflow`:
 

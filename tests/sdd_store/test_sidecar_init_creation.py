@@ -354,10 +354,11 @@ def test_agents_init_uses_hidden_root_and_records_every_sidecar_role(
         "schema_version": 2,
         "format": "sase-agents-sidecar",
         "authority": "owner-sharded",
-        "relationship_schema_version": 2,
+        "relationship_schema_version": 3,
     }
     assert (agents_root / "agents" / ".gitkeep").is_file()
     assert (agents_root / "families" / ".gitkeep").is_file()
+    assert (agents_root / "sessions" / ".gitkeep").is_file()
     assert (agents_root / "users" / ".gitkeep").is_file()
     assert not (project / "sase" / "repos" / "agents").exists()
 

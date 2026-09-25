@@ -33,6 +33,7 @@ from sase.agents_sync.v2_models import (
     V2OwnerManifest,
     V2ProjectIdentity,
     V2PublicationCounts,
+    is_session_container,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.feature_flags import FeatureFlag, current_flags
@@ -70,9 +71,10 @@ def plan_hoods(
         "schema.json": v2_json_bytes(v2_schema_document()),
         "agents/.gitkeep": b"",
         "families/.gitkeep": b"",
+        "sessions/.gitkeep": b"",
     }
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
-    published = refreshed = unchanged = families = runs = 0
+    published = refreshed = unchanged = sessions = runs = 0
     slim = current_flags().enabled(FeatureFlag.slim_agents_manifest)
 
     for hood in sorted(set(hoods)):
@@ -93,7 +95,7 @@ def plan_hoods(
             content_digest(snapshot_bytes),
             files,
             len(hood_snapshot.runs),
-            sum(item.kind == "family" for item in hood_snapshot.containers),
+            sum(is_session_container(item.kind) for item in hood_snapshot.containers),
         )
         existing = entries.get(hood)
         if existing is None:
@@ -103,7 +105,7 @@ def plan_hoods(
         else:
             refreshed += 1
         if existing is None or existing.digest != entry.digest:
-            families += entry.family_count
+            sessions += entry.agent_session_count
             runs += entry.run_count
         entries[hood] = entry
         payload.update(hood_payload)
@@ -137,7 +139,7 @@ def plan_hoods(
         hoods_published=published,
         hoods_refreshed=refreshed,
         hoods_unchanged=unchanged,
-        families_published=families,
+        agent_sessions_published=sessions,
         runs_published=runs,
         diagnostics=tuple(
             dict.fromkeys(

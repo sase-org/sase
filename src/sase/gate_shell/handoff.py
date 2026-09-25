@@ -189,12 +189,11 @@ def collect_successor_evidence(
         named = [item for item in matches if item[0] == recorded_agent]
         if named:
             matches = named
-    # legacy agent-family spelling: core reads "family_name" until core-contract.
     if len(matches) > 1:
         running_or_done = [item for item in matches if item[1] or item[2]]
         if len(running_or_done) != 1:
             return {
-                "family_name": agent_session,
+                "agent_session_name": agent_session,
                 "expected_suffix": suffix,
                 "ambiguous": True,
                 "running": any(item[1] for item in matches),
@@ -203,7 +202,7 @@ def collect_successor_evidence(
         matches = running_or_done
     if not matches:
         return {
-            "family_name": agent_session,
+            "agent_session_name": agent_session,
             "expected_suffix": suffix,
             "attached_agent": recorded_agent,
             "running": False,
@@ -212,7 +211,7 @@ def collect_successor_evidence(
         }
     name, running, completed = matches[0]
     return {
-        "family_name": agent_session,
+        "agent_session_name": agent_session,
         "expected_suffix": suffix,
         "attached_agent": name,
         "launch_receipt": recorded_agent,

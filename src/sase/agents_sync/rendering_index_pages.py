@@ -13,14 +13,18 @@ from sase.agents_sync.rendering_markdown import (
     run_timing,
     state_counts,
 )
-from sase.agents_sync.v2_models import V2HoodSnapshot, V2OwnerManifest
+from sase.agents_sync.v2_models import (
+    V2HoodSnapshot,
+    V2OwnerManifest,
+    is_session_container,
+)
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, agent_link_target
 
 _AGENTS_DIRECTORY_MAP_MARKDOWN = (
     "![Project-scoped agent hoods pass through explicit privacy consent into "
     "an owner-sharded agents sidecar, where deterministic sync publishes "
     "prompts, chats, commits, states, and browsable owner, machine, hood, "
-    "family, and agent pages.](assets/agents-directory-map.png)"
+    "session, and agent pages.](assets/agents-directory-map.png)"
 )
 
 
@@ -127,7 +131,7 @@ def render_machine_page(
         f"**Project:** {md_escape(manifest.project.name)} · **Hoods:** "
         f"{len(snapshots)} · **Runs:** {sum(len(item.runs) for item in snapshots)}",
         "",
-        "| Hood | Runs | Families | States |",
+        "| Hood | Runs | Sessions | States |",
         "|---|---:|---:|---|",
     ]
     for snapshot in sorted(snapshots, key=lambda item: item.local_hood):
@@ -136,7 +140,7 @@ def render_machine_page(
             f"| [{md_cell(snapshot.local_hood)}]"
             f"({page_url(f'hoods/{snapshot.local_hood}/README.md')}) "
             f"| {len(snapshot.runs)} | "
-            f"{sum(item.kind == 'family' for item in snapshot.containers)} "
+            f"{sum(is_session_container(item.kind) for item in snapshot.containers)} "
             f"| {md_cell(states)} |"
         )
     lines.append("")
@@ -160,8 +164,8 @@ def render_hood_page(snapshot: V2HoodSnapshot, hood_root: str) -> str:
         f"{md_escape(snapshot.local_hood)}",
         "",
         f"**Global hood:** `{md_code(snapshot.global_hood)}` · "
-        f"**Runs:** {len(snapshot.runs)} · **Families:** "
-        f"{sum(item.kind == 'family' for item in snapshot.containers)} · "
+        f"**Runs:** {len(snapshot.runs)} · **Sessions:** "
+        f"{sum(is_session_container(item.kind) for item in snapshot.containers)} · "
         f"**States:** {md_escape(state_counts(snapshot.runs))}",
         "",
         "| Agent | State | Model / provider | Timing | Commits | Files |",

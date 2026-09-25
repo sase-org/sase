@@ -163,7 +163,12 @@ class HostedLinkResolver:
             normalize_owned_agent_name,
             parse_agent_session_name,
         )
-        from sase.sase_agent import sase_agent_page_path, sase_agent_ref_for_name
+        from sase.sase_agent import (
+            agent_session_page_path,
+            legacy_agent_family_redirect_path,
+            sase_agent_page_path,
+            sase_agent_ref_for_name,
+        )
 
         snapshot = self._agent_identity()
         owner = None if snapshot is None else snapshot.owner
@@ -185,13 +190,16 @@ class HostedLinkResolver:
                     reserved_agent_session_names=self._reserved_agent_session_names,
                 )
                 path = sase_agent_page_path(agent_ref, owner, snapshot)
-                family_path = f"families/{agent_ref.global_name}.md"
+                session_path = agent_session_page_path(agent_ref.global_name)
+                family_path = legacy_agent_family_redirect_path(agent_ref.global_name)
                 if (
                     not agent_ref.is_agent_session
                     and self._agents_sidecar_path is not None
-                    and (self._agents_sidecar_path / family_path).is_file()
                 ):
-                    path = family_path
+                    if (self._agents_sidecar_path / session_path).is_file():
+                        path = session_path
+                    elif (self._agents_sidecar_path / family_path).is_file():
+                        path = family_path
         except Exception:
             return None
         return github_blob_url(

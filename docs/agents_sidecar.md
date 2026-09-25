@@ -51,7 +51,8 @@ agents/<global-name>/
   prompt.md
   commits.json
   chat.md                 # only when readable
-families/<global-family>.md
+sessions/<global-session>.md
+families/<global-session>.md   # permanent redirect stub for historical footer links
 prompts/<YYYYMM>/<name>.md
 prompts/<YYYYMM>/README.md
 files/objects/sha256/<hex-prefix>/<sha256>
@@ -332,7 +333,7 @@ enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. Each project reports the
 legacy publication counters (`exported`, `export_refreshed`) plus v2 publication counts
-(`hoods_published`, `hoods_refreshed`, `hoods_unchanged`, `families_published`,
+(`hoods_published`, `hoods_refreshed`, `hoods_unchanged`, `agent_sessions_published`,
 `runs_published`), push/commit state, and diagnostics. The default table is compact:
 `V1` is the changed legacy-v1 publication count, and `HOODS` / `RUNS` report v2
 publication totals.

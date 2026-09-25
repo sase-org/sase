@@ -18,6 +18,8 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
+AGENT_RELATIONSHIP_SCHEMA_VERSION = 3
+
 
 @dataclass(frozen=True, slots=True)
 class AgentOwnerIdentity:
@@ -80,9 +82,9 @@ class _ParsedAgentSessionName:
 
 class _AgentLinkTargetKind(StrEnum):
     AGENT = "agent"
-    # legacy agent-family spelling; core still emits "family" until core-contract
-    LEGACY_AGENT_FAMILY = "family"
     SESSION = "session"
+    # legacy agent-family spelling: pre-rename core emitted "family"
+    LEGACY_AGENT_FAMILY = "family"
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,8 +479,8 @@ def _parse_owned_agent_name(
     roots = _known_owner_roots(snapshot)
     binding = require_rust_binding("parse_owned_agent_name")
     payload: Mapping[str, Any] = binding(name, list(roots))
-    # legacy agent-family spelling: core still serializes the result as
-    # "family_name" and accepts "agent_session_name" as an alias
+    # Core serializes ``agent_session_name`` and still reads the legacy
+    # ``family_name`` alias from pre-rename payloads.
     session_name = payload.get("agent_session_name")
     if session_name is None:
         session_name = payload["family_name"]
@@ -517,8 +519,8 @@ def parse_agent_session_name(
         )
     binding = require_rust_binding("parse_agent_session_name")
     payload: Mapping[str, Any] = binding(name)
-    # legacy agent-family spelling: core still serializes the result as
-    # "family_name" and accepts "agent_session_name" as an alias
+    # Core serializes ``agent_session_name`` and still reads the legacy
+    # ``family_name`` alias from pre-rename payloads.
     session_name = payload.get("agent_session_name")
     if session_name is None:
         session_name = payload["family_name"]
@@ -642,6 +644,7 @@ def _split_dismissed_prefix(name: str) -> tuple[str, str]:
 
 
 __all__ = [
+    "AGENT_RELATIONSHIP_SCHEMA_VERSION",
     "AgentSessionNameKind",
     "AgentIdentitySnapshot",
     "AgentOwnerIdentity",

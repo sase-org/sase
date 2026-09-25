@@ -13,6 +13,7 @@ from sase.agents_sync.v2_models import (
     V2RelationshipRecord,
     V2RelationshipTarget,
     V2RunRecord,
+    canonical_container_kind,
 )
 from sase.agents_sync.v2_validation import (
     MAX_CONTAINERS,
@@ -45,7 +46,7 @@ from sase.core.agent_identity_facade import (
 )
 
 _STATES = {"active", "waiting", "completed", "failed", "stopped", "dismissed"}
-_CONTAINER_KINDS = {"family", "clan"}
+_CONTAINER_KINDS = {"session", "family", "clan"}
 _RELATIONSHIP_KINDS = {"parent", "workflow_parent", "retry", "wait"}
 _FILE_KINDS = {
     "meta",
@@ -219,9 +220,9 @@ def _containers(
         )
         if decode_owner_identity(row["owner"], f"{label} owner") != owner:
             raise AgentsSyncFormatError(f"{label} belongs to another owner")
-        kind = row["kind"]
-        if kind not in _CONTAINER_KINDS:
+        if row["kind"] not in _CONTAINER_KINDS:
             raise AgentsSyncFormatError(f"{label} has an invalid kind")
+        kind = canonical_container_kind(row["kind"])
         global_name = validate_component(row["global_name"], label="container name")
         members = string_list(
             row["member_source_run_ids"], f"{label} members", MAX_RUNS

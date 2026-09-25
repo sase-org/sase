@@ -106,7 +106,7 @@ def test_reserved_agent_session_container_name_is_a_agent_session(monkeypatch) -
         is_agent_session=True,
         member_local_name=None,
     )
-    assert sase_agent_page_path(ref, _OWNER) == "families/alice.athena.pc.md"
+    assert sase_agent_page_path(ref, _OWNER) == "sessions/alice.athena.pc.md"
     assert lane_ref_for_lane_name("pc", _IDENTITY) == ref
 
 

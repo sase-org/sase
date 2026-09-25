@@ -1764,8 +1764,7 @@ def _runner_capacity_probe_record(**overrides: Any) -> dict[str, Any]:
         "parent_timestamp": None,
         "agent_session": None,
         "agent_session_role": None,
-        # legacy agent-family spelling: core has no agent_session_parallel alias
-        "agent_family_parallel": False,
+        "agent_session_parallel": False,
         "agent_session_shell_kind": None,
         "agent_session_shell_id": None,
         "agent_session_shell_state": None,
@@ -1798,10 +1797,10 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
     except Exception as exc:
         _error(f"runner_capacity_policy_schema_version() probe failed: {exc}")
         return False
-    if policy_schema_version < 5:
+    if policy_schema_version < 6:
         _error(
             "runner_capacity_policy_schema_version() returned stale schema: "
-            f"got {policy_schema_version}, expected >= 5"
+            f"got {policy_schema_version}, expected >= 6"
         )
         return False
 
@@ -1811,7 +1810,7 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         run_started_at="2026-01-01T00:00:00Z",
         runner_claim_owner_key="core-floor-probe:fam:parallel:2026-01-01T00-00-00",
         agent_session="fam",
-        agent_family_parallel=True,
+        agent_session_parallel=True,
         queue_weight=2.0,
         queue_weight_explicit=True,
     )
@@ -1820,7 +1819,7 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         timestamp="2026-01-01T00:05:00Z",
         parent_timestamp="2026-01-01T00:00:00Z",
         agent_session="fam",
-        agent_family_parallel=False,
+        agent_session_parallel=False,
         queue_weight=2.0,
         queue_weight_explicit=True,
     )

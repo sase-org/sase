@@ -1,4 +1,4 @@
-# Family: foo.rootless
+# Session: foo.rootless
 
 [Agent Hoods](../README.md) / [alice](../users/alice/README.md) / [athena](../users/alice/machines/athena/README.md) / [foo](../users/alice/machines/athena/hoods/foo/README.md) / foo.rootless
 
@@ -27,7 +27,7 @@ The diagram is an optional enhancement; the ordered table below contains the sam
 | [foo](../agents/alice.athena.foo/README.md) | ancestor | completed |
 | [foo.archive](../agents/alice.athena.foo.archive/README.md) | foo hood | dismissed |
 | [foo.bar](../agents/alice.athena.foo.bar/README.md) | foo hood | completed |
-| [foo.bar.baz](alice.athena.foo.bar.baz.md) (family · 2) | foo hood | active 1, completed 1 |
+| [foo.bar.baz](alice.athena.foo.bar.baz.md) (session · 2) | foo hood | active 1, completed 1 |
 | [foo.bar.baz.child](../agents/alice.athena.foo.bar.baz.child/README.md) | foo hood | completed |
 | [foo.bar.kazam](../agents/alice.athena.foo.bar.kazam/README.md) | foo hood | failed |
 | [foo.boom](../agents/alice.athena.foo.boom/README.md) | foo hood | waiting |

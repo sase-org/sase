@@ -37,9 +37,10 @@ def _optional_str(value: Any) -> str | None:
 def agent_session_attach_value(data: Any, field: str) -> str | None:
     """Read an agent-session attach field (``parent``/``suffix``) from *data*.
 
-    Payloads Python builds carry ``agent_session_attach_<field>``; values
-    core returns still use the legacy ``family_attach_<field>`` spelling until
-    core-contract, so the new key wins and the legacy key is the fallback.
+    Payloads Python builds carry ``agent_session_attach_<field>``. Core
+    serializes the same spelling and still reads the legacy
+    ``family_attach_<field>`` alias, so the new key wins and the legacy key
+    is the fallback.
     """
     if not hasattr(data, "get"):
         return None

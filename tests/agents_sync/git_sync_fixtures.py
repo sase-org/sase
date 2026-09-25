@@ -91,6 +91,9 @@ def patch_payload_pass(monkeypatch: pytest.MonkeyPatch) -> list[int]:
         families = repo / "families"
         families.mkdir(exist_ok=True)
         (families / ".gitkeep").write_text("")
+        sessions = repo / "sessions"
+        sessions.mkdir(exist_ok=True)
+        (sessions / ".gitkeep").write_text("")
         return V2PublicationCounts(hoods_published=1, runs_published=1)
 
     monkeypatch.setattr(git_sync, "reconcile_agent_hoods", reconcile)

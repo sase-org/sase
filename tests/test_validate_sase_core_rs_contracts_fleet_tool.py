@@ -74,6 +74,29 @@ def test_validate_sase_core_rs_requires_stats_v7_commit_and_truncation_fields() 
     assert not validator._validate_agent_stats_work_schema(
         module_with_payload(
             {
+                "schema_version": 6,
+                "work": {"projects": [], "changespecs": []},  # legacy wire key
+                "commits": {"committing_runs": 0, "committing_agents": 0},
+                "xprompts": {
+                    "rows": [
+                        {
+                            "models_truncated": 0,
+                            "projects_truncated": 0,
+                            "partners_truncated": 0,
+                        }
+                    ]
+                },
+                "runners": {
+                    "lanes_counted": 0,
+                    "lanes_without_end_skipped": 0,
+                    "user_hidden_skipped": 0,
+                },
+            }
+        )
+    )
+    assert not validator._validate_agent_stats_work_schema(
+        module_with_payload(
+            {
                 **valid_payload,
                 "commits": {"committing_agents": 0},
             }
@@ -108,7 +131,7 @@ def test_validate_sase_core_rs_requires_runner_capacity_candidate_decision() -> 
     validator = load_validate_sase_core_rs()
 
     def module(
-        *, policy_schema_version: int = 5, snapshot: Any = None
+        *, policy_schema_version: int = 6, snapshot: Any = None
     ) -> SimpleNamespace:
         def _snapshot(request: dict[str, Any]) -> Any:
             if isinstance(snapshot, Exception):
@@ -150,6 +173,9 @@ def test_validate_sase_core_rs_requires_runner_capacity_candidate_decision() -> 
     )
     assert not validator._validate_runner_capacity_contract(
         module(policy_schema_version=4)
+    )
+    assert not validator._validate_runner_capacity_contract(
+        module(policy_schema_version=5)
     )
 
     # A schema-v1 wire rejects the request's ``candidate`` field outright.

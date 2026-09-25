@@ -7,7 +7,7 @@
 - Intended use: scaffold and manifest-derived root README for each agents sidecar
   repository
 - Alt text:
-  `Project-scoped agent hoods pass through explicit privacy consent into an owner-sharded agents sidecar, where deterministic sync publishes prompts, chats, commits, states, and browsable owner, machine, hood, family, and agent pages.`
+  `Project-scoped agent hoods pass through explicit privacy consent into an owner-sharded agents sidecar, where deterministic sync publishes prompts, chats, commits, states, and browsable owner, machine, hood, session, and agent pages.`
 
 ## Final GPT Image Prompt
 
@@ -46,7 +46,7 @@ opaque white label panels, and light-gray `#d4dbe5` borders.
   `manifest.json`, and `hood snapshot`
 - Repository: `HIDDEN REPOSITORY`, `<project>--agents`, and `not cloned to workspaces`
 - Browsing: `DETERMINISTIC BROWSING`, `root → owner → machine → hood`, and
-  `agent + family pages`
+  `agent + session pages`
 - Refresh rail: `commit / outbox`, `sase agent sync`, and `refresh the same run`
 
 ## Post-processing
@@ -84,6 +84,6 @@ magick agents-directory-map.png -resize 900x -strip \
 - `manifest.json` and the hood snapshot are visibly contained by the owner shard.
 - The vault and crossed-out workspace windows cannot be read as an auto-clone
   relationship.
-- Root-to-hood browsing ends in distinct agent and family pages.
+- Root-to-hood browsing ends in distinct agent and session pages.
 - No model-generated text, logo, watermark, metadata, alpha channel, or discarded
   candidate remains in the final repository asset.

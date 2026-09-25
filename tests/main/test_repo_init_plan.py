@@ -136,6 +136,7 @@ def test_plan_github_reports_every_configured_sidecar_without_writing(
         "assets/agents-directory-map.png",
         "agents/.gitkeep",
         "families/.gitkeep",
+        "sessions/.gitkeep",
         "users/.gitkeep",
     }
     assert all(
@@ -184,11 +185,11 @@ repos:
     (agents_root / "schema.json").write_text(
         (
             '{"authority":"owner-sharded","format":"sase-agents-sidecar",'
-            '"relationship_schema_version":2,"schema_version":2}\n'
+            '"relationship_schema_version":3,"schema_version":2}\n'
         ),
         encoding="utf-8",
     )
-    for dirname in ("agents", "families", "users"):
+    for dirname in ("agents", "families", "sessions", "users"):
         (agents_root / dirname).mkdir()
         (agents_root / dirname / ".gitkeep").write_text("", encoding="utf-8")
     owner = agents_root / "users" / "alice" / "machines" / "athena"
