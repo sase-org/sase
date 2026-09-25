@@ -287,3 +287,37 @@ def test_launch_time_collision_rolls_back_and_explains_owner(
     assert str(claimed["path"]) in message
     assert f"sase bead work {epic_id}" in message
     assert preflight_calls["n"] >= 2
+
+
+def test_preflight_ownerless_compatibility_does_not_crash(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        AgentIdentitySnapshot,
+        "current",
+        classmethod(lambda _cls: AgentIdentitySnapshot.unconfigured()),
+    )
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    preflight_bead_work_launch_names(
+        ("ownerless-name",),
+        resume_command="sase bead work foo",
+    )
+
+    from sase.agent.names import NameCollisionError, lookup_registered_name
+
+    from sase.bead.cli_work_name_preflight import (
+        explain_bead_work_launch_name_collision,
+    )
+
+    detail = explain_bead_work_launch_name_collision(
+        NameCollisionError("agent name 'ownerless-name' is already taken"),
+        ("ownerless-name",),
+        resume_command="sase bead work foo",
+    )
+    assert detail is not None
+    assert "sase bead work foo" in detail
+    assert lookup_registered_name("ownerless-name") is None

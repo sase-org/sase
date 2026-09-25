@@ -18,7 +18,7 @@ from sase.core.tool_run import tool_run_list, tool_run_triage_show
 from sase.tool.adopt import execute_adopted_run
 from sase.tool.argv import ResolvedToolArgv
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
-from sase.tool.triage_stage import stage_decision
+from sase.tool.triage_stage import _stage_decision
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -152,26 +152,26 @@ def test_stage_decision_requires_all_known_or_flaky() -> None:
     def _item(class_name: str | None) -> dict[str, Any]:
         return {"label": None if class_name is None else {"class": class_name}}
 
-    decision, reason, counts = stage_decision(
+    decision, reason, counts = _stage_decision(
         [_item("known"), _item("flaky"), _item("KNOWN".lower())]
     )
     assert (decision, reason) == ("continue", "all_known_or_flaky")
     assert counts == {"new": 0, "known": 2, "flaky": 1, "unknown": 0}
 
-    assert stage_decision([_item("known"), _item("new")])[0:2] == (
+    assert _stage_decision([_item("known"), _item("new")])[0:2] == (
         "stop",
         "new_item",
     )
-    assert stage_decision([_item("known"), _item("unknown")])[0:2] == (
+    assert _stage_decision([_item("known"), _item("unknown")])[0:2] == (
         "stop",
         "unknown_item",
     )
-    assert stage_decision([_item("known"), _item(None)])[0:2] == (
+    assert _stage_decision([_item("known"), _item(None)])[0:2] == (
         "stop",
         "unknown_item",
     )
-    assert stage_decision([])[0:2] == ("stop", "no_items")
-    assert stage_decision(None)[0:2] == ("stop", "no_items")
+    assert _stage_decision([])[0:2] == ("stop", "no_items")
+    assert _stage_decision(None)[0:2] == ("stop", "no_items")
 
 
 def test_agent_default_continuation_mode_needs_agent(

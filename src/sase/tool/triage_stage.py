@@ -38,7 +38,7 @@ _OUTPUT_BYTES = 256 * 1024
 _GATHER_SOFT_SECONDS = 8.0
 
 
-def stage_decision(items: object) -> tuple[str, str, dict[str, int]]:
+def _stage_decision(items: object) -> tuple[str, str, dict[str, int]]:
     """Reduce stored stage items to a ``(decision, reason, counts)`` triple.
 
     ``continue`` requires at least one item with every item KNOWN or
@@ -218,7 +218,7 @@ def execute_triage_stage(
     if not isinstance(result, dict) or result.get("refused"):
         _emit("stop", "helper_error", {})
         return 1
-    decision, reason, counts = stage_decision(result.get("items"))
+    decision, reason, counts = _stage_decision(result.get("items"))
     _emit(decision, reason, counts)
     return 0 if decision == "continue" else 1
 
@@ -232,4 +232,4 @@ def _emit(decision: str, reason: str, counts: dict[str, int]) -> None:
     )
 
 
-__all__ = ["execute_triage_stage", "stage_decision"]
+__all__ = ["execute_triage_stage"]

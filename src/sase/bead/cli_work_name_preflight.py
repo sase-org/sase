@@ -82,6 +82,8 @@ def _preflight_bead_work_launch_names(
     from sase.core.paths import sase_projects_dir
 
     identity = AgentIdentitySnapshot.current()
+    if identity.owner is None:
+        return
     names_by_request_id: dict[str, str] = {}
     reservations: list[RegisteredNameReservation] = []
     for index, raw_name in enumerate(names):
