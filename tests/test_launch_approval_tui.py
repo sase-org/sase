@@ -55,7 +55,7 @@ def _write_tui_launch_request(
     launch_cwd: Path,
     *,
     request_id: str = "launch-dispatch",
-    prompt: str = "%i(reviewer, family=foo)\nDo work",
+    prompt: str = "%i(reviewer, session=foo)\nDo work",
     project_name: str = "demo",
     cl_name: str = "demo",
 ) -> None:
@@ -243,7 +243,7 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
         )
 
     assert seen == {
-        "prompt": "%i(reviewer, family=foo)\nDo work",
+        "prompt": "%i(reviewer, session=foo)\nDo work",
         "cwd": launch_cwd,
     }
     assert json.loads((response_dir / "launch_response.json").read_text()) == {

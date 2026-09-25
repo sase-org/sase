@@ -360,7 +360,7 @@ def test_joiners_only_create_then_reuse_clan_generation(
         ),
         (
             "%id(parent, worker, clan=root)\nWork",
-            "positional family form",
+            "positional session form",
         ),
         (
             "%id(clan=root)\nWork",

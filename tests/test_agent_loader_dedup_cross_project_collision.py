@@ -127,7 +127,7 @@ def test_same_project_workflow_dedup_still_merges() -> None:
     assert merged.pid == 121415
 
 
-def test_family_resolution_survives_cross_project_collision() -> None:
+def test_agent_session_resolution_survives_cross_project_collision() -> None:
     """Full scenario: live TALE coder keeps WORKING TALE despite a collision.
 
     A plan-chain root with plan_action="tale", its running coder, and an
@@ -329,7 +329,7 @@ def test_dedup_running_vs_workflow_preserves_live_runner_provenance() -> None:
     suffix = "20260706115800"
     running = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="retry-family",
+        cl_name="retry-session",
         project_file=project,
         status="RUNNING",
         start_time=None,
@@ -342,7 +342,7 @@ def test_dedup_running_vs_workflow_preserves_live_runner_provenance() -> None:
         project_file=project,
         raw_suffix=suffix,
         status="FAILED",
-        cl_name="retry-family",
+        cl_name="retry-session",
         appears_as_agent=True,
         pid=4242,
     )

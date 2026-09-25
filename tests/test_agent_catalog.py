@@ -169,7 +169,11 @@ class TestSnapshotFixtures:
         assert row.model == "claude-opus-5"
         assert row.llm_provider == "claude"
 
-    def test_agent_session_container_row(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_legacy_family_container_row_emits_session(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # legacy agent-family spelling: pre-rename registries still store
+        # ``family`` container/reservation kinds until they are rebuilt.
         entries = {
             "fam1": {
                 "name": "fam1",

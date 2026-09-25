@@ -39,7 +39,7 @@ def _fake_result(**overrides: Any) -> AgentLaunchResult:
 
 
 def _policy(
-    *, fork: str = "family", output: tuple[str, ...] = ("results",)
+    *, fork: str = "session", output: tuple[str, ...] = ("results",)
 ) -> GateFollowupPolicy:
     return GateFollowupPolicy(
         branch_key="cleanup",
@@ -124,7 +124,7 @@ def _make_member(
     return member_dir, meta
 
 
-def test_fork_family_targets_the_agent_family(
+def test_fork_session_targets_the_agent_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     member_dir, meta = _make_member(tmp_path)
@@ -141,7 +141,7 @@ def test_fork_family_targets_the_agent_family(
         meta,
         project_name="proj",
         gate_state="answered",
-        policy=_policy(fork="family"),
+        policy=_policy(fork="session"),
         envelope=_envelope(),
         response=_response(),
         settle_timeout_seconds=_SETTLE_TIMEOUT,
@@ -301,7 +301,7 @@ def test_fork_prefix_is_dropped_when_the_creator_never_settles(
         meta,
         project_name="proj",
         gate_state="answered",
-        policy=_policy(fork="family"),
+        policy=_policy(fork="session"),
         envelope=_envelope(),
         response=_response(),
         settle_timeout_seconds=0.2,

@@ -417,6 +417,7 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
         "--next-fork",
         default=None,
         type=_parse_next_fork,
+        choices=("session", "shell", "none"),
         metavar="{session,shell,none}",
         help="Gate-shell follow-up fork policy",
     )

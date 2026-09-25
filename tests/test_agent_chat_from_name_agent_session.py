@@ -432,6 +432,8 @@ def test_legacy_rootless_agent_session_source_includes_all_completed_members(
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     planner_chat = tmp_path / "planner.md"
     coder_chat = tmp_path / "coder.md"
+    # legacy agent-family spelling: pre-rename agent_meta.json files carry
+    # ``agent_family`` instead of ``agent_session``.
     write_agent(
         tmp_path,
         "20260718010101",

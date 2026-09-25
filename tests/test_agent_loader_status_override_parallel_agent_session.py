@@ -1,4 +1,4 @@
-"""Tests for parallel-family root status aggregation."""
+"""Tests for parallel-agent-session root status aggregation."""
 
 from __future__ import annotations
 
@@ -25,13 +25,13 @@ from sase.ace.tui.models.agent_loader import _apply_status_overrides
         (["DONE", "STOPPED", "PLAN REJECTED"], "DONE"),
     ],
 )
-def test_aggregate_parallel_family_status_priority(
+def test_aggregate_parallel_agent_session_status_priority(
     statuses: list[str], expected: str
 ) -> None:
     assert aggregate_parallel_family_status(statuses) == expected
 
 
-def _parallel_family() -> tuple[Agent, list[Agent]]:
+def _parallel_agent_session() -> tuple[Agent, list[Agent]]:
     started = datetime(2026, 7, 16, 10, 0, 0)
     root = Agent(
         agent_type=AgentType.RUNNING,
@@ -64,8 +64,8 @@ def _parallel_family() -> tuple[Agent, list[Agent]]:
     return root, members
 
 
-def test_parallel_family_running_member_overrides_waiting_root() -> None:
-    root, members = _parallel_family()
+def test_parallel_agent_session_running_member_overrides_waiting_root() -> None:
+    root, members = _parallel_agent_session()
 
     _apply_status_overrides([root, *members])
 
@@ -73,8 +73,8 @@ def test_parallel_family_running_member_overrides_waiting_root() -> None:
     assert root.agent_name == "parallel-root"
 
 
-def test_parallel_family_wait_uses_member_wait_metadata() -> None:
-    root, members = _parallel_family()
+def test_parallel_agent_session_wait_uses_member_wait_metadata() -> None:
+    root, members = _parallel_agent_session()
     root.status = "DONE"
     members[0].status = "WAITING"
 
@@ -84,8 +84,8 @@ def test_parallel_family_wait_uses_member_wait_metadata() -> None:
     assert root.wait_display_source is members[0]
 
 
-def test_parallel_family_roles_do_not_trigger_serial_handoff_statuses() -> None:
-    root, members = _parallel_family()
+def test_parallel_agent_session_roles_do_not_trigger_serial_handoff_statuses() -> None:
+    root, members = _parallel_agent_session()
     root.status = "DONE"
     members[0].status = "DONE"
     members[0].agent_session_role = "code"

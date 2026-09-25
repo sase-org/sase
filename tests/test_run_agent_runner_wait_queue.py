@@ -146,7 +146,7 @@ def _run_runner_with_wait_result(
             patch.object(
                 run_agent_runner_bootstrap,
                 "read_prompt_file",
-                return_value="%i(reviewer, family=foo)\nDo work",
+                return_value="%i(reviewer, session=foo)\nDo work",
             )
         )
         stack.enter_context(
@@ -176,9 +176,9 @@ def _run_runner_with_wait_result(
                 run_agent_runner_bootstrap,
                 "preprocess_prompt_xprompts",
                 return_value=(
-                    "%i(reviewer, family=foo)\nDo work",
+                    "%i(reviewer, session=foo)\nDo work",
                     None,
-                    "%i(reviewer, family=foo)\nDo work",
+                    "%i(reviewer, session=foo)\nDo work",
                 ),
             )
         )
@@ -234,7 +234,7 @@ def _run_runner_with_wait_result(
             patch.object(
                 run_agent_runner_launch,
                 "resolve_agent_refs_in_prompt",
-                return_value=("%i(reviewer, family=foo)\nDo work", None),
+                return_value=("%i(reviewer, session=foo)\nDo work", None),
             )
         )
         stack.enter_context(
@@ -367,7 +367,7 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         blocking_wait_occurred=True,
         killed=False,
         prompt_file=str(tmp_path / "prompt.md"),
-        submitted_xprompt="%i(reviewer, family=foo)\nDo work",
+        submitted_xprompt="%i(reviewer, session=foo)\nDo work",
         agent_name="foo--reviewer",
         artifacts_dir=str(tmp_path / "artifacts"),
         local_xprompts={},

@@ -135,7 +135,7 @@ def test_shell_survives_durable_envelope_and_request_hash(
 def test_shell_block_derives_gate_shell_continuation_mode() -> None:
     """A shell block without an explicit mode keeps the shell (sase-14n.12)."""
     raw = custom_gate_spec(request_id="shell-derived-mode")
-    raw["shell"] = {"next": {"fork": "family"}}
+    raw["shell"] = {"next": {"fork": "session"}}
 
     spec = GateSpec.from_mapping(raw)
 
@@ -146,7 +146,7 @@ def test_shell_block_derives_gate_shell_continuation_mode() -> None:
 def test_shell_block_rejects_explicit_none_continuation_mode() -> None:
     """Shell plus an explicit "none" mode is rejected instead of dropped."""
     raw = custom_gate_spec(request_id="shell-none-mode")
-    raw["shell"] = {"next": {"fork": "family"}}
+    raw["shell"] = {"next": {"fork": "session"}}
     raw["continuation_mode"] = "none"
 
     with pytest.raises(GateError) as exc_info:
@@ -159,7 +159,7 @@ def test_shell_block_rejects_explicit_none_continuation_mode() -> None:
 def test_shell_block_keeps_explicit_continuation_mode() -> None:
     """An explicit non-"none" mode still wins over the derived default."""
     raw = custom_gate_spec(request_id="shell-explicit-mode")
-    raw["shell"] = {"next": {"fork": "family"}}
+    raw["shell"] = {"next": {"fork": "session"}}
     raw["continuation_mode"] = "agent_question"
 
     spec = GateSpec.from_mapping(raw)

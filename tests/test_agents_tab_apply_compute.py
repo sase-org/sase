@@ -56,7 +56,7 @@ def test_compute_apply_keeps_verified_live_retry_over_stale_dismissal() -> None:
     """A previously dismissed terminal identity cannot hide its live retry."""
     root = _make_agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name="retry-family",
+        cl_name="retry-session",
         status="RETRYING",
         raw_suffix="20260706115800",
     )

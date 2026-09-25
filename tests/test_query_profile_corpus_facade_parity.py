@@ -376,7 +376,7 @@ def test_boolean_date_values_evaluate_through_python_canonical_rust_route() -> N
             "stable_id": "target",
             "fields": {
                 "name": "sase-r8.9.land",
-                "family": "research.12",
+                "session": "research.12",
                 "since": max(since_epoch, relative_epoch),
                 "min": 300,
                 "attempt": 2,
@@ -402,7 +402,7 @@ def test_boolean_date_values_evaluate_through_python_canonical_rust_route() -> N
 
     combined = evaluate_artifact_query_many(
         (
-            "name:sase-r8.9.land AND family:research.12 AND "
+            "name:sase-r8.9.land AND session:research.12 AND "
             "min:5m AND attempt:2 AND 9lives"
         ),
         index,

@@ -304,8 +304,8 @@ def test_legacy_member_tag_uses_its_recorded_destination(
     history = _history_entry(
         "a" * 40,
         10,
-        "legacy family work",
-        "legacy family work\n\n"
+        "legacy agent-session work",
+        "legacy agent-session work\n\n"
         "SASE_PLAN=202607/legacy.md\n"
         "SASE_AGENT=[alice.athena.pc--code][agent]\n\n"
         f"[agent]: {destination}",

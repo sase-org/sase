@@ -30,7 +30,7 @@ def _agent_row(name: str = "0b4--0", **overrides: Any) -> AgentCatalogRow:
         "kind": ("member",),
         "project": "alpha",
         "state": "active",
-        "family": "0b4",
+        "agent_session": "0b4",
         "role": "code",
         "status": "RUNNING",
         "from_artifact_index": True,

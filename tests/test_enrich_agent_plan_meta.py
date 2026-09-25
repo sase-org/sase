@@ -73,8 +73,8 @@ def test_agent_meta_tribe_takes_precedence_over_legacy_tag(tmp_path: Path) -> No
     assert agent.tribe == "canonical"
 
 
-def test_parallel_family_marker_from_filesystem_and_wire(tmp_path: Path) -> None:
-    """Both TUI enrichment paths retain execution-neutral family membership."""
+def test_parallel_agent_session_marker_from_filesystem_and_wire(tmp_path: Path) -> None:
+    """Both TUI enrichment paths retain execution-neutral agent-session membership."""
     (tmp_path / "agent_meta.json").write_text(
         json.dumps({"pid": 1234, "agent_session_parallel": True})
     )
@@ -139,7 +139,7 @@ def test_tribe_from_agent_meta_wire() -> None:
     assert agent.tribe == "sase-26"
 
 
-def test_parallel_family_marker_from_agent_meta(tmp_path: Path) -> None:
+def test_parallel_agent_session_marker_from_agent_meta(tmp_path: Path) -> None:
     """Filesystem metadata exposes the explicit cleanup-cascade marker."""
     (tmp_path / "agent_meta.json").write_text(
         json.dumps({"pid": 1234, "agent_session_parallel": True})
@@ -151,8 +151,8 @@ def test_parallel_family_marker_from_agent_meta(tmp_path: Path) -> None:
     assert agent.agent_session_parallel is True
 
 
-def test_parallel_family_marker_from_agent_meta_wire() -> None:
-    """Snapshot metadata mirrors filesystem parallel-family enrichment."""
+def test_parallel_agent_session_marker_from_agent_meta_wire() -> None:
+    """Snapshot metadata mirrors filesystem parallel-agent-session enrichment."""
     agent = make_agent()
 
     enrich_agent_from_meta_wire(

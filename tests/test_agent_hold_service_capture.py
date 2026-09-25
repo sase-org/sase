@@ -109,7 +109,7 @@ def test_capture_pending_targets_excludes_armer_kin(
     armer = current_armer_wire(env={}, pid_override=4321)
     armer["kind"] = "agent"
     armer["agent_name"] = "holder.worker"
-    armer["family"] = "holder.worker"
+    armer["session"] = "holder.worker"
     armer["clan"] = "builders"
     armer["key"] = "agent:holder.worker"
     entries = [

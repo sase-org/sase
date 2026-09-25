@@ -46,9 +46,9 @@ def test_plan_collects_clan_member_owner_name() -> None:
     assert plan.segment_envs[0][SASE_BEAD_ID_ENV] == "sase-op.2"
 
 
-def test_plan_collects_family_member_owner_name() -> None:
+def test_plan_collects_agent_session_member_owner_name() -> None:
     plan = plan_force_reuse_launch(
-        "%id(!plan, family=sase-oc.4, bead=sase-oc.4)\nDo work"
+        "%id(!plan, session=sase-oc.4, bead=sase-oc.4)\nDo work"
     )
 
     assert plan is not None
@@ -129,7 +129,7 @@ def test_plan_early_parse_failure_does_not_reach_apply() -> None:
     wipe_names.assert_not_called()
 
 
-def test_plan_rejects_reserved_family_separator_before_wipe() -> None:
+def test_plan_rejects_reserved_agent_session_separator_before_wipe() -> None:
     with (
         patch("sase.agent.launch_validation.wipe_names_for_forced_reuse") as wipe_names,
         pytest.raises(AgentNameSyntaxError, match="cannot contain '--'"),

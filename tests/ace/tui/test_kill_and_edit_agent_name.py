@@ -57,7 +57,7 @@ def test_kill_and_edit_family_phase_forces_exact_member_attachment() -> None:
     app._kill_and_edit_agent()
 
     assert app.launched == (
-        "%id(!plan, family=sase-8a.3, bead=sase-8a.3)\n%auto\nDo work",
+        "%id(!plan, session=sase-8a.3, bead=sase-8a.3)\n%auto\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,

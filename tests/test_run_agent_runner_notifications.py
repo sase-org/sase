@@ -361,19 +361,19 @@ def _write_agent_meta(base_kwargs, payload: object) -> None:
     (artifacts_dir / "agent_meta.json").write_text(text)
 
 
-def _assert_family_facing_identity(
-    mock_notify, base_kwargs, *, family: str, shell: str
+def _assert_agent_session_facing_identity(
+    mock_notify, base_kwargs, *, agent_session: str, shell: str
 ) -> None:
     notes = mock_notify.call_args.kwargs["notes"]
     action_data = mock_notify.call_args.kwargs["action_data"]
-    assert any(f" @{family} " in note for note in notes)
+    assert any(f" @{agent_session} " in note for note in notes)
     assert not any(f"@{shell}" in note for note in notes)
-    assert action_data["agent_name"] == family
+    assert action_data["agent_name"] == agent_session
     assert action_data["cl_name"] == base_kwargs["cl_name"]
     assert action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]
 
 
-def test_success_completion_notification_names_owning_family(base_kwargs):
+def test_success_completion_notification_names_owning_agent_session(base_kwargs):
     base_kwargs["agent_name"] = "0bw--1"
     _write_agent_meta(
         base_kwargs,
@@ -384,12 +384,14 @@ def test_success_completion_notification_names_owning_family(base_kwargs):
         send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["action"] == "JumpToAgent"
-    _assert_family_facing_identity(
-        mock_notify, base_kwargs, family="0bw", shell="0bw--1"
+    _assert_agent_session_facing_identity(
+        mock_notify, base_kwargs, agent_session="0bw", shell="0bw--1"
     )
 
 
-def test_failure_error_report_notification_names_owning_family(base_kwargs, tmp_path):
+def test_failure_error_report_notification_names_owning_agent_session(
+    base_kwargs, tmp_path
+):
     error_report = tmp_path / "error.md"
     error_report.write_text("boom\n")
     base_kwargs["success"] = False
@@ -404,12 +406,12 @@ def test_failure_error_report_notification_names_owning_family(base_kwargs, tmp_
         send_completion_notification(**base_kwargs)
 
     assert mock_notify.call_args.kwargs["action"] == "ViewErrorReport"
-    _assert_family_facing_identity(
-        mock_notify, base_kwargs, family="0bw", shell="0bw--1"
+    _assert_agent_session_facing_identity(
+        mock_notify, base_kwargs, agent_session="0bw", shell="0bw--1"
     )
 
 
-def test_deferred_epic_completion_names_owning_family(base_kwargs):
+def test_deferred_epic_completion_names_owning_agent_session(base_kwargs):
     base_kwargs["outcome"] = "epic_approved"
     base_kwargs["agent_name"] = "0bw--1"
     _write_agent_meta(
@@ -434,7 +436,7 @@ def test_deferred_epic_completion_names_owning_family(base_kwargs):
     assert payload.action_data["raw_suffix"] == base_kwargs["artifacts_timestamp"]
 
 
-def test_completion_notification_bead_display_uses_family_name(
+def test_completion_notification_bead_display_uses_agent_session_name(
     base_kwargs, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setattr(
@@ -464,7 +466,7 @@ def test_completion_notification_bead_display_uses_family_name(
         {"agent_session": 0},
     ],
 )
-def test_completion_notification_keeps_shell_name_without_family_metadata(
+def test_completion_notification_keeps_shell_name_without_agent_session_metadata(
     base_kwargs, meta_payload
 ):
     base_kwargs["agent_name"] = "0bw--1"

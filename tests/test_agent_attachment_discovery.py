@@ -314,10 +314,10 @@ def test_collect_agent_paths_from_extra_repo_base_range_and_untracked(
     ]
 
 
-def test_extra_repo_commit_paths_match_lane_tagged_family_commits(
+def test_extra_repo_commit_paths_match_lane_tagged_agent_session_commits(
     tmp_path: Path,
 ) -> None:
-    """A family member collects commits tagged with its lane and legacy self."""
+    """An agent-session member collects commits tagged with its lane and legacy self."""
     primary = tmp_path / "workspace"
     primary.mkdir()
     _init_repo(primary)
@@ -392,7 +392,7 @@ def test_extra_repo_commit_paths_require_matching_agent_and_machine_tags(
     for filename, agent_tag in (
         ("own.md", "agent"),
         ("hood.md", "agent.research"),
-        ("family.md", "agent--plan-0"),
+        ("agent_session.md", "agent--plan-0"),
     ):
         path = extra / filename
         path.write_text(f"# {filename}\n")

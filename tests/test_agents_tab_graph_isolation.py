@@ -27,8 +27,8 @@ from tests._agents_tab_graph_isolation_helpers import (
     clan_container,
     clan_graph,
     delta_load_state,
-    family_graph,
-    family_root,
+    agent_session_graph,
+    agent_session_root,
     row_observation,
     row_prefix,
     unrelated_delta,
@@ -127,11 +127,11 @@ def test_worker_pause_does_not_clear_live_clan_providers(
         assert ordered_row_providers(prepared) == ("claude", "codex")
 
 
-def test_worker_pause_does_not_clear_live_family_links(
+def test_worker_pause_does_not_clear_live_agent_session_links(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    live = family_graph()
-    root = family_root(live)
+    live = agent_session_graph()
+    root = agent_session_root(live)
     before = row_observation(root)
     prefix = row_prefix(root)
     assert root.is_family_container_row
@@ -146,7 +146,7 @@ def test_worker_pause_does_not_clear_live_family_links(
         assert not thread.is_alive()
         assert failed == []
         assert row_observation(root) == before
-        prepared = family_root(result[0].fold.unfiltered_agents)
+        prepared = agent_session_root(result[0].fold.unfiltered_agents)
         assert prepared is not root
         assert prepared.is_family_container_row
         assert row_prefix(prepared) == prefix

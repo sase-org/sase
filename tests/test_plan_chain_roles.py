@@ -29,7 +29,7 @@ def test_plan_chain_agent_names_use_canonical_suffixes() -> None:
     assert plan_chain_agent_name("agent", PLAN_CHAIN_CODER_SUFFIX) == "agent--code"
 
 
-def test_agent_family_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
+def test_agent_session_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
     assert agent_session_role_for_suffix("--plan") == "plan"
     assert agent_session_role_for_suffix("-plan") == "plan"
     assert agent_session_role_for_suffix(".q") is None
@@ -43,7 +43,7 @@ def test_agent_family_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
     assert agent_session_role_for_suffix(".unknown") is None
 
 
-def test_agent_family_suffix_token_strips_known_separators() -> None:
+def test_agent_session_suffix_token_strips_known_separators() -> None:
     assert agent_session_suffix_token("--bar") == "bar"
     assert agent_session_suffix_token("--0") == "0"
     assert agent_session_suffix_token("--reviewer") == "reviewer"
@@ -198,7 +198,7 @@ def test_gate_suffixes_classify_as_gate_phase_members() -> None:
     assert plan_chain_agent_name("agent", "--gate-0") == "agent--gate-0"
 
 
-def test_agent_family_helpers_parse_only_known_suffixes() -> None:
+def test_agent_session_helpers_parse_only_known_suffixes() -> None:
     assert agent_session_phase_name("agent", ".plan") == "agent--plan"
     assert agent_session_base("agent--code") == "agent"
     assert is_agent_session_member("agent--2")

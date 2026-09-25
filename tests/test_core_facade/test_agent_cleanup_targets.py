@@ -69,8 +69,8 @@ def test_agent_to_cleanup_target_marks_live_monitors() -> None:
 
 
 def test_workflow_step_child_excludes_agent_session_members_and_monitors() -> None:
-    family_member = agent_to_cleanup_target(
-        _agent(cl_name="family", parent_timestamp="root-ts")
+    agent_session_member = agent_to_cleanup_target(
+        _agent(cl_name="agent_session", parent_timestamp="root-ts")
     )
     workflow_step = agent_to_cleanup_target(
         _agent(
@@ -80,8 +80,8 @@ def test_workflow_step_child_excludes_agent_session_members_and_monitors() -> No
         )
     )
 
-    assert is_workflow_child(family_member)
-    assert not is_workflow_step_child(family_member)
+    assert is_workflow_child(agent_session_member)
+    assert not is_workflow_step_child(agent_session_member)
     assert is_workflow_child(workflow_step)
     assert is_workflow_step_child(workflow_step)
 

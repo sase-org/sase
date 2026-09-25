@@ -6,7 +6,7 @@ input:
   parent:
     type: line
     default: ""
-    description: Parent agent or family name whose prompt should be extended.
+    description: Parent agent or agent session name whose prompt should be extended.
 steps:
   - name: render
     hidden: true

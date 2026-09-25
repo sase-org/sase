@@ -87,6 +87,7 @@ def test_hold_adapter_reports_errors_and_expands_selectors() -> None:
     assert result["errors"] == []
     selectors = hold_fields_to_selectors(result["fields"], ["/tmp/a", "/tmp/a"])
     assert selectors["names"] == ["builder", "builder--mon"]
+    # legacy agent-family spelling: core's hold wire still uses this key.
     assert selectors["families"] == ["builder"]
     assert selectors["artifact_dirs"] == ["/tmp/a"]
     assert selectors["future"] is True

@@ -11,7 +11,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from tests._agents_tab_query_helpers import _make_agent
 
 
-def _family_cycle() -> tuple[Agent, Agent]:
+def _agent_session_cycle() -> tuple[Agent, Agent]:
     root = _make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="fam-root",
@@ -39,8 +39,8 @@ def _family_cycle() -> tuple[Agent, Agent]:
     return root, child
 
 
-def test_copy_preserves_family_aliases_without_live_aliases() -> None:
-    root, child = _family_cycle()
+def test_copy_preserves_agent_session_aliases_without_live_aliases() -> None:
+    root, child = _agent_session_cycle()
     memo: dict[int, Agent] = {}
     copied_root = copy_agent_graph([root], memo)[0]
     copied_child = memo[id(child)]

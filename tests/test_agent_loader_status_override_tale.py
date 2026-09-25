@@ -87,14 +87,14 @@ def test_live_retrying_root_outranks_failed_coder_attempt() -> None:
     root_timestamp = "20260706115800"
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name="retry-family",
+        cl_name="retry-session",
         project_file="/tmp/test.sase",
         status="RETRYING",
         start_time=datetime(2026, 7, 6, 11, 58, 0),
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_session="retry-family",
+        agent_session="retry-session",
         agent_session_role="root",
         plan_chain_root=True,
         runner_is_live=True,
@@ -104,13 +104,13 @@ def test_live_retrying_root_outranks_failed_coder_attempt() -> None:
     )
     coder = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="retry-family--code",
+        cl_name="retry-session--code",
         project_file="/tmp/test.sase",
         status="FAILED",
         start_time=datetime(2026, 7, 6, 11, 59, 0),
         parent_timestamp=root_timestamp,
         role_suffix="--code",
-        agent_session="retry-family",
+        agent_session="retry-session",
         agent_session_role="code",
     )
 
@@ -124,18 +124,18 @@ def test_live_retrying_root_outranks_failed_coder_attempt() -> None:
 
 
 def test_running_retry_with_active_coder_returns_to_working_tale() -> None:
-    """Once the next attempt runs, semantic family work replaces RETRYING."""
+    """Once the next attempt runs, semantic agent-session work replaces RETRYING."""
     root_timestamp = "20260706115800"
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name="retry-family",
+        cl_name="retry-session",
         project_file="/tmp/test.sase",
         status="RETRYING",
         start_time=datetime(2026, 7, 6, 11, 58, 0),
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_session="retry-family",
+        agent_session="retry-session",
         agent_session_role="root",
         plan_chain_root=True,
         runner_is_live=True,
@@ -145,13 +145,13 @@ def test_running_retry_with_active_coder_returns_to_working_tale() -> None:
     )
     coder = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="retry-family--code",
+        cl_name="retry-session--code",
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=datetime(2026, 7, 6, 12, 4, 0),
         parent_timestamp=root_timestamp,
         role_suffix="--code",
-        agent_session="retry-family",
+        agent_session="retry-session",
         agent_session_role="code",
     )
 

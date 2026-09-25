@@ -29,7 +29,8 @@ def test_static_name_extraction_derives_clan_member_name(
     assert extract_static_name_directive(f"{source}\nDo work") == expected
 
 
-def test_static_name_extraction_ignores_family_keyword_form() -> None:
+def test_static_name_extraction_ignores_legacy_agent_family_keyword_form() -> None:
+    # legacy agent-family spelling: the retired ``family=`` keyword.
     assert extract_static_name_directive("%id(reviewer, family=foo)\nDo work") is None
 
 

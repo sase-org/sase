@@ -17,7 +17,7 @@ from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
 
-_SHELL_FAMILY = "settled-gate"
+_SHELL_AGENT_SESSION = "settled-gate"
 _ROOT_TS = "20260915090000"
 _GATE_TS = "20260915090100"
 _CODE_TS = "20260915090200"
@@ -106,15 +106,15 @@ def _settled_gate_merge_rows(
 ) -> tuple[Agent, Agent, Agent, Agent]:
     root = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name=_SHELL_FAMILY,
+        cl_name=_SHELL_AGENT_SESSION,
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=_STARTED,
         run_start_time=_STARTED,
         raw_suffix=_ROOT_TS,
         role_suffix="--plan",
-        agent_name=_SHELL_FAMILY,
-        agent_session=_SHELL_FAMILY,
+        agent_name=_SHELL_AGENT_SESSION,
+        agent_session=_SHELL_AGENT_SESSION,
         agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
@@ -133,7 +133,7 @@ def _settled_gate_merge_rows(
     )
     completed_coder = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{_SHELL_FAMILY}--code",
+        cl_name=f"{_SHELL_AGENT_SESSION}--code",
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=_STARTED + timedelta(minutes=2),
@@ -142,8 +142,8 @@ def _settled_gate_merge_rows(
         raw_suffix=_CODE_TS,
         parent_timestamp=_ROOT_TS,
         role_suffix="--code",
-        agent_name=f"{_SHELL_FAMILY}--code",
-        agent_session=_SHELL_FAMILY,
+        agent_name=f"{_SHELL_AGENT_SESSION}--code",
+        agent_session=_SHELL_AGENT_SESSION,
         agent_session_role="code",
     )
     return root, cached_gate, settled_gate, completed_coder
@@ -158,7 +158,7 @@ def _gate_row(
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
-        cl_name=f"{_SHELL_FAMILY}--gate",
+        cl_name=f"{_SHELL_AGENT_SESSION}--gate",
         project_file="/tmp/test.sase",
         status=status,
         status_bucket=status_bucket,
@@ -167,8 +167,8 @@ def _gate_row(
         raw_suffix=_GATE_TS,
         parent_timestamp=_ROOT_TS,
         role_suffix="--gate",
-        agent_name=f"{_SHELL_FAMILY}--gate",
-        agent_session=_SHELL_FAMILY,
+        agent_name=f"{_SHELL_AGENT_SESSION}--gate",
+        agent_session=_SHELL_AGENT_SESSION,
         agent_session_role="gate",
         gate_id="gate-1",
         gate_kind="approval",
@@ -181,7 +181,7 @@ def _gate_row(
 def _gate_shadow_row(*, agent_type: AgentType = AgentType.WORKFLOW) -> Agent:
     return Agent(
         agent_type=agent_type,
-        cl_name=f"{_SHELL_FAMILY}--gate",
+        cl_name=f"{_SHELL_AGENT_SESSION}--gate",
         project_file="/tmp/test.sase",
         status="RUNNING",
         start_time=_STARTED + timedelta(minutes=1),
@@ -189,8 +189,8 @@ def _gate_shadow_row(*, agent_type: AgentType = AgentType.WORKFLOW) -> Agent:
         raw_suffix=_GATE_TS,
         parent_timestamp=_ROOT_TS,
         role_suffix="--gate",
-        agent_name=f"{_SHELL_FAMILY}--gate",
-        agent_session=_SHELL_FAMILY,
+        agent_name=f"{_SHELL_AGENT_SESSION}--gate",
+        agent_session=_SHELL_AGENT_SESSION,
         agent_session_role="gate",
     )
 

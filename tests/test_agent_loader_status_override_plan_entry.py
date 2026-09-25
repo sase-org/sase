@@ -58,7 +58,9 @@ def test_apply_status_overrides_done_planner_entry_without_gate_stays_done() -> 
     assert planner.status == "DONE"
 
 
-def test_apply_status_overrides_family_root_without_gate_mirrors_done_planner() -> None:
+def test_apply_status_overrides_agent_session_root_without_gate_mirrors_done_planner() -> (
+    None
+):
     """A legacy plan-chain root without a gate degrades to DONE."""
     root_timestamp = "20260529090000"
     root = _agent(

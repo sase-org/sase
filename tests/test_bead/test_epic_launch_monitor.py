@@ -180,6 +180,7 @@ def test_start_epic_launch_monitor_treats_legacy_parallel_family_as_clan(
         tmp_path,
         agent_meta={
             "name": "sase-m6.6",
+            # legacy agent-family spelling: pre-rename parallel marker.
             "agent_family": "sase-m6",
             "agent_family_parallel": True,
         },

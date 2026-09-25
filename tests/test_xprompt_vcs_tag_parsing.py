@@ -92,7 +92,7 @@ def test_extract_vcs_workflow_tag_after_parenthesized_directive() -> None:
     """Spaces in parenthesized directive args stay inside the directive."""
     with _patch_vcs_pattern():
         result = extract_vcs_workflow_tag(
-            "%family(epic-1, role=phase)\n#gh:sase Fix the bug"
+            "%id(worker, clan=epic-1)\n#gh:sase Fix the bug"
         )
         assert result == "#gh:sase "
 
@@ -103,9 +103,9 @@ def test_normalize_default_vcs_after_parenthesized_directive() -> None:
         "sase.workspace_provider.get_ref_patterns",
         return_value={"git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))")},
     ):
-        prompt = "%family(epic-1, role=phase)\nDo the work"
+        prompt = "%id(worker, clan=epic-1)\nDo the work"
         assert normalize_default_vcs_workflow_segment(prompt) == (
-            "%family(epic-1, role=phase)\n#git:home Do the work"
+            "%id(worker, clan=epic-1)\n#git:home Do the work"
         )
 
 

@@ -404,13 +404,13 @@ def test_plan_fanout_prompt_raises_fanout_not_preflight(tmp_path: Path) -> None:
 
 def test_plan_container_name_raises_before_mutation(tmp_path: Path) -> None:
     spies = mutation_spies()
-    artifacts = make_restartable_agent(tmp_path, name="fam")
-    agent = named_agent_for(artifacts, name="fam")
+    artifacts = make_restartable_agent(tmp_path, name="sess")
+    agent = named_agent_for(artifacts, name="sess")
     with (
         patch("sase.agent.names.find_named_agent", return_value=agent),
         patch(
             "sase.agent.names.lookup_registered_name",
-            return_value={"name": "fam", "container_kind": "family"},
+            return_value={"name": "sess", "container_kind": "session"},
         ),
         patch("sase.agent.names.preview_agent_name_wipe") as preview,
         patch("sase.agent.force_reuse_launch.plan_force_reuse_launch") as force,
@@ -420,9 +420,9 @@ def test_plan_container_name_raises_before_mutation(tmp_path: Path) -> None:
         patch("sase.agent.launch_cwd.launch_agents_from_cwd", spies["launch"]),
         pytest.raises(AgentRestartError) as caught,
     ):
-        plan_agent_restart("fam")
+        plan_agent_restart("sess")
     assert caught.value.reason == "container"
-    assert "family" in caught.value.message
+    assert "session" in caught.value.message
     preview.assert_not_called()
     force.assert_not_called()
     for spy in spies.values():

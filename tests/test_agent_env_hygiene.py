@@ -49,7 +49,7 @@ def test_scrub_chop_context_env_removes_only_chop_family() -> None:
 
 
 def test_followup_spawn_keeps_bead_association_env() -> None:
-    """Plan-family follow-ups retain the phase/epic attribution variables."""
+    """Plan agent-session follow-ups retain the phase/epic attribution variables."""
     env = {
         "SASE_AGENT": "1",
         "SASE_AGENT_NAME": "sase-7z.5--plan",

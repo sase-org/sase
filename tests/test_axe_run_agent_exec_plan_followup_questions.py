@@ -167,7 +167,7 @@ class TestPlanFollowupQuestions:
         assert any(item == "meta:plan_path" for item in order[:create_index])
 
     def test_plan_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
-        """Plan-phase questions continue in the next ordinary family slot."""
+        """Plan-phase questions continue in the next ordinary agent-session slot."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         questions = [
@@ -252,7 +252,7 @@ class TestPlanFollowupQuestions:
     def test_question_followup_second_round_uses_next_root_suffix(
         self, tmp_path
     ) -> None:
-        """Question continuations advance through numeric family suffixes."""
+        """Question continuations advance through numeric agent-session suffixes."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         state.agent_step = 2

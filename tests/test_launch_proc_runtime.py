@@ -115,6 +115,7 @@ def _launch_hold_armer(
         "display": "proc launch",
         "project": project,
         "agent_name": None,
+        # legacy agent-family spelling: core's hold wire still uses this key.
         "family": None,
         "clan": None,
         "pid": os.getpid(),

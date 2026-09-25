@@ -113,8 +113,8 @@ def test_artifact_delta_preserves_cached_clan_context() -> None:
     assert container.clan_tribes == ("chop",)
 
 
-def test_artifact_delta_pending_tale_child_remirrors_done_family_root() -> None:
-    """Inserting a pending TALE gate child remirrors a cached DONE family root."""
+def test_artifact_delta_pending_tale_child_remirrors_done_agent_session_root() -> None:
+    """Inserting a pending TALE gate child remirrors a cached DONE agent-session root."""
     root, _cached_gate, _settled_gate, _coder = _settled_gate_merge_rows()
     pending_gate = _gate_row(
         agent_type=AgentType.WORKFLOW,
@@ -153,44 +153,46 @@ def test_artifact_delta_type_changed_gate_settlement_replaces_stale_pending_row(
     assert root_row.status == "TALE DONE"
 
 
-def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> None:
+def test_artifact_delta_retry_projection_survives_cached_agent_session_reattach() -> (
+    None
+):
     """An exact root retry delta must outrank its cached failed coder child."""
     root_timestamp = "20260706115800"
     cached_parent = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name="retry-family",
+        cl_name="retry-session",
         project_file="/tmp/test.sase",
         status="FAILED",
         start_time=datetime(2026, 7, 6, 11, 58, 0),
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_session="retry-family",
+        agent_session="retry-session",
         agent_session_role="root",
         plan_chain_root=True,
     )
     cached_coder = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="retry-family--code",
+        cl_name="retry-session--code",
         project_file="/tmp/test.sase",
         status="FAILED",
         start_time=datetime(2026, 7, 6, 11, 59, 0),
         raw_suffix="20260706115900",
         parent_timestamp=root_timestamp,
         role_suffix="--code",
-        agent_session="retry-family",
+        agent_session="retry-session",
         agent_session_role="code",
     )
     refreshed_parent = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name="retry-family",
+        cl_name="retry-session",
         project_file="/tmp/test.sase",
         status="RETRYING",
         start_time=datetime(2026, 7, 6, 11, 58, 0),
         raw_suffix=root_timestamp,
         role_suffix="--plan",
         plan_action="tale",
-        agent_session="retry-family",
+        agent_session="retry-session",
         agent_session_role="root",
         plan_chain_root=True,
         runner_is_live=True,
@@ -278,7 +280,7 @@ def test_artifact_delta_under_committed_query_removes_stale_match() -> None:
     assert app._agents == []
 
 
-def test_exact_child_delta_remirrors_tale_family_root_to_done(
+def test_exact_child_delta_remirrors_tale_agent_session_root_to_done(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

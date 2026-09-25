@@ -181,7 +181,7 @@ def test_launch_preview_annotates_rootless_clan_members(tmp_path: Path) -> None:
     preview = render_launch_preview_markdown(request)
 
     assert preview.count("clan `demo`") == 3
-    assert "family root" not in preview
+    assert "agent session root" not in preview
 
 
 def test_launch_preview_annotates_clan_tribe(tmp_path: Path) -> None:

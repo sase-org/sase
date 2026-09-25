@@ -185,7 +185,9 @@ def test_launch_mobile_text_agents_reports_validation_errors() -> None:
     assert "prompt must be a non-empty string" in stderr.getvalue()
 
 
-def test_launch_mobile_text_agents_rejects_reserved_family_separator_name() -> None:
+def test_launch_mobile_text_agents_rejects_reserved_agent_session_separator_name() -> (
+    None
+):
     with pytest.raises(Exception, match="cannot contain '--'"):
         _launch_mobile_text_agents(
             {

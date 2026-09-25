@@ -15144,7 +15144,11 @@
                 "value_hint": "text"
               },
               {
-                "choices": null,
+                "choices": [
+                  "session",
+                  "shell",
+                  "none"
+                ],
                 "default": null,
                 "dest": "next_fork",
                 "hidden": false,
@@ -34562,12 +34566,16 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e4edd6f2427db744",
+            "description_digest": "3b9386ed74a4dcdf",
             "hidden": false,
             "mutex_groups": [
               [
                 "quiet",
                 "verbose"
+              ],
+              [
+                "keep_going",
+                "fail_fast"
               ]
             ],
             "name": "run",
@@ -34648,6 +34656,38 @@
                 "strings": [
                   "-H",
                   "--hand-off"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "keep_going",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-k",
+                  "--keep-going"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "fail_fast",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-x",
+                  "--fail-fast"
                 ],
                 "takes_value": false,
                 "value_hint": null

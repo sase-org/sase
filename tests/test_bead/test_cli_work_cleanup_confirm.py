@@ -242,7 +242,7 @@ def test_preview_renders_kill_remove_and_release(
     owners: dict[str, dict[str, Any]] = {
         "live": {"state": "active", "artifacts_dir": "/agents/live"},
         "terminal": {"state": "done", "artifacts_dir": "/agents/terminal"},
-        "stale": {"container_kind": "family", "state": "dismissed"},
+        "stale": {"container_kind": "session", "state": "dismissed"},
     }
     monkeypatch.setattr(
         "sase.agent.names.lookup_registered_name",

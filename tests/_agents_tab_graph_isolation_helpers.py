@@ -74,7 +74,7 @@ def clan_graph() -> list[Agent]:
     return normalize_agent_graph([claude, codex])
 
 
-def family_graph() -> list[Agent]:
+def agent_session_graph() -> list[Agent]:
     root = _make_agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="fam-root",
@@ -130,5 +130,5 @@ def clan_container(agents: list[Agent]) -> Agent:
     return next(agent for agent in agents if agent.is_clan_container)
 
 
-def family_root(agents: list[Agent]) -> Agent:
+def agent_session_root(agents: list[Agent]) -> Agent:
     return next(agent for agent in agents if agent.is_family_container_row)

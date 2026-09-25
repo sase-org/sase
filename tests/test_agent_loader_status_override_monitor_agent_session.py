@@ -1,11 +1,11 @@
-"""Tests for family-root status mirroring of a nested-parent monitor member.
+"""Tests for agent-session-root status mirroring of a nested-parent monitor.
 
-A monitor started by a mid-family continuation (for example an approved
+A monitor started by a mid-session continuation (for example an approved
 coder) persists a direct ``parent_timestamp`` back to that continuation
-rather than to the family root -- durable data monitor settlement relies on
-to fork the starter safely. These tests reproduce that nested topology and
-assert the Agents-tab family root still mirrors the monitor's lifecycle
-instead of appearing terminal while the monitor runs.
+rather than to the agent-session root -- durable data monitor settlement
+relies on to fork the starter safely. These tests reproduce that nested
+topology and assert the Agents-tab agent-session root still mirrors the
+monitor's lifecycle instead of appearing terminal while the monitor runs.
 """
 
 from datetime import datetime, timedelta
@@ -35,43 +35,43 @@ def _assert_mirrored_monitor_pair(root: Agent, monitor: Agent) -> None:
 
 def _plan_root(
     *,
-    family: str = "fam",
-    project_file: str = "/tmp/family.sase",
+    agent_session: str = "sess",
+    project_file: str = "/tmp/agent_session.sase",
     raw_suffix: str = "20260810090000",
 ) -> Agent:
     return Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name=family,
+        cl_name=agent_session,
         project_file=project_file,
         status="DONE",
         start_time=_STARTED,
         raw_suffix=raw_suffix,
         role_suffix="--plan",
         workflow="ace-run",
-        agent_name=family,
-        agent_session=family,
+        agent_name=agent_session,
+        agent_session=agent_session,
         agent_session_role="root",
         plan_chain_root=True,
         plan_action="tale",
     )
 
 
-def _plain_family_root(
+def _plain_agent_session_root(
     *,
-    family: str = "fam",
-    project_file: str = "/tmp/family.sase",
+    agent_session: str = "sess",
+    project_file: str = "/tmp/agent_session.sase",
     raw_suffix: str = "20260810090000",
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=family,
+        cl_name=agent_session,
         project_file=project_file,
         status="DONE",
         status_bucket="Done",
         start_time=_STARTED,
         raw_suffix=raw_suffix,
-        agent_name=family,
-        agent_session=family,
+        agent_name=agent_session,
+        agent_session=agent_session,
         agent_session_role="root",
     )
 
@@ -191,7 +191,7 @@ def test_nested_running_monitor_root_mirrors_monitoring_and_running_bucket() -> 
     _assert_mirrored_monitor_pair(root, monitor)
 
 
-def test_nested_monitor_remains_in_visible_family_row_order() -> None:
+def test_nested_monitor_remains_in_visible_agent_session_row_order() -> None:
     """The monitor is emitted immediately after the starter that owns it."""
     root = _plan_root()
     coder = _completed_code_child(root)
@@ -288,9 +288,9 @@ def test_root_advances_past_terminal_monitor_to_later_active_followup() -> None:
     assert root.monitor_state is None
 
 
-def test_plain_family_running_monitor_root_mirrors_start_label() -> None:
-    """A plain family whose newest shell is a live monitor shows the start label."""
-    root = _plain_family_root()
+def test_plain_agent_session_running_monitor_root_mirrors_start_label() -> None:
+    """A plain session whose newest shell is a live monitor shows the start label."""
+    root = _plain_agent_session_root()
     starter = _completed_plain_child(root)
     monitor = _nested_monitor(
         starter,
@@ -310,9 +310,9 @@ def test_plain_family_running_monitor_root_mirrors_start_label() -> None:
     _assert_mirrored_monitor_pair(root, monitor)
 
 
-def test_plain_family_settled_monitor_root_mirrors_stop_label() -> None:
-    """A plain family whose newest shell is a settled monitor shows the stop label."""
-    root = _plain_family_root()
+def test_plain_agent_session_settled_monitor_root_mirrors_stop_label() -> None:
+    """A plain session whose newest shell is a settled monitor shows the stop label."""
+    root = _plain_agent_session_root()
     starter = _completed_plain_child(root)
     monitor = _nested_monitor(
         starter,
@@ -333,9 +333,9 @@ def test_plain_family_settled_monitor_root_mirrors_stop_label() -> None:
     _assert_mirrored_monitor_pair(root, monitor)
 
 
-def test_plain_family_does_not_mirror_non_monitor_newest_child() -> None:
+def test_plain_agent_session_does_not_mirror_non_monitor_newest_child() -> None:
     """A later settled non-monitor shell still leaves a plain root on its own status."""
-    root = _plain_family_root()
+    root = _plain_agent_session_root()
     starter = _completed_plain_child(root)
     monitor = _nested_monitor(
         starter,
@@ -364,7 +364,7 @@ def test_plain_family_does_not_mirror_non_monitor_newest_child() -> None:
 
 def test_later_active_followup_clears_previously_mirrored_pair() -> None:
     """Re-applying after a later live child must not leave a stale monitor pair."""
-    root = _plain_family_root()
+    root = _plain_agent_session_root()
     starter = _completed_plain_child(root)
     monitor = _nested_monitor(
         starter,

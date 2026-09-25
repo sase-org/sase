@@ -32,7 +32,7 @@ class DirectApprovalReceipt:
     coder_agent: str | None = None
     coder_pid: int | None = None
     coder_error: str | None = None
-    family: str | None = None
+    agent_session: str | None = None
     retired_gate_id: str | None = None
     original_path: str | None = None
     schema_version: int = 1
@@ -164,7 +164,9 @@ def _receipt_from_dict(raw: dict[str, Any]) -> DirectApprovalReceipt | None:
         coder_agent=_opt_str("coder_agent"),
         coder_pid=_opt_int("coder_pid"),
         coder_error=_opt_str("coder_error"),
-        family=_opt_str("family"),
+        # legacy agent-family spelling: pre-rename receipts carry ``family``;
+        # new writers emit only ``agent_session``.
+        agent_session=_opt_str("agent_session") or _opt_str("family"),
         retired_gate_id=_opt_str("retired_gate_id"),
         original_path=_opt_str("original_path"),
     )

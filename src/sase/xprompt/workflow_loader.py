@@ -40,7 +40,7 @@ from sase.xprompt.project_identity import (
 )
 from sase.xprompt.tags import parse_tags
 from sase.xprompt.workflow_loader_definition import (
-    _REMOVED_AGENT_FAMILY_KIND_ERROR,
+    _REMOVED_LEGACY_AGENT_FAMILY_KIND_ERROR,
     load_workflow_from_file as _load_workflow_from_file_impl,
     load_workflow_from_mapping as _load_workflow_from_mapping_impl,
     namespace_workflow as _namespace_workflow_impl,

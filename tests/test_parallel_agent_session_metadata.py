@@ -296,8 +296,8 @@ def test_clan_wait_and_fork_resolve_only_after_every_member_completes(
         sase_home,
         timestamp="20260716030101",
         meta={
-            "name": "family.one",
-            AGENT_CLAN_FIELD: "family",
+            "name": "agent_session.one",
+            AGENT_CLAN_FIELD: "agent_session",
             AGENT_CLAN_GENERATION_FIELD: generation,
         },
         outcome="completed",
@@ -306,19 +306,19 @@ def test_clan_wait_and_fork_resolve_only_after_every_member_completes(
         sase_home,
         timestamp="20260716030202",
         meta={
-            "name": "family.two",
-            AGENT_CLAN_FIELD: "family",
+            "name": "agent_session.two",
+            AGENT_CLAN_FIELD: "agent_session",
             AGENT_CLAN_GENERATION_FIELD: generation,
         },
     )
 
     from sase.agent.names import resolve_resume_agent_name, resolve_wait_dependency
 
-    assert resolve_wait_dependency("family") is False
-    assert resolve_resume_agent_name("family") is None
+    assert resolve_wait_dependency("agent_session") is False
+    assert resolve_resume_agent_name("agent_session") is None
     (second / "done.json").write_text(json.dumps({"outcome": "completed"}))
-    assert resolve_wait_dependency("family") is True
-    resolved = resolve_resume_agent_name("family")
+    assert resolve_wait_dependency("agent_session") is True
+    resolved = resolve_resume_agent_name("agent_session")
     assert resolved is not None
     assert Path(resolved.artifacts_dir) == second
     assert Path(resolved.artifacts_dir) != first

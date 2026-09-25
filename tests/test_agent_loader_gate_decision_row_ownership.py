@@ -13,7 +13,7 @@ from sase.core.paths import sase_projects_dir
 
 DEAD_PID = 99_999_999
 _PROJECT = "gate-decision-owner"
-_FAMILY = "alpha"
+_AGENT_SESSION = "alpha"
 _ROOT_TS = "20260812090000"
 _GATE_TS = "20260812090500"
 _CODE_TS = "20260812091000"
@@ -55,8 +55,8 @@ def _write_root() -> Path:
     _write_json(
         artifact_dir / "agent_meta.json",
         {
-            "name": _FAMILY,
-            "agent_session": _FAMILY,
+            "name": _AGENT_SESSION,
+            "agent_session": _AGENT_SESSION,
             "agent_session_role": "root",
             "role_suffix": "--plan",
             "plan_chain_root": True,
@@ -74,7 +74,7 @@ def _write_root() -> Path:
             "status": "completed",
             "current_step_index": 0,
             "steps": [],
-            "context": {"cl_name": _FAMILY},
+            "context": {"cl_name": _AGENT_SESSION},
             "appears_as_agent": True,
         },
     )
@@ -93,8 +93,8 @@ def _write_root() -> Path:
         artifact_dir / "done.json",
         {
             "outcome": "completed",
-            "cl_name": _FAMILY,
-            "name": _FAMILY,
+            "cl_name": _AGENT_SESSION,
+            "name": _AGENT_SESSION,
             "project_file": project_file,
         },
     )
@@ -106,8 +106,8 @@ def _write_gate_member(*, state: str) -> Path:
     _write_json(
         artifact_dir / "agent_meta.json",
         {
-            "name": f"{_FAMILY}--gate",
-            "agent_session": _FAMILY,
+            "name": f"{_AGENT_SESSION}--gate",
+            "agent_session": _AGENT_SESSION,
             "agent_session_role": "gate",
             "role_suffix": "--gate",
             "shell_kind": "gate",
@@ -126,7 +126,7 @@ def _write_gate_member(*, state: str) -> Path:
             "status": "running",
             "current_step_index": 0,
             "steps": [],
-            "context": {"cl_name": f"{_FAMILY}--gate"},
+            "context": {"cl_name": f"{_AGENT_SESSION}--gate"},
             "appears_as_agent": True,
             "pid": DEAD_PID,
         },
@@ -136,8 +136,8 @@ def _write_gate_member(*, state: str) -> Path:
             artifact_dir / "done.json",
             {
                 "outcome": "gated",
-                "cl_name": f"{_FAMILY}--gate",
-                "name": f"{_FAMILY}--gate",
+                "cl_name": f"{_AGENT_SESSION}--gate",
+                "name": f"{_AGENT_SESSION}--gate",
                 "project_file": _project_file(),
                 "gate_id": _GATE_ID,
                 "gate_kind": "approval",
@@ -153,8 +153,8 @@ def _write_coder_member() -> Path:
     _write_json(
         artifact_dir / "agent_meta.json",
         {
-            "name": f"{_FAMILY}--code",
-            "agent_session": _FAMILY,
+            "name": f"{_AGENT_SESSION}--code",
+            "agent_session": _AGENT_SESSION,
             "agent_session_role": "code",
             "role_suffix": "--code",
             "parent_timestamp": _ROOT_TS,
@@ -167,7 +167,7 @@ def _write_coder_member() -> Path:
             "status": "running",
             "current_step_index": 0,
             "steps": [],
-            "context": {"cl_name": f"{_FAMILY}--code"},
+            "context": {"cl_name": f"{_AGENT_SESSION}--code"},
             "appears_as_agent": True,
             "pid": os.getpid(),
         },

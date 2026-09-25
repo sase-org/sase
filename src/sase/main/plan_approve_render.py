@@ -108,8 +108,8 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
         out.print("  [dim]coder[/dim]   none launched · left to the gate's responder")
     elif outcome.coder is not None:
         route = (
-            "family " + str(plan.placement.family)
-            if plan.placement.mode == "family"
+            "agent session " + str(plan.placement.agent_session)
+            if plan.placement.mode == "session"
             else "standalone"
         )
         name = outcome.coder.agent_name
@@ -119,7 +119,7 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
             f" · %model:{plan.model_directive or 'custom'}"
         )
     else:
-        route = "family" if plan.placement.mode == "family" else "standalone"
+        route = "session" if plan.placement.mode == "session" else "standalone"
         out.print(
             f"  [dim]coder[/dim]   {route} · %model:{plan.model_directive or 'custom'}"
         )
@@ -128,7 +128,7 @@ def render_direct_approval(outcome: DirectApprovalOutcome) -> None:
         and plan.placement.reason
         and not outcome.gate_answered_concurrently
     ):
-        out.print(f"          [dim]no agent family: {plan.placement.reason}[/dim]")
+        out.print(f"          [dim]no agent session: {plan.placement.reason}[/dim]")
     if plan.gate is None:
         out.print("  [dim]gate[/dim]    none · never proposed")
     elif outcome.gate_answered_concurrently:
@@ -171,15 +171,15 @@ def render_direct_approval_dry_run(plan: DirectApprovalPlan) -> None:
     if plan.predicted_plan_ref:
         out.print(f"          → {plan.predicted_plan_ref} in sase")
     route = (
-        "family " + str(plan.placement.family)
-        if plan.placement.mode == "family"
+        "agent session " + str(plan.placement.agent_session)
+        if plan.placement.mode == "session"
         else "standalone"
     )
     out.print(
         f"  [dim]coder[/dim]   {route} · %model:{plan.model_directive or 'custom'}"
     )
     if plan.placement.mode == "standalone" and plan.placement.reason:
-        out.print(f"          [dim]no agent family: {plan.placement.reason}[/dim]")
+        out.print(f"          [dim]no agent session: {plan.placement.reason}[/dim]")
     out.print(
         "  [dim]gate[/dim]    none · never proposed"
         if plan.gate is None

@@ -21,10 +21,11 @@ from sase.xprompt.workflow_models import (
     WorkflowValidationError,
 )
 
-_REMOVED_AGENT_FAMILY_KIND_ERROR = (
-    "kind: agent_session is no longer supported; attach session members manually "
-    "with %i(suffix, session=parent). Agent-initiated session launches use "
-    "LaunchApproval."
+# legacy agent-family spelling: workflows authored with ``kind: agent_family``.
+_REMOVED_LEGACY_AGENT_FAMILY_KIND_ERROR = (
+    "kind: agent_family is no longer supported; attach agent session members "
+    "manually with %i(suffix, session=parent). Agent-initiated agent session "
+    "launches use LaunchApproval."
 )
 
 
@@ -166,6 +167,6 @@ def load_workflow_from_file(file_path: Path) -> Workflow | None:
         record_load_issue(file_path, "top-level YAML is not a mapping", kind="workflow")
         return None
     if data.get("kind") == "agent_family":
-        raise WorkflowValidationError(_REMOVED_AGENT_FAMILY_KIND_ERROR)
+        raise WorkflowValidationError(_REMOVED_LEGACY_AGENT_FAMILY_KIND_ERROR)
 
     return load_workflow_from_mapping(file_path.stem, data, str(file_path))

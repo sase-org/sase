@@ -96,10 +96,10 @@ def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:
 
 def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
     catalog = _catalog_by_id()
-    family = SimpleNamespace(is_family_container_row=True)
+    agent_session = SimpleNamespace(is_family_container_row=True)
     clan = SimpleNamespace(is_family_container_row=False)
 
-    family_ctx = CommandContext(tab="agents", agent=family)  # type: ignore[arg-type]
+    agent_session_ctx = CommandContext(tab="agents", agent=agent_session)  # type: ignore[arg-type]
     clan_ctx = CommandContext(tab="agents", agent=clan)  # type: ignore[arg-type]
     tribe_ctx = CommandContext(
         tab="agents",
@@ -109,7 +109,7 @@ def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
 
     for position in range(1, 5):
         spec = catalog[f"fold.agents.set_level_{position}"]
-        assert is_command_available(spec, family_ctx) is (position <= 2)
+        assert is_command_available(spec, agent_session_ctx) is (position <= 2)
         assert is_command_available(spec, clan_ctx) is (position <= 3)
         assert is_command_available(spec, tribe_ctx)
 

@@ -219,11 +219,11 @@ def test_launch_query_from_agent_context_requests_approval(
         patch("sase.main.query_handler._launch.launch_agents_from_cwd") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
-        launch_query("%i(reviewer, family=foo)\nDo work")
+        launch_query("%i(reviewer, session=foo)\nDo work")
 
     assert excinfo.value.code == 0
     mock_request.assert_called_once_with(
-        "%i(reviewer, family=foo)\nDo work",
+        "%i(reviewer, session=foo)\nDo work",
         reason="Running agent requested a detached launch.",
         source_surface="agent_skill",
     )

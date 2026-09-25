@@ -272,7 +272,7 @@ def _scenario_clan_scope_active_parallel_agent_session() -> tuple[
     list[Agent], AgentCleanupRequestWire
 ]:
     root = _agent(
-        cl_name="family",
+        cl_name="agent_session",
         raw_suffix="root-ts",
         status="DONE",
         pid=None,
@@ -282,7 +282,7 @@ def _scenario_clan_scope_active_parallel_agent_session() -> tuple[
         agent_clan_generation="generation",
     )
     member = _agent(
-        cl_name="family.1",
+        cl_name="agent_session.1",
         raw_suffix="member-ts",
         pid=101,
         parent_timestamp="root-ts",
@@ -595,7 +595,7 @@ def _scenario_owner_cascades_live_monitor() -> tuple[
     )
     agent_session = _agent(
         cl_name="sase-ru.6--1",
-        raw_suffix="family-ts",
+        raw_suffix="agent-session-ts",
         parent_timestamp="owner-ts",
         status="DONE",
         pid=None,
@@ -604,7 +604,7 @@ def _scenario_owner_cascades_live_monitor() -> tuple[
     monitor = _live_monitor(
         cl_name="sase-ru.6--mon-1",
         raw_suffix="mon-ts",
-        parent_timestamp="family-ts",
+        parent_timestamp="agent-session-ts",
         monitor_id="0fmbm91hgytw",
     )
     sibling = _live_monitor(

@@ -504,12 +504,12 @@ def test_sync_finalize_clears_stale_question_for_running_root() -> None:
     assert root.identity not in app._agent_status_overrides
 
 
-def _make_answered_question_family() -> tuple[Agent, Agent]:
+def _make_answered_question_agent_session() -> tuple[Agent, Agent]:
     """Build the screenshot shape: an asking code row + answered continuation.
 
     The asking row (``92.f1--code``) carries a stale loader-derived ``QUESTION``
     status (a historical artifact missing response metadata). A newer ordinary
-    same-family continuation (``92.f1--1``) carries ``question_response_path``
+    same-session continuation (``92.f1--1``) carries ``question_response_path``
     and started after the asking row submitted its question, proving the
     question was answered.
     """
@@ -542,8 +542,8 @@ def _make_answered_question_family() -> tuple[Agent, Agent]:
 
 
 def test_status_override_plan_clears_question_answered_by_continuation() -> None:
-    """A newer same-family continuation with a response clears a stale QUESTION."""
-    asking, continuation = _make_answered_question_family()
+    """A newer same-session continuation with a response clears a stale QUESTION."""
+    asking, continuation = _make_answered_question_agent_session()
     app = FakeAgentApp()
     app._agent_status_overrides = {asking.identity: "QUESTION"}
     app._agents = [asking, continuation]
@@ -573,7 +573,7 @@ def test_status_override_plan_clears_question_answered_by_continuation() -> None
 
 def test_sync_finalize_clears_question_answered_by_continuation() -> None:
     """The synchronous path clears the same stale QUESTION override."""
-    asking, continuation = _make_answered_question_family()
+    asking, continuation = _make_answered_question_agent_session()
     app = FakeAgentApp()
     app._agent_status_overrides = {asking.identity: "QUESTION"}
     app._agents = [asking, continuation]
@@ -591,11 +591,11 @@ def test_sync_finalize_clears_question_answered_by_continuation() -> None:
 def test_status_override_plan_keeps_question_without_answered_continuation() -> None:
     """A genuinely unanswered question keeps its QUESTION override.
 
-    No same-family continuation carries ``question_response_path``, so the
-    family-aware reconciliation must not clear the override (which would hide a
+    No same-session continuation carries ``question_response_path``, so the
+    session-aware reconciliation must not clear the override (which would hide a
     real, still-blocked question).
     """
-    asking, _continuation = _make_answered_question_family()
+    asking, _continuation = _make_answered_question_agent_session()
     app = FakeAgentApp()
     app._agent_status_overrides = {asking.identity: "QUESTION"}
     app._agents = [asking]
@@ -631,7 +631,7 @@ def test_status_override_plan_keeps_question_when_continuation_predates_question
     asking row submitted its current question, so it answered an earlier round
     and cannot supersede the open one.
     """
-    asking, continuation = _make_answered_question_family()
+    asking, continuation = _make_answered_question_agent_session()
     # The continuation's response predates the asking row's question round.
     continuation.run_start_time = datetime(2026, 6, 17, 7, 30, 0)
     app = FakeAgentApp()
@@ -650,8 +650,8 @@ def test_status_override_plan_keeps_question_when_continuation_predates_question
 
 
 def test_status_override_plan_answered_override_survives_continuation() -> None:
-    """An ANSWERED override is unaffected by the family answer reconciliation."""
-    asking, continuation = _make_answered_question_family()
+    """An ANSWERED override is unaffected by the agent-session answer reconciliation."""
+    asking, continuation = _make_answered_question_agent_session()
     asking.status = "QUESTION"  # loader still sees pending_question.json
     app = FakeAgentApp()
     app._agent_status_overrides = {asking.identity: "ANSWERED"}

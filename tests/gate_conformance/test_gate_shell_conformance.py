@@ -42,7 +42,7 @@ _SHELL_BLOCK: dict[str, Any] = {
     "settled_status": "GATED",
     "next": {
         "prompt": "Verify the cleanup landed.",
-        "fork": "family",
+        "fork": "session",
         "output": ["results"],
     },
 }

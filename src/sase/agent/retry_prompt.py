@@ -19,7 +19,7 @@ def rewrite_retry_prompt_name(
 
     # A retry name is already the concrete derived name (for example,
     # ``foo--reviewer.r0``). Keeping session= would reinterpret that full name
-    # as a bare family suffix, producing an invalid directive. Drop only that
+    # as a bare agent session suffix, producing an invalid directive. Drop only that
     # obsolete membership attachment; orthogonal launch metadata such as
     # bead= must survive the retry.
     agent_session_retry = extract_agent_session_attach_directive(raw_prompt) is not None
@@ -27,7 +27,7 @@ def rewrite_retry_prompt_name(
         raw_prompt,
         retry_name,
         directive_alias=directive_alias,
-        drop_kwargs=frozenset({"family"}) if agent_session_retry else frozenset(),
+        drop_kwargs=frozenset({"session"}) if agent_session_retry else frozenset(),
     )
 
 

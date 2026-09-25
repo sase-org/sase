@@ -1,6 +1,6 @@
-"""Guard tests pinning the post-gate-shell family projection contract.
+"""Guard tests pinning the post-gate-shell agent-session projection contract.
 
-Builds plan/question families from real gate-shell member metadata (a
+Builds plan/question agent sessions from real gate-shell member metadata (a
 plan-chain root, a concrete planner member, and a gate member) and asserts
 the projection ``_apply_status_overrides`` produces today: the container row
 mirrors the gate's status, the planner member stays ``DONE``, and a coder
@@ -25,7 +25,7 @@ from sase.core.agent_scan_wire import (
     AgentSessionShellWire,
 )
 
-_FAMILY = "alpha"
+_AGENT_SESSION = "alpha"
 _ROOT_SUFFIX = "20260812090000"
 _ROOT_START = datetime(2026, 8, 12, 9, 0, 0)
 _GATE_SUFFIX = "20260812090500"
@@ -38,15 +38,15 @@ _PLAN_TIME = datetime(2026, 8, 12, 9, 3, 0)
 def _root(*, plan_action: str | None = None) -> Agent:
     return Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name=_FAMILY,
+        cl_name=_AGENT_SESSION,
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=_ROOT_START,
         run_start_time=_ROOT_START,
         raw_suffix=_ROOT_SUFFIX,
         role_suffix="-plan",
-        agent_name=_FAMILY,
-        agent_session=_FAMILY,
+        agent_name=_AGENT_SESSION,
+        agent_session=_AGENT_SESSION,
         agent_session_role="root",
         plan_chain_root=True,
         plan_action=plan_action,
@@ -59,7 +59,7 @@ def _planner_step(
     plan_times: list[datetime] | None = None,
     gate_id: str | None = "g123",
 ) -> Agent:
-    """The concrete main workflow step that submitted the family's plan."""
+    """The concrete main workflow step that submitted the agent session's plan."""
     if plan_times is None:
         plan_times = [_PLAN_TIME]
     return Agent(
@@ -73,8 +73,8 @@ def _planner_step(
         parent_timestamp=_ROOT_SUFFIX,
         step_type="agent",
         role_suffix="-plan",
-        agent_name=f"{_FAMILY}--0",
-        agent_session=_FAMILY,
+        agent_name=f"{_AGENT_SESSION}--0",
+        agent_session=_AGENT_SESSION,
         agent_session_role="plan",
         plan_action=plan_action,
         plan_times=plan_times,
@@ -93,7 +93,7 @@ def _gate_member(
 ) -> Agent:
     agent = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{_FAMILY}--gate",
+        cl_name=f"{_AGENT_SESSION}--gate",
         project_file="/tmp/test.sase",
         status="STARTING",
         start_time=_GATE_START,
@@ -104,7 +104,7 @@ def _gate_member(
     enrich_agent_from_meta_wire(
         agent,
         AgentMetaWire(
-            name=f"{_FAMILY}--gate",
+            name=f"{_AGENT_SESSION}--gate",
             agent_session_shell=AgentSessionShellWire(
                 kind="gate",
                 id=gate_id,
@@ -113,7 +113,7 @@ def _gate_member(
                 stop_status=stop_status,
                 gate=AgentSessionShellGateWire(kind=kind, accent=accent),
             ),
-            agent_session=_FAMILY,
+            agent_session=_AGENT_SESSION,
             agent_session_role="gate",
             role_suffix="--gate",
         ),
@@ -125,7 +125,7 @@ def _gate_member(
 def _coder(*, status: str) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
-        cl_name=f"{_FAMILY}--code",
+        cl_name=f"{_AGENT_SESSION}--code",
         project_file="/tmp/test.sase",
         status=status,
         start_time=_CODE_START,
@@ -133,8 +133,8 @@ def _coder(*, status: str) -> Agent:
         raw_suffix=_CODE_SUFFIX,
         parent_timestamp=_ROOT_SUFFIX,
         role_suffix="--code",
-        agent_name=f"{_FAMILY}--code",
-        agent_session=_FAMILY,
+        agent_name=f"{_AGENT_SESSION}--code",
+        agent_session=_AGENT_SESSION,
         agent_session_role="code",
     )
 

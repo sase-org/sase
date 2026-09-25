@@ -372,7 +372,8 @@ def test_clan_directive_conflicts_with_serial_agent_session_attach() -> None:
         extract_prompt_directives(prompt)
 
 
-def test_removed_family_directives_are_not_recognized() -> None:
+def test_removed_legacy_agent_family_directives_are_not_recognized() -> None:
+    # legacy agent-family spelling: the removed ``%family`` / ``%f`` directives.
     prompt = "%family:example\n%f:example\nDo work"
 
     cleaned, directives = extract_prompt_directives(prompt)

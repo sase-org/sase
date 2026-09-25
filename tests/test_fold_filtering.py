@@ -343,15 +343,15 @@ def test_worker_boundary_filters_orphans_and_hidden_only_parents() -> None:
     assert boundary.fold.fold_counts == expected_counts
 
 
-def _make_family_starter_monitor() -> tuple[Agent, Agent, Agent, Agent]:
-    """Clan -> family root -> starter -> disk-shaped monitor."""
-    family = Agent(
+def _make_agent_session_starter_monitor() -> tuple[Agent, Agent, Agent, Agent]:
+    """Clan -> agent session root -> starter -> disk-shaped monitor."""
+    agent_session = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="fam",
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
-        raw_suffix="family",
+        raw_suffix="agent_session",
         agent_name="fam",
         agent_session="fam",
         agent_session_role="root",
@@ -365,7 +365,7 @@ def _make_family_starter_monitor() -> tuple[Agent, Agent, Agent, Agent]:
         status="DONE",
         start_time=None,
         raw_suffix="starter",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session.raw_suffix,
         agent_name="fam--2",
         agent_session="fam",
         agent_session_role="code",
@@ -386,75 +386,75 @@ def _make_family_starter_monitor() -> tuple[Agent, Agent, Agent, Agent]:
         monitor_id="m1",
         monitor_state="running",
     )
-    projected = project_clan_tree([family, starter, monitor])
-    return projected[0], family, starter, monitor
+    projected = project_clan_tree([agent_session, starter, monitor])
+    return projected[0], agent_session, starter, monitor
 
 
 def test_monitor_is_visible_whenever_starter_is_visible() -> None:
-    """A member-started monitor is visible once the family fold is open.
+    """A member-started monitor is visible once the agent session fold is open.
 
-    The starter itself still owns no fold (nothing nests under a mid-family
-    member's own key), and the *family's* count now includes the monitor,
-    since the monitor's gating fold is the family, not the starter.
+    The starter itself still owns no fold (nothing nests under a mid-session
+    member's own key), and the *agent session's* count now includes the monitor,
+    since the monitor's gating fold is the agent session, not the starter.
     """
-    container, family, starter, monitor = _make_family_starter_monitor()
+    container, agent_session, starter, monitor = _make_agent_session_starter_monitor()
     clan_key = agent_fold_key(container)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(agent_session)
     starter_key = agent_fold_key(starter)
     assert clan_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
     assert starter_key is not None
 
     mgr = FoldStateManager()
     mgr.expand(clan_key)
-    mgr.expand(family_key)
+    mgr.expand(agent_session_key)
 
     visible, counts = filter_agents_by_fold_state(
-        [container, family, starter, monitor], mgr
+        [container, agent_session, starter, monitor], mgr
     )
 
-    assert visible == [container, family, starter, monitor]
+    assert visible == [container, agent_session, starter, monitor]
     assert starter_key not in counts
-    assert counts[family_key] == (2, 0)
+    assert counts[agent_session_key] == (2, 0)
 
 
-def test_monitor_hides_when_family_or_clan_is_collapsed() -> None:
-    container, family, starter, monitor = _make_family_starter_monitor()
+def test_monitor_hides_when_agent_session_or_clan_is_collapsed() -> None:
+    container, agent_session, starter, monitor = _make_agent_session_starter_monitor()
     clan_key = agent_fold_key(container)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(agent_session)
     assert clan_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
 
     mgr = FoldStateManager()
     collapsed_clan, _ = filter_agents_by_fold_state(
-        [container, family, starter, monitor], mgr
+        [container, agent_session, starter, monitor], mgr
     )
     assert collapsed_clan == [container]
     assert monitor not in collapsed_clan
 
     mgr.expand(clan_key)
-    collapsed_family, _ = filter_agents_by_fold_state(
-        [container, family, starter, monitor], mgr
+    collapsed_agent_session, _ = filter_agents_by_fold_state(
+        [container, agent_session, starter, monitor], mgr
     )
-    assert collapsed_family == [container, family]
-    assert monitor not in collapsed_family
+    assert collapsed_agent_session == [container, agent_session]
+    assert monitor not in collapsed_agent_session
 
-    mgr.expand(family_key)
+    mgr.expand(agent_session_key)
     expanded, _ = filter_agents_by_fold_state(
-        [container, family, starter, monitor], mgr
+        [container, agent_session, starter, monitor], mgr
     )
     assert monitor in expanded
 
 
-def _make_family_root_monitor() -> tuple[Agent, Agent, Agent]:
-    """Clan -> family root -> disk-shaped monitor the root itself started."""
-    family = Agent(
+def _make_agent_session_root_monitor() -> tuple[Agent, Agent, Agent]:
+    """Clan -> agent session root -> disk-shaped monitor the root itself started."""
+    agent_session = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="fam",
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=None,
-        raw_suffix="family",
+        raw_suffix="agent_session",
         agent_name="fam",
         agent_session="fam",
         agent_session_role="root",
@@ -468,7 +468,7 @@ def _make_family_root_monitor() -> tuple[Agent, Agent, Agent]:
         status="MONITORING",
         start_time=None,
         raw_suffix="monitor",
-        parent_timestamp=family.raw_suffix,
+        parent_timestamp=agent_session.raw_suffix,
         agent_name="fam--mon-1",
         agent_session="fam",
         agent_session_role="monitor",
@@ -476,79 +476,81 @@ def _make_family_root_monitor() -> tuple[Agent, Agent, Agent]:
         monitor_id="m1",
         monitor_state="running",
     )
-    projected = project_clan_tree([family, monitor])
-    return projected[0], family, monitor
+    projected = project_clan_tree([agent_session, monitor])
+    return projected[0], agent_session, monitor
 
 
-def test_root_started_monitor_hidden_while_family_collapsed() -> None:
-    """The defect, directly: a root-started monitor must obey its own family fold.
+def test_root_started_monitor_hidden_while_agent_session_collapsed() -> None:
+    """The defect, directly: a root-started monitor must obey its own agent session fold.
 
     Before this fix, a monitor's immediate parent fold was exempted from the
-    COLLAPSED gate outright. When the starter *is* the family root, that
-    parent fold is the family's own fold, so the exemption let the monitor
-    leak through a collapsed family.
+    COLLAPSED gate outright. When the starter *is* the agent session root, that
+    parent fold is the agent session's own fold, so the exemption let the monitor
+    leak through a collapsed agent session.
     """
-    container, family, monitor = _make_family_root_monitor()
+    container, agent_session, monitor = _make_agent_session_root_monitor()
     clan_key = agent_fold_key(container)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(agent_session)
     assert clan_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
 
     mgr = FoldStateManager()
     mgr.expand(clan_key)
-    collapsed, _ = filter_agents_by_fold_state([container, family, monitor], mgr)
-    assert collapsed == [container, family]
+    collapsed, _ = filter_agents_by_fold_state([container, agent_session, monitor], mgr)
+    assert collapsed == [container, agent_session]
     assert monitor not in collapsed
 
-    mgr.expand(family_key)
-    expanded, _ = filter_agents_by_fold_state([container, family, monitor], mgr)
+    mgr.expand(agent_session_key)
+    expanded, _ = filter_agents_by_fold_state([container, agent_session, monitor], mgr)
     assert monitor in expanded
 
 
-def test_root_started_monitor_collapsed_family_keeps_count_badge() -> None:
-    """A collapsed family with only a monitor child still counts it in ` ×N`.
+def test_root_started_monitor_collapsed_agent_session_keeps_count_badge() -> None:
+    """A collapsed agent session with only a monitor child still counts it in ` ×N`.
 
-    The leaked-visible monitor used to claim the family's own fold key as its
-    parent, so ``compute_visible_parents`` wrongly saw the family as having a
+    The leaked-visible monitor used to claim the agent session's own fold key as its
+    parent, so ``compute_visible_parents`` wrongly saw the agent session as having a
     visible child and ``compute_fold_annotation`` dropped the ` ×N` badge.
     """
-    container, family, monitor = _make_family_root_monitor()
+    container, agent_session, monitor = _make_agent_session_root_monitor()
     clan_key = agent_fold_key(container)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(agent_session)
     assert clan_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
 
     mgr = FoldStateManager()
     mgr.expand(clan_key)
-    visible, counts = filter_agents_by_fold_state([container, family, monitor], mgr)
+    visible, counts = filter_agents_by_fold_state(
+        [container, agent_session, monitor], mgr
+    )
 
     assert monitor not in visible
     visible_parents, _ = compute_visible_parents(visible)
-    assert family_key not in visible_parents
-    assert _compute_fold_annotation(family, counts, visible_parents) == " ×1"
+    assert agent_session_key not in visible_parents
+    assert _compute_fold_annotation(agent_session, counts, visible_parents) == " ×1"
 
 
-def test_family_whose_only_loaded_child_is_a_monitor_is_openable() -> None:
-    """A root+monitor-only family still gets a `fold_counts` entry.
+def test_agent_session_whose_only_loaded_child_is_a_monitor_is_openable() -> None:
+    """A root+monitor-only agent session still gets a `fold_counts` entry.
 
-    Monitors used to be excluded from `fold_counts` outright, so a family
+    Monitors used to be excluded from `fold_counts` outright, so an agent session
     whose only loaded child was its monitor had an empty `fold_counts` entry
     and `l` on it did nothing -- invisible only because the same leak showed
     the monitor anyway.
     """
-    container, family, monitor = _make_family_root_monitor()
+    container, agent_session, monitor = _make_agent_session_root_monitor()
     clan_key = agent_fold_key(container)
-    family_key = agent_fold_key(family)
+    agent_session_key = agent_fold_key(agent_session)
     assert clan_key is not None
-    assert family_key is not None
+    assert agent_session_key is not None
 
     mgr = FoldStateManager()
     mgr.expand(clan_key)
-    _, counts = filter_agents_by_fold_state([container, family, monitor], mgr)
-    assert counts[family_key] == (1, 0)
+    _, counts = filter_agents_by_fold_state([container, agent_session, monitor], mgr)
+    assert counts[agent_session_key] == (1, 0)
 
-    mgr.expand(family_key)
-    expanded, _ = filter_agents_by_fold_state([container, family, monitor], mgr)
+    mgr.expand(agent_session_key)
+    expanded, _ = filter_agents_by_fold_state([container, agent_session, monitor], mgr)
     assert monitor in expanded
 
 

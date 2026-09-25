@@ -1,4 +1,4 @@
-"""Tests for the shared out-of-process family spawn primitive."""
+"""Tests for the shared out-of-process agent-session spawn primitive."""
 
 from __future__ import annotations
 
@@ -89,6 +89,7 @@ class TestAgentSessionAttachEnv:
             parent_agent_session_role_suffix="--plan",
         )
         payload = asdict(plan)
+        # legacy agent-family spelling: pre-rename attach payloads.
         payload["agent_family_role"] = payload.pop("agent_session_role")
         payload["parent_family_member_name"] = payload.pop(
             "parent_agent_session_member_name"
@@ -104,6 +105,7 @@ class TestAgentSessionAttachEnv:
 
     def test_legacy_payload_without_parent_keys_uses_defaults(self) -> None:
         payload = asdict(_fake_plan(agent_session_role="reviewer"))
+        # legacy agent-family spelling: pre-rename attach payloads.
         payload["agent_family_role"] = payload.pop("agent_session_role")
         del payload["parent_agent_session_member_name"]
         del payload["parent_agent_session_role_suffix"]
@@ -116,7 +118,7 @@ class TestAgentSessionAttachEnv:
         assert loaded.parent_agent_session_member_name == "acme"
         assert loaded.parent_agent_session_role_suffix == "--0"
 
-    def test_payload_missing_role_key_is_rejected(self) -> None:
+    def test_legacy_env_payload_missing_role_key_is_rejected(self) -> None:
         payload = asdict(_fake_plan())
         del payload["agent_session_role"]
         env = {LEGACY_AGENT_FAMILY_ATTACH_ENV: json.dumps(payload)}

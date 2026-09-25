@@ -62,7 +62,7 @@ def test_copy_agent_name_uses_agent_name_when_set() -> None:
     assert app.notifications == []
 
 
-def test_copy_agent_name_family_root_uses_root_name() -> None:
+def test_copy_agent_name_agent_session_root_uses_root_name() -> None:
     agent = _make_agent(
         agent_name="explicit_name-plan",
         agent_session="explicit_name",
@@ -175,7 +175,7 @@ def test_copy_agent_reference_warns_for_clan_row() -> None:
     ]
 
 
-def test_copy_agent_reference_warns_for_family_container() -> None:
+def test_copy_agent_reference_warns_for_agent_session_container() -> None:
     member = _make_agent(
         agent_type=AgentType.RUNNING,
         agent_name="review--code",

@@ -171,22 +171,22 @@ def test_edit_hooks_fork_allows_monitor_with_monitor_id() -> None:
     )
 
 
-def test_wait_command_allows_agent_family_clan_tribe_and_marks() -> None:
+def test_wait_command_allows_agent_session_clan_tribe_and_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.add_tag"]
     agent = _make_agent(status="RUNNING")
     agent.agent_name = "worker"
-    family = _make_agent(status="DONE")
-    family.agent_name = "builders-plan"
-    family.agent_session = "builders"
-    family.agent_session_role = "root"
-    family.plan_chain_root = True
+    agent_session = _make_agent(status="DONE")
+    agent_session.agent_name = "builders-plan"
+    agent_session.agent_session = "builders"
+    agent_session.agent_session_role = "root"
+    agent_session.plan_chain_root = True
     clan = _make_agent(status="RUNNING")
     clan.is_clan_container = True
     clan.agent_clan = "builders"
 
     assert is_command_available(spec, CommandContext(tab="agents", agent=agent))
-    assert is_command_available(spec, CommandContext(tab="agents", agent=family))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=agent_session))
     assert is_command_available(spec, CommandContext(tab="agents", agent=clan))
     for collapsed in (False, True):
         assert is_command_available(

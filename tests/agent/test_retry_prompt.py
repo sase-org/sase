@@ -26,7 +26,7 @@ _EPIC_ROOT_PROMPT = (
         "%id:sase-8a.3\n%auto\nDo work",
         "%id:`quoted name`",
         "%id(2, clan=sase-8k, bead=sase-8k.2)",
-        "%id(!code, family=sase-8u.4.2, bead=sase-8u.4.2)",
+        "%id(!code, session=sase-8u.4.2, bead=sase-8u.4.2)",
         _EPIC_ROOT_PROMPT,
         "%model:@no_such_alias\n%id:foo\nDo work",
     ],

@@ -296,9 +296,9 @@ def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
     data = json.loads(stdout.getvalue())
     by_target = {(entry["kind"], entry["name"]): entry for entry in data["entries"]}
     assert data["schema_version"] == 1
-    assert by_target[("family", "review")]["member_count"] == 2
-    assert by_target[("family", "review")]["detail"] == "family · 2 members"
-    assert "documentation" not in by_target[("family", "review")]
+    assert by_target[("session", "review")]["member_count"] == 2
+    assert by_target[("session", "review")]["detail"] == "session · 2 members"
+    assert "documentation" not in by_target[("session", "review")]
     assert by_target[("clan", "squad")] == {
         "name": "squad",
         "kind": "clan",

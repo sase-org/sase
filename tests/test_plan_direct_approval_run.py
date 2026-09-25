@@ -290,10 +290,10 @@ class _GateRace:
                 bundle_path=gate.bundle_path,
             ),
             placement=CoderPlacement(
-                mode="family",
+                mode="session",
                 parent="bob",
                 member_name="bob--code",
-                family="bob",
+                agent_session="bob",
                 planner_artifacts_dir=str(tmp_path / "planner"),
             ),
         )
@@ -358,7 +358,7 @@ def test_answered_gate_race_launches_no_coder_and_records_committed_state(
     assert receipt.plan_archive_ref == "plan:202609/work.md"
     assert receipt.route == "none"
     assert receipt.coder_agent is None
-    assert receipt.family is None
+    assert receipt.agent_session is None
     assert receipt.retired_gate_id is None
     assert receipt.coder_error is not None
     assert "answered concurrently" in receipt.coder_error
@@ -423,5 +423,5 @@ def test_gate_retire_failure_other_than_a_race_still_launches_the_coder(
     race.launch.assert_called_once()
     receipt = read_direct_approval_receipt(race.adopted)
     assert receipt is not None
-    assert receipt.route == "family"
+    assert receipt.route == "session"
     assert receipt.retired_gate_id == "race-gate"

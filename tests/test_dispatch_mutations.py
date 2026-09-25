@@ -50,6 +50,7 @@ def _locator(
                 "project_id": "proj",
             },
             "agent_id": agent,
+            # legacy agent-family spelling: core key
             "family_id": None,
         },
         "shell_id": "ace-run",

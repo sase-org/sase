@@ -88,10 +88,12 @@ def test_fork_source_kind_normalizes_legacy_family() -> None:
 
 def test_fork_source_predicates_accept_both_kinds() -> None:
     members = [{"kind": "agent", "name": "a", "failure": {"outcome": "failed"}}]
+    # legacy agent-family spelling: "family" is the pre-rename kind
     for kind in ("session", "family"):
         source = {"kind": kind, "name": "chain", "members": members}
         assert fork_source_has_failure(source) is True
     proc_members = [{"kind": "proc", "name": "p"}]
+    # legacy agent-family spelling: "family" is the pre-rename kind
     for kind in ("session", "family"):
         assert (
             fork_source_has_proc_content(
@@ -116,6 +118,7 @@ def test_fork_wait_writer_emits_session_kind(monkeypatch: Any) -> None:
 
 def test_continuation_baseline_measures_both_kinds() -> None:
     member = {"kind": "agent", "name": "a", "path": "/tmp/chat.md"}
+    # legacy agent-family spelling: "family" is the pre-rename kind
     for kind in ("session", "family"):
         assert _source_node_identities(
             {"kind": kind, "name": "chain", "members": [member]}
@@ -326,6 +329,7 @@ def test_stats_group_by_normalizes_legacy_family(monkeypatch: Any) -> None:
         return {}
 
     monkeypatch.setattr(stats_query, "require_rust_binding", lambda _name: binding)
+    # legacy agent-family spelling: "family" is the pre-rename group key
     for group_by in ("family", "session"):
         stats_query.query_run_stats(
             start_ts=0,
@@ -339,12 +343,13 @@ def test_stats_group_by_normalizes_legacy_family(monkeypatch: Any) -> None:
     ]
 
 
-def test_stats_view_normalizes_core_family_group() -> None:
+def test_stats_view_normalizes_legacy_core_family_group() -> None:
     from sase.project_display_names import ProjectDisplaySnapshot
 
     payload: dict[str, Any] = {
         "totals": {},
         "runtime_groups": [],
+        # legacy agent-family spelling: sase-core still emits "family" here
         "runtime_group_by": "family",
     }
     view = build_runtime_view(payload, ProjectDisplaySnapshot())
@@ -354,7 +359,7 @@ def test_stats_view_normalizes_core_family_group() -> None:
 # Surface 8: fleet follows.json logical keys.
 
 
-def test_follows_store_loads_family_and_session_keys(tmp_path: Path) -> None:
+def test_follows_store_loads_legacy_family_and_session_keys(tmp_path: Path) -> None:
     from sase.core.rust import require_rust_binding
 
     key_binding = require_rust_binding("fleet_logical_locator_key")
@@ -369,11 +374,12 @@ def test_follows_store_loads_family_and_session_keys(tmp_path: Path) -> None:
             "project_id": "sase-main",
         },
         "agent_id": "agent-1",
+        # legacy agent-family spelling: core keys a ``family_id`` locator as "family:"
         "family_id": "family-1",
     }
-    family_key = key_binding(dict(locator))
-    assert "family:" in family_key
-    session_key = family_key.replace("family:", "session:", 1)
+    legacy_family_key = key_binding(dict(locator))
+    assert "family:" in legacy_family_key
+    session_key = legacy_family_key.replace("family:", "session:", 1)
 
     def record(key: str) -> dict[str, Any]:
         return {
@@ -393,11 +399,11 @@ def test_follows_store_loads_family_and_session_keys(tmp_path: Path) -> None:
         json.dumps(
             {
                 "schema_version": 1,
-                "records": [record(family_key), record(session_key)],
+                "records": [record(legacy_family_key), record(session_key)],
                 "tombstones": [],
             }
         )
     )
     snapshot = load_follow_snapshot(path)
-    assert family_key in snapshot.active_logical_keys
+    assert legacy_family_key in snapshot.active_logical_keys
     assert session_key in snapshot.active_logical_keys

@@ -249,7 +249,7 @@ def test_retry_mobile_agent_prefers_artifact_prompt_and_allocates_name(
     assert '"request_id": "req-retry-1"' in contexts
 
 
-def test_retry_mobile_family_phase_allocates_base_and_preserves_source(
+def test_retry_mobile_agent_session_phase_allocates_base_and_preserves_source(
     monkeypatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
@@ -301,7 +301,11 @@ def test_retry_mobile_family_phase_allocates_base_and_preserves_source(
     )
 
     payload = _retry_mobile_agent(
-        {"schema_version": 1, "name": "alpha--plan", "request_id": "family-retry"}
+        {
+            "schema_version": 1,
+            "name": "alpha--plan",
+            "request_id": "agent-session-retry",
+        }
     )
 
     assert allocated_from == ["alpha"]

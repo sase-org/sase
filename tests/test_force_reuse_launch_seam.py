@@ -122,7 +122,7 @@ def test_kill_and_edit_submission_authorizes_forced_reuse_agent_session_form() -
 
     call = _submit_kill_and_edit(prompt)
 
-    assert prompt == "%id(!plan, family=sase-oc.4, bead=sase-oc.4)\nDo work"
+    assert prompt == "%id(!plan, session=sase-oc.4, bead=sase-oc.4)\nDo work"
     assert call["request"]["prompt"] == prompt
     assert call["request"]["allow_force_reuse"] is True
 
@@ -228,7 +228,7 @@ def test_launch_query_consumes_authorized_agent_session_form(
     wipe_names.assert_called_once_with(["sase-oc.4--plan"])
     mock_launch.assert_called_once()
     args, kwargs = mock_launch.call_args
-    assert args[0] == "%id(plan, family=sase-oc.4, bead=sase-oc.4)\nDo work"
+    assert args[0] == "%id(plan, session=sase-oc.4, bead=sase-oc.4)\nDo work"
     segment_envs = kwargs["segment_extra_env"]
     assert segment_envs is not None
     assert segment_envs[0] is not None
@@ -510,7 +510,7 @@ def test_forced_agent_session_member_relaunch_keeps_its_parent_resolvable(
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         launch_plan = plan_force_reuse_launch(
-            f"%id(!code, family={agent_session_name})\nDo work"
+            f"%id(!code, session={agent_session_name})\nDo work"
         )
         assert launch_plan is not None
         assert launch_plan.owner_names == [code_name]

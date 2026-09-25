@@ -89,6 +89,7 @@ def test_accessors_fall_back_to_legacy_keys() -> None:
 
 
 def test_accessors_prefer_new_spelling_for_mixed_files() -> None:
+    # legacy agent-family spelling: ``agent_family*`` keys sit beside the new ones.
     meta = {
         "agent_session": "new",
         "agent_family": "old",
@@ -193,6 +194,7 @@ def test_done_json_nested_shell_reads_either_spelling() -> None:
 
 def test_v2_manifest_allows_both_spellings() -> None:
     assert not ({"agent_session", "agent_session_role"} - V2_METADATA_FIELDS)
+    # legacy agent-family spelling: pre-rename manifests stay valid.
     assert not ({"agent_family", "agent_family_role"} - V2_METADATA_FIELDS)
 
 
@@ -245,6 +247,7 @@ def test_wire_bridge_backfills_new_spellings_for_legacy_fields() -> None:
 
 
 def test_wire_bridge_keeps_new_spelling_authoritative() -> None:
+    # legacy agent-family spelling: ``agent_family`` sits beside the new key.
     mixed = {"agent_session": "new", "agent_family": "old"}
     assert with_agent_session_keys(mixed)["agent_session"] == "new"
     new = {"agent_session": "new"}

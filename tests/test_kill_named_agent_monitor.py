@@ -85,7 +85,7 @@ def test_kill_named_monitor_member_uses_canonical_stop(
     kill_proc.assert_not_called()
 
 
-def test_kill_named_family_stops_lane_monitor_without_killpg(
+def test_kill_named_agent_session_stops_lane_monitor_without_killpg(
     tmp_path: Path,
 ) -> None:
     artifacts_dir, _ = setup_nonhome_agent(tmp_path)

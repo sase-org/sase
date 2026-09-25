@@ -286,7 +286,7 @@ def test_find_agent_session_includes_sequential_descendants(tmp_path: Path) -> N
     ]
 
 
-def test_family_lookup_combines_legacy_and_qualified_local_relations(
+def test_agent_session_lookup_combines_legacy_and_qualified_local_relations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

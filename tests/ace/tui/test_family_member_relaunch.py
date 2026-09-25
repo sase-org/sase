@@ -150,7 +150,7 @@ async def test_completed_family_member_relaunch_dismisses_only_selected_child(
 
             bar = app.query_one(PromptInputBar)
             assert bar.all_prompt_texts() == [
-                "%id(!code, family=sase-8u.4.2, bead=sase-8u.4.2)\n"
+                "%id(!code, session=sase-8u.4.2, bead=sase-8u.4.2)\n"
                 "%model:codex/gpt-5.6-sol@xhigh\n"
                 "#gh:feature\n"
                 "Implement the approved plan body.\n"
@@ -218,7 +218,7 @@ async def test_running_family_member_relaunch_confirmation_kills_only_child(
             assert (
                 app.query_one(PromptInputBar)
                 .all_prompt_texts()[0]
-                .startswith("%id(!code, family=sase-8u.4.2")
+                .startswith("%id(!code, session=sase-8u.4.2")
             )
 
 
@@ -233,7 +233,7 @@ async def test_family_member_relaunch_aborts_when_row_goes_stale(
     def delayed_prompt(*_args) -> str:
         started.set()
         release.wait(timeout=2)
-        return "%id(!code, family=sase-8u.4.2)\nDo work"
+        return "%id(!code, session=sase-8u.4.2)\nDo work"
 
     with patch(
         "sase.ace.tui.actions.agent_workflow._entry_relaunch."
@@ -361,7 +361,7 @@ async def test_family_root_relaunch_keeps_clan_and_not_self_family(
         seeded = app.query_one(PromptInputBar).all_prompt_texts()[0]
         assert seeded.startswith("%id(!1, clan=sase-pw, bead=sase-pw.1)")
         assert "%clan" not in seeded
-        assert "family=" not in seeded
+        assert "session=" not in seeded
 
     assert app.dismissed == [root]
     assert app.killed == []
@@ -380,7 +380,7 @@ async def test_plain_plan_root_relaunch_keeps_prompt(
 
         seeded = app.query_one(PromptInputBar).all_prompt_texts()[0]
         assert seeded == "#gh:gh_sase-org__sase #plan"
-        assert "family=" not in seeded
+        assert "session=" not in seeded
 
     assert app.dismissed == [root]
     assert app.killed == []
@@ -403,7 +403,7 @@ async def test_self_attaching_family_rewrite_notifies_and_kills_nothing(
         message, severity = app.notifications[0]
         assert severity == "error"
         assert "sase-pw.1" in message
-        assert "family=" in message
+        assert "session=" in message
 
 
 async def test_clan_container_focused_relaunch_warns_and_kills_nothing() -> None:

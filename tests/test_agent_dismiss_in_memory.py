@@ -84,8 +84,10 @@ def test_apply_dismissal_includes_workflow_children() -> None:
     assert dismissed_ids == {parent.identity, child.identity}
 
 
-def test_apply_dismissal_includes_parallel_family_members_not_serial_children() -> None:
-    """Only explicitly parallel family members follow a root dismissal."""
+def test_apply_dismissal_includes_parallel_agent_session_members_not_serial_children() -> (
+    None
+):
+    """Only explicitly parallel agent-session members follow a root dismissal."""
     app = FakeDismissApp()
     root = make_agent(
         cl_name="sase-6g",

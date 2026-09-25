@@ -89,7 +89,7 @@ def test_submitted_plan_row_wait_skips_waiting_marker(
     assert isinstance(agent_meta.get("wait_completed_at"), str)
 
 
-def test_initial_identity_wait_excludes_waiter_from_family_generation(
+def test_initial_identity_wait_excludes_waiter_from_agent_session_generation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

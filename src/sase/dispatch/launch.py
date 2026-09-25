@@ -449,9 +449,9 @@ def _activate_receipt_follow(
     if not isinstance(logical, Mapping):
         return
     # legacy agent-family spelling: core emits ``family_id`` until core-contract;
-    # new writers send ``session_id``.
+    # new writers send ``agent_session_id``.
     if dict(logical) != dict(provisional_locator) and (
-        logical.get("session_id") or logical.get("family_id")
+        logical.get("agent_session_id") or logical.get("family_id")
     ):
         promote_agent_session_follow(provisional_locator, logical)
     activate_dispatch_follow(logical, operation_key=operation_key)

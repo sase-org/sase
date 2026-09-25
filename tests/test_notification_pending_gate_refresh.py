@@ -57,7 +57,7 @@ def _record_scan_threads(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 
 
 class TestPendingGateArrivalRefresh:
-    """Pending-review gates toast and schedule an exact family-chain delta."""
+    """Pending-review gates toast and schedule an exact agent-session-chain delta."""
 
     def _install_capture(
         self, app: _FakeApp
@@ -88,7 +88,7 @@ class TestPendingGateArrivalRefresh:
             "agent_timestamp": planner_ts,
             "agent_root_timestamp": root_ts,
             "raw_suffix": gate_ts,
-            "family_root_suffix": root_ts,
+            "agent_session_root_suffix": root_ts,
         }
         if planner_dir is not None:
             action_data["artifacts_dir"] = str(planner_dir)
@@ -98,7 +98,7 @@ class TestPendingGateArrivalRefresh:
             action_data=action_data,
         )
 
-    def test_plan_approval_poll_schedules_unloaded_family_chain_delta(
+    def test_plan_approval_poll_schedules_unloaded_agent_session_chain_delta(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,

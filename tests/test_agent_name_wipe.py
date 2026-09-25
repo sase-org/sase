@@ -422,14 +422,14 @@ def test_wipe_retry_chain_and_bundle_descendants(tmp_path: Path) -> None:
         assert {"foo", "foo.retry", "foo.bundle"}.isdisjoint(get_reserved_agent_names())
 
 
-def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
+def test_wipe_agent_session_member_finds_day_sharded_handoff_and_bundle(
     tmp_path: Path,
 ) -> None:
-    family_name = "epic.phase"
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
-    family_meta = {
-        "agent_session": family_name,
+    agent_session_name = "epic.phase"
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
+    agent_session_meta = {
+        "agent_session": agent_session_name,
         "agent_session_parallel": False,
     }
     plan = _artifact(
@@ -438,21 +438,21 @@ def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
         plan_name,
         done=True,
         day_sharded=True,
-        meta=family_meta,
+        meta=agent_session_meta,
     )
     code = _artifact(
         tmp_path,
         "20260722120100",
         code_name,
         day_sharded=True,
-        meta={**family_meta, "parent_timestamp": plan.name},
+        meta={**agent_session_meta, "parent_timestamp": plan.name},
     )
     bundle_path = _bundle(
         tmp_path,
         "20260722120200",
-        f"{family_name}--review",
+        f"{agent_session_name}--review",
         parent_timestamp=code.name,
-        **family_meta,
+        **agent_session_meta,
     )
     unrelated = _artifact(
         tmp_path,
@@ -463,7 +463,7 @@ def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
 
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
-        assert {family_name, plan_name, code_name} <= get_reserved_agent_names()
+        assert {agent_session_name, plan_name, code_name} <= get_reserved_agent_names()
         with patch(
             "sase.agent.names._wipe_execute._release_artifact_workspace"
         ) as release_workspace:
@@ -476,55 +476,61 @@ def test_wipe_family_member_finds_day_sharded_handoff_and_bundle(
             code,
         }
         assert unrelated.exists()
-        assert family_name not in get_reserved_agent_names()
+        assert agent_session_name not in get_reserved_agent_names()
         assert plan_name not in get_reserved_agent_names()
         assert code_name not in get_reserved_agent_names()
         assert "unrelated" in get_reserved_agent_names()
 
 
-def _family_meta(family_name: str, role: str) -> dict[str, object]:
+def _agent_session_meta(agent_session_name: str, role: str) -> dict[str, object]:
     """Meta a real agent-session member stores: ``workflow_name`` is the session."""
     return {
-        "workflow_name": family_name,
-        "agent_session": family_name,
+        "workflow_name": agent_session_name,
+        "agent_session": agent_session_name,
         "agent_session_role": role,
         "agent_session_parallel": False,
     }
 
 
-def test_wipe_code_member_preserves_plan_member_and_family_container(
+def test_wipe_code_member_preserves_plan_member_and_agent_session_container(
     tmp_path: Path,
 ) -> None:
-    family_name = "epic.phase"
-    plan_name = f"{family_name}--plan"
-    code_name = f"{family_name}--code"
+    agent_session_name = "epic.phase"
+    plan_name = f"{agent_session_name}--plan"
+    code_name = f"{agent_session_name}--code"
     plan = _artifact(
         tmp_path,
         "20260723120000",
         plan_name,
         done=True,
-        meta={**_family_meta(family_name, "root"), "plan_chain_root": True},
+        meta={
+            **_agent_session_meta(agent_session_name, "root"),
+            "plan_chain_root": True,
+        },
     )
     code = _artifact(
         tmp_path,
         "20260723120100",
         code_name,
         done=True,
-        meta={**_family_meta(family_name, "code"), "parent_timestamp": plan.name},
+        meta={
+            **_agent_session_meta(agent_session_name, "code"),
+            "parent_timestamp": plan.name,
+        },
     )
     descendant = _bundle(
         tmp_path,
         "20260723120200",
-        f"{family_name}--code-review",
+        f"{agent_session_name}--code-review",
         parent_timestamp=code.name,
-        **_family_meta(family_name, "feedback"),
+        **_agent_session_meta(agent_session_name, "feedback"),
     )
     sibling = _artifact(
         tmp_path,
         "20260723120300",
-        f"{family_name}--reviewer",
+        f"{agent_session_name}--reviewer",
         done=True,
-        meta=_family_meta(family_name, "feedback"),
+        meta=_agent_session_meta(agent_session_name, "feedback"),
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -535,42 +541,54 @@ def test_wipe_code_member_preserves_plan_member_and_family_container(
         assert str(descendant) in result.bundle_paths_removed
         assert plan.exists()
         assert sibling.exists()
-        assert {family_name, plan_name, f"{family_name}--reviewer"} <= (
+        assert {agent_session_name, plan_name, f"{agent_session_name}--reviewer"} <= (
             get_reserved_agent_names()
         )
         assert code_name not in get_reserved_agent_names()
 
 
-def _auto_family(tmp_path: Path, family_name: str) -> dict[str, Path]:
+def _auto_agent_session(tmp_path: Path, agent_session_name: str) -> dict[str, Path]:
     """A ``%auto`` plan chain: the root's ``done.json`` names the code member."""
     root = _artifact(
         tmp_path,
         "20260725120000",
-        f"{family_name}--plan",
+        f"{agent_session_name}--plan",
         done=True,
-        done_name=f"{family_name}--code",
-        meta={**_family_meta(family_name, "root"), "plan_chain_root": True},
+        done_name=f"{agent_session_name}--code",
+        meta={
+            **_agent_session_meta(agent_session_name, "root"),
+            "plan_chain_root": True,
+        },
     )
     gate = _artifact(
         tmp_path,
         "20260725120050",
-        f"{family_name}--gate",
+        f"{agent_session_name}--gate",
         done=True,
-        meta={**_family_meta(family_name, "gate"), "parent_timestamp": root.name},
+        meta={
+            **_agent_session_meta(agent_session_name, "gate"),
+            "parent_timestamp": root.name,
+        },
     )
     code = _artifact(
         tmp_path,
         "20260725120100",
-        f"{family_name}--code",
+        f"{agent_session_name}--code",
         done=True,
-        meta={**_family_meta(family_name, "code"), "parent_timestamp": root.name},
+        meta={
+            **_agent_session_meta(agent_session_name, "code"),
+            "parent_timestamp": root.name,
+        },
     )
     monitor = _artifact(
         tmp_path,
         "20260725120200",
-        f"{family_name}--mon",
+        f"{agent_session_name}--mon",
         done=True,
-        meta={**_family_meta(family_name, "monitor"), "parent_timestamp": code.name},
+        meta={
+            **_agent_session_meta(agent_session_name, "monitor"),
+            "parent_timestamp": code.name,
+        },
     )
     return {"root": root, "gate": gate, "code": code, "monitor": monitor}
 
@@ -578,16 +596,16 @@ def _auto_family(tmp_path: Path, family_name: str) -> dict[str, Path]:
 def test_wipe_auto_code_member_keeps_root_whose_done_marker_names_it(
     tmp_path: Path,
 ) -> None:
-    family_name = "epic.phase"
-    dirs = _auto_family(tmp_path, family_name)
+    agent_session_name = "epic.phase"
+    dirs = _auto_agent_session(tmp_path, agent_session_name)
 
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
-        owner = lookup_registered_name(f"{family_name}--code")
+        owner = lookup_registered_name(f"{agent_session_name}--code")
         assert owner is not None
         assert Path(owner["artifacts_dir"]) == dirs["code"]
 
-        result = wipe_agent_name_for_reuse(f"{family_name}--code")
+        result = wipe_agent_name_for_reuse(f"{agent_session_name}--code")
 
         assert result.errors == ()
         assert set(result.artifact_dirs_removed) == {
@@ -597,20 +615,20 @@ def test_wipe_auto_code_member_keeps_root_whose_done_marker_names_it(
         assert dirs["root"].exists()
         assert dirs["gate"].exists()
         assert {
-            family_name,
-            f"{family_name}--plan",
-            f"{family_name}--gate",
+            agent_session_name,
+            f"{agent_session_name}--plan",
+            f"{agent_session_name}--gate",
         } <= get_reserved_agent_names()
-        assert f"{family_name}--code" not in get_reserved_agent_names()
+        assert f"{agent_session_name}--code" not in get_reserved_agent_names()
 
 
-def test_wipe_whole_family_batch_still_removes_root_and_members(
+def test_wipe_whole_agent_session_batch_still_removes_root_and_members(
     tmp_path: Path,
 ) -> None:
-    family_name = "epic.phase"
-    dirs = _auto_family(tmp_path, family_name)
+    agent_session_name = "epic.phase"
+    dirs = _auto_agent_session(tmp_path, agent_session_name)
     members = tuple(
-        f"{family_name}--{suffix}" for suffix in ("plan", "gate", "code", "mon")
+        f"{agent_session_name}--{suffix}" for suffix in ("plan", "gate", "code", "mon")
     )
 
     with patch.object(Path, "home", return_value=tmp_path):
@@ -619,7 +637,7 @@ def test_wipe_whole_family_batch_still_removes_root_and_members(
 
         assert all(result.errors == () for result in results)
         assert not any(path.exists() for path in dirs.values())
-        assert family_name not in get_reserved_agent_names()
+        assert agent_session_name not in get_reserved_agent_names()
 
 
 def _leak_root_into_plan(root: Path):  # type: ignore[no-untyped-def]
@@ -637,9 +655,9 @@ def _leak_root_into_plan(root: Path):  # type: ignore[no-untyped-def]
 def test_wipe_refuses_member_closure_that_reaches_session_root(
     tmp_path: Path,
 ) -> None:
-    family_name = "epic.phase"
-    dirs = _auto_family(tmp_path, family_name)
-    code_name = f"{family_name}--code"
+    agent_session_name = "epic.phase"
+    dirs = _auto_agent_session(tmp_path, agent_session_name)
+    code_name = f"{agent_session_name}--code"
 
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
@@ -651,7 +669,7 @@ def test_wipe_refuses_member_closure_that_reaches_session_root(
         assert result.artifact_dirs_removed == ()
         assert len(result.errors) == 1
         assert f"forced reuse of '{code_name}'" in result.errors[0]
-        assert f"agent-session root '{family_name}--plan'" in result.errors[0]
+        assert f"agent-session root '{agent_session_name}--plan'" in result.errors[0]
         assert str(dirs["root"]) in result.errors[0]
         assert all(path.exists() for path in dirs.values())
         assert load_name_registry() == before
@@ -660,8 +678,8 @@ def test_wipe_refuses_member_closure_that_reaches_session_root(
 def test_forced_reuse_owners_raise_and_delete_nothing_on_session_root_leak(
     tmp_path: Path,
 ) -> None:
-    family_name = "epic.phase"
-    dirs = _auto_family(tmp_path, family_name)
+    agent_session_name = "epic.phase"
+    dirs = _auto_agent_session(tmp_path, agent_session_name)
 
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
@@ -670,7 +688,7 @@ def test_forced_reuse_owners_raise_and_delete_nothing_on_session_root_leak(
             pytest.raises(ForcedReuseCleanupError, match="refusing to wipe"),
         ):
             wipe_force_reuse_owners(
-                (f"{family_name}--code",), allow_container_skip=False
+                (f"{agent_session_name}--code",), allow_container_skip=False
             )
 
         assert all(path.exists() for path in dirs.values())

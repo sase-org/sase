@@ -82,7 +82,9 @@ def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> No
     assert code_child.status == "WORKING PLAN"
 
 
-def test_apply_status_overrides_propagates_plan_metadata_to_family_children() -> None:
+def test_apply_status_overrides_propagates_plan_metadata_to_agent_session_children() -> (
+    None
+):
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",

@@ -9,7 +9,9 @@ from sase.core.agent_scan_wire import (
 from .core_agent_scan_wire_helpers import record_payload
 
 
-def test_gate_shell_marker_fields_round_trip() -> None:
+def test_legacy_gate_shell_marker_fields_round_trip() -> None:
+    """Pre-rename ``agent_family``/``family_shell`` gate markers still hydrate."""
+    # legacy agent-family spelling: the payload below uses pre-rename keys.
     snapshot = agent_scan_wire_from_dict(
         {
             "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
@@ -122,8 +124,9 @@ def test_gate_shell_marker_fields_round_trip() -> None:
     assert done_payload["followup_prompt_path"] == "gate_followup.md"
 
 
-def test_monitor_marker_fields_round_trip() -> None:
-    """Monitor family members must survive the agent artifact scan."""
+def test_legacy_monitor_marker_fields_round_trip() -> None:
+    """Pre-rename monitor markers must survive the agent artifact scan."""
+    # legacy agent-family spelling: the payload below uses pre-rename keys.
     snapshot = agent_scan_wire_from_dict(
         {
             "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
@@ -222,8 +225,9 @@ def test_monitor_marker_fields_round_trip() -> None:
     assert meta_payload["stop_status"] == "MONITORED"
 
 
-def test_monitor_custom_stop_status_round_trips() -> None:
-    """A custom stop label must survive the agent artifact scan."""
+def test_legacy_monitor_custom_stop_status_round_trips() -> None:
+    """A custom stop label in pre-rename markers must survive the scan."""
+    # legacy agent-family spelling: the payload below uses pre-rename keys.
     snapshot = agent_scan_wire_from_dict(
         {
             "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,

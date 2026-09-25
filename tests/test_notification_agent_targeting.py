@@ -350,7 +350,7 @@ class TestNotificationAgentTargeting:
         assert scheduled == [((artifacts_dir,), "notification")]
         assert broad == []
 
-    def test_settlement_notification_schedules_family_chain_exact_delta(
+    def test_settlement_notification_schedules_agent_session_chain_exact_delta(
         self,
         tmp_path: Path,
     ) -> None:
@@ -396,7 +396,7 @@ class TestNotificationAgentTargeting:
             action_data={
                 "cl_name": monitor.cl_name,
                 "raw_suffix": monitor.raw_suffix or "",
-                "family_root_suffix": root.raw_suffix or "",
+                "agent_session_root_suffix": root.raw_suffix or "",
             },
         )
         scheduled, broad = self._install_capture(app)
@@ -430,7 +430,7 @@ class TestNotificationAgentTargeting:
             action_data={
                 "cl_name": monitor.cl_name,
                 "raw_suffix": monitor.raw_suffix or "",
-                "family_root_suffix": monitor.raw_suffix or "",
+                "agent_session_root_suffix": monitor.raw_suffix or "",
             },
         )
         scheduled, broad = self._install_capture(app)

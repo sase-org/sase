@@ -23,7 +23,7 @@ from sase.xprompt.directives import (
 
 
 @pytest.mark.parametrize(
-    ("prompt", "name", "clan", "family", "tribe"),
+    ("prompt", "name", "clan", "agent_session", "tribe"),
     [
         ("%id(worker, bead=sase-1)\nWork", "worker", None, None, None),
         (
@@ -34,7 +34,7 @@ from sase.xprompt.directives import (
             None,
         ),
         (
-            "%id(reviewer, family=parent, bead=sase-1)\nWork",
+            "%id(reviewer, session=parent, bead=sase-1)\nWork",
             None,
             None,
             "parent",
@@ -53,7 +53,7 @@ def test_id_bead_combines_with_every_identity_form(
     prompt: str,
     name: str | None,
     clan: str | None,
-    family: str | None,
+    agent_session: str | None,
     tribe: str | None,
 ) -> None:
     cleaned, directives = extract_prompt_directives(prompt)
@@ -62,7 +62,7 @@ def test_id_bead_combines_with_every_identity_form(
     assert directives.name == name
     assert directives.bead_id == "sase-1"
     assert directives.clan == clan
-    assert directives.agent_session_attach_parent == family
+    assert directives.agent_session_attach_parent == agent_session
     assert directives.tribe == tribe
 
 
@@ -90,7 +90,7 @@ def test_id_bead_expands_xprompt_reference() -> None:
         ("%id(worker, bead=)", "non-empty, whitespace-free"),
         ("%id(worker, bead=`sase 1`)", "non-empty, whitespace-free"),
         ("%id(worker, bead=a, bead=b)", "Duplicate keyword argument 'bead'"),
-        ("%id(worker, unknown=value)", "Only bead=, clan=, family=, and tribe="),
+        ("%id(worker, unknown=value)", "Only bead=, clan=, session=, and tribe="),
     ],
 )
 def test_id_bead_reports_targeted_argument_errors(prompt: str, message: str) -> None:
@@ -131,7 +131,7 @@ def test_id_bead_survives_fanout_repeat_retry_and_forced_reuse() -> None:
     )
     assert (
         rewrite_retry_prompt_name(
-            "%id(reviewer, family=worker, bead=sase-1)\nWork", "worker--reviewer.r0"
+            "%id(reviewer, session=worker, bead=sase-1)\nWork", "worker--reviewer.r0"
         )
         == "%id(worker--reviewer.r0, bead=sase-1)\nWork"
     )

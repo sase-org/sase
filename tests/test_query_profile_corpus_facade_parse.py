@@ -109,7 +109,7 @@ def test_flat_duration_pair_canonicalizes_through_rust_like_python() -> None:
         ("name:sase-r8.9.land", "name:sase-r8.9.land"),
         ("name:0b4", "name:0b4"),
         ("name:001--2", "name:001--2"),
-        ("family:research.12", "family:research.12"),
+        ("session:research.12", "session:research.12"),
         ("min:5m", "min:300"),
         ("attempt:002", "attempt:2"),
         ("9lives", '"9lives"'),

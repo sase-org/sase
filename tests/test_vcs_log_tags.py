@@ -88,7 +88,7 @@ def test_linked_plan_displays_label_and_hides_definition_from_body() -> None:
 
 
 def test_linked_lane_agent_tag_displays_the_lane_label() -> None:
-    """A family member's commit shows its lane, linked to the family page."""
+    """A session member's commit shows its lane, linked to the agent-session page."""
     view = commit_tag_view(
         _commit(
             "body text\n\nSASE_AGENT=[bbugyi200.athena.pc][1]\n\n"

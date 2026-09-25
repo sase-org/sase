@@ -256,7 +256,7 @@ def test_env_payload_wins_over_preserved_metadata(
 def test_preserved_clan_without_directive_does_not_fabricate_plan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Family-attach continuations must not get a plan without %clan."""
+    """Agent-session-attach continuations must not get a plan without %clan."""
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     monkeypatch.delenv(CLAN_MEMBERSHIP_ENV, raising=False)

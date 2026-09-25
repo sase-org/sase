@@ -361,7 +361,7 @@ class TestDeferredWorkspacePreparation:
                     project_file,
                     "test-project",
                     "test-workflow",
-                    "family-child",
+                    "session-child",
                     "20260818_130000",
                 )
 
@@ -410,7 +410,7 @@ class TestDeferredWorkspacePreparation:
                     str(tmp_path / "project.sase"),
                     "test-project",
                     "test-workflow",
-                    "family-child",
+                    "session-child",
                     "20260818_130000",
                 )
 

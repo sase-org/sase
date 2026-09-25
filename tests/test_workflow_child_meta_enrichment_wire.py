@@ -32,7 +32,7 @@ def _workflow_step(
         project_file="/tmp/p.sase",
         status=status,
         start_time=datetime(2026, 5, 19, 9, 0, 0),
-        parent_workflow="agent-family",
+        parent_workflow="agent-session",
         parent_timestamp="20260519090000",
         step_type=step_type,
         step_index=0,

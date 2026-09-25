@@ -70,6 +70,7 @@ def _settled_result(*, target: str, operation_id: str, agent_id: str) -> Any:
                 "project_id": "gh_sase-org__sase",
             },
             "agent_id": agent_id,
+            # legacy agent-family spelling: core key
             "family_id": None,
         },
         "instance_locator": {"run_id": "run-1"},
@@ -134,11 +135,11 @@ def test_typed_plan_keeps_distinct_workspace_refs() -> None:
     assert plan.selected_project == "sase"
 
 
-def test_family_attach_does_not_inherit_plan_project_as_unit_ref() -> None:
+def test_agent_session_attach_does_not_inherit_plan_project_as_unit_ref() -> None:
     pytest.importorskip("sase_core_rs")
     with override_flags(typed_launch_units=True):
         plan = plan_typed_launch_units(
-            "%id(reviewer, family=parent)\nReview",
+            "%id(reviewer, session=parent)\nReview",
             selected_project="sase",
         )
     agent = plan.units[0].payload

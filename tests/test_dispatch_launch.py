@@ -101,6 +101,7 @@ def test_dispatch_launch_submits_portable_request_and_records_follow(
                                         "project_id": "sase",
                                     },
                                     "agent_id": request["intent"]["name"],
+                                    # legacy agent-family spelling: core key
                                     "family_id": None,
                                 },
                                 "instance_locator": None,
@@ -185,6 +186,7 @@ def test_dispatch_launch_does_not_inject_name_when_prompt_has_id(
                                         "project_id": "sase",
                                     },
                                     "agent_id": "observer",
+                                    # legacy agent-family spelling: core key
                                     "family_id": None,
                                 },
                                 "instance_locator": None,
@@ -300,6 +302,7 @@ def test_launch_lost_reply_reconciles_under_the_same_key(
                                         "project_id": "sase",
                                     },
                                     "agent_id": request["intent"]["name"],
+                                    # legacy agent-family spelling: core key
                                     "family_id": None,
                                 },
                                 "instance_locator": None,

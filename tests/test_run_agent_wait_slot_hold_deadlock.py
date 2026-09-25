@@ -16,6 +16,10 @@ from sase.xprompt.hold_directive import HoldFields, hold_fields_to_selectors
 
 pytest.importorskip("sase_core_rs")
 
+# legacy agent-family spelling: sase-core's hold selectors still key the agent
+# session names under ``families``.
+_LEGACY_AGENT_FAMILY_SELECTORS_KEY = "families"
+
 
 def _record(
     artifact_dir: str,
@@ -25,7 +29,7 @@ def _record(
     has_done_marker: bool = False,
     waiting_for: list[str] | None = None,
     wait_for_hoods: list[str] | None = None,
-    family: str | None = None,
+    agent_session: str | None = None,
     clan: str | None = None,
     workflow: str | None = None,
     tribe: str | None = None,
@@ -46,7 +50,7 @@ def _record(
         timestamp=artifact_dir.rsplit("/", 1)[-1],
         agent_meta=AgentMetaWire(
             name=agent_name,
-            agent_session=family,
+            agent_session=agent_session,
             agent_clan=clan,
             workflow_name=workflow,
             tribe=tribe,
@@ -201,7 +205,7 @@ def test_hood_mediated_cycle_uses_wait_for_hoods() -> None:
         _record(
             "/proj/artifacts/ace-run/20260910120000",
             agent_name="research.worker--code",
-            family="research.worker",
+            agent_session="research.worker",
         ),
         armer_record,
         _record(
@@ -218,7 +222,7 @@ def test_hood_mediated_cycle_uses_wait_for_hoods() -> None:
         candidate={
             "artifact_dir": "/proj/artifacts/ace-run/20260910120000",
             "agent_name": "research.worker--code",
-            "family": "research.worker",
+            "agent_session": "research.worker",
             "timestamp": "20260910120000",
         },
     )
@@ -320,14 +324,14 @@ def test_settled_branch_is_not_a_mutual_block() -> None:
     assert result is None
 
 
-def test_family_wait_name_matches_role_suffixed_candidate() -> None:
+def test_agent_session_wait_name_matches_role_suffixed_candidate() -> None:
     armer_dir = "/proj/artifacts/ace-run/20260910120001"
     armer_record = _record(armer_dir, agent_name="armer.agent", waiting_for=["team"])
     records = [
         _record(
             "/proj/artifacts/ace-run/20260910120000",
             agent_name="team--code",
-            family="team",
+            agent_session="team",
         ),
         armer_record,
     ]
@@ -338,7 +342,7 @@ def test_family_wait_name_matches_role_suffixed_candidate() -> None:
         records=records,
         candidate={
             "agent_name": "team--code",
-            "family": "team",
+            "agent_session": "team",
             "timestamp": "20260910120000",
         },
     )
@@ -346,11 +350,11 @@ def test_family_wait_name_matches_role_suffixed_candidate() -> None:
     assert result is armer_record
 
 
-def test_cli_and_directive_holds_exercise_family_identity() -> None:
+def test_cli_and_directive_holds_exercise_agent_session_identity() -> None:
     cli_selectors = _hold_selectors_wire(names=["team"])
     directive_selectors = hold_fields_to_selectors(HoldFields(names=("team",)))
-    assert cli_selectors["families"] == ["team"]
-    assert directive_selectors["families"] == ["team"]
+    assert cli_selectors[_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
+    assert directive_selectors[_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
 
     armer_dir = "/proj/artifacts/ace-run/20260910120001"
     armer_record = _record(armer_dir, agent_name="armer.agent", waiting_for=["team"])
@@ -358,7 +362,7 @@ def test_cli_and_directive_holds_exercise_family_identity() -> None:
         _record(
             "/proj/artifacts/ace-run/20260910120000",
             agent_name="team--code",
-            family="team",
+            agent_session="team",
         ),
         armer_record,
     ]
@@ -398,20 +402,20 @@ def test_cli_and_directive_holds_exercise_family_identity() -> None:
         candidate_agent_name="team--code",
         active_holds=[cli_hold],
         records=records,
-        candidate={"agent_name": "team--code", "family": "team"},
+        candidate={"agent_name": "team--code", "agent_session": "team"},
     )
     directive_result = hold_deadlock_armer_record(
         held_by="agent:armer.agent",
         candidate_agent_name="team--code",
         active_holds=[directive_hold],
         records=records,
-        candidate={"agent_name": "team--code", "family": "team"},
+        candidate={"agent_name": "team--code", "agent_session": "team"},
     )
 
     assert cli_result is armer_record
     assert directive_result is armer_record
-    assert cli_hold["selectors"]["families"] == ["team"]
-    assert directive_hold["selectors"]["families"] == ["team"]
+    assert cli_hold["selectors"][_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
+    assert directive_hold["selectors"][_LEGACY_AGENT_FAMILY_SELECTORS_KEY] == ["team"]
 
 
 def test_hood_cutoff_ignores_members_launched_after_the_waiter() -> None:
@@ -420,7 +424,7 @@ def test_hood_cutoff_ignores_members_launched_after_the_waiter() -> None:
         _record(
             "/proj/artifacts/ace-run/20260910120002",
             agent_name="research.worker--code",
-            family="research.worker",
+            agent_session="research.worker",
         ),
         _record(
             armer_dir,
@@ -437,7 +441,7 @@ def test_hood_cutoff_ignores_members_launched_after_the_waiter() -> None:
         candidate={
             "artifact_dir": "/proj/artifacts/ace-run/20260910120002",
             "agent_name": "research.worker--code",
-            "family": "research.worker",
+            "agent_session": "research.worker",
             "timestamp": "20260910120002",
         },
     )

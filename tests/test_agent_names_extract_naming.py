@@ -452,7 +452,7 @@ class TestExtractDirectivesImplicitForkWait:
             result["info"].wait_fork_sources
         )
 
-    def test_family_fork_records_root_identity(
+    def test_agent_session_fork_records_root_identity(
         self, tmp_path: Path, monkeypatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
@@ -482,7 +482,7 @@ class TestExtractDirectivesImplicitForkWait:
             }
         ]
 
-    def test_dotted_numeric_family_fork_records_root_identity(
+    def test_dotted_numeric_agent_session_fork_records_root_identity(
         self, tmp_path: Path, monkeypatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))

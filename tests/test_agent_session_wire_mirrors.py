@@ -341,19 +341,21 @@ def _fleet_locator(session_key: str) -> dict[str, Any]:
             "project_id": "sase-main",
         },
         "agent_id": "agent-1",
-        session_key: "family-1",
+        session_key: "session-1",
     }
 
 
 def test_fleet_locator_wire_emits_new_and_matches_core_key() -> None:
     """Legacy and new locator inputs normalize to one core-accepted shape."""
+    # legacy agent-family spelling: pre-rename locators carry ``family_id``
     legacy = _locator_wire(_fleet_locator("family_id"))
     new = _locator_wire(_fleet_locator("agent_session_id"))
     assert legacy == new
-    assert legacy is not None and legacy["agent_session_id"] == "family-1"
+    assert legacy is not None and legacy["agent_session_id"] == "session-1"
     assert "family_id" not in legacy
     key = require_rust_binding("fleet_logical_locator_key")(legacy)
-    assert "|family:8:family-1|" in key
+    # legacy agent-family spelling: core still keys the locator as ``family:``
+    assert "|family:9:session-1|" in key
 
 
 def _launch_plan_with_attach(parent_key: str, suffix_key: str) -> dict[str, Any]:
@@ -381,6 +383,7 @@ def _launch_plan_with_attach(parent_key: str, suffix_key: str) -> dict[str, Any]
 
 def test_launch_agent_unit_hydrates_either_attach_spelling() -> None:
     """Core-returned (legacy) and Python-built (new) launch units match."""
+    # legacy agent-family spelling: core still returns the ``family_attach_*`` keys
     legacy = launch_plan_from_dict(
         _launch_plan_with_attach("family_attach_parent", "family_attach_suffix")
     )
@@ -429,4 +432,5 @@ def test_launch_unit_real_round_trip_accepts_new_attach_spelling() -> None:
         payload, "req-attach", "sase", 4242, "/tmp/done.json"
     )
     assert armer["agent_name"] == "parent--reviewer"
+    # legacy agent-family spelling: the core armer struct still names it ``family``
     assert armer["family"] == "parent"

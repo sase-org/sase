@@ -6,7 +6,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
 
-def _question_continuation_family_root() -> tuple[Agent, Agent]:
+def _question_continuation_agent_session_root() -> tuple[Agent, Agent]:
     root_start = datetime(2026, 6, 30, 0, 0, 0)
     first_question_time = datetime(2026, 6, 30, 0, 3, 0)
     parent = Agent(
@@ -79,7 +79,7 @@ def test_apply_status_overrides_answered_question_continuation_asker() -> None:
     was owned by the retired synthetic planner path.
     """
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
-    parent, root_asker = _question_continuation_family_root()
+    parent, root_asker = _question_continuation_agent_session_root()
     first_continuation = _question_continuation(
         parent,
         raw_suffix="20260630001000",
@@ -114,7 +114,7 @@ def test_apply_status_overrides_question_continuation_before_answer_without_gate
 ):
     """A completed continuation without a gate no longer reconstructs QUESTION."""
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
-    parent, root_asker = _question_continuation_family_root()
+    parent, root_asker = _question_continuation_agent_session_root()
     first_continuation = _question_continuation(
         parent,
         raw_suffix="20260630001000",
@@ -131,7 +131,7 @@ def test_apply_status_overrides_question_continuation_before_answer_without_gate
 def test_apply_status_overrides_final_question_continuation_stays_done() -> None:
     """The final answered continuation stays DONE when no newer sibling exists."""
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
-    parent, root_asker = _question_continuation_family_root()
+    parent, root_asker = _question_continuation_agent_session_root()
     first_continuation = _question_continuation(
         parent,
         raw_suffix="20260630001000",
@@ -162,7 +162,7 @@ def test_apply_status_overrides_deep_question_continuation_chain() -> None:
     """Each handed-off continuation is ANSWERED in a deeper question chain."""
     second_question_time = datetime(2026, 6, 30, 0, 12, 0)
     third_question_time = datetime(2026, 6, 30, 0, 18, 0)
-    parent, root_asker = _question_continuation_family_root()
+    parent, root_asker = _question_continuation_agent_session_root()
     first_continuation = _question_continuation(
         parent,
         raw_suffix="20260630001000",
@@ -198,7 +198,7 @@ def test_apply_status_overrides_deep_question_continuation_chain() -> None:
     assert active_continuation.status == "RUNNING"
 
 
-def _question_continuation_planner_family(
+def _question_continuation_planner_agent_session(
     *,
     plan_action: str = "tale",
 ) -> tuple[Agent, Agent, Agent]:
@@ -252,9 +252,9 @@ def _question_continuation_planner_family(
     return parent, continuation_planner, coder
 
 
-def test_apply_status_overrides_question_continuation_planner_family() -> None:
+def test_apply_status_overrides_question_continuation_planner_agent_session() -> None:
     """A question continuation that approved a tale plan keeps each row's own state."""
-    parent, continuation_planner, coder = _question_continuation_planner_family()
+    parent, continuation_planner, coder = _question_continuation_planner_agent_session()
     agents = [parent, continuation_planner, coder]
 
     _apply_status_overrides(agents)
@@ -266,7 +266,7 @@ def test_apply_status_overrides_question_continuation_planner_family() -> None:
 
 def test_apply_status_overrides_question_continuation_planner_approve_action() -> None:
     """A question continuation with approve action becomes PLAN APPROVED."""
-    parent, continuation_planner, coder = _question_continuation_planner_family(
+    parent, continuation_planner, coder = _question_continuation_planner_agent_session(
         plan_action="approve"
     )
     agents = [parent, continuation_planner, coder]

@@ -120,7 +120,7 @@ def test_prepare_kill_and_edit_prompt_family_root_keeps_clan() -> None:
         is_agent_session_root=True,
     )
     assert rewritten == _EPIC_ROOT_RELAUNCH
-    assert "family=" not in rewritten
+    assert "session=" not in rewritten
     assert "%clan" not in rewritten
 
 
@@ -144,7 +144,7 @@ def test_prepare_kill_and_edit_prompt_plain_family_root_keeps_prompt() -> None:
         is_agent_session_root=True,
     )
     assert rewritten == "#gh:gh_sase-org__sase #plan"
-    assert "family=" not in rewritten
+    assert "session=" not in rewritten
 
 
 def test_prepare_kill_and_edit_prompt_keeps_prompt_without_identity() -> None:
@@ -171,7 +171,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
                 "agent_session_name": "sase-8u.4.2",
                 "role_suffix": "--code",
             },
-            "%id(!code, family=sase-8u.4.2)\n%auto\nDo work",
+            "%id(!code, session=sase-8u.4.2)\n%auto\nDo work",
         ),
         (
             "Do work",
@@ -181,7 +181,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
                 "role_suffix": "--code",
                 "phase_bead_id": "sase-8u.4.2",
             },
-            "%id(!code, family=sase-8u.4.2, bead=sase-8u.4.2)\nDo work",
+            "%id(!code, session=sase-8u.4.2, bead=sase-8u.4.2)\nDo work",
         ),
         (
             "%id(worker, clan=research, bead=kept)\nDo work",
@@ -191,7 +191,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
                 "role_suffix": "--reviewer",
                 "phase_bead_id": "ignored",
             },
-            "%id(!reviewer, family=research.worker, bead=kept)\nDo work",
+            "%id(!reviewer, session=research.worker, bead=kept)\nDo work",
         ),
         (
             "%clan(research, tribe=review)\n%id:research.worker\nDo work",
@@ -200,7 +200,7 @@ def test_prepare_kill_and_edit_prompt_refuses_self_attaching_family() -> None:
                 "agent_session_name": "research.worker",
                 "role_suffix": "--commit",
             },
-            "%id(!commit, family=research.worker)\nDo work",
+            "%id(!commit, session=research.worker)\nDo work",
         ),
     ],
 )

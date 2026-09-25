@@ -296,11 +296,11 @@ def test_dismiss_persistence_false_index_sync_notifies_and_refreshes(tmp_path) -
     ) in app.notifications
 
 
-def test_normal_dismiss_reconciles_unloaded_family_members_after_root_delete(
+def test_normal_dismiss_reconciles_unloaded_agent_session_members_after_root_delete(
     tmp_path: Path,
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
-    """Dismiss sync finds dead family members that were not loaded in the TUI."""
+    """Dismiss sync finds dead agent-session members that were not loaded in the TUI."""
     from sase.core.agent_scan_facade import rebuild_agent_artifact_index
 
     sase_home = tmp_path / "sase-home"

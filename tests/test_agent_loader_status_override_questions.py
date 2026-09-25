@@ -71,10 +71,10 @@ def test_apply_status_overrides_done_with_recorded_question_response_stays_done(
     assert agent.status == "DONE"
 
 
-def test_apply_status_overrides_planner_child_with_answered_family_followup_is_done() -> (
+def test_apply_status_overrides_planner_child_with_answered_agent_session_followup_is_done() -> (
     None
 ):
-    """A later family follow-up proves the planner question was answered."""
+    """A later agent-session follow-up proves the planner question was answered."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",
@@ -127,8 +127,8 @@ def test_apply_status_overrides_planner_child_with_answered_family_followup_is_d
     assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_answered_question_only_family_is_done() -> None:
-    """An answered question-only family shows DONE with an ANSWERED asker row."""
+def test_apply_status_overrides_answered_question_only_agent_session_is_done() -> None:
+    """An answered question-only agent session shows DONE with an ANSWERED asker row."""
     question_time = datetime(2026, 6, 19, 15, 46, 14, 861080)
     parent = Agent(
         agent_type=AgentType.WORKFLOW,

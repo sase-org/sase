@@ -91,7 +91,7 @@ def test_epic_kind_refuses_with_bead_work_hint(tmp_path: Path, monkeypatch) -> N
     assert any("sase bead work" in hint for hint in outcome.hints)
 
 
-def test_family_placement_via_attach(tmp_path: Path, monkeypatch) -> None:
+def test_agent_session_placement_via_attach(tmp_path: Path, monkeypatch) -> None:
     from sase.agent.agent_session_attach import AgentSessionAttachLaunchPlan
 
     content = VALID_TALE_PLAN.replace(
@@ -122,7 +122,7 @@ def test_family_placement_via_attach(tmp_path: Path, monkeypatch) -> None:
     ):
         outcome = resolve_direct_approval(_request(str(plan)))
     assert not isinstance(outcome, (DirectApprovalRefusal, type(None)))
-    assert outcome.placement.mode == "family"
+    assert outcome.placement.mode == "session"
     assert outcome.placement.member_name == "bob--code"
     assert "%id(code, session=bob)" in outcome.coder_prompt_preview
 
@@ -173,7 +173,7 @@ def test_attach_error_falls_back_standalone(tmp_path: Path, monkeypatch) -> None
     with patch(
         "sase.agent.agent_session_attach.resolve_agent_session_attach_plan",
         side_effect=AgentSessionAttachError(
-            "Cannot attach session member to 'bob': no such family"
+            "Cannot attach session member to 'bob': no such agent session"
         ),
     ):
         outcome = resolve_direct_approval(_request(str(plan)))
@@ -210,8 +210,8 @@ def test_compose_coder_prompt_quoting_and_bead() -> None:
     assert "Additional instructions:\nbe quick" in prompt
 
 
-def test_compose_coder_prompt_family() -> None:
-    placement = CoderPlacement(mode="family", parent="bob", family="bob")
+def test_compose_coder_prompt_agent_session() -> None:
+    placement = CoderPlacement(mode="session", parent="bob", agent_session="bob")
     prompt = compose_coder_prompt(
         project_tag="+sase",
         model_directive="@small",
@@ -230,7 +230,7 @@ def test_compose_coder_prompt_session_directive_parses_without_legacy_syntax() -
     from sase.feature_flags import override_flags
     from sase.xprompt.directives import extract_prompt_directives
 
-    placement = CoderPlacement(mode="family", parent="bob", family="bob")
+    placement = CoderPlacement(mode="session", parent="bob", agent_session="bob")
     prompt = compose_coder_prompt(
         project_tag="+sase",
         model_directive="@small",

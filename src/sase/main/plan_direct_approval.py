@@ -8,7 +8,7 @@ from typing import Literal
 
 DirectApprovalKind = Literal["tale", "commit", "approve", "epic"]
 DirectApprovalLocation = Literal["scratch", "proposal", "committed"]
-PlacementMode = Literal["family", "standalone"]
+PlacementMode = Literal["session", "standalone"]
 RetiredGateState = Literal["orphaned", "expired"]
 
 
@@ -29,7 +29,7 @@ class CoderPlacement:
     mode: PlacementMode
     parent: str | None = None
     member_name: str | None = None
-    family: str | None = None
+    agent_session: str | None = None
     reason: str | None = None
     planner_artifacts_dir: str | None = None
 
@@ -224,7 +224,7 @@ def compose_coder_prompt(
     argument = plan_argument.strip()
     if _needs_quoting(argument):
         argument = f'"{escape_for_xprompt(argument)}"'
-    if placement.mode == "family" and placement.parent:
+    if placement.mode == "session" and placement.parent:
         id_part = f"%id(code, session={placement.parent})"
     elif bead:
         id_part = f"%id(bead={bead})"
@@ -538,7 +538,7 @@ def _resolve_placement(
         return CoderPlacement(
             mode="standalone",
             parent=planner,
-            reason="agent family lookup is unavailable",
+            reason="agent session lookup is unavailable",
             planner_artifacts_dir=planner_artifacts_dir,
         )
     try:
@@ -559,7 +559,7 @@ def _resolve_placement(
         return CoderPlacement(
             mode="standalone",
             parent=planner,
-            reason=str(exc) or "agent family lookup failed",
+            reason=str(exc) or "agent session lookup failed",
             planner_artifacts_dir=planner_artifacts_dir,
         )
     if attach.parent_is_running:
@@ -572,10 +572,10 @@ def _resolve_placement(
             hints=("sase plan list",),
         )
     return CoderPlacement(
-        mode="family",
+        mode="session",
         parent=planner,
         member_name=attach.agent_name,
-        family=attach.parent_base,
+        agent_session=attach.parent_base,
         planner_artifacts_dir=planner_artifacts_dir or attach.parent_artifacts_dir,
     )
 
@@ -598,7 +598,7 @@ def _strip_attach_prefix(message: str) -> str:
     stripped = re.sub(
         r"^Cannot attach session member to '[^']*':\s*", "", message.strip()
     )
-    return stripped or message.strip() or "agent family lookup failed"
+    return stripped or message.strip() or "agent session lookup failed"
 
 
 def _resolve_model_directive(

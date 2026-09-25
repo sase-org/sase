@@ -22,11 +22,11 @@ def _empty_editor_helper_bead_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
 _EPIC_PLAN = """\
 ---
 tier: epic
-title: Plan-aware agent-family completion previews
-goal: Agent-family completion entries lead with the tale or epic they belong to.
+title: Plan-aware agent-session completion previews
+goal: Agent-session completion entries lead with the tale or epic they belong to.
 phases:
   - id: preview
-    title: Shared family plan-preview value and TUI resolution cache
+    title: Shared agent-session plan-preview value and TUI resolution cache
     depends_on: []
     description: "preview: add the surface-neutral value."
     size: medium
@@ -151,17 +151,17 @@ def test_editor_helper_agent_session_catalog_epic_detail_and_documentation(
 
     agent_session = by_target[("session", "previewers")]
     assert agent_session["detail"] == (
-        "epic · 2 phases · 2 waves · Plan-aware agent-family completion previews"
+        "epic · 2 phases · 2 waves · Plan-aware agent-session completion previews"
     )
     documentation = str(agent_session["documentation"])
     assert documentation.startswith("**Epic** · 2 phases · 2 waves")
-    assert "## Plan-aware agent-family completion previews" in documentation
+    assert "## Plan-aware agent-session completion previews" in documentation
     assert (
-        "Agent-family completion entries lead with the tale or epic they belong to."
+        "Agent-session completion entries lead with the tale or epic they belong to."
         in documentation
     )
     assert (
-        "- `preview` — Shared family plan-preview value and TUI resolution cache "
+        "- `preview` — Shared agent-session plan-preview value and TUI resolution cache "
         "(medium)" in documentation
     )
     assert documentation.endswith("session · 1 member · DONE")
@@ -197,7 +197,7 @@ def test_editor_helper_agent_session_catalog_phase_and_task_beads(
     issues = {
         "sase-n9": Issue(
             id="sase-n9",
-            title="Plan-aware agent-family completion previews",
+            title="Plan-aware agent-session completion previews",
             issue_type=IssueType.PLAN,
         ),
         "sase-n9.2": Issue(
@@ -235,7 +235,7 @@ def test_editor_helper_agent_session_catalog_phase_and_task_beads(
     assert phase["detail"] == (
         "phase · Prompt-input completion rows and panel subtitle"
     )
-    assert "_Part of Plan-aware agent-family completion previews_" in str(
+    assert "_Part of Plan-aware agent-session completion previews_" in str(
         phase["documentation"]
     )
     assert by_target[("session", "fixers")]["detail"] == (
@@ -465,4 +465,5 @@ def test_editor_helper_agent_session_catalog_emits_session_kind_and_keys(
     entry = by_target[("session", "crews")]
     assert entry["kind"] == "session"
     assert entry["detail"] == "session · 1 member"
+    # legacy agent-family spelling: the retired "family" kind must stay absent.
     assert ("family", "crews") not in by_target

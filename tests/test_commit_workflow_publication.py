@@ -564,7 +564,7 @@ def test_publication_warning_names_drop_command_for_retired_backlog(
 
 
 @patch(_PROVIDER_TARGET)
-def test_family_member_commit_uses_metadata_for_footer_and_publication(
+def test_agent_session_member_commit_uses_metadata_for_footer_and_publication(
     mock_get: MagicMock,
     artifacts_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

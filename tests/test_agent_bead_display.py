@@ -22,7 +22,7 @@ def test_land_suffix_requires_bead_shaped_epic_name() -> None:
     assert derive_agent_bead_id_from_name("aij.land") is None
 
 
-def test_family_member_name_derives_base_bead_id() -> None:
+def test_agent_session_member_name_derives_base_bead_id() -> None:
     assert derive_agent_bead_id_from_name("sase-x.3--reviewer") == "sase-x.3"
     assert derive_agent_bead_id_from_name("sase-x--plan-0") == "sase-x"
 

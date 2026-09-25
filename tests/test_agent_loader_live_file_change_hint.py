@@ -503,7 +503,7 @@ def test_opened_workspace_record_only_is_eligible_for_live_hint(
     assert provider.linked_has_changes_calls == [str(linked)]
 
 
-def test_root_plan_uses_family_opened_workspace_records(
+def test_root_plan_uses_agent_session_opened_workspace_records(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

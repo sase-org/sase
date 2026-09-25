@@ -1,8 +1,8 @@
 ---
 name: sase_pipe
 description: >-
-  Hand this agent's turn to a fresh successor in the same agent family: this turn ends
-  and the next family member starts immediately with the prompt you write, in the same
+  Hand this agent's turn to a fresh successor in the same agent session: this turn ends
+  and the next session member starts immediately with the prompt you write, in the same
   workspace, optionally on a different model or with a clean context window. Use ONLY
   when the user explicitly asks you to pipe or hand off work to another agent. Not for
   running or waiting on a command (`/sase_monitor`), and not for launching helper agents
@@ -48,8 +48,8 @@ Do not pipe for:
 - `-j, --json` — print a machine-readable hand-off summary instead of the rich one.
 - `-m, --model MODEL` — model or alias for the successor (`opus`, `opus@high`, `sonnet`,
   `codex/gpt-5`). Default: inherit this agent's model.
-- `-n, --name TOKEN` — successor role token: `review` yields `<family>--review`.
-  Default: the next free numbered family member.
+- `-n, --name TOKEN` — successor role token: `review` yields `<session>--review`.
+  Default: the next free numbered session member.
 - `-r, --reason TEXT` — one-line reason, recorded on the successor and shown in agent
   lists.
 

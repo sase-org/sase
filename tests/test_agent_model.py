@@ -162,7 +162,7 @@ def test_agent_optional_fields() -> None:
     assert agent.raw_suffix == "fix_hook-12345-251230_151429"
 
 
-def test_agent_child_linkage_classifies_roots_workflow_steps_and_family_members() -> (
+def test_agent_child_linkage_classifies_roots_workflow_steps_and_agent_session_members() -> (
     None
 ):
     root = Agent(
@@ -182,7 +182,7 @@ def test_agent_child_linkage_classifies_roots_workflow_steps_and_family_members(
         parent_timestamp="root-ts",
         step_type="agent",
     )
-    family_member = Agent(
+    agent_session_member = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="root--reviewer",
         project_file="/tmp/test.sase",
@@ -198,11 +198,11 @@ def test_agent_child_linkage_classifies_roots_workflow_steps_and_family_members(
     assert workflow_step.is_workflow_child
     assert workflow_step.is_workflow_step_child
     assert not workflow_step.is_family_member_child
-    assert family_member.child_linkage is AgentChildLinkage.FAMILY_MEMBER
-    assert family_member.is_child_row
-    assert family_member.is_workflow_child
-    assert not family_member.is_workflow_step_child
-    assert family_member.is_family_member_child
+    assert agent_session_member.child_linkage is AgentChildLinkage.FAMILY_MEMBER
+    assert agent_session_member.is_child_row
+    assert agent_session_member.is_workflow_child
+    assert not agent_session_member.is_workflow_step_child
+    assert agent_session_member.is_family_member_child
 
 
 # --- Hidden Step and Appears As Agent Tests ---

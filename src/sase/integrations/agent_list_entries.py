@@ -62,7 +62,7 @@ def agent_list_entries(
     """Return rich agent list entries for active and optionally recent agents."""
     agents = list_all_agents() if include_recent else list_running_agents()
     # The listing layer has already filtered to live roots plus slot-relevant
-    # family children and carries exact source-record occupancy. The status
+    # agent-session children and carries exact source-record occupancy. The status
     # fallback preserves compatibility for integrations that construct
     # RunningAgentInfo directly.
     runner_slot_holders = tuple(

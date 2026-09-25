@@ -310,7 +310,7 @@
           "fields": {
             "name": "sase-r8.9.land",
             "kind": ["agent"],
-            "family": "sase-r8.9",
+            "session": "sase-r8.9",
             "clan": "athena.sase-8t",
             "tribe": "epic",
             "role": "code",
@@ -338,11 +338,11 @@
           }
         },
         {
-          "stable_id": "agent-family-waiting",
+          "stable_id": "agent-session-waiting",
           "fields": {
             "name": "0b4",
-            "kind": ["family"],
-            "family": "0b4",
+            "kind": ["session"],
+            "session": "0b4",
             "clan": "athena.sase-8t",
             "tribe": "epic",
             "project": "sase",
@@ -360,7 +360,7 @@
             "until": 1787666400,
             "min": 7200,
             "max": 7200,
-            "label": "family container",
+            "label": "session container",
             "text": "waiting on input"
           }
         },
@@ -369,7 +369,7 @@
           "fields": {
             "name": "001--2",
             "kind": ["member", "workflow-child"],
-            "family": "001",
+            "session": "001",
             "role": "mon",
             "workflow": "cleanup",
             "project": "other",
@@ -398,7 +398,7 @@
           "fields": {
             "name": "research.12.cdx--plan-0",
             "kind": ["member", "workflow"],
-            "family": "research.12",
+            "session": "research.12",
             "clan": "research.12",
             "tribe": "research",
             "role": "plan",
@@ -435,13 +435,13 @@
           "canonical": "provider:codex AND status:FAILED AND since:1787068800",
           "matches": ["agent-dismissed-code"]
         },
-        "family:\"research.12\" AND NOT kind:workflow-child": {
-          "canonical": "family:research.12 AND NOT kind:workflow-child",
+        "session:\"research.12\" AND NOT kind:workflow-child": {
+          "canonical": "session:research.12 AND NOT kind:workflow-child",
           "matches": ["agent-workflow-member"]
         },
         "state:active AND (attention:true OR status:WAITING)": {
           "canonical": "state:active AND (attention:true OR status:WAITING)",
-          "matches": ["agent-family-waiting"]
+          "matches": ["agent-session-waiting"]
         },
         "retry:true AND model:\"gpt-5.6-sol\" AND min:5m": {
           "canonical": "retry:true AND model:gpt-5.6-sol AND min:300",
@@ -451,7 +451,7 @@
           "canonical": "since:1785556800 AND until:1788235199",
           "matches": [
             "agent-dismissed-code",
-            "agent-family-waiting",
+            "agent-session-waiting",
             "agent-workflow-member"
           ]
         },
@@ -463,7 +463,7 @@
           "canonical": "min:300 AND max:7200",
           "matches": [
             "agent-dismissed-code",
-            "agent-family-waiting",
+            "agent-session-waiting",
             "agent-workflow-member"
           ]
         },
@@ -471,13 +471,13 @@
           "canonical": "since:1774454400 AND min:300",
           "matches": [
             "agent-dismissed-code",
-            "agent-family-waiting",
+            "agent-session-waiting",
             "agent-workflow-member"
           ]
         },
         "name:0b4 OR name:001--2": {
           "canonical": "name:0b4 OR name:001--2",
-          "matches": ["agent-family-waiting", "agent-workflow-child"]
+          "matches": ["agent-session-waiting", "agent-workflow-child"]
         },
         "9lives": {
           "canonical": "\"9lives\"",
@@ -487,7 +487,7 @@
       "errors": {
         "kind:not-real": {
           "position": 0,
-          "message": "kind: value 'not-real' must be one of agent, member, family, clan, workflow, workflow-child (at position 0)"
+          "message": "kind: value 'not-real' must be one of agent, member, session, clan, workflow, workflow-child (at position 0)"
         },
         "revivable:yes": {
           "position": 0,
@@ -495,7 +495,7 @@
         },
         "unknown:value": {
           "position": 0,
-          "message": "Unknown filter key 'unknown' (valid keys: after, artifact, attempt, attention, before, clan, dismissed, durably_revivable, family, hidden, historically_viewable, kind, linked, max, min, model, name, parent, project, provider, relation, restartable, retry, revivable, role, since, state, status, tribe, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'unknown' (valid keys: after, artifact, attempt, attention, before, clan, dismissed, durably_revivable, hidden, historically_viewable, kind, linked, max, min, model, name, parent, project, provider, relation, restartable, retry, revivable, role, session, since, state, status, tribe, until, workflow) (at position 0)"
         }
       }
     },
@@ -506,7 +506,7 @@
           "fields": {
             "name": ["sase-zf.1--code", "sase-zf"],
             "kind": ["agent"],
-            "family": "sase-zf.1",
+            "session": "sase-zf.1",
             "clan": "athena.sase-zf",
             "project": ["gh_sase-org__sase", "sase"],
             "role": "code",
@@ -539,7 +539,7 @@
           "fields": {
             "name": "remote-run",
             "kind": ["workflow"],
-            "family": "research.12",
+            "session": "research.12",
             "project": ["remote-proj", "Remote Project"],
             "role": "plan",
             "workflow": "literature",
@@ -568,7 +568,7 @@
           "fields": {
             "name": "001--2",
             "kind": ["member", "workflow-child"],
-            "family": "001",
+            "session": "001",
             "project": "other",
             "role": "mon",
             "workflow": "cleanup",
@@ -598,7 +598,7 @@
           "fields": {
             "name": "handoff-plan",
             "kind": ["member"],
-            "family": "handoff",
+            "session": "handoff",
             "clan": "athena.sase-zf",
             "project": "sase",
             "role": "plan",
@@ -643,8 +643,8 @@
           "canonical": "provider:codex AND status:QUESTION",
           "matches": ["live-input-code"]
         },
-        "family:\"research.12\" AND NOT kind:workflow-child": {
-          "canonical": "family:research.12 AND NOT kind:workflow-child",
+        "session:\"research.12\" AND NOT kind:workflow-child": {
+          "canonical": "session:research.12 AND NOT kind:workflow-child",
           "matches": ["live-remote-running"]
         },
         "machine:apollo.local AND source:manual": {
@@ -687,11 +687,11 @@
       "errors": {
         "age:2h": {
           "position": 0,
-          "message": "Unknown filter key 'age' (valid keys: after, attempt, attention, before, cl, clan, family, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, since, source, status, tribe, unread, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'age' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tribe, unread, until, workflow) (at position 0)"
         },
         "type:run": {
           "position": 0,
-          "message": "Unknown filter key 'type' (valid keys: after, attempt, attention, before, cl, clan, family, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, since, source, status, tribe, unread, until, workflow) (at position 0)"
+          "message": "Unknown filter key 'type' (valid keys: after, attempt, attention, before, cl, clan, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, session, since, source, status, tribe, unread, until, workflow) (at position 0)"
         },
         "!!!": {
           "position": 0,

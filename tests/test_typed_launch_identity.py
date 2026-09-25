@@ -125,7 +125,7 @@ def test_legacy_agent_unit_json_defaults_to_plain_identity() -> None:
             },
         ),
         (
-            "%id(reviewer, family=parent)\nReview",
+            "%id(reviewer, session=parent)\nReview",
             {
                 "agent_session_attach_parent": "parent",
                 "agent_session_attach_suffix": "reviewer",

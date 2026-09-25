@@ -38,6 +38,7 @@ def _launch_armer(**overrides: object) -> dict[str, object]:
         "display": "planner (launch req1)",
         "project": "scratch",
         "agent_name": "planner",
+        # legacy agent-family spelling: core's hold wire still uses this key.
         "family": None,
         "clan": None,
         "pid": os.getpid(),
@@ -160,6 +161,7 @@ def test_launch_unit_armer_for_agent_unit_sets_identity() -> None:
     assert armer["kind"] == "launch"
     assert armer["key"] == "launch:req6/u1"
     assert armer["agent_name"] == "clanX.planner"
+    # legacy agent-family spelling: core's hold wire still uses this key.
     assert armer["family"] == "fam"
     assert armer["clan"] == "clanX"
     assert armer["pid"] == 4242
@@ -193,6 +195,7 @@ def test_launch_unit_armer_for_proc_unit_sets_no_identity() -> None:
     assert armer["kind"] == "launch"
     assert armer["key"] == "launch:req7/p1"
     assert armer["agent_name"] is None
+    # legacy agent-family spelling: core's hold wire still uses this key.
     assert armer["family"] is None
     assert armer["clan"] is None
     assert armer["display"].startswith("myshell")

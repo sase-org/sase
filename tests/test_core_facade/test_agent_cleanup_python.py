@@ -53,6 +53,10 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_workflow_parent_with_children,
 )
 
+# legacy agent-family spelling: byte-identical to the Rust planner's skip
+# reason until core-contract.
+_LEGACY_PARALLEL_STILL_ACTIVE_DETAIL = "parallel family still active"
+
 
 @pytest.mark.parametrize("scenario", _SCENARIOS)
 def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None:
@@ -87,8 +91,8 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
         assert plan.kill_items == ()
         assert plan.dismiss_items == ()
         assert any(
-            item.identity.cl_name == "family"
-            and item.detail == "parallel family still active"
+            item.identity.cl_name == "agent_session"
+            and item.detail == _LEGACY_PARALLEL_STILL_ACTIVE_DETAIL
             for item in plan.skipped_items
         )
     elif scenario is _scenario_workflow_parent_with_children:
@@ -586,7 +590,7 @@ def test_python_cleanup_planner_gates_parallel_root_dismissal_until_done() -> No
     assert active_plan.dismiss_items == ()
     assert any(
         item.identity.cl_name == "root"
-        and item.detail == "parallel family still active"
+        and item.detail == _LEGACY_PARALLEL_STILL_ACTIVE_DETAIL
         for item in active_plan.skipped_items
     )
 

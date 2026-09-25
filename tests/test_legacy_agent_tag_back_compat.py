@@ -1,8 +1,8 @@
 """Back-compat guard for member-name ``SASE_AGENT=`` commit footers.
 
-Commit provenance is anchored on the agent *lane*, so new footers spell a
-family member's commits with the family container's name and link the family
-page without a ``#member-<role>`` anchor.  History is never rewritten, though,
+Commit provenance is anchored on the agent *lane*, so new footers spell an
+agent session member's commits with the agent session container's name and
+link the agent session page without a ``#member-<role>`` anchor.  History is never rewritten, though,
 so every reader must keep understanding the member-anchored footer that
 commits made before that change still carry.
 

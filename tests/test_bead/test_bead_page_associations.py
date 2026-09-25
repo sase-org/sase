@@ -282,8 +282,8 @@ def test_legacy_member_tag_uses_recorded_destination_and_lane_commit_count(
         _history_entry(
             sha,
             10,
-            "legacy family work",
-            "legacy family work\n\n"
+            "legacy session work",
+            "legacy session work\n\n"
             f"SASE_BEAD={issue.id}\n"
             f"SASE_AGENT=[alice.athena.{issue.id}--code][agent]\n\n"
             f"[agent]: {destination}",

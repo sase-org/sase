@@ -264,7 +264,7 @@ def test_superseded_start_failed_monitor_member_resolves_waiter(
 ) -> None:
     """Reproduces the sase-zt.6.5.3 incident through the wait_checks chop.
 
-    A land agent's ``%w`` on a family whose newest generation contains a
+    A land agent's ``%w`` on an agent session whose newest generation contains a
     start-failed ``--mon`` (no follow-up) and a later ``--mon-0`` retry that
     handed off to a completed successor must get its ``ready.json`` written,
     instead of hanging on the superseded start failure forever.

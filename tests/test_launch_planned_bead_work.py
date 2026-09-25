@@ -549,7 +549,7 @@ def test_preplanned_one_slot_plans_spawn_each_segment_verbatim(
     from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 
     segments = [
-        "%id:phase\n%family(land, role=phase)\nwork one",
+        "%id:phase\n%session(land, role=phase)\nwork one",
         "%id:land\nwork two",
     ]
     plans = [plan_fake_fanout("multi_prompt", [segment]) for segment in segments]

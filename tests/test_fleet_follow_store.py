@@ -37,7 +37,7 @@ def _logical_locator(
     installation_id: str,
     *,
     agent_id: str = "agent-1",
-    family_id: str | None = "family-1",
+    agent_session_id: str | None = "agent-session-1",
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -47,7 +47,9 @@ def _logical_locator(
             "project_id": "sase-main",
         },
         "agent_id": agent_id,
-        "family_id": family_id,
+        # legacy agent-family spelling: core normalizes locators back to its
+        # ``family_id`` key, so round-trip equality needs the legacy key.
+        "family_id": agent_session_id,
     }
 
 
@@ -97,13 +99,15 @@ def _tombstone(logical_locator: dict[str, Any], timestamp: float) -> dict[str, A
     }
 
 
-def test_dispatch_follow_activation_family_promotion_and_legacy_tombstone_wins(
+def test_dispatch_follow_activation_agent_session_promotion_and_legacy_tombstone_wins(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    singleton = _logical_locator(_known_installation_id("a"), family_id=None)
-    family = _logical_locator(_known_installation_id("a"), family_id="family-1")
+    singleton = _logical_locator(_known_installation_id("a"), agent_session_id=None)
+    agent_session = _logical_locator(
+        _known_installation_id("a"), agent_session_id="agent-session-1"
+    )
 
     pending = prewrite_dispatch_follow(
         singleton,
@@ -120,20 +124,20 @@ def test_dispatch_follow_activation_family_promotion_and_legacy_tombstone_wins(
     assert activated.snapshot.records[0]["state"] == "active"
     assert activated.snapshot.records[0]["activated_at_unix"] == 21.0
 
-    promoted = promote_agent_session_follow(singleton, family, now_unix=22.0)
-    assert promoted.snapshot.records[0]["logical_locator"] == family
-    assert _is_followed(promoted.snapshot, family)
+    promoted = promote_agent_session_follow(singleton, agent_session, now_unix=22.0)
+    assert promoted.snapshot.records[0]["logical_locator"] == agent_session
+    assert _is_followed(promoted.snapshot, agent_session)
 
     path = _follow_store_path()
     legacy_tombstone_payload = {
         "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
         "records": [],
-        "tombstones": [_tombstone(family, 23.0)],
+        "tombstones": [_tombstone(agent_session, 23.0)],
     }
     path.write_text(json.dumps(legacy_tombstone_payload), encoding="utf-8")
 
     resurrected = prewrite_dispatch_follow(
-        family,
+        agent_session,
         _operation_key("op-2"),
         now_unix=24.0,
     )
@@ -163,7 +167,7 @@ def test_dispatch_follow_activation_family_promotion_and_legacy_tombstone_wins(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(stale_payload), encoding="utf-8")
 
-    reconciled = promote_agent_session_follow(singleton, family, now_unix=32.0)
+    reconciled = promote_agent_session_follow(singleton, agent_session, now_unix=32.0)
 
     assert reconciled.changed is True
     assert reconciled.snapshot.records == ()

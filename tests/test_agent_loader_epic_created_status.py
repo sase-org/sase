@@ -1,4 +1,4 @@
-"""Host-owned epic launch status regressions for plan-family rows."""
+"""Host-owned epic launch status regressions for plan agent-session rows."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def _concrete_planner(root: Agent) -> Agent:
         status="DONE",
         start_time=root.start_time,
         raw_suffix=root.raw_suffix,
-        parent_workflow="agent-family",
+        parent_workflow="agent-session",
         parent_timestamp=root.raw_suffix,
         step_type="agent",
         role_suffix="--plan",
@@ -53,7 +53,7 @@ def _concrete_planner(root: Agent) -> Agent:
     )
 
 
-def test_host_owned_epic_metadata_advances_concrete_planner_family() -> None:
+def test_host_owned_epic_metadata_advances_concrete_planner_agent_session() -> None:
     root = _root()
     planner = _concrete_planner(root)
 
@@ -70,7 +70,9 @@ def test_host_owned_epic_metadata_advances_concrete_planner_family() -> None:
     assert planner.epic_bead_id == "sase-64"
 
 
-def test_host_owned_epic_metadata_does_not_create_synthetic_planner_family() -> None:
+def test_host_owned_epic_metadata_does_not_create_synthetic_planner_agent_session() -> (
+    None
+):
     root = _root(status="DONE")
     agents = [root]
 
@@ -123,7 +125,7 @@ def test_host_epic_metadata_reload_crosses_real_artifact_loader_boundary(
                 "context": {"cl_name": "demo"},
                 "steps": [],
                 "current_step_index": 0,
-                "workflow_name": "agent-family",
+                "workflow_name": "agent-session",
                 "appears_as_agent": True,
             }
         ),

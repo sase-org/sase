@@ -1,4 +1,4 @@
-"""Regression replay for the one-workspace-per-family incident shape."""
+"""Regression replay for the one-workspace-per-agent-session incident shape."""
 
 from __future__ import annotations
 

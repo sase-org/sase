@@ -95,7 +95,7 @@ def test_resolve_wait_chat_paths_skips_agent_without_response_path(
         assert resolve_wait_chat_paths(["a", "b"]) == ["~/.sase/chats/a.md"]
 
 
-def test_resolve_wait_chat_paths_uses_latest_completed_family_member(
+def test_resolve_wait_chat_paths_uses_latest_completed_agent_session_member(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -104,29 +104,29 @@ def test_resolve_wait_chat_paths_uses_latest_completed_family_member(
         tmp_path,
         "proj",
         "20260506010101",
-        "family",
-        workflow_name="family",
-        agent_session="family",
+        "session",
+        workflow_name="session",
+        agent_session="session",
         role_suffix="-plan",
         done=True,
         outcome="completed",
-        response_path="~/.sase/chats/family-plan.md",
+        response_path="~/.sase/chats/session-plan.md",
     )
     make_agent(
         tmp_path,
         "proj",
         "20260506010202",
-        "family-code",
-        workflow_name="family",
-        agent_session="family",
+        "session-code",
+        workflow_name="session",
+        agent_session="session",
         role_suffix="-code",
         parent_timestamp="20260506010101",
         done=True,
         outcome="completed",
-        response_path="~/.sase/chats/family-code.md",
+        response_path="~/.sase/chats/session-code.md",
     )
 
-    assert resolve_wait_chat_paths(["family"]) == ["~/.sase/chats/family-code.md"]
+    assert resolve_wait_chat_paths(["session"]) == ["~/.sase/chats/session-code.md"]
 
 
 def test_resolve_wait_chat_paths_resolves_indexed_template(

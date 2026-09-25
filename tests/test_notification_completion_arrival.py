@@ -96,7 +96,9 @@ def _install_captures(app: _FakeApp) -> list[tuple[tuple[Path, ...], str]]:
     return scheduled
 
 
-def _family_dirs(sase_home: Path, root_ts: str, code_ts: str) -> tuple[Path, Path]:
+def _agent_session_dirs(
+    sase_home: Path, root_ts: str, code_ts: str
+) -> tuple[Path, Path]:
     root_dir = _ace_run_dir(sase_home, root_ts)
     code_dir = _ace_run_dir(sase_home, code_ts)
     _write_json(
@@ -151,7 +153,7 @@ def _family_dirs(sase_home: Path, root_ts: str, code_ts: str) -> tuple[Path, Pat
     return root_dir, code_dir
 
 
-def _family_agents(
+def _agent_session_agents(
     root_dir: Path, code_dir: Path, root_ts: str, code_ts: str
 ) -> tuple[Agent, Agent]:
     root = Agent(
@@ -238,15 +240,15 @@ class TestCompletionArrivalPoll:
         assert agent.status == "FAILED"
         assert agent.identity in app._unread_completed_agent_ids
 
-    def test_family_coder_finish_mirrors_root(
+    def test_agent_session_coder_finish_mirrors_root(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         sase_home = tmp_path / ".sase"
         monkeypatch.setenv("SASE_HOME", str(sase_home))
         root_ts = "20260924120000"
         code_ts = "20260924120010"
-        root_dir, code_dir = _family_dirs(sase_home, root_ts, code_ts)
-        root, coder = _family_agents(root_dir, code_dir, root_ts, code_ts)
+        root_dir, code_dir = _agent_session_dirs(sase_home, root_ts, code_ts)
+        root, coder = _agent_session_agents(root_dir, code_dir, root_ts, code_ts)
         from sase.ace.tui.models.agent_nodes import agent_node_projection_index
 
         index = agent_node_projection_index([root, coder])
@@ -264,14 +266,14 @@ class TestCompletionArrivalPoll:
         )
         with _patch_snapshot([notification]):
             asyncio.run(app._poll_agent_completions_once())
-        # The loader mirrors TALE DONE onto the family root.
+        # The loader mirrors TALE DONE onto the agent session root.
         assert root.status == "TALE DONE"
         assert root.identity in app._unread_completed_agent_ids
         assert len(scheduled) == 1
         dirs, _source = scheduled[0]
         assert set(dirs) == {root_dir, code_dir}
 
-    def test_family_with_other_member_in_flight_no_overlay(
+    def test_agent_session_with_other_member_in_flight_no_overlay(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         sase_home = tmp_path / ".sase"
@@ -279,7 +281,7 @@ class TestCompletionArrivalPoll:
         root_ts = "20260924120000"
         code_ts = "20260924120010"
         other_ts = "20260924120020"
-        root_dir, code_dir = _family_dirs(sase_home, root_ts, code_ts)
+        root_dir, code_dir = _agent_session_dirs(sase_home, root_ts, code_ts)
         other_dir = _ace_run_dir(sase_home, other_ts)
         _write_json(
             other_dir / "workflow_state.json",
@@ -304,7 +306,7 @@ class TestCompletionArrivalPoll:
                 "run_started_at": "2026-09-24T12:00:20Z",
             },
         )
-        root, coder = _family_agents(root_dir, code_dir, root_ts, code_ts)
+        root, coder = _agent_session_agents(root_dir, code_dir, root_ts, code_ts)
         other = Agent(
             agent_type=AgentType.RUNNING,
             cl_name="demo",
@@ -527,7 +529,7 @@ class TestArrivalPrepUnit:
             is False
         )
 
-        # Next load is authoritative: a new RUNNING family drops the overlay.
+        # Next load is authoritative: a new RUNNING agent session drops the overlay.
         newer = _standalone_agent(
             raw_suffix=ts, artifacts_dir=Path("/tmp/adir"), status="RUNNING"
         )

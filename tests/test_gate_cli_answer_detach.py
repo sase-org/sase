@@ -178,7 +178,7 @@ def test_gate_shell_defaults_to_detached(
 def test_gate_shell_no_detach_runs_inline_and_settles(
     gate_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Exercise the family-member glue with a stubbed scan lookup.
+    """Exercise the agent-session-member glue with a stubbed scan lookup.
 
     ``find_gate_shell_by_gate_id`` resolves through the Rust artifact-index
     scanner, which does not yet propagate ``gate_*`` fields (that lands in

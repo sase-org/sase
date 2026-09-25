@@ -544,6 +544,7 @@ def test_agent_search_legacy_family_terms_follow_the_flag(
     _patch_sources(monkeypatch, snapshot)
 
     with override_flags(legacy_agent_family_syntax=True):
+        # legacy agent-family spelling: the old query terms still resolve
         for query in (["family:research.12"], ["kind:family"]):
             code = handle_agents_search(
                 argparse.Namespace(json=True, limit=0, project=None, query=query)
@@ -553,6 +554,7 @@ def test_agent_search_legacy_family_terms_follow_the_flag(
             assert [row["name"] for row in payload] == ["research.12--code"]
 
     with override_flags(legacy_agent_family_syntax=False):
+        # legacy agent-family spelling: the old query terms are rejected
         for query in (["family:research.12"], ["kind:family"]):
             code = handle_agents_search(
                 argparse.Namespace(json=True, limit=0, project=None, query=query)

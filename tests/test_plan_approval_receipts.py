@@ -67,6 +67,62 @@ def test_receipt_delete_removes_it_and_tolerates_absence(
     delete_direct_approval_receipt(local_plan)
 
 
+def test_receipt_writes_agent_session_key_only(tmp_path: Path, monkeypatch) -> None:
+    import json
+
+    from tests._conftest_environment import redirect_sase_home
+
+    home = tmp_path / "sase-home"
+    redirect_sase_home(monkeypatch, home)
+    local_plan = home / "plans" / "202609" / "session.md"
+    local_plan.parent.mkdir(parents=True)
+    local_plan.write_text("x", encoding="utf-8")
+
+    path = write_direct_approval_receipt(
+        _receipt(local_plan, route="session", agent_session="bob")
+    )
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["agent_session"] == "bob"
+    assert "family" not in payload
+    loaded = read_direct_approval_receipt(local_plan)
+    assert loaded is not None
+    assert loaded.agent_session == "bob"
+
+
+def test_receipt_reads_legacy_family_key(tmp_path: Path, monkeypatch) -> None:
+    import json
+
+    from tests._conftest_environment import redirect_sase_home
+
+    home = tmp_path / "sase-home"
+    redirect_sase_home(monkeypatch, home)
+    local_plan = home / "plans" / "202609" / "legacy.md"
+    local_plan.parent.mkdir(parents=True)
+    local_plan.write_text("x", encoding="utf-8")
+    path = receipt_path_for(local_plan)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "plan_path": str(local_plan),
+                "action": "tale",
+                "approved_at": "2026-09-24T12:00:00+00:00",
+                # legacy agent-family spelling: pre-rename receipts carry
+                # ``family`` (and a ``family`` route) instead of ``agent_session``.
+                "route": "family",
+                "family": "bob",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = read_direct_approval_receipt(local_plan)
+
+    assert loaded is not None
+    assert loaded.agent_session == "bob"
+
+
 def test_receipt_missing_returns_none(tmp_path: Path, monkeypatch) -> None:
     from tests._conftest_environment import redirect_sase_home
 

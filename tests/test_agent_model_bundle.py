@@ -674,7 +674,7 @@ def test_old_bundle_synthesis_skips_workflow_children() -> None:
     assert restored.agent_name is None
 
 
-def test_bundle_loads_pre_rename_family_fields() -> None:
+def test_bundle_loads_legacy_pre_rename_fields() -> None:
     """Pre-rename dismissed bundles load through the legacy field table."""
     bundle = {
         "agent_type": AgentType.RUNNING.value,
@@ -683,6 +683,7 @@ def test_bundle_loads_pre_rename_family_fields() -> None:
         "status": "DONE",
         "start_time": datetime(2026, 1, 1, 12, 0, 0).isoformat(),
         "agent_name": "crew--code",
+        # legacy agent-family spelling: pre-rename bundle field names
         "agent_family": "crew",
         "agent_family_role": "code",
         "agent_family_parallel": False,
@@ -699,7 +700,7 @@ def test_bundle_loads_pre_rename_family_fields() -> None:
     assert restored_mixed.agent_session_role == "plan"
 
 
-def test_bundle_write_emits_no_legacy_family_fields() -> None:
+def test_bundle_write_emits_no_legacy_fields() -> None:
     """New dismissed bundles carry only agent_session* field names."""
     agent = Agent(
         agent_type=AgentType.RUNNING,

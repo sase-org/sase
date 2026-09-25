@@ -110,7 +110,7 @@ def test_agent_meta_queue_weight_round_trip() -> None:
     assert record.waiting.queue_weight_explicit is True
 
 
-def test_agent_meta_output_variables_round_trip() -> None:
+def test_agent_meta_output_variables_round_trip_with_legacy_parallel_meta() -> None:
     snapshot = agent_scan_wire_from_dict(
         {
             "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
@@ -127,6 +127,8 @@ def test_agent_meta_output_variables_round_trip() -> None:
                     "timestamp": "20260601010101",
                     "agent_meta": {
                         "name": "producer",
+                        # legacy agent-family spelling: pre-rename parallel
+                        # markers still hydrate as an agent clan.
                         "agent_family": "legacy_clan",
                         "agent_family_role": "phase",
                         "agent_family_parallel": True,
@@ -247,18 +249,18 @@ def test_agent_meta_clan_field_order_matches_rust_wire() -> None:
     ]
 
 
-def test_explicit_agent_clan_preserves_sequential_family_fields() -> None:
+def test_explicit_agent_clan_preserves_sequential_agent_session_fields() -> None:
     meta = AgentMetaWire(
         agent_clan="alpha",
         agent_clan_generation="g1",
         clan_tribe="quality",
-        agent_session="alpha.family",
+        agent_session="alpha.session",
         agent_session_role="code",
     )
     assert meta.agent_clan == "alpha"
     assert meta.agent_clan_generation == "g1"
     assert meta.clan_tribe == "quality"
-    assert meta.agent_session == "alpha.family"
+    assert meta.agent_session == "alpha.session"
     assert meta.agent_session_role == "code"
 
 
@@ -336,7 +338,7 @@ def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:
     ] == [True, False, None, None]
 
 
-def test_scan_wire_rehydration_does_not_mutate_source_payload() -> None:
+def test_scan_wire_rehydration_does_not_mutate_legacy_source_payload() -> None:
     payload = {
         "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
         "projects_root": "/tmp/projects",
@@ -354,6 +356,7 @@ def test_scan_wire_rehydration_does_not_mutate_source_payload() -> None:
                     "cl_name": "patch-a",
                     "wait_runners": 2,
                     "wait_runners_explicit": True,
+                    # legacy agent-family spelling: pre-rename parallel marker.
                     "agent_family": "clan-a",
                     "agent_family_role": "phase",
                     "agent_family_parallel": True,

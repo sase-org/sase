@@ -37,7 +37,7 @@ def _agent(
 
 
 def test_wait_on_hood_requires_every_current_member(tmp_path: Path) -> None:
-    _agent(tmp_path, "20260717010101", "research.family", done=True)
+    _agent(tmp_path, "20260717010101", "research.agent_session", done=True)
     unfinished = _agent(
         tmp_path,
         "20260717010202",

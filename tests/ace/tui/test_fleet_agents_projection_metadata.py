@@ -82,7 +82,7 @@ def test_project_fleet_agents_carries_remote_family_lineage_into_agent_rows() ->
     entry = agent_live_query_entry(child_row)
     assert entry["fields"]["kind"] == ("member",)
     assert entry["fields"]["role"] == ("member", "code")
-    assert entry["fields"]["family"] == ("remote-family",)
+    assert entry["fields"]["session"] == ("remote-family",)
 
 
 def test_project_fleet_agents_downgrades_fresh_chip_for_a_cached_aged_host() -> None:

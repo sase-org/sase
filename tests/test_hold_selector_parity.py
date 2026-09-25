@@ -24,6 +24,11 @@ from tests._runner_slots_helpers import _always_live, _record
 
 pytest.importorskip("sase_core_rs")
 
+# legacy agent-family spelling: core's hold wire still names the agent-session
+# candidate field "family" and the selector list "families".
+_LEGACY_CANDIDATE_KEY = "family"
+_LEGACY_SELECTORS_KEY = "families"
+
 
 def _cli_armer(**overrides: object) -> dict[str, object]:
     armer: dict[str, object] = {
@@ -41,7 +46,7 @@ def test_cli_and_directive_agent_session_selectors_both_block_role_suffixed_name
     None
 ):
     cli = arm_agent_hold(
-        armer=_cli_armer(key="cli:family"),
+        armer=_cli_armer(key="cli:agent-session"),
         names=["team"],
         scope="host",
         ttl_seconds=60,
@@ -58,18 +63,18 @@ def test_cli_and_directive_agent_session_selectors_both_block_role_suffixed_name
         "project": "proj",
         "created_at": 999.0,
         "agent_name": "team--code",
-        "family": "team",
+        _LEGACY_CANDIDATE_KEY: "team",
     }
     assert agent_hold_blocks_candidate(cli, candidate) is not None
     assert agent_hold_blocks_candidate(directive, candidate) is not None
-    assert cli["selectors"]["families"] == ["team"]
-    assert directive["selectors"]["families"] == ["team"]
+    assert cli["selectors"][_LEGACY_SELECTORS_KEY] == ["team"]
+    assert directive["selectors"][_LEGACY_SELECTORS_KEY] == ["team"]
 
 
 def test_role_suffixed_cli_name_stays_exact() -> None:
     selectors = _hold_selectors_wire(names=["team--code"])
     assert selectors["names"] == ["team--code"]
-    assert selectors["families"] == []
+    assert selectors[_LEGACY_SELECTORS_KEY] == []
     record = arm_agent_hold(
         armer=_cli_armer(key="cli:exact"),
         names=["team--code"],
@@ -81,13 +86,13 @@ def test_role_suffixed_cli_name_stays_exact() -> None:
         "project": "proj",
         "created_at": 999.0,
         "agent_name": "team--code",
-        "family": "team",
+        _LEGACY_CANDIDATE_KEY: "team",
     }
     other_role = {
         "project": "proj",
         "created_at": 999.0,
         "agent_name": "team--plan",
-        "family": "team",
+        _LEGACY_CANDIDATE_KEY: "team",
     }
     assert agent_hold_blocks_candidate(record, matching) is not None
     assert agent_hold_blocks_candidate(record, other_role) is None

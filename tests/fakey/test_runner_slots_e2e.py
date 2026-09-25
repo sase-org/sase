@@ -484,8 +484,8 @@ def test_child_is_exempt_while_repeat_roots_stay_capped(
 
     harness.release_agent(parent)
     harness.join(parent)
-    # The family (parent + child) still holds its one slot while the exempt
-    # child is alive, even though parent's own record is now done.
+    # The agent session (parent + child) still holds its one slot while the
+    # exempt child is alive, even though parent's own record is now done.
     harness.assert_parked_not_started(repeats[0])
 
     harness.release_agent(child)

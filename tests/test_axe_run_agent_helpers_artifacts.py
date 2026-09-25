@@ -168,7 +168,7 @@ def test_create_followup_with_name_override(tmp_path) -> None:
 
 
 def test_create_followup_persists_custom_role_override(tmp_path) -> None:
-    """Ambiguous numeric rows persist the caller's custom family role."""
+    """Ambiguous numeric rows persist the caller's custom agent-session role."""
     new_dir = tmp_path / "new"
     new_dir.mkdir()
 

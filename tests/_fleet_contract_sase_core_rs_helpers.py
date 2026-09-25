@@ -39,7 +39,10 @@ def _logical_locator(
     installation_id: str,
     *,
     agent_id: str = "agent-1",
-    family_id: str | None = "family-1",
+    # legacy agent-family spelling: sase-core's logical locator still names the
+    # agent-session key ``family_id`` (callers outside this module pass it by
+    # keyword).
+    family_id: str | None = "session-1",
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -99,7 +102,7 @@ def _running_record() -> dict[str, Any]:
             "name": "athena.agent-1",
             "model": "gpt-5",
             "llm_provider": "codex",
-            "agent_session": "family-1",
+            "agent_session": "session-1",
         },
         "running": {
             "pid": 1234,

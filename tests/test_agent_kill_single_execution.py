@@ -174,7 +174,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
     assert app.refresh_calls == [(True, True)]
 
 
-def test_do_kill_parallel_family_root_signals_and_removes_every_member() -> None:
+def test_do_kill_parallel_agent_session_root_signals_and_removes_every_member() -> None:
     """A root kill must signal independent member process groups before cleanup."""
     from sase.ace.tui.actions.agents import AgentsMixin
     from sase.core.agent_cleanup_facade import (

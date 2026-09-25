@@ -2081,7 +2081,7 @@ def _fleet_weight_summary_probe_request(queue_weight: float) -> dict[str, Any]:
             "project_id": "core-floor-probe",
         },
         "agent_id": "core-floor-probe.agent-1",
-        "agent_session_id": "family-1",
+        "agent_session_id": "session-1",
     }
     exact_locator = {
         "schema_version": 1,
@@ -2103,7 +2103,7 @@ def _fleet_weight_summary_probe_request(queue_weight: float) -> dict[str, Any]:
                 "name": "core-floor-probe.agent-1",
                 "model": "gpt-5",
                 "llm_provider": "codex",
-                "agent_session": "family-1",
+                "agent_session": "session-1",
                 "queue_weight": queue_weight,
                 "queue_weight_explicit": True,
             },

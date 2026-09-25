@@ -42,13 +42,16 @@ def test_broken_workflow_yaml_records_issue(tmp_path: Path) -> None:
     assert "expected" in issues[0].error or "while parsing" in issues[0].error
 
 
-def test_removed_agent_family_kind_raises_migration_error(tmp_path: Path) -> None:
-    definition = tmp_path / "family.yml"
+def test_removed_legacy_agent_family_kind_raises_migration_error(
+    tmp_path: Path,
+) -> None:
+    definition = tmp_path / "legacy_agent_family.yml"
+    # legacy agent-family spelling: the removed workflow kind is still detected.
     definition.write_text("kind: agent_family\nroles: {}\n", encoding="utf-8")
 
     with pytest.raises(
         WorkflowValidationError,
-        match=r"no longer supported.*%i\(suffix, family=parent\).*LaunchApproval",
+        match=r"kind: agent_family is no longer supported.*%i\(suffix, session=parent\).*LaunchApproval",
     ):
         _load_workflow_from_file(definition)
 

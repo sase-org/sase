@@ -184,12 +184,12 @@ def _write_receipt(
     )
 
     # A concurrently answered gate was never retired here and no coder was
-    # placed, so neither the route, family, nor retired gate is recorded.
+    # placed, so neither the route, agent session, nor retired gate is recorded.
     placed = not gate_answered_concurrently
     route = (
         "none"
         if plan.kind == "commit" or not placed
-        else ("family" if plan.placement.mode == "family" else "standalone")
+        else ("session" if plan.placement.mode == "session" else "standalone")
     )
     receipt = DirectApprovalReceipt(
         plan_path=str(local_plan),
@@ -203,7 +203,7 @@ def _write_receipt(
         coder_agent=getattr(coder, "agent_name", None) if coder is not None else None,
         coder_pid=getattr(coder, "pid", None) if coder is not None else None,
         coder_error=coder_error,
-        family=plan.placement.family if placed else None,
+        agent_session=plan.placement.agent_session if placed else None,
         retired_gate_id=(
             plan.gate.notification_id if plan.gate is not None and placed else None
         ),

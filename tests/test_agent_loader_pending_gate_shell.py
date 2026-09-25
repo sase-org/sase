@@ -36,7 +36,7 @@ from sase.running_field import WorkspaceClaim
 
 DEAD_PID = 99_999_999
 _PROJECT = "demo"
-_FAMILY = "alpha"
+_AGENT_SESSION = "alpha"
 _ROOT_TS = "20260812090000"
 _MEMBER_TS = "20260812090500"
 
@@ -74,8 +74,8 @@ def _write_root(*, outcome: str = "completed") -> Path:
     _write_json(
         artifact_dir / "agent_meta.json",
         {
-            "name": _FAMILY,
-            "agent_session": _FAMILY,
+            "name": _AGENT_SESSION,
+            "agent_session": _AGENT_SESSION,
             "agent_session_role": "root",
             "role_suffix": "-plan",
             "plan_chain_root": True,
@@ -86,8 +86,8 @@ def _write_root(*, outcome: str = "completed") -> Path:
         artifact_dir / "done.json",
         {
             "outcome": outcome,
-            "cl_name": _FAMILY,
-            "name": _FAMILY,
+            "cl_name": _AGENT_SESSION,
+            "name": _AGENT_SESSION,
             "project_file": _project_file(),
         },
     )
@@ -107,8 +107,8 @@ def _write_gate_member(
     _write_json(
         artifact_dir / "agent_meta.json",
         {
-            "name": f"{_FAMILY}--gate",
-            "agent_session": _FAMILY,
+            "name": f"{_AGENT_SESSION}--gate",
+            "agent_session": _AGENT_SESSION,
             "agent_session_role": "gate",
             "role_suffix": "--gate",
             "parent_timestamp": _ROOT_TS,
@@ -126,7 +126,7 @@ def _write_gate_member(
         "status": "running",
         "current_step_index": 0,
         "steps": [],
-        "context": {"cl_name": f"{_FAMILY}--gate"},
+        "context": {"cl_name": f"{_AGENT_SESSION}--gate"},
         "appears_as_agent": True,
         "pid": pid,
     }
@@ -230,8 +230,8 @@ def test_settled_gate_yields_exactly_one_row() -> None:
         pid=DEAD_PID,
         done={
             "outcome": "gated",
-            "cl_name": f"{_FAMILY}--gate",
-            "name": f"{_FAMILY}--gate",
+            "cl_name": f"{_AGENT_SESSION}--gate",
+            "name": f"{_AGENT_SESSION}--gate",
             "project_file": _project_file(),
             "gate_id": "g123",
             "gate_state": "answered",
@@ -254,8 +254,8 @@ def test_running_monitor_with_dead_workflow_pid_merges_to_one_live_row() -> None
     _write_json(
         artifact_dir / "agent_meta.json",
         {
-            "name": f"{_FAMILY}--mon",
-            "agent_session": _FAMILY,
+            "name": f"{_AGENT_SESSION}--mon",
+            "agent_session": _AGENT_SESSION,
             "agent_session_role": "monitor",
             "role_suffix": "--mon",
             "parent_timestamp": _ROOT_TS,
@@ -274,7 +274,7 @@ def test_running_monitor_with_dead_workflow_pid_merges_to_one_live_row() -> None
             "status": "running",
             "current_step_index": 0,
             "steps": [],
-            "context": {"cl_name": f"{_FAMILY}--mon"},
+            "context": {"cl_name": f"{_AGENT_SESSION}--mon"},
             "appears_as_agent": True,
             "pid": DEAD_PID,
         },
@@ -285,7 +285,7 @@ def test_running_monitor_with_dead_workflow_pid_merges_to_one_live_row() -> None
         + WorkspaceClaim(
             workspace_num=3,
             workflow=MONITOR_WORKSPACE_CLAIM_WORKFLOW,
-            cl_name=f"{_FAMILY}--mon",
+            cl_name=f"{_AGENT_SESSION}--mon",
             pid=live_pid,
             artifacts_timestamp=_MEMBER_TS,
         ).to_line()
@@ -299,11 +299,11 @@ def test_running_monitor_with_dead_workflow_pid_merges_to_one_live_row() -> None
     assert monitors[0].pid == live_pid
 
 
-def test_normalization_keeps_family_shell_rows_keyed_on_state_not_pid() -> None:
-    """No normalization step drops a family-shell row because its pid is dead."""
+def test_normalization_keeps_agent_session_shell_rows_keyed_on_state_not_pid() -> None:
+    """No normalization step drops an agent-session shell row because its pid is dead."""
     gate = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name=f"{_FAMILY}--gate",
+        cl_name=f"{_AGENT_SESSION}--gate",
         project_file="/tmp/demo.sase",
         status="EPIC",
         start_time=None,
@@ -329,4 +329,4 @@ def test_normalization_keeps_family_shell_rows_keyed_on_state_not_pid() -> None:
         [],
         is_process_running=lambda _pid: False,
     )
-    assert [agent.cl_name for agent in kept] == [f"{_FAMILY}--gate"]
+    assert [agent.cl_name for agent in kept] == [f"{_AGENT_SESSION}--gate"]

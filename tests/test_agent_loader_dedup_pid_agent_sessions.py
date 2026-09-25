@@ -22,7 +22,7 @@ def _register_spy_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
     patch_spy_metadata(monkeypatch)
 
 
-def test_live_family_root_survives_shared_pid_for_runner_slot_context() -> None:
+def test_live_agent_session_root_survives_shared_pid_for_runner_slot_context() -> None:
     """A terminal serial phase cannot erase its live root's occupied slot."""
     root_timestamp = "20260721155935"
     child_timestamp = "20260721160507"

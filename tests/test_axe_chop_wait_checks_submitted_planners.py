@@ -28,7 +28,7 @@ def test_submitted_planner_resolves_plan_row_wait(tmp_path: Path, monkeypatch) -
         projects_root=tmp_path / ".sase/projects",
     )
     assert dependency_resolution_status(index, ["planner--plan"]).resolved
-    # The whole plan chain is still in review, so the family/root wait stays
+    # The whole plan chain is still in review, so the agent-session/root wait stays
     # parked even though the planner row resolves.
     assert not dependency_resolution_status(index, ["planner"]).resolved
 
@@ -81,7 +81,7 @@ def test_submitted_planner_legacy_dot_plan_alias_resolves(
     assert ready == {"resolved_deps": ["planner.plan"]}
 
 
-def test_submitted_planner_does_not_resolve_family_wait(
+def test_submitted_planner_does_not_resolve_agent_session_wait(
     tmp_path: Path, monkeypatch
 ) -> None:
     waiter_dir = make_waiting_agent(tmp_path, "planner")

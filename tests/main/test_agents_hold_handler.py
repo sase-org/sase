@@ -82,7 +82,7 @@ def test_create_rejects_a_kin_selector_naming_the_armers_own_identity(
     assert "sase agent hold create:" in capsys.readouterr().err
 
 
-def test_create_positional_selectors_arm_a_family_hold(
+def test_create_positional_selectors_arm_an_agent_session_hold(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(
@@ -96,6 +96,8 @@ def test_create_positional_selectors_arm_a_family_hold(
     holds = list_current_agent_holds()
     assert len(holds) == 1
     assert holds[0]["selectors"]["names"] == ["team"]
+    # legacy agent-family spelling: sase-core still names this selector key
+    # ``families``.
     assert holds[0]["selectors"]["families"] == ["team"]
     assert "ops" in holds[0]["selectors"]["tribes"]
 

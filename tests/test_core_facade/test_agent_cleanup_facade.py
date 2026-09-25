@@ -119,6 +119,8 @@ def test_plan_agent_cleanup_sends_legacy_parallel_key_to_rust_binding(
     plan_agent_cleanup(targets, request)
 
     [target_payload] = captured
+    # legacy agent-family spelling: core still declares only
+    # ``agent_family_parallel`` for this target field.
     assert all("agent_session_parallel" not in item for item in target_payload)
     assert [item["agent_family_parallel"] for item in target_payload] == [
         target.agent_session_parallel for target in targets

@@ -32,7 +32,7 @@ def _boolean_value_profile():
             boolean=True,
             fields=(
                 QueryFieldSpec(key="name", exact_match=True, searchable=True),
-                QueryFieldSpec(key="family", exact_match=True),
+                QueryFieldSpec(key="session", exact_match=True),
                 QueryFieldSpec(key="since", value_kind="date"),
                 QueryFieldSpec(key="until", value_kind="date"),
                 QueryFieldSpec(key="min", value_kind="int"),
@@ -340,7 +340,7 @@ def test_flat_profile_date_and_duration_values_normalize_canonically() -> None:
         ("name:sase-r8.9.land", "name:sase-r8.9.land"),
         ("name:0b4", "name:0b4"),
         ("name:001--2", "name:001--2"),
-        ("family:research.12", "family:research.12"),
+        ("session:research.12", "session:research.12"),
         ("min:5m", "min:300"),
         ("attempt:002", "attempt:2"),
         ("9lives", '"9lives"'),
@@ -378,7 +378,7 @@ def test_boolean_profile_widened_values_evaluate_in_reference_engine() -> None:
             "stable_id": "target",
             "fields": {
                 "name": "sase-r8.9.land",
-                "family": "research.12",
+                "session": "research.12",
                 "since": since_epoch,
                 "min": 300,
                 "attempt": 2,
@@ -389,7 +389,7 @@ def test_boolean_profile_widened_values_evaluate_in_reference_engine() -> None:
             "stable_id": "other",
             "fields": {
                 "name": "0b4",
-                "family": "research.12",
+                "session": "research.12",
                 "since": since_epoch - 1,
                 "min": 299,
                 "attempt": 1,
@@ -399,7 +399,7 @@ def test_boolean_profile_widened_values_evaluate_in_reference_engine() -> None:
     ]
 
     query = (
-        "name:sase-r8.9.land AND family:research.12 AND "
+        "name:sase-r8.9.land AND session:research.12 AND "
         "since:2026-08-01 AND min:5m AND attempt:2 AND 9lives"
     )
     assert evaluate_query_many_for_profile(query, rows, profile) == [True, False]

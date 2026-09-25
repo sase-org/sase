@@ -296,7 +296,7 @@ def test_agent_list_carries_status_bucket_from_snapshot_metadata(
     assert entry.status_bucket == "Done"
 
 
-def test_agent_list_includes_live_monitor_family_child(
+def test_agent_list_includes_live_monitor_agent_session_child(
     monkeypatch: MonkeyPatch,
 ) -> None:
     artifact_record = record(
@@ -337,9 +337,9 @@ def test_agent_list_includes_live_monitor_family_child(
 
     assert info.status == "TESTING"
     assert info.status_bucket == "Running"
-    # The monitor is the only live shell for its family (the starter that
-    # handed off to it is dead), so it now holds the family's slot -- that
-    # coverage gap is exactly the bug this occupancy rule fixes.
+    # The monitor is the only live shell for its agent session (the starter
+    # that handed off to it is dead), so it now holds the session's slot --
+    # that coverage gap is exactly the bug this occupancy rule fixes.
     assert info.holds_runner_slot is True
     assert info.monitor_id == "m123"
     assert info.monitor_start_status == "TESTING"
@@ -358,7 +358,7 @@ def test_agent_list_includes_live_monitor_family_child(
     assert str(badge.style) == "bold #6FC4FF"
 
 
-def test_agent_list_includes_terminal_monitor_family_child() -> None:
+def test_agent_list_includes_terminal_monitor_agent_session_child() -> None:
     artifact_record = record(
         agent_meta=AgentMetaWire(
             name="alpha--mon",
@@ -600,7 +600,7 @@ def test_agent_list_entries_reuses_listing_snapshot_for_child_summary(
     assert entries[0].children.status_counts == (("Failed", 1),)
 
 
-def test_agent_list_json_uses_agent_session_keys_without_family_aliases() -> None:
+def test_agent_list_json_uses_agent_session_keys_without_legacy_aliases() -> None:
     from sase.agents.cli_list import _agent_to_json
 
     payload = _agent_to_json(_build_agent_list_entry(agent(name="solo")))

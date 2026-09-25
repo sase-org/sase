@@ -63,7 +63,7 @@ def test_create_launch_request_writes_preview_and_notification(
     result = create_launch_approval_request(
         {
             "schema_version": 1,
-            "prompt": "%i(reviewer, family=foo)\nDo work",
+            "prompt": "%i(reviewer, session=foo)\nDo work",
             "reason": "Need reviewer follow-up",
             "approval": "required",
             "max_slots": 1,
@@ -81,7 +81,7 @@ def test_create_launch_request_writes_preview_and_notification(
     assert written["requester_continuation"]["mode"] == "terminal_handoff"
     assert written["dispatch"] == {
         "cwd": str(tmp_path),
-        "prompt": "%i(reviewer, family=foo)\nDo work",
+        "prompt": "%i(reviewer, session=foo)\nDo work",
     }
     assert envelope["query"] == "approve OR reject"
     assert envelope["primary_branch"] == ["approve"]
@@ -153,7 +153,7 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
     result = create_launch_approval_request(
         {
             "schema_version": 1,
-            "prompt": "%i(reviewer, family=review-family)\nReview",
+            "prompt": "%i(reviewer, session=review-session)\nReview",
             "reason": "Need reviewer",
             "max_slots": 1,
         }
@@ -197,7 +197,7 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
     )
 
 
-def test_agent_launch_request_rejects_competing_family_successor(
+def test_agent_launch_request_rejects_competing_agent_session_successor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -210,7 +210,7 @@ def test_agent_launch_request_rejects_competing_family_successor(
         create_launch_approval_request(
             {
                 "schema_version": 1,
-                "prompt": "%i(reviewer, family=parent)\nReview",
+                "prompt": "%i(reviewer, session=parent)\nReview",
                 "reason": "Need reviewer",
                 "max_slots": 1,
             }
@@ -533,7 +533,7 @@ def test_approve_launch_response_dispatches_stored_request(
                 "request_id": "launch-dispatch",
                 "dispatch": {
                     "cwd": str(launch_cwd),
-                    "prompt": "%i(reviewer, family=foo)\nDo work",
+                    "prompt": "%i(reviewer, session=foo)\nDo work",
                 },
             }
         ),
@@ -563,7 +563,7 @@ def test_approve_launch_response_dispatches_stored_request(
         result = execute_launch_approval_response(context, "approve")
 
     assert seen == {
-        "prompt": "%i(reviewer, family=foo)\nDo work",
+        "prompt": "%i(reviewer, session=foo)\nDo work",
         "cwd": launch_cwd,
     }
     assert result.launched_count == 1

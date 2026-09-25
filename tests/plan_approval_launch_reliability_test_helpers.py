@@ -21,7 +21,7 @@ from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 from tests.test_bead.cli_work_from_plan_helpers import write_plan_update
 
 MONTH = "202608"
-PLAN_STEM = "family_shell_metadata"
+PLAN_STEM = "agent_session_shell_metadata"
 HOST_CREATE_TIME = "2026-08-22 11:33:24"
 RUNNER_CREATE_TIME = "2026-08-22 11:33:26"
 WAITING_NEEDLE = "waiting for the source-tree swap to finish"

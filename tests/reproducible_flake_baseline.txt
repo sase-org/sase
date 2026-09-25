@@ -33,7 +33,7 @@ tests/ace/tui/test_visual_fixture_host_paths.py::test_visual_fixtures_embed_no_h
 # sase-12e
 tests/completion/test_build.py::test_mutex_groups_found
 # sase-12f
-tests/fakey/test_monitor_capacity_e2e.py::test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap
+tests/fakey/test_monitor_capacity_e2e.py::test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap
 # sase-120
 tests/sdd/test_git_identity_fixture.py::test_sdd_git_identity_survives_empty_home_subprocess
 # sase-12g
@@ -244,9 +244,9 @@ tests/ace/tui/test_agents_pane_mount.py::test_agents_pane_mounts_activates_and_l
 # the migration_kit/atomic.py removal contexts in the operation audit catalog.
 # fixed-at: 2026-09-06T03:06:11Z tests/test_agent_artifact_directory_operation_audit.py::test_artifact_directory_operation_sites_are_reviewed
 #
-# sase-r2: Pipe family-member creation flakes under the full parallel lane and
+# sase-r2: Pipe agent-session member creation flakes under the full parallel lane and
 # passes isolated; ready flake task has independent corroboration.
-tests/fakey/test_pipe_e2e.py::test_default_pipe_creates_family_member_with_fork_and_shared_workspace
+tests/fakey/test_pipe_e2e.py::test_default_pipe_creates_agent_session_member_with_fork_and_shared_workspace
 #
 # sase-pr: fixed by 58e5a8310 "feat(artifact-links): add durable truth drift
 # reporting" (committed 2026-08-27T00:32:42Z), which updated the artifact-link

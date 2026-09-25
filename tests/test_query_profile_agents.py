@@ -30,7 +30,7 @@ def test_agents_profile_filterable_fields_are_all_accepted_by_the_parser() -> No
     sample_values = {
         "name": "sase-r8.9.land",
         "kind": "workflow-child",
-        "family": "research.12",
+        "session": "research.12",
         "clan": "athena.sase-8t",
         "tribe": "epic",
         "role": "code",
@@ -88,7 +88,7 @@ def test_agents_profile_string_field_matching_shapes() -> None:
         for item in profile.fields
         if item.filterable and item.value_kind == "string" and not item.exact_match
     }
-    assert exact == {"name", "family", "clan", "project", "artifact"}
+    assert exact == {"name", "session", "clan", "project", "artifact"}
     assert substring == {"role", "workflow", "parent", "model"}
     assert profile.field("role").static_values == ("code", "plan", "mon")
 
@@ -98,7 +98,7 @@ def test_agents_profile_enum_fields_pin_static_vocabularies() -> None:
     assert profile.field("kind").static_values == (
         "agent",
         "member",
-        "family",
+        "session",
         "clan",
         "workflow",
         "workflow-child",
@@ -193,7 +193,7 @@ def test_agents_live_profile_filterable_fields_are_all_accepted_by_parser() -> N
     sample_values = {
         "name": "sase-zf.1--code",
         "kind": "workflow-child",
-        "family": "research.12",
+        "session": "research.12",
         "clan": "athena.sase-zf",
         "project": "sase",
         "role": "code",
@@ -243,7 +243,7 @@ def test_agents_live_profile_matching_shapes_are_operational_not_archive() -> No
         if item.filterable and item.value_kind == "bool"
     }
 
-    assert exact == {"name", "family", "clan", "project", "machine", "tribe"}
+    assert exact == {"name", "session", "clan", "project", "machine", "tribe"}
     assert substring == {"role", "workflow", "model", "cl"}
     assert bool_keys == {"hidden", "attention", "retry", "pinned", "unread"}
     assert profile.field("role").static_values == ("code", "plan", "mon")
@@ -270,7 +270,7 @@ def test_agents_live_profile_enum_fields_pin_static_vocabularies() -> None:
     assert profile.field("kind").static_values == (
         "agent",
         "member",
-        "family",
+        "session",
         "clan",
         "workflow",
         "workflow-child",
@@ -380,12 +380,12 @@ def _legacy_agents_enum_fields(
             static_values=(
                 "agent",
                 "member",
-                "family",
+                "session",
                 "clan",
                 "workflow",
                 "workflow-child",
             ),
-            hint="agent, member, family, clan, workflow, or workflow-child",
+            hint="agent, member, session, clan, workflow, or workflow-child",
         ),
         QueryFieldSpec(
             key="tribe",
@@ -444,9 +444,9 @@ def _legacy_agents_exact_string_fields() -> tuple[QueryFieldSpec, ...]:
             hint="agent name or canonical global name; name:<hood>.* lists a hood",
         ),
         QueryFieldSpec(
-            key="family",
+            key="session",
             exact_match=True,
-            hint="family name derived from the agent name",
+            hint="agent-session name derived from the agent name",
         ),
         QueryFieldSpec(
             key="clan",

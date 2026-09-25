@@ -88,7 +88,7 @@ def test_monitor_followup_agent_uses_locked_admission(
     assert not (followup / "waiting.json").exists()
 
 
-def test_parallel_family_member_participates_in_runner_admission(
+def test_parallel_agent_session_member_participates_in_runner_admission(
     tmp_path: Path,
 ) -> None:
     child = artifact(tmp_path, "20260712120000", 101)

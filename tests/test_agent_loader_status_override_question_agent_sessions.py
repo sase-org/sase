@@ -1,4 +1,4 @@
-"""Tests for _apply_status_overrides question family status decisions."""
+"""Tests for _apply_status_overrides question agent-session status decisions."""
 
 from datetime import datetime
 
@@ -129,8 +129,10 @@ def test_apply_status_overrides_inherited_question_new_round_without_gate_stays_
     assert parent.status == "DONE"
 
 
-def test_apply_status_overrides_question_only_family_without_gate_stays_done() -> None:
-    """A legacy question-only family without a gate degrades to DONE."""
+def test_apply_status_overrides_question_only_agent_session_without_gate_stays_done() -> (
+    None
+):
+    """A legacy question-only agent session without a gate degrades to DONE."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="sase",
@@ -301,7 +303,7 @@ def test_apply_status_overrides_done_without_questions_stays_done() -> None:
 
 
 def test_apply_status_overrides_numeric_answered_continuation_is_plan_done() -> None:
-    """A completed numeric family continuation with a response path is terminal."""
+    """A completed numeric session continuation with a response path is terminal."""
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="my_cl",

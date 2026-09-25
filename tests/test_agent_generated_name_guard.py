@@ -155,7 +155,7 @@ class TestAgentSessionAttachGeneratedNames:
 
 
 class TestClanNameGuard:
-    def test_clan_launch_rejects_a_family_marked_clan_before_spawn(
+    def test_clan_launch_rejects_an_agent_session_marked_clan_before_spawn(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
@@ -163,7 +163,9 @@ class TestClanNameGuard:
         with pytest.raises(DirectiveError, match="outside the final name segment"):
             _launch_with_captured_spawns(["%id:fi--code.one\n%clan:fi--code\nWork"])
 
-    def test_clan_carrying_a_family_marker_is_rejected(self, tmp_path: Path) -> None:
+    def test_clan_carrying_an_agent_session_marker_is_rejected(
+        self, tmp_path: Path
+    ) -> None:
         with pytest.raises(ClanMembershipError) as exc_info:
             resolve_or_create_clan_membership(
                 "fi--code",

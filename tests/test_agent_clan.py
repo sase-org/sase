@@ -110,19 +110,19 @@ def test_clan_unread_counts_deduplicate_and_replace_successful_done() -> None:
     assert counts == ClanStatusCounts(failed=1, unread=2, done=1)
 
 
-def test_clan_queue_count_uses_parallel_family_root() -> None:
+def test_clan_queue_count_uses_parallel_agent_session_root() -> None:
     container = _agent("research", "WAITING", suffix=None)
     container.is_clan_container = True
-    family = _agent("research.family", "WAITING", suffix="family")
-    family.agent_session_parallel = True
-    queued = _agent("research.family.phase", "QUEUED", suffix="phase")
+    agent_session = _agent("research.session", "WAITING", suffix="session")
+    agent_session.agent_session_parallel = True
+    queued = _agent("research.session.phase", "QUEUED", suffix="phase")
     queued.agent_session_parallel = True
-    queued.parent_timestamp = family.raw_suffix
+    queued.parent_timestamp = agent_session.raw_suffix
     queued.pid = 100
     queued.wait_runners = 9
     queued.slot_requested_at = "2026-07-17T10:00:00Z"
-    family.runtime_children = [queued]
-    container.runtime_children = [family]
+    agent_session.runtime_children = [queued]
+    container.runtime_children = [agent_session]
 
     counts = clan_member_counts(container)
 
@@ -149,18 +149,20 @@ def test_clan_running_lane_rows_single_shell_lane_represents_itself() -> None:
     assert clan_running_lane_rows(container) == (running,)
 
 
-def test_clan_running_lane_rows_family_lane_represents_the_family() -> None:
+def test_clan_running_lane_rows_agent_session_lane_represents_the_agent_session() -> (
+    None
+):
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
-    root = _agent("research.family", "DONE", suffix="root")
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root = _agent("research.session", "DONE", suffix="root")
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.stop_time = datetime(2026, 7, 19, 9, 1, 0)
-    coder = _agent("research.family.code", "RUNNING", suffix="coder")
-    coder.agent_name = "family--code"
+    coder = _agent("research.session.code", "RUNNING", suffix="coder")
+    coder.agent_name = "session--code"
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_session = "family"
+    coder.agent_session = "session"
     coder.agent_session_role = "code"
     root.runtime_children = [coder]
     root.followup_agents = [coder]
@@ -169,27 +171,29 @@ def test_clan_running_lane_rows_family_lane_represents_the_family() -> None:
     assert clan_running_lane_rows(container) == (root,)
 
 
-def test_clan_running_lane_rows_family_lane_counts_a_running_monitor_shell() -> None:
+def test_clan_running_lane_rows_agent_session_lane_counts_a_running_monitor_shell() -> (
+    None
+):
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
-    root = _agent("research.family", "DONE", suffix="root")
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root = _agent("research.session", "DONE", suffix="root")
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.stop_time = datetime(2026, 7, 19, 9, 1, 0)
-    coder = _agent("research.family.code", "DONE", suffix="coder")
-    coder.agent_name = "family--code"
+    coder = _agent("research.session.code", "DONE", suffix="coder")
+    coder.agent_name = "session--code"
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_session = "family"
+    coder.agent_session = "session"
     coder.agent_session_role = "code"
     coder.stop_time = datetime(2026, 7, 19, 9, 2, 0)
-    monitor = _agent("research.family.mon", "MONITORING", suffix="monitor")
-    monitor.agent_name = "family--mon"
+    monitor = _agent("research.session.mon", "MONITORING", suffix="monitor")
+    monitor.agent_name = "session--mon"
     monitor.parent_timestamp = coder.raw_suffix
-    monitor.agent_session = "family"
+    monitor.agent_session = "session"
     monitor.agent_session_role = "monitor"
     monitor.role_suffix = "--mon"
-    monitor.monitor_id = "m-family"
+    monitor.monitor_id = "m-session"
     monitor.monitor_state = "running"
     root.runtime_children = [coder]
     root.followup_agents = [coder]
@@ -200,20 +204,20 @@ def test_clan_running_lane_rows_family_lane_counts_a_running_monitor_shell() -> 
     assert clan_running_lane_rows(container) == (root,)
 
 
-def test_clan_running_lane_rows_skips_a_family_lane_whose_shells_have_all_settled() -> (
+def test_clan_running_lane_rows_skips_an_agent_session_lane_whose_shells_have_all_settled() -> (
     None
 ):
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True
-    root = _agent("research.family", "DONE", suffix="root")
-    root.agent_name = "family--0"
-    root.agent_session = "family"
+    root = _agent("research.session", "DONE", suffix="root")
+    root.agent_name = "session--0"
+    root.agent_session = "session"
     root.agent_session_role = "root"
     root.stop_time = datetime(2026, 7, 19, 9, 1, 0)
-    coder = _agent("research.family.code", "DONE", suffix="coder")
-    coder.agent_name = "family--code"
+    coder = _agent("research.session.code", "DONE", suffix="coder")
+    coder.agent_name = "session--code"
     coder.parent_timestamp = root.raw_suffix
-    coder.agent_session = "family"
+    coder.agent_session = "session"
     coder.agent_session_role = "code"
     coder.stop_time = datetime(2026, 7, 19, 9, 2, 0)
     root.runtime_children = [coder]

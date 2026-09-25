@@ -230,7 +230,7 @@ def _rewrite_agent_session_member_or_preserve_clan(
 
     if not facing_agent_session:
         raise KillAndEditPromptError(
-            "cannot rewrite a family member without a family name",
+            "cannot rewrite an agent session member without an agent session name",
             agent_name=agent_name,
             produced=raw_prompt,
         )
@@ -393,7 +393,7 @@ def _verify_agent_session_form(
 ) -> None:
     if not name_force_reuse:
         raise KillAndEditPromptError(
-            "family rewrite is missing forced name reuse",
+            "agent session rewrite is missing forced name reuse",
             agent_name=agent_name,
             produced=rewritten,
         )

@@ -104,7 +104,7 @@ def test_runtime_tags_fall_back_to_agent_meta(
     }
 
 
-def test_commit_agent_name_prefers_current_run_metadata_for_family_member(
+def test_commit_agent_name_prefers_current_run_metadata_for_agent_session_member(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -118,7 +118,7 @@ def test_commit_agent_name_prefers_current_run_metadata_for_family_member(
     assert resolve_local_agent_name() == "ms--code"
 
 
-def test_commit_agent_name_is_unchanged_for_non_family_run(
+def test_commit_agent_name_is_unchanged_for_non_agent_session_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -313,7 +313,7 @@ def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
     assert "MACHINE" not in tags
 
 
-def test_auto_commit_tags_with_runtime_projects_family_member_to_sase_agent(
+def test_auto_commit_tags_with_runtime_projects_agent_session_member_to_sase_agent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

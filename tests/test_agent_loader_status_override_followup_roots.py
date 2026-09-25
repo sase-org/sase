@@ -23,7 +23,7 @@ def _plain_root(
     )
 
 
-def _family_child(
+def _agent_session_child(
     *,
     status: str,
     start: datetime,
@@ -45,7 +45,7 @@ def _family_child(
 
 def test_apply_status_overrides_plain_root_mirrors_waiting_child() -> None:
     parent = _plain_root(status="DONE")
-    child = _family_child(
+    child = _agent_session_child(
         status="WAITING",
         start=datetime(2026, 5, 17, 9, 5, 0),
         parent=parent,
@@ -63,14 +63,14 @@ def test_apply_status_overrides_plain_root_mirrors_waiting_child() -> None:
 
 def test_apply_status_overrides_running_child_beats_waiting_child() -> None:
     parent = _plain_root(status="DONE")
-    running = _family_child(
+    running = _agent_session_child(
         status="RUNNING",
         start=datetime(2026, 5, 17, 9, 5, 0),
         parent=parent,
         raw_suffix="20260517090500",
         cl_name="running",
     )
-    waiting = _family_child(
+    waiting = _agent_session_child(
         status="WAITING",
         start=datetime(2026, 5, 17, 9, 10, 0),
         parent=parent,
@@ -86,14 +86,14 @@ def test_apply_status_overrides_running_child_beats_waiting_child() -> None:
 
 def test_apply_status_overrides_two_active_children_newest_wins() -> None:
     parent = _plain_root(status="DONE")
-    older = _family_child(
+    older = _agent_session_child(
         status="RUNNING",
         start=datetime(2026, 5, 17, 9, 5, 0),
         parent=parent,
         raw_suffix="20260517090500",
         cl_name="older",
     )
-    newer = _family_child(
+    newer = _agent_session_child(
         status="RETRYING",
         start=datetime(2026, 5, 17, 9, 10, 0),
         parent=parent,
@@ -108,14 +108,14 @@ def test_apply_status_overrides_two_active_children_newest_wins() -> None:
 
 def test_apply_status_overrides_two_waiting_children_oldest_wins() -> None:
     parent = _plain_root(status="DONE")
-    older = _family_child(
+    older = _agent_session_child(
         status="WAITING",
         start=datetime(2026, 5, 17, 9, 5, 0),
         parent=parent,
         raw_suffix="20260517090500",
         cl_name="older",
     )
-    newer = _family_child(
+    newer = _agent_session_child(
         status="WAITING",
         start=datetime(2026, 5, 17, 9, 10, 0),
         parent=parent,
@@ -131,7 +131,7 @@ def test_apply_status_overrides_two_waiting_children_oldest_wins() -> None:
 
 def test_apply_status_overrides_plain_running_root_beats_waiting_child() -> None:
     parent = _plain_root(status="RUNNING")
-    waiting = _family_child(
+    waiting = _agent_session_child(
         status="WAITING",
         start=datetime(2026, 5, 17, 9, 5, 0),
         parent=parent,
@@ -149,7 +149,7 @@ def test_apply_status_overrides_plain_root_keeps_terminal_status_without_activit
     None
 ):
     parent = _plain_root(status="DONE")
-    child = _family_child(
+    child = _agent_session_child(
         status="DONE",
         start=datetime(2026, 5, 17, 9, 5, 0),
         parent=parent,
@@ -166,7 +166,7 @@ def test_apply_status_overrides_plain_root_keeps_terminal_status_without_activit
 def test_apply_status_overrides_sticky_approved_planner_is_not_active() -> None:
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name="agent-family",
+        cl_name="agent-session",
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 17, 8, 55, 0),
@@ -211,7 +211,7 @@ def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> No
     plan_time = datetime(2026, 5, 17, 9, 0, 0)
     parent = Agent(
         agent_type=AgentType.WORKFLOW,
-        cl_name="agent-family",
+        cl_name="agent-session",
         project_file="/tmp/test.sase",
         status="DONE",
         start_time=datetime(2026, 5, 17, 8, 55, 0),
@@ -230,7 +230,7 @@ def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> No
         status="DONE",
         start_time=datetime(2026, 5, 17, 8, 55, 0),
         raw_suffix="20260517085500",
-        parent_workflow="agent-family",
+        parent_workflow="agent-session",
         parent_timestamp="20260517085500",
         step_type="agent",
         step_index=0,
@@ -247,7 +247,7 @@ def test_apply_status_overrides_ap5_workflow_children_after_code_handoff() -> No
         status="DONE",
         start_time=datetime(2026, 5, 17, 8, 55, 0),
         raw_suffix="20260517085500",
-        parent_workflow="agent-family",
+        parent_workflow="agent-session",
         parent_timestamp="20260517085500",
         step_type="bash",
         step_index=1,

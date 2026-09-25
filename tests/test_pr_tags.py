@@ -424,11 +424,11 @@ def test_pr_body_agent_info_precedes_structured_footer(
     )
 
 
-def test_pr_body_agent_footer_renders_the_family_lane(
+def test_pr_body_agent_footer_renders_the_agent_session_lane(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A family member's PR footer names the lane and links the family page."""
+    """A session member's PR footer names the lane and links the agent-session page."""
     (tmp_path / "agent_meta.json").write_text(
         json.dumps({"name": "pc--code"}),
         encoding="utf-8",

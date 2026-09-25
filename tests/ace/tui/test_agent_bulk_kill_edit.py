@@ -326,7 +326,7 @@ def test_bulk_kill_and_edit_rewrites_exact_marked_family_member() -> None:
     _confirm(app)
 
     assert app.edit_calls[0]["prompts"] == [
-        "%id(!code, family=sase-8u.4.2, bead=sase-8u.4.2)\nImplement the plan"
+        "%id(!code, session=sase-8u.4.2, bead=sase-8u.4.2)\nImplement the plan"
     ]
 
 

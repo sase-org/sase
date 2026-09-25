@@ -20,7 +20,7 @@ from tests.main.parser_help_helpers import (
 
 def _write_meta(artifacts_dir: Path, **fields: Any) -> None:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    payload = {"name": "family", "pid": 1, **fields}
+    payload = {"name": "agent_session", "pid": 1, **fields}
     (artifacts_dir / "agent_meta.json").write_text(
         json.dumps(payload), encoding="utf-8"
     )
@@ -209,7 +209,7 @@ def test_pipe_json_shape_and_print_before_kill(
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema_version"] == 1
     assert payload["command"] == "pipe"
-    assert payload["agent"] == "family"
+    assert payload["agent"] == "agent_session"
     assert payload["prompt"] == "finish the review"
     assert payload["reason"] == "hand off"
     assert payload["model"] == "opus"

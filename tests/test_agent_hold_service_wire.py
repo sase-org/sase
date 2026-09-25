@@ -38,6 +38,8 @@ def test_hold_selectors_wire_normalizes_tribes_and_defaults() -> None:
     )
     assert selectors["artifact_dirs"] == ["/a/w1"]
     assert selectors["names"] == ["a.b--code"]
+    # legacy agent-family spelling: sase-core still names this selector key
+    # ``families``.
     assert selectors["families"] == []
     assert selectors["clans"] == ["a.b--code"]
     assert selectors["workflows"] == ["a.b--code"]
@@ -49,6 +51,8 @@ def test_hold_selectors_wire_normalizes_tribes_and_defaults() -> None:
 def test_hold_selectors_wire_expands_agent_session_names() -> None:
     selectors = _hold_selectors_wire(names=["team"])
     assert selectors["names"] == ["team"]
+    # legacy agent-family spelling: sase-core still names this selector key
+    # ``families``.
     assert selectors["families"] == ["team"]
     assert selectors["clans"] == ["team"]
     assert selectors["workflows"] == ["team"]
@@ -58,6 +62,8 @@ def test_hold_selectors_wire_defaults_are_empty() -> None:
     selectors = _hold_selectors_wire()
     assert selectors["artifact_dirs"] == []
     assert selectors["names"] == []
+    # legacy agent-family spelling: sase-core still names this selector key
+    # ``families``.
     assert selectors["families"] == []
     assert selectors["clans"] == []
     assert selectors["workflows"] == []

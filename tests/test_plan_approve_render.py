@@ -49,9 +49,9 @@ def _no_color(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _placement(mode: str = "standalone") -> CoderPlacement:
-    if mode == "family":
+    if mode == "session":
         return CoderPlacement(
-            mode="family", parent="bob", member_name="bob--code", family="bob"
+            mode="session", parent="bob", member_name="bob--code", agent_session="bob"
         )
     return CoderPlacement(mode="standalone", reason="this plan records no planner")
 
@@ -241,8 +241,8 @@ def test_gate_dry_run_card_changes_nothing(
 # -- direct route ----------------------------------------------------------
 
 
-def test_direct_family_card(capsys: pytest.CaptureFixture[str]) -> None:
-    plan = _direct_plan(mode="family", gate=_gate("expired"))
+def test_direct_agent_session_card(capsys: pytest.CaptureFixture[str]) -> None:
+    plan = _direct_plan(mode="session", gate=_gate("expired"))
 
     render_direct_approval(_outcome(plan, coder=_launched()))
 
@@ -250,8 +250,8 @@ def test_direct_family_card(capsys: pytest.CaptureFixture[str]) -> None:
     assert err == ""
     assert "✓ Tale approved · updates_tab" in out
     assert f"plan    {_PLAN_REF} · committed to sase" in out
-    assert "coder   bob--code · family bob · %model:@medium" in out
-    assert "no agent family" not in out
+    assert "coder   bob--code · agent session bob · %model:@medium" in out
+    assert "no agent session" not in out
     assert "gate    a1b2c3d4 · expired approval gate closed" in out
     assert "follow  sase agent show bob--code" in out
 
@@ -263,7 +263,7 @@ def test_direct_standalone_card_gives_reason(
 
     out, _ = _out(capsys)
     assert "coder   kx7 · standalone · %model:@medium" in out
-    assert "no agent family: this plan records no planner" in out
+    assert "no agent session: this plan records no planner" in out
     assert "gate    none · never proposed" in out
     assert "follow  sase agent show kx7" in out
 
@@ -321,7 +321,7 @@ def test_direct_card_prints_best_effort_warnings(
 def test_direct_partial_failure_card_gives_recovery_command(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    plan = _direct_plan(mode="family", gate=_gate("orphaned"))
+    plan = _direct_plan(mode="session", gate=_gate("orphaned"))
 
     render_direct_approval(_outcome(plan, coder_error="launch exploded"))
 
@@ -352,7 +352,7 @@ def test_direct_gate_answered_concurrently_card_for_tale(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     note = "gate a1b2c3d4e5f6 was answered concurrently; no coder was launched by this command"
-    plan = _direct_plan(mode="family", gate=_gate("orphaned"))
+    plan = _direct_plan(mode="session", gate=_gate("orphaned"))
 
     render_direct_approval(
         _outcome(plan, warnings=(note,), gate_answered_concurrently=True)
@@ -362,7 +362,7 @@ def test_direct_gate_answered_concurrently_card_for_tale(
     assert err == ""
     assert f"✓ Plan committed · updates_tab · {_PLAN_REF}" in out
     assert "coder   none launched · left to the gate's responder" in out
-    assert "no agent family" not in out
+    assert "no agent session" not in out
     assert "gate    a1b2c3d4 · answered concurrently, not closed here" in out
     assert f"! {note}" in " ".join(out.split())
     assert "Check whether the gate's responder launched a coder:" in out
@@ -393,20 +393,20 @@ def test_direct_dry_run_card_standalone(capsys: pytest.CaptureFixture[str]) -> N
     assert "plan    /plans/updates_tab.md" in out
     assert f"→ {_PLAN_REF} in sase" in out
     assert "coder   standalone · %model:@medium" in out
-    assert "no agent family: this plan records no planner" in out
+    assert "no agent session: this plan records no planner" in out
     assert "gate    none · never proposed" in out
     assert f"prompt  {_PROMPT}" in out
     assert "Nothing was changed. Re-run without -n/--dry-run to approve." in out
 
 
-def test_direct_dry_run_card_family_with_gate(
+def test_direct_dry_run_card_agent_session_with_gate(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    render_direct_approval_dry_run(_direct_plan(mode="family", gate=_gate("orphaned")))
+    render_direct_approval_dry_run(_direct_plan(mode="session", gate=_gate("orphaned")))
 
     out, _ = _out(capsys)
-    assert "coder   family bob · %model:@medium" in out
-    assert "no agent family" not in out
+    assert "coder   agent session bob · %model:@medium" in out
+    assert "no agent session" not in out
     assert "gate    a1b2c3d4 · orphaned" in out
 
 

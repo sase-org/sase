@@ -234,14 +234,14 @@ class TestResumeAgentNames:
                 "foo.f2",
             ]
 
-    def test_resolve_resume_root_uses_latest_completed_family_member(
+    def test_resolve_resume_root_uses_latest_completed_agent_session_member(
         self, tmp_path: Path
     ) -> None:
         _make_agent(
             tmp_path,
             "proj",
             "20260506010000",
-            "family",
+            "session",
             done=True,
             outcome="completed",
         )
@@ -249,9 +249,9 @@ class TestResumeAgentNames:
             tmp_path,
             "proj",
             "20260506010101",
-            "family",
-            workflow_name="family",
-            agent_session="family",
+            "session",
+            workflow_name="session",
+            agent_session="session",
             role_suffix="-plan",
             done=True,
             outcome="completed",
@@ -260,9 +260,9 @@ class TestResumeAgentNames:
             tmp_path,
             "proj",
             "20260506010202",
-            "family-code",
-            workflow_name="family",
-            agent_session="family",
+            "session-code",
+            workflow_name="session",
+            agent_session="session",
             role_suffix="-code",
             parent_timestamp="20260506010101",
             done=True,
@@ -270,10 +270,10 @@ class TestResumeAgentNames:
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
-            result = resolve_resume_agent_name("family")
+            result = resolve_resume_agent_name("session")
 
         assert result is not None
-        assert result.name == "family-code"
+        assert result.name == "session-code"
         assert result.artifacts_dir == str(child_dir)
 
     def test_resolve_resume_child_keeps_exact_reference(self, tmp_path: Path) -> None:
@@ -281,9 +281,9 @@ class TestResumeAgentNames:
             tmp_path,
             "proj",
             "20260506010202",
-            "family-code",
-            workflow_name="family",
-            agent_session="family",
+            "session-code",
+            workflow_name="session",
+            agent_session="session",
             role_suffix="-code",
             parent_timestamp="20260506010101",
             done=True,
@@ -291,7 +291,7 @@ class TestResumeAgentNames:
         )
 
         with patch.object(Path, "home", return_value=tmp_path):
-            result = resolve_resume_agent_name("family-code")
+            result = resolve_resume_agent_name("session-code")
 
         assert result is not None
         assert result.artifacts_dir == str(child_dir)

@@ -75,7 +75,7 @@ def _boolean_value_query_schema() -> ArtifactQuerySchema:
         boolean=True,
         fields=(
             QueryFieldSpec(key="name", exact_match=True, searchable=True),
-            QueryFieldSpec(key="family", exact_match=True),
+            QueryFieldSpec(key="session", exact_match=True),
             QueryFieldSpec(key="since", value_kind="date"),
             QueryFieldSpec(key="until", value_kind="date"),
             QueryFieldSpec(key="min", value_kind="int"),

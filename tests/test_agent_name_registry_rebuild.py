@@ -650,7 +650,7 @@ def test_stale_proof_memo_expires_after_ttl(
     assert is_stale.call_count == 1
 
 
-def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
+def test_legacy_v2_registry_with_agent_family_kinds_upgrades_to_session_v3(
     tmp_path: Path,
 ) -> None:
     """A realistic v2 file loads, answers container queries, and rebuilds as v3."""
@@ -670,6 +670,7 @@ def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
                             "name": "foo",
                             "source": "artifact",
                             "artifacts_dir": str(artifact_dir),
+                            # legacy agent-family spelling: pre-rename kinds
                             "reservation_kind": "family",
                             "container_kind": "family",
                         },
@@ -697,7 +698,8 @@ def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
         assert _registry_queries.get_reserved_agent_session_names(
             load_registry=lambda: upgraded
         ) == {"foo"}
-        # The raw legacy spelling still resolves through the same reader.
+        # The raw legacy agent-family spelling still resolves through the
+        # same reader.
         assert _registry_queries.get_reserved_agent_session_names(
             load_registry=lambda: {"entries": {"foo": {"container_kind": "family"}}}
         ) == {"foo"}
@@ -711,12 +713,13 @@ def test_v2_registry_with_family_kinds_upgrades_to_session_v3(
         rewritten = json.loads(path.read_text(encoding="utf-8"))
         assert rewritten["schema_version"] == 3
         for entry in rewritten["entries"].values():
+            # legacy agent-family spelling must be gone after the rewrite
             assert entry.get("reservation_kind") != "family"
             assert entry.get("container_kind") != "family"
 
 
-def test_v3_rebuild_emits_no_family_kinds(tmp_path: Path) -> None:
-    """A v3 rebuild stores session container kinds and no family spelling."""
+def test_v3_rebuild_emits_no_legacy_kinds(tmp_path: Path) -> None:
+    """A v3 rebuild stores session container kinds and no legacy spelling."""
     _make_session_agent(tmp_path, "run1", "foo")
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
@@ -728,6 +731,7 @@ def test_v3_rebuild_emits_no_family_kinds(tmp_path: Path) -> None:
     assert written["entries"]["foo"]["container_kind"] == "session"
     assert written["entries"]["foo"]["reservation_kind"] == "session"
     for entry in written["entries"].values():
+        # legacy agent-family spelling: must never be emitted by a v3 rebuild
         assert entry.get("reservation_kind") != "family"
         assert entry.get("container_kind") != "family"
 

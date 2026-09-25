@@ -268,14 +268,14 @@ def test_mark_plan_approval_auto_handled_matches_plan_and_identity(
             {"response_dir": "x", "agent_root_timestamp": "root-1"},
             files=[plan_file],
         )
-        # Same plan file but a different agent family — must stay available.
+        # Same plan file but a different agent session — must stay available.
         other_agent = _notification(
             "abcdef02-full",
             "PlanApproval",
             {"response_dir": "y", "agent_root_timestamp": "root-2"},
             files=[plan_file],
         )
-        # Same agent family but a different plan — must stay available.
+        # Same agent session but a different plan — must stay available.
         other_plan = _notification(
             "abcdef03-full",
             "PlanApproval",

@@ -279,7 +279,7 @@ def test_keybinding_footer_clan_advertises_clan_fork() -> None:
     )
 
 
-def test_keybinding_footer_family_member_advertises_shell_digits() -> None:
+def test_keybinding_footer_agent_session_member_advertises_shell_digits() -> None:
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--plan"
@@ -523,7 +523,9 @@ def test_keybinding_footer_running_monitor_advertises_stop_monitor() -> None:
     assert (_edit_hooks_key(footer), "fork") in bindings
 
 
-def test_keybinding_footer_running_family_monitor_advertises_shell_digits() -> None:
+def test_keybinding_footer_running_agent_session_monitor_advertises_shell_digits() -> (
+    None
+):
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--0"
@@ -578,7 +580,7 @@ def test_keybinding_footer_terminal_gate_advertises_dismiss_gate() -> None:
     assert "name" not in labels
 
 
-def test_keybinding_footer_family_gate_advertises_shell_digits() -> None:
+def test_keybinding_footer_agent_session_gate_advertises_shell_digits() -> None:
     footer = KeybindingFooter()
     root = _make_agent()
     root.agent_name = "alpha--0"

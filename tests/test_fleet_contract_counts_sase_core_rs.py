@@ -40,6 +40,7 @@ def test_count_contract_deduplicates_current_instances_and_buckets() -> None:
         installation_id, agent_id="agent-monitor", run_id="run-1", revision=5
     )
     monitor["row_kind"] = "monitor"
+    # legacy agent-family spelling: core summaries still carry ``family_role``.
     monitor["family_role"] = "monitor"
 
     counts = _binding("fleet_count_logical_agents")(
@@ -72,8 +73,10 @@ def test_count_contract_deduplicates_current_instances_and_buckets() -> None:
 
 def test_follow_reconciliation_promotes_and_honors_tombstones() -> None:
     installation_id = _known_installation_id("a")
+    # legacy agent-family spelling: the shared locator helper still takes
+    # core's ``family_id`` keyword.
     singleton = _logical_locator(installation_id, family_id=None)
-    family = _logical_locator(installation_id, family_id="family-1")
+    agent_session = _logical_locator(installation_id, family_id="agent-session-1")
     reconcile = _binding("fleet_reconcile_follow_records")
 
     promoted = reconcile(
@@ -88,30 +91,32 @@ def test_follow_reconciliation_promotes_and_honors_tombstones() -> None:
                 )
             ],
             "tombstones": [],
-            "promotions": [{"schema_version": 1, "from": singleton, "to": family}],
+            "promotions": [
+                {"schema_version": 1, "from": singleton, "to": agent_session}
+            ],
             "activations": [],
             "now_unix": 12.0,
         }
     )
     assert promoted["changed"] is True
     assert len(promoted["records"]) == 1
-    assert promoted["records"][0]["logical_locator"] == family
+    assert promoted["records"][0]["logical_locator"] == agent_session
     assert promoted["records"][0]["updated_at_unix"] == 12.0
     assert _binding("fleet_follow_record_key")(promoted["records"][0])
 
     dispatch_pending = _follow_record(
-        family, created_by="dispatch", state="pending", timestamp=20.0
+        agent_session, created_by="dispatch", state="pending", timestamp=20.0
     )
     suppressed = reconcile(
         {
             "schema_version": 1,
             "records": [dispatch_pending],
-            "tombstones": [_tombstone(family, 21.0)],
+            "tombstones": [_tombstone(agent_session, 21.0)],
             "promotions": [],
             "activations": [
                 {
                     "schema_version": 1,
-                    "logical_locator": family,
+                    "logical_locator": agent_session,
                     "operation_key": _operation_key(),
                     "activated_at_unix": 22.0,
                 }
@@ -120,7 +125,7 @@ def test_follow_reconciliation_promotes_and_honors_tombstones() -> None:
         }
     )
     assert suppressed["records"] == []
-    assert suppressed["tombstones"][0]["logical_locator"] == family
+    assert suppressed["tombstones"][0]["logical_locator"] == agent_session
     assert any(
         diagnostic["code"]
         in {"follow_activation_tombstoned", "follow_tombstone_blocked"}

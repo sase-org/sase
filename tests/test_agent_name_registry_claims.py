@@ -126,7 +126,7 @@ def test_registry_rebuild_globalizes_legacy_terminal_segment_name(
     """A legacy role marker outside the terminal segment receives provenance.
 
     Historical artifacts include names such as ``foo--role.f-0`` (a fanout child
-    of a family member). The historical classifier treats that as a solo name
+    of a session member). The historical classifier treats that as a solo name
     whose ``--role`` fragment is opaque, so registry rebuilds keep explicit
     current-owner provenance for it.
     """
