@@ -100,12 +100,21 @@ def live_dismissed_agents(
     The safety net for rows a planner classified as dismiss-only. Success-
     terminal rows are skipped, and the recorded process identity must be
     verifiable and match, so a recycled pid is never signalled.
+
+    The success-terminal check is identity-scoped: a DONE row's live STARTING
+    twin is the same agent's host-owned finalizer, so sparing the DONE row
+    must spare the twin. A FAILED identity has no success-terminal member,
+    so its live twin (retry backoff) is still terminated.
     """
+    agents = list(agents)
+    terminal_identities = {
+        agent.identity for agent in agents if agent.status in SUCCESS_TERMINAL_STATUSES
+    }
     seen = set(handled_pids)
     live: list[Agent] = []
     for agent in agents:
         pid = agent.pid
-        if pid is None or pid in seen or agent.status in SUCCESS_TERMINAL_STATUSES:
+        if pid is None or pid in seen or agent.identity in terminal_identities:
             continue
         artifacts_dir = agent.artifacts_dir or agent.get_artifacts_dir()
         if not live_verified_agent_pid(pid, artifacts_dir=artifacts_dir):

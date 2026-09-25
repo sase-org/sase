@@ -579,6 +579,57 @@ def test_single_dismiss_leaves_a_success_terminal_row_running(
     assert effects == [("single", 222)]
 
 
+def test_single_dismiss_terminates_the_live_twin_of_a_failed_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pid-less FAILED row still nets its live same-identity twin.
+
+    The loader publishes a done.json FAILED row and its still-running
+    STARTING twin as two rows with one identity. Dismissing the FAILED row
+    must terminate the twin's retry-backoff tree, not just hide both rows.
+    """
+    from sase.ace.tui.actions.agents._dismissing import (
+        persist_single_dismiss_transaction,
+    )
+
+    failed = _agent(tmp_path, None, suffix="twin", status="FAILED")
+    twin = _agent(tmp_path, 222, suffix="twin", status="STARTING")
+    assert twin.identity == failed.identity
+    recorder = _Events(monkeypatch)
+    recorder.live_verified = {222}
+    effects = _dismiss_patches(monkeypatch)
+
+    persist_single_dismiss_transaction(failed, [failed, twin], None, {failed.identity})
+
+    assert recorder.terminated() == [222]
+    assert effects == [("single", None)]
+
+
+def test_single_dismiss_spares_the_live_twin_of_a_done_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A DONE row's live twin runs host-owned finalizers: never signalled.
+
+    The identity is success-terminal through the DONE member, so the safety
+    net leaves the still-running STARTING twin alone.
+    """
+    from sase.ace.tui.actions.agents._dismissing import (
+        persist_single_dismiss_transaction,
+    )
+
+    done = _agent(tmp_path, None, suffix="twin", status="DONE")
+    twin = _agent(tmp_path, 222, suffix="twin", status="STARTING")
+    assert twin.identity == done.identity
+    recorder = _Events(monkeypatch)
+    recorder.live_verified = {222}
+    effects = _dismiss_patches(monkeypatch)
+
+    persist_single_dismiss_transaction(done, [done, twin], None, {done.identity})
+
+    assert recorder.terminated() == []
+    assert effects == [("single", None)]
+
+
 def test_bulk_dismiss_survivor_keeps_artifacts_and_reports_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

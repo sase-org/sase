@@ -340,13 +340,30 @@ def agents_related_to_dismissal(
     agent: Agent,
     agents_with_children_snapshot: list[Agent],
 ) -> list[Agent]:
-    """Return the primary agent plus family/workflow children dismissed with it."""
+    """Return the primary agent plus family/workflow children dismissed with it.
+
+    Same-identity rows are the same agent in another incarnation: a FAILED or
+    DONE row dismissed while its live STARTING twin is still on disk. The
+    in-memory removal and the session tombstone already hide by identity, so
+    the durable safety net must see the live twin or its tree keeps running.
+    """
     from ...models.agent import AgentType
 
-    agents = [
-        agent,
-        *clan_members_for_container(agent, agents_with_children_snapshot),
-    ]
+    agents = [agent]
+    seen = {id(agent)}
+    for row in agents_with_children_snapshot:
+        if id(row) in seen:
+            continue
+        # Snapshots from older callers can carry bare identity tuples; only
+        # real rows participate in same-identity matching.
+        if getattr(row, "identity", None) != agent.identity:
+            continue
+        seen.add(id(row))
+        agents.append(row)
+    for member in clan_members_for_container(agent, agents_with_children_snapshot):
+        if id(member) not in seen:
+            seen.add(id(member))
+            agents.append(member)
     if (
         agent.agent_type == AgentType.WORKFLOW
         and not agent.is_workflow_child
