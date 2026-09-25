@@ -77,8 +77,7 @@ def ensure_command_line_grammar_loaded(
 
     Returns True when the handle is already ready. Otherwise marks the
     load pending, fans out to a thread worker, stores the handle on the
-    app, and invokes *on_ready* in the loader thread when done (hop back
-    to the UI thread before touching widgets). Safe to call on every
+    app, and invokes *on_ready* on the app loop when done. Safe to call on every
     panel open; only the first call does any work.
     """
     if command_line_grammar_for(app) is not None:

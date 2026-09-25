@@ -656,6 +656,42 @@ async def test_v_opens_pager_for_selected_block(
             assert isinstance(page.app.screen, PagerScreen)
 
 
+async def test_v_loads_an_unloaded_tail_then_opens_pager(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``v`` resumes on the app loop and opens the pager after a tail load."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line import screen as screen_module
+    from sase.ace.tui.command_line.session import command_line_session_for
+    from sase.pager.screen import PagerScreen
+
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            screen = await _open_seeded_panel(page, monkeypatch, ["bead list"])
+            session = command_line_session_for(page.app)
+            block = session.blocks[0]
+            block.proc_id = "proc-unloaded-tail"
+            block.tail_loaded = False
+
+            def _load_tail(loaded: CommandLineBlock) -> bool:
+                loaded.tail_text = "loaded after v"
+                loaded.tail_loaded = True
+                return True
+
+            monkeypatch.setattr(screen_module, "load_block_tail_text", _load_tail)
+            screen.handle_block_nav_key("j")
+            assert screen.handle_block_nav_key("v") is True
+            await page.expect_modal("PagerScreen")
+            assert isinstance(page.app.screen, PagerScreen)
+            assert page.app.screen.document.sections[0].body.plain == "loaded after v"
+
+
 async def test_p_opens_procs_with_focus_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

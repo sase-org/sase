@@ -367,10 +367,8 @@ class CommandLineScreen(
             pass
 
     def _on_grammar_ready_from_worker(self) -> None:
-        """Hop the loader-thread ready signal back to the UI thread."""
-        call = getattr(self.app, "call_from_thread", None)
-        if callable(call):
-            call(self._refresh_completion_after_grammar)
+        """Refresh after the loop-owned grammar loader has completed."""
+        self._refresh_completion_after_grammar()
 
     def _refresh_completion_after_grammar(self) -> None:
         """Refresh the popup once the grammar handle lands (UI thread)."""

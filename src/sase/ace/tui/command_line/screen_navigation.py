@@ -288,8 +288,13 @@ class CommandLineScreenNavigationMixin:
             await asyncio.to_thread(screen_module.load_block_tail_text, block)
         except Exception:  # noqa: BLE001 - lazy tails are best effort.
             pass
+        # The worker coroutine resumes on the app loop. Re-capture after the
+        # await: the block or panel may have gone away while its tail loaded.
+        block = self.session.block_by_id(block_id)
+        if block is None or self.app.screen is not self:
+            return
         self._refresh_transcript()
-        self.app.call_from_thread(self._push_block_pager, block)
+        self._push_block_pager(block)
 
     def _push_block_pager(self, block: CommandLineBlock) -> None:
         """Push ``PagerScreen`` for one block's cached output."""

@@ -394,6 +394,55 @@ async def test_panel_escape_keeps_draft_across_reopen() -> None:
             assert reopened.query_one(CommandLineInput).text == "bead list"
 
 
+async def test_grammar_ready_refreshes_open_empty_panel_without_a_keystroke(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The loop-owned grammar callback clears the indexing state in place."""
+    from unittest.mock import patch as mock_patch
+
+    from sase.ace.testing import AcePage, make_patch
+    from sase.ace.tui import AceApp
+    from sase.ace.tui.command_line import screen as screen_module
+    from sase.ace.tui.command_line.screen import CommandLineScreen
+    from sase.ace.tui.command_line.screen_constants import (
+        COMMAND_LINE_IDLE_HINT,
+        COMMAND_LINE_INDEXING_HINT,
+    )
+    from textual.widgets import Static
+
+    def _leave_grammar_pending(app: object, *, on_ready: object = None) -> bool:
+        del on_ready
+        app._command_line_grammar_loading = True
+        return False
+
+    monkeypatch.setattr(
+        screen_module, "ensure_command_line_grammar_loaded", _leave_grammar_pending
+    )
+    with (
+        mock_patch.object(AceApp, "_load_agents"),
+        mock_patch.object(AceApp, "_load_axe_status"),
+    ):
+        async with AcePage(query="test_feature", patches=[make_patch()]) as page:
+            page.app.action_open_command_line()
+            await page.expect_modal("CommandLineScreen")
+            screen = page.app.screen
+            assert isinstance(screen, CommandLineScreen)
+            await page.pause()
+            hint = screen.query_one("#command-line-hint-row", Static)
+            page.app._command_line_grammar_loading = True
+            screen._show_indexing(has_text=True)
+            assert str(hint.render()) == COMMAND_LINE_INDEXING_HINT
+
+            page.app._command_line_grammar_loading = False
+            screen._on_grammar_ready_from_worker()
+            await page.pause()
+
+            assert str(hint.render()) == COMMAND_LINE_IDLE_HINT
+            assert (
+                screen.query_one("#command-line-popup-footer", Static).display is False
+            )
+
+
 async def test_submit_failure_turns_block_red_and_restores_line() -> None:
     """A failed submit shows a red block and puts the line back in the input."""
     from unittest.mock import patch as mock_patch
