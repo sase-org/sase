@@ -340,10 +340,9 @@ def test_queue_launch_prefix_keeps_user_authored_zero() -> None:
         }
     )
 
-    # The pinned core formatter still drops weight=0; the inheritable
-    # weight must at least not be replaced by the default 1.0.
-    assert "weight=1" not in prefix
-    assert "priority=0" in prefix
+    # The zero-weight core formatter emits an authored zero instead of
+    # dropping it, so successors inherit it explicitly.
+    assert prefix == "%queue(priority=0, weight=0)\n"
 
 
 def test_launch_wire_extra_keeps_user_authored_zero() -> None:

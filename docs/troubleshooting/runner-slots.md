@@ -5,10 +5,11 @@ dependency, bead, and time wait and is holding for runner capacity under its cur
 admission budget, or for an [agent hold](#held-agents) that matches it. The effective
 global `max_running_agents` value is an integer capacity budget (configured default:
 10). A normal launch claims `1.0` unit, while `%queue(weight=...)` / `%q(w=...)` can
-request a positive finite fractional or larger weight. An authored `%queue(capacity=N)`
-replaces the global budget for that launch's own admission decision: occupied weighted
-load plus the candidate's own weight must fit within the authored positive-integer
-budget.
+request a non-negative finite weight (`%q(w=0)` adds no load but still takes its queue
+turn, waiting only while the fleet is exactly full or over-committed). An authored
+`%queue(capacity=N)` replaces the global budget for that launch's own admission
+decision: occupied weighted load plus the candidate's own weight must fit within the
+authored positive-integer budget.
 
 sase's TUI Agents header summarizes the same global capacity state as `load: 8/10` at
 the right of the row, with `8 [8 running · 1 queued]` on the left: occupied capacity
@@ -44,9 +45,9 @@ different status, because every entry is still `QUEUED`. The heading adds `N par
 when any waiter is currently blocked. The ladder includes the front, up to two entries
 on either side of the selected waiter, and gap counts; short queues show all entries,
 while long queues show at most seven actual queue entries. Explicit capacities,
-non-default priorities, and non-default weights appear as `cN`, `pN`, and `wN`. This is
-current admission context, not an ETA or a prediction that no new waiter will arrive,
-and its entries are not digit-jump targets.
+non-default priorities, and non-default weights appear as `cN`, `pN`, and `wN` (an
+explicit zero weight renders `w0`). This is current admission context, not an ETA or a
+prediction that no new waiter will arrive, and its entries are not digit-jump targets.
 
 A deprioritized waiter — one whose priority is numerically worse than the `10` default —
 is additionally held back for a bounded deference window before it may claim a freed
@@ -141,7 +142,9 @@ that check. For a direct submission, a proc still waiting on capacity is visible
 under `~/.sase/typed_launches/<request-id>/launch_admission/`: `journal.jsonl` records
 the unit as `eligible` with the capacity message, and `receipt.json` summarizes unit
 outcomes. The host-owned monitor that launches an approved epic also records an explicit
-zero weight and occupies no capacity; its phase agents queue normally.
+zero weight and occupies no capacity; its phase agents queue normally. Unlike that
+host-set zero, a user-authored `%q(w=0)` is inherited by successors as an explicit zero
+weight.
 
 Lowering the effective cap below current occupied capacity is safe and non-preemptive:
 no running process is killed or forced to yield, but no participant is admitted until

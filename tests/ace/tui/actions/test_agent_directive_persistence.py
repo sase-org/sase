@@ -405,6 +405,45 @@ def test_persist_directive_payload_resolves_job_alias_before_writes(
     ]
 
 
+def test_persist_directive_set_queue_preserves_zero_weight(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "raw_xprompt.md").write_text("%q(w=0)\nDo work", encoding="utf-8")
+
+    result = persist_directive_from_payload(
+        {
+            "prompt": {
+                "kind": "set_queue",
+                "capacity": 3,
+                "priority": 1,
+                "weight": 0.0,
+            }
+        },
+        artifacts_dir=str(artifacts),
+    )
+
+    assert result.raw_prompt_updated is True
+    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
+        "%queue(capacity=3, priority=1, weight=0)\nDo work"
+    )
+
+
+def test_persist_directive_set_wait_preserves_zero_weight(tmp_path: Path) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "raw_xprompt.md").write_text("%q(w=0)\nDo work", encoding="utf-8")
+
+    result = persist_directive_from_payload(
+        {"prompt": {"kind": "set_wait", "wait": {"weight": 0.0}}},
+        artifacts_dir=str(artifacts),
+    )
+
+    assert result.raw_prompt_updated is True
+    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
+        "%queue(weight=0)\nDo work"
+    )
+
+
 def test_clan_record_set_then_unset_round_trip(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

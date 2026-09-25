@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 import re
 import tomllib
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -153,6 +155,86 @@ def test_typed_launch_rejects_retired_wait_queue_keywords() -> None:
                 "%wait(priority=5)\nDo work",
                 selected_project="sase",
             )
+
+
+def _queue_occurrence(source: str, args: list[dict[str, str]]) -> dict[str, Any]:
+    return {
+        "source": source,
+        "source_span": [0, len(source)],
+        "args": args,
+        "has_plus_suffix": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("spelling", "name", "value"),
+    [("%q(w=0)", "w", "0"), ("%queue(weight=0.0)", "weight", "0.0")],
+)
+@pytest.mark.parametrize("budget", [True, False])
+def test_zero_weight_directive_collects_through_rust(
+    spelling: str, name: str, value: str, budget: bool
+) -> None:
+    with override_flags(queue_capacity_budget=budget):
+        result = collect_queue_fields(
+            [_queue_occurrence(spelling, [{"name": name, "value": value}])]
+        )
+
+    assert result["errors"] == []
+    assert isinstance(result["fields"], dict)
+    weight = result["fields"]["weight"]
+    assert weight == 0.0
+    assert math.copysign(1.0, weight) == 1.0
+
+
+def test_zero_weight_with_capacity_budget_collects_through_rust() -> None:
+    with override_flags(queue_capacity_budget=True):
+        result = collect_queue_fields(
+            [
+                _queue_occurrence(
+                    "%q(1, w=0)", [{"value": "1"}, {"name": "w", "value": "0"}]
+                )
+            ]
+        )
+
+    assert result["errors"] == []
+    assert result["fields"] == {"capacity": 1, "weight": 0.0}
+
+
+@pytest.mark.parametrize("budget", [True, False])
+def test_negative_zero_weight_still_rejected(budget: bool) -> None:
+    with override_flags(queue_capacity_budget=budget):
+        result = collect_queue_fields(
+            [_queue_occurrence("%q(w=-0)", [{"name": "w", "value": "-0"}])]
+        )
+
+    assert result["fields"] is None
+    assert result["errors"][0]["code"] == "invalid-queue-weight"
+
+
+def test_format_zero_weight_emits_weight_zero() -> None:
+    assert format_queue_directive(weight=0.0) == "%queue(weight=0)"
+
+
+@pytest.mark.parametrize("budget", [True, False])
+def test_zero_weight_extracts_explicit(budget: bool) -> None:
+    with override_flags(queue_capacity_budget=budget):
+        cleaned, directives = extract_prompt_directives("%q(w=0)\nDo work")
+
+    assert cleaned == "Do work"
+    assert directives.queue_weight == 0.0
+    assert directives.queue_weight_explicit is True
+
+
+def test_typed_launch_dispatch_prompt_carries_zero_weight() -> None:
+    with override_flags(typed_launch_units=True):
+        plan = plan_typed_launch_units("%q(w=0)\nDo work", selected_project="sase")
+        agent = plan.units[0].payload
+        assert isinstance(agent, AgentUnitWire)
+        assert agent.queue_weight == 0.0
+        assert agent.queue_weight_explicit is True
+        rebuilt = agent_unit_dispatch_prompt(agent)
+
+    assert "%queue(weight=0)" in rebuilt
 
 
 def test_validate_queue_capacity_rejects_booleans_and_invalid_numbers() -> None:

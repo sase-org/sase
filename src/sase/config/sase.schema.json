@@ -4728,7 +4728,7 @@
     },
     "max_running_agents": {
       "type": "integer",
-      "description": "Host-wide runner-capacity budget. Normal launches claim 1.0 capacity unit; %queue(weight=...) / %q(w=...) may request positive fractional or larger weights. Serial sessions share one live claim, while independent clan members and parallel session members each hold their own claim.",
+      "description": "Host-wide runner-capacity budget. Normal launches claim 1.0 capacity unit; %queue(weight=...) / %q(w=...) may request non-negative finite weights (%q(w=0) adds no load). Serial sessions share one live claim, while independent clan members and parallel session members each hold their own claim.",
       "minimum": 1,
       "default": 10
     },

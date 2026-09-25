@@ -3937,7 +3937,7 @@ Source: `src/sase/default_config.yml`, `src/sase/gate_shell/reclaim.py`
 The configured global runner-capacity budget across all projects. The key remains an
 integer and the packaged default remains `10`, but the value is interpreted as capacity
 units. A normal launch claims `1.0`; `%queue(weight=...)` / `%q(w=...)` can request a
-positive finite fractional or larger weight.
+non-negative finite weight (`%q(w=0)` adds no load but still takes its queue turn).
 
 A standalone agent owns one claim of its effective weight. A live serial session shares
 one claim across its agent, monitor, and serial successor shells; serial continuations

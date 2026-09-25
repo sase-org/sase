@@ -59,7 +59,7 @@ dispatch:
 
 # Host-wide runner capacity budget. A normal agent claims 1.0
 # capacity unit; `%queue(weight=...)` / `%q(w=...)` can request a
-# positive finite fractional or larger weight. A running serial session
+# non-negative finite weight (`%q(w=0)` adds no load). A running serial session
 # shares one claim across its live shells, while independently launched
 # clan members and live parallel session members each hold their own
 # claim. Workflow Python/bash steps and axe runners are excluded; axe

@@ -2556,11 +2556,13 @@ starts only after admission, so admitted capacity includes that preparation work
 The effective global `max_running_agents` value is an integer capacity budget
 (configured default `10`; an active `~/.sase/max_running_agents_override.json` value
 wins). A launch without an authored weight claims `1.0` unit. `%queue(weight=W)` /
-`%q(w=W)` requests a positive finite capacity weight such as `0.25`, `1.0`, `2`, `.25`,
-or `2.5e-1`; zero, negative, boolean, NaN, infinity, overflow, and underflow to zero are
-rejected. Omitted weight defaults to `1.0`, but an explicitly authored `1.0` is
-preserved when prompts are reconstructed. `w` and `weight` are one field, so using both
-is a duplicate even when the values match.
+`%q(w=W)` requests a non-negative finite capacity weight such as `0`, `0.25`, `1.0`,
+`2`, `.25`, or `2.5e-1`; negative, boolean, NaN, infinity, overflow, and underflow to
+zero are rejected. An authored zero is stored as `+0.0` and formats as `weight=0`. A
+zero-weight agent adds no load while it runs but still takes its queue turn: it waits
+only while the fleet is exactly full or over-committed. Omitted weight defaults to
+`1.0`, but an explicitly authored `1.0` is preserved when prompts are reconstructed. `w`
+and `weight` are one field, so using both is a duplicate even when the values match.
 
 Admission requires occupied weighted load plus the requested weight to fit within this
 launch's admission limit. Without an authored capacity, the limit is the current global
@@ -2600,10 +2602,12 @@ can inherit it; otherwise the commands run right away without a claim and the fo
 queues normally. A gate that `%auto` resolves at creation time runs its commands inside
 the creating agent's existing claim instead of taking a second one. The host-owned
 monitor that launches an approved epic records an explicit zero weight and consumes no
-capacity; the phase agents it launches claim their own. A zero weight cannot be
-authored. A `%proc` unit with queue fields is checked against this budget but never
-holds a claim (see [Experimental typed launch units](#experimental-typed-launch-units)).
-Workflow Python/bash steps and axe Patch runners are outside this budget.
+capacity; the phase agents it launches claim their own. A zero weight can also be
+authored with `%q(w=0)`: a user-authored zero is inherited by successors as explicit,
+while the monitor's host-set zero never leaks to them. A `%proc` unit with queue fields
+is checked against this budget but never holds a claim (see
+[Experimental typed launch units](#experimental-typed-launch-units)). Workflow
+Python/bash steps and axe Patch runners are outside this budget.
 
 Roll out this change by replacing long-lived sase's TUI/AXE and runner processes, or by
 letting old work drain before launching weighted workloads. Records written before

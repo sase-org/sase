@@ -577,7 +577,9 @@ still holds the claim until the command settles. In-process successors such as
 
 The host-owned monitor that launches an approved epic is the exception: it records an
 explicit zero queue weight and consumes no capacity, because the phase agents it
-launches claim their own.
+launches claim their own. That host-set zero applies to the monitor member only:
+successors inherit the starter's weight (or the default `1.0`), never the monitor's
+zero. Only a user-authored `%q(w=0)` propagates zero weight to successors.
 
 Holding a claim and waiting for one stay separate. Only a root or a live parallel clan
 member parks at the gate. Serial session members — the monitor and any ordinary

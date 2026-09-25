@@ -477,6 +477,55 @@ def test_set_prompt_queue_preserves_existing_weight() -> None:
     assert directives.queue_weight_explicit is True
 
 
+def test_set_prompt_queue_preserves_zero_weight() -> None:
+    rewritten = set_prompt_queue("%q(w=0)\nDo work", capacity=None, priority=None)
+    _, directives = extract_prompt_directives(rewritten)
+
+    assert rewritten == "%queue(weight=0)\nDo work"
+    assert directives.queue_weight == 0.0
+    assert directives.queue_weight_explicit is True
+
+
+def test_set_prompt_queue_preserves_zero_weight_combined() -> None:
+    rewritten = set_prompt_queue(
+        "%wait(dep)\n%q(w=0)\nDo work",
+        capacity=3,
+        priority=1,
+    )
+    _, directives = extract_prompt_directives(rewritten)
+
+    assert rewritten == "%queue(capacity=3, priority=1, weight=0)\n%wait(dep)\nDo work"
+    assert directives.wait == ["dep"]
+    assert directives.wait_runners == 3
+    assert directives.wait_priority == 1
+    assert directives.queue_weight == 0.0
+    assert directives.queue_weight_explicit is True
+
+
+def test_set_prompt_wait_and_queue_preserves_zero_weight_only_queue() -> None:
+    rewritten = set_prompt_wait_and_queue("%q(w=0)\n%wait:old\nDo work", None)
+    _, directives = extract_prompt_directives(rewritten)
+
+    assert rewritten == "%queue(weight=0)\nDo work"
+    assert directives.wait == []
+    assert directives.queue_weight == 0.0
+    assert directives.queue_weight_explicit is True
+
+
+def test_set_prompt_wait_and_queue_preserves_existing_zero_weight() -> None:
+    rewritten = set_prompt_wait_and_queue(
+        "%queue(weight=0)\n%wait:old\nDo work",
+        PromptWaitDirective(agents=("dep",), priority=20),
+    )
+    _, directives = extract_prompt_directives(rewritten)
+
+    assert rewritten == "%wait(dep)\n%queue(priority=20, weight=0)\nDo work"
+    assert directives.wait == ["dep"]
+    assert directives.wait_priority == 20
+    assert directives.queue_weight == 0.0
+    assert directives.queue_weight_explicit is True
+
+
 def test_insert_after_frontmatter() -> None:
     prompt = "---\ntitle: demo\n---\nDo work"
     assert set_prompt_name(prompt, "agent") == (
