@@ -29,7 +29,7 @@ from typing import Any, cast
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.binding import Binding
+from textual.binding import BindingsMap
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
@@ -76,7 +76,14 @@ from sase.ace.tui.command_line.grammar import (
     resolve_command_line,
 )
 from sase.ace.tui.command_line.history import CommandLineHistory
-from sase.ace.tui.command_line.input import COMMAND_LINE_PREFIX, CommandLineInput
+from sase.ace.tui.command_line.input import (
+    COMMAND_LINE_PREFIX,
+    CommandLineInput,
+    command_line_keymaps_for,
+)
+from sase.ace.tui.keymaps import build_command_line_bindings
+from sase.ace.tui.keymaps.app_keymaps import CommandLineKeymaps
+from sase.ace.tui.keymaps.defaults import load_builtin_command_line_defaults
 from sase.ace.tui.command_line.popup import (
     CommandLinePopup,
     CompletionPopupState,
@@ -140,35 +147,10 @@ class CommandLineScreen(
 ):
     """Bottom-anchored ``:`` Command Line drawer."""
 
-    BINDINGS = [
-        Binding("ctrl+t", "toggle_full_height", "Full height", show=False),
-        Binding("ctrl+l", "clear_transcript", "Clear", show=False),
-        Binding("escape", "hide_panel", "Hide", show=False),
-        Binding("j", "block_next", "Next block", show=False),
-        Binding("k", "block_prev", "Previous block", show=False),
-        Binding("up", "block_prev", "Previous block", show=False),
-        Binding("down", "block_next", "Next block", show=False),
-        Binding("g", "block_first", "First block", show=False),
-        Binding("G", "block_last", "Last block", show=False),
-        Binding("shift+g", "block_last", "Last block", show=False),
-        Binding("o", "block_toggle_expand", "Expand", show=False),
-        Binding("enter", "block_toggle_expand", "Expand", show=False),
-        Binding("v", "block_pager", "Pager", show=False),
-        Binding("K", "block_kill", "Kill", show=False),
-        Binding("shift+k", "block_kill", "Kill", show=False),
-        Binding("r", "block_rerun", "Rerun", show=False),
-        Binding("R", "block_rerun_confirm", "Rerun with -y", show=False),
-        Binding("shift+r", "block_rerun_confirm", "Rerun with -y", show=False),
-        Binding("e", "block_edit", "Edit", show=False),
-        Binding("y", "block_copy_output", "Copy output", show=False),
-        Binding("Y", "block_copy_command", "Copy command", show=False),
-        Binding("shift+y", "block_copy_command", "Copy command", show=False),
-        Binding("p", "block_procs", "Procs", show=False),
-        Binding("x", "block_remove", "Remove", show=False),
-        Binding("i", "block_focus_input", "Input", show=False),
-        Binding("a", "block_focus_input", "Input", show=False),
-        Binding("colon", "block_focus_input", "Input", show=False),
-    ]
+    #: Instance bindings replace this: they are built from the live
+    #: ``ace.keymaps.command_line`` scope (see :meth:`__init__` and
+    #: :meth:`on_mount`), so user overrides take effect on open.
+    BINDINGS = []
 
     DEFAULT_CSS = """
     CommandLineScreen {
@@ -245,8 +227,12 @@ class CommandLineScreen(
     }
     """
 
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+    def __init__(
+        self, *args: Any, keymaps: CommandLineKeymaps | None = None, **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        seed = keymaps or CommandLineKeymaps(**load_builtin_command_line_defaults())
+        self._bindings = BindingsMap(build_command_line_bindings(seed))
         self._history = CommandLineHistory()
         self._working_context: CommandLineContext | None = None
         self._walk_anchor: str | None = None
@@ -301,6 +287,13 @@ class CommandLineScreen(
 
     async def on_mount(self) -> None:
         """Restore session state, resolve context, and start tailing."""
+        self._bindings = BindingsMap(
+            build_command_line_bindings(command_line_keymaps_for(self))
+        )
+        try:
+            self.refresh_bindings()
+        except Exception:  # noqa: BLE001 - binding refresh is best effort.
+            pass
         session = self.session
         frame = self.query_one("#command-line-frame", Vertical)
         if session.full_height:

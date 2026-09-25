@@ -288,15 +288,29 @@ _GATE_INPUT_PANEL_BINDING_META: tuple[tuple[str, str], ...] = (
 )
 
 # Scoped bindings owned by the Command Line panel. Panel keys such as
-# ``ctrl+t``/``ctrl+l`` stay inactive everywhere else.
+# ``ctrl+t``/``ctrl+l`` stay inactive everywhere else. Only actions with a
+# screen-level ``action_*`` handler are listed: ``hop_to_palette`` and the
+# ``history_*`` actions are input-routed with INSERT/NORMAL context (empty
+# line, menu state, block selection), so they never become screen bindings.
 _COMMAND_LINE_BINDING_META: tuple[tuple[str, str], ...] = (
     ("toggle_full_height", "Full Height"),
     ("clear_transcript", "Clear Transcript"),
     ("hide_panel", "Hide Panel"),
-    ("hop_to_palette", "Command Palette"),
-    ("history_prev", "Previous History"),
-    ("history_next", "Next History"),
-    ("history_search", "Search History"),
+    ("block_next", "Next Block"),
+    ("block_prev", "Previous Block"),
+    ("block_first", "First Block"),
+    ("block_last", "Last Block"),
+    ("block_toggle_expand", "Expand Block"),
+    ("block_pager", "Block Pager"),
+    ("block_kill", "Kill Block"),
+    ("block_rerun", "Rerun Block"),
+    ("block_rerun_confirm", "Rerun Block with -y"),
+    ("block_edit", "Edit Block"),
+    ("block_copy_output", "Copy Block Output"),
+    ("block_copy_command", "Copy Block Command"),
+    ("block_procs", "Block in Procs"),
+    ("block_remove", "Remove Block"),
+    ("block_focus_input", "Focus Input"),
 )
 
 # Scoped bindings owned by the Memory panel. These are deliberately

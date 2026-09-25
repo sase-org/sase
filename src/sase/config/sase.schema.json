@@ -2322,6 +2322,66 @@
                 "history_search": {
                   "type": "string",
                   "description": "Search history"
+                },
+                "block_next": {
+                  "type": "string",
+                  "description": "Select the next transcript block"
+                },
+                "block_prev": {
+                  "type": "string",
+                  "description": "Select the previous transcript block"
+                },
+                "block_first": {
+                  "type": "string",
+                  "description": "Select the first transcript block"
+                },
+                "block_last": {
+                  "type": "string",
+                  "description": "Select the last transcript block"
+                },
+                "block_toggle_expand": {
+                  "type": "string",
+                  "description": "Expand or collapse the selected block"
+                },
+                "block_pager": {
+                  "type": "string",
+                  "description": "Open the selected block in the pager"
+                },
+                "block_kill": {
+                  "type": "string",
+                  "description": "Kill the selected block's proc"
+                },
+                "block_rerun": {
+                  "type": "string",
+                  "description": "Rerun the selected block's line"
+                },
+                "block_rerun_confirm": {
+                  "type": "string",
+                  "description": "Rerun the selected line with -y appended"
+                },
+                "block_edit": {
+                  "type": "string",
+                  "description": "Load the selected block's line into the input"
+                },
+                "block_copy_output": {
+                  "type": "string",
+                  "description": "Copy the selected block's output"
+                },
+                "block_copy_command": {
+                  "type": "string",
+                  "description": "Copy the selected block's command line"
+                },
+                "block_procs": {
+                  "type": "string",
+                  "description": "Open Admin Center Procs on the selected proc"
+                },
+                "block_remove": {
+                  "type": "string",
+                  "description": "Remove the selected block from the transcript"
+                },
+                "block_focus_input": {
+                  "type": "string",
+                  "description": "Return to the input in INSERT mode"
                 }
               }
             },

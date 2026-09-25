@@ -826,7 +826,7 @@ ace:
             set_level_4: "4"
       # Custom modes can be added here
       my_mode:
-        prefix: ";"
+        prefix: "B"
         keys:
           run_tests:
             key: "t"

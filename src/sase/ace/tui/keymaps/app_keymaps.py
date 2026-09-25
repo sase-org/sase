@@ -337,6 +337,21 @@ class CommandLineKeymaps:
     history_prev: str = "up"
     history_next: str = "down"
     history_search: str = "ctrl+r"
+    block_next: str = "j,down"
+    block_prev: str = "k,up"
+    block_first: str = "g"
+    block_last: str = "G,shift+g"
+    block_toggle_expand: str = "o,enter"
+    block_pager: str = "v"
+    block_kill: str = "K,shift+k"
+    block_rerun: str = "r"
+    block_rerun_confirm: str = "R,shift+r"
+    block_edit: str = "e"
+    block_copy_output: str = "y"
+    block_copy_command: str = "Y,shift+y"
+    block_procs: str = "p"
+    block_remove: str = "x"
+    block_focus_input: str = "i,a,colon"
 
 
 @dataclass

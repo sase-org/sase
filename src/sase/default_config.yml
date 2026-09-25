@@ -475,7 +475,11 @@ ace:
     xprompt_placeholder_args: true
   keymaps:
     # Focused Command Line panel bindings. These keys are inactive everywhere
-    # else, even when they overlap app-level actions.
+    # else, even when they overlap app-level actions. The completion-menu keys
+    # (Tab, shift+Tab, ctrl+n, ctrl+p, Enter and ctrl+f to accept, Esc to leave
+    # the menu, Right to accept ghost text) follow the zsh menu-select contract
+    # and stay fixed; everything listed here is configurable, and `unbound`
+    # leaves an action inactive (and out of the key hints).
     command_line:
       toggle_full_height: "ctrl+t"
       clear_transcript: "ctrl+l"
@@ -484,6 +488,21 @@ ace:
       history_prev: "up"
       history_next: "down"
       history_search: "ctrl+r"
+      block_next: "j,down"
+      block_prev: "k,up"
+      block_first: "g"
+      block_last: "G,shift+g"
+      block_toggle_expand: "o,enter"
+      block_pager: "v"
+      block_kill: "K,shift+k"
+      block_rerun: "r"
+      block_rerun_confirm: "R,shift+r"
+      block_edit: "e"
+      block_copy_output: "y"
+      block_copy_command: "Y,shift+y"
+      block_procs: "p"
+      block_remove: "x"
+      block_focus_input: "i,a,colon"
     # Focused Admin Center Config-hub bindings. The prefix is inactive
     # everywhere else and arms one numbered Config sub-tab selection.
     config:

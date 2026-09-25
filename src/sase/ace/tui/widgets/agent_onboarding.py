@@ -355,6 +355,11 @@ class AgentOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.open_command_palette))
         text.append("fuzzy-search and run any command.")
         text.append("\n")
+        command_line_key = key_display_name(app.open_command_line)
+        if command_line_key:
+            append_keycap(text, command_line_key)
+            text.append("run sase commands without leaving the TUI.")
+            text.append("\n")
         text.append(_DOCS_URL, style=f"bold {_AGENTS_ACCENT} link {_DOCS_URL}")
         text.append(" full documentation.", style="dim")
         return text

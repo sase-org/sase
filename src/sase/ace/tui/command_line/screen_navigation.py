@@ -44,7 +44,15 @@ from sase.ace.tui.command_line.grammar import (
     is_command_line_grammar_pending,
     resolve_command_line,
 )
-from sase.ace.tui.command_line.input import CommandLineInput
+from sase.ace.tui.command_line.input import (
+    CommandLineInput,
+    command_line_keymaps_for,
+    match_block_nav_action,
+)
+from sase.ace.tui.command_line.screen_constants import (
+    command_line_block_hints,
+    command_line_input_hints,
+)
 from sase.ace.tui.command_line.policies import (
     append_confirm_flag,
     deny_note_for,
@@ -57,14 +65,6 @@ from sase.ace.tui.command_line.popup import (
     popup_footer,
 )
 from sase.ace.tui.command_line.restore import load_block_tail_text
-from sase.ace.tui.command_line.screen_constants import (
-    COMMAND_LINE_BLOCK_HINTS,
-    COMMAND_LINE_IDLE_HINT,
-    COMMAND_LINE_INDEXING_HINT,
-    COMMAND_LINE_INPUT_HINTS,
-    COMMAND_LINE_MENU_HINTS,
-    COMMAND_LINE_SEARCH_HINT,
-)
 from sase.ace.tui.command_line.session import CommandLineBlock, tokenize_command_line
 from sase.ace.tui.command_line.signature import signature_hint_line
 from sase.ace.tui.command_line.sources import (
@@ -165,65 +165,42 @@ class CommandLineScreenNavigationMixin:
             keys = self.query_one("#command-line-keys", Static)
         except Exception:  # noqa: BLE001 - unmounted screen cannot refresh.
             return
+        keymaps = command_line_keymaps_for(self)
         if self.session.selected_block_id is not None:
-            keys.update(COMMAND_LINE_BLOCK_HINTS)
+            keys.update(command_line_block_hints(keymaps))
         else:
-            keys.update(COMMAND_LINE_INPUT_HINTS)
+            keys.update(command_line_input_hints(keymaps))
 
     # -- NORMAL-mode block navigation --------------------------------------
 
-    #: Forwarded NORMAL-mode keys (from the input widget) to screen handlers.
-    _BLOCK_NAV_KEYS = frozenset(
-        {
-            "j",
-            "k",
-            "g",
-            "G",
-            "o",
-            "v",
-            "K",
-            "r",
-            "R",
-            "e",
-            "y",
-            "Y",
-            "p",
-            "x",
-            "i",
-            "a",
-            "enter",
-            "up",
-            "down",
-            "colon",
-        }
-    )
+    def handle_block_nav_key(self, key: str, character: str = "") -> bool:
+        """Dispatch one forwarded NORMAL-mode key; False when unhandled.
 
-    def handle_block_nav_key(self, key: str) -> bool:
-        """Dispatch one forwarded NORMAL-mode key; False when unhandled."""
-        if key not in self._BLOCK_NAV_KEYS:
+        The key is resolved through the live ``ace.keymaps.command_line``
+        ``block_*`` scope, so user overrides (and ``unbound`` actions, which
+        never match) take effect. ``character`` covers platform ``shift+x``
+        spellings whose ``event.key`` differs.
+        """
+        action = match_block_nav_action(command_line_keymaps_for(self), key, character)
+        if action is None:
             return False
         handler = {
-            "j": self._select_next,
-            "down": self._select_next,
-            "k": self._select_prev,
-            "up": self._select_prev,
-            "g": self._select_first,
-            "G": self._select_last,
-            "o": self.toggle_selected_expand,
-            "enter": self.toggle_selected_expand,
-            "v": self.open_selected_in_pager,
-            "K": self.kill_selected_block,
-            "r": self.rerun_selected_block,
-            "R": self.rerun_selected_with_confirm_flag,
-            "e": self.edit_selected_block,
-            "y": self.copy_selected_output,
-            "Y": self.copy_selected_command,
-            "p": self.open_selected_in_procs,
-            "x": self.remove_selected_block,
-            "i": self.focus_input,
-            "a": self.focus_input,
-            "colon": self.focus_input,
-        }[key]
+            "block_next": self._select_next,
+            "block_prev": self._select_prev,
+            "block_first": self._select_first,
+            "block_last": self._select_last,
+            "block_toggle_expand": self.toggle_selected_expand,
+            "block_pager": self.open_selected_in_pager,
+            "block_kill": self.kill_selected_block,
+            "block_rerun": self.rerun_selected_block,
+            "block_rerun_confirm": self.rerun_selected_with_confirm_flag,
+            "block_edit": self.edit_selected_block,
+            "block_copy_output": self.copy_selected_output,
+            "block_copy_command": self.copy_selected_command,
+            "block_procs": self.open_selected_in_procs,
+            "block_remove": self.remove_selected_block,
+            "block_focus_input": self.focus_input,
+        }[action]
         handler()
         return True
 

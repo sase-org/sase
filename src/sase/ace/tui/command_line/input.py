@@ -25,6 +25,12 @@ from textual.events import Key
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.command_line.session import strip_implicit_prefix
+from sase.ace.tui.keymaps.app_keymaps import CommandLineKeymaps
+from sase.ace.tui.keymaps.defaults import load_builtin_command_line_defaults
+from sase.ace.tui.keymaps.key_validation import (
+    is_unbound_key,
+    split_key_alternatives,
+)
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.completion.command_line_grammar import LineContext
 
@@ -47,21 +53,95 @@ _ROLE_STYLE_NAMES = {
 #: Style for advisory diagnostic undercurl spans.
 _DIAGNOSTIC_STYLE_NAME = "cmdline.diagnostic"
 
-#: Keys offered to the screen's popup state machine before vim handling.
-_POPUP_KEYS = frozenset(
+#: Fixed zsh menu-select keys offered to the screen's popup state machine
+#: before vim handling. The configurable history keys (``history_prev``,
+#: ``history_next``, ``history_search``) join this set at runtime from the
+#: live ``CommandLineKeymaps``.
+_MENU_KEYS = frozenset(
     {
         "tab",
         "shift+tab",
         "ctrl+n",
         "ctrl+p",
         "ctrl+f",
-        "ctrl+r",
-        "up",
-        "down",
         "enter",
         "escape",
     }
 )
+
+#: Scope fields that capture keys for transcript block navigation, in plan
+#: order. The screen dispatches a matched field to its block handler.
+BLOCK_NAV_ACTION_FIELDS: tuple[str, ...] = (
+    "block_next",
+    "block_prev",
+    "block_first",
+    "block_last",
+    "block_toggle_expand",
+    "block_pager",
+    "block_kill",
+    "block_rerun",
+    "block_rerun_confirm",
+    "block_edit",
+    "block_copy_output",
+    "block_copy_command",
+    "block_procs",
+    "block_remove",
+    "block_focus_input",
+)
+
+#: The block action whose keys also enter the transcript from an unselected
+#: NORMAL input (``k``/``↑`` by default).
+ENTER_TRANSCRIPT_ACTION = "block_prev"
+
+
+def command_line_keymaps_for(obj: Any) -> CommandLineKeymaps:
+    """Return the live ``:`` Command Line scope for *obj*.
+
+    *obj* is the input widget, the panel screen, or the app itself. Falls
+    back to the bundled defaults when no registry is reachable (unmounted
+    widget, teardown races).
+    """
+    try:
+        app = getattr(obj, "app", obj)
+        keymaps = getattr(getattr(app, "_keymap_registry", None), "command_line", None)
+        if isinstance(keymaps, CommandLineKeymaps):
+            return keymaps
+    except Exception:  # noqa: BLE001 - keymap reads always degrade.
+        pass
+    return CommandLineKeymaps(**load_builtin_command_line_defaults())
+
+
+def binding_matches_key(binding: str, key: str, character: str = "") -> bool:
+    """True when a key event matches one alternative of a keymap *binding*.
+
+    ``character`` covers platform ``shift+x`` spellings whose ``event.key``
+    differs (``shift+g`` versus ``G``): a single-character event character
+    matches a single-character alternative. ``unbound`` never matches.
+    """
+    if not key and not character:
+        return False
+    if not binding or is_unbound_key(binding):
+        return False
+    alternatives = [part for part in split_key_alternatives(binding) if part]
+    if key and key in alternatives:
+        return True
+    if (
+        character
+        and len(character) == 1
+        and character in {part for part in alternatives if len(part) == 1}
+    ):
+        return True
+    return False
+
+
+def match_block_nav_action(
+    keymaps: CommandLineKeymaps, key: str, character: str = ""
+) -> str | None:
+    """Return the block-nav scope field matching a key event, if any."""
+    for field in BLOCK_NAV_ACTION_FIELDS:
+        if binding_matches_key(getattr(keymaps, field, "") or "", key, character):
+            return field
+    return None
 
 
 def _byte_offset(text: str, char_index: int) -> int:
@@ -70,37 +150,11 @@ def _byte_offset(text: str, char_index: int) -> int:
     return len(text[:char_index].encode("utf-8"))
 
 
-#: NORMAL-mode keys the panel owns for transcript block navigation. While the
-#: field is in NORMAL mode these are forwarded to the screen instead of
-#: editing the line; INSERT mode keeps them as ordinary text.
-BLOCK_NAV_KEYS = frozenset(
-    {
-        "j",
-        "k",
-        "g",
-        "G",
-        "o",
-        "v",
-        "K",
-        "r",
-        "R",
-        "e",
-        "y",
-        "Y",
-        "p",
-        "x",
-        "i",
-        "a",
-        "enter",
-        "up",
-        "down",
-        "colon",
-    }
-)
-
-#: Printable characters that map to block navigation (covers ``shift+x``
-#: spellings such as ``shift+g`` whose ``event.key`` differs by platform).
-_BLOCK_NAV_CHARS = frozenset("jkgGovKrReyYpxia")
+#: NORMAL-mode keys the panel owns for transcript block navigation live in
+#: ``ace.keymaps.command_line`` (the ``block_*`` actions); see
+#: :func:`match_block_nav_action`. While the field is in NORMAL mode a
+#: matched key is forwarded to the screen instead of editing the line;
+#: INSERT mode keeps those keys as ordinary text.
 
 
 class CommandLineInput(SingleLineVimTextArea):
@@ -261,11 +315,20 @@ class CommandLineInput(SingleLineVimTextArea):
                 )
             )
 
+    def _history_key_match(self, keymaps: CommandLineKeymaps, key: str) -> bool:
+        """True when *key* drives history (prev/next/search) in INSERT mode."""
+        return (
+            binding_matches_key(keymaps.history_prev, key)
+            or binding_matches_key(keymaps.history_next, key)
+            or binding_matches_key(keymaps.history_search, key)
+        )
+
     async def _on_key(self, event: Key) -> None:
         """Route popup and block-nav keys before Escape/hop/vim handling."""
-        if (
-            getattr(self, "_vim_mode", "insert") != "normal"
-            and event.key in _POPUP_KEYS
+        keymaps = command_line_keymaps_for(self)
+        if getattr(self, "_vim_mode", "insert") != "normal" and (
+            (event.key or "") in _MENU_KEYS
+            or self._history_key_match(keymaps, event.key or "")
         ):
             handler = getattr(self.screen, "command_line_handle_key", None)
             if callable(handler):
@@ -275,13 +338,9 @@ class CommandLineInput(SingleLineVimTextArea):
                 except Exception:  # noqa: BLE001 - fall back to vim handling.
                     pass
         if getattr(self, "_vim_mode", "insert") == "normal":
-            nav_key = event.key or ""
-            if nav_key not in BLOCK_NAV_KEYS:
-                character = event.character or ""
-                if len(character) == 1 and character in _BLOCK_NAV_CHARS:
-                    nav_key = character
-                else:
-                    nav_key = ""
+            key = event.key or ""
+            character = event.character or ""
+            action = match_block_nav_action(keymaps, key, character)
             selected_block = None
             try:
                 selected = getattr(self.screen, "selected_block", None)
@@ -289,16 +348,19 @@ class CommandLineInput(SingleLineVimTextArea):
                     selected_block = selected()
             except Exception:  # noqa: BLE001 - screen reads degrade.
                 pass
-            # ``k``/Up enter the transcript from an unselected NORMAL input;
-            # every other panel key remains a normal vim edit until a block is
-            # selected. Once selected, the full block-nav set is panel-owned.
-            if nav_key and (selected_block is not None or nav_key in {"k", "up"}):
+            # The enter-transcript action enters the transcript from an
+            # unselected NORMAL input; every other panel key remains a
+            # normal vim edit until a block is selected. Once selected,
+            # the full block-nav set is panel-owned.
+            if action is not None and (
+                selected_block is not None or action == ENTER_TRANSCRIPT_ACTION
+            ):
                 try:
                     handler = getattr(self.screen, "handle_block_nav_key", None)
                 except Exception:  # noqa: BLE001 - screen reads degrade.
                     handler = None
                 if callable(handler):
-                    if handler(nav_key):
+                    if handler(key, character):
                         event.stop()
                         event.prevent_default()
                         return
@@ -308,7 +370,9 @@ class CommandLineInput(SingleLineVimTextArea):
                 event.prevent_default()
                 await self.screen.dismiss(None)
                 return
-        if event.key == "semicolon" and self._vim_mode == "insert":
+        if self._vim_mode == "insert" and binding_matches_key(
+            keymaps.hop_to_palette, event.key or ""
+        ):
             if not self.text.strip():
                 hop = getattr(self.screen, "hop_to_palette", None)
                 if callable(hop):

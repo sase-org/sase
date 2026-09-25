@@ -44,7 +44,11 @@ from sase.ace.tui.command_line.grammar import (
     is_command_line_grammar_pending,
     resolve_command_line,
 )
-from sase.ace.tui.command_line.input import CommandLineInput
+from sase.ace.tui.command_line.input import (
+    CommandLineInput,
+    binding_matches_key,
+    command_line_keymaps_for,
+)
 from sase.ace.tui.command_line.policies import (
     append_confirm_flag,
     deny_note_for,
@@ -58,12 +62,11 @@ from sase.ace.tui.command_line.popup import (
 )
 from sase.ace.tui.command_line.restore import load_block_tail_text
 from sase.ace.tui.command_line.screen_constants import (
-    COMMAND_LINE_BLOCK_HINTS,
-    COMMAND_LINE_IDLE_HINT,
     COMMAND_LINE_INDEXING_HINT,
-    COMMAND_LINE_INPUT_HINTS,
     COMMAND_LINE_MENU_HINTS,
     COMMAND_LINE_SEARCH_HINT,
+    command_line_idle_hint,
+    command_line_input_hints,
 )
 from sase.ace.tui.command_line.session import CommandLineBlock, tokenize_command_line
 from sase.ace.tui.command_line.signature import signature_hint_line
@@ -521,7 +524,7 @@ class CommandLineScreenCompletionMixin:
             if is_command_line_grammar_pending(self.app):
                 hint_row.update(COMMAND_LINE_INDEXING_HINT)
             else:
-                hint_row.update(COMMAND_LINE_IDLE_HINT)
+                hint_row.update(command_line_idle_hint(command_line_keymaps_for(self)))
             return
         hint_row.update(
             signature_hint_line(
@@ -548,7 +551,7 @@ class CommandLineScreenCompletionMixin:
         if is_command_line_grammar_pending(self.app):
             hint_row.update(COMMAND_LINE_INDEXING_HINT)
         else:
-            hint_row.update(COMMAND_LINE_IDLE_HINT)
+            hint_row.update(command_line_idle_hint(command_line_keymaps_for(self)))
         self._update_keys_hint()
 
     def _highlighted_help_option(self) -> dict[str, Any] | None:
@@ -596,10 +599,19 @@ class CommandLineScreenCompletionMixin:
         return [str(token) for token in argv] or None
 
     async def command_line_handle_key(self, event: Any) -> bool:
-        """Apply the zsh menu-select key rules; True when the key is consumed."""
-        key = getattr(event, "key", None)
+        """Apply the zsh menu-select key rules; True when the key is consumed.
+
+        The fixed menu keys (Tab, Shift-Tab, ``ctrl+n``/``ctrl+p``,
+        ``ctrl+f``/Enter accept, Esc-leaves-menu) follow the zsh
+        menu-select contract. History prev/next/search come from the live
+        ``ace.keymaps.command_line`` scope instead of literals.
+        """
+        key = getattr(event, "key", None) or ""
+        keymaps = command_line_keymaps_for(self)
         state = self._popup_state
         decision: PopupDecision | None = None
+        prev_match = binding_matches_key(keymaps.history_prev, key)
+        next_match = binding_matches_key(keymaps.history_next, key)
         if key == "tab":
             decision = state.on_tab()
         elif key == "shift+tab":
@@ -608,11 +620,11 @@ class CommandLineScreenCompletionMixin:
             decision = state.on_ctrl_n()
         elif key == "ctrl+p":
             decision = state.on_ctrl_p()
-        elif key in ("up", "down"):
+        elif prev_match or next_match:
             if state.menu_active:
-                decision = state.on_ctrl_n() if key == "down" else state.on_ctrl_p()
+                decision = state.on_ctrl_n() if next_match else state.on_ctrl_p()
             else:
-                self.history_step(1 if key == "up" else -1)
+                self.history_step(1 if prev_match else -1)
                 return True
         elif key == "ctrl+f":
             if not state.menu_active:
@@ -632,7 +644,7 @@ class CommandLineScreenCompletionMixin:
             if not state.menu_active:
                 return False
             decision = state.on_escape()
-        elif key == "ctrl+r":
+        elif binding_matches_key(keymaps.history_search, key):
             self.toggle_history_search()
             return True
         else:
@@ -700,7 +712,7 @@ class CommandLineScreenCompletionMixin:
         if self._popup_state.menu_active:
             keys.update(COMMAND_LINE_MENU_HINTS)
         else:
-            keys.update(COMMAND_LINE_INPUT_HINTS)
+            keys.update(command_line_input_hints(command_line_keymaps_for(self)))
 
     def on_option_list_option_selected(self, event: Any) -> None:
         """Accept a popup row picked with the mouse while the menu is live."""

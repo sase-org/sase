@@ -244,6 +244,14 @@ class TabQuickStart(VerticalScroll):
                 "Command palette: fuzzy-run any command.",
             ),
         ]
+        command_line_key = key_display_name(app.open_command_line)
+        if command_line_key:
+            rows.append(
+                (
+                    (command_line_key,),
+                    "Command Line: run sase commands without leaving the TUI.",
+                )
+            )
         if tab == "artifacts":
             from ..artifact_tabs import resolve_artifacts_subtabs
 

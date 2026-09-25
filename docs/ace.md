@@ -3578,6 +3578,13 @@ TUI.
 - Block keys (`NORMAL` mode): `o` expand, `v` pager, `K` kill, `r`/`R` rerun, `e` edit,
   `y`/`Y` copy output/command, `p` open in Procs, `x` remove, `i` back to input.
 
+Panel keys are configurable under `ace.keymaps.command_line` in
+`~/.config/sase/sase.yml`: history (`up`/`down`, `Ctrl+R`), the `;` palette hop, and
+every Block key above. Set an action to `unbound` to disable it; it also leaves the key
+hints. The completion-menu keys follow the zsh menu-select contract and stay fixed:
+`Tab` / `Shift+Tab` / `Ctrl+N` / `Ctrl+P` to move, `Enter` or `Ctrl+F` to accept, `Esc`
+to leave the menu, `→` to accept ghost text at the end of the line.
+
 The `:` binding follows your configured keymap. To rebind it, set
 `ace.keymaps.app.open_command_line` in `~/.config/sase/sase.yml`.
 
