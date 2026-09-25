@@ -32,6 +32,8 @@ _COMMAND_LINE_GRAMMAR_ATTR = "_command_line_grammar"
 _COMMAND_LINE_GRAMMAR_LOADING_ATTR = "_command_line_grammar_loading"
 #: App attribute holding the last loader error message (or ``None``).
 _COMMAND_LINE_GRAMMAR_ERROR_ATTR = "_command_line_grammar_error"
+#: App attribute holding every screen callback awaiting the current load.
+_COMMAND_LINE_GRAMMAR_READY_CALLBACKS_ATTR = "_command_line_grammar_ready_callbacks"
 
 __all__ = [
     "CompletionSpecCacheError",
@@ -82,6 +84,12 @@ def ensure_command_line_grammar_loaded(
     """
     if command_line_grammar_for(app) is not None:
         return True
+    if on_ready is not None:
+        callbacks = getattr(app, _COMMAND_LINE_GRAMMAR_READY_CALLBACKS_ATTR, None)
+        if callbacks is None:
+            callbacks = []
+            setattr(app, _COMMAND_LINE_GRAMMAR_READY_CALLBACKS_ATTR, callbacks)
+        callbacks.append(on_ready)
     if is_command_line_grammar_pending(app):
         return False
     setattr(app, _COMMAND_LINE_GRAMMAR_LOADING_ATTR, True)
@@ -101,9 +109,11 @@ def ensure_command_line_grammar_loaded(
             setattr(app, _COMMAND_LINE_GRAMMAR_ERROR_ATTR, None)
         finally:
             setattr(app, _COMMAND_LINE_GRAMMAR_LOADING_ATTR, False)
-        if on_ready is not None:
+        callbacks = getattr(app, _COMMAND_LINE_GRAMMAR_READY_CALLBACKS_ATTR, ())
+        setattr(app, _COMMAND_LINE_GRAMMAR_READY_CALLBACKS_ATTR, [])
+        for callback in callbacks:
             try:
-                on_ready()
+                callback()
             except Exception:  # noqa: BLE001 - refresh is best effort.
                 log.debug("command-line grammar on_ready failed", exc_info=True)
 

@@ -368,12 +368,16 @@ class CommandLineInput(SingleLineVimTextArea):
                         event.stop()
                         event.prevent_default()
                         return
-        if event.key == "escape" and self._vim_mode == "insert":
+        if self._vim_mode == "insert" and binding_matches_key(
+            keymaps.hide_panel, event.key or ""
+        ):
             if not self.text.strip():
-                event.stop()
-                event.prevent_default()
-                await self.screen.dismiss(None)
-                return
+                hide_panel = getattr(self.screen, "action_hide_panel", None)
+                if callable(hide_panel):
+                    event.stop()
+                    event.prevent_default()
+                    hide_panel()
+                    return
         if self._vim_mode == "insert" and binding_matches_key(
             keymaps.hop_to_palette, event.key or ""
         ):
@@ -382,6 +386,6 @@ class CommandLineInput(SingleLineVimTextArea):
                 if callable(hop):
                     event.stop()
                     event.prevent_default()
-                    await hop()
+                    hop()
                     return
         await super()._on_key(event)

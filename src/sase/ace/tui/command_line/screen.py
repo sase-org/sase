@@ -456,6 +456,8 @@ class CommandLineScreen(
 
     def _on_grammar_ready_from_worker(self) -> None:
         """Refresh after the loop-owned grammar loader has completed."""
+        if not self.is_attached or self.app.screen is not self:
+            return
         self._refresh_completion_after_grammar()
 
     def _refresh_completion_after_grammar(self) -> None:

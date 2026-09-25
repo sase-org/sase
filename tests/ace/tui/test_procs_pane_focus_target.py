@@ -5,10 +5,13 @@ from __future__ import annotations
 import pytest
 from textual.widgets import OptionList
 
+from sase.ace.testing import wait_for
+from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import (
     AdminCenterSessionState,
     ProcsSessionState,
 )
+from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.procs_filter_bar import ProcsFilterBar
 from tests.ace.tui._procs_pane_helpers import (
     ProcsTestApp,
@@ -71,6 +74,21 @@ async def test_focus_target_returns_false_for_an_unknown_proc() -> None:
 
         assert pane.focus_proc_target("missing") is False
         assert pilot.app.notifications == []
+
+
+async def test_initial_procs_tab_delivers_focus_target_on_the_app_loop() -> None:
+    """A real Procs pane receives the target after its direct initial open."""
+    target = task("target", label="bead list", status="success", age_seconds=1)
+
+    async with ProcsTestApp(queue(target)).run_test() as pilot:
+        modal = ConfigCenterModal(initial_tab="procs", proc_focus_target="target")
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._proc_focus_target is None)
+
+        pane = modal.query_one("#procs", ProcsPane)
+        selected = pane._get_selected_task()
+        assert selected is not None
+        assert selected.proc_id == "target"
 
 
 class _FakeFocusPane:

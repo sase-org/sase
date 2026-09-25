@@ -116,13 +116,14 @@ class CommandLineScreenNavigationMixin:
         self._store_draft()
         self._update_ghost()
 
-    async def hop_to_palette(self) -> None:
+    def hop_to_palette(self) -> None:
         """Dismiss the panel and open the Command Palette."""
         app = self.app
-        await self.dismiss(None)
+        self._store_draft()
+        self.dismiss(None)
         open_palette = getattr(app, "action_open_command_palette", None)
         if callable(open_palette):
-            open_palette()
+            app.call_later(open_palette)
 
     def action_toggle_full_height(self) -> None:
         """Toggle the full-height frame (``ctrl+t``)."""

@@ -310,18 +310,7 @@ class ConfigCenterModal(ModalScreen[CenterTab | None]):
         finally:
             self._initial_navigation_pending = False
         if switched and tab == "procs" and self._proc_focus_target is not None:
-            self._post_proc_focus_target()
-
-    def _post_proc_focus_target(self) -> None:
-        """Deliver a pending proc focus target on the message-pump thread."""
-        try:
-            app = self.app
-        except Exception:
-            return
-        try:
-            app.call_from_thread(self._deliver_proc_focus_target)
-        except Exception:
-            log.debug("proc focus target delivery failed", exc_info=True)
+            self._deliver_proc_focus_target()
 
     def _deliver_proc_focus_target(self) -> bool:
         """Select the pending focus proc in the Procs pane, if mounted."""
