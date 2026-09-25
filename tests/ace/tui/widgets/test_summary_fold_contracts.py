@@ -47,7 +47,7 @@ from tests.ace.tui.widgets._summary_fold_contract_helpers import (
     NOW,
     RenderedSummary,
     make_agent_session,
-    render_family,
+    render_agent_session,
     section_body,
     single_jump_map,
 )
@@ -188,7 +188,7 @@ def _family_case(tmp_path: Path) -> _FoldContractCase:
         with_prompt_content=False,
     )
     populated = {
-        level: render_family(populated_agent, level)
+        level: render_agent_session(populated_agent, level)
         for level in AGENT_SESSION_FOLD_SCALE
     }
     return _FoldContractCase(
@@ -196,7 +196,7 @@ def _family_case(tmp_path: Path) -> _FoldContractCase:
         scale=AGENT_SESSION_FOLD_SCALE,
         populated=populated,
         empty={
-            level: render_family(empty_agent, level)
+            level: render_agent_session(empty_agent, level)
             for level in AGENT_SESSION_FOLD_SCALE
         },
         unloaded=populated,
@@ -373,7 +373,7 @@ def test_adjacent_levels_change_non_empty_section_bodies(
         assert lower != higher, (fold_contract_case.kind, lower)
 
 
-def test_family_conversation_bodies_do_not_change_across_scale(
+def test_agent_session_conversation_bodies_do_not_change_across_scale(
     tmp_path: Path,
 ) -> None:
     family = _family_case(tmp_path)

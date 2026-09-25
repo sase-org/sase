@@ -145,7 +145,7 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
         assert not isinstance(preview, BulkRevertPreview)
         # legacy agent-family spelling: pre-rename previews carry scope
         # ``"family"``; new writers emit only ``"session"``.
-        scope_word = "family" if preview.scope in ("session", "family") else "agent"
+        scope_word = "session" if preview.scope in ("session", "family") else "agent"
         return f"Agent {preview.agent_name} · scope {scope_word}"
 
     def _summary_text(self) -> Text:

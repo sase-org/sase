@@ -1,7 +1,7 @@
 """Attach unparented concrete session shells to their real session root.
 
-Modern owner records often carry ``family_id`` / a plan-chain name suffix
-without ``parent_timestamp``. A ``--plan`` gate with ``family_id`` is a
+Modern owner records carry an agent-session identity / a plan-chain name suffix
+without ``parent_timestamp``. A ``--plan`` gate with an agent-session identity is a
 nested shell, never a second session container.
 """
 

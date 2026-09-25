@@ -153,7 +153,7 @@ def test_valid_direct_panel_level_clears_overrides_and_notifies_regular_scope() 
     assert app.panel_fold_level is FoldLevel.EXPANDED
     assert app._panel_fold_overrides.snapshot() == {}
     assert app.notifications == [
-        "Fold levels shape clan, family, neighbor, and slow-call summaries"
+        "Fold levels shape clan, session, neighbor, and slow-call summaries"
     ]
 
 
@@ -367,7 +367,7 @@ def test_regular_agent_fold_change_shows_scope_toast_but_containers_do_not() -> 
     _press(agent_session, "Z")
 
     assert regular.notifications == [
-        "Fold levels shape clan, family, neighbor, and slow-call summaries"
+        "Fold levels shape clan, session, neighbor, and slow-call summaries"
     ]
     assert clan.notifications == []
     assert agent_session.notifications == []

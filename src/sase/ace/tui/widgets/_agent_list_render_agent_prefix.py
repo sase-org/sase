@@ -55,8 +55,8 @@ def _should_render_reverted_badge(agent: Agent) -> bool:
 def _is_indented_member_shell(agent: Agent) -> bool:
     """Return whether *agent* is a shell nested under an already-chipped node.
 
-    Family and clan containers still carry a host chip even when they nest
-    under another container. Member shells (family children, workflow
+    Session and clan containers still carry a host chip even when they nest
+    under another container. Member shells (session children, workflow
     steps, monitors, gates, procs) do not repeat the parent's chip.
     """
     if agent.is_clan_container or agent.is_agent_session_container_row:

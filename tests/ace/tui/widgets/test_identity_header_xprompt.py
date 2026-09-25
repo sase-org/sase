@@ -121,12 +121,12 @@ def test_hinted_xprompt_moves_to_identity_and_keeps_its_markers(tmp_path: Path) 
     assert "AGENT XPROMPT" not in plain_of(panel.captured[-1])
 
 
-def test_family_xprompt_moves_to_identity_when_detached(tmp_path: Path) -> None:
+def test_agent_session_xprompt_moves_to_identity_when_detached(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     panel = _DetachedPanel()
     header, error = build_header_text(root, detach_identity=True)
 
-    panel._update_family_display(
+    panel._update_agent_session_display(
         root,
         header,
         error,

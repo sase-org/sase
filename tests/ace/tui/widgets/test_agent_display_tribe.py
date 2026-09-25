@@ -234,7 +234,7 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     assert pulse.startswith(
         "TRIBE\nName: ▲ @epic\n"
         "Status: FAILED [R1 F1]\n"
-        "Composition: 1 family · 2 lanes · 1 nested\n"
+        "Composition: 1 session · 2 lanes · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
         "\n"
         "Epic phase-worker clans from sase bead work, one member per phase of an "
@@ -243,12 +243,12 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     )
     assert "▸ NEEDS ATTENTION · 1\n• failed · FAILED · Build failed" in pulse
     assert "▸ ❖ TRIBE MEMBERS · 2\n" in pulse
-    assert " 0  [✓] build · family" in pulse
+    assert " 0  [✓] build · session" in pulse
     assert " 1  failed · agent" in pulse
     assert published[0].targets
 
     assert "Fold: 2/4\n" in roster
-    assert " 0  [✓] build · family" in roster
+    assert " 0  [✓] build · session" in roster
     assert " 1  failed · agent" in roster
     assert "--code" not in roster
     assert "• failed · Build failed" in roster

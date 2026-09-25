@@ -250,18 +250,18 @@ def test_only_title_anchors_carry_nonempty_all_caps_underlined_text(
     assert saw_fold_only, "expected at least one fold-only anchor (a roster row)"
 
 
-def test_family_conversation_headings_remain_navigation_targets(
+def test_agent_session_conversation_headings_remain_navigation_targets(
     tmp_path: Path,
 ) -> None:
-    family, _child = make_agent_session(tmp_path)
+    agent_session, _child = make_agent_session(tmp_path)
     header, error = build_header_text(
-        family,
+        agent_session,
         cheap=True,
         lane_fold_level=FoldLevel.EXPANDED,
     )
     prompt_panel = FakePromptPanel()
-    prompt_panel._update_family_display(
-        family,
+    prompt_panel._update_agent_session_display(
+        agent_session,
         header,
         error,
         panel_level=FoldLevel.EXPANDED,
@@ -280,18 +280,18 @@ def test_family_conversation_headings_remain_navigation_targets(
     assert identities[0] == "members"
 
 
-def test_family_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
-    family, _child = make_agent_session(tmp_path)
+def test_agent_session_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
+    agent_session, _child = make_agent_session(tmp_path)
     header, _ = build_header_text(
-        family,
+        agent_session,
         cheap=True,
         lane_fold_level=FoldLevel.EXPANDED,
     )
 
     identities = rendered_section_ids(header, width=80)
 
-    assert family.is_agent_session_container_row is True
-    assert header.plain.startswith("FAMILY\n")
+    assert agent_session.is_agent_session_container_row is True
+    assert header.plain.startswith("SESSION\n")
     assert "family" not in identities
     assert identities[0] == "members"
 

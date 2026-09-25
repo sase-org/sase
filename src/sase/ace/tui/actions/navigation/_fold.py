@@ -320,7 +320,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         if self._selected_lane_has_slow_tool_calls(agent):
             return
         self.notify(  # type: ignore[attr-defined]
-            "Fold levels shape clan, family, neighbor, and slow-call summaries"
+            "Fold levels shape clan, session, neighbor, and slow-call summaries"
         )
 
     def _selected_lane_has_foldable_bead_rows(self, agent: object) -> bool:

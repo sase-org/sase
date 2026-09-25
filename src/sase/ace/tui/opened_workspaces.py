@@ -20,7 +20,7 @@ _MIN_REREAD_INTERVAL_S = 0.5
 
 @dataclass(frozen=True)
 class OpenedWorkspaceDisplayEvent:
-    """An opened repository workspace paired with an optional family role."""
+    """An opened repository workspace paired with an optional session role."""
 
     name: str
     workspace_dir: str
@@ -137,7 +137,7 @@ def _load_opened_workspaces_for_agent(
 def load_opened_workspaces_for_agent_context(
     agent: Agent, *, limit: int = MAX_KEPT_OPENED_WORKSPACES
 ) -> tuple[OpenedWorkspaceDisplayEvent, ...]:
-    """Return opened linked-workspace events for an agent-family context."""
+    """Return opened linked-workspace events for an agent-session context."""
 
     from sase.ace.tui.agent_context_members import (
         build_context_members,

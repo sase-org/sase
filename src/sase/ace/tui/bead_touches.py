@@ -3,7 +3,7 @@
 Modeled directly on :mod:`sase.ace.tui.artifact_reads`: a frozen
 display-event dataclass, an mtime-and-size keyed cache with the same
 ``_MIN_REREAD_INTERVAL_S`` throttle, a bounded snapshot cache across
-projects, and a per-agent loader plus an agent-family context loader that
+projects, and a per-agent loader plus an agent-session context loader that
 carries the member role label.
 
 The loader reads the index file only; it never refreshes it. Refresh runs
@@ -70,10 +70,10 @@ BEAD_READ_REF_PREFIX = "bead:"
 
 @dataclass(frozen=True)
 class _BeadTouchDisplayEvent:
-    """One indexed touch paired with an optional family role label.
+    """One indexed touch paired with an optional session role label.
 
     ``agent_label`` is ``None`` for ordinary (single-member) rows so the
-    existing per-agent shape is preserved; family rows set it to the
+    existing per-agent shape is preserved; session rows set it to the
     producing member's compact role label (e.g. ``plan``, ``coder``).
     """
 
@@ -88,7 +88,7 @@ class BeadTouchEntry:
     ``verbs`` folds every contributing source: the indexed durable verbs
     plus ``read`` for audited ``bead:`` artifact reads. ``own`` marks a
     bead the agent was assigned even when it never touched it (no verbs).
-    ``agent_label`` is the one family-producer label shared by the
+    ``agent_label`` is the one session-producer label shared by the
     entry's labeled contributors; mixed-producer beads report ``None``.
     """
 
@@ -326,7 +326,7 @@ def _snapshot_for_agent(
     """Resolve the project, combined stat, touches, and raw view events.
 
     View events stay unfiltered here: the per-agent loader attributes them
-    to one agent while the family loader attributes them per member, both
+    to one agent while the session loader attributes them per member, both
     through the facade's shared matcher.
     """
     project = _project_name_for_agent(agent)
@@ -433,11 +433,11 @@ def _load_bead_touches_for_agent_inner(
 def load_bead_touches_for_agent_context(
     agent: Agent, *, limit: int = MAX_KEPT_TOUCHES
 ) -> tuple[_BeadTouchDisplayEvent, ...]:
-    """Return display bead-touches for an agent-family context, newest first.
+    """Return display bead-touches for an agent-session context, newest first.
 
     For an ordinary row with no follow-up session members this delegates to
     the per-agent loader and wraps each touch with no label, preserving the
-    single-agent shape. For a family row it reads the index once, attributes
+    single-agent shape. For a session row it reads the index once, attributes
     each touch to the first member whose identity matches its actor, sorts
     newest first, caps to ``MAX_KEPT_TOUCHES``, and labels each kept touch
     with its producer's compact role. Touches carry only an actor string

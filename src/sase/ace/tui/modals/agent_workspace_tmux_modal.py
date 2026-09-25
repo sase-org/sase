@@ -131,7 +131,7 @@ def build_agent_workspace_tmux_choices(
 
     Pure and I/O-free: ``events`` are the cached opened-workspace events already
     loaded for the detail panel. Linked repos are deduped by
-    ``(name, workspace_dir)`` so an agent-family context yields one option per
+    ``(name, workspace_dir)`` so an agent-session context yields one option per
     repo destination, keeping the newest event's reason / role label.
     """
     project_name = (

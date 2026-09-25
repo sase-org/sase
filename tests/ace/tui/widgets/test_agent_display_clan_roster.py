@@ -14,7 +14,7 @@ from sase.ace.tui.widgets.prompt_panel._member_roster import (
 from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 
 
-def test_clan_members_render_family_aggregate_and_every_member() -> None:
+def test_clan_members_render_agent_session_aggregate_and_every_member() -> None:
     family_name = "research.writer"
     planner = make_clan_agent(
         f"{family_name}--plan-0",
@@ -42,7 +42,7 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
         member_jump_map_publisher=jump_maps.append,
     )
 
-    assert "Members: 2 agents · 1 family\n" in detail.plain
+    assert "Members: 2 agents · 1 session\n" in detail.plain
     members_section = (
         detail.plain.split("▸ ❖ CLAN MEMBERS · 1\n", 1)[1]
         .split(
@@ -52,7 +52,7 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
         .split("\n⋯ scanning member data…", 1)[0]
     )
     assert members_section == (
-        " 0  .writer · family · ✓ DONE · mixed · 2m\n"
+        " 0  .writer · session · ✓ DONE · mixed · 2m\n"
         "    ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"
         "    └─ --code · agent · ✓ DONE · sonnet · 1m\n"
     )
@@ -61,10 +61,10 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
     assert tuple(
         (target.number, target.member_identity, target.kind)
         for target in jump_maps[0].targets
-    ) == (("0", planner.identity, "family"),)
+    ) == (("0", planner.identity, "session"),)
 
 
-def test_clan_family_roster_renders_settled_planner_as_done() -> None:
+def test_clan_agent_session_roster_renders_settled_planner_as_done() -> None:
     family_name = "research.writer"
     planner = make_clan_agent(
         f"{family_name}--plan",

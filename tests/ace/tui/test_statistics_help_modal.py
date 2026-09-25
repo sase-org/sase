@@ -98,7 +98,7 @@ def test_help_explains_runner_eligibility_windows_and_capacity_caveats() -> None
     methodology = _modal()._runner_methodology_text().plain
 
     for phrase in (
-        "a live parallel family member",
+        "a live parallel session member",
         "post-handoff follow-up",
         "Carry-in agents and live agents",
         "Question waits that release a runner slot",

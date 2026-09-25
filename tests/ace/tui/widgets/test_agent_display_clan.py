@@ -224,7 +224,7 @@ def test_clan_summary_empty_yields_no_summary_section() -> None:
     Content.from_rich_text(detail, console=Console())
 
 
-def test_family_header_recolors_only_real_container_name() -> None:
+def test_agent_session_header_recolors_only_real_container_name() -> None:
     family = make_clan_agent(
         "research.writer",
         status="RUNNING",
@@ -301,7 +301,7 @@ def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
     assert "Status: DONE [U1 D1]\n" in detail.plain
 
 
-def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
+def test_clan_agent_session_and_standalone_render_as_two_direct_lanes() -> None:
     family_name = "research.writer"
     planner = make_clan_agent(
         f"{family_name}--plan",
@@ -337,7 +337,7 @@ def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
         standalone.identity,
     }
     assert "Status: RUNNING [R1 W1]\n" in detail
-    assert "Members: 3 agents · 1 family\n" in detail
+    assert "Members: 3 agents · 1 session\n" in detail
     assert "▸ ❖ CLAN MEMBERS · 2\n" in detail
 
 

@@ -34,7 +34,7 @@ def make_agent_session(
     suffix: str,
     with_prompt_content: bool,
 ) -> Agent:
-    family = f"fold-contract-{suffix}"
+    agent_session = f"fold-contract-{suffix}"
     started = NOW - timedelta(minutes=5)
     phases: list[Agent] = []
     for index, role in enumerate(("plan", "code")):
@@ -54,7 +54,7 @@ def make_agent_session(
         response.write_text(f"{role} completed\n", encoding="utf-8")
         phase = Agent(
             agent_type=AgentType.RUNNING,
-            cl_name=f"{family}--{role}",
+            cl_name=f"{agent_session}--{role}",
             project_file="/tmp/fold-contract.sase",
             status="DONE",
             start_time=started + timedelta(minutes=index * 2),
@@ -63,8 +63,8 @@ def make_agent_session(
             raw_suffix=f"{suffix}-{role}",
             artifacts_dir=str(artifacts),
             response_path=str(response),
-            agent_name=f"{family}--{role}",
-            agent_session=family,
+            agent_name=f"{agent_session}--{role}",
+            agent_session=agent_session,
             agent_session_role=role,
             role_suffix=f"--{role}",
             plan_chain_root=role == "plan",
@@ -77,7 +77,7 @@ def make_agent_session(
     return root
 
 
-def render_family(agent: Agent, level: FoldLevel) -> RenderedSummary:
+def render_agent_session(agent: Agent, level: FoldLevel) -> RenderedSummary:
     published: list[MemberJumpMap] = []
     header, error = build_header_text(
         agent,
@@ -86,7 +86,7 @@ def render_family(agent: Agent, level: FoldLevel) -> RenderedSummary:
         member_jump_map_publisher=published.append,
     )
     panel = FakePromptPanel()
-    panel._update_family_display(
+    panel._update_agent_session_display(
         agent,
         header,
         error,

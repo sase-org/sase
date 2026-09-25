@@ -55,7 +55,7 @@ def preview_agent_revert(
     if not any(plan.revertable for plan in plans):
         error = _preview_empty_error(
             plans,
-            f"family '{agent_session_base}'"
+            f"session '{agent_session_base}'"
             if agent_session_base
             else f"agent '{agent_name}'",
         )

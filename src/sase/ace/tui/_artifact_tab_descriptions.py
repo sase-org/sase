@@ -25,7 +25,7 @@ BUILTIN_PANE_DESCRIPTIONS: dict[str, tuple[str, str]] = {
             "it left behind."
         ),
         (
-            "Rows are agent runs, families and their shells, scoped to the selected "
+            "Rows are agent runs, sessions and their shells, scoped to the selected "
             "project. Selecting one shows its identity, lifecycle, provenance, and "
             "prompt preview, and the relation panel links it to the beads it worked "
             "and the stitches it landed. Live agents belong to the Agents tab; this "

@@ -24,11 +24,11 @@ def discover_agent_commits(
     agent_session_base: str | None = None,
     limit: int = _DISCOVERY_COMMIT_LIMIT,
 ) -> list[RevertCommit]:
-    """Return commits tagged for *agent_name* (or its family), newest-first.
+    """Return commits tagged for *agent_name* (or its session), newest-first.
 
     Matches the exact ``AGENT=<name>`` tag line parsed from each commit
     message. When *agent_session_base* is set, any commit whose ``AGENT`` tag shares
-    that family base also matches.
+    that session base also matches.
     """
     log = run_git(
         workspace_dir,
@@ -64,7 +64,7 @@ def discover_bulk_commits(
     """Scan history once and match commits against every target.
 
     Returns ``(commits, matched_names)`` where *commits* is deduplicated by
-    full SHA (so marking both a family parent and a child cannot revert the
+    full SHA (so marking both a session parent and a child cannot revert the
     same commit twice) and preserves git-log newest-first order across the
     combined set, and *matched_names* is the set of target agent names that
     matched at least one commit. A target whose only matches are commits

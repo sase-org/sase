@@ -48,7 +48,7 @@ def test_expanded_panel_roster_has_fixed_gutter_and_one_target_row() -> None:
         fold_level=FoldLevel.FULLY_EXPANDED,
     )
     lines = detail.plain.splitlines()
-    target_line = next(line for line in lines if "build · family" in line)
+    target_line = next(line for line in lines if "build · session" in line)
     other_line = next(line for line in lines if "failed · agent" in line)
     child_line = next(line for line in lines if "└─ [✓] --code" in line)
     cursor_lines = [
@@ -150,7 +150,7 @@ def test_collapsed_panel_omits_entry_heading_cursor_and_gutter() -> None:
     rendered = build_tribe_detail_text(snapshot).plain
     heading = next(line for line in rendered.splitlines() if "TRIBE MEMBERS" in line)
     build_line = next(
-        line for line in rendered.splitlines() if "build · family" in line
+        line for line in rendered.splitlines() if "build · session" in line
     )
 
     assert " ❯ " not in heading
@@ -233,7 +233,7 @@ def test_tribe_family_children_use_effective_status_glyphs() -> None:
         fold_level=FoldLevel.FULLY_EXPANDED,
     )
 
-    assert "Composition: 1 family · 1 lane · 2 nested" in detail.plain
+    assert "Composition: 1 session · 1 lane · 2 nested" in detail.plain
     assert "[R1]" in detail.plain
     assert "--plan-step · step · ✓ TALE APPROVED" in detail.plain
     assert "--code · agent · ▶ WORKING TALE" in detail.plain
@@ -297,7 +297,7 @@ def test_tribe_section_overrides_are_scoped_and_publish_anchors() -> None:
     )
 
     assert "▾ ❖ TRIBE MEMBERS · 2" in detail.plain
-    assert " 0  [✓] build · family" in detail.plain
+    assert " 0  [✓] build · session" in detail.plain
     assert "Second error detail" in detail.plain
     anchors = [
         span.style.meta[SECTION_MARKER_META_KEY]

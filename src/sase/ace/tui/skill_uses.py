@@ -26,10 +26,10 @@ _LogStat = tuple[int, int]
 
 @dataclass(frozen=True)
 class SkillUseDisplayEvent:
-    """A skill-use event paired with an optional family role label.
+    """A skill-use event paired with an optional session role label.
 
     ``agent_label`` is ``None`` for ordinary (single-member) rows so the
-    existing per-agent visual shape is preserved; family rows set it to the
+    existing per-agent visual shape is preserved; session rows set it to the
     producing member's compact role label (e.g. ``q``, ``commit``).
     """
 
@@ -210,11 +210,11 @@ def _load_skill_uses_for_agent(
 def load_skill_uses_for_agent_context(
     agent: Agent, *, limit: int = MAX_KEPT_SKILL_USES
 ) -> tuple[SkillUseDisplayEvent, ...]:
-    """Return display skill-uses for an agent-family context, newest first.
+    """Return display skill-uses for an agent-session context, newest first.
 
     For an ordinary row with no follow-up session members this delegates to
     :func:`_load_skill_uses_for_agent` and wraps each event with no label,
-    preserving the single-agent visual shape. For a family row it reads the
+    preserving the single-agent visual shape. For a session row it reads the
     log once, attributes each event to a member, de-duplicates by event id,
     sorts newest first, caps to ``MAX_KEPT_SKILL_USES``, and labels each kept
     event with its producer's compact role.

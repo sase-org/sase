@@ -189,7 +189,7 @@ class TestAgentXPromptHintMode:
             artifact_ref_style_palette_from_theme(None).style_for_key("kind")
         )
 
-    def test_family_hint_xprompt_keeps_typed_artifact_refs_semantic(
+    def test_agent_session_hint_xprompt_keeps_typed_artifact_refs_semantic(
         self,
         tmp_path: Path,
     ) -> None:
@@ -209,7 +209,7 @@ class TestAgentXPromptHintMode:
             tool_call_reports={},
         )
 
-        text = panel._family_text_with_hints(
+        text = panel._agent_session_text_with_hints(
             "#work(@plans:202608/design.md#L12) and @src/raw.py",
             hint_state,
             workspace_dir=str(workspace_dir),
