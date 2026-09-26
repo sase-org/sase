@@ -152,6 +152,27 @@ lookup refuses expired coverage. A bead change inside that window that flips a l
 verdict is an explicit limitation of the receipt, not proof of coverage; the next
 `check` re-observes and mints again.
 
+## Receipt catalog policy and mixed-core rollout (E4 core-pin-catalog)
+
+Only `check` declares an opt-in `receipt:` policy (`accept: [pass, no_new_failures]`,
+`ttl: 2h`); `check-full`, `install`, and ad-hoc runs stay receipt-less. The policy is
+normalized by the Rust core but excluded from the definition digest, so editing it never
+moves historical duration or corpus identity, while adding toolchain probes or
+fingerprint inputs still moves the digest once, as intended. Receipt behavior itself
+stays behind the beta `tool_receipts` flag (default off): with the flag off the loaded
+catalog omits the policy, so verification and completion behave exactly as today; with
+the flag on the policy is exposed for the upcoming mint and query paths.
+
+Mixed installed cores fail closed with a clear diagnostic, never with a stale identity.
+The pinned source revision (`sase-core-revision.txt`) is the receipt-capable core, and
+dev installs build the extension from that checkout, so `just install` heals a stale
+wheel. A published `sase-core-rs` older than the receipt wire rejects the `receipt:` key
+as an unknown catalog field (`sase tool run` exits 2 naming the entry), and Python code
+calling the receipt bindings fails the "Check pinned core bindings" lint step instead of
+crashing with `AttributeError` at runtime. Apollo and unconfigured-mac machines stay on
+the pass-only path until their ledgers grow enough for an independent KNOWN precision
+gate; no receipt is shared across machines.
+
 ## Failure semantics
 
 The child's exit code is returned, or `128+signal`; catalog and usage errors return `2`.

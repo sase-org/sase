@@ -2,7 +2,11 @@
 
 ``tools:`` is read only from the project layer (``sase/sase.yml``) as complete
 entries and normalized through Rust. ``tool_runs:`` uses ordinary merged-config
-precedence.
+precedence. A declared ``receipt:`` policy validates through Rust in both flag
+branches but is exposed on the loaded definition only while the beta
+``tool_receipts`` flag is on; with the flag off the catalog is byte-identical
+to a catalog without the policy (the definition digest matches either way
+because receipt policy lives outside definition identity).
 """
 
 from __future__ import annotations
@@ -209,8 +213,12 @@ def _load_catalog_from_path(
             f"not {type(raw_tools).__name__}"
         )
 
+    receipts_enabled = _tool_receipts_enabled()
     entries = tuple(
-        _normalize_entry(name, spec, source=str(local_path))
+        _gate_receipt_policy(
+            _normalize_entry(name, spec, source=str(local_path)),
+            enabled=receipts_enabled,
+        )
         for name, spec in sorted(raw_tools.items())
     )
     return ToolCatalog(
@@ -290,6 +298,45 @@ def _non_project_tools_diagnostics() -> list[str]:
         keys = ", ".join(layer.ignored_keys)
         messages.append(f"{location}: ignoring {keys} (project-owned; not merged)")
     return messages
+
+
+def _tool_receipts_enabled() -> bool:
+    """Return whether the beta ``tool_receipts`` flag is on.
+
+    Fails closed to off (today's catalog shape) when flag state is
+    unavailable. Resolution happens per catalog load, never at import time.
+    """
+    try:
+        from sase.feature_flags import FeatureFlag, current_flags
+    except Exception:  # noqa: BLE001 - without flags there is no opt-in.
+        return False
+    try:
+        return bool(current_flags().enabled(FeatureFlag.tool_receipts))
+    except Exception:  # noqa: BLE001 - an unreadable snapshot means off.
+        return False
+
+
+def _gate_receipt_policy(
+    entry: _ToolCatalogEntry, *, enabled: bool
+) -> _ToolCatalogEntry:
+    """Hide a validated receipt policy while the beta flag is off.
+
+    Rust validation still runs in both branches so a malformed ``receipt:``
+    block fails fast; only the loaded definition differs. The digest is
+    identical either way because receipt policy lives outside definition
+    identity.
+    """
+    if enabled or "receipt" not in entry.definition:
+        return entry
+    definition = {
+        key: value for key, value in entry.definition.items() if key != "receipt"
+    }
+    return _ToolCatalogEntry(
+        name=entry.name,
+        definition=definition,
+        digest=entry.digest,
+        diagnostics=entry.diagnostics,
+    )
 
 
 def _normalize_entry(name: object, spec: object, *, source: str) -> _ToolCatalogEntry:

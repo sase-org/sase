@@ -14,6 +14,7 @@ from sase.config.tools import (
     get_tool_runs_config,
     load_project_tool_catalog,
 )
+from sase.core.tool_run import tool_run_normalize_definition
 
 
 def _write_project_tools(root: Path, tools: dict[object, object]) -> Path:
@@ -186,3 +187,100 @@ def test_tool_runs_rejects_inconsistent_horizons(
     )
     with pytest.raises(ToolRunsConfigError, match="detail_days"):
         get_tool_runs_config()
+
+
+def _minimal_definition(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "schema_version": 1,
+        "name": "check",
+        "argv": ["just", "check"],
+        "description": "Run the repository scoped check.",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_check_declares_normalized_receipt_policy() -> None:
+    """E4 core-pin-catalog: only `check` carries an opt-in receipt policy,
+    normalized to sorted accept verbs and the 2h TTL literal."""
+
+    from sase.feature_flags import override_flags
+
+    with override_flags(tool_receipts=True):
+        catalog = load_project_tool_catalog()
+    by_name = {entry.name: entry for entry in catalog.entries}
+    policy = by_name["check"].definition["receipt"]
+    assert policy["accept"] == ["no_new_failures", "pass"]
+    assert policy["ttl"] == "2h"
+    for tool in ("check-full", "install", "test", "test-visual"):
+        assert "receipt" not in by_name[tool].definition
+
+
+def test_check_receipt_policy_hidden_when_flag_off() -> None:
+    """E4 core-pin-catalog: with the beta flag off the loaded catalog keeps
+    today's shape (no `receipt` key) while the definition digest still
+    matches the flag-on load, so Off preserves current behavior."""
+
+    from sase.feature_flags import override_flags
+
+    with override_flags(tool_receipts=False):
+        off_catalog = load_project_tool_catalog()
+    with override_flags(tool_receipts=True):
+        on_catalog = load_project_tool_catalog()
+    off_by_name = {entry.name: entry for entry in off_catalog.entries}
+    on_by_name = {entry.name: entry for entry in on_catalog.entries}
+    assert "receipt" not in off_by_name["check"].definition
+    assert off_by_name["check"].digest == on_by_name["check"].digest
+
+
+def test_receipt_policy_only_edit_preserves_definition_digest() -> None:
+    """E4 core-pin-catalog: receipt policy lives outside definition identity,
+    so declaring or editing it never moves the definition digest. `pass` is
+    always accepted even when only `no_new_failures` is written."""
+
+    base = tool_run_normalize_definition(_minimal_definition())
+    assert base["digest"]
+    assert "receipt" not in base["definition"]
+    with_policy = tool_run_normalize_definition(
+        _minimal_definition(receipt={"accept": ["no_new_failures"], "ttl": "2h"})
+    )
+    assert with_policy["digest"] == base["digest"]
+    policy = with_policy["definition"]["receipt"]
+    assert policy["accept"] == ["no_new_failures", "pass"]
+    assert policy["ttl"] == "2h"
+
+
+def test_toolchain_probe_change_moves_definition_digest() -> None:
+    """E4 core-pin-catalog: fingerprint toolchain inputs are inside definition
+    identity, so the phase-1 lint probes intentionally move the digest."""
+
+    without_probe = tool_run_normalize_definition(
+        _minimal_definition(
+            fingerprint={"toolchain": {"python": ["python", "--version"]}}
+        )
+    )
+    with_probe = tool_run_normalize_definition(
+        _minimal_definition(
+            fingerprint={
+                "toolchain": {
+                    "python": ["python", "--version"],
+                    "ruff": ["ruff", "--version"],
+                }
+            }
+        )
+    )
+    assert with_probe["digest"] != without_probe["digest"]
+
+
+def test_receipt_policy_rejects_unknown_accept_and_overlong_ttl() -> None:
+    """E4 core-pin-catalog: the bounded receipt wire refuses unknown verdicts
+    and TTLs past the 2h cap instead of persisting them."""
+
+    with pytest.raises(RuntimeError, match="unknown receipt accept token"):
+        tool_run_normalize_definition(
+            _minimal_definition(receipt={"accept": ["flaky"], "ttl": "2h"})
+        )
+    with pytest.raises(RuntimeError, match="7200 seconds"):
+        tool_run_normalize_definition(
+            _minimal_definition(receipt={"accept": ["pass"], "ttl": "3h"})
+        )
