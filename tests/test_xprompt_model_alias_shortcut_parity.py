@@ -424,6 +424,22 @@ def test_ace_and_lsp_double_equals_model_edits_match(
         ("%model:old Use =la", (0, 18), "@large", "%m:@large Use ", 10),
         ("Use =la then %m:old", (0, 7), "@large", "Use then %m:@large ", 19),
         ("%m:a Use =la and %model:b", (0, 12), "@large", None, None),
+        ("=la %m:a %m:b", (0, 3), "@large", "%m:@large ", 10),
+        (
+            "Use =la %m:a %m:b\ntail",
+            (0, 7),
+            "@large",
+            "Use %m:@large \ntail",
+            14,
+        ),
+        ("%m:a\n%m:b\nUse =la", (2, 7), "@large", "%m:@large \nUse ", 10),
+        (
+            "%alt(%m:opus, %m:sonnet) %m:a %m:b =la",
+            (0, 38),
+            "@large",
+            "%alt(%m:opus, %m:sonnet) %m:@large ",
+            35,
+        ),
         (
             "%{%m:opus | %m:sonnet} Use =la",
             (0, 32),
@@ -474,9 +490,19 @@ def test_ace_and_lsp_equals_alias_segment_replacement_matches(
     ace_text = _apply_ace_plan(text, planned)
     if expected is not None:
         assert ace_text == expected
-    if text in {"Use =la then %m:old", "%m:a Use =la and %model:b"}:
+    if text in {
+        "Use =la then %m:old",
+        "%m:a Use =la and %model:b",
+        "=la %m:a %m:b",
+        "Use =la %m:a %m:b\ntail",
+        "%m:a\n%m:b\nUse =la",
+    }:
         assert "=la" not in ace_text
         assert ace_text.count("%m:") == 1
+    if text == "%alt(%m:opus, %m:sonnet) %m:a %m:b =la":
+        assert "%m:opus" in ace_text
+        assert "%m:sonnet" in ace_text
+        assert ace_text.count("@large") == 1
     if expected_caret is not None:
         assert planned.caret_offset == expected_caret
 
@@ -493,6 +519,15 @@ def test_ace_and_lsp_equals_alias_segment_replacement_matches(
     [
         ("%model:old Use ==la", (0, 19), "large-model", "%m:large-model Use ", 15),
         ("Use ==la then %m:old", (0, 8), "large-model", None, None),
+        ("Use ==op %m:a %m:b", (0, 8), "opus", "Use %m:opus ", 12),
+        ("%m:a\n%m:b\nUse ==op", (2, 8), "opus", "%m:opus \nUse ", 8),
+        (
+            "%alt(%m:opus, %m:sonnet) %m:a %m:b ==op",
+            (0, 39),
+            "opus",
+            "%alt(%m:opus, %m:sonnet) %m:opus ",
+            33,
+        ),
         (
             "%{a ==la %m:keep | b} end",
             (0, 8),
@@ -515,9 +550,13 @@ def test_ace_and_lsp_double_equals_segment_replacement_matches(
     ace_text = _apply_ace_plan(text, planned)
     if expected is not None:
         assert ace_text == expected
-    if text == "Use ==la then %m:old":
+    if text in {"Use ==la then %m:old", "Use ==op %m:a %m:b", "%m:a\n%m:b\nUse ==op"}:
+        assert "==op" not in ace_text
         assert "==la" not in ace_text
         assert ace_text.count("%m:") == 1
+    if text == "%alt(%m:opus, %m:sonnet) %m:a %m:b ==op":
+        assert ace_text.count("%m:opus") == 2
+        assert "%m:sonnet" in ace_text
     if expected_caret is not None:
         assert planned.caret_offset == expected_caret
 

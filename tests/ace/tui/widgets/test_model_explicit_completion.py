@@ -596,6 +596,40 @@ async def test_double_equals_accept_moves_value_to_existing_directive() -> None:
         assert ta._file_completion_active is False
 
 
+async def test_double_equals_accept_removes_adjacent_directive_and_undo_restores() -> (
+    None
+):
+    """Accepting with adjacent directives leaves one; undo restores all."""
+    app = ModelExplicitCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+        original = "==gp %m:a %m:b"
+        expanded = "%m:gpt-5.6-sol "
+        ta.load_text(original)
+        ta.cursor_location = (0, 4)
+
+        await pilot.press("ctrl+t")
+        await pilot.press("ctrl+f")
+
+        assert ta.text == expanded
+        assert ta.cursor_location == (0, len(expanded))
+        assert ta.text.count("%m:") == 1
+        assert app.submitted == []
+        assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
+
+        await pilot.press("escape")
+        await pilot.press("u")
+
+        assert ta.text == original
+        assert ta._file_completion_active is False
+
+        await pilot.press("ctrl+r")
+
+        assert ta.text == expanded
+        assert ta._file_completion_active is False
+
+
 async def test_unknown_double_equals_stays_literal_and_can_submit() -> None:
     app = ModelExplicitCompletionTestApp()
     async with app.run_test() as pilot:
