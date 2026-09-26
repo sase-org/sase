@@ -1298,6 +1298,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                     |
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
 | `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                          |
+| `[` / `]`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                               |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
 | `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                               |
 | `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
@@ -5384,6 +5385,47 @@ active card highlighted (and an `N/M` position when there is more than one card)
 border subtitle is a `main · files · tools` switcher showing each deck's card, file, or
 LLM-call count when known, dimming decks with no content. A deck with no content for the
 selection shows an empty-state card instead, so the layout never jumps.
+
+#### Card Blocks
+
+Cards gain a third level — **deck → card → card block** — for the session Reply card. An
+agent session's Reply card holds one block per concrete sase shell (`AGENT (role)`,
+`⚙ MONITOR`, `⋔ GATE` phases, matching the `SESSION SHELLS` jump-panel roster); the
+still-reachable legacy non-session `followup_agents` Reply path gets one block per
+followup the same way. Every other card renders exactly as before.
+
+**Newest-block landing and the triage loop.** Selecting a node lands on its newest
+block, so the first thing you see is the latest shell's output. The working loop is:
+read the newest block, press `[` to step one shell older, repeat, and press `]` to walk
+back toward the newest. Block state is ephemeral and panel-local (kept per deck panel
+for the current selection); changing nodes, toggling attempts, or losing a vanished
+block id re-lands on the newest. While you sit on an older block and a new shell starts,
+the view stays put and the newcomer only gains an arrival dot — a following view
+(sitting on the newest block) advances to it automatically.
+
+**Block-spread vs block-paged.** Only a card shown alone pages its blocks; a spread deck
+always shows every block inline. A lone card renders **block-spread** (all blocks on one
+page) when it fits within `ace.agent_decks.block_spread_max_screens` panel viewport
+heights (default `1.5`; `0` means always one block per page), and **block-paged** (one
+block per page) otherwise. Block navigation never flips the deck's own spread/paged
+mode.
+
+**The block rail.** Whenever a paged deck's active card has 2+ blocks, a one-row rail
+sits docked under the Main deck panel's top border showing the session timeline:
+roster-numbered entries with status colors, an accent pill on the active block, arrival
+dots on unseen newcomers, and a `[ ] blocks` key hint at wide widths. Clicking an entry
+selects that block; in a spread deck the rail stays hidden because the phase dividers
+already mark each shell.
+
+**Keys.** `[` steps to the older block and `]` to the newer block (both wrap); in a
+spread deck they top-align the target shell's header, in a block-paged card they swap
+the page. The footer shows a `[/] blocks` entry and the help modal a matching
+`Older / newer card block` row only while the focused card has 2+ navigable blocks.
+`Ctrl+Shift+J` / `Ctrl+Shift+K` are not bound by default: in common terminal chains
+(tmux + kitty included) they arrive as plain `Ctrl+J` / `Ctrl+K` and would cycle cards,
+not blocks. If your terminal delivers them distinctly, bind them yourself as a personal
+override of `prev_card_block` / `next_card_block` (see
+[configuration](configuration.md#aceagent_decks) and the keymap settings).
 
 `\` opens a second panel below the first (top-bottom) and `|` opens one to its right
 (left-right); the new panel takes focus and shows the next deck with content, or a
