@@ -256,6 +256,65 @@ class AgentHeaderPanel(VerticalScroll):
         self._apply_chrome(header, shown_expanded, subtitle)
         content.update(shown)
 
+    def is_header_scrollable(self) -> bool:
+        """Return whether Ctrl+D/U should scroll this header instead of a deck."""
+        try:
+            if not bool(getattr(self, "is_mounted", False)):
+                return False
+        except Exception:
+            return False
+        try:
+            if self.has_class("hidden"):
+                return False
+        except Exception:
+            return False
+        try:
+            if not bool(self.display):
+                return False
+        except Exception:
+            pass
+        try:
+            identity = self._identity
+        except Exception:
+            return False
+        if identity is None:
+            return False
+        try:
+            expanded = bool(
+                self._expanded or bool(getattr(identity, "has_hints", False))
+            )
+        except Exception:
+            return False
+        if not expanded:
+            return False
+        try:
+            if int(self.max_scroll_y) <= 0:
+                return False
+        except Exception:
+            return False
+        return True
+
+    def scroll_header_half_page(self, direction: int) -> bool:
+        """Scroll half the visible header height and claim the key.
+
+        Returns True whenever the header is eligible, even at its top or
+        bottom boundary, so the focused deck stays still on a second
+        keystroke. Returns False when the header cannot scroll.
+        """
+        if not self.is_header_scrollable():
+            return False
+        try:
+            height = int(self.scrollable_content_region.height)
+        except Exception:
+            height = 0
+        step = max(1, height // 2)
+        try:
+            delta = step if direction >= 0 else -step
+            self.scroll_relative(y=delta, animate=False)
+        except Exception:
+            return False
+        return True
+
     def toggle_expanded(self) -> bool:
         """Flip collapsed/expanded state and repaint from stored identity."""
         self._expanded = not self._expanded

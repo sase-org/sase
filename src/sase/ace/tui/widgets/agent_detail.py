@@ -210,6 +210,19 @@ class AgentDetail(
             pass
         return expanded
 
+    def try_scroll_expanded_header(self, direction: int) -> bool:
+        """Scroll an overflowing expanded header; report whether it claimed the key."""
+        panel = self._header_panel_or_none()
+        if panel is None:
+            return False
+        try:
+            scroller = getattr(panel, "scroll_header_half_page", None)
+            if callable(scroller):
+                return bool(scroller(1 if direction >= 0 else -1))
+        except Exception:
+            return False
+        return False
+
     def on_agent_metadata_identity_changed(
         self, message: AgentMetadataIdentityChanged
     ) -> None:

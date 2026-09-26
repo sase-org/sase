@@ -88,11 +88,36 @@ class AgentMetadataSearchMixin:
         if self._agent_metadata_search.is_active:
             self._agent_metadata_search.toggle_direction()
 
+    def _try_scroll_expanded_header_for_key(self, key: str) -> bool:
+        """Scroll an overflowing expanded header for configured Ctrl+D/U keys."""
+        try:
+            app_keys = self._keymap_registry.app  # type: ignore[attr-defined]
+            down_keys = set(split_key_alternatives(app_keys.scroll_detail_down))
+            up_keys = set(split_key_alternatives(app_keys.scroll_detail_up))
+        except Exception:
+            return False
+        if key not in down_keys and key not in up_keys:
+            return False
+        direction = 1 if key in down_keys else -1
+        try:
+            detail = self._agent_detail()
+        except Exception:
+            return False
+        try:
+            claim = getattr(detail, "try_scroll_expanded_header", None)
+            if callable(claim):
+                return bool(claim(direction))
+        except Exception:
+            return False
+        return False
+
     def _handle_agent_metadata_search_key(self, event: Key) -> bool:
         """Handle one key while inline metadata search owns the panel."""
         search = self._agent_metadata_search
         if not search.is_active:
             return False
+        if self._try_scroll_expanded_header_for_key(event.key):
+            return True
 
         reverse_keys = split_key_alternatives(
             self._keymap_registry.app.search_reverse  # type: ignore[attr-defined]
