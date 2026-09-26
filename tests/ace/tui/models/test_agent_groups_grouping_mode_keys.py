@@ -154,3 +154,27 @@ def test_clan_descendants_inherit_outer_anchor_keys_in_every_mode() -> None:
         ("here",),
         ("here", "Running"),
     ]
+
+
+def test_walk_order_expands_cluster_members_for_repeated_standard_keys() -> None:
+    """Few distinct STANDARD keys still expand cluster members in order."""
+    from sase.ace.tui.models.agent_groups._keys import GroupingKeys, walk_order
+
+    shared = GroupingKeys(
+        project="proj",
+        patch="",
+        name_root="svc",
+        name_prefix="",
+        subgroup="",
+        anchor=None,
+    )
+    keys = [shared] * 4
+    anchors = [(0.0, 0)] * 4
+    # One three-agent cluster plus a standalone singleton.
+    assert walk_order(
+        keys,
+        anchors,
+        use_patch_level=False,
+        mode=GroupingMode.STANDARD,
+        cluster_roots=[0, 0, 0, 3],
+    ) == [0, 1, 2, 3]

@@ -12,8 +12,15 @@ if TYPE_CHECKING:
 def effective_panel_collapses(
     owner: Any,
     panel_keys: Collection[PanelKey] | None = None,
+    *,
+    tree_state: Any = None,
 ) -> set[PanelKey]:
-    """Return effective collapse state for a split Agents-panel collection."""
+    """Return effective collapse state for a split Agents-panel collection.
+
+    Pass a caller-built *tree_state* over the owner's live agent list to
+    reuse one parent/anchor index instead of rebuilding it; panel keys
+    resolve through the anchor map alone.
+    """
     if bool(getattr(owner, "_agent_panels_grouped", False)):
         return set()
     from ...models.agent_panels import panel_keys_for
@@ -23,7 +30,13 @@ def effective_panel_collapses(
     # evidence only when *panel_keys* is left to the full-config default;
     # the loaded agents are already in memory, so this stays I/O-free.
     stored_tribes = (
-        tuple(key for key in panel_keys_for(getattr(owner, "_agents", [])) if key)
+        tuple(
+            key
+            for key in panel_keys_for(
+                getattr(owner, "_agents", []), tree_state=tree_state
+            )
+            if key
+        )
         if panel_keys is None
         else ()
     )

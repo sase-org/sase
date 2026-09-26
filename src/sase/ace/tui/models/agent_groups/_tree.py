@@ -32,7 +32,7 @@ from ._keys import (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class GroupRow:
     """A banner row in the grouped agent tree."""
 
@@ -46,7 +46,7 @@ class GroupRow:
     has_child_groups: bool = False
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TreeEntry:
     """One row in the rendered tree — either a banner or an agent."""
 
@@ -92,11 +92,17 @@ def _grouped_walk(
     mode: GroupingMode,
     reference: datetime,
     tree_state: TreeIndex | None = None,
+    *,
+    singleton_anchors: bool = False,
 ) -> _GroupedWalk:
     """Build one shared anchored walk for banners and agent rows.
 
     Pass a caller-built *tree_state* (see :data:`TreeIndex`) over the same
-    roster to reuse one parent/anchor index instead of rebuilding it.
+    roster to reuse one parent/anchor index instead of rebuilding it. Pass
+    ``singleton_anchors=True`` only when every agent is its own presentation
+    anchor (no agent has a rendered parent): per-anchor key caching, the
+    identity index, and cluster expansion are all identities then, so they
+    are skipped and :func:`walk_order` consumes the plain sorted order.
     """
     if tree_state is None:
         parent_lookup = tree_parent_lookup(agents)
@@ -105,21 +111,34 @@ def _grouped_walk(
         parent_lookup, anchors = tree_state
     # Structural descendants inherit grouping from their outer presentation
     # anchor, so agents sharing one anchor share one key computation.
-    keys_by_anchor: dict[int, GroupingKeys] = {}
     keys_per_agent: list[GroupingKeys] = []
-    for agent in agents:
-        anchor = presentation_anchor(agent, parent_lookup, anchors)
-        cached = keys_by_anchor.get(id(anchor))
-        if cached is None:
-            cached = grouping_keys_for(
-                agent,
-                parent_lookup,
-                mode,
-                reference,
-                anchors=anchors,
+    if singleton_anchors:
+        for agent in agents:
+            keys_per_agent.append(
+                grouping_keys_for(
+                    agent,
+                    parent_lookup,
+                    mode,
+                    reference,
+                    anchors=anchors,
+                    target=agent,
+                )
             )
-            keys_by_anchor[id(anchor)] = cached
-        keys_per_agent.append(cached)
+    else:
+        keys_by_anchor: dict[int, GroupingKeys] = {}
+        for agent in agents:
+            anchor = presentation_anchor(agent, parent_lookup, anchors)
+            cached = keys_by_anchor.get(id(anchor))
+            if cached is None:
+                cached = grouping_keys_for(
+                    agent,
+                    parent_lookup,
+                    mode,
+                    reference,
+                    anchors=anchors,
+                )
+                keys_by_anchor[id(anchor)] = cached
+            keys_per_agent.append(cached)
     time_anchors = walk_anchors(
         agents,
         parent_lookup,
@@ -133,11 +152,17 @@ def _grouped_walk(
         use_cs = any(key.patch for key in keys_per_agent)
     else:
         use_cs = False
-    index_by_identity = {id(agent): i for i, agent in enumerate(agents)}
-    cluster_roots = [
-        index_by_identity.get(id(anchors.get(id(agent), agent)), i)
-        for i, agent in enumerate(agents)
-    ]
+    cluster_roots: list[int] | None
+    if singleton_anchors:
+        # Every cluster is one agent at its own index, so the cluster
+        # expansion below would map the sorted order onto itself.
+        cluster_roots = None
+    else:
+        index_by_identity = {id(agent): i for i, agent in enumerate(agents)}
+        cluster_roots = [
+            index_by_identity.get(id(anchors.get(id(agent), agent)), i)
+            for i, agent in enumerate(agents)
+        ]
     indices = walk_order(
         keys_per_agent,
         time_anchors,
@@ -282,6 +307,9 @@ def build_agent_tree(
     mode: GroupingMode = GroupingMode.STANDARD,
     now: datetime | None = None,
     tree_state: TreeIndex | None = None,
+    *,
+    singleton_anchors: bool = False,
+    materialize_indices: bool = True,
 ) -> list[TreeEntry]:
     """Build the grouped tree of banner + agent entries.
 
@@ -306,6 +334,13 @@ def build_agent_tree(
             ``datetime.now()``; only consulted when *mode* is ``BY_DATE``.
         tree_state: Optional caller-built roster index over the same agents
             (see :data:`TreeIndex`); reuses it instead of rebuilding one.
+        singleton_anchors: Pass ``True`` only when every agent is its own
+            presentation anchor; skips the per-anchor key cache and the
+            cluster expansion, which are both identities then.
+        materialize_indices: Pass ``False`` only when the caller cannot
+            consume banner member indices (no enclosing map, no collapse
+            pruning over this tree); banner rows then carry ``()`` instead
+            of per-banner member tuples.
 
     Returns:
         A list of :class:`TreeEntry` rows, ready to be walked by the
@@ -313,7 +348,9 @@ def build_agent_tree(
     """
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
     reference = now if now is not None else local_now()
-    grouped_walk = _grouped_walk(agents, mode, reference, tree_state)
+    grouped_walk = _grouped_walk(
+        agents, mode, reference, tree_state, singleton_anchors=singleton_anchors
+    )
     keys_per_agent = grouped_walk.keys_per_agent
     use_cs = grouped_walk.use_patch_level
     walk = grouped_walk.indices
@@ -378,7 +415,11 @@ def build_agent_tree(
                     group=GroupRow(
                         level=0,
                         group_key=l0_key,
-                        agent_indices=tuple(proj_indices[k.project]),
+                        agent_indices=(
+                            tuple(proj_indices[k.project])
+                            if materialize_indices
+                            else ()
+                        ),
                         is_collapsed=cur_proj_collapsed,
                         has_child_groups=True,
                     ),
@@ -406,7 +447,11 @@ def build_agent_tree(
                         group=GroupRow(
                             level=1,
                             group_key=l1_key,
-                            agent_indices=tuple(cs_indices[(k.project, k.patch)]),
+                            agent_indices=(
+                                tuple(cs_indices[(k.project, k.patch)])
+                                if materialize_indices
+                                else ()
+                            ),
                             is_collapsed=cur_cs_collapsed,
                             has_child_groups=True,
                         ),
@@ -448,8 +493,10 @@ def build_agent_tree(
                         group=GroupRow(
                             level=1,
                             group_key=subgroup_key,
-                            agent_indices=tuple(
-                                subgroup_indices[(k.project, k.subgroup)]
+                            agent_indices=(
+                                tuple(subgroup_indices[(k.project, k.subgroup)])
+                                if materialize_indices
+                                else ()
                             ),
                             is_collapsed=cur_subgroup_collapsed,
                             has_child_groups=(
@@ -477,8 +524,10 @@ def build_agent_tree(
                         group=GroupRow(
                             level=deep_level,
                             group_key=deep_key,
-                            agent_indices=tuple(
-                                root_indices[(parent_key, k.name_root)]
+                            agent_indices=(
+                                tuple(root_indices[(parent_key, k.name_root)])
+                                if materialize_indices
+                                else ()
                             ),
                             is_collapsed=cur_root_collapsed,
                             has_child_groups=root_has_prefix_groups(
@@ -506,8 +555,14 @@ def build_agent_tree(
                         group=GroupRow(
                             level=deep_level + 1,
                             group_key=prefix_key,
-                            agent_indices=tuple(
-                                prefix_indices[(parent_key, k.name_root, k.name_prefix)]
+                            agent_indices=(
+                                tuple(
+                                    prefix_indices[
+                                        (parent_key, k.name_root, k.name_prefix)
+                                    ]
+                                )
+                                if materialize_indices
+                                else ()
                             ),
                             is_collapsed=cur_prefix_collapsed,
                             has_child_groups=False,

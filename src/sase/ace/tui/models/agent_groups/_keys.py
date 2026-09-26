@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sase.core.time import local_now
 from sase.plan_chain import agent_session_base, canonical_plan_chain_suffix
@@ -56,7 +57,7 @@ def _grouping_name(agent: Agent) -> str:
     return ""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class GroupingKeys:
     project: str  # project_name (or NO_PROJECT)
     patch: str  # real Patch name (may be "")
@@ -259,6 +260,7 @@ def grouping_keys_for(
     now: datetime | None = None,
     *,
     anchors: dict[int, Agent] | None = None,
+    target: Agent | None = None,
 ) -> GroupingKeys:
     """Compute (L0, patch, name_root, name_prefix) for *agent*.
 
@@ -269,9 +271,11 @@ def grouping_keys_for(
     level disappears from the hierarchy.  ``name_root`` and ``name_prefix``
     are additionally suppressed under ``BY_DATE`` — within a date bucket,
     same-base-name agents are not a meaningful sub-unit, so the bucket renders
-    as a flat list sorted by root time.
+    as a flat list sorted by root time.  Pass a pre-resolved *target* to skip
+    the anchor resolution when the caller already holds it.
     """
-    target = presentation_anchor(agent, parent_lookup, anchors)
+    if target is None:
+        target = presentation_anchor(agent, parent_lookup, anchors)
     reference = now if now is not None else local_now()
     l0 = _l0_value_for(target, mode, reference)
     # The grouping name re-derives plan-chain role state, so read it once
@@ -536,56 +540,91 @@ def walk_order(
                 k.name_prefix_member_rank if grouped_prefix else 0,
             )
 
-    ordered = sorted(
-        sortable_indices,
-        key=lambda i: (
-            _project_sort_key(mode, keys_per_agent[i].project),
-            (_patch_sort_key(keys_per_agent[i].patch) if use_patch_level else (0, "")),
-            _subgroup_sort_key(
-                mode,
-                keys_per_agent[i].project,
-                keys_per_agent[i].subgroup,
-                keys_per_agent[i].anchor,
-            ),
-            status_sort_keys[i],
-            _name_root_sort_key(
-                keys_per_agent[i].name_root,
-                in_group=bool(keys_per_agent[i].name_root)
-                and root_counts.get((parent_keys[i], keys_per_agent[i].name_root), 0)
-                >= 2,
-            ),
-            _name_root_sort_key(
-                keys_per_agent[i].name_prefix,
-                in_group=bool(keys_per_agent[i].name_prefix)
-                and prefix_counts.get(
-                    (
-                        parent_keys[i],
-                        keys_per_agent[i].name_root,
-                        keys_per_agent[i].name_prefix,
-                    ),
-                    0,
-                )
-                >= 2,
-            ),
-            (
-                keys_per_agent[i].name_prefix_member_rank
-                if keys_per_agent[i].name_prefix
-                and prefix_counts.get(
-                    (
-                        parent_keys[i],
-                        keys_per_agent[i].name_root,
-                        keys_per_agent[i].name_prefix,
-                    ),
-                    0,
-                )
-                >= 2
+    # The sort components below are pure functions of one agent's key
+    # value (plus the already-counted group sizes): agents sharing one key
+    # (common for clan members under STANDARD) reuse one precomputed
+    # component tuple instead of re-lowering the same strings and
+    # re-probing the same count buckets per agent. ``anchors[i]`` and the
+    # trailing ``i`` stay per index: walk recency and stability are
+    # positional, not key properties.
+    by_date = mode is GroupingMode.BY_DATE
+    shared_sort_parts: dict[GroupingKeys, tuple[Any, ...]] = {}
+    precomputed: list[tuple[Any, ...]] = [()] * len(keys_per_agent)
+    for i in sortable_indices:
+        k = keys_per_agent[i]
+        parts = shared_sort_parts.get(k)
+        if parts is None:
+            parent = parent_keys[i]
+            prefix_count = (
+                prefix_counts.get((parent, k.name_root, k.name_prefix), 0)
+                if k.name_root and k.name_prefix
                 else 0
+            )
+            parts = (
+                _project_sort_key(mode, k.project),
+                (_patch_sort_key(k.patch) if use_patch_level else (0, "")),
+                _subgroup_sort_key(mode, k.project, k.subgroup, k.anchor),
+                _name_root_sort_key(
+                    k.name_root,
+                    in_group=bool(k.name_root)
+                    and root_counts.get((parent, k.name_root), 0) >= 2,
+                ),
+                _name_root_sort_key(
+                    k.name_prefix,
+                    in_group=bool(k.name_prefix) and prefix_count >= 2,
+                ),
+                (
+                    k.name_prefix_member_rank
+                    if k.name_prefix and prefix_count >= 2
+                    else 0
+                ),
+            )
+            shared_sort_parts[k] = parts
+        precomputed[i] = parts
+    if mode is GroupingMode.STANDARD and len(shared_sort_parts) * 8 < len(
+        sortable_indices
+    ):
+        # Few distinct component tuples under STANDARD (status and walk
+        # recency are uniform by construction there): order the distinct
+        # values once and expand each to its member indices in input order.
+        # The full stable sort orders equal components by index, which is
+        # exactly the expansion order, so the result is identical with far
+        # fewer comparisons.
+        members_by_parts: dict[tuple[Any, ...], list[int]] = {}
+        for i in sortable_indices:
+            members_by_parts.setdefault(precomputed[i], []).append(i)
+        if cluster_members is None:
+            return [
+                i for parts in sorted(members_by_parts) for i in members_by_parts[parts]
+            ]
+        # Cluster representatives expand to their member indices here, so
+        # the shared tail below (which expands representative ids) is
+        # skipped: returning the final order directly.
+        return [
+            j
+            for parts in sorted(members_by_parts)
+            for i in members_by_parts[parts]
+            for j in cluster_members[i]
+        ]
+    else:
+        # The shared component tuple splices back into its original flat
+        # positions: status recency still compares between the subgroup and
+        # name-root components, exactly as the unshared key did.
+        ordered = sorted(
+            sortable_indices,
+            key=lambda i: (
+                precomputed[i][0],
+                precomputed[i][1],
+                precomputed[i][2],
+                status_sort_keys[i],
+                precomputed[i][3],
+                precomputed[i][4],
+                precomputed[i][5],
+                anchors[i][0] if by_date else 0.0,
+                anchors[i][1] if by_date else 0,
+                i,
             ),
-            anchors[i][0] if mode is GroupingMode.BY_DATE else 0.0,
-            anchors[i][1] if mode is GroupingMode.BY_DATE else 0,
-            i,
-        ),
-    )
+        )
     if cluster_members is None:
         return ordered
     return [i for root_idx in ordered for i in cluster_members[root_idx]]
