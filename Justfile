@@ -389,11 +389,12 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
-        --epic-symbol 'sase-19x.9(ReadingAnchor)' \
-        --epic-symbol 'sase-19x.9(capture_reading_anchor)' \
-        --epic-symbol 'sase-19x.9(restore_block_offset)' \
-        --epic-symbol 'sase-19x.9(render_block_rail)' \
-        --epic-symbol 'sase-19x.9(block_rail_text)' \
+        --epic-symbol 'sase-19i.7.3.3.2(describe_node_finder_row_from_facts)' \
+        --epic-symbol 'sase-19x(ReadingAnchor)' \
+        --epic-symbol 'sase-19x(capture_reading_anchor)' \
+        --epic-symbol 'sase-19x(restore_block_offset)' \
+        --epic-symbol 'sase-19x(render_block_rail)' \
+        --epic-symbol 'sase-19x(block_rail_text)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

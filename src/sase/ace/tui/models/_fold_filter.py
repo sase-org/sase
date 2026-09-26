@@ -12,6 +12,9 @@ def filter_agents_by_fold_state(
     fold_keys: dict[int, str | None] | None = None,
     parent_keys: dict[int, str | None] | None = None,
     hidden_steps: set[int] | frozenset[int] | None = None,
+    is_monitor_map: dict[int, bool] | None = None,
+    is_gate_map: dict[int, bool] | None = None,
+    is_child_row_map: dict[int, bool] | None = None,
 ) -> tuple[list[Agent], dict[str, tuple[int, int]]]:
     """Filter agents through every immediate ancestor's in-memory fold.
 
@@ -26,8 +29,11 @@ def filter_agents_by_fold_state(
     The optional *fold_keys*, *parent_keys*, and *hidden_steps* carry one
     per-open read of :func:`agent_fold_key`, :func:`agent_parent_fold_key`,
     and ``is_hidden_step`` keyed by ``id(agent)`` for the same roster, so
-    batch callers skip re-deriving those predicates once per pass. Results
-    are identical; any agent missing from the tables falls back to a direct
+    batch callers skip re-deriving those predicates once per pass. The
+    optional *is_monitor_map*, *is_gate_map*, and *is_child_row_map* carry
+    the same per-open role booleans so the snapshot builder pays for each
+    plan-chain role parse once instead of once per pass. Results are
+    identical; any agent missing from the tables falls back to a direct
     read.
     """
 
@@ -46,16 +52,48 @@ def filter_agents_by_fold_state(
             return agent_id in hidden_steps
         return agent.is_hidden_step
 
+    def _is_monitor(agent: Agent, agent_id: int) -> bool:
+        if is_monitor_map is not None and agent_id in is_monitor_map:
+            return is_monitor_map[agent_id]
+        return agent.is_monitor
+
+    def _is_gate(agent: Agent, agent_id: int) -> bool:
+        if is_gate_map is not None and agent_id in is_gate_map:
+            return is_gate_map[agent_id]
+        return agent.is_gate
+
+    def _is_child_row(agent: Agent, agent_id: int) -> bool:
+        if is_child_row_map is not None and agent_id in is_child_row_map:
+            return is_child_row_map[agent_id]
+        return agent.is_child_row
+
+    def _gating_key(agent: Agent, agent_id: int) -> str | None:
+        if (
+            is_monitor_map is not None
+            and is_gate_map is not None
+            and is_child_row_map is not None
+            and parent_keys is not None
+            and agent_id in is_monitor_map
+            and agent_id in is_gate_map
+        ):
+            if not (_is_monitor(agent, agent_id) or _is_gate(agent, agent_id)):
+                return _parent_key(agent, agent_id)
+        return agent_gating_fold_key(agent, owners_by_key)
+
     owners_by_key: dict[str, Agent] = {}
+    owners_child_row: dict[str, bool] = {}
     for agent in agents:
         agent_id = id(agent)
         key = _fold_key(agent, agent_id)
         if key is None:
             continue
         existing = owners_by_key.get(key)
-        if existing is not None and (not existing.is_child_row or agent.is_child_row):
+        if existing is not None and (
+            not owners_child_row.get(key, existing.is_child_row)
+            or _is_child_row(agent, agent_id)
+        ):
             continue
-        if agent.is_child_row and _parent_key(agent, agent_id) == key:
+        if _is_child_row(agent, agent_id) and _parent_key(agent, agent_id) == key:
             # Legacy workflow children repeat their parent's suffix. They
             # alias the parent fold and must not own it, including when
             # that parent is absent.
@@ -63,18 +101,21 @@ def filter_agents_by_fold_state(
         # A non-child row wins a repeated key. Uniquely-keyed child rows
         # still register so a grandchild can resolve its parent.
         owners_by_key[key] = agent
+        owners_child_row[key] = _is_child_row(agent, agent_id)
     children_by_parent: dict[str, list[Agent]] = {}
     for agent in agents:
         agent_id = id(agent)
-        if agent.is_monitor or agent.is_gate:
-            parent_key = agent_gating_fold_key(agent, owners_by_key)
+        if _is_monitor(agent, agent_id) or _is_gate(agent, agent_id):
+            parent_key = _gating_key(agent, agent_id)
         else:
             # Non-shell rows are gated by their immediate parent, which the
             # facet table already holds.
             parent_key = _parent_key(agent, agent_id)
         if parent_key is None or parent_key not in owners_by_key:
             continue
-        if (agent.is_monitor or agent.is_gate) and parent_key.startswith("clan:"):
+        if (
+            _is_monitor(agent, agent_id) or _is_gate(agent, agent_id)
+        ) and parent_key.startswith("clan:"):
             # A clan's counts are direct-member counts and clan_members
             # already excludes session shell rows. A shell whose gating chain
             # collapses onto the clan fold (a malformed/disk-shaped
@@ -137,8 +178,8 @@ def filter_agents_by_fold_state(
         # immediate parent; a session shell is never a hidden step, so only the
         # COLLAPSED gate needs its own key for shell rows.
         level = fold_manager.get(parent_key)
-        if agent.is_monitor or agent.is_gate:
-            gating_key = agent_gating_fold_key(agent, owners_by_key)
+        if _is_monitor(agent, agent_id) or _is_gate(agent, agent_id):
+            gating_key = _gating_key(agent, agent_id)
             gating_level = None if gating_key is None else fold_manager.get(gating_key)
             # An unresolvable gating chain (a malformed projection) falls
             # back to visible-with-parent rather than hiding the row.

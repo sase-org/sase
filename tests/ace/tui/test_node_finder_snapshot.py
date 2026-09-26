@@ -639,9 +639,11 @@ def test_fused_facets_keep_counts_ancestors_and_reasons_across_grouping_modes() 
 
 
 def _facet_tables(complete: list) -> tuple:
-    from sase.ace.tui.actions.agents._node_finder_snapshot import _snapshot_facets
+    from sase.ace.tui.actions.agents._node_finder_snapshot import (
+        _snapshot_all_facets,
+    )
 
-    return _snapshot_facets(complete)
+    return _snapshot_all_facets(complete)[:5]
 
 
 def _fold_states() -> list[str]:
@@ -815,3 +817,153 @@ def test_panel_tree_state_matches_rebuild() -> None:
                 entry.group.group_key if entry.group is not None else None
                 for entry in plain
             ], (mode, panel_key)
+
+
+def _describe_shapes() -> list[Agent]:
+    """Return one agent per row shape the batched describer must match."""
+    from sase.ace.tui.models._agent_tree import project_clan_tree
+
+    started = _started()
+    clan_members, _container = make_clan(2)
+    clan_row = next(agent for agent in clan_members if agent.is_clan_container)
+    sess_proj, sess_root, _sess_child = make_agent_session(in_clan=False)
+    session_row = sess_root
+    wf_root = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="wf",
+        project_file="/p/p.sase",
+        status="RUNNING",
+        start_time=started,
+        raw_suffix="ts-wf",
+        agent_name="wf",
+        workflow="myflow",
+    )
+    wf_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="x",
+        project_file="/p/p.sase",
+        status="DONE",
+        start_time=started,
+        raw_suffix="ts-wf-step",
+        parent_workflow="myflow",
+        parent_timestamp="ts-wf",
+        step_name="build",
+        step_type="bash",
+        step_index=0,
+        total_steps=1,
+        role_suffix="--build",
+    )
+    hidden_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="hs",
+        project_file="/p/p.sase",
+        status="DONE",
+        start_time=started,
+        raw_suffix="ts-hidden-step",
+        parent_workflow="hidden-flow",
+        parent_timestamp="ts-hidden-root",
+        step_name="setup",
+        step_type="python",
+        step_index=0,
+        total_steps=1,
+        is_hidden_step=True,
+        role_suffix="--setup",
+    )
+    proc = Agent(
+        agent_type=AgentType.PROC_SHELL,
+        cl_name="proc",
+        project_file="/p/p.sase",
+        status="RUNNING",
+        start_time=started,
+        raw_suffix="ts-proc",
+        agent_name="proc-shell",
+        proc_label="shell",
+        proc_safe_preview="echo hi",
+        proc_id="proc-1",
+    )
+    gate = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fam--gate",
+        project_file="/p/p.sase",
+        status="RUNNING",
+        start_time=started,
+        raw_suffix="ts-gate",
+        parent_timestamp="ts-root",
+        agent_name="fam--gate",
+        agent_session="fam",
+        agent_session_role="gate",
+        role_suffix="--gate",
+        gate_id="g1",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fam--mon1",
+        project_file="/p/p.sase",
+        status="MONITORING",
+        start_time=started,
+        raw_suffix="ts-mon1",
+        parent_timestamp="ts-root",
+        agent_name="fam--mon1",
+        agent_session="fam",
+        agent_session_role="monitor",
+        role_suffix="--mon1",
+        monitor_id="mon-mon1",
+    )
+    solo = make_agent("solo")
+    return [
+        clan_row,
+        session_row,
+        wf_step,
+        hidden_step,
+        proc,
+        gate,
+        monitor,
+        solo,
+        wf_root,
+    ]
+
+
+def test_batched_description_matches_single_row() -> None:
+    """The batched describer matches the single-row contract for every shape."""
+    from sase.ace.tui.models.node_finder import (
+        describe_node_finder_row,
+        describe_node_finder_row_for_snapshot,
+        describe_node_finder_row_from_facts,
+        kind_styles,
+    )
+
+    styles = kind_styles()
+    for agent in _describe_shapes():
+        expected = describe_node_finder_row(agent)
+        from_facts = describe_node_finder_row_from_facts(
+            is_clan=agent.is_clan_container,
+            is_proc=agent.is_proc_shell,
+            is_wf_step=agent.is_workflow_step_child,
+            step_type=agent.step_type,
+            presented=agent.presented_agent_name,
+            agent_name=agent.agent_name,
+            display_name=agent.display_name,
+            cl_name=agent.cl_name,
+            is_session_container=agent.is_agent_session_container_row,
+            is_monitor=agent.is_monitor,
+            is_gate=agent.is_gate,
+            is_agent_entry=agent.is_agent_entry,
+            agent_clan=agent.agent_clan,
+            proc_label=agent.proc_label,
+            proc_safe_preview=agent.proc_safe_preview,
+            step_name=agent.step_name,
+            is_session_member_child=agent.is_agent_session_member_child,
+            is_pre_prompt_step=agent.is_pre_prompt_step,
+            agent_type=agent.agent_type,
+            is_workflow_child=agent.is_workflow_child,
+            appears_as_agent=agent.appears_as_agent,
+            styles=styles,
+        )
+        assert from_facts == expected, agent.agent_name
+        for_snapshot = describe_node_finder_row_for_snapshot(
+            agent,
+            is_monitor=agent.is_monitor,
+            is_gate=agent.is_gate,
+            styles=styles,
+        )
+        assert for_snapshot == expected, agent.agent_name

@@ -168,7 +168,7 @@ def prepare_agent_navigation_target(
     )
 
 
-def _fold_requirement_is_met(current: FoldLevel, required: FoldLevel) -> bool:
+def fold_requirement_is_met(current: FoldLevel, required: FoldLevel) -> bool:
     if required is FoldLevel.FULLY_EXPANDED:
         return current is FoldLevel.FULLY_EXPANDED
     return current is not FoldLevel.COLLAPSED
@@ -182,7 +182,7 @@ def _expand_tree_ancestors(owner: Any, plan: _AgentRevealPlan) -> tuple[bool, bo
 
     changed = False
     for requirement in plan.ancestor_requirements:
-        while not _fold_requirement_is_met(
+        while not fold_requirement_is_met(
             fold_manager.get(requirement.fold_key),
             requirement.level,
         ):
@@ -366,7 +366,7 @@ def unmet_ancestor_folds(
     """Return each row's unmet ancestor fold keys, nearest first.
 
     Reuses the exact reveal rule: clan folds need ``EXPANDED``, hidden steps
-    need ``FULLY_EXPANDED``, judged by :func:`_fold_requirement_is_met`.
+    need ``FULLY_EXPANDED``, judged by :func:`fold_requirement_is_met`.
     One shared :func:`tree_parent_lookup` keeps the batch O(n · depth).
     Pass a caller-built *parent_lookup* to reuse an existing tree index
     within one batch instead of rebuilding it. Rows with invalid ancestry
@@ -386,7 +386,7 @@ def unmet_ancestor_folds(
         missing = tuple(
             requirement.fold_key
             for requirement in requirements
-            if not _fold_requirement_is_met(
+            if not fold_requirement_is_met(
                 fold_manager.get(requirement.fold_key),
                 requirement.level,
             )

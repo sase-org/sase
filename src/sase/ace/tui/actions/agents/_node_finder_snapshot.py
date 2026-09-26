@@ -47,7 +47,41 @@ def _evolve(row: NodeFinderRow, **changes: Any) -> NodeFinderRow:
     return replace(row, **changes)
 
 
-def _snapshot_facets(
+def _snapshot_has_banner_collapse(owner: Any, panel_keys: list[Any]) -> bool:
+    """Return whether any panel grouping registry currently collapses a banner.
+
+    The snapshot's fast rendered path skips the full jump-target tree walks
+    when no panel or banner is collapsed; any collapsed state falls back to
+    the exact ``_jump_candidate_targets`` walk so hidden rows stay hidden.
+    """
+    from ._fold_scope import panel_fold_registry
+
+    for panel_key in panel_keys:
+        try:
+            registry = panel_fold_registry(owner, panel_key)
+        except Exception:
+            return True
+        if registry is None:
+            continue
+        collapsed = getattr(registry, "collapsed", None)
+        if isinstance(collapsed, (set, frozenset)):
+            if collapsed:
+                return True
+            continue
+        snapshot = getattr(registry, "snapshot", None)
+        if callable(snapshot):
+            try:
+                if snapshot():
+                    return True
+            except Exception:
+                return True
+            continue
+        # Unknown registry shape: stay exact via the slow path.
+        return True
+    return False
+
+
+def _snapshot_all_facets(
     complete: list[Agent],
 ) -> tuple[
     dict[int, str | None],
@@ -55,14 +89,19 @@ def _snapshot_facets(
     dict[int, int],
     dict[int, AgentIdentity],
     set[int],
+    dict[int, bool],
+    dict[int, bool],
+    dict[int, bool],
 ]:
-    """Read per-agent facets once for one snapshot build.
+    """Read every per-open facet once, including role facts.
 
-    Parent and fold keys, tree depth, identity, and the hidden-step flag
-    re-derive plan-chain role state, so they are read once per agent here
-    and reused by the fold-filter check, levels fill, descendant walk, and
-    row construction below instead of once per pass. Every table is local
-    to this snapshot; live owner state is still read afresh on every open.
+    Beyond the base tables, each agent pays once for the monitor/gate role
+    booleans and child-row flag that the fold filter otherwise recomputes
+    per pass via repeated plan-chain suffix parses. The row loop reuses
+    the same booleans plus one shared kind-style binding when calling the
+    batched describer, instead of re-parsing suffixes per property per row.
+    Every table is local to this snapshot; live owner state is still read
+    afresh on every open.
     """
     from ...models._agent_tree import agent_fold_key, agent_tree_depth
 
@@ -71,6 +110,9 @@ def _snapshot_facets(
     depths: dict[int, int] = {}
     identity_of: dict[int, AgentIdentity] = {}
     hidden_steps: set[int] = set()
+    is_monitor_map: dict[int, bool] = {}
+    is_gate_map: dict[int, bool] = {}
+    is_child_row_map: dict[int, bool] = {}
     for agent in complete:
         key = id(agent)
         parent_keys[key] = agent_parent_fold_key(agent)
@@ -79,7 +121,19 @@ def _snapshot_facets(
         identity_of[key] = agent.identity
         if agent.is_hidden_step:
             hidden_steps.add(key)
-    return (parent_keys, fold_keys, depths, identity_of, hidden_steps)
+        is_monitor_map[key] = agent.is_monitor
+        is_gate_map[key] = agent.is_gate
+        is_child_row_map[key] = agent.is_child_row
+    return (
+        parent_keys,
+        fold_keys,
+        depths,
+        identity_of,
+        hidden_steps,
+        is_monitor_map,
+        is_gate_map,
+        is_child_row_map,
+    )
 
 
 def _unmet_with_facets(
@@ -100,7 +154,7 @@ def _unmet_with_facets(
     """
     from ...models._agent_tree import agent_parent_fold_key
     from ...models.fold_state import FoldLevel
-    from ..navigation._agent_reveal import _fold_requirement_is_met
+    from ..navigation._agent_reveal import fold_requirement_is_met
 
     bound = len(complete) + 1
     unmet: dict[AgentIdentity, tuple[str, ...]] = {}
@@ -151,7 +205,7 @@ def _unmet_with_facets(
         missing = tuple(
             fold_key
             for fold_key, level in requirements
-            if not _fold_requirement_is_met(fold_manager.get(fold_key), level)
+            if not fold_requirement_is_met(fold_manager.get(fold_key), level)
         )
         if missing:
             unmet[agent.identity] = missing
@@ -245,9 +299,16 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
 
     complete, hidden_by_i = _complete_roster_for_snapshot(owner)
     parents = tree_parent_lookup(complete)
-    parent_keys, fold_keys, depths, identity_of, hidden_steps = _snapshot_facets(
-        complete
-    )
+    (
+        parent_keys,
+        fold_keys,
+        depths,
+        identity_of,
+        hidden_steps,
+        is_monitor_map,
+        is_gate_map,
+        is_child_row_map,
+    ) = _snapshot_all_facets(complete)
 
     fold_manager = getattr(owner, "_fold_manager", None)
     if fold_manager is not None:
@@ -271,6 +332,9 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             fold_keys=fold_keys,
             parent_keys=parent_keys,
             hidden_steps=hidden_steps,
+            is_monitor_map=is_monitor_map,
+            is_gate_map=is_gate_map,
+            is_child_row_map=is_child_row_map,
         )
 
     merged = bool(getattr(owner, "_agent_panels_grouped", False))
@@ -300,10 +364,27 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     else:
         query_set = None
 
+    collapsed_panels = effective_panel_collapses(owner)
+
     current_agents: list[Agent] = list(getattr(owner, "_agents", None) or ())
     jump_targets = getattr(owner, "_jump_candidate_targets", None)
-    if callable(jump_targets):
-        rendered: set[AgentIdentity] = set()
+    if (
+        callable(jump_targets)
+        and not collapsed_panels
+        and not _snapshot_has_banner_collapse(owner, list(panel_group.panel_keys))
+    ):
+        # No panel or banner is collapsed, so the jump-target walk would
+        # return every rendered agent in order: reuse the live list
+        # directly without rebuilding grouping trees per panel. STARTING
+        # rows never render (see ``agent_is_rendered_in_agents_panel``),
+        # matching the jump walk's own exclusion.
+        rendered: set[AgentIdentity] = {
+            identity_of.get(id(agent), agent.identity)
+            for agent in current_agents
+            if agent.status != "STARTING"
+        }
+    elif callable(jump_targets):
+        rendered = set()
         for target in jump_targets():
             if (
                 isinstance(target, tuple)
@@ -315,7 +396,6 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     else:
         rendered = {agent.identity for agent in current_agents}
 
-    collapsed_panels = effective_panel_collapses(owner)
     dismissed = set(getattr(owner, "_dismissed_agents", set()) or ())
 
     if fold_manager is not None:
@@ -324,6 +404,10 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         )
     else:
         unmet = {}
+
+    from ...models.node_finder import kind_styles
+
+    _describe_styles = kind_styles()
 
     rows: list[NodeFinderRow] = []
     index_by_identity: dict[AgentIdentity, int] = {}
@@ -436,9 +520,29 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
                     )
                 reasons = set()
 
-            jumpable, name, title, kind_label, kind_accent = describe_node_finder_row(
-                agent
-            )
+            # Batched description consumes the per-open role table plus
+            # one shared style binding instead of re-parsing suffixes per
+            # row; agents outside the roster keep the exact single-row
+            # contract.
+            if agent_key in is_monitor_map and agent_key in is_gate_map:
+                from ...models.node_finder import (
+                    describe_node_finder_row_for_snapshot,
+                )
+
+                jumpable, name, title, kind_label, kind_accent = (
+                    describe_node_finder_row_for_snapshot(
+                        agent,
+                        is_monitor=is_monitor_map[agent_key],
+                        is_gate=is_gate_map[agent_key],
+                        styles=_describe_styles,
+                    )
+                )
+            else:
+                from ...models.node_finder import describe_node_finder_row
+
+                jumpable, name, title, kind_label, kind_accent = (
+                    describe_node_finder_row(agent)
+                )
 
             parent_row = group_stack[-1][1] if group_stack else panel_idx
             if agent_key in parent_keys:
@@ -579,17 +683,6 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     header_counts: dict[int, tuple[int, int]] = _accumulate_header_counts(
         rows, counts_chains
     )
-    if header_counts:
-        rows = [
-            _evolve(
-                row,
-                jumpable_count=header_counts[pos][0],
-                hidden_count=header_counts[pos][1],
-            )
-            if pos in header_counts
-            else row
-            for pos, row in enumerate(rows)
-        ]
 
     here_row: int | None = None
     if (
@@ -600,10 +693,34 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         selected = get_selected() if callable(get_selected) else None
         if selected is not None and selected.identity in index_by_identity:
             here_row = index_by_identity[selected.identity]
-            rows = [
-                _evolve(row, is_here=True) if pos == here_row else row
-                for pos, row in enumerate(rows)
-            ]
+    if header_counts or here_row is not None:
+        # One shared copy pass for both header counts and the here marker
+        # instead of two full row iterations.
+        fused: list[NodeFinderRow] = []
+        for pos, row in enumerate(rows):
+            counts = header_counts.get(pos) if header_counts else None
+            if counts is not None and pos == here_row:
+                fused.append(
+                    _evolve(
+                        row,
+                        jumpable_count=counts[0],
+                        hidden_count=counts[1],
+                        is_here=True,
+                    )
+                )
+            elif counts is not None:
+                fused.append(
+                    _evolve(
+                        row,
+                        jumpable_count=counts[0],
+                        hidden_count=counts[1],
+                    )
+                )
+            elif pos == here_row:
+                fused.append(_evolve(row, is_here=True))
+            else:
+                fused.append(row)
+        rows = fused
 
     node_count = 0
     hidden = 0

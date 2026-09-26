@@ -160,7 +160,7 @@ _IDENTITY_KIND_FN: Any = None
 _KIND_STYLES: dict[str, Any] | None = None
 
 
-def _kind_styles() -> dict[str, Any]:
+def kind_styles() -> dict[str, Any]:
     """Return the shared kind label/accent constants, binding them once."""
     global _KIND_STYLES  # noqa: PLW0603
     styles = _KIND_STYLES
@@ -212,17 +212,123 @@ def node_finder_kind(agent: Agent) -> tuple[str, str]:
     return kind_fn(agent)
 
 
-def describe_node_finder_row(
-    agent: Agent,
+def describe_node_finder_row_from_facts(
+    *,
+    is_clan: bool,
+    is_proc: bool,
+    is_wf_step: bool,
+    step_type: str | None,
+    presented: str | None,
+    agent_name: str | None,
+    display_name: str,
+    cl_name: str,
+    is_session_container: bool,
+    is_monitor: bool,
+    is_gate: bool,
+    is_agent_entry: bool,
+    agent_clan: str | None,
+    proc_label: str | None,
+    proc_safe_preview: str | None,
+    step_name: str | None,
+    is_session_member_child: bool,
+    is_pre_prompt_step: bool,
+    agent_type: AgentType,
+    is_workflow_child: bool,
+    appears_as_agent: bool,
+    styles: dict[str, Any] | None = None,
 ) -> tuple[bool, str, str, str, str]:
-    """Return ``(jumpable, name, title, kind_label, kind_accent)`` for *agent*.
+    """Return ``(jumpable, name, title, kind_label, kind_accent)`` from facts.
 
-    Batch equivalent of :func:`node_finder_jumpable`, :func:`node_finder_name`,
-    :func:`node_finder_title`, and :func:`node_finder_kind` that reads each
-    agent property once. Snapshot building calls this per row instead of the
-    four singles; the singles remain the behavior contract (see the
-    differential test over every agent shape).
+    Batch entry point for the snapshot builder: the caller reads each agent
+    role/naming property once per open into a facet table and reuses it for
+    the fold filter, grouping, and every row, instead of re-parsing
+    plan-chain suffixes per property per row. Behavior matches
+    :func:`describe_node_finder_row` exactly for the same inputs.
     """
+    if is_clan:
+        name = presented or agent_clan or display_name or humanize_cl_name(cl_name)
+    elif is_proc:
+        name = (
+            proc_label
+            or presented
+            or agent_name
+            or display_name
+            or humanize_cl_name(cl_name)
+        )
+    else:
+        name = presented or agent_name or display_name or humanize_cl_name(cl_name)
+
+    if is_wf_step and step_type in ("bash", "python"):
+        step_title = step_name or display_name
+        raw_title = step_title or None
+    elif is_proc:
+        raw_title = proc_label or proc_shell_command_title(proc_safe_preview)
+    elif (
+        not is_clan
+        and not is_session_container
+        and (
+            is_monitor
+            or is_gate
+            or (is_wf_step and step_type == "agent")
+            or is_session_member_child
+        )
+    ):
+        raw_title = None
+    else:
+        raw_title = display_name or None
+    if not raw_title or raw_title == name:
+        title: str | None = None
+    else:
+        title = raw_title
+
+    jumpable = not is_pre_prompt_step and not (is_wf_step and step_type != "agent")
+
+    resolved_styles = styles if styles is not None else kind_styles()
+    if is_clan:
+        kind_label, kind_accent = "CLAN", "#D75FFF"
+    elif is_session_container:
+        kind_label, kind_accent = "SESSION", resolved_styles["session"]
+    elif is_proc:
+        kind_label, kind_accent = "PROC SHELL", resolved_styles["proc"]
+    elif is_agent_entry:
+        kind_label, kind_accent = "AGENT SHELL", resolved_styles["agent_entry"]
+    elif is_gate:
+        kind_label, kind_accent = "GATE", resolved_styles["gate"]
+    elif is_monitor:
+        kind_label, kind_accent = "MONITOR", resolved_styles["monitor"]
+    elif is_wf_step and step_type:
+        kind_label = "STEP"
+        step_colors = resolved_styles["step_colors"]
+        kind_accent = step_colors.get(step_type, resolved_styles["step_fallback"])
+    elif (
+        agent_type is AgentType.WORKFLOW
+        and not is_workflow_child
+        and not appears_as_agent
+    ):
+        kind_label, kind_accent = "WORKFLOW", resolved_styles["workflow"]
+    else:
+        kind_label, kind_accent = "AGENT", resolved_styles["agent"]
+
+    return (jumpable, name, title or "", kind_label, kind_accent)
+
+
+def describe_node_finder_row_for_snapshot(
+    agent: Agent,
+    *,
+    is_monitor: bool | None = None,
+    is_gate: bool | None = None,
+    styles: dict[str, Any] | None = None,
+) -> tuple[bool, str, str, str, str]:
+    """Return ``(jumpable, name, title, kind_label, kind_accent)`` for snapshots.
+
+    Snapshot fast path: reuses the per-open ``is_monitor``/``is_gate`` facet
+    table and one shared kind-style binding instead of re-parsing plan-chain
+    suffixes and rebinding styles per row. All other facts are read lazily
+    exactly as :func:`describe_node_finder_row` does, so behavior matches
+    for every agent shape.
+    """
+    resolved_monitor = agent.is_monitor if is_monitor is None else is_monitor
+    resolved_gate = agent.is_gate if is_gate is None else is_gate
     is_clan = agent.is_clan_container
     is_proc = agent.is_proc_shell
     is_wf_step = agent.is_workflow_step_child
@@ -231,11 +337,7 @@ def describe_node_finder_row(
     agent_name = agent.agent_name
     display_name = agent.display_name
     cl_name = agent.cl_name
-    # Each predicate below re-derives plan-chain role state, so read the
-    # repeated ones once: snapshot building calls this per row.
     is_session_container = agent.is_agent_session_container_row
-    is_monitor = agent.is_monitor
-    is_gate = agent.is_gate
     is_agent_entry = agent.is_agent_entry
     if is_clan:
         name = (
@@ -264,8 +366,8 @@ def describe_node_finder_row(
         not is_clan
         and not is_session_container
         and (
-            is_monitor
-            or is_gate
+            resolved_monitor
+            or resolved_gate
             or (is_wf_step and step_type == "agent")
             or agent.is_agent_session_member_child
         )
@@ -282,33 +384,47 @@ def describe_node_finder_row(
         is_wf_step and step_type != "agent"
     )
 
-    styles = _kind_styles()
+    resolved_styles = styles if styles is not None else kind_styles()
     if is_clan:
         kind_label, kind_accent = "CLAN", "#D75FFF"
     elif is_session_container:
-        kind_label, kind_accent = "SESSION", styles["session"]
+        kind_label, kind_accent = "SESSION", resolved_styles["session"]
     elif is_proc:
-        kind_label, kind_accent = "PROC SHELL", styles["proc"]
+        kind_label, kind_accent = "PROC SHELL", resolved_styles["proc"]
     elif is_agent_entry:
-        kind_label, kind_accent = "AGENT SHELL", styles["agent_entry"]
-    elif is_gate:
-        kind_label, kind_accent = "GATE", styles["gate"]
-    elif is_monitor:
-        kind_label, kind_accent = "MONITOR", styles["monitor"]
+        kind_label, kind_accent = "AGENT SHELL", resolved_styles["agent_entry"]
+    elif resolved_gate:
+        kind_label, kind_accent = "GATE", resolved_styles["gate"]
+    elif resolved_monitor:
+        kind_label, kind_accent = "MONITOR", resolved_styles["monitor"]
     elif is_wf_step and step_type:
         kind_label = "STEP"
-        step_colors = styles["step_colors"]
-        kind_accent = step_colors.get(step_type, styles["step_fallback"])
+        step_colors = resolved_styles["step_colors"]
+        kind_accent = step_colors.get(step_type, resolved_styles["step_fallback"])
     elif (
         agent.agent_type is AgentType.WORKFLOW
         and not agent.is_workflow_child
         and not agent.appears_as_agent
     ):
-        kind_label, kind_accent = "WORKFLOW", styles["workflow"]
+        kind_label, kind_accent = "WORKFLOW", resolved_styles["workflow"]
     else:
-        kind_label, kind_accent = "AGENT", styles["agent"]
+        kind_label, kind_accent = "AGENT", resolved_styles["agent"]
 
     return (jumpable, name, title or "", kind_label, kind_accent)
+
+
+def describe_node_finder_row(
+    agent: Agent,
+) -> tuple[bool, str, str, str, str]:
+    """Return ``(jumpable, name, title, kind_label, kind_accent)`` for *agent*.
+
+    Batch equivalent of :func:`node_finder_jumpable`, :func:`node_finder_name`,
+    :func:`node_finder_title`, and :func:`node_finder_kind` that reads each
+    agent property once. Snapshot building calls the ``_for_snapshot`` batch
+    entry point per row instead of this single-row wrapper; the singles remain
+    the behavior contract (see the differential test over every agent shape).
+    """
+    return describe_node_finder_row_for_snapshot(agent)
 
 
 def node_finder_jumpable(agent: Agent) -> bool:
