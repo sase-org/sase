@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual import events
@@ -23,7 +23,6 @@ from .base import FilterInput
 
 if TYPE_CHECKING:
     from textual.app import App
-    from textual.await_complete import AwaitComplete
     from textual.widget import Widget as _MixinBase
 
 else:
@@ -43,7 +42,7 @@ class PromptHistoryInteractionMixin(_MixinBase):
 
         def action_unload(self) -> None: ...
 
-        def dismiss(self, result: Any = None) -> AwaitComplete: ...
+        def _emit_result(self, result: PromptHistoryResult | None = None) -> None: ...
 
         def _get_filtered_items(self, filter_text: str) -> list[PromptDisplayItem]: ...
 
@@ -98,7 +97,7 @@ class PromptHistoryInteractionMixin(_MixinBase):
         """Handle Enter key in input - select and submit directly."""
         prompt_text = self._get_selected_prompt_text()
         if prompt_text:
-            self.dismiss(
+            self._emit_result(
                 PromptHistoryResult(
                     action=PromptHistoryAction.SUBMIT,
                     prompt_text=prompt_text,
@@ -119,7 +118,7 @@ class PromptHistoryInteractionMixin(_MixinBase):
         if event.option and event.option.id is not None:
             idx = int(event.option.id)
             if 0 <= idx < len(self._filtered_items):
-                self.dismiss(
+                self._emit_result(
                     PromptHistoryResult(
                         action=PromptHistoryAction.SUBMIT,
                         prompt_text=display_text_for_item(self._filtered_items[idx]),
@@ -130,7 +129,7 @@ class PromptHistoryInteractionMixin(_MixinBase):
         """Handle Ctrl+G - select and open in editor first."""
         prompt_text = self._get_selected_prompt_text()
         if prompt_text:
-            self.dismiss(
+            self._emit_result(
                 PromptHistoryResult(
                     action=PromptHistoryAction.EDIT_FIRST,
                     prompt_text=prompt_text,
@@ -153,7 +152,7 @@ class PromptHistoryInteractionMixin(_MixinBase):
         """Handle Ctrl+I - load selected prompt into prompt input widget."""
         prompt_text = self._get_selected_prompt_text()
         if prompt_text:
-            self.dismiss(
+            self._emit_result(
                 PromptHistoryResult(
                     action=PromptHistoryAction.LOAD,
                     prompt_text=prompt_text,
@@ -172,7 +171,7 @@ class PromptHistoryInteractionMixin(_MixinBase):
                 copied_label="prompt",
                 task_name="sase-copy-prompt-history",
             )
-        self.dismiss(None)
+        self._emit_result(None)
 
     def _update_preview(self, item: PromptDisplayItem) -> None:
         """Update preview panel with full prompt and metadata."""

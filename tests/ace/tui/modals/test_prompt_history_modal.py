@@ -11,6 +11,7 @@ from textual.widgets import Input
 
 from sase.ace.testing import wait_for
 import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
+import sase.ace.tui.modals.history_pane as history_pane
 from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
 from sase.history.prompt_catalog import PromptHistoryPage, record_from_entry
 from tests.ace.tui.modals.prompt_history_modal_test_helpers import (
@@ -35,7 +36,7 @@ async def test_prompt_history_opens_while_initial_disk_load_is_blocked(
         return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
 
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         slow_load_prompt_record_page,
     )
@@ -123,7 +124,7 @@ def test_prompt_history_append_page_keeps_canonical_entry_text(
 ) -> None:
     raw = "#gh:gh_acme__widgets Fix parser"
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "humanize_vcs_refs_in_text",
         lambda text: text.replace("gh_acme__widgets", "widgets"),
     )

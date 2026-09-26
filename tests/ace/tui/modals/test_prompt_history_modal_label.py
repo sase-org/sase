@@ -7,6 +7,7 @@ import pytest
 import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
 import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
+import sase.ace.tui.modals.history_pane as history_pane
 from sase.ace.tui.modals.prompt_history_modal import (
     _MIN_PREVIEW_WIDTH,
     _OPTION_HORIZONTAL_PADDING_WIDTH,
@@ -158,7 +159,7 @@ def test_prompt_history_label_caches_list_summary(
             clean_preview=text,
         )
 
-    monkeypatch.setattr(prompt_history_modal, "summarize_prompt_for_list", fake_summary)
+    monkeypatch.setattr(history_pane, "summarize_prompt_for_list", fake_summary)
     item = _item(text="cached preview")
 
     assert "cached preview" in _create_prompt_history_label(item).plain

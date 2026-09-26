@@ -5,7 +5,11 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from sase.ace.tui.modals.stashed_prompts_modal import StashedPromptsModal
+from sase.ace.tui.modals.stashed_prompts_modal import (
+    DeleteRequested,
+    PinToggled,
+    StashedPromptsModal,
+)
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 
 
@@ -35,8 +39,8 @@ class ModalHost(App[None]):
         super().__init__()
         self._entries = entries
         self.result: object = "UNSET"
-        self.pin_events: list[StashedPromptsModal.PinToggled] = []
-        self.delete_events: list[StashedPromptsModal.DeleteRequested] = []
+        self.pin_events: list[PinToggled] = []
+        self.delete_events: list[DeleteRequested] = []
 
     def compose(self) -> ComposeResult:
         yield Static("host")
@@ -47,12 +51,8 @@ class ModalHost(App[None]):
             lambda result: setattr(self, "result", result),
         )
 
-    def on_stashed_prompts_modal_pin_toggled(
-        self, event: StashedPromptsModal.PinToggled
-    ) -> None:
+    def on_stashed_prompts_modal_pin_toggled(self, event: PinToggled) -> None:
         self.pin_events.append(event)
 
-    def on_stashed_prompts_modal_delete_requested(
-        self, event: StashedPromptsModal.DeleteRequested
-    ) -> None:
+    def on_stashed_prompts_modal_delete_requested(self, event: DeleteRequested) -> None:
         self.delete_events.append(event)

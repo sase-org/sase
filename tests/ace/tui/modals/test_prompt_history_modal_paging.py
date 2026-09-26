@@ -7,6 +7,7 @@ from textual.widgets import Input
 
 from sase.ace.testing import wait_for
 import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
+import sase.ace.tui.modals.history_pane as history_pane
 from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
 from sase.history.prompt_catalog import PromptHistoryPage, record_from_entry
 from tests.ace.tui.modals.prompt_history_modal_test_helpers import (
@@ -61,7 +62,7 @@ async def test_ctrl_j_loads_more_without_deleting_filter_text(
         return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
 
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         fake_load_prompt_record_page,
     )
@@ -127,7 +128,7 @@ async def test_ctrl_k_unloads_last_page_and_next_load_refetches(
         )
 
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         fake_load_prompt_record_page,
     )
@@ -175,7 +176,7 @@ async def test_ctrl_k_unloads_last_page_and_next_load_refetches(
 async def test_prompt_history_uses_configured_page_size(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(prompt_history_modal, "get_ace_page_size", lambda: 25)
+    monkeypatch.setattr(history_pane, "get_ace_page_size", lambda: 25)
     calls: list[dict[str, object]] = []
 
     def fake_load_prompt_record_page(**kwargs: object) -> PromptHistoryPage:
@@ -183,7 +184,7 @@ async def test_prompt_history_uses_configured_page_size(
         return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
 
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         fake_load_prompt_record_page,
     )
@@ -233,7 +234,7 @@ async def test_ctrl_d_no_longer_loads_more(
         return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
 
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         fake_load_prompt_record_page,
     )

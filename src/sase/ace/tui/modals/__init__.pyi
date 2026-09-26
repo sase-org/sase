@@ -148,6 +148,7 @@ from .gate_input_panel import GateInputPanelResult as GateInputPanelResult
 from .gate_input_panel_model import GateInputRequest as GateInputRequest
 from .gate_retry_modal import GateRetryModal as GateRetryModal
 from .help_modal import HelpModal as HelpModal
+from .history_pane import HistoryPane as HistoryPane
 from .hook_history_modal import HookHistoryAction as HookHistoryAction
 from .hook_history_modal import HookHistoryModal as HookHistoryModal
 from .hook_history_modal import HookHistoryResult as HookHistoryResult
@@ -219,6 +220,11 @@ from .project_selection_types import ProjectSelectResult as ProjectSelectResult
 from .prompt_history_modal import PromptHistoryAction as PromptHistoryAction
 from .prompt_history_modal import PromptHistoryModal as PromptHistoryModal
 from .prompt_history_modal import PromptHistoryResult as PromptHistoryResult
+from .prompts_modal import PromptsModal as PromptsModal
+from .prompts_modal import PromptsOrigin as PromptsOrigin
+from .prompts_modal import PromptsOriginKind as PromptsOriginKind
+from .prompts_modal import PromptsResult as PromptsResult
+from .prompts_modal import PromptsTab as PromptsTab
 from .prompt_submit_choice_modal import PromptSubmitChoice as PromptSubmitChoice
 from .prompt_submit_choice_modal import (
     PromptSubmitChoiceModal as PromptSubmitChoiceModal,
@@ -267,6 +273,7 @@ from .snippets_panel import SnippetsPane as SnippetsPane
 from .snippets_panel import SnippetsPaneHost as SnippetsPaneHost
 from .snippets_panel import SnippetsPaneSessionState as SnippetsPaneSessionState
 from .snippets_panel import SnippetsPanel as SnippetsPanel
+from .stash_pane import StashPane as StashPane
 from .stashed_prompts_modal import StashRestoreResult as StashRestoreResult
 from .stashed_prompts_modal import StashedPromptsModal as StashedPromptsModal
 from .statistics_help_modal import StatisticsHelpModal as StatisticsHelpModal

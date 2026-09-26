@@ -9,6 +9,7 @@ from textual.widgets import Input
 
 from sase.ace.testing import wait_for
 import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
+import sase.ace.tui.modals.history_pane as history_pane
 from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
 from sase.core.prompt_history_filter_wire import PromptHistoryProjectIdentity
 from sase.history.prompt_catalog import PromptHistoryPage
@@ -257,12 +258,12 @@ async def test_typing_during_seed_resolution_wins_over_the_seed(
         classmethod(lambda cls: cls(entries=())),
     )
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "build_prompt_history_seed_from_draft",
         slow_build_seed,
     )
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         lambda **_kwargs: PromptHistoryPage(
             records=[], next_cursor=None, exhausted=True
@@ -298,7 +299,7 @@ async def test_ctrl_k_seed_with_project_tag_resolves_to_project_scope(
         ),
     )
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         lambda **_kwargs: PromptHistoryPage(
             records=[], next_cursor=None, exhausted=True

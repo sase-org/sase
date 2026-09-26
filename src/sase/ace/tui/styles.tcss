@@ -5578,6 +5578,188 @@ PromptHistoryModal #prompt-history-hints {
     margin-top: 1;
 }
 
+/* Tabbed Prompts overlay (Stash | History panes share the modal DOM ids) */
+PromptsModal {
+    align: center middle;
+}
+
+PromptsModal > #prompts-modal-container {
+    width: 98%;
+    height: 96%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+PromptsModal #prompts-modal-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+PromptsModal #prompts-modal-tabs {
+    width: 100%;
+    height: 1;
+    margin-bottom: 1;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+PromptsModal #prompts-modal-body {
+    width: 100%;
+    height: 1fr;
+}
+
+PromptsModal #prompts-modal-footer {
+    height: auto;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+PromptsModal #stash-pane-body,
+PromptsModal #history-pane-body {
+    width: 100%;
+    height: 1fr;
+}
+
+PromptsModal #stashed-prompts-panels {
+    width: 100%;
+    height: 23;
+}
+
+PromptsModal #stashed-prompts-list-panel {
+    width: 6fr;
+    min-width: 54;
+    height: 100%;
+}
+
+PromptsModal #stashed-prompts-list {
+    height: 18;
+    max-height: 18;
+    border: solid $secondary;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+PromptsModal #stashed-prompts-list-panel OptionList > .option-list--option {
+    height: 1;
+    padding: 0 1;
+}
+
+PromptsModal PromptStashPreviewPane {
+    width: 5fr;
+    min-width: 46;
+    height: 100%;
+    margin-left: 1;
+}
+
+PromptsModal #prompt-history-filter-input {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+PromptsModal #prompt-history-scope-hint {
+    height: 1;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+PromptsModal #prompt-history-scope-hint.-scoped {
+    color: $accent;
+}
+
+PromptsModal #prompt-history-scope-hint.-error {
+    color: $error;
+}
+
+PromptsModal #prompt-history-panels {
+    width: 100%;
+    height: 1fr;
+}
+
+PromptsModal #prompt-history-list-panel {
+    width: 2fr;
+    height: 100%;
+}
+
+PromptsModal #prompt-history-list-label {
+    color: $text-muted;
+    text-style: bold;
+    height: 1;
+}
+
+PromptsModal #prompt-history-table {
+    height: 1fr;
+    border: solid $secondary;
+}
+
+PromptsModal #prompt-history-columns {
+    height: 2;
+    color: $text-muted;
+    text-style: bold;
+    border-bottom: solid $secondary;
+    padding: 0 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+PromptsModal #prompt-history-list {
+    height: 1fr;
+    border: none;
+    background: $surface;
+    scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+PromptsModal #prompt-history-list-panel OptionList > .option-list--option {
+    padding: 0 1;
+}
+
+PromptsModal #prompt-history-preview-panel {
+    width: 1fr;
+    height: 100%;
+    margin-left: 1;
+}
+
+PromptsModal #prompt-history-preview-label {
+    color: $text-muted;
+    text-style: bold;
+    height: 1;
+}
+
+PromptsModal #prompt-history-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+PromptsModal #prompt-history-preview {
+    height: auto;
+}
+
+PromptsModal #prompt-history-metadata {
+    height: auto;
+    color: $text-muted;
+}
+
+PromptsModal #prompts-modal-container.-narrow PromptStashPreviewPane {
+    display: none;
+}
+
+PromptsModal #prompts-modal-container.-narrow #stashed-prompts-list-panel {
+    width: 100%;
+}
+
+PromptsModal #prompts-modal-container.-narrow #prompt-history-preview-panel {
+    display: none;
+}
+
+PromptsModal #prompts-modal-container.-narrow #prompt-history-list-panel {
+    width: 100%;
+}
+
 /* Command history modal styling */
 CommandHistoryModal {
     align: center middle;
