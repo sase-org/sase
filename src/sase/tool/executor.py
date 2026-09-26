@@ -47,6 +47,7 @@ from sase.tool.executor_process import (
 from sase.tool.executor_recording import begin_tool_run, finish_tool_run
 from sase.tool.executor_signals import SignalState
 from sase.tool.liveness import reconcile_unsettled_tool_runs
+from sase.tool.receipts import settle_receipt_for_run
 from sase.tool.logs import (
     BoundedLogSink,
     LogSinkError,
@@ -398,6 +399,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
                 fingerprint_after=observe_fingerprint(resolved) if recorded else None,
                 terminal_cause=cause,
             )
+            settle_receipt_for_run(run_id, resolved)
             inc_tool_metric(
                 TOOL_RUN_SETTLEMENTS,
                 state=state,
@@ -450,6 +452,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
                 fingerprint_after=observe_fingerprint(resolved),
                 terminal_cause="exited",
             )
+            settle_receipt_for_run(run_id, resolved)
             inc_tool_metric(TOOL_RUN_SETTLEMENTS, state="failed")
         return exit_code
 
@@ -629,6 +632,10 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             ingestor=ingestor,
             state=state,
         )
+        # Receipt minting runs after the E3 verdict has settled so the same
+        # frozen run feeds Rust eligibility; foreground and adopted workers
+        # share this body, so both paths settle identically.
+        settle_receipt_for_run(run_id, resolved)
         write_run_footer(
             durable_id=durable_id,
             state=state,

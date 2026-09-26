@@ -34,7 +34,7 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
     tool_subparsers = tool_parser.add_subparsers(
         dest="tool_subcommand",
         help="Tool subcommands",
-        metavar="{failures,list,run,runs,show,stop,wait}",
+        metavar="{failures,list,receipt,run,runs,show,stop,wait}",
     )
 
     failures_parser = tool_subparsers.add_parser(
@@ -119,6 +119,46 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         "--json",
         action="store_true",
         help="Emit a versioned machine-readable JSON object",
+    )
+
+    receipt_parser = tool_subparsers.add_parser(
+        "receipt",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Show the covering verdict receipt for one named tool",
+        description=(
+            "Report the covering verdict receipt for one named tool at the "
+            "current fingerprint, or a typed refusal. The query states what "
+            "the ledger holds and never claims any completion policy is met. "
+            "Exit codes: 0 covered, 1 typed refusal or store failure, "
+            "2 unknown tool or usage."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase tool receipt check\n"
+            "  sase tool receipt check -a no-new\n"
+            "  sase tool receipt check -j"
+        ),
+    )
+    receipt_parser.add_argument(
+        "-a",
+        "--accept",
+        choices=("pass", "no-new"),
+        default="pass",
+        metavar="VERDICT",
+        dest="tool_receipt_accept",
+        help="Accept this verdict as covered (default: pass)",
+    )
+    receipt_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        dest="tool_receipt_json",
+        help="Emit a versioned machine-readable JSON object",
+    )
+    receipt_parser.add_argument(
+        "tool_receipt_tool",
+        metavar="TOOL",
+        help="Named tool to query",
     )
 
     run_parser = tool_subparsers.add_parser(
