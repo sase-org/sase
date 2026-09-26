@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from sase.axe.run_agent_gate_handoff import gate_handoff_claim_moved
-from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
+from sase.gate_turn.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.running_field import WorkspaceClaim
 
 

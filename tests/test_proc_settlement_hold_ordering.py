@@ -63,7 +63,7 @@ def test_settlement_releases_proc_hold_before_publishing_terminal_row(
 
     monkeypatch.setattr(settlement, "finish_proc", _spy_finish)
 
-    finished = settlement.settle_proc_shell(
+    finished = settlement.settle_named_proc(
         proc_id,
         supervisor_id="test-supervisor",
         status="success",

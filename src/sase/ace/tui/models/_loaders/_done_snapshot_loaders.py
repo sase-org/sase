@@ -7,7 +7,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanWire,
 )
-from sase.gate_shell.status import DEFAULT_GATE_SHELL_SETTLED_STATUS
+from sase.gate_turn.status import DEFAULT_GATE_TURN_SETTLED_STATUS
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
@@ -74,7 +74,7 @@ def build_done_agent_from_record(
         error_message = done.error
         error_traceback = None
     elif outcome == "gated":
-        status = done.status_label or DEFAULT_GATE_SHELL_SETTLED_STATUS
+        status = done.status_label or DEFAULT_GATE_TURN_SETTLED_STATUS
         error_message = done.error
         error_traceback = None
     elif outcome == "stopped" or done.repeat_stopped:

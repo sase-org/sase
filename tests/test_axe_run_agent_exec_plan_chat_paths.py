@@ -12,8 +12,8 @@ from sase.main.qa_prompt import build_qa_round
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
-    patch_plan_gate_shell_result,
-    patch_question_gate_shell_rounds,
+    patch_plan_gate_turn_result,
+    patch_question_gate_turn_rounds,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_TALE_PLAN
@@ -53,7 +53,7 @@ class TestFeedbackRoundChatPath:
             return "/fake/chat"
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -121,7 +121,7 @@ class TestFeedbackRoundChatPath:
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
         with (
-            patch_question_gate_shell_rounds(rounds),
+            patch_question_gate_turn_rounds(rounds),
             patch(
                 "sase.history.chat.save_chat_history",
                 side_effect=capture,

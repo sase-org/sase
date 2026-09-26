@@ -28,8 +28,8 @@ from sase.procs.models import (
 )
 from sase.procs.settlement import is_named_proc_row
 from sase.procs.store import get_proc
-from sase.shells.followup import wait_for_followup_started
-from sase.shells.settlement import stamp_shell_finished_at
+from sase.turns.followup import wait_for_followup_started
+from sase.turns.settlement import stamp_turn_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .diagnostics import (
@@ -75,10 +75,10 @@ def monitor_proc_argv(
     return _compile_monitor_argv(command)
 
 
-def proc_shell_owns(
+def named_proc_owns(
     monitor_id: str, *, snapshot: ProcStoreSnapshot | None = None
 ) -> bool:
-    """Return whether *monitor_id* is a proc-shell row the facade must not adopt.
+    """Return whether *monitor_id* is a named-proc row the facade must not adopt.
 
     Pass *snapshot* to answer many ownership checks from one store read.
     """
@@ -389,7 +389,7 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     ):
         if meta.get(key):
             done_marker[key] = meta[key]
-    stamp_shell_finished_at(done_marker)
+    stamp_turn_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
     touch_monitor_refresh_pulse(project_name)
@@ -532,7 +532,7 @@ __all__ = [
     "MONITOR_PROC_ORIGIN",
     "monitor_proc_argv",
     "overlay_proc_on_monitor",
-    "proc_shell_owns",
+    "named_proc_owns",
     "settle_monitor_artifacts",
     "settle_monitor_followup",
 ]

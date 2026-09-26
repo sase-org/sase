@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Protocol
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
-from sase.gate_shell.state import (
+from sase.gate_turn.state import (
     GATE_FAILURE_GLYPH_COLOR,
     GATE_GLYPH,
     GATE_SETTLED_GLYPH_COLOR,
 )
-from sase.gate_shell.status import (
+from sase.gate_turn.status import (
     gate_status_glyph,
     gate_status_pair,
     gate_status_style,
@@ -97,7 +97,7 @@ _STATUS_BUCKET_GLYPHS: dict[str, str] = {
 _AGENT_TYPE_COLORS: dict[AgentType, str] = {
     AgentType.RUNNING: "#87AFFF",  # Blue
     AgentType.WORKFLOW: "#FF87D7",  # Pink for workflow agent steps
-    AgentType.PROC_SHELL: "#5FD7FF",  # Cyan for stand-alone proc shells
+    AgentType.NAMED_PROC: "#5FD7FF",  # Cyan for stand-alone proc shells
 }
 
 # Per-step-type colors for workflow child entries

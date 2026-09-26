@@ -9,8 +9,8 @@ from rich.text import Text
 
 from sase.agent.artifact_files_cache import get_global_cache
 from sase.core.time import get_timezone, to_local
-from sase.gate_shell.state import gate_state_is_terminal
-from sase.gate_shell.status import effective_gate_status, gate_status_pair
+from sase.gate_turn.state import gate_state_is_terminal
+from sase.gate_turn.status import effective_gate_status, gate_status_pair
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,

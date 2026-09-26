@@ -12,7 +12,7 @@ from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.shells.settlement import stamp_shell_finished_at
+from sase.turns.settlement import stamp_turn_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .delivery import (
@@ -148,7 +148,7 @@ def record_successful_resume(
     done.setdefault("monitor_state", record.monitor_state)
     done.setdefault("monitor_exit_code", record.exit_code)
     done.setdefault("monitor_elapsed_seconds", record.elapsed_seconds)
-    stamp_shell_finished_at(done)
+    stamp_turn_finished_at(done)
     write_done_marker_and_update_index(record.artifacts_dir, done)
 
 

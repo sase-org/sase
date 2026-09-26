@@ -12,7 +12,7 @@ import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from sase.gate_shell.naming import short_gate_shell_id
+from sase.gate_turn.naming import short_gate_turn_id
 
 from ._agent_enter_targets import (
     NO_TARGET_EMPTY_MESSAGE,
@@ -45,7 +45,7 @@ def _pr_label_for_patch(patch: Any) -> str | None:
 def _short_gate_ref(target: AgentEnterTarget) -> str:
     if target.gate_id:
         try:
-            return short_gate_shell_id(target.gate_id)
+            return short_gate_turn_id(target.gate_id)
         except Exception:
             return target.gate_id[:8]
     if target.notification_id:
@@ -391,7 +391,7 @@ def _split_enter_badge(
 def _choice_for_enter_target(target: AgentEnterTarget):  # type: ignore[no-untyped-def]
     """Map one Enter target to its chooser view model."""
     from ...modals.agent_action_chooser_modal import AgentActionChoice
-    from sase.gate_shell.state import GATE_GLYPH
+    from sase.gate_turn.state import GATE_GLYPH
 
     if target.kind == "patch":
         return AgentActionChoice(

@@ -71,9 +71,9 @@ class ProcReserve:
             values["proc_name"] = str(data["shell_name"])
         if "proc_role" not in values and data.get("shell_kind") is not None:
             values["proc_role"] = str(data["shell_kind"])
-        if "origin" in values and values["origin"] == "proc-shell":
+        if "origin" in values and values["origin"] == "named-proc":
             values["origin"] = "named-proc"
-        elif data.get("origin") == "proc-shell" and "origin" not in values:
+        elif data.get("origin") == "named-proc" and "origin" not in values:
             values["origin"] = "named-proc"
         values["service"] = ProcServiceBlock.from_dict(data.get("service"))
         values.pop("shell_name", None)

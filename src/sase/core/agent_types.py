@@ -11,8 +11,6 @@ class AgentType(Enum):
     RUNNING = "run"  # Manual sase run commands (RUNNING field)
     WORKFLOW = "workflow"  # Multi-step YAML workflows
     NAMED_PROC = "named-proc"  # Stand-alone durable named proc projection
-    # Deprecated alias kept for callers not yet moved to the turn spelling.
-    PROC_SHELL = "named-proc"
 
     @classmethod
     def _missing_(cls, value: object) -> AgentType | None:

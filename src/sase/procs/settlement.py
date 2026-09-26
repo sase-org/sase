@@ -1,4 +1,4 @@
-"""Resumable, idempotent settlement for a proc-shell row."""
+"""Resumable, idempotent settlement for a named-proc row."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any, Literal
 from sase.running_field import release_workspace
 
 from .models import (
-    PROC_LIFECYCLE_PROC_SHELL,
+    PROC_LIFECYCLE_NAMED_PROC,
     TERMINAL_PROC_STATUSES,
     Proc,
     ProcFinish,
@@ -48,7 +48,7 @@ _CHECKPOINTS: tuple[Checkpoint, ...] = (
 )
 
 
-def settle_proc_shell(
+def settle_named_proc(
     proc_id: str,
     *,
     supervisor_id: str,
@@ -167,12 +167,6 @@ def is_named_proc_row(proc: Proc) -> bool:
 
     # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
     return proc.lifecycle in ("named-proc", "proc-shell")
-
-
-def is_proc_shell_row(proc: Proc) -> bool:
-    """Deprecated alias for :func:`is_named_proc_row`."""
-
-    return is_named_proc_row(proc)
 
 
 def _ensure_claimed(proc: Proc, *, supervisor_id: str) -> Proc:
@@ -502,7 +496,6 @@ def _utc_timestamp() -> str:
 
 __all__ = [
     "is_named_proc_row",
-    "is_proc_shell_row",
     "maybe_crash",
-    "settle_proc_shell",
+    "settle_named_proc",
 ]

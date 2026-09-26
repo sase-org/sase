@@ -8,21 +8,21 @@ from __future__ import annotations
 
 from sase.ace.dismissed_procs import (
     SCHEMA_VERSION,
-    _DISMISSED_PROC_SHELLS_FILE,
-    load_dismissed_proc_shells,
+    _DISMISSED_NAMED_PROCS_FILE,
+    load_dismissed_named_procs,
     load_dismissed_procs,
-    prune_dismissed_proc_shells,
+    prune_dismissed_named_procs,
     prune_dismissed_procs,
-    record_dismissed_proc_shells,
+    record_dismissed_named_procs,
     record_dismissed_procs,
 )
 
 __all__ = [
     "SCHEMA_VERSION",
-    "load_dismissed_proc_shells",
+    "load_dismissed_named_procs",
     "load_dismissed_procs",
-    "prune_dismissed_proc_shells",
+    "prune_dismissed_named_procs",
     "prune_dismissed_procs",
-    "record_dismissed_proc_shells",
+    "record_dismissed_named_procs",
     "record_dismissed_procs",
 ]

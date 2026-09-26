@@ -39,8 +39,8 @@ from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
 )
-from sase.shells.followup import wait_for_followup_started
-from sase.shells.settlement import stamp_shell_finished_at
+from sase.turns.followup import wait_for_followup_started
+from sase.turns.settlement import stamp_turn_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .diagnostics import (
@@ -599,7 +599,7 @@ def _finish_monitor(
     ):
         if meta.get(key):
             done_marker[key] = meta[key]
-    stamp_shell_finished_at(done_marker)
+    stamp_turn_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
 

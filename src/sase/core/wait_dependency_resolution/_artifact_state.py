@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_scan_wire_agent_session_turn import (
-    agent_session_shell_from_mapping,
     agent_session_turn_from_mapping,
 )
 from sase.core.dismissed_agent_completion import (
@@ -16,7 +15,7 @@ from sase.core.dismissed_agent_completion import (
     MONITOR_OUTCOME,
     effective_done_outcome,
 )
-from sase.gate_shell.state import TERMINAL_GATE_STATES, is_real_gate_member
+from sase.gate_turn.state import TERMINAL_GATE_STATES, is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     agent_session_base,
@@ -83,7 +82,7 @@ def done_outcome_from_data(done_data: Mapping[str, Any] | None) -> str | None:
     return effective_done_outcome(done_data)
 
 
-def _agent_session_shell_field(
+def _agent_session_turn_field(
     data: Mapping[str, Any] | None,
     *,
     kind: str,
@@ -97,7 +96,7 @@ def _agent_session_shell_field(
     ``sase.agents._wait_live_rows._index_from_snapshot``), while
     ``WaitDependencyIndex.build()`` reads flat ``monitor_*`` / ``gate_*``
     on-disk marker keys directly. :func:`agent_session_turn_from_mapping`
-    understands both, including legacy ``agent_session_shell`` /
+    understands both, including legacy ``agent_session_turn`` /
     ``family_shell`` keys.
     """
     if data is None:
@@ -121,22 +120,22 @@ def shell_followup_handoff_agent(
     if kind is None:
         return None
 
-    state = _agent_session_shell_field(done_data, kind=kind, field="state") or (
-        _agent_session_shell_field(meta, kind=kind, field="state")
+    state = _agent_session_turn_field(done_data, kind=kind, field="state") or (
+        _agent_session_turn_field(meta, kind=kind, field="state")
     )
     if not isinstance(state, str) or state not in _TERMINAL_STATES_BY_SHELL_KIND[kind]:
         return None
 
-    followup_outcome = _agent_session_shell_field(
+    followup_outcome = _agent_session_turn_field(
         done_data,
         kind=kind,
         field="followup_outcome",
-    ) or _agent_session_shell_field(meta, kind=kind, field="followup_outcome")
-    next_action = _agent_session_shell_field(
+    ) or _agent_session_turn_field(meta, kind=kind, field="followup_outcome")
+    next_action = _agent_session_turn_field(
         done_data,
         kind=kind,
         field="next_action",
-    ) or _agent_session_shell_field(meta, kind=kind, field="next_action")
+    ) or _agent_session_turn_field(meta, kind=kind, field="next_action")
     if (
         kind == "gate"
         and state not in {"lost", "stopped"}
@@ -148,11 +147,11 @@ def shell_followup_handoff_agent(
     if followup_outcome not in SUCCESSFUL_SHELL_FOLLOWUP_OUTCOMES:
         return None
 
-    followup_agent = _agent_session_shell_field(
+    followup_agent = _agent_session_turn_field(
         done_data,
         kind=kind,
         field="followup_agent",
-    ) or _agent_session_shell_field(meta, kind=kind, field="followup_agent")
+    ) or _agent_session_turn_field(meta, kind=kind, field="followup_agent")
     if not isinstance(followup_agent, str):
         return None
     followup_agent = followup_agent.strip()
@@ -202,12 +201,12 @@ def artifact_is_resolved(
         return outcome in WAIT_SUCCESS_OUTCOMES
     if not is_plan_chain_artifact_meta(meta):
         return False
-    if _is_agent_session_shell_member_meta(meta):
+    if _is_agent_session_turn_member_meta(meta):
         return False
     return _completed_handoff_workflow_state(artifact_dir)
 
 
-def _is_agent_session_shell_member_meta(meta: Mapping[str, Any]) -> bool:
+def _is_agent_session_turn_member_meta(meta: Mapping[str, Any]) -> bool:
     return _is_monitor_member_meta(meta) or is_real_gate_member(
         _str_or_none(agent_session_role_value(meta)),
         _str_or_none(meta.get("gate_id")),
@@ -228,15 +227,15 @@ def shell_member_kind_for_meta(meta: Mapping[str, Any]) -> str | None:
     shape the index ingests (on-disk ``agent_meta.json``, and the
     ``asdict(AgentMetaWire)`` snapshots ``add_scan_record`` receives), so
     monitor classification reads them directly like
-    ``_is_agent_session_shell_member_meta`` does. ``gate_id`` is flat on disk but
-    nested under ``agent_session_shell.id`` on the wire snapshots, so gate
-    classification goes through :func:`_agent_session_shell_field`, which
+    ``_is_agent_session_turn_member_meta`` does. ``gate_id`` is flat on disk but
+    nested under ``agent_session_turn.id`` on the wire snapshots, so gate
+    classification goes through :func:`_agent_session_turn_field`, which
     understands both shapes.
     """
     if _is_monitor_member_meta(meta):
         return "monitor"
     gate_id = _str_or_none(meta.get("gate_id")) or _str_or_none(
-        _agent_session_shell_field(meta, kind="gate", field="id")
+        _agent_session_turn_field(meta, kind="gate", field="id")
     )
     if is_real_gate_member(_str_or_none(agent_session_role_value(meta)), gate_id):
         return "gate"

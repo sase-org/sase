@@ -114,7 +114,7 @@ def handle_plan_marker(
     # Clear the killed flag set by the plan command's SIGTERM
     # so the poll loop only exits on a NEW kill signal.
     reset_killed()
-    return _handle_plan_via_gate_shell(
+    return _handle_plan_via_gate_turn(
         plan_data,
         ctx,
         state,
@@ -122,7 +122,7 @@ def handle_plan_marker(
     )
 
 
-def _handle_plan_via_gate_shell(
+def _handle_plan_via_gate_turn(
     plan_data: dict[str, Any],
     ctx: AgentExecContext,
     state: LoopState,
@@ -133,9 +133,12 @@ def _handle_plan_via_gate_shell(
     if not isinstance(plan_file, str) or not plan_file:
         return "plan_rejected"
 
-    from sase.plan_shell import create_plan_gate_shell, plan_result_from_gate_creation
+    from sase.plan_gate_turn import (
+        create_plan_gate_turn,
+        plan_result_from_gate_creation,
+    )
 
-    creation = create_plan_gate_shell(
+    creation = create_plan_gate_turn(
         plan_file,
         session_id=str(uuid.uuid4()),
         ctx=ctx,

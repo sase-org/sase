@@ -328,9 +328,9 @@ def _sase_agent_of(name: str, identity: AgentIdentitySnapshot | None) -> str:
     to the raw spelling.
     """
     try:
-        from sase.sase_agent import sase_agent_ref_for_shell
+        from sase.sase_agent import sase_agent_ref_for_turn
 
-        return sase_agent_ref_for_shell(name, identity).local_name
+        return sase_agent_ref_for_turn(name, identity).local_name
     except Exception:
         return name
 

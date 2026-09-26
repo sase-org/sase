@@ -46,12 +46,12 @@ def test_effective_gate_outcome_fails_closed(
 @pytest.mark.parametrize(
     "shell_key",
     [
-        "agent_session_shell",
+        "agent_session_turn",
         # legacy agent-family spelling: pre-rename done.json files.
         pytest.param("family_shell", id="legacy-family-shell"),
     ],
 )
-def test_effective_gate_outcome_reads_nested_agent_session_shell(
+def test_effective_gate_outcome_reads_nested_agent_session_turn(
     shell_key: str,
 ) -> None:
     assert (

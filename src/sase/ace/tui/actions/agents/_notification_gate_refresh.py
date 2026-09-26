@@ -277,9 +277,9 @@ def accepted_gate_shell_artifact_dir(
         )
         if not gate_id:
             return None, True
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
 
-        record = find_gate_shell_by_gate_id(None, gate_id)
+        record = find_gate_turn_by_gate_id(None, gate_id)
         if record is None or not getattr(record, "artifacts_dir", None):
             return None, True
         return Path(str(record.artifacts_dir)), False

@@ -10,7 +10,7 @@ from sase.core.agent_identity_facade import (
     globalize_owned_agent_name,
 )
 from sase.core.commit_footer_facade import LinkedCommitTagValue
-from sase.sase_agent import SaseAgentRef, sase_agent_ref_for_shell
+from sase.sase_agent import SaseAgentRef, sase_agent_ref_for_turn
 
 
 class _AgentAssociationLinkResolver(Protocol):
@@ -38,7 +38,7 @@ def artifact_agent_association(
     if raw is None:
         return None
     try:
-        ref = sase_agent_ref_for_shell(raw, identity)
+        ref = sase_agent_ref_for_turn(raw, identity)
     except (ImportError, RuntimeError, TypeError, ValueError):
         return AgentAssociationRef(_global_name(raw, identity))
     return _artifact_association_from_sase_agent(ref)
@@ -68,7 +68,7 @@ def commit_agent_association(
     if raw is None:
         return None
     try:
-        label = sase_agent_ref_for_shell(raw, identity).global_name
+        label = sase_agent_ref_for_turn(raw, identity).global_name
     except (ImportError, RuntimeError, TypeError, ValueError):
         label = _global_name(raw, identity)
     return AgentAssociationRef(label, footer_destination=destination)

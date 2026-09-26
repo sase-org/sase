@@ -17,14 +17,14 @@ import threading
 
 import pytest
 
-from sase.gate_shell.log import bind_gate_shell_execution_callbacks
-from sase.gate_shell.member import create_gate_shell_member
-from sase.gate_shell.store import read_gate_shell_marker
+from sase.gate_turn.log import bind_gate_turn_execution_callbacks
+from sase.gate_turn.member import create_gate_turn_member
+from sase.gate_turn.store import read_gate_turn_marker
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
 import sase.notification_gates.cli_answer as gate_cli_answer_module
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
-from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.model_turn import GateTurnSpec
 from sase.notification_gates.models import GateSpec
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.registry import adapter_for_kind
@@ -101,16 +101,16 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
                 ),
             }
         ],
-        "shell": shell_block,
+        "turn": shell_block,
         "auto": {"enabled": True},
     }
 
-    # Production's real `create_gate_shell` orchestration creates the
+    # Production's real `create_gate_turn` orchestration creates the
     # pending gate-shell member -- inheriting the creator's own weight and
     # `runner_claim_owner_key` -- before ever calling `create_gate`, since
     # `%auto` resolves synchronously inside that same call.
-    parsed_shell = GateShellSpec.from_mapping(shell_block, branches=(("run",),))
-    gate_dir = create_gate_shell_member(
+    parsed_turn = GateTurnSpec.from_mapping(shell_block, branches=(("run",),))
+    gate_dir = create_gate_turn_member(
         MONITOR_PROJECT,
         {
             "name": "auto--gate",
@@ -131,7 +131,7 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
         creator_agent="creator",
         timeout_seconds=86_400.0,
         request_fingerprint=None,
-        shell=parsed_shell,
+        turn=parsed_turn,
     )
 
     # The registered "custom" adapter forbids auto-resolution entirely
@@ -172,7 +172,7 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
     harness.join(creator)
 
 
-def test_pending_gate_shell_holds_zero_runner_slot_capacity(
+def test_pending_gate_turn_holds_zero_runner_slot_capacity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -236,7 +236,7 @@ def test_synchronous_gate_answer_claims_and_releases_runner_slot_capacity_like_a
 
     def run_gate() -> None:
         try:
-            callbacks = bind_gate_shell_execution_callbacks(gate_dir)
+            callbacks = bind_gate_turn_execution_callbacks(gate_dir)
             execute_gate_selection(
                 bundle_path, ["run"], {}, source="test", **callbacks.as_kwargs()
             )
@@ -301,10 +301,10 @@ def test_detached_gate_route_reacquires_runner_slot_capacity_through_the_real_cl
         queue_weight_explicit=True,
     )
 
-    record = read_gate_shell_marker(MONITOR_PROJECT, gate_dir)
+    record = read_gate_turn_marker(MONITOR_PROJECT, gate_dir)
     assert record is not None
     monkeypatch.setattr(
-        gate_cli_answer_module, "find_gate_shell_by_gate_id", lambda _p, _g: record
+        gate_cli_answer_module, "find_gate_turn_by_gate_id", lambda _p, _g: record
     )
 
     submitted: dict[str, object] = {}
@@ -450,14 +450,14 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
     # This test establishes the gate-shell row itself below: mark the spec
     # the way the production transaction does so the shell-row guard accepts
     # the setup.
-    gate_b = create_gate(replace(GateSpec.from_mapping(spec_b), shell_row_managed=True))
+    gate_b = create_gate(replace(GateSpec.from_mapping(spec_b), turn_row_managed=True))
     from sase.notification_gates.paths import owned_resource_path
 
     owned_resource_path(gate_b.bundle_path, "commands/run").chmod(0o644)
-    parsed_shell_b = GateShellSpec.from_mapping(
+    parsed_turn_b = GateTurnSpec.from_mapping(
         {"pending_status": "GATE", "settled_status": "GATED"}, branches=(("run",),)
     )
-    gate_dir_b = create_gate_shell_member(
+    gate_dir_b = create_gate_turn_member(
         MONITOR_PROJECT,
         {
             "name": "failstart--gate",
@@ -477,7 +477,7 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
         creator_agent="failstart--gate",
         timeout_seconds=86_400.0,
         request_fingerprint=None,
-        shell=parsed_shell_b,
+        turn=parsed_turn_b,
     )
     update_meta_field(gate_dir_b, "gate_bundle_path", str(gate_b.bundle_path))
 
@@ -487,7 +487,7 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
             ["run"],
             {},
             source="test",
-            **bind_gate_shell_execution_callbacks(gate_dir_b).as_kwargs(),
+            **bind_gate_turn_execution_callbacks(gate_dir_b).as_kwargs(),
         )
 
     assert (

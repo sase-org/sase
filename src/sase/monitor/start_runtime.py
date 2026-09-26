@@ -13,7 +13,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.monitor_state import monitor_state_bucket
 from sase.procs.runtime import proc_started_path, read_json_object
 from sase.running_field import get_claimed_workspaces
-from sase.shells.settlement import stamp_shell_finished_at
+from sase.turns.settlement import stamp_turn_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .request import DEFAULT_STOP_STATUS
@@ -57,7 +57,7 @@ def teardown_failed_member(artifacts_dir: str, error: str) -> None:
     project_name = project_name_from_artifacts_dir(artifacts_dir)
     if project_name:
         done_marker["project_file"] = get_project_file_path(project_name)
-    stamp_shell_finished_at(done_marker)
+    stamp_turn_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
 

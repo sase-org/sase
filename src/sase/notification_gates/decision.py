@@ -236,7 +236,7 @@ def accept_gate_decision(
             source=source,
         )
         _project_accepted_decision(bundle_path, envelope, receipt)
-        _touch_gate_shell_refresh_pulse(envelope, str(envelope["request_id"]))
+        _touch_gate_turn_refresh_pulse(envelope, str(envelope["request_id"]))
 
         return _GateDecisionAcceptance(
             receipt=receipt, already_accepted=already_accepted
@@ -302,7 +302,7 @@ def _project_accepted_decision(
         )
 
 
-def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -> None:
+def _touch_gate_turn_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -> None:
     """Best-effort: nudge ACE's watcher for shell-backed gates only.
 
     Non-shell gates (task/flag/bead triage, plain launches) have no shell
@@ -315,18 +315,18 @@ def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -
     ):
         return
     try:
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
-        from sase.shells.settlement import (
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
+        from sase.turns.settlement import (
             touch_agent_refresh_pulse,
-            touch_shell_refresh_pulse,
+            touch_turn_refresh_pulse,
         )
 
-        record = find_gate_shell_by_gate_id(None, gate_id)
+        record = find_gate_turn_by_gate_id(None, gate_id)
         if record is not None:
             # The exact agent-dir pulse gives ACE a row delta; the project
             # pulse stays for watchers that only see project-level changes.
             touch_agent_refresh_pulse(getattr(record, "artifacts_dir", None))
-            touch_shell_refresh_pulse(record.project_name)
+            touch_turn_refresh_pulse(record.project_name)
     except Exception:
         log.warning(
             "Failed to touch refresh pulse after gate decision acceptance",

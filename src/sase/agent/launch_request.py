@@ -48,7 +48,7 @@ from sase.agent.launch_request_types import (
     LaunchRequestError,
     LaunchRequestStatus,
 )
-from sase.gate_shell.models import GateShellError
+from sase.gate_turn.models import GateTurnError
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import RESPONSE_FILENAME
@@ -144,18 +144,18 @@ def create_launch_approval_request(
 
     try:
         if running_agent_context_requires_launch_approval():
-            from sase.gate_shell import create_gate_shell
+            from sase.gate_turn import create_gate_turn
 
-            gate_shell_creation = create_gate_shell(_launch_shell_gate_spec(gate_spec))
-            gate = gate_shell_creation.gate
+            gate_turn_creation = create_gate_turn(_launch_shell_gate_spec(gate_spec))
+            gate = gate_turn_creation.gate
         else:
             from sase.notification_gates.service import create_gate
 
-            gate_shell_creation = None
+            gate_turn_creation = None
             gate = create_gate(gate_spec)
     except GateError as exc:
         raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
-    except GateShellError as exc:
+    except GateTurnError as exc:
         raise LaunchRequestError("gate_turn_failed", "turn", str(exc)) from exc
     if gate.notification_id is None:  # Launch auto-resolution is forbidden.
         raise LaunchRequestError(
@@ -177,7 +177,7 @@ def create_launch_approval_request(
         preview_path=gate.preview_path,
         response_path=gate.response_path,
         request=request,
-        gate_shell_creation=gate_shell_creation,
+        gate_turn_creation=gate_turn_creation,
     )
 
 
@@ -187,10 +187,10 @@ def maybe_handoff_launch_approval_from_agent(
     artifacts_dir: str | None = None,
 ) -> bool:
     """Hand an agent-side LaunchApproval request to its gate shell, if any."""
-    creation = request.gate_shell_creation
+    creation = request.gate_turn_creation
     if creation is None or not creation.should_handoff:
         return False
-    from sase.gate_shell import (
+    from sase.gate_turn import (
         maybe_handoff_gate_from_agent,
         will_handoff_gate_to_agent_runner,
     )
@@ -199,7 +199,7 @@ def maybe_handoff_launch_approval_from_agent(
         return False
     try:
         return maybe_handoff_gate_from_agent(creation, artifacts_dir=artifacts_dir)
-    except GateShellError as exc:
+    except GateTurnError as exc:
         raise LaunchRequestError("gate_turn_handoff_failed", "turn", str(exc)) from exc
 
 

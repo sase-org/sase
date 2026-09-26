@@ -1,4 +1,4 @@
-"""Tests for stand-alone proc-shell ``#fork`` source resolution."""
+"""Tests for stand-alone named-proc ``#fork`` source resolution."""
 
 from __future__ import annotations
 

@@ -1,7 +1,7 @@
 """Native stand-alone `%proc` dispatch over the existing proc supervisor.
 
 The admission coordinator calls :func:`dispatch_proc_unit` only after waits
-and `%if` pass. This module reserves a `proc-shell` with origin
+and `%if` pass. This module reserves a `named-proc` with origin
 `xprompt-proc`, starts the detached supervisor, and lets that supervisor
 acquire an operational lease, materialize a private 0600 script, and settle
 the lease. It never allocates an agent, runner, agent session, or finalizer.
@@ -24,7 +24,6 @@ from sase.core.agent_launch_facade import (
     sanitized_proc_env,
     validate_proc_workspace_intent,
     validate_standalone_named_proc_name,
-    validate_standalone_proc_shell_name,
     xprompt_proc_origin,
 )
 from sase.core.agent_launch_wire import (
@@ -70,9 +69,9 @@ def dispatch_proc_unit(
     except Exception as exc:
         return False, None, _one_line(exc), []
     current = get_proc(proc.proc_id) or proc
-    # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
-    if current.lifecycle not in ("named-proc", "proc-shell"):
-        return False, current.proc_id, "proc_lifecycle_is_not_proc_shell", []
+    # legacy sase-shell spelling: pre-rename rows carry ``named-proc``.
+    if current.lifecycle not in ("named-proc", "named-proc"):
+        return False, current.proc_id, "proc_lifecycle_is_not_named_proc", []
     if current.origin != XPROMPT_PROC_ORIGIN:
         return False, current.proc_id, "proc_origin_is_not_xprompt_proc", []
     from sase.procs.models import TERMINAL_PROC_STATUSES

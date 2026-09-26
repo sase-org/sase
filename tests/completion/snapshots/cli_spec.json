@@ -14760,7 +14760,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b4ae690ef031d485",
+            "description_digest": "fc32435fbb540685",
             "hidden": false,
             "mutex_groups": [
               [
@@ -14996,7 +14996,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ce92c2b1942e78c9",
+            "description_digest": "21af0bc71455ef66",
             "hidden": false,
             "mutex_groups": [],
             "name": "cancel",
@@ -15106,7 +15106,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "8d09e12061ca3666",
+            "description_digest": "bfa9367181aacac3",
             "hidden": false,
             "mutex_groups": [],
             "name": "create",
@@ -15146,14 +15146,14 @@
               {
                 "choices": [
                   "session",
-                  "shell",
+                  "turn",
                   "none"
                 ],
                 "default": null,
                 "dest": "next_fork",
                 "hidden": false,
                 "kind": null,
-                "metavar": "{session,shell,none}",
+                "metavar": "{session,turn,none}",
                 "repeatable": false,
                 "required": false,
                 "strings": [
@@ -15266,54 +15266,6 @@
               },
               {
                 "choices": null,
-                "default": "False",
-                "dest": "shell",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-G",
-                  "--shell"
-                ],
-                "takes_value": false,
-                "value_hint": "text"
-              },
-              {
-                "choices": null,
-                "default": null,
-                "dest": "shell_status",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-g",
-                  "--shell-status"
-                ],
-                "takes_value": true,
-                "value_hint": "text"
-              },
-              {
-                "choices": null,
-                "default": null,
-                "dest": "shell_stop_status",
-                "hidden": false,
-                "kind": null,
-                "metavar": null,
-                "repeatable": false,
-                "required": false,
-                "strings": [
-                  "-E",
-                  "--shell-stop-status"
-                ],
-                "takes_value": true,
-                "value_hint": "text"
-              },
-              {
-                "choices": null,
                 "default": null,
                 "dest": "tag",
                 "hidden": false,
@@ -15327,6 +15279,99 @@
                 ],
                 "takes_value": true,
                 "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "turn",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-G",
+                  "--turn"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "turn_status",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-g",
+                  "--turn-status"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "turn_stop_status",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-E",
+                  "--turn-stop-status"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "shell",
+                "hidden": true,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "--shell"
+                ],
+                "takes_value": false,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "shell_status",
+                "hidden": true,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "--shell-status"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "shell_stop_status",
+                "hidden": true,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "--shell-stop-status"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
               }
             ],
             "path": [
@@ -15342,7 +15387,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "92bbb306158aa171",
+            "description_digest": "0593501adac368bf",
             "hidden": false,
             "mutex_groups": [],
             "name": "list",
@@ -15502,7 +15547,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "587d3684612f576c",
+            "description_digest": "65f0e066becdb6f8",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -26300,7 +26345,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "0bff067a5f5ed7b2",
+            "description_digest": "814aa577aad7f2ae",
             "hidden": false,
             "mutex_groups": [],
             "name": "kill",
@@ -26362,7 +26407,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "58c1b3ef56f6b4be",
+            "description_digest": "f648e3f2b7010d1d",
             "hidden": false,
             "mutex_groups": [],
             "name": "list",
@@ -26454,7 +26499,7 @@
               {
                 "choices": null,
                 "default": null,
-                "dest": "shell",
+                "dest": "name",
                 "hidden": false,
                 "kind": null,
                 "metavar": "NAME",
@@ -26462,6 +26507,21 @@
                 "required": false,
                 "strings": [
                   "-N",
+                  "--name"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "shell",
+                "hidden": true,
+                "kind": null,
+                "metavar": "NAME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
                   "--shell"
                 ],
                 "takes_value": true,
@@ -26584,7 +26644,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "abfb3b6096584e15",
+            "description_digest": "b0e40210f8ee9c2e",
             "hidden": false,
             "mutex_groups": [],
             "name": "run",
@@ -26656,7 +26716,7 @@
               {
                 "choices": null,
                 "default": null,
-                "dest": "shell",
+                "dest": "name",
                 "hidden": false,
                 "kind": null,
                 "metavar": "NAME",
@@ -26664,6 +26724,21 @@
                 "required": false,
                 "strings": [
                   "-N",
+                  "--name"
+                ],
+                "takes_value": true,
+                "value_hint": "text"
+              },
+              {
+                "choices": null,
+                "default": null,
+                "dest": "shell",
+                "hidden": true,
+                "kind": null,
+                "metavar": "NAME",
+                "repeatable": false,
+                "required": false,
+                "strings": [
                   "--shell"
                 ],
                 "takes_value": true,
@@ -26774,7 +26849,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b306840da7a9d865",
+            "description_digest": "ab4cdeb06da95214",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -34692,6 +34767,154 @@
             "path": [
               "tool",
               "list"
+            ],
+            "positionals": [],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "eeba68e457593d3b",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "receipt",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": [
+                  "pass",
+                  "no-new"
+                ],
+                "default": "pass",
+                "dest": "tool_receipt_accept",
+                "hidden": false,
+                "kind": null,
+                "metavar": "VERDICT",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-a",
+                  "--accept"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "tool_receipt_json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "tool",
+              "receipt"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "tool_receipt_tool",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TOOL",
+                "nargs": null,
+                "required": true,
+                "value_hint": null
+              }
+            ],
+            "run_policy": [],
+            "stdin": false,
+            "subcommands": [],
+            "writes": false
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "b235f53c14a46068",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "receipts",
+            "options": [
+              {
+                "choices": null,
+                "default": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "7",
+                "dest": "tool_receipts_days",
+                "hidden": false,
+                "kind": null,
+                "metavar": "N",
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-d",
+                  "--days"
+                ],
+                "takes_value": true,
+                "value_hint": null
+              },
+              {
+                "choices": null,
+                "default": "False",
+                "dest": "tool_receipts_json",
+                "hidden": false,
+                "kind": null,
+                "metavar": null,
+                "repeatable": false,
+                "required": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false,
+                "value_hint": null
+              }
+            ],
+            "path": [
+              "tool",
+              "receipts"
             ],
             "positionals": [],
             "run_policy": [],

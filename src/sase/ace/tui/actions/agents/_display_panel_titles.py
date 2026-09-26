@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 
-from sase.gate_shell.state import (
+from sase.gate_turn.state import (
     GATE_FAILURE_GLYPH_COLOR,
     GATE_GLYPH,
     GATE_SETTLED_GLYPH_COLOR,

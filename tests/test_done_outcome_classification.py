@@ -2,8 +2,8 @@
 
 from sase.core.dismissed_agent_completion import GATE_OUTCOME, GATE_SUCCESS_STATES
 from sase.core.wait_dependency_resolution import KNOWN_DONE_OUTCOMES
-from sase.gate_shell.settlement import _done_marker
-from sase.gate_shell.state import GATE_STATE_BUCKETS
+from sase.gate_turn.settlement import _done_marker
+from sase.gate_turn.state import GATE_STATE_BUCKETS
 
 
 def test_done_marker_writer_terminal_outcomes_are_classified() -> None:

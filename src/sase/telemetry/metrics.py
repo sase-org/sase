@@ -75,8 +75,8 @@ FINALIZER_DEFERRALS: StubCounter = StubCounter()
 # ---------------------------------------------------------------------------
 # Gate Shell
 # ---------------------------------------------------------------------------
-GATE_SHELL_LOOKUP_DURATION: StubHistogram = StubHistogram()
-GATE_SHELL_LOOKUP_FALLBACKS: StubCounter = StubCounter()
+GATE_TURN_LOOKUP_DURATION: StubHistogram = StubHistogram()
+GATE_TURN_LOOKUP_FALLBACKS: StubCounter = StubCounter()
 
 # ---------------------------------------------------------------------------
 # Tool Runs
@@ -379,17 +379,17 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         {},
     ),
     (
-        "GATE_SHELL_LOOKUP_DURATION",
+        "GATE_TURN_LOOKUP_DURATION",
         "histogram",
-        "sase_gate_shell_lookup_duration_seconds",
-        "find_gate_shell_by_gate_id lookup duration, by resolution path",
+        "sase_gate_turn_lookup_duration_seconds",
+        "find_gate_turn_by_gate_id lookup duration, by resolution path",
         ["path"],
         {"buckets": [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]},
     ),
     (
-        "GATE_SHELL_LOOKUP_FALLBACKS",
+        "GATE_TURN_LOOKUP_FALLBACKS",
         "counter",
-        "sase_gate_shell_lookup_fallbacks_total",
+        "sase_gate_turn_lookup_fallbacks_total",
         "Gate-shell lookups that fell back to the full-history scan because "
         "the indexed lookup itself could not run",
         [],

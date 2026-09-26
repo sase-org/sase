@@ -13,7 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
 
-from sase.gate_shell.store import find_gate_turn_by_gate_id
+from sase.gate_turn.store import find_gate_turn_by_gate_id
 from sase.notification_gates.models import GateError
 from sase.ops.names import SUDO_FINALIZE
 from sase.procs.request import ProcSubmitRequest

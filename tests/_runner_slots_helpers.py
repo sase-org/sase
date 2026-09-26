@@ -5,7 +5,7 @@ from __future__ import annotations
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    AgentSessionShellWire,
+    AgentSessionTurnWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
@@ -48,7 +48,7 @@ def _record(
             agent_session_role=agent_session_role,
             agent_session_parallel=agent_session_parallel,
             agent_session_turn=(
-                AgentSessionShellWire(kind="monitor", id=monitor_id)
+                AgentSessionTurnWire(kind="monitor", id=monitor_id)
                 if monitor_id is not None
                 else None
             ),

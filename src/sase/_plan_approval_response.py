@@ -58,22 +58,22 @@ def execute_neutral_plan_approval_response(
     tier: Literal["tale", "epic"] = (
         "epic" if envelope.get("kind") == "epic_plan" else "tale"
     )
-    from sase.gate_shell.log import bind_gate_shell_execution_callbacks
-    from sase.gate_shell.settlement import settle_gate_shell
-    from sase.gate_shell.store import find_gate_shell_by_gate_id
+    from sase.gate_turn.log import bind_gate_turn_execution_callbacks
+    from sase.gate_turn.settlement import settle_gate_turn
+    from sase.gate_turn.store import find_gate_turn_by_gate_id
 
-    shell_backed = isinstance(envelope.get("turn"), dict) or isinstance(
+    turn_backed = isinstance(envelope.get("turn"), dict) or isinstance(
         envelope.get("shell"), dict
     )
-    gate_shell = (
-        find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
-        if shell_backed
+    gate_turn = (
+        find_gate_turn_by_gate_id(None, str(envelope.get("request_id") or ""))
+        if turn_backed
         else None
     )
     execution_kwargs: dict[str, Any] = (
         {}
-        if gate_shell is None
-        else bind_gate_shell_execution_callbacks(gate_shell.artifacts_dir).as_kwargs()
+        if gate_turn is None
+        else bind_gate_turn_execution_callbacks(gate_turn.artifacts_dir).as_kwargs()
     )
     try:
         selected_option_ids = plan_approval_selection_for_choice(
@@ -141,7 +141,7 @@ def execute_neutral_plan_approval_response(
             else exc.code
         )
         raise PlanApprovalActionError(code, exc.target, str(exc)) from exc
-    if gate_shell is not None:
+    if gate_turn is not None:
         from sase.notification_gates.decision import (
             read_current_receipt,
             receipt_acceptance_id,
@@ -155,8 +155,8 @@ def execute_neutral_plan_approval_response(
             bundle_path,
             acceptance_id=acceptance_id,
             source="plan_response",
-            run=lambda: settle_gate_shell(
-                gate_shell,
+            run=lambda: settle_gate_turn(
+                gate_turn,
                 gate_state="answered",
                 reason="plan approval answered",
             ),
@@ -173,9 +173,7 @@ def execute_neutral_plan_approval_response(
     message = plan_approval_response_message_for_selection(
         selected_option_ids, tier=tier
     )
-    coder_agent, coder_error, gate_shell_member = _gate_shell_followup_fields(
-        gate_shell
-    )
+    coder_agent, coder_error, gate_turn_member = _gate_turn_followup_fields(gate_turn)
     return PlanApprovalActionResult(
         notification_id=notification.id,
         response_file=RESPONSE_FILENAME,
@@ -194,30 +192,28 @@ def execute_neutral_plan_approval_response(
         ),
         coder_agent=coder_agent,
         coder_error=coder_error,
-        gate_shell_member=gate_shell_member,
+        gate_turn_member=gate_turn_member,
     )
 
 
-def _gate_shell_followup_fields(
-    gate_shell: object | None,
+def _gate_turn_followup_fields(
+    gate_turn: object | None,
 ) -> tuple[str | None, str | None, str | None]:
     """Read coder follow-up fields from a settled gate-shell member.
 
     Best-effort; never raises. ``gate_followup_agent`` becomes
     ``coder_agent``, ``gate_followup_error`` becomes ``coder_error``, and
-    the record's ``member_agent_name`` becomes ``gate_shell_member``.
+    the record's ``member_agent_name`` becomes ``gate_turn_member``.
     """
-    if gate_shell is None:
+    if gate_turn is None:
         return None, None, None
     try:
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
 
-        gate_id = getattr(gate_shell, "gate_id", None)
-        record = (
-            find_gate_shell_by_gate_id(None, str(gate_id)) if gate_id else gate_shell
-        )
+        gate_id = getattr(gate_turn, "gate_id", None)
+        record = find_gate_turn_by_gate_id(None, str(gate_id)) if gate_id else gate_turn
         if record is None:
-            record = gate_shell
+            record = gate_turn
         coder_agent = getattr(record, "followup_agent", None)
         coder_error = getattr(record, "followup_error", None)
         member = getattr(record, "member_agent_name", None)

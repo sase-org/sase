@@ -228,7 +228,7 @@ def test_proc_status_choices_match_the_store_lifecycle() -> None:
     assert set(PROC_STATUS_CHOICES) == ACTIVE_PROC_STATUSES | TERMINAL_PROC_STATUSES
 
 
-def test_proc_run_and_list_parse_named_proc_shell() -> None:
+def test_proc_run_and_list_parse_named_named_proc() -> None:
     """``-N/--shell`` is available on run and list, never a top-level command."""
     parser = create_parser()
     run = parser.parse_args(["proc", "run", "-N", "build", "--", "true"])

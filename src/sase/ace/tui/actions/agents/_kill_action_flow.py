@@ -83,7 +83,7 @@ class AgentKillActionFlowMixin:
             return
 
         if agent.is_gate:
-            from sase.gate_shell.state import gate_state_is_terminal
+            from sase.gate_turn.state import gate_state_is_terminal
 
             if not (gate_state_is_terminal(agent.gate_state) or agent.stop_time):
                 if agent.gate_state == "settling" or agent.gate_execution_active:

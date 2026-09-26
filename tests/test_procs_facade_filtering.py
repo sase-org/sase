@@ -34,7 +34,7 @@ def test_resolve_proc_ref_handles_unique_short_unknown_and_ambiguous() -> None:
         resolve_proc_ref("abc", procs)
 
 
-def test_resolve_proc_ref_prefers_exact_named_proc_shell() -> None:
+def test_resolve_proc_ref_prefers_exact_named_named_proc() -> None:
     named = _proc("zzz012345678", label="Named", proc_name="agent--build")
     prefixed = _proc("abc012345678", label="Prefix")
     procs = [named, prefixed]
@@ -67,7 +67,7 @@ def test_filter_procs_applies_every_supported_filter() -> None:
     assert filter_procs(procs, query="test_suite") == [other]
 
 
-def test_filter_procs_matches_named_proc_shell_and_query() -> None:
+def test_filter_procs_matches_named_named_proc_and_query() -> None:
     named = _proc("named-proc01", proc_name="agent--build")
     historical = _proc(
         "hist-proc001",

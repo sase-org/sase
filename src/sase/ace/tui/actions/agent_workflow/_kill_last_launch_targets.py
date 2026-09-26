@@ -234,7 +234,7 @@ def schedule_launch_target_refresh(
 def is_gate_dismissable(agent: Agent) -> bool:
     if not getattr(agent, "is_gate", False):
         return False
-    from sase.gate_shell.state import gate_state_is_terminal
+    from sase.gate_turn.state import gate_state_is_terminal
 
     return bool(gate_state_is_terminal(agent.gate_state) or agent.stop_time)
 

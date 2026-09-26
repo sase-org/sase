@@ -125,29 +125,27 @@ def execute_user_question_response(
         response_json = normalized
         response_file = QUESTION_RESPONSE_FILE
     else:
-        from sase.gate_shell.log import bind_gate_shell_execution_callbacks
-        from sase.gate_shell.settlement import settle_gate_shell
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
+        from sase.gate_turn.log import bind_gate_turn_execution_callbacks
+        from sase.gate_turn.settlement import settle_gate_turn
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
         from sase.notification_gates.executor import execute_gate_selection
         from sase.notification_gates.hashing import load_and_verify_bundle
         from sase.notification_gates.models import GateError
         from sase.notification_gates.paths import RESPONSE_FILENAME
 
         envelope, _adapter = load_and_verify_bundle(bundle.root)
-        shell_backed = isinstance(envelope.get("turn"), dict) or isinstance(
+        turn_backed = isinstance(envelope.get("turn"), dict) or isinstance(
             envelope.get("shell"), dict
         )
-        gate_shell = (
-            find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
-            if shell_backed
+        gate_turn = (
+            find_gate_turn_by_gate_id(None, str(envelope.get("request_id") or ""))
+            if turn_backed
             else None
         )
         execution_kwargs: dict[str, Any] = (
             {}
-            if gate_shell is None
-            else bind_gate_shell_execution_callbacks(
-                gate_shell.artifacts_dir
-            ).as_kwargs()
+            if gate_turn is None
+            else bind_gate_turn_execution_callbacks(gate_turn.artifacts_dir).as_kwargs()
         )
         try:
             shared_feedback = response_data.get("feedback")
@@ -170,9 +168,9 @@ def execute_user_question_response(
                 else exc.code
             )
             raise UserQuestionActionError(code, exc.target, str(exc)) from exc
-        if gate_shell is not None:
-            settle_gate_shell(
-                gate_shell,
+        if gate_turn is not None:
+            settle_gate_turn(
+                gate_turn,
                 gate_state="answered",
                 reason="question answered",
             )

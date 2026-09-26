@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.feature_flags import override_flags
-from sase.gate_shell.models import GateShellRecord
+from sase.gate_turn.models import GateTurnRecord
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.executor import execute_gate_selection
@@ -68,7 +68,7 @@ def test_sudo_auth_lease_rejects_concurrent_handoff(
 
 
 def test_sudo_shell_payload_uses_typed_status_label() -> None:
-    row = GateShellRecord(
+    row = GateTurnRecord(
         gate_id="sudo-1",
         member_agent_name="agent--gate",
         lane="agent",

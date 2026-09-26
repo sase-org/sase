@@ -94,13 +94,9 @@ from sase.core.agent_scan_wire_conversion import (
     agent_scan_wire_to_json_dict,
 )
 from sase.core.agent_scan_wire_agent_session_turn import (
-    AgentSessionShellGateWire,
-    AgentSessionShellMonitorWire,
-    AgentSessionShellWire,
     AgentSessionTurnGateWire,
     AgentSessionTurnMonitorWire,
     AgentSessionTurnWire,
-    agent_session_shell_from_mapping,
     agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_markers import (
@@ -163,9 +159,9 @@ __all__ = [
     "AgentClanContextWire",
     "AgentMetaWire",
     "DoneMarkerWire",
-    "AgentSessionShellGateWire",
-    "AgentSessionShellMonitorWire",
-    "AgentSessionShellWire",
+    "AgentSessionTurnGateWire",
+    "AgentSessionTurnMonitorWire",
+    "AgentSessionTurnWire",
     "AgentSessionTurnGateWire",
     "AgentSessionTurnMonitorWire",
     "AgentSessionTurnWire",
@@ -185,6 +181,6 @@ __all__ = [
     "agent_artifact_index_vacuum_from_dict",
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",
-    "agent_session_shell_from_mapping",
+    "agent_session_turn_from_mapping",
     "agent_session_turn_from_mapping",
 ]

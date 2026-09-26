@@ -1,4 +1,4 @@
-description: Resume context from a prior agent conversation, proc shell, or monitor by name.
+description: Resume context from a prior agent conversation, monitor turn, or named proc by name.
 
 input:
   name:
@@ -6,7 +6,7 @@ input:
     default: null
     repeatable: true
     description: >-
-      Optional agent name, proc shell name/ID, or monitor to resume; omitted means use
+      Optional agent name, named proc name/ID, or monitor turn to resume; omitted means use
       the default resolver.
 
 steps:

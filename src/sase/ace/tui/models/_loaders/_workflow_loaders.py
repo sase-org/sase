@@ -48,7 +48,7 @@ def agent_session_shell_member_from_meta(
     gate_id: str | None,
 ) -> bool:
     """Return whether metadata identifies a durable session-shell member."""
-    from sase.gate_shell.state import is_real_gate_member
+    from sase.gate_turn.state import is_real_gate_member
     from sase.monitor_state import is_monitor_member_role
 
     return is_real_gate_member(agent_session_role, gate_id) or is_monitor_member_role(

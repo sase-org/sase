@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.continuation_capture._storage import sha_json
-from sase.shells.followup import vcs_ref_from_meta
+from sase.turns.followup import vcs_ref_from_meta
 
 from .followup_persistence import clean_str
 

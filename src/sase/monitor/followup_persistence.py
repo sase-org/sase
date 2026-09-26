@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
-from sase.shells.followup import (
+from sase.turns.followup import (
     FollowupLaunchResult,
     FollowupPersistence,
     record_followup_launched,

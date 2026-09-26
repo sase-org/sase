@@ -126,8 +126,8 @@ def handle_questions_marker(
     reset_killed()
 
     from sase.main.plan_approve_handler import is_auto_approve_active
-    from sase.question_shell import (
-        create_question_gate_shell,
+    from sase.question_gate_turn import (
+        create_question_gate_turn,
         question_base_prompt,
         question_rounds,
         resolve_question_chain_parent,
@@ -179,7 +179,7 @@ def handle_questions_marker(
         if value
     }
 
-    creation = create_question_gate_shell(
+    creation = create_question_gate_turn(
         q_data.get("questions", []),
         session_id=session_id,
         producer={
@@ -245,7 +245,7 @@ def _continue_after_auto_answered_question(
     here to include the round the gate shell just settled, rather than from
     ``LoopState.qa_rounds``.
     """
-    from sase.question_shell import question_rounds
+    from sase.question_gate_turn import question_rounds
 
     rounds = question_rounds(creation.record.artifacts_dir)
     merged_qa_text = merge_qa_for_prompt(rounds)

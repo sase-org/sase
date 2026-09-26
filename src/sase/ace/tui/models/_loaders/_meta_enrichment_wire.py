@@ -9,7 +9,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.output_variable_values import coerce_var_map
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
-from sase.gate_shell.state import is_real_gate_member
+from sase.gate_turn.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.sdd.plan_tiers import cached_plan_tier
 

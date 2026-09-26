@@ -50,7 +50,7 @@ def _write_planner(tmp_path: Path) -> None:
     (tmp_path / "planner.md").write_text("hi", encoding="utf-8")
 
 
-def test_agent_session_source_includes_settled_gate_shell_as_gate_kind(
+def test_agent_session_source_includes_settled_gate_turn_as_gate_kind(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -76,7 +76,7 @@ def test_agent_session_source_includes_settled_gate_shell_as_gate_kind(
     assert source.excluded == ()
 
 
-def test_agent_session_source_excludes_pending_gate_shell_as_running(
+def test_agent_session_source_excludes_pending_gate_turn_as_running(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
@@ -97,7 +97,7 @@ def test_agent_session_source_excludes_pending_gate_shell_as_running(
     ]
 
 
-def test_agent_session_fork_history_labels_gate_shell_member(
+def test_agent_session_fork_history_labels_gate_turn_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))

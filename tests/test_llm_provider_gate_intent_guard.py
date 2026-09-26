@@ -49,7 +49,7 @@ def _write_intent(
 
 @pytest.fixture(autouse=True)
 def _skip_member_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(guard_module, "_gate_shell_member_detail", lambda _intent: "")
+    monkeypatch.setattr(guard_module, "_gate_turn_member_detail", lambda _intent: "")
 
 
 def test_no_intent_is_noop(tmp_path: Path) -> None:

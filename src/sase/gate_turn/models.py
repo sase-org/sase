@@ -1,0 +1,169 @@
+"""Typed gate-shell records projected from agent artifacts."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from sase.gate_turn.state import (
+    gate_member_status_bucket,
+    gate_state_is_terminal,
+    is_real_gate_member,
+)
+from sase.gate_turn.status import effective_gate_status, gate_status_pair
+
+if TYPE_CHECKING:
+    from sase.core.agent_scan_wire import AgentArtifactRecordWire
+
+GateTurnState = Literal[
+    "pending",
+    "settling",
+    "answered",
+    "completed",
+    "failed",
+    "timeout",
+    "stopped",
+    "lost",
+]
+
+
+class GateTurnError(RuntimeError):
+    """Base class for gate-shell lifecycle failures."""
+
+
+class GateTurnLaneError(GateTurnError):
+    """A gate shell's lane could not be resolved."""
+
+
+class GateTurnRefError(ValueError):
+    """A gate-shell reference was empty, unknown, or ambiguous."""
+
+
+@dataclass(frozen=True)
+class GateTurnRecord:
+    """Projection of one gate-shell agent-session member."""
+
+    gate_id: str
+    member_agent_name: str
+    lane: str
+    project_name: str
+    artifacts_dir: str
+    timestamp: str
+    kind: str
+    gate_state: GateTurnState
+    start_status: str
+    stop_status: str
+    accent: str
+    label: str
+    reason: str
+    creator_agent: str | None
+    bundle_path: str | None
+    notification_id: str | None
+    timeout_seconds: float
+    request_fingerprint: str | None
+    workspace_policy: str
+    next_action: str | None = None
+    next_fork: str | None = None
+    next_output: str | None = None
+    next_model: str | None = None
+    next_suffix: str | None = None
+    next_role: str | None = None
+    next_raw_prompt: bool = False
+    followup_agent: str | None = None
+    followup_outcome: str | None = None
+    followup_error: str | None = None
+    followup_degraded_reason: str | None = None
+    followup_prompt_path: str | None = None
+    followup_attempt_id: str | None = None
+    followup_attempt_stage: str | None = None
+    followup_error_stage: str | None = None
+    followup_error_type: str | None = None
+    claim_holder_pid: int | None = None
+
+    @property
+    def status_bucket(self) -> str:
+        """Return this gate shell's display status bucket."""
+        pair = gate_status_pair(self.start_status, self.stop_status)
+        status = effective_gate_status(
+            pair, gate_state=self.gate_state, settled=self.is_terminal
+        )
+        return gate_member_status_bucket(self.gate_state, status)
+
+    @property
+    def is_terminal(self) -> bool:
+        """Return whether this gate shell has settled terminally."""
+        return gate_state_is_terminal(self.gate_state)
+
+    @classmethod
+    def from_record(cls, record: AgentArtifactRecordWire) -> GateTurnRecord:
+        """Build a gate-shell record from an agent-artifact scan row."""
+        meta = record.agent_meta
+        shell = meta.agent_session_turn if meta is not None else None
+        if meta is None or shell is None or shell.kind != "gate" or not shell.id:
+            raise ValueError(
+                f"artifact record at {record.artifact_dir!r} is not a gate member"
+            )
+        gate = shell.gate
+        pair = gate_status_pair(shell.start_status, shell.stop_status)
+        state = shell.state or "pending"
+        gate_kind = gate.kind if gate is not None else None
+        return cls(
+            gate_id=shell.id,
+            member_agent_name=meta.name or "",
+            lane=meta.agent_session or "",
+            project_name=record.project_name,
+            artifacts_dir=record.artifact_dir,
+            timestamp=record.timestamp,
+            kind=gate_kind or "",
+            gate_state=state,  # type: ignore[arg-type]
+            start_status=pair.start,
+            stop_status=pair.stop,
+            accent=(gate.accent if gate is not None else None) or "#0BCDEC",
+            label=shell.label or gate_kind or shell.id,
+            reason=shell.reason or "",
+            creator_agent=gate.creator_agent if gate is not None else None,
+            bundle_path=gate.bundle_path if gate is not None else None,
+            notification_id=gate.notification_id if gate is not None else None,
+            timeout_seconds=shell.timeout_seconds or 0.0,
+            request_fingerprint=shell.request_fingerprint,
+            workspace_policy=(
+                (gate.workspace_policy if gate is not None else None) or "inherit"
+            ),
+            next_action=shell.next_action,
+            next_fork=gate.next_fork if gate is not None else None,
+            next_output=shell.next_output,
+            next_model=shell.next_model,
+            next_suffix=gate.next_suffix if gate is not None else None,
+            next_role=gate.next_role if gate is not None else None,
+            next_raw_prompt=bool(gate.next_raw_prompt) if gate is not None else False,
+            followup_agent=shell.followup_agent,
+            followup_outcome=shell.followup_outcome,
+            followup_error=shell.followup_error,
+            followup_degraded_reason=shell.followup_degraded_reason,
+            followup_prompt_path=shell.followup_prompt_path,
+            followup_attempt_id=shell.followup_attempt_id,
+            followup_attempt_stage=shell.followup_attempt_stage,
+            followup_error_stage=shell.followup_error_stage,
+            followup_error_type=shell.followup_error_type,
+            claim_holder_pid=(gate.claim_holder_pid if gate is not None else None),
+        )
+
+
+def is_gate_turn_member_record(record: AgentArtifactRecordWire) -> bool:
+    """Return whether ``record`` is a real gate-shell agent-session member."""
+    meta = record.agent_meta
+    if meta is None:
+        return False
+    shell = meta.agent_session_turn
+    gate_id = shell.id if shell is not None and shell.kind == "gate" else None
+    return is_real_gate_member(meta.agent_session_role, gate_id)
+
+
+__all__ = [
+    "GateTurnError",
+    "GateTurnLaneError",
+    "GateTurnRecord",
+    "GateTurnRefError",
+    "GateTurnState",
+    "is_gate_turn_member_record",
+]

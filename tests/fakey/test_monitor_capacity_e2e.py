@@ -26,7 +26,7 @@ from sase.monitor.continuation_delivery import adopt_ordinary_continuation_deliv
 from sase.monitor.start import StartMonitorRequest, start_monitor
 import sase.procs.spawn as spawn_module
 from sase.procs.runtime import proc_started_path, write_json_atomic
-from sase.procs.settlement import settle_proc_shell
+from sase.procs.settlement import settle_named_proc
 from sase.xprompt.directives import extract_prompt_directives
 
 from tests.fakey._runner_slot_harness import (
@@ -49,7 +49,7 @@ class _FakeSupervisorPid:
     about) completes before this bootstrap Popen call is ever reached, so
     acknowledging it immediately -- without actually running a supervisor --
     does not shortcut anything this test verifies. Settlement itself is
-    driven for real afterward, through ``settle_proc_shell``.
+    driven for real afterward, through ``settle_named_proc``.
 
     Reports a real, currently-live (but otherwise unrelated) PID -- not the
     test process's own PID, which the real submit path rejects as a bug, and
@@ -108,7 +108,7 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
     Unlike the former hand-authored variant, ``next_action`` is authored on
     the monitor's own persisted proc request at creation (never injected into
     an in-memory copy afterward), dispatch is driven by the real
-    ``settle_proc_shell`` -> ``launch_followup_agent`` ->
+    ``settle_named_proc`` -> ``launch_followup_agent`` ->
     ``claim_ordinary_continuation_dispatch`` reservation/adoption path (only
     the low-level OS process spawn is faked, the same seam every monitor
     lifecycle test in this suite uses), and the successor's weight/priority
@@ -273,7 +273,7 @@ def test_weight_two_land_agent_session_retains_one_claim_through_real_dispatch_a
         # proc's own supervisor calls -- not a hand-authored
         # ``launch_followup_agent`` call against fabricated in-memory
         # metadata.
-        settle_proc_shell(
+        settle_named_proc(
             record.monitor_id,
             supervisor_id="test-supervisor",
             status="success",
@@ -391,7 +391,7 @@ def test_epic_launch_shaped_zero_weight_monitor_frees_full_capacity_for_its_work
         harness.release_agent(competitor)
         harness.join(competitor)
 
-        settle_proc_shell(
+        settle_named_proc(
             record.monitor_id,
             supervisor_id="test-supervisor",
             status="success",
@@ -484,7 +484,7 @@ def _assert_weighted_monitor_failure_reclaims_without_disturbing_unrelated_owner
         # Drive the real production settlement entry point a completed
         # proc's own supervisor calls, exactly as a real timeout/crash
         # detection would, rather than hand-editing metadata to "failed".
-        settle_proc_shell(
+        settle_named_proc(
             record.monitor_id,
             supervisor_id="test-supervisor",
             status="error",

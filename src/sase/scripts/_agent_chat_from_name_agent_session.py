@@ -8,7 +8,7 @@ from sase.core.dismissed_agent_completion import (
     FAILURE_OUTCOMES,
     archived_response_path,
 )
-from sase.gate_shell.state import gate_state_is_terminal, is_real_gate_member
+from sase.gate_turn.state import gate_state_is_terminal, is_real_gate_member
 from sase.monitor_state import is_real_monitor_member, monitor_state_is_terminal
 from sase.scripts._agent_chat_from_name_common import (
     json_string,
@@ -50,11 +50,11 @@ def resolve_agent_session_member_shell(
         json_string(meta, "agent_session_role"),
         json_string(meta, "gate_id"),
     ):
-        return _resolve_gate_shell_agent_session_member_shell(member, meta)
+        return _resolve_gate_turn_agent_session_member_shell(member, meta)
     return _resolve_agent_session_member_shell(member)
 
 
-def _resolve_gate_shell_agent_session_member_shell(
+def _resolve_gate_turn_agent_session_member_shell(
     member: AgentSessionMember,
     meta: dict[str, object],
 ) -> ForkAgentSessionMemberSource | ForkExcludedAgentSessionMember:

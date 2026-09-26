@@ -9,7 +9,7 @@ Import contract: module scope stays on the stdlib plus this package (see
 imported inside its function, and only the light ones: ``sase.core.paths``,
 ``sase.core.rust``, ``sase.core.agent_scan_facade``, and
 ``sase.plan_names``. In particular this module never imports
-``sase.notifications``, ``sase.gate_shell``, ``sase.sdd``, ``sase.ace``,
+``sase.notifications``, ``sase.gate_turn``, ``sase.sdd``, ``sase.ace``,
 or ``rich`` — those packages cost about 75 ms of import plus about 150 ms
 per snapshot read, which would blow the completion latency budget.
 
@@ -39,7 +39,7 @@ _PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
 _STALE_THRESHOLD_SECONDS = 24 * 60 * 60
 
 #: Terminal gate-shell states. Local pin of
-#: ``sase.gate_shell.state.TERMINAL_GATE_STATES``: importing that module
+#: ``sase.gate_turn.state.TERMINAL_GATE_STATES``: importing that module
 #: would drag the gate-shell package onto the completion fast path, so this
 #: copy stays and a parity test fails if the two drift.
 PENDING_PLAN_TERMINAL_GATE_STATES = frozenset(
@@ -245,7 +245,7 @@ def _row_is_gate_visible(row: dict[str, Any]) -> bool:
     action_data = row.get("action_data")
     if not isinstance(action_data, dict):
         return False
-    terminal = _gate_shell_terminal(_gate_id_for_row(action_data))
+    terminal = _gate_turn_terminal(_gate_id_for_row(action_data))
     if terminal is None:
         # No gate-shell record (a legacy gate) or an unreadable index:
         # stay visible while the inbox row is not dismissed.
@@ -265,14 +265,14 @@ def _gate_id_for_row(action_data: dict[str, Any]) -> str | None:
     return None
 
 
-def _gate_shell_terminal(gate_id: str | None) -> bool | None:
+def _gate_turn_terminal(gate_id: str | None) -> bool | None:
     """Return whether one gate id settled, or ``None`` without a record."""
     if not gate_id:
         return None
     from sase.core import agent_scan_facade
 
     try:
-        record = agent_scan_facade.find_gate_shell_by_gate_id(
+        record = agent_scan_facade.find_gate_turn_by_gate_id(
             agent_scan_facade.default_agent_artifact_index_path(),
             None,
             gate_id,
@@ -281,7 +281,7 @@ def _gate_shell_terminal(gate_id: str | None) -> bool | None:
         return None
     if record is None:
         return None
-    shell = getattr(getattr(record, "agent_meta", None), "agent_session_shell", None)
+    shell = getattr(getattr(record, "agent_meta", None), "agent_session_turn", None)
     state = getattr(shell, "state", None) or "pending"
     return state in PENDING_PLAN_TERMINAL_GATE_STATES
 

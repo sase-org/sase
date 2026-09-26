@@ -209,7 +209,7 @@ def record_owner_lost_outcome_if_current(
     lock_timeout_seconds: float | None = ACCEPTANCE_LOCK_TIMEOUT_SECONDS,
 ) -> ExecutionFailureFacts | None:
     """Recheck owner liveness under the acceptance lock before recording loss."""
-    from sase.gate_shell.lifecycle import (
+    from sase.gate_turn.lifecycle import (
         DISPOSITION_ACCEPTED_FAILED,
         DISPOSITION_ACCEPTED_OWNER_LOST,
         classify_gate_lifecycle,
@@ -300,11 +300,11 @@ def with_follow_up_stage_tracking[T](
 ) -> T:
     """Run *run* (a shell settlement) bracketed by ``follow_up`` stage events.
 
-    The ``follow_up`` stage covers ``settle_gate_shell`` itself raising --
+    The ``follow_up`` stage covers ``settle_gate_turn`` itself raising --
     not the follow-up launch failures it already records in
     ``gate_followup_error`` metadata and tolerates internally. Used by
     :mod:`sase.notification_gates.cli_answer` and
-    :mod:`sase.plan_approval_actions` around their own ``settle_gate_shell``
+    :mod:`sase.plan_approval_actions` around their own ``settle_gate_turn``
     calls, since a gate answered through either surface can hit this stage.
     """
     append_journal_event(

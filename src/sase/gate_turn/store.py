@@ -1,0 +1,326 @@
+"""Index-backed lookups for gate-shell agent-session members."""
+
+from __future__ import annotations
+
+import json
+import os
+import time
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from sase.core.agent_scan_facade import (
+    default_agent_artifact_index_path,
+    query_agent_artifact_index,
+    scan_agent_artifacts,
+)
+from sase.core.agent_scan_facade import (
+    find_gate_turn_by_gate_id as _rust_find_gate_turn_by_gate_id,
+)
+from sase.core.agent_scan_wire import (
+    AgentArtifactIndexQueryWire,
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+)
+from sase.core.agent_scan_wire_agent_session_turn import (
+    agent_session_turn_from_mapping,
+)
+from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
+from sase.core.paths import sase_projects_dir
+from sase.core.wire import known_field_kwargs, with_agent_session_keys
+from sase.gate_turn.models import (
+    GateTurnRecord,
+    GateTurnRefError,
+    is_gate_turn_member_record,
+)
+from sase.gate_turn.naming import short_gate_turn_id
+from sase.telemetry.metrics import (
+    GATE_TURN_LOOKUP_DURATION,
+    GATE_TURN_LOOKUP_FALLBACKS,
+)
+
+#: A bare id reference must be at least this many characters, mirroring
+#: ``sase.monitor.store.MIN_MONITOR_REF_LENGTH``.
+MIN_GATE_TURN_REF_LENGTH = 3
+
+#: Errors that mean the indexed lookup itself could not run (missing or
+#: stale binding, corrupt index, bad on-disk state) rather than an
+#: authoritative "no such gate". Mirrors
+#: ``sase.core.agent_artifact_index_lifecycle_common._INDEX_ERRORS``.
+_INDEX_ERRORS = (
+    ImportError,
+    AttributeError,
+    OSError,
+    RuntimeError,
+    ValueError,
+)
+
+
+def read_gate_turn_marker(
+    project_name: str,
+    artifacts_dir: str,
+) -> GateTurnRecord | None:
+    """Read one gate-shell member directly from its own markers."""
+    raw_meta = _read_json_object(os.path.join(artifacts_dir, "agent_meta.json"))
+    if raw_meta is None:
+        return None
+    raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
+    meta_kwargs = known_field_kwargs(AgentMetaWire, with_agent_session_keys(raw_meta))
+    # legacy sase-shell spelling: pre-rename marker files carry
+    # ``agent_family*`` / ``family_shell`` / ``agent_session_shell`` keys.
+    meta_kwargs["agent_session_turn"] = agent_session_turn_from_mapping(raw_meta)
+    meta_kwargs.pop("agent_session_shell", None)
+    # Member kind: prefer new then legacy, normalizing proc to monitor.
+    from sase.plan_chain import turn_kind_value
+
+    meta_kwargs["turn_kind"] = turn_kind_value(raw_meta)
+    meta_kwargs.pop("shell_kind", None)
+    done_kwargs = None
+    if raw_done is not None:
+        done_kwargs = known_field_kwargs(
+            DoneMarkerWire, with_agent_session_keys(raw_done)
+        )
+        done_kwargs["agent_session_turn"] = agent_session_turn_from_mapping(raw_done)
+        done_kwargs.pop("agent_session_shell", None)
+    record = AgentArtifactRecordWire(
+        project_name=project_name,
+        project_dir="",
+        project_file="",
+        workflow_dir_name="",
+        artifact_dir=artifacts_dir,
+        timestamp=os.path.basename(artifacts_dir.rstrip("/")),
+        agent_meta=AgentMetaWire(**meta_kwargs),
+        done=DoneMarkerWire(**done_kwargs) if done_kwargs is not None else None,
+    )
+    try:
+        return GateTurnRecord.from_record(record)
+    except ValueError:
+        return None
+
+
+def list_gate_turns(*, project: str | None = None) -> list[GateTurnRecord]:
+    """Return every gate-shell record, newest first."""
+    return _gate_turns_from_records(project_records(project))
+
+
+@dataclass(frozen=True)
+class GateTurnSnapshot:
+    """One artifact-index read shared by every lookup in a gate-shell sweep.
+
+    A full index read costs seconds on a long-lived host, so a sweep that needs
+    both the gate shells and each gate's agent-session members reads the index once.
+    """
+
+    taken_at: float
+    gate_turns: tuple[GateTurnRecord, ...]
+    agent_session_members: Mapping[tuple[str, str], tuple[AgentArtifactRecordWire, ...]]
+    record_count: int
+
+    def agent_session_records(
+        self, project_name: str, agent_session: str
+    ) -> tuple[AgentArtifactRecordWire, ...]:
+        """Return ``agent_session``'s members in ``project_name`` as of :attr:`taken_at`."""
+        return self.agent_session_members.get((project_name, agent_session), ())
+
+
+def load_gate_turn_snapshot(*, project: str | None = None) -> GateTurnSnapshot:
+    """Read the artifact index once for gate-shell and agent-session-member lookups."""
+    taken_at = time.time()
+    records = project_records(project)
+    members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
+    for record in records:
+        meta = record.agent_meta
+        if meta is not None and meta.agent_session:
+            key = (record.project_name, meta.agent_session)
+            members.setdefault(key, []).append(record)
+    return GateTurnSnapshot(
+        taken_at=taken_at,
+        gate_turns=tuple(_gate_turns_from_records(records)),
+        agent_session_members={key: tuple(value) for key, value in members.items()},
+        record_count=len(records),
+    )
+
+
+def has_any_gate_turn(project_name: str, lane: str) -> bool:
+    """Return whether ``lane`` has ever had a gate-shell member."""
+    return any(
+        record.agent_meta is not None and record.agent_meta.agent_session == lane
+        for record in _gate_records(project_name)
+    )
+
+
+def find_gate_turn_by_gate_id(
+    project_name: str | None,
+    gate_id: str,
+) -> GateTurnRecord | None:
+    """Return the newest gate-turn member for ``gate_id``, if present.
+
+    A ``None`` project searches every project's artifact index, the same
+    unscoped lookup :func:`list_gate_turns` already performs for the
+    reclaim chop.
+
+    Resolves through the indexed ``gate_turn_id`` column exposed by the
+    Rust binding: an O(1) SQL point lookup instead of decoding every
+    historical record, which is what made the previous full-history scan
+    take seconds on a long-lived host. A clean miss from a healthy index is
+    authoritative and returned immediately; the full-history scan below
+    only runs when the indexed lookup itself could not run (a stale
+    binding, or an index that is missing, corrupt, or mid-migration), so a
+    temporarily unavailable index never silently reports a gate as absent.
+    """
+    index_path = default_agent_artifact_index_path()
+    if index_path.is_file():
+        started_at = time.monotonic()
+        try:
+            wire = _rust_find_gate_turn_by_gate_id(index_path, project_name, gate_id)
+        except _INDEX_ERRORS:
+            pass
+        else:
+            GATE_TURN_LOOKUP_DURATION.labels(path="indexed").observe(
+                time.monotonic() - started_at
+            )
+            return _gate_record_from_wire(wire) if wire is not None else None
+
+    GATE_TURN_LOOKUP_FALLBACKS.inc()
+    started_at = time.monotonic()
+    matches = [
+        record
+        for record in list_gate_turns(project=project_name)
+        if record.gate_id == gate_id
+    ]
+    GATE_TURN_LOOKUP_DURATION.labels(path="fallback").observe(
+        time.monotonic() - started_at
+    )
+    return matches[0] if matches else None
+
+
+def resolve_gate_turn_ref(
+    ref: str, records: Sequence[GateTurnRecord]
+) -> GateTurnRecord:
+    """Resolve *ref* against *records* by id prefix, member name, or lane.
+
+    Mirrors :func:`sase.monitor.store.resolve_monitor_ref`: a member agent
+    name or lane name must match exactly, with a lane resolving to its
+    active gate shell, else its newest; anything else is tried as a
+    gate-id prefix of at least :data:`MIN_GATE_TURN_REF_LENGTH` characters.
+    """
+    query = ref.strip()
+    if not query:
+        raise GateTurnRefError("gate-shell reference must not be empty")
+
+    by_name = [record for record in records if record.member_agent_name == query]
+    if len(by_name) == 1:
+        return by_name[0]
+
+    by_lane = [record for record in records if record.lane == query]
+    if by_lane:
+        active = [record for record in by_lane if not record.is_terminal]
+        if active:
+            return max(active, key=lambda record: record.timestamp)
+        return max(by_lane, key=lambda record: record.timestamp)
+
+    lowered = query.lower()
+    if len(lowered) < MIN_GATE_TURN_REF_LENGTH:
+        raise GateTurnRefError(
+            f"no gate shell matches reference {ref!r}; a bare id reference must "
+            f"be at least {MIN_GATE_TURN_REF_LENGTH} characters"
+        )
+    by_id = [record for record in records if record.gate_id.lower().startswith(lowered)]
+    if len(by_id) == 1:
+        return by_id[0]
+    if not by_id:
+        raise GateTurnRefError(f"no gate shell matches reference {ref!r}")
+    candidates = ", ".join(
+        f"{short_gate_turn_id(record.gate_id)} ({record.label})" for record in by_id
+    )
+    raise GateTurnRefError(
+        f"gate-shell reference {ref!r} is ambiguous; candidates: {candidates}"
+    )
+
+
+def _read_json_object(path: str) -> dict[str, Any] | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _gate_record_from_wire(record: AgentArtifactRecordWire) -> GateTurnRecord | None:
+    try:
+        return GateTurnRecord.from_record(record)
+    except ValueError:
+        return None
+
+
+def _gate_turns_from_records(
+    records: Iterable[AgentArtifactRecordWire],
+) -> list[GateTurnRecord]:
+    shells = [
+        converted
+        for converted in (
+            _gate_record_from_wire(record)
+            for record in records
+            if is_gate_turn_member_record(record)
+        )
+        if converted is not None
+    ]
+    shells.sort(
+        key=lambda record: (record.timestamp, record.artifacts_dir),
+        reverse=True,
+    )
+    return shells
+
+
+def _gate_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
+    return [
+        record
+        for record in project_records(project_name)
+        if is_gate_turn_member_record(record)
+    ]
+
+
+def project_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
+    projects_root = sase_projects_dir()
+    options = AgentArtifactScanOptionsWire(
+        only_workflow_dirs=("ace-run",),
+        include_prompt_step_markers=False,
+        include_raw_prompt_snippets=False,
+        only_projects=(project_name,) if project_name else (),
+        max_records=None,
+        newest_first=False,
+    )
+    query = AgentArtifactIndexQueryWire(
+        include_active=True,
+        include_recent_completed=True,
+        include_full_history=True,
+        active_limit=None,
+        recent_completed_limit=None,
+        include_hidden=True,
+        only_monitors=False,
+    )
+    index_path = default_agent_artifact_index_path()
+    if index_path.is_file():
+        try:
+            scan = query_agent_artifact_index(index_path, projects_root, query, options)
+            return list(scan.records)
+        except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
+            pass
+    scan = scan_agent_artifacts(projects_root, options)
+    return list(scan.records)
+
+
+__all__ = [
+    "GateTurnSnapshot",
+    "MIN_GATE_TURN_REF_LENGTH",
+    "find_gate_turn_by_gate_id",
+    "find_gate_turn_by_gate_id",
+    "has_any_gate_turn",
+    "list_gate_turns",
+    "load_gate_turn_snapshot",
+    "project_records",
+    "read_gate_turn_marker",
+    "resolve_gate_turn_ref",
+]

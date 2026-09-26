@@ -209,7 +209,7 @@ def _gate_intent_lost_message(
         state = "still alive after grace period" if pid_alive else "exited"
         pid_detail = f" pid {intent.pid} is {state}."
     source_detail = f" Source: {intent.source}." if intent.source else ""
-    member_detail = _gate_shell_member_detail(intent)
+    member_detail = _gate_turn_member_detail(intent)
     cause_detail = f" provider error: {cause}" if cause is not None else ""
     failure = (
         "The creating process did not hand off the gate before host adjudication."
@@ -224,13 +224,13 @@ def _gate_intent_lost_message(
     )
 
 
-def _gate_shell_member_detail(intent: GateIntent) -> str:
+def _gate_turn_member_detail(intent: GateIntent) -> str:
     if not intent.request_id:
         return ""
     try:
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
 
-        record = find_gate_shell_by_gate_id(None, intent.request_id)
+        record = find_gate_turn_by_gate_id(None, intent.request_id)
     except Exception:
         return ""
     if record is None:

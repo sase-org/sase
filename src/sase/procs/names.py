@@ -17,10 +17,6 @@ class NamedProcNameError(ValueError):
     """A named proc is empty, malformed, or ambiguous with a proc id."""
 
 
-# Deprecated alias kept for callers not yet moved to the turn spelling.
-ProcShellNameError = NamedProcNameError
-
-
 def calling_sase_agent() -> str | None:
     """Return the calling sase agent, or ``None`` outside an agent run."""
     raw = (
@@ -39,12 +35,6 @@ def named_proc_concurrency_key(project: str | None, proc_name: str) -> str:
     that field.
     """
     return f"{_NAMED_PROC_CONCURRENCY_PREFIX}{project or ''}:{proc_name}"
-
-
-def named_proc_shell_concurrency_key(project: str | None, shell_name: str) -> str:
-    """Deprecated alias for :func:`named_proc_concurrency_key`."""
-
-    return named_proc_concurrency_key(project, shell_name)
 
 
 def _normalize_concurrency_key_for_compare(key: str) -> str:
@@ -98,16 +88,6 @@ def qualify_named_proc_name(
     return _validate_qualified(f"{caller}--{raw}")
 
 
-def qualify_proc_shell_name(
-    name: str,
-    *,
-    agent: str | None = None,
-) -> str:
-    """Deprecated alias for :func:`qualify_named_proc_name`."""
-
-    return qualify_named_proc_name(name, agent=agent)
-
-
 def proc_name_keys(name: str, *, agent: str | None = None) -> tuple[str, ...]:
     """Return stored-name keys that should match *name* in filters and refs.
 
@@ -127,12 +107,6 @@ def proc_name_keys(name: str, *, agent: str | None = None) -> tuple[str, ...]:
     return tuple(keys)
 
 
-def proc_shell_name_keys(name: str, *, agent: str | None = None) -> tuple[str, ...]:
-    """Deprecated alias for :func:`proc_name_keys`."""
-
-    return proc_name_keys(name, agent=agent)
-
-
 def matching_procs_by_proc_name(
     name: str,
     procs: Sequence[Proc],
@@ -144,17 +118,6 @@ def matching_procs_by_proc_name(
     if not keys:
         return []
     return [proc for proc in procs if proc.proc_name in keys]
-
-
-def matching_procs_by_shell_name(
-    name: str,
-    procs: Sequence[Proc],
-    *,
-    agent: str | None = None,
-) -> list[Proc]:
-    """Deprecated alias for :func:`matching_procs_by_proc_name`."""
-
-    return matching_procs_by_proc_name(name, procs, agent=agent)
 
 
 def complete_proc_refs(prefix: str, procs: Sequence[Proc]) -> list[str]:
@@ -219,16 +182,11 @@ def _is_full_proc_id(value: str) -> bool:
 
 __all__ = [
     "NamedProcNameError",
-    "ProcShellNameError",
     "calling_sase_agent",
     "complete_proc_refs",
     "matching_procs_by_proc_name",
-    "matching_procs_by_shell_name",
     "named_proc_concurrency_key",
-    "named_proc_shell_concurrency_key",
     "normalize_concurrency_keys_for_compare",
     "proc_name_keys",
-    "proc_shell_name_keys",
     "qualify_named_proc_name",
-    "qualify_proc_shell_name",
 ]

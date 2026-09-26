@@ -125,7 +125,7 @@ def reserve_proc(
     path: Path | str | None = None,
     history_limit: int | None = None,
 ) -> ProcReserveOutcome:
-    """Atomically reserve a proc-shell row or replay an identical request."""
+    """Atomically reserve a named-proc row or replay an identical request."""
     record = (
         reserve if isinstance(reserve, ProcReserve) else ProcReserve.from_dict(reserve)
     )
@@ -171,7 +171,7 @@ def claim_proc_supervisor(
     *,
     path: Path | str | None = None,
 ) -> ProcUpdateOutcome:
-    """Claim a reserved proc-shell for exactly one supervisor identity."""
+    """Claim a reserved named-proc for exactly one supervisor identity."""
     record = (
         claim
         if isinstance(claim, ProcSupervisorClaim)
@@ -205,7 +205,7 @@ def begin_proc_settlement(
     *,
     path: Path | str | None = None,
 ) -> ProcUpdateOutcome:
-    """Move a proc-shell into settlement before any terminal finish."""
+    """Move a named-proc into settlement before any terminal finish."""
     record = (
         settlement
         if isinstance(settlement, ProcSettlement)
@@ -222,7 +222,7 @@ def finish_proc(
     *,
     path: Path | str | None = None,
 ) -> ProcUpdateOutcome:
-    """Publish the single-owner terminal proc-shell result."""
+    """Publish the single-owner terminal named-proc result."""
     record = finish if isinstance(finish, ProcFinish) else ProcFinish.from_dict(finish)
     payload: Mapping[str, Any] = _call_binding(
         "finish_proc", str(path or proc_store_path()), record.to_dict()

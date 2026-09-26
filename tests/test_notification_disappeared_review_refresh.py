@@ -150,7 +150,7 @@ class TestDisappearedReviewRefresh:
         artifacts_dir = tmp_path / "artifacts"
         artifacts_dir.mkdir()
         monkeypatch.setattr(
-            "sase.gate_shell.store.find_gate_shell_by_gate_id",
+            "sase.gate_turn.store.find_gate_turn_by_gate_id",
             lambda _project, gate_id: (
                 SimpleNamespace(artifacts_dir=str(artifacts_dir))
                 if gate_id == "custom-accepted"

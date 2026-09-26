@@ -7,7 +7,7 @@ import json
 import sys
 from typing import NoReturn
 
-from sase.gate_shell.models import GateShellError
+from sase.gate_turn.models import GateTurnError
 from sase.notification_gates.models import GateError
 from sase.notifications.models import normalize_notification_tags
 
@@ -24,15 +24,15 @@ def handle_gate_command(args: argparse.Namespace) -> NoReturn:
 
         handle_gate_answer(args)
     if subcommand == "cancel":
-        from sase.main.gate_shell_handler import handle_gate_shell_cancel
+        from sase.main.gate_turn_handler import handle_gate_turn_cancel
 
-        handle_gate_shell_cancel(args)
+        handle_gate_turn_cancel(args)
     if subcommand == "create":
         _handle_gate_create(args)
     if subcommand == "list":
-        from sase.main.gate_shell_handler import handle_gate_shell_list
+        from sase.main.gate_turn_handler import handle_gate_turn_list
 
-        handle_gate_shell_list(args)
+        handle_gate_turn_list(args)
     if subcommand == "show":
         from sase.notification_gates.cli_show import handle_gate_show
 
@@ -81,13 +81,13 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
 
     try:
         if isinstance(data.get("shell"), dict):
-            from sase.gate_shell import (
-                create_gate_shell,
+            from sase.gate_turn import (
+                create_gate_turn,
                 maybe_handoff_gate_from_agent,
                 will_handoff_gate_to_agent_runner,
             )
 
-            creation = create_gate_shell(data)
+            creation = create_gate_turn(data)
             print(json.dumps(creation.to_dict(), sort_keys=True))
             sys.stdout.flush()
             if creation.should_handoff and will_handoff_gate_to_agent_runner():
@@ -99,7 +99,7 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
     except GateError as exc:
         print(f"Error [{exc.code}] {exc.target}: {exc}", file=sys.stderr)
         sys.exit(1)
-    except GateShellError as exc:
+    except GateTurnError as exc:
         print(f"Error: gate shell creation failed: {exc}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
@@ -113,33 +113,55 @@ def _handle_gate_create(args: argparse.Namespace) -> NoReturn:
 def _merge_shell_cli_overrides(
     data: dict[str, object], args: argparse.Namespace
 ) -> None:
-    shell_requested = bool(getattr(args, "shell", False))
+    from sase.agent.legacy_sase_shell_syntax import normalize_gate_shell_bool_args
+
+    raw_args = {
+        "turn": bool(getattr(args, "turn", False)),
+        "turn_status": getattr(args, "turn_status", None),
+        "turn_stop_status": getattr(args, "turn_stop_status", None),
+        "shell": bool(getattr(args, "shell", False)),
+        "shell_status": getattr(args, "shell_status", None),
+        "shell_stop_status": getattr(args, "shell_stop_status", None),
+    }
+    try:
+        normalized = normalize_gate_shell_bool_args(raw_args)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    turn_requested = bool(normalized.get("turn", False))
     next_prompt = getattr(args, "next", None)
     next_fork = getattr(args, "next_fork", None)
     next_model = getattr(args, "next_model", None)
     next_output = getattr(args, "next_output", None)
-    shell_status = getattr(args, "shell_status", None)
-    shell_stop_status = getattr(args, "shell_stop_status", None)
+    turn_status = normalized.get("turn_status", None)
+    turn_stop_status = normalized.get("turn_stop_status", None)
     if not any(
         (
-            shell_requested,
+            turn_requested,
             next_prompt is not None,
             next_fork is not None,
             next_model is not None,
             bool(next_output),
-            shell_status is not None,
-            shell_stop_status is not None,
+            turn_status is not None,
+            turn_stop_status is not None,
         )
     ):
         return
-    raw_shell = data.get("shell", {})
-    if not isinstance(raw_shell, dict):
-        print("Error: shell must be an object", file=sys.stderr)
+    from sase.agent.legacy_sase_shell_syntax import (
+        normalize_persisted_gate_spec_block,
+    )
+
+    _normalized_spec = normalize_persisted_gate_spec_block(dict(data))
+    data.clear()
+    data.update(_normalized_spec)
+    raw_turn = data.get("turn", {})
+    if not isinstance(raw_turn, dict):
+        print("Error: turn must be an object", file=sys.stderr)
         sys.exit(1)
-    shell = dict(raw_shell)
-    raw_next = shell.get("next", {})
+    turn = dict(raw_turn)
+    raw_next = turn.get("next", {})
     if not isinstance(raw_next, dict):
-        print("Error: shell.next must be an object", file=sys.stderr)
+        print("Error: turn.next must be an object", file=sys.stderr)
         sys.exit(1)
     next_policy = dict(raw_next)
     if next_prompt is not None:
@@ -151,12 +173,12 @@ def _merge_shell_cli_overrides(
     if next_output:
         next_policy["output"] = list(next_output)
     if next_policy:
-        shell["next"] = next_policy
-    if shell_status is not None:
-        shell["pending_status"] = shell_status
-    if shell_stop_status is not None:
-        shell["settled_status"] = shell_stop_status
-    data["shell"] = shell
+        turn["next"] = next_policy
+    if turn_status is not None:
+        turn["pending_status"] = turn_status
+    if turn_stop_status is not None:
+        turn["settled_status"] = turn_stop_status
+    data["turn"] = turn
 
 
 def _read_stdin_object() -> dict[str, object]:

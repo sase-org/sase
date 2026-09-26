@@ -640,7 +640,7 @@ def test_proc_source_output_truncation_note_and_missing_output() -> None:
     assert "_No output was retained._" in no_output
 
 
-def test_agent_session_with_monitor_member_renders_proc_shell_heading(
+def test_agent_session_with_monitor_member_renders_named_proc_heading(
     tmp_path: Path,
 ) -> None:
     planner_chat = tmp_path / "planner.md"

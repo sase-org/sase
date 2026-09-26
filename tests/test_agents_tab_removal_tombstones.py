@@ -220,7 +220,7 @@ def _apply_after_removal(
 def test_apply_recheck_survives_a_proc_projection_rebase() -> None:
     """A proc-generation move between prep and apply rebases the worker boundary.
 
-    The rebase only swaps proc-shell rows; its local roster is still the one the
+    The rebase only swaps named-proc rows; its local roster is still the one the
     worker prepared before the removal, so it must keep the worker's removal
     provenance or the recheck compares the live generation with itself.
     """

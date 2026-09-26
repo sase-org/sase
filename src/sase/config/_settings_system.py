@@ -28,7 +28,7 @@ DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS = 12 * 3600
 DEFAULT_MANAGED_TMP_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS = 3600
 DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES = 1024 * 1024 * 1024
 DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL = False
-DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
+DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS = 3600
 
 
 def _disk_pressure_config() -> dict[str, Any]:
@@ -230,31 +230,47 @@ def get_managed_tmp_agent_cargo_incremental() -> bool:
     return DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL
 
 
-def get_gate_shell_reclaim_grace_seconds() -> int:
-    """Return the grace period before a missed gate-shell deadline is lost."""
+def get_gate_turn_reclaim_grace_seconds() -> int:
+    """Return the grace period before a missed gate-turn deadline is lost."""
     try:
         gate = _merged_config().get("gate", {})
     except Exception:  # noqa: BLE001 - maintenance cleanup should fail open.
-        return DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS
-    shell = gate.get("shell", {}) if isinstance(gate, dict) else {}
-    value = (
-        shell.get(
-            "reclaim_grace_seconds",
-            DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS,
+        return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
+    if not isinstance(gate, dict):
+        return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
+    turn = gate.get("turn", {}) if isinstance(gate.get("turn", {}), dict) else {}
+    if "reclaim_grace_seconds" in turn:
+        value = turn.get(
+            "reclaim_grace_seconds", DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
         )
-        if isinstance(shell, dict)
-        else DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS
-    )
+    else:
+        # legacy sase-shell spelling: gate.shell.reclaim_grace_seconds reads
+        # only while the sunset flag accepts retired syntax.
+        from sase.agent.legacy_sase_shell_syntax import (
+            _legacy_sase_shell_syntax_enabled,
+        )
+
+        shell = gate.get("shell", {})
+        if (
+            isinstance(shell, dict)
+            and "reclaim_grace_seconds" in shell
+            and _legacy_sase_shell_syntax_enabled()
+        ):
+            value = shell.get(
+                "reclaim_grace_seconds", DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
+            )
+        else:
+            value = DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
     if type(value) is int and value >= 0:
         return value
-    return DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS
+    return DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS
 
 
 __all__ = [
     "DEFAULT_DISK_PRESSURE_ERROR_FREE_PERCENT",
     "DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES",
     "DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT",
-    "DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS",
+    "DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS",
     "DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL",
     "DEFAULT_MANAGED_TMP_BUILD_SCRATCH_HORIZON_SECONDS",
     "DEFAULT_MANAGED_TMP_COMMAND_SCRATCH_HORIZON_SECONDS",
@@ -271,7 +287,7 @@ __all__ = [
     "get_disk_pressure_error_free_percent",
     "get_disk_pressure_top_owner_min_bytes",
     "get_disk_pressure_warn_free_percent",
-    "get_gate_shell_reclaim_grace_seconds",
+    "get_gate_turn_reclaim_grace_seconds",
     "get_managed_tmp_agent_cargo_incremental",
     "get_managed_tmp_build_scratch_horizon_seconds",
     "get_managed_tmp_command_scratch_horizon_seconds",

@@ -24,17 +24,17 @@ from sase.core.agent_group_archive_wire import (
     saved_agent_group_wire_to_json_dict,
 )
 from sase.dispatch.follow_store import load_follow_snapshot
-from sase.gate_shell.transaction import _stamp_pending_shell_on_spec
+from sase.gate_turn.transaction import _stamp_pending_shell_on_spec
 from sase.history.chat_fork.common import (
     LEGACY_FORK_SOURCE_KIND,
     fork_source_has_failure,
     fork_source_has_proc_content,
     fork_source_kind,
 )
-from sase.notification_gates.model_shell import (
-    GateShellBranchSpec,
-    GateShellNext,
-    LEGACY_GATE_SHELL_NEXT_FORK,
+from sase.notification_gates.model_turn import (
+    GateTurnBranchSpec,
+    GateTurnNext,
+    LEGACY_GATE_TURN_NEXT_FORK,
 )
 from sase.ops.commands._agent_revert import (
     _bulk_preview_from_payload,
@@ -129,25 +129,25 @@ def test_continuation_baseline_measures_both_kinds() -> None:
 
 
 def test_gate_next_fork_defaults_to_session() -> None:
-    assert GateShellNext.from_mapping(None, target="shell.next").fork == "session"
-    assert GateShellNext.from_mapping({}, target="shell.next").fork == "session"
+    assert GateTurnNext.from_mapping(None, target="shell.next").fork == "session"
+    assert GateTurnNext.from_mapping({}, target="shell.next").fork == "session"
 
 
 def test_gate_next_fork_normalizes_legacy_family() -> None:
-    policy = GateShellNext.from_mapping(
-        {"fork": LEGACY_GATE_SHELL_NEXT_FORK}, target="shell.next"
+    policy = GateTurnNext.from_mapping(
+        {"fork": LEGACY_GATE_TURN_NEXT_FORK}, target="shell.next"
     )
     assert policy.fork == "session"
-    branch = GateShellBranchSpec.from_mapping(
+    branch = GateTurnBranchSpec.from_mapping(
         {"fork": "family", "status": "DONE"},
         target="shell.branches.done",
-        inherited_next=GateShellNext(),
+        inherited_next=GateTurnNext(),
     )
     assert branch.fork == "session"
 
 
 def test_gate_next_fork_writer_emits_no_legacy() -> None:
-    policy = GateShellNext.from_mapping({"fork": "family"}, target="shell.next")
+    policy = GateTurnNext.from_mapping({"fork": "family"}, target="shell.next")
     assert policy.to_dict()["fork"] == "session"
     assert "family" not in json.dumps(policy.to_dict())
 
@@ -155,7 +155,7 @@ def test_gate_next_fork_writer_emits_no_legacy() -> None:
 # Surface 4: notification action_data session suffix.
 
 
-def test_gate_shell_stamp_writes_session_suffix() -> None:
+def test_gate_turn_stamp_writes_session_suffix() -> None:
     spec = SimpleNamespace(
         presentation={"action_data": {"raw_suffix": "ts-1", "agent_timestamp": "ts-1"}}
     )
@@ -167,7 +167,7 @@ def test_gate_shell_stamp_writes_session_suffix() -> None:
     assert "family_root_suffix" not in action_data
 
 
-def test_gate_shell_stamp_reads_legacy_suffix() -> None:
+def test_gate_turn_stamp_reads_legacy_suffix() -> None:
     spec = SimpleNamespace(presentation={"action_data": {"family_root_suffix": "ts-9"}})
     _stamp_pending_shell_on_spec(
         spec, member_artifacts_dir="/tmp/dir", member_timestamp="ts-1"

@@ -16,8 +16,8 @@ from sase.core.agent_scan_wire import (
     AgentClanContextWire,
     AgentMetaWire,
     DoneMarkerWire,
-    AgentSessionShellMonitorWire,
-    AgentSessionShellWire,
+    AgentSessionTurnMonitorWire,
+    AgentSessionTurnWire,
     WaitingMarkerWire,
 )
 from sase.integrations.agent_list_entries import (
@@ -308,14 +308,14 @@ def test_agent_list_includes_live_monitor_agent_session_child(
             agent_session_role="monitor",
             role_suffix="--mon",
             run_started_at="2026-08-12T13:00:00Z",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 id="m123",
                 state="running",
                 label="just check",
                 start_status="TESTING",
                 stop_status="TESTED",
-                monitor=AgentSessionShellMonitorWire(command="just check-full"),
+                monitor=AgentSessionTurnMonitorWire(command="just check-full"),
             ),
         )
     )
@@ -366,24 +366,24 @@ def test_agent_list_includes_terminal_monitor_agent_session_child() -> None:
             agent_session="alpha",
             agent_session_role="monitor",
             role_suffix="--mon",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 id="m123",
                 state="timeout",
                 label="just check",
                 start_status="TESTING",
                 stop_status="TESTED",
-                monitor=AgentSessionShellMonitorWire(command="just check-full"),
+                monitor=AgentSessionTurnMonitorWire(command="just check-full"),
             ),
             status_bucket="Running",
         ),
         has_done_marker=True,
         done=DoneMarkerWire(
             outcome="monitored",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 state="timeout",
-                monitor=AgentSessionShellMonitorWire(exit_code=124),
+                monitor=AgentSessionTurnMonitorWire(exit_code=124),
             ),
             status_label="TESTED",
             status_bucket="Running",
@@ -424,7 +424,7 @@ def test_agent_list_monitor_starter_with_monitor_id_buckets_by_done_status() -> 
             agent_session="alpha",
             agent_session_role="root",
             role_suffix="--0",
-            agent_session_turn=AgentSessionShellWire(kind="monitor", id="m123"),
+            agent_session_turn=AgentSessionTurnWire(kind="monitor", id="m123"),
         ),
         has_done_marker=True,
         done=DoneMarkerWire(outcome="completed"),
@@ -456,7 +456,7 @@ def test_agent_list_monitored_outcome_starter_buckets_as_terminal_agent() -> Non
             agent_session="alpha",
             agent_session_role="root",
             role_suffix="--0",
-            agent_session_turn=AgentSessionShellWire(kind="monitor", id="m123"),
+            agent_session_turn=AgentSessionTurnWire(kind="monitor", id="m123"),
         ),
         has_done_marker=True,
         done=DoneMarkerWire(outcome="monitored", status_bucket="Done"),

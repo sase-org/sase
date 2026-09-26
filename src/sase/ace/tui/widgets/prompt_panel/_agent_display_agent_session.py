@@ -9,7 +9,7 @@ from typing import Any
 from rich.text import Text
 
 from sase.agent.status_buckets import agent_status_bucket
-from sase.gate_shell.state import GATE_GLYPH
+from sase.gate_turn.state import GATE_GLYPH
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
 from ...models._agent_clan_sections import first_meaningful_line

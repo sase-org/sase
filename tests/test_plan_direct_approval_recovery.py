@@ -200,7 +200,7 @@ def test_committed_done_with_unknown_coder_refuses(
     assert recovery.prior_coders == ()
 
 
-def test_missing_gate_shell_and_no_code_recovers(
+def test_missing_gate_turn_and_no_code_recovers(
     sase_home_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     plan = _local_plan(sase_home_dir)

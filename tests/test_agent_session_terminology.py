@@ -46,7 +46,7 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/llm_provider/continuation_budget_persistence.py"),
     Path("src/sase/main/parser_gate.py"),
     Path("src/sase/notification_gates/model_request.py"),
-    Path("src/sase/notification_gates/model_shell.py"),
+    Path("src/sase/notification_gates/model_turn.py"),
     Path("src/sase/xprompt/_directive_edit_identity.py"),
     Path("src/sase/config/sase.schema.json"),
     # Legacy durable-data and pre-contract wire readers.
@@ -70,11 +70,11 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/ace/tui/widgets/_directive_completion_agents.py"),
     Path("src/sase/axe/run_agent_wait_slots.py"),
     Path("src/sase/dispatch/launch.py"),
-    Path("src/sase/gate_shell/store.py"),
+    Path("src/sase/gate_turn/store.py"),
     Path("src/sase/integrations/_agent_list_entry_builder.py"),
     Path("src/sase/monitor/store.py"),
     Path("src/sase/scripts/_agent_chat_from_name_common.py"),
-    Path("src/sase/shells/followup.py"),
+    Path("src/sase/turns/followup.py"),
     # Historical-data normalization (reads pre-rename inventory metadata).
     Path("src/sase/agents_sync/inventory.py"),
     # Sidecar families/ permanent-redirect stubs for historical footer links.

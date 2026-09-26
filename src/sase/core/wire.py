@@ -273,7 +273,8 @@ def with_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
     Wire-cutover reader bridge: ``AgentMetaWire`` / ``DoneMarkerWire`` declare
     only the ``agent_session*`` / ``agent_session_turn`` fields, but
     pre-rename marker files still carry the ``agent_family*`` /
-    ``family_shell`` and ``agent_session_shell`` keys. A present new
+    ``family_shell`` and ``agent_session_turn`` keys, and the pinned
+    pre-cutover Rust core still emits ``agent_session_shell``. A present new
     spelling stays authoritative for those fields; legacy spellings backfill
     only absent new keys, and new-shape files pass through unchanged.
     """
@@ -287,6 +288,7 @@ def with_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
         LEGACY_AGENT_FAMILY_ROLE_KEY,
         LEGACY_AGENT_FAMILY_SHELL_KEY,
         LEGACY_AGENT_SESSION_SHELL_KEY,
+        LEGACY_AGENT_SESSION_TURN_KEY,
     )
 
     pairs = (
@@ -298,9 +300,11 @@ def with_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
     for new_key, legacy_key in pairs:
         if new_key not in bridged and bridged.get(legacy_key) is not None:
             bridged[new_key] = bridged[legacy_key]
-    # Turn object: prefer new, then legacy shell, then family shell.
+    # Turn object: prefer new, then the pre-cutover core's shell key,
+    # then family shell.
     if AGENT_SESSION_TURN_KEY not in bridged:
         for legacy_key in (
+            LEGACY_AGENT_SESSION_TURN_KEY,
             LEGACY_AGENT_SESSION_SHELL_KEY,
             LEGACY_AGENT_FAMILY_SHELL_KEY,
         ):

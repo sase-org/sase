@@ -11,7 +11,7 @@ from sase.agent.status_buckets import (
     _TERMINAL_STATUSES,
     agent_status_bucket,
 )
-from sase.gate_shell.state import gate_state_is_terminal
+from sase.gate_turn.state import gate_state_is_terminal
 from sase.monitor_state import monitor_state_is_terminal
 
 from ..agent import Agent

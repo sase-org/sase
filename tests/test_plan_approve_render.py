@@ -172,7 +172,7 @@ def test_gate_success_card_names_coder_and_gate(
 ) -> None:
     render_gate_approval(
         _pending_plan(),
-        _gate_result(coder_agent="bob--code", gate_shell_member="bob--gate"),
+        _gate_result(coder_agent="bob--code", gate_turn_member="bob--gate"),
     )
 
     out, err = _out(capsys)

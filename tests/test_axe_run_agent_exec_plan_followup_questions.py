@@ -21,7 +21,7 @@ from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
-    patch_question_gate_shell_rounds,
+    patch_question_gate_turn_rounds,
 )
 
 pytestmark = pytest.mark.usefixtures(
@@ -188,7 +188,7 @@ class TestPlanFollowupQuestions:
         }
         rounds = [build_qa_round(questions, response)]
 
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             outcome = handle_questions_marker({"questions": questions}, ctx, state)
 
         assert outcome is None
@@ -215,7 +215,7 @@ class TestPlanFollowupQuestions:
         state.current_role_suffix = None
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -236,7 +236,7 @@ class TestPlanFollowupQuestions:
         state = make_state(tmp_path)
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -259,7 +259,7 @@ class TestPlanFollowupQuestions:
         state.current_role_suffix = "--1"
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -282,7 +282,7 @@ class TestPlanFollowupQuestions:
         )
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             outcome = handle_questions_marker({"questions": []}, ctx, state)
 
         assert outcome is None
@@ -341,7 +341,7 @@ class TestPlanFollowupQuestions:
         }
 
         rounds = [build_qa_round(round1_questions, round1_response)]
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             handle_questions_marker({"questions": round1_questions}, ctx, state)
 
         assert state.current_prompt.count("### Questions and Answers") == 1
@@ -349,7 +349,7 @@ class TestPlanFollowupQuestions:
         assert "#### Q2: Symptom" in state.current_prompt
 
         rounds = [*rounds, build_qa_round(round2_questions, round2_response)]
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             handle_questions_marker({"questions": round2_questions}, ctx, state)
 
         assert state.current_prompt.count("### Questions and Answers") == 1
@@ -401,7 +401,7 @@ class TestPlanFollowupQuestions:
             "global_note": "",
         }
         rounds = [build_qa_round(questions, response)]
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             outcome = handle_questions_marker({"questions": questions}, ctx, state)
 
         assert outcome is None
@@ -450,7 +450,7 @@ class TestPlanFollowupQuestions:
         round1_dir.mkdir()
         state.current_artifacts_dir = str(round1_dir)
         rounds = [build_qa_round(round1_q, round1)]
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             handle_questions_marker({"questions": round1_q}, ctx, state)
         assert state.current_role_suffix == "--1"
         assert state.current_prompt.startswith("%model:@small\n")
@@ -461,7 +461,7 @@ class TestPlanFollowupQuestions:
         round2_dir.mkdir()
         state.current_artifacts_dir = str(round2_dir)
         rounds = [*rounds, build_qa_round(round2_q, round2)]
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             handle_questions_marker({"questions": round2_q}, ctx, state)
         assert state.current_role_suffix == "--2"
         assert state.current_prompt.startswith("%model:@small\n")
@@ -490,7 +490,7 @@ class TestPlanFollowupQuestions:
         state.current_artifacts_dir = str(code_dir)
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             handle_questions_marker({"questions": []}, ctx, state)
 
         base_meta = questions_mod.create_followup_artifacts.call_args.args[1]
@@ -506,7 +506,7 @@ class TestPlanFollowupQuestions:
         state.current_artifacts_dir = str(tmp_path / "does_not_exist")
         rounds = [build_qa_round([], {"answers": [], "global_note": ""})]
 
-        with patch_question_gate_shell_rounds(rounds):
+        with patch_question_gate_turn_rounds(rounds):
             handle_questions_marker({"questions": []}, ctx, state)
 
         base_meta = questions_mod.create_followup_artifacts.call_args.args[1]
@@ -516,7 +516,7 @@ class TestPlanFollowupQuestions:
 class TestQuestionSddPromptSnapshot:
     """Verify the Q&A prompt snapshot shared by the code path and gate-shell settlement.
 
-    ``_update_question_sdd_prompt_snapshot`` (``sase.question_shell.followup``)
+    ``_update_question_sdd_prompt_snapshot`` (``sase.question_gate_turn.followup``)
     is the single implementation both the gate-shell settlement hook
     (``question_next_action``) and, historically, the runner's inline
     question handling shared. The runner no longer calls it directly -- a
@@ -526,7 +526,9 @@ class TestQuestionSddPromptSnapshot:
     """
 
     def test_external_sdd_question_snapshot_is_committed(self, tmp_path) -> None:
-        from sase.question_shell.followup import _update_question_sdd_prompt_snapshot
+        from sase.question_gate_turn.followup import (
+            _update_question_sdd_prompt_snapshot,
+        )
 
         prompt_path = tmp_path / "202607" / "prompts" / "test_plan.md"
         prompt_path.parent.mkdir(parents=True)
@@ -559,7 +561,9 @@ class TestQuestionSddPromptSnapshot:
         )
 
     def test_in_tree_sdd_question_snapshot_is_not_committed(self, tmp_path) -> None:
-        from sase.question_shell.followup import _update_question_sdd_prompt_snapshot
+        from sase.question_gate_turn.followup import (
+            _update_question_sdd_prompt_snapshot,
+        )
 
         prompt_path = tmp_path / "sdd" / "plans" / "202607" / "prompts" / "p.md"
         prompt_path.parent.mkdir(parents=True)
@@ -590,7 +594,7 @@ class TestQuestionSddPromptSnapshot:
         tmp_path,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        import sase.question_shell.followup as followup_mod
+        import sase.question_gate_turn.followup as followup_mod
 
         prompt_path = tmp_path / "202607" / "prompts" / "test_plan.md"
         prompt_path.parent.mkdir(parents=True)
@@ -609,11 +613,11 @@ class TestQuestionSddPromptSnapshot:
         with (
             caplog.at_level("WARNING", logger=followup_mod.__name__),
             patch(
-                "sase.question_shell.rounds.question_base_prompt",
+                "sase.question_gate_turn.rounds.question_base_prompt",
                 return_value="Original prompt",
             ),
             patch(
-                "sase.question_shell.rounds.question_rounds",
+                "sase.question_gate_turn.rounds.question_rounds",
                 return_value=[
                     build_qa_round(
                         [],

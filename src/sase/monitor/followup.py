@@ -32,7 +32,7 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture.rollout import (
     monitor_continuation_records_enabled_for_meta,
 )
-from sase.shells.followup import (
+from sase.turns.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
     FollowupLaunchResult,

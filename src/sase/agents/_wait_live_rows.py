@@ -25,7 +25,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanWire,
     AgentMetaWire,
-    AgentSessionShellWire,
+    AgentSessionTurnWire,
     DoneMarkerWire,
 )
 from sase.core.runner_slots import (
@@ -492,18 +492,18 @@ def _is_monitor(meta: AgentMetaWire | None) -> bool:
     return is_monitor_member_role(meta.agent_session_role, meta.role_suffix)
 
 
-def _monitor_shell(
+def _monitor_turn(
     source: AgentMetaWire | DoneMarkerWire | None,
-) -> AgentSessionShellWire | None:
-    shell = None if source is None else source.agent_session_shell
+) -> AgentSessionTurnWire | None:
+    shell = None if source is None else source.agent_session_turn
     return shell if shell is not None and shell.kind == "monitor" else None
 
 
 def _monitor_shared(
     source: AgentMetaWire | DoneMarkerWire | None, attr: str
 ) -> str | None:
-    """Read a shared ``agent_session_shell`` field, only for a monitor shell."""
-    shell = _monitor_shell(source)
+    """Read a shared ``agent_session_turn`` field, only for a monitor shell."""
+    shell = _monitor_turn(source)
     value = getattr(shell, attr, None) if shell is not None else None
     return value if isinstance(value, str) else None
 
@@ -529,21 +529,21 @@ def _monitor_state(
 
 
 def _monitor_command(record: AgentArtifactRecordWire) -> str | None:
-    shell = _monitor_shell(record.agent_meta)
+    shell = _monitor_turn(record.agent_meta)
     if shell is None or shell.monitor is None:
         return None
     return shell.monitor.command
 
 
 def _monitor_exit_code(record: AgentArtifactRecordWire) -> int | None:
-    done_shell = _monitor_shell(record.done)
-    if done_shell is not None and done_shell.monitor is not None:
-        exit_code = done_shell.monitor.exit_code
+    done_turn = _monitor_turn(record.done)
+    if done_turn is not None and done_turn.monitor is not None:
+        exit_code = done_turn.monitor.exit_code
         if exit_code is not None:
             return exit_code
-    meta_shell = _monitor_shell(record.agent_meta)
-    if meta_shell is not None and meta_shell.monitor is not None:
-        return meta_shell.monitor.exit_code
+    meta_turn = _monitor_turn(record.agent_meta)
+    if meta_turn is not None and meta_turn.monitor is not None:
+        return meta_turn.monitor.exit_code
     return None
 
 

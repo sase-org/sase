@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.shells.output import SHELL_MAX_OUTPUT_BYTES, OutputCapture
+from sase.turns.output import SHELL_MAX_OUTPUT_BYTES, OutputCapture
 
 from ._proc_observer_log import ProcLogStream
 from ._proc_observer_models import ObservedProc

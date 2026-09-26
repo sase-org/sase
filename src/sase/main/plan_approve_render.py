@@ -42,7 +42,7 @@ def render_gate_approval(plan: PendingPlan, result: PlanApprovalActionResult) ->
     if plan.title:
         out.print(f"  {plan.title}")
     if result.coder_agent:
-        shell = result.gate_shell_member or "gate shell"
+        shell = result.gate_turn_member or "gate shell"
         out.print(
             f"  [dim]coder[/dim]   [bold]{result.coder_agent}[/bold] · launched by {shell}"
         )

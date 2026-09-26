@@ -363,7 +363,7 @@ def test_commit_gate_archive_failure_leaves_gate_unanswered(gate_home: Path) -> 
     # decision must remain visible and accepted -- not falsely timed out,
     # lost, or completed -- with its original error preserved for
     # inspection.
-    from sase.gate_shell.lifecycle import (
+    from sase.gate_turn.lifecycle import (
         DISPOSITION_ACCEPTED_FAILED,
         classify_gate_lifecycle,
         collect_gate_lifecycle_facts,

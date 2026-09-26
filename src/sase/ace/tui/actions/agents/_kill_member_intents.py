@@ -45,7 +45,7 @@ def execute_proc_stop_intents(proc_stops: list[Agent]) -> set[AgentIdentity]:
     proc record is an idempotent success: the row is still gone, so its
     dismissal is recorded either way.
     """
-    from sase.ace.dismissed_proc_shells import record_dismissed_proc_shells
+    from sase.ace.dismissed_procs import record_dismissed_procs
 
     failed: set[AgentIdentity] = set()
     settled_proc_ids: list[str] = []
@@ -62,7 +62,7 @@ def execute_proc_stop_intents(proc_stops: list[Agent]) -> set[AgentIdentity]:
     # Only settled stops record a dismissal. A failed stop resurfaces its
     # row, so persisting its id here would hide it again on the next load.
     if settled_proc_ids:
-        record_dismissed_proc_shells(settled_proc_ids)
+        record_dismissed_procs(settled_proc_ids)
     return failed
 
 
@@ -70,12 +70,12 @@ def _stop_one_proc_shell(proc_id: str) -> None:
     """Stop one proc shell through its canonical stop path."""
     from sase.procs.models import TERMINAL_PROC_STATUSES
     from sase.procs.store import get_proc
-    from sase.procs.submission import stop_proc_shell
+    from sase.procs.submission import stop_named_proc
 
     proc = get_proc(proc_id)
     if proc is None or proc.status in TERMINAL_PROC_STATUSES:
         return
-    stop_proc_shell(proc, requested_by=MEMBER_STOP_REQUESTED_BY)
+    stop_named_proc(proc, requested_by=MEMBER_STOP_REQUESTED_BY)
 
 
 def execute_gate_cancel_intents(gate_cancels: list[Agent]) -> set[AgentIdentity]:
@@ -99,19 +99,19 @@ def execute_gate_cancel_intents(gate_cancels: list[Agent]) -> set[AgentIdentity]
 
 def _cancel_one_gate_shell(agent: Agent) -> bool:
     """Cancel one pending gate shell; True when the cancel settled."""
-    from sase.gate_shell.cancel import cancel_gate_shell
-    from sase.gate_shell.store import list_gate_shells
+    from sase.gate_turn.cancel import cancel_gate_turn
+    from sase.gate_turn.store import list_gate_turns
 
     gate_id = agent.gate_id
     if not gate_id:
         return True
     record = next(
-        (candidate for candidate in list_gate_shells() if candidate.gate_id == gate_id),
+        (candidate for candidate in list_gate_turns() if candidate.gate_id == gate_id),
         None,
     )
     if record is None or record.is_terminal:
         return True
-    result = cancel_gate_shell(record, reason=GATE_CANCEL_REASON)
+    result = cancel_gate_turn(record, reason=GATE_CANCEL_REASON)
     return bool(result.is_terminal and result.gate_state != record.gate_state)
 
 

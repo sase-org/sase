@@ -54,7 +54,7 @@ class SaseAgentRef:
     """Bare local concrete-shell name (``pc--code``) when the caller knew one."""
 
 
-def sase_agent_ref_for_shell(
+def sase_agent_ref_for_turn(
     name: str,
     identity: AgentIdentitySnapshot | None = None,
 ) -> SaseAgentRef:
@@ -97,7 +97,7 @@ def sase_agent_ref_for_name(
     local_name = normalize_owned_agent_name(name, snapshot)
     parsed = parse_agent_session_name(local_name, snapshot)
     if parsed.kind is AgentSessionNameKind.MEMBER:
-        return sase_agent_ref_for_shell(local_name, snapshot)
+        return sase_agent_ref_for_turn(local_name, snapshot)
     return SaseAgentRef(
         local_name=local_name,
         global_name=globalize_owned_agent_name(local_name, snapshot),
@@ -144,7 +144,7 @@ def legacy_agent_family_redirect_path(global_name: str) -> str:
 def sase_agent_name(name: str) -> str:
     """Return the bare sase-agent projection of *name*, preserving qualification.
 
-    Unlike :func:`sase_agent_ref_for_shell` this neither normalizes nor
+    Unlike :func:`sase_agent_ref_for_turn` this neither normalizes nor
     globalizes, so a global member name yields a global sase-agent name and a
     local one yields a local sase-agent name.  It exists for callers that only
     compare labels.
@@ -171,7 +171,7 @@ def _is_reserved_agent_session_name(local_name: str) -> bool:
 
 # Narrow compatibility aliases.  New code should use the sase-agent names.
 AgentLaneRef = SaseAgentRef
-lane_ref_for_agent = sase_agent_ref_for_shell
+lane_ref_for_agent = sase_agent_ref_for_turn
 lane_ref_for_lane_name = sase_agent_ref_for_name
 lane_page_path = sase_agent_page_path
 lane_name = sase_agent_name
@@ -191,5 +191,5 @@ __all__ = [
     "sase_agent_name",
     "sase_agent_page_path",
     "sase_agent_ref_for_name",
-    "sase_agent_ref_for_shell",
+    "sase_agent_ref_for_turn",
 ]

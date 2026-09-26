@@ -429,7 +429,7 @@ def test_cleanup_keeps_dead_gate_claim_when_member_not_terminal() -> None:
             return_value=Path("/tmp/artifacts/20260813125344"),
         ),
         patch(
-            "sase.gate_shell.store.read_gate_shell_marker",
+            "sase.gate_turn.store.read_gate_turn_marker",
             return_value=MagicMock(is_terminal=False),
         ),
         patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
@@ -466,7 +466,7 @@ def test_cleanup_releases_dead_gate_claim_once_member_is_terminal() -> None:
             return_value=Path("/tmp/artifacts/20260813125344"),
         ),
         patch(
-            "sase.gate_shell.store.read_gate_shell_marker",
+            "sase.gate_turn.store.read_gate_turn_marker",
             return_value=MagicMock(is_terminal=True),
         ),
         patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,

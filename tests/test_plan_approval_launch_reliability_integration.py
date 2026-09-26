@@ -42,7 +42,7 @@ from sase.sdd.store import SddStore
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
-    patch_plan_gate_shell_result,
+    patch_plan_gate_turn_result,
 )
 from tests._plan_gate_fixtures import (  # noqa: F401
     plan_gate_home,
@@ -206,7 +206,7 @@ def test_combined_tale_approval_to_coder_link_lifecycle(
             index_updater=lambda _path: None,
         )
         result = wait_then_result()
-        with patch_plan_gate_shell_result(result):
+        with patch_plan_gate_turn_result(result):
             return handle_plan_marker({"plan_file": str(plan_path)}, ctx, state)
 
     with ExitStack() as stack:

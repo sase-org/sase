@@ -15,7 +15,7 @@ from sase.sase_agent import (
     sase_agent_name,
     sase_agent_page_path,
     sase_agent_ref_for_name,
-    sase_agent_ref_for_shell,
+    sase_agent_ref_for_turn,
 )
 
 _OWNER = AgentOwnerIdentity("alice", "athena")
@@ -24,14 +24,14 @@ _IDENTITY = AgentIdentitySnapshot(_OWNER)
 
 def test_compatibility_aliases_are_the_canonical_objects() -> None:
     assert AgentLaneRef is SaseAgentRef
-    assert lane_ref_for_agent is sase_agent_ref_for_shell
+    assert lane_ref_for_agent is sase_agent_ref_for_turn
     assert lane_ref_for_lane_name is sase_agent_ref_for_name
     assert lane_page_path is sase_agent_page_path
     assert lane_name is sase_agent_name
 
 
 def test_solo_agent_shell_projects_to_itself() -> None:
-    ref = sase_agent_ref_for_shell("pc", _IDENTITY)
+    ref = sase_agent_ref_for_turn("pc", _IDENTITY)
 
     assert ref == SaseAgentRef(
         local_name="pc",
@@ -45,7 +45,7 @@ def test_solo_agent_shell_projects_to_itself() -> None:
 
 
 def test_agent_session_member_shell_projects_to_its_agent_session_container() -> None:
-    ref = sase_agent_ref_for_shell("pc--code", _IDENTITY)
+    ref = sase_agent_ref_for_turn("pc--code", _IDENTITY)
 
     assert ref == SaseAgentRef(
         local_name="pc",
@@ -66,7 +66,7 @@ def test_agent_session_member_shell_projects_to_its_agent_session_container() ->
 
 
 def test_nested_agent_session_member_keeps_its_dotted_agent_session_name() -> None:
-    ref = sase_agent_ref_for_shell("foo.bar--code", _IDENTITY)
+    ref = sase_agent_ref_for_turn("foo.bar--code", _IDENTITY)
 
     assert ref.local_name == "foo.bar"
     assert ref.global_name == "alice.athena.foo.bar"
@@ -75,7 +75,7 @@ def test_nested_agent_session_member_keeps_its_dotted_agent_session_name() -> No
 
 
 def test_legacy_machine_qualified_member_normalizes_to_the_bare_sase_agent() -> None:
-    ref = sase_agent_ref_for_shell("athena.sase-7r.land--code", _IDENTITY)
+    ref = sase_agent_ref_for_turn("athena.sase-7r.land--code", _IDENTITY)
 
     assert ref == SaseAgentRef(
         local_name="sase-7r.land",
@@ -86,7 +86,7 @@ def test_legacy_machine_qualified_member_normalizes_to_the_bare_sase_agent() -> 
 
 
 def test_globally_qualified_member_normalizes_to_the_bare_sase_agent() -> None:
-    ref = sase_agent_ref_for_shell("alice.athena.pc--code", _IDENTITY)
+    ref = sase_agent_ref_for_turn("alice.athena.pc--code", _IDENTITY)
 
     assert ref.local_name == "pc"
     assert ref.member_local_name == "pc--code"

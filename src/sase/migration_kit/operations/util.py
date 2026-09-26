@@ -93,7 +93,7 @@ def live_references(
             sase_home / "notifications",
             sase_home / "pending_actions",
             sase_home / "gates",
-            sase_home / "gate_shells",
+            sase_home / "gate_turns",
             sase_home / "procs",
         )
     )

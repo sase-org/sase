@@ -13,9 +13,9 @@ from sase.notification_gates.model_options import (
     normalize_gate_structure,
     normalize_primary_branch,
 )
-from sase.notification_gates.model_shell import (
-    GATE_SHELL_DEFAULT_TIMEOUT_SECONDS,
-    GateShellSpec,
+from sase.notification_gates.model_turn import (
+    GATE_TURN_DEFAULT_TIMEOUT_SECONDS,
+    GateTurnSpec,
     subset_branches_allowed,
 )
 from sase.notification_gates.model_validation import (
@@ -166,15 +166,15 @@ class GateSpec:
     operations: tuple[GateOperation, ...]
     resources: tuple[GateResource, ...]
     auto: _GateAuto
-    turn: GateShellSpec | None = None
+    turn: GateTurnSpec | None = None
     # Internal marker: the caller accepts responsibility for the gate-turn
     # row. Set only by the gate-turn transaction (after it registers the
     # member row) or by tests that establish their own rows. Never parsed
     # from request mappings, so raw JSON cannot claim it.
-    shell_row_managed: bool = False
+    turn_row_managed: bool = False
 
     @property
-    def shell(self) -> GateShellSpec | None:
+    def shell(self) -> GateTurnSpec | None:
         """Deprecated alias for :attr:`turn` (legacy sase-shell spelling)."""
 
         return self.turn
@@ -270,7 +270,7 @@ class GateSpec:
             # legacy sase-shell spelling
             turn_data = data.get("shell")
         shell = (
-            GateShellSpec.from_mapping(
+            GateTurnSpec.from_mapping(
                 turn_data,
                 branches=branches,
                 allow_branch_subsets=subset_branches_allowed(kind),
@@ -279,11 +279,11 @@ class GateSpec:
             if turn_data is not None
             else None
         )
-        # legacy sase-shell spelling: pre-rename bundles carry ``gate_shell``.
-        if continuation == "gate_shell":
+        # legacy sase-shell spelling: pre-rename bundles carry ``gate_turn``.
+        if continuation == "gate_turn":
             continuation = "gate_turn"
         if shell is not None and timeout is None:
-            timeout = GATE_SHELL_DEFAULT_TIMEOUT_SECONDS
+            timeout = GATE_TURN_DEFAULT_TIMEOUT_SECONDS
         if shell is not None:
             if continuation is None:
                 # A turn block without an explicit mode keeps the turn: every

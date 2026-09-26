@@ -9,7 +9,7 @@ from sase.core.agent_scan_wire import (
 from .core_agent_scan_wire_helpers import record_payload
 
 
-def test_legacy_gate_shell_marker_fields_round_trip() -> None:
+def test_legacy_gate_turn_marker_fields_round_trip() -> None:
     """Pre-rename ``agent_family``/``family_shell`` gate markers still hydrate."""
     # legacy agent-family spelling: the payload below uses pre-rename keys.
     snapshot = agent_scan_wire_from_dict(

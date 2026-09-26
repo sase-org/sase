@@ -158,7 +158,7 @@ def test_run_execution_loop_backstop_raises_lost_gate_intent(
         return SimpleNamespace(continuation_prepared_ref=None)
 
     monkeypatch.setattr(
-        "sase.llm_provider.gate_intent_guard._gate_shell_member_detail",
+        "sase.llm_provider.gate_intent_guard._gate_turn_member_detail",
         lambda _intent: "",
     )
     with (
@@ -196,7 +196,7 @@ def test_run_execution_loop_converts_workflow_error_to_lost_gate_intent(
         },
     )
     monkeypatch.setattr(
-        "sase.llm_provider.gate_intent_guard._gate_shell_member_detail",
+        "sase.llm_provider.gate_intent_guard._gate_turn_member_detail",
         lambda _intent: "",
     )
     with (

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.gate_shell.state import gate_state_is_terminal
+from sase.gate_turn.state import gate_state_is_terminal
 from sase.project_display_names import humanize_cl_name
 
 from ...models.agent_session_members import agent_session_roster_container

@@ -37,7 +37,7 @@ from sase.procs.models import ProcStoreSnapshot
 from .identity import supervisor_is_alive
 from .models import MonitorRecord, MonitorRefError, is_monitor_member_record
 from .naming import short_monitor_id
-from .proc_adapter import overlay_proc_on_monitor, proc_shell_owns
+from .proc_adapter import overlay_proc_on_monitor, named_proc_owns
 from .reconcile import reconcile_dead_supervisor, reconcile_dead_supervisors_for_records
 
 #: How long ``stop_monitor`` waits for the supervisor to leave ``running``.
@@ -60,12 +60,12 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     """
     if record.monitor_state != "running":
         return record
-    from sase.procs.submission import stop_proc_shell
+    from sase.procs.submission import stop_named_proc
     from sase.procs.store import get_proc
 
     proc = get_proc(record.monitor_id)
-    if proc is not None and proc_shell_owns(record.monitor_id):
-        stop_proc_shell(proc)
+    if proc is not None and named_proc_owns(record.monitor_id):
+        stop_named_proc(proc)
         current = read_monitor_marker(record.project_name, record.artifacts_dir)
         return current if current is not None else record
     pid = record.pid
@@ -168,10 +168,10 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     every project, mirroring how ``sase agent list`` scans across projects
     when no ``--project`` filter is given.
     """
-    from sase.procs.submission import reconcile_proc_shells
+    from sase.procs.submission import reconcile_named_procs
     from sase.procs.store import read_proc_snapshot
 
-    reconcile_proc_shells()
+    reconcile_named_procs()
     snapshot = read_proc_snapshot()
     reconcile_dead_supervisors(project=project, snapshot=snapshot)
     wire_records = list(_monitor_records(project))
@@ -226,11 +226,11 @@ def _with_proc_projection(
     *,
     snapshot: ProcStoreSnapshot | None = None,
 ) -> MonitorRecord:
-    """Overlay proc-shell execution state; never invent a proc for a legacy row."""
+    """Overlay named-proc execution state; never invent a proc for a legacy row."""
     from sase.procs.store import get_proc, read_proc_snapshot
 
     procs = snapshot if snapshot is not None else read_proc_snapshot()
-    if not proc_shell_owns(record.monitor_id, snapshot=procs):
+    if not named_proc_owns(record.monitor_id, snapshot=procs):
         return record
     proc = get_proc(record.monitor_id, snapshot=procs)
     if proc is None:

@@ -25,7 +25,7 @@ from sase.monitor_status import (
 from ._running_listing_common import (
     format_duration,
     is_monitor_member_meta,
-    monitor_shell_field,
+    monitor_turn_field,
     monitor_sub_field,
     parse_started_at,
     record_status_bucket,
@@ -62,7 +62,7 @@ def done_info_from_record(
         status = EPIC_APPROVED_STATUS
     elif outcome == "monitored":
         status = clamp_monitor_status_or_default(
-            done.status_label or monitor_shell_field(meta, "stop_status"),
+            done.status_label or monitor_turn_field(meta, "stop_status"),
             default=DEFAULT_MONITOR_STOP_STATUS,
         )
     elif outcome in {"failed", "epic_launch_failed"}:
@@ -135,10 +135,10 @@ def done_info_from_record(
         agent_session=meta.agent_session if meta is not None else None,
         agent_session_role=meta.agent_session_role if meta is not None else None,
         role_suffix=meta.role_suffix if meta is not None else None,
-        monitor_id=monitor_shell_field(meta, "id"),
-        monitor_state=monitor_shell_field(done, "state")
-        or monitor_shell_field(meta, "state"),
-        monitor_label=monitor_shell_field(meta, "label"),
+        monitor_id=monitor_turn_field(meta, "id"),
+        monitor_state=monitor_turn_field(done, "state")
+        or monitor_turn_field(meta, "state"),
+        monitor_label=monitor_turn_field(meta, "label"),
         monitor_command=monitor_sub_field(meta, "command"),
         monitor_exit_code=(
             done_monitor_exit_code
@@ -146,10 +146,10 @@ def done_info_from_record(
             else monitor_sub_field(meta, "exit_code")
         ),
         monitor_start_status=recorded_monitor_status(
-            monitor_shell_field(meta, "start_status")
+            monitor_turn_field(meta, "start_status")
         ),
         monitor_stop_status=recorded_monitor_status(
-            done.status_label or monitor_shell_field(meta, "stop_status")
+            done.status_label or monitor_turn_field(meta, "stop_status")
         ),
         queue_weight=meta.queue_weight if meta is not None else None,
         queue_weight_explicit=(

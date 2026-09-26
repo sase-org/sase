@@ -123,11 +123,11 @@ def test_edit_hooks_fork_allows_only_named_tribe_panel_focus() -> None:
     )
 
 
-def test_edit_hooks_fork_allows_proc_shell_with_proc_id() -> None:
+def test_edit_hooks_fork_allows_named_proc_with_proc_id() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.edit_hooks"]
     with_id = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status="RUNNING",
@@ -137,7 +137,7 @@ def test_edit_hooks_fork_allows_proc_shell_with_proc_id() -> None:
         proc_status="running",
     )
     without_id = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status="RUNNING",

@@ -34,7 +34,7 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
-from sase.sase_agent import sase_agent_ref_for_shell
+from sase.sase_agent import sase_agent_ref_for_turn
 
 
 log = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ def _publish_prompt_archive(
         normalize_owned_agent_name(agent_name, identity)
     )
     global_agent = globalize_owned_agent_name(local_agent, identity)
-    agent_ref = sase_agent_ref_for_shell(local_agent, identity)
+    agent_ref = sase_agent_ref_for_turn(local_agent, identity)
     enqueue_agent_publication(
         AgentPublicationOutboxItem(
             project_key=target.project_key,

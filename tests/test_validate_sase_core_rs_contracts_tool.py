@@ -17,7 +17,7 @@ def _proc_lifecycle_proc(**overrides: Any) -> dict[str, Any]:
         "proc_id": "validator-proc",
         "status": "pending",
         "phase": "reserved",
-        "lifecycle": "proc-shell",
+        "lifecycle": "named-proc",
         "reserved_by": "validate_sase_core_rs",
         "reserved_at": "2026-08-15T00:00:00Z",
         "request_fingerprint": "validator-fingerprint",

@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 import sase.monitor.followup as followup_module
-import sase.shells.followup as shells_followup_module
+import sase.turns.followup as shells_followup_module
 import sase.workspace_provider.store as workspace_store_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.running_field import WorkspaceClaimError

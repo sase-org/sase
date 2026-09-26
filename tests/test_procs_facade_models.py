@@ -153,7 +153,7 @@ def test_legacy_task_wire_payloads_parse_as_proc_models() -> None:
     assert pruned.pruned_proc_ids == ["old-task"]
 
 
-def test_legacy_commandless_tui_payload_receives_proc_shell_defaults() -> None:
+def test_legacy_commandless_tui_payload_receives_named_proc_defaults() -> None:
     snapshot = ProcStoreSnapshot.from_dict(
         {
             "schema_version": 2,

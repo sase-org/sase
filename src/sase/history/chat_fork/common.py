@@ -35,7 +35,7 @@ def fork_source_failure(source: Mapping[str, object]) -> Mapping[str, object] | 
 
 
 #: Terminal gate states that read as a failure, mirroring
-#: ``sase.gate_shell.state.TERMINAL_GATE_STATES``'s failing members. Kept as a
+#: ``sase.gate_turn.state.TERMINAL_GATE_STATES``'s failing members. Kept as a
 #: local literal so this generic history module never imports the domain
 #: gate-shell package.
 GATE_FAILURE_OUTCOMES = frozenset({"failed", "timeout", "lost"})

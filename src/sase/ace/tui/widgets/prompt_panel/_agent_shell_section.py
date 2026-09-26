@@ -13,7 +13,7 @@ from rich.text import Text
 
 from sase.ace.hooks.timestamps import format_duration
 from sase.core.time import local_now
-from sase.gate_shell.state import GATE_FAILURE_GLYPH_COLOR, GATE_GLYPH
+from sase.gate_turn.state import GATE_FAILURE_GLYPH_COLOR, GATE_GLYPH
 from sase.llm_provider.model_label import model_value_text
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 

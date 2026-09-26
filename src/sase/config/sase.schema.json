@@ -4619,14 +4619,14 @@
       "description": "Configuration for durable command-backed gates",
       "additionalProperties": false,
       "properties": {
-        "shell": {
+        "turn": {
           "type": "object",
-          "description": "Settings for processless gate-shell session members",
+          "description": "Settings for processless gate-turn session members",
           "additionalProperties": false,
           "properties": {
             "reclaim_grace_seconds": {
               "type": "integer",
-              "description": "Seconds after a shell gate's own deadline before reclaim force-settles the pending shell as lost.",
+              "description": "Seconds after a turn gate's own deadline before reclaim force-settles the pending turn as lost.",
               "default": 3600,
               "minimum": 0
             }
@@ -5362,6 +5362,12 @@
         "legacy_agent_family_syntax": {
           "type": "boolean",
           "description": "SASE silently accepts the retired agent-family spellings as aliases of their agent-session replacements: %id(..., family=...), the family:/kind:family agent queries, --next-fork family, gate \"fork\": \"family\", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also removes sase-core's hidden `family` %id keyword alias.",
+          "default": true,
+          "deprecated": true
+        },
+        "legacy_sase_shell_syntax": {
+          "type": "boolean",
+          "description": "SASE silently accepts the retired sase-shell spellings as aliases of their sase-turn replacements: `sase gate create --shell`, `--shell-status`, `--shell-stop-status`, and `--next-fork shell`; a gate spec's `\"shell\"` block, `\"fork\": \"shell\"`, and `\"continuation_mode\": \"gate_turn\"`; `sase proc list/run --shell`; and the `gate.shell.reclaim_grace_seconds` config key.",
           "default": true,
           "deprecated": true
         },

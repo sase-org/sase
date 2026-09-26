@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from sase.gate_shell.models import GateShellRefError, GateShellRecord
-from sase.gate_shell.settlement import settle_gate_shell
-from sase.gate_shell.store import (
-    find_gate_shell_by_gate_id,
-    list_gate_shells,
-    resolve_gate_shell_ref,
+from sase.gate_turn.models import GateTurnRefError, GateTurnRecord
+from sase.gate_turn.settlement import settle_gate_turn
+from sase.gate_turn.store import (
+    find_gate_turn_by_gate_id,
+    list_gate_turns,
+    resolve_gate_turn_ref,
 )
 from sase.notification_gates.cli_support import GateCliError, resolve_gate_cli_bundle
 from sase.notification_gates.durability import canonical_json_bytes, sha256_bytes
@@ -57,24 +57,24 @@ def resolve_sudo_gate_id(ref: str) -> str:
     except GateCliError:
         pass
     try:
-        record = resolve_gate_shell_ref(ref, sudo_shells(project=None))
-    except GateShellRefError as exc:
+        record = resolve_gate_turn_ref(ref, sudo_shells(project=None))
+    except GateTurnRefError as exc:
         raise GateError("not_found", ref, str(exc)) from exc
     return record.gate_id
 
 
-def sudo_shells(*, project: str | None) -> list[GateShellRecord]:
+def sudo_shells(*, project: str | None) -> list[GateTurnRecord]:
     """Return sudo gate-shell rows, optionally filtered by project."""
-    return [row for row in list_gate_shells(project=project) if row.kind == "sudo"]
+    return [row for row in list_gate_turns(project=project) if row.kind == "sudo"]
 
 
 def settle_shell(gate_id: str, *, retry: Literal["resume", "restart"] | None) -> None:
     """Settle the sudo gate shell after a durable answer."""
-    gate_shell = find_gate_shell_by_gate_id(None, gate_id)
-    if gate_shell is None:
+    gate_turn = find_gate_turn_by_gate_id(None, gate_id)
+    if gate_turn is None:
         return
-    settle_gate_shell(
-        gate_shell,
+    settle_gate_turn(
+        gate_turn,
         gate_state="answered",
         reason="sudo gate answered",
         resume=retry == "resume",

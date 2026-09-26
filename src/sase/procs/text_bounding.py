@@ -1,6 +1,6 @@
-"""Shared bounding and redaction primitives for proc-shell output text.
+"""Shared bounding and redaction primitives for named-proc output text.
 
-Kept dependency-light (no Textual/ACE imports) so both the ACE proc-shell
+Kept dependency-light (no Textual/ACE imports) so both the ACE named-proc
 projection and the history ``#fork`` renderer can bound and redact untrusted
 program output identically without importing one another.
 """

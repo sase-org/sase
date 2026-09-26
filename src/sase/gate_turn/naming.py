@@ -1,0 +1,56 @@
+"""Suffix and id allocation for gate shell agent-session members."""
+
+from __future__ import annotations
+
+from sase.plan_chain import PLAN_CHAIN_GATE_SUFFIX
+from sase.turns.naming import (
+    SequenceSuffixSpec,
+    TurnIdSpec,
+    allocate_turn_suffix,
+    new_turn_id,
+    short_turn_id,
+)
+
+GATE_SEQUENCE_SUFFIX_TEMPLATE = f"{PLAN_CHAIN_GATE_SUFFIX}-@"
+
+_GATE_ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
+_GATE_ID_LENGTH = 12
+SHORT_GATE_ID_LENGTH = 6
+
+_GATE_ID_SPEC = TurnIdSpec(
+    alphabet=_GATE_ID_ALPHABET,
+    length=_GATE_ID_LENGTH,
+    short_length=SHORT_GATE_ID_LENGTH,
+)
+_GATE_SUFFIX_SPEC = SequenceSuffixSpec(
+    first_suffix=PLAN_CHAIN_GATE_SUFFIX,
+    sequence_template=GATE_SEQUENCE_SUFFIX_TEMPLATE,
+)
+
+
+def new_gate_turn_id() -> str:
+    """Mint a 12-character lowercase unambiguous base32 gate-shell id."""
+    return new_turn_id(_GATE_ID_SPEC)
+
+
+def short_gate_turn_id(gate_id: str) -> str:
+    """Return the standard six-character gate-shell id display prefix."""
+    return short_turn_id(gate_id, _GATE_ID_SPEC)
+
+
+def allocate_gate_suffix(lane: str, *, has_existing_gate: bool) -> str:
+    """Return the next free gate suffix for ``lane``."""
+    return allocate_turn_suffix(
+        lane,
+        has_existing_shell=has_existing_gate,
+        spec=_GATE_SUFFIX_SPEC,
+    )
+
+
+__all__ = [
+    "GATE_SEQUENCE_SUFFIX_TEMPLATE",
+    "SHORT_GATE_ID_LENGTH",
+    "allocate_gate_suffix",
+    "new_gate_turn_id",
+    "short_gate_turn_id",
+]

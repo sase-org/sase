@@ -509,7 +509,7 @@ def find_gate_turn_by_gate_id(
 ) -> AgentArtifactRecordWire | None:
     """Return the newest real gate-turn record for *gate_id*, or ``None``.
 
-    Uses the persistent index's indexed ``gate_shell_id`` column for an
+    Uses the persistent index's indexed ``gate_turn_id`` column for an
     O(1) SQL lookup instead of decoding every historical record. A ``None``
     project searches every project. A clean ``None`` result is authoritative
     (no matching gate-turn member exists); callers whose index is missing
@@ -529,19 +529,6 @@ def find_gate_turn_by_gate_id(
     if payload is None:
         return None
     return agent_artifact_records_from_dicts([payload])[0]
-
-
-def find_gate_shell_by_gate_id(
-    index_path: Path | str,
-    project_name: str | None,
-    gate_id: str,
-) -> AgentArtifactRecordWire | None:
-    """Return the newest real gate-shell record for *gate_id*, or ``None``.
-
-    Deprecated alias for :func:`find_gate_turn_by_gate_id`; kept for callers
-    not yet moved to the turn spelling.
-    """
-    return find_gate_turn_by_gate_id(index_path, project_name, gate_id)
 
 
 def query_related_agent_artifact_dirs_bounded(
@@ -674,7 +661,7 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
-    "find_gate_shell_by_gate_id",
+    "find_gate_turn_by_gate_id",
     "find_gate_turn_by_gate_id",
     "invalidate_agent_artifact_index_source_reconcile",
     "load_agent_artifact_records_bounded",

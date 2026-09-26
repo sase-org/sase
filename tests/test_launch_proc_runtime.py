@@ -24,7 +24,7 @@ from sase.core.agent_launch_facade import (
     resolve_proc_execution_cwd,
     sanitized_proc_env,
     validate_proc_workspace_intent,
-    validate_standalone_proc_shell_name,
+    validate_standalone_named_proc_name,
     xprompt_proc_origin,
 )
 from sase.core.agent_launch_wire import (
@@ -167,9 +167,9 @@ def test_rust_helpers_cover_workspace_cwd_and_env_contracts(tmp_path: Path) -> N
         validate_proc_workspace_intent(True, None, str(tmp_path))
     with pytest.raises(ValueError, match="ordinary cwd"):
         validate_proc_workspace_intent(False, "sase", None)
-    validate_standalone_proc_shell_name("checks")
+    validate_standalone_named_proc_name("checks")
     with pytest.raises(ValueError, match="`--`"):
-        validate_standalone_proc_shell_name("agent--checks")
+        validate_standalone_named_proc_name("agent--checks")
     assert parse_proc_duration_seconds("20m") == 1200
     env = sanitized_proc_env(
         {"PATH": "/home/user/.cargo/bin:/usr/bin:/bin"},

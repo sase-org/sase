@@ -193,7 +193,7 @@ def test_invoke_agent_lost_gate_intent_fails_before_finalizers(
         },
     )
     monkeypatch.setattr(
-        "sase.llm_provider.gate_intent_guard._gate_shell_member_detail",
+        "sase.llm_provider.gate_intent_guard._gate_turn_member_detail",
         lambda _intent: "",
     )
     mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed")

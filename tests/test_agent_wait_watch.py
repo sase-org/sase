@@ -19,7 +19,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
-    AgentSessionShellWire,
+    AgentSessionTurnWire,
     PendingQuestionMarkerWire,
     PlanPathMarkerWire,
     WaitingMarkerWire,
@@ -42,7 +42,7 @@ def _record(
     name: str,
     pid: int | None = None,
     outcome: str | None = None,
-    done_agent_session_shell: AgentSessionShellWire | None = None,
+    done_agent_session_turn: AgentSessionTurnWire | None = None,
     agent_session: str | None = None,
     parent_timestamp: str | None = None,
     clan: str | None = None,
@@ -68,9 +68,7 @@ def _record(
             agent_clan_generation=clan_generation,
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
         ),
-        done=DoneMarkerWire(
-            outcome=outcome, agent_session_turn=done_agent_session_shell
-        )
+        done=DoneMarkerWire(outcome=outcome, agent_session_turn=done_agent_session_turn)
         if outcome is not None
         else None,
         waiting=waiting,
@@ -119,9 +117,7 @@ def test_wait_watch_classifies_settled_gate_as_success() -> None:
             "20260827120000",
             name="approval--gate",
             outcome="gated",
-            done_agent_session_shell=AgentSessionShellWire(
-                kind="gate", state="answered"
-            ),
+            done_agent_session_turn=AgentSessionTurnWire(kind="gate", state="answered"),
         )
     )
 

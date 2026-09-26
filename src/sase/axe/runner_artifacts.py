@@ -287,12 +287,12 @@ def write_done_marker(
 
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)
         try:
-            from sase.shells.settlement import (
+            from sase.turns.settlement import (
                 project_name_from_artifacts_dir,
-                touch_shell_refresh_pulse,
+                touch_turn_refresh_pulse,
             )
 
-            touch_shell_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+            touch_turn_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
         except Exception:  # noqa: BLE001 - pulse must never fail the agent run
             pass
         print(f"Done marker written to: {done_path}")

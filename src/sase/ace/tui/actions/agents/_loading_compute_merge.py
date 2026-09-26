@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_key
 from sase.core.agent_scan_wire import AgentClanContextWire
-from sase.gate_shell.state import gate_state_is_terminal
+from sase.gate_turn.state import gate_state_is_terminal
 from sase.monitor_state import monitor_state_is_terminal
 
 from ._loading_compute_types import PreparedApplyData, PreparedApplySnapshot

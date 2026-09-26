@@ -338,12 +338,12 @@ def test_recovery_evidence_without_abort_has_no_handoff_section() -> None:
 
 
 def test_pending_write_supersedes_inflight_marker(tmp_path: Path) -> None:
-    from sase.shells.handoff import write_shell_pending_marker
+    from sase.turns.handoff import write_turn_pending_marker
 
     (tmp_path / HANDOFF_INFLIGHT_MARKER).write_text(
         json.dumps(_dead_marker()), encoding="utf-8"
     )
-    write_shell_pending_marker(
+    write_turn_pending_marker(
         MONITOR_PENDING_MARKER, {"monitor_id": "m1"}, str(tmp_path)
     )
     assert (tmp_path / MONITOR_PENDING_MARKER).is_file()

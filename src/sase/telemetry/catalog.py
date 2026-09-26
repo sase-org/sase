@@ -22,7 +22,7 @@ _PREFIX_TO_SUBSYSTEM: dict[str, str] = {
     "sase_zombie": "Hooks / Mentors / Workflows",
     "sase_vcs": "VCS / Workspace",
     "sase_workspace": "VCS / Workspace",
-    "sase_gate_shell": "Gate Shell",
+    "sase_gate_turn": "Gate Turn",
     "sase_tool": "Tool Runs",
 }
 

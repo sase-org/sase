@@ -390,15 +390,6 @@ def validate_standalone_named_proc_name(name: str | None) -> None:
         require_rust_binding("validate_standalone_proc_shell_name")(name)
 
 
-def validate_standalone_proc_shell_name(name: str | None) -> None:
-    """Reject agent-session-qualified or malformed stand-alone proc names.
-
-    Deprecated alias for :func:`validate_standalone_named_proc_name`.
-    """
-
-    validate_standalone_named_proc_name(name)
-
-
 def validate_proc_workspace_intent(
     workspace: bool,
     selected_project: str | None,
@@ -548,6 +539,6 @@ __all__ = [
     "spawn_prepared_agent_process",
     "summarize_admission",
     "validate_proc_workspace_intent",
-    "validate_standalone_proc_shell_name",
+    "validate_standalone_named_proc_name",
     "xprompt_proc_origin",
 ]

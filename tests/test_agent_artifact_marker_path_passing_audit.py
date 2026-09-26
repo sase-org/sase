@@ -14,7 +14,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "Tier 1 artifact index for the same artifacts directory."
         ),
     ),
-    "src/sase/shells/member.py:create_agent_session_shell_member": PathPassingReview(
+    "src/sase/shells/member.py:create_agent_session_turn_member": PathPassingReview(
         lifecycle_coverage=(
             "Reads the freshly created shell member metadata, then rewrites "
             "agent_meta.json through write_agent_meta_atomic with the Tier 1 "
@@ -206,7 +206,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "separately."
         ),
     ),
-    "src/sase/gate_shell/handoff_launch.py:_read_meta": PathPassingReview(
+    "src/sase/gate_turn/handoff_launch.py:_read_meta": PathPassingReview(
         exemption=(
             "Read-only gate-shell handoff recovery bootstrap: agent_meta.json "
             "is inspected to merge follow-up fields written during successor "
@@ -214,7 +214,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "and done-marker helpers."
         ),
     ),
-    "src/sase/gate_shell/settlement.py:_read_meta": PathPassingReview(
+    "src/sase/gate_turn/settlement.py:_read_meta": PathPassingReview(
         exemption=(
             "Read-only gate-shell settlement bootstrap and post-settlement "
             "refresh: agent_meta.json is inspected to recover gate metadata "
@@ -222,7 +222,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "and done-marker helpers."
         ),
     ),
-    "src/sase/gate_shell/transaction.py:_read_meta": PathPassingReview(
+    "src/sase/gate_turn/transaction.py:_read_meta": PathPassingReview(
         exemption=(
             "Read-only gate-shell creation lookup: agent_meta.json is read only "
             "to recover the creator lane, workspace claim, and replay metadata "

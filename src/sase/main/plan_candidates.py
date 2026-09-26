@@ -61,11 +61,11 @@ def _notification_is_gate_visible(notification: Notification) -> bool:
     if gate_id is None:
         return _legacy_notification_visible(notification)
     try:
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
     except Exception:
         return _legacy_notification_visible(notification)
     try:
-        record = find_gate_shell_by_gate_id(None, gate_id)
+        record = find_gate_turn_by_gate_id(None, gate_id)
     except Exception:
         return _legacy_notification_visible(notification)
     if record is None:

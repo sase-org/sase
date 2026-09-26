@@ -7,9 +7,9 @@ from datetime import datetime, timezone, UTC
 from typing import Any
 
 from sase.core.time import to_local
-from sase.gate_shell.state import gate_member_status_bucket, gate_state_is_terminal
-from sase.gate_shell.state import is_real_gate_member
-from sase.gate_shell.status import gate_status_pair
+from sase.gate_turn.state import gate_member_status_bucket, gate_state_is_terminal
+from sase.gate_turn.state import is_real_gate_member
+from sase.gate_turn.status import gate_status_pair
 
 from ._fleet_agents_follow import summary_followed
 from ._fleet_agents_hosts import (
@@ -300,7 +300,7 @@ def _agent_from_summary(
     if is_gate and gate_state is None:
         gate_state = "completed" if dead or stop_time is not None else "pending"
     agent = Agent(
-        agent_type=AgentType.PROC_SHELL if is_proc else AgentType.RUNNING,
+        agent_type=AgentType.NAMED_PROC if is_proc else AgentType.RUNNING,
         cl_name=patch_name_value,
         project_file=project_file_value,
         status=status,

@@ -1,4 +1,4 @@
-"""Hardened detached supervisor for one proc-shell row."""
+"""Hardened detached supervisor for one named-proc row."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from .runtime import (
     write_json_atomic,
     write_termination_intent,
 )
-from .settlement import maybe_crash, settle_proc_shell
+from .settlement import maybe_crash, settle_named_proc
 from .store import claim_proc_supervisor, get_proc, update_proc
 
 _POLL_SECONDS = 0.05
@@ -109,7 +109,7 @@ class _OutputActivity:
 
 
 def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
-    """Own one proc-shell from claim through terminal settlement."""
+    """Own one named-proc from claim through terminal settlement."""
     termination = _Termination(proc_id)
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, termination.request)
@@ -123,7 +123,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     if proc.status in TERMINAL_PROC_STATUSES:
         return 0
     if startup_signal is not None:
-        finished = settle_proc_shell(
+        finished = settle_named_proc(
             proc.proc_id,
             supervisor_id=proc.supervisor_id or supervisor_identity_token(os.getpid()),
             status="error",
@@ -135,7 +135,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
     supervisor_id = supervisor_identity_token(os.getpid())
     if proc.status == "settling":
         owner = proc.supervisor_id or supervisor_id
-        finished = settle_proc_shell(
+        finished = settle_named_proc(
             proc.proc_id,
             supervisor_id=owner,
             status="error",
@@ -204,7 +204,7 @@ def run_supervisor(proc_id: str, *, startup_signal: int | None = None) -> int:
             status = "error"
             message = f"supervisor error: {_one_line(close_error)}"
             termination_reason = "supervisor-loss"
-        settle_proc_shell(
+        settle_named_proc(
             proc_id,
             supervisor_id=supervisor_id,
             status=status,
@@ -454,7 +454,7 @@ def _one_line(value: object) -> str:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Supervise one SASE proc-shell.")
+    parser = argparse.ArgumentParser(description="Supervise one SASE named-proc.")
     parser.add_argument("--proc-id", required=True)
     return parser
 

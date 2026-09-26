@@ -43,11 +43,11 @@ def _parent_node_ids_from_meta(
 def wait_for_starter_settle(starter_artifacts_dir: str) -> bool:
     """Wait, bounded, for a named starter to reach its terminal marker.
 
-    Imported lazily: :mod:`sase.shells.followup` pulls in :mod:`sase.agent`
+    Imported lazily: :mod:`sase.turns.followup` pulls in :mod:`sase.agent`
     and :mod:`sase.xprompt`, which import back from this package, so a
     top-level import here would be circular.
     """
-    from sase.shells.followup import (
+    from sase.turns.followup import (
         DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
         STARTER_SETTLE_POLL_SECONDS,
         wait_for_starter_artifacts_dir,

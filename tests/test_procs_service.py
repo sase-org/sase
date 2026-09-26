@@ -1,4 +1,4 @@
-"""Service-level tests for the unified proc-shell supervisor."""
+"""Service-level tests for the unified named-proc supervisor."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ _SETTLEMENT_CRASH_CHECKPOINTS = (
 )
 
 
-def test_submit_records_a_proc_shell_and_settles_success(
+def test_submit_records_a_named_proc_and_settles_success(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
@@ -109,7 +109,7 @@ def test_submit_request_normalizes_legacy_kind_to_command(
     assert finished.session_id is None
 
 
-def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
+def test_named_named_proc_reuse_is_project_scoped_and_waits_for_settlement(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
@@ -174,7 +174,7 @@ def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
     wait_for_proc(active.proc_id, timeout=15)
 
 
-def test_submit_derives_bare_named_proc_shell(monkeypatch: Any, tmp_path: Path) -> None:
+def test_submit_derives_bare_named_named_proc(monkeypatch: Any, tmp_path: Path) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("SASE_AGENT_NAME", "foo--code")
     proc = submit_proc(

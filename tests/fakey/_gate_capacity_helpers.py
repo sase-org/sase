@@ -12,14 +12,14 @@ from pathlib import Path
 import pytest
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
-from sase.gate_shell.member import create_gate_shell_member
+from sase.gate_turn.member import create_gate_turn_member
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
-from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.model_turn import GateTurnSpec
 from sase.notification_gates.models import GateSpec
 from sase.notification_gates.service import create_gate
 from sase.plan_gate import build_plan_approval_gate_spec
-from sase.plan_shell.create import plan_gate_shell_block
+from sase.plan_gate_turn.create import plan_gate_turn_block
 
 from tests.fakey._runner_slot_harness import _WAIT_TIMEOUT
 
@@ -71,7 +71,7 @@ def make_blocking_gate(
     exists, so a test can drive real ``wait_for_runner_slot`` contention
     around the gate's execution window.
     """
-    shell_block: dict[str, object] = {
+    turn_block: dict[str, object] = {
         "pending_status": "GATE",
         "settled_status": "GATED",
     }
@@ -98,14 +98,14 @@ def make_blocking_gate(
                 "content": blocking_gate_command_script(started, release),
             }
         ],
-        "shell": shell_block,
+        "turn": turn_block,
     }
-    # This helper establishes the gate-shell row itself below: mark the spec
-    # the way the production transaction does so the shell-row guard accepts
+    # This helper establishes the gate-turn row itself below: mark the spec
+    # the way the production transaction does so the turn-row guard accepts
     # the setup.
-    gate = create_gate(replace(GateSpec.from_mapping(spec), shell_row_managed=True))
-    parsed_shell = GateShellSpec.from_mapping(shell_block, branches=(("run",),))
-    artifacts_dir = create_gate_shell_member(
+    gate = create_gate(replace(GateSpec.from_mapping(spec), turn_row_managed=True))
+    parsed_turn = GateTurnSpec.from_mapping(turn_block, branches=(("run",),))
+    artifacts_dir = create_gate_turn_member(
         MONITOR_PROJECT,
         {
             "name": member_name,
@@ -125,7 +125,7 @@ def make_blocking_gate(
         creator_agent=member_name,
         timeout_seconds=86_400.0,
         request_fingerprint=None,
-        shell=parsed_shell,
+        turn=parsed_turn,
     )
     update_meta_field(artifacts_dir, "gate_bundle_path", str(gate.bundle_path))
     return gate.bundle_path, artifacts_dir
@@ -138,16 +138,16 @@ def make_plan_gate(
     lane: str,
     plan_file: Path,
 ) -> tuple[Path, str]:
-    """Create a real shell-backed tale plan gate plus its gate-shell member."""
+    """Create a real turn-backed tale plan gate plus its gate-turn member."""
     spec = build_plan_approval_gate_spec(str(plan_file), request_id)
-    spec["shell"] = plan_gate_shell_block("tale")
+    spec["turn"] = plan_gate_turn_block("tale")
     gate = create_gate(spec)
-    parsed_shell = GateShellSpec.from_mapping(
-        spec["shell"],
+    parsed_turn = GateTurnSpec.from_mapping(
+        spec["turn"],
         branches=(("approve", "commit"), ("reject",), ("feedback",)),
         allow_branch_subsets=True,
     )
-    artifacts_dir = create_gate_shell_member(
+    artifacts_dir = create_gate_turn_member(
         MONITOR_PROJECT,
         {
             "name": member_name,
@@ -167,7 +167,7 @@ def make_plan_gate(
         creator_agent=member_name,
         timeout_seconds=86_400.0,
         request_fingerprint=None,
-        shell=parsed_shell,
+        turn=parsed_turn,
     )
     update_meta_field(artifacts_dir, "gate_bundle_path", str(gate.bundle_path))
     return gate.bundle_path, artifacts_dir

@@ -13,7 +13,7 @@ from sase.core.agent_scan_facade import rebuild_agent_artifact_index
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    AgentSessionShellWire,
+    AgentSessionTurnWire,
     PendingQuestionMarkerWire,
     WorkflowStateWire,
 )
@@ -126,7 +126,7 @@ def _record_as_of(shell: _Shell, instant: int) -> AgentArtifactRecordWire:
             agent_session_role=shell.role,
             agent_session_parallel=shell.parallel,
             agent_session_turn=(
-                AgentSessionShellWire(kind="monitor", id=shell.monitor_id)
+                AgentSessionTurnWire(kind="monitor", id=shell.monitor_id)
                 if shell.monitor_id is not None
                 else None
             ),

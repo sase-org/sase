@@ -39,7 +39,7 @@ def resolve_proc_ref(prefix: str, procs: Sequence[Proc]) -> Proc:
         raise ProcRefError(
             f"proc reference must be at least {MIN_PROC_REF_LENGTH} characters"
         )
-    named = _resolve_named_proc_shell(raw, procs)
+    named = _resolve_named_named_proc(raw, procs)
     if named is not None:
         return named
     ref = raw.lower()
@@ -63,10 +63,10 @@ def resolve_proc_ref(prefix: str, procs: Sequence[Proc]) -> Proc:
     )
 
 
-def _resolve_named_proc_shell(raw: str, procs: Sequence[Proc]) -> Proc | None:
-    from .names import matching_procs_by_shell_name
+def _resolve_named_named_proc(raw: str, procs: Sequence[Proc]) -> Proc | None:
+    from .names import matching_procs_by_proc_name
 
-    matches = matching_procs_by_shell_name(raw, procs)
+    matches = matching_procs_by_proc_name(raw, procs)
     if not matches:
         return None
     if len(matches) == 1:

@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.gate_shell.reclaim import GateHandoffReconcileSummary, GateShellReclaimSummary
-from sase.gate_shell.store import GateShellSnapshot
+from sase.gate_turn.reclaim import GateHandoffReconcileSummary, GateTurnReclaimSummary
+from sase.gate_turn.store import GateTurnSnapshot
 from sase.chops.builtin import run_builtin_chop
 
 from tests._axe_chop_output_contract_helpers import (
@@ -28,10 +28,10 @@ def _stub_empty_snapshot(monkeypatch: pytest.MonkeyPatch, script: object) -> Non
     """Keep the gate-shell reclaim chop's shared-snapshot read off a real index."""
     monkeypatch.setattr(
         script,
-        "load_gate_shell_snapshot",
-        lambda **_kwargs: GateShellSnapshot(
+        "load_gate_turn_snapshot",
+        lambda **_kwargs: GateTurnSnapshot(
             taken_at=0.0,
-            gate_shells=(),
+            gate_turns=(),
             agent_session_members={},
             record_count=0,
         ),
@@ -57,19 +57,19 @@ _COUNTERS_ZERO = {
 }
 
 
-def test_gate_shell_reclaim_emits_noop_summary(
+def test_gate_turn_reclaim_emits_noop_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
+    script = importlib.import_module("sase.scripts.sase_chop_gate_turn_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
     _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
-        "reclaim_pending_gate_shells",
-        lambda **_kwargs: GateShellReclaimSummary(),
+        "reclaim_pending_gate_turns",
+        lambda **_kwargs: GateTurnReclaimSummary(),
     )
     monkeypatch.setattr(
         script,
@@ -77,33 +77,33 @@ def test_gate_shell_reclaim_emits_noop_summary(
         lambda **_kwargs: GateHandoffReconcileSummary(),
     )
 
-    run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
+    run_builtin_chop("gate_turn_reclaim", ["--context", str(context_path)])
 
     out = capsys.readouterr().out
-    assert "gate_shell_reclaim:" in out
+    assert "gate_turn_reclaim:" in out
     assert "scanned=0" in out
-    assert "reason=no_pending_gate_shells" in out
+    assert "reason=no_pending_gate_turns" in out
     assert "gate shell reclaim progress: snapshot read" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["schema_version"] == 1
     assert result["status"] == "no_op"
-    assert result["reason"] == "no_pending_gate_shells"
+    assert result["reason"] == "no_pending_gate_turns"
     assert result["counters"] == _COUNTERS_ZERO
 
 
-def test_gate_shell_reclaim_reports_budget_exhausted_when_every_gate_was_deferred(
+def test_gate_turn_reclaim_reports_budget_exhausted_when_every_gate_was_deferred(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
+    script = importlib.import_module("sase.scripts.sase_chop_gate_turn_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
     _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
-        "reclaim_pending_gate_shells",
-        lambda **_kwargs: GateShellReclaimSummary(),
+        "reclaim_pending_gate_turns",
+        lambda **_kwargs: GateTurnReclaimSummary(),
     )
     monkeypatch.setattr(
         script,
@@ -111,7 +111,7 @@ def test_gate_shell_reclaim_reports_budget_exhausted_when_every_gate_was_deferre
         lambda **_kwargs: GateHandoffReconcileSummary(deferred=4),
     )
 
-    run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
+    run_builtin_chop("gate_turn_reclaim", ["--context", str(context_path)])
 
     captured = capsys.readouterr()
     assert "reason=budget_exhausted" in captured.out
@@ -122,19 +122,19 @@ def test_gate_shell_reclaim_reports_budget_exhausted_when_every_gate_was_deferre
     assert result["counters"] == {**_COUNTERS_ZERO, "handoff_deferred": 4}
 
 
-def test_gate_shell_reclaim_emits_action_summary(
+def test_gate_turn_reclaim_emits_action_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
+    script = importlib.import_module("sase.scripts.sase_chop_gate_turn_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
     _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
-        "reclaim_pending_gate_shells",
-        lambda **_kwargs: GateShellReclaimSummary(scanned=3, answered=1, lost=1),
+        "reclaim_pending_gate_turns",
+        lambda **_kwargs: GateTurnReclaimSummary(scanned=3, answered=1, lost=1),
     )
     monkeypatch.setattr(
         script,
@@ -142,10 +142,10 @@ def test_gate_shell_reclaim_emits_action_summary(
         lambda **_kwargs: GateHandoffReconcileSummary(),
     )
 
-    run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
+    run_builtin_chop("gate_turn_reclaim", ["--context", str(context_path)])
 
     out = capsys.readouterr().out
-    assert "gate_shell_reclaim:" in out
+    assert "gate_turn_reclaim:" in out
     assert "scanned=3" in out
     assert "answered=1" in out
     assert "lost=1" in out
@@ -162,19 +162,19 @@ def test_gate_shell_reclaim_emits_action_summary(
     }
 
 
-def test_gate_shell_reclaim_emits_accepted_unfinished_counter_and_log(
+def test_gate_turn_reclaim_emits_accepted_unfinished_counter_and_log(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
+    script = importlib.import_module("sase.scripts.sase_chop_gate_turn_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
     _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
-        "reclaim_pending_gate_shells",
-        lambda **_kwargs: GateShellReclaimSummary(scanned=2, accepted_unfinished=2),
+        "reclaim_pending_gate_turns",
+        lambda **_kwargs: GateTurnReclaimSummary(scanned=2, accepted_unfinished=2),
     )
     monkeypatch.setattr(
         script,
@@ -182,7 +182,7 @@ def test_gate_shell_reclaim_emits_accepted_unfinished_counter_and_log(
         lambda **_kwargs: GateHandoffReconcileSummary(),
     )
 
-    run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
+    run_builtin_chop("gate_turn_reclaim", ["--context", str(context_path)])
 
     out = capsys.readouterr().out
     assert "accepted_unfinished=2" in out
@@ -197,20 +197,20 @@ def test_gate_shell_reclaim_emits_accepted_unfinished_counter_and_log(
     }
 
 
-def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
+def test_gate_turn_reclaim_reports_check_error_on_reclaim_errors(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
+    script = importlib.import_module("sase.scripts.sase_chop_gate_turn_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
     detail = "lane--gate: RuntimeError: bundle exploded"
     _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
-        "reclaim_pending_gate_shells",
-        lambda **_kwargs: GateShellReclaimSummary(
+        "reclaim_pending_gate_turns",
+        lambda **_kwargs: GateTurnReclaimSummary(
             scanned=1,
             errors=1,
             error_details=(detail,),
@@ -222,10 +222,10 @@ def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
         lambda **_kwargs: GateHandoffReconcileSummary(),
     )
 
-    run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
+    run_builtin_chop("gate_turn_reclaim", ["--context", str(context_path)])
 
     captured = capsys.readouterr()
-    assert "gate_shell_reclaim:" in captured.out
+    assert "gate_turn_reclaim:" in captured.out
     assert "reason=reclaim_errors" in captured.out
     assert f"gate shell reclaim failed: {detail}" in captured.err
     result = json.loads(result_path.read_text(encoding="utf-8"))

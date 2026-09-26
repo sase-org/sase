@@ -112,9 +112,9 @@ def test_settlement_recovers_when_starter_settles_before_settlement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.shells.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
+        "sase.turns.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
     )
-    monkeypatch.setattr("sase.shells.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
+    monkeypatch.setattr("sase.turns.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
 
     starter = tmp_path / "starter"
     starter.mkdir()
@@ -177,9 +177,9 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
 ) -> None:
     """Preserves today's behavior when the starter never settles at all."""
     monkeypatch.setattr(
-        "sase.shells.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
+        "sase.turns.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
     )
-    monkeypatch.setattr("sase.shells.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
+    monkeypatch.setattr("sase.turns.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
     _init_dirty_git_worktree(tmp_path)
 
     starter = tmp_path / "starter"

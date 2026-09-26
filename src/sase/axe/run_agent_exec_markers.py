@@ -46,12 +46,12 @@ def write_done_marker_and_update_index(
     except Exception:  # noqa: BLE001 - hold cleanup must never fail settlement
         pass
     try:
-        from sase.shells.settlement import (
+        from sase.turns.settlement import (
             project_name_from_artifacts_dir,
-            touch_shell_refresh_pulse,
+            touch_turn_refresh_pulse,
         )
 
-        touch_shell_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+        touch_turn_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
     except Exception:  # noqa: BLE001 - pulse must never fail the agent run
         pass
     return done_path

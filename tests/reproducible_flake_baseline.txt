@@ -65,7 +65,7 @@ tests/test_suite_gate_scoped_integration.py::test_scoped_run_takes_no_token_whil
 # fixed-at: 2026-09-16T19:02:09Z tests/main/test_init_skills_sources.py::test_shipped_skill_source_is_discoverable_for_all_skill_providers[sase_questions-expected_phrases11]
 # sase-10p: fixed by cb1076e855 moving the known shell done writer to
 # start_runtime.py; focused shell substrate rerun passed in this branch.
-# fixed-at: 2026-09-14T12:36:46Z tests/shells/test_shells_substrate.py::test_shell_done_marker_writers_stamp_finished_at_through_shared_helper
+# fixed-at: 2026-09-14T12:36:46Z tests/turns/test_turns_substrate.py::test_turn_done_marker_writers_stamp_finished_at_through_shared_helper
 # sase-10v: fixed by 5024571a32 updating the rust-dev-install assertions for
 # both incremental cache paths; focused Justfile lint rerun passed in this
 # branch.

@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.gate_shell.log import bind_gate_shell_execution_callbacks
-from sase.gate_shell.settlement import settle_gate_shell
-from sase.gate_shell.store import read_gate_shell_marker
+from sase.gate_turn.log import bind_gate_turn_execution_callbacks
+from sase.gate_turn.settlement import settle_gate_turn
+from sase.gate_turn.store import read_gate_turn_marker
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.paths import RESPONSE_FILENAME
 
@@ -66,7 +66,7 @@ def test_full_capacity_plan_gate_answers_complete_without_waiting(
             option_ids,
             {},
             source="test",
-            **bind_gate_shell_execution_callbacks(gate_dir).as_kwargs(),
+            **bind_gate_turn_execution_callbacks(gate_dir).as_kwargs(),
         )
 
     assert (bundle_path / RESPONSE_FILENAME).is_file()
@@ -76,13 +76,13 @@ def test_full_capacity_plan_gate_answers_complete_without_waiting(
     assert "runner_claim_owner_key" not in gate_meta
     assert isinstance(gate_meta.get("pid"), int)
 
-    record = read_gate_shell_marker(MONITOR_PROJECT, gate_dir)
+    record = read_gate_turn_marker(MONITOR_PROJECT, gate_dir)
     assert record is not None
     with patch(
-        "sase.gate_shell.settlement.launch_or_record_followup",
+        "sase.gate_turn.settlement.launch_or_record_followup",
         lambda *_args, **_kwargs: None,
     ):
-        settle_gate_shell(record, gate_state="answered", reason="test answer")
+        settle_gate_turn(record, gate_state="answered", reason="test answer")
     settled = json.loads((Path(gate_dir) / "agent_meta.json").read_text())
     assert settled["gate_state"] == "answered"
     assert not (Path(gate_dir) / "waiting.json").exists()
@@ -116,7 +116,7 @@ def test_successor_after_unclaimed_gate_execution_parks_instead_of_reusing_linea
         ["reject"],
         {},
         source="test",
-        **bind_gate_shell_execution_callbacks(gate_dir).as_kwargs(),
+        **bind_gate_turn_execution_callbacks(gate_dir).as_kwargs(),
     )
 
     gate_meta = json.loads((Path(gate_dir) / "agent_meta.json").read_text())

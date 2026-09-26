@@ -283,7 +283,7 @@ def _write_monitor_done(projects_root: Path, index: int) -> None:
     project_file = projects_root / project / f"{project}.sase"
     name = "feature-monitor"
     cl_name = "feature-monitor"
-    agent_session_shell = {
+    agent_session_turn = {
         "kind": "monitor",
         "id": "mon-fixture",
         "state": "completed",
@@ -307,7 +307,7 @@ def _write_monitor_done(projects_root: Path, index: int) -> None:
         | {
             "agent_session": "feature-monitor-session",
             "agent_session_role": "monitor",
-            "agent_session_shell": agent_session_shell,
+            "agent_session_turn": agent_session_turn,
         },
     )
     _write_json(
@@ -322,7 +322,7 @@ def _write_monitor_done(projects_root: Path, index: int) -> None:
         )
         | {
             "status_label": "MONITORED",
-            "agent_session_shell": agent_session_shell,
+            "agent_session_turn": agent_session_turn,
         },
     )
 

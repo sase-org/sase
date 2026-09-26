@@ -36,15 +36,15 @@ def _read_agent_meta_associations(artifacts_dir: str) -> dict[str, str]:
     return associations
 
 
-def _touch_shell_refresh_pulse_for_artifacts_dir(artifacts_dir: str) -> None:
+def _touch_turn_refresh_pulse_for_artifacts_dir(artifacts_dir: str) -> None:
     """Nudge artifact watchers after a plan handoff marker mutation."""
     try:
-        from sase.shells.settlement import (
+        from sase.turns.settlement import (
             project_name_from_artifacts_dir,
-            touch_shell_refresh_pulse,
+            touch_turn_refresh_pulse,
         )
 
-        touch_shell_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+        touch_turn_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
     except Exception:  # noqa: BLE001 - a refresh pulse must never fail the handoff.
         pass
 
@@ -245,7 +245,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     # Pulse a file at a path the TUI inotify watcher and surface-token probe
     # both see. The marker write deeper in the artifact tree does not reliably
     # wake Agents-tab refreshes, especially for sharded ace-run layouts.
-    _touch_shell_refresh_pulse_for_artifacts_dir(artifacts_dir)
+    _touch_turn_refresh_pulse_for_artifacts_dir(artifacts_dir)
 
     # Kill the agent runner's process group (which includes the claude
     # subprocess). We cannot use our own process group because Claude Code

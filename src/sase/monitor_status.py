@@ -38,15 +38,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import cast
 
-from sase.shells.status import (
-    ShellStatusPair,
-    clamp_shell_status,
-    clamp_shell_status_or_default,
-    effective_shell_status,
-    shell_status_accent,
-    shell_status_glyph,
-    shell_status_pair,
-    shell_status_style,
+from sase.turns.status import (
+    TurnStatusPair,
+    clamp_turn_status,
+    clamp_turn_status_or_default,
+    effective_turn_status,
+    turn_status_accent,
+    turn_status_glyph,
+    turn_status_pair,
+    turn_status_style,
 )
 
 DEFAULT_MONITOR_START_STATUS = "MONITORING"
@@ -92,7 +92,7 @@ MONITOR_STATUS_ACCENTS: tuple[str, ...] = (
 
 
 @dataclass(frozen=True, slots=True)
-class MonitorStatusPair(ShellStatusPair):
+class MonitorStatusPair(TurnStatusPair):
     """Ordered ``(start, stop)`` label pair that identifies one monitor kind."""
 
 
@@ -105,7 +105,7 @@ def clamp_monitor_status(value: str) -> str:
     :class:`ValueError`: truncation handles length, not a missing or
     broken label.
     """
-    return clamp_shell_status(
+    return clamp_turn_status(
         value,
         max_chars=MONITOR_STATUS_MAX_CHARS,
         ellipsis=MONITOR_STATUS_ELLIPSIS,
@@ -119,7 +119,7 @@ def clamp_monitor_status_or_default(value: str | None, *, default: str) -> str:
     Read paths use this to project historical records that may omit a
     label, exceed the new cap, or contain junk. It never raises.
     """
-    return clamp_shell_status_or_default(
+    return clamp_turn_status_or_default(
         value,
         default=default,
         max_chars=MONITOR_STATUS_MAX_CHARS,
@@ -136,7 +136,7 @@ def monitor_status_pair(start: str | None, stop: str | None) -> MonitorStatusPai
     """
     return cast(
         MonitorStatusPair,
-        shell_status_pair(
+        turn_status_pair(
             start,
             stop,
             default_start=DEFAULT_MONITOR_START_STATUS,
@@ -151,7 +151,7 @@ def monitor_status_pair(start: str | None, stop: str | None) -> MonitorStatusPai
 
 def monitor_status_accent(pair: MonitorStatusPair) -> str:
     """Return the deterministic hex accent for ``pair``."""
-    return shell_status_accent(pair, accents=MONITOR_STATUS_ACCENTS)
+    return turn_status_accent(pair, accents=MONITOR_STATUS_ACCENTS)
 
 
 def monitor_status_style(pair: MonitorStatusPair, *, monitor_state: str | None) -> str:
@@ -162,7 +162,7 @@ def monitor_status_style(pair: MonitorStatusPair, *, monitor_state: str | None) 
     ``running`` and any unknown or missing state are bold accent; a
     clean settlement (``completed`` / ``stopped``) is the bare accent.
     """
-    return shell_status_style(
+    return turn_status_style(
         pair,
         shell_state=monitor_state,
         accents=MONITOR_STATUS_ACCENTS,
@@ -174,7 +174,7 @@ def monitor_status_style(pair: MonitorStatusPair, *, monitor_state: str | None) 
 
 def monitor_status_glyph(monitor_state: str | None) -> str:
     """Return the outcome glyph for ``monitor_state``, or ``""`` if none."""
-    return shell_status_glyph(monitor_state, glyphs=_MONITOR_STATUS_GLYPHS)
+    return turn_status_glyph(monitor_state, glyphs=_MONITOR_STATUS_GLYPHS)
 
 
 def effective_monitor_status(
@@ -189,7 +189,7 @@ def effective_monitor_status(
     project to ``pair.stop``; anything still live projects to
     ``pair.start``.
     """
-    return effective_shell_status(
+    return effective_turn_status(
         pair,
         shell_state=monitor_state,
         settled=settled,

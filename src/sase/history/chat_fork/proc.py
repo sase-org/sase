@@ -1,4 +1,4 @@
-"""Formatting for proc-shell and monitor fork sources."""
+"""Formatting for named-proc and monitor fork sources."""
 
 from collections.abc import Mapping
 

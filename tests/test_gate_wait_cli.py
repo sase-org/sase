@@ -262,7 +262,7 @@ def test_agent_gate_wait_refuses_shell_gate(
     # The wait surface needs a shell-backed gate; the row is irrelevant to
     # what it asserts, so mark the spec the way the production transaction
     # does to accept the setup.
-    create_gate(replace(GateSpec.from_mapping(raw), shell_row_managed=True))
+    create_gate(replace(GateSpec.from_mapping(raw), turn_row_managed=True))
     monkeypatch.setenv("SASE_AGENT", "1")
 
     parser = argparse.ArgumentParser(prog="sase")

@@ -60,7 +60,7 @@ from sase.monitor.no_new_receipt import (
     verify_no_new_receipt,
 )
 from sase.monitor.output import OutputCapture
-from sase.shells.followup import FollowupLaunchResult
+from sase.turns.followup import FollowupLaunchResult
 
 DEFAULT_RECOVERY_ACTION = (
     "Diagnose failures or stale verification, then finish the requested change."

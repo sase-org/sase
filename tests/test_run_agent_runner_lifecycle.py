@@ -16,7 +16,7 @@ from sase.axe.run_agent_runner_lifecycle import (
     finalize_runner_shutdown,
     _should_hold_workspace,
 )
-from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
+from sase.gate_turn.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.running_field import ClaimResult, WorkspaceClaim
 from sase.workspace_provider.occupant import (
     new_occupant_record,

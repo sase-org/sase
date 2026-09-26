@@ -14,7 +14,7 @@ either shape and always returns the current, nested representation. On-disk
 marker files (``agent_meta.json`` / ``done.json``) still carry the flat
 ``monitor_*`` / ``gate_*`` keys — many writers depend on that shape and this
 module does not change it — so the two direct on-disk readers
-(``sase.gate_shell.store`` and ``sase.monitor.store``) and the wire's own
+(``sase.gate_turn.store`` and ``sase.monitor.store``) and the wire's own
 JSON conversion helpers all route through this one function instead of each
 re-deriving the flat-to-nested projection.
 """
@@ -32,7 +32,7 @@ from sase.plan_chain import agent_session_role_value, agent_session_turn_value
 #: imported directly to avoid a dependency cycle with this low-level module.
 _MONITOR_AGENT_SESSION_ROLE = "monitor"
 
-#: Mirrors ``sase.gate_shell.state.GATE_AGENT_SESSION_ROLE`` (see above).
+#: Mirrors ``sase.gate_turn.state.GATE_AGENT_SESSION_ROLE`` (see above).
 _GATE_AGENT_SESSION_ROLE = "gate"
 
 
@@ -310,29 +310,9 @@ def agent_session_turn_from_mapping(
     return _agent_session_turn_from_flat_keys(data)
 
 
-# Deprecated aliases kept for importers not yet moved to the turn spelling.
-AgentSessionShellWire = AgentSessionTurnWire
-AgentSessionShellMonitorWire = AgentSessionTurnMonitorWire
-AgentSessionShellGateWire = AgentSessionTurnGateWire
-_agent_session_shell_from_flat_keys = _agent_session_turn_from_flat_keys
-_agent_session_shell_from_nested_dict = _agent_session_turn_from_nested_dict
-
-
-def agent_session_shell_from_mapping(
-    data: Mapping[str, Any],
-) -> AgentSessionTurnWire | None:
-    """Deprecated alias for :func:`agent_session_turn_from_mapping`."""
-
-    return agent_session_turn_from_mapping(data)
-
-
 __all__ = [
-    "AgentSessionShellGateWire",
-    "AgentSessionShellMonitorWire",
-    "AgentSessionShellWire",
     "AgentSessionTurnGateWire",
     "AgentSessionTurnMonitorWire",
     "AgentSessionTurnWire",
-    "agent_session_shell_from_mapping",
     "agent_session_turn_from_mapping",
 ]

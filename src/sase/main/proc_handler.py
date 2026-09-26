@@ -23,12 +23,12 @@ from sase.procs import (
     Proc,
     ProcControlError,
     ProcRefError,
-    ProcShellNameError,
+    NamedProcNameError,
     ProcSubmitError,
     get_proc,
     infer_proc_attribution,
     kill_proc,
-    proc_shell_name_keys,
+    proc_name_keys,
     read_proc_log_tail,
     read_procs,
     reconcile_running_procs,
@@ -186,11 +186,23 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
             "origin": "cli",
             "session_id": session_id,
         }
-        shell_name = getattr(args, "shell", None)
-        if shell_name:
-            submit_kwargs["shell_name"] = shell_name
+        from sase.agent.legacy_sase_shell_syntax import normalize_proc_name_args
+
+        try:
+            _normalized_name = normalize_proc_name_args(
+                {
+                    "name": getattr(args, "name", None),
+                    "shell": getattr(args, "shell", None),
+                }
+            )
+        except ValueError as exc:
+            print(f"sase proc run: {exc}", file=sys.stderr)
+            return 2
+        proc_name = _normalized_name.get("name", None)
+        if proc_name:
+            submit_kwargs["proc_name"] = proc_name
         proc = submit_proc(command, **submit_kwargs)
-    except ProcShellNameError as exc:
+    except NamedProcNameError as exc:
         print(f"sase proc run: {exc}", file=sys.stderr)
         return 2
     except ProcSubmitError as exc:
@@ -209,7 +221,7 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
     elif not wait:
         # Waiting prints the proc's own output instead: keep stdout clean.
         print(proc.proc_id)
-        follow_ref = proc.shell_name or short_proc_id(proc.proc_id)
+        follow_ref = proc.proc_name or short_proc_id(proc.proc_id)
         print(f"monitor with: sase proc show {follow_ref} --follow")
 
     if not wait:
@@ -470,10 +482,22 @@ def _requested_statuses(args: argparse.Namespace) -> set[str] | None:
 
 
 def _requested_shell_names(args: argparse.Namespace) -> set[str] | None:
-    raw = getattr(args, "shell", None)
+    from sase.agent.legacy_sase_shell_syntax import normalize_proc_name_args
+
+    try:
+        normalized = normalize_proc_name_args(
+            {
+                "name": getattr(args, "name", None),
+                "shell": getattr(args, "shell", None),
+            }
+        )
+    except ValueError as exc:
+        print(f"sase proc list: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
+    raw = normalized.get("name", None)
     if not raw:
         return None
-    return set(proc_shell_name_keys(raw))
+    return set(proc_name_keys(raw))
 
 
 def _is_runtime_submit_error(exc: ProcSubmitError) -> bool:

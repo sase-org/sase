@@ -216,7 +216,7 @@ def _gate_followup_coder(entry: dict[str, object], project: str) -> str | None:
     raw_suffix = action_data.get("raw_suffix")
     if isinstance(raw_suffix, str) and raw_suffix.strip():
         try:
-            shell_dir = _gate_shell_dir(project, raw_suffix.strip())
+            shell_dir = _gate_turn_dir(project, raw_suffix.strip())
             meta = _read_agent_meta_file(shell_dir)
             if meta is not None and (
                 gate_id is None or meta.get("gate_notification_id") == gate_id
@@ -233,15 +233,15 @@ def _gate_followup_coder(entry: dict[str, object], project: str) -> str | None:
             agent_name = value.strip()
             break
     if agent_name:
-        gate_shell = f"{agent_name}--gate"
-        if _registered_coder_matches_gate(gate_shell, gate_id):
-            return gate_shell
+        gate_turn = f"{agent_name}--gate"
+        if _registered_coder_matches_gate(gate_turn, gate_id):
+            return gate_turn
         if _is_coder_registered(f"{agent_name}--code"):
             return f"{agent_name}--code"
     return None
 
 
-def _gate_shell_dir(project: str, raw_suffix: str) -> Path:
+def _gate_turn_dir(project: str, raw_suffix: str) -> Path:
     from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 
     return resolve_agent_artifact_timestamp_path(project, "ace-run", raw_suffix)

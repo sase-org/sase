@@ -306,10 +306,10 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
     assert proc["unattributed"] is True
     assert proc["duration_seconds"] == 5.0
     assert proc["session_handle"] is None
-    assert proc["named_proc_shell"] is None
+    assert proc["named_named_proc"] is None
 
 
-def test_list_filters_by_named_proc_shell_and_shows_historical_names(
+def test_list_filters_by_named_named_proc_and_shows_historical_names(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:

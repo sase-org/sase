@@ -126,7 +126,7 @@ def _format_agent_session_member(
         return f"{heading}\n\n{format_proc_body(proc, name=name, heading_level=4)}"
 
     if member.get("kind") == "gate":
-        return _format_gate_shell_member(
+        return _format_gate_turn_member(
             member,
             name=name,
             index=index,
@@ -172,7 +172,7 @@ def _format_agent_session_member(
     return f"### Member {index} of {count} — agent `{name}`\n\n{metadata}\n\n{history}"
 
 
-def _format_gate_shell_member(
+def _format_gate_turn_member(
     member: Mapping[str, object],
     *,
     name: str,

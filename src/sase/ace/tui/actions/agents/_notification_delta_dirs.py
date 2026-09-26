@@ -159,7 +159,7 @@ def pending_gate_notification_delta_dirs(
     from ``prepare_pending_gate_notification_refresh`` on the notification-poll
     worker; ``request_notification_agents_refresh`` consumes that result rather
     than re-resolving on the event loop. Does not call
-    ``find_gate_shell_by_gate_id``; the indexed legacy fallback lives in the
+    ``find_gate_turn_by_gate_id``; the indexed legacy fallback lives in the
     caller.
     """
     if not pending:
@@ -231,7 +231,7 @@ def prepare_pending_gate_notification_refresh(
 
     Stamped ``raw_suffix`` rows resolve from action_data and the roster. Legacy
     in-flight notifications without the new keys fall back to the indexed
-    ``find_gate_shell_by_gate_id`` lookup.
+    ``find_gate_turn_by_gate_id`` lookup.
     """
     pending = [
         notification
@@ -249,9 +249,9 @@ def prepare_pending_gate_notification_refresh(
         gate_id = str(notification.action_data.get("request_id") or "").strip()
         if not gate_id:
             continue
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
 
-        record = find_gate_shell_by_gate_id(None, gate_id)
+        record = find_gate_turn_by_gate_id(None, gate_id)
         artifacts_dir = getattr(record, "artifacts_dir", None) if record else None
         if not artifacts_dir:
             continue

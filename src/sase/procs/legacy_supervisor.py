@@ -3,7 +3,7 @@
 New submissions use :mod:`sase.procs.supervisor`. This module remains so a
 legacy ``command``/``detached`` row whose supervisor was launched with
 ``python -m sase.procs.legacy_supervisor`` can still finish through
-``update_proc`` rather than the proc-shell settlement path.
+``update_proc`` rather than the named-proc settlement path.
 """
 
 from __future__ import annotations

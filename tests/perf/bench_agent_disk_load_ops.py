@@ -40,8 +40,8 @@ from sase.core.agent_scan_wire import (  # noqa: E402
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
-    AgentSessionShellMonitorWire,
-    AgentSessionShellWire,
+    AgentSessionTurnMonitorWire,
+    AgentSessionTurnWire,
 )
 
 
@@ -244,13 +244,13 @@ def _monitor_record(projects_root: Path, index: int) -> AgentArtifactRecordWire:
             cl_name=f"lane-{index}",
             agent_session=f"lane-{index}",
             agent_session_role="monitor",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 id=monitor_id,
                 start_status="MONITORING",
                 stop_status="MONITORED",
                 state="completed",
-                monitor=AgentSessionShellMonitorWire(
+                monitor=AgentSessionTurnMonitorWire(
                     command="sleep 60",
                     cwd=str(project_dir),
                     settled=True,
@@ -262,7 +262,7 @@ def _monitor_record(projects_root: Path, index: int) -> AgentArtifactRecordWire:
             outcome="completed",
             cl_name=f"lane-{index}",
             name=name,
-            agent_session_turn=AgentSessionShellWire(kind="monitor", state="completed"),
+            agent_session_turn=AgentSessionTurnWire(kind="monitor", state="completed"),
             status_label="MONITORED",
         ),
         has_done_marker=True,

@@ -11,12 +11,12 @@ from sase.continuation_capture.rollout import (
     monitor_continuation_records_enabled_for_meta,
 )
 from sase.running_field import release_workspace
-from sase.shells.settlement import (
-    ShellSettlementConfig,
-    finalize_shell_workflow_state,
+from sase.turns.settlement import (
+    TurnSettlementConfig,
+    finalize_turn_workflow_state,
     project_name_from_artifacts_dir as shell_project_name_from_artifacts_dir,
-    settle_shell_claim_and_followup,
-    touch_shell_refresh_pulse,
+    settle_turn_claim_and_followup,
+    touch_turn_refresh_pulse,
 )
 
 from .followup import FollowupLaunchResult, launch_followup_agent
@@ -31,7 +31,7 @@ LOST_FOLLOWUP_ERROR = (
 
 FollowupLauncher = Callable[..., bool | FollowupLaunchResult]
 
-_MONITOR_SETTLEMENT_CONFIG = ShellSettlementConfig(
+_MONITOR_SETTLEMENT_CONFIG = TurnSettlementConfig(
     next_action_field="monitor_next_action",
     agent_field="monitor_followup_agent",
     outcome_field="monitor_followup_outcome",
@@ -81,7 +81,7 @@ def settle_claim_and_followup(
         return captured_launch_result
 
     if not monitor_continuation_records_enabled_for_meta(meta):
-        error = settle_shell_claim_and_followup(
+        error = settle_turn_claim_and_followup(
             artifacts_dir,
             meta,
             shell_state=monitor_state,
@@ -182,7 +182,7 @@ def settle_claim_and_followup(
     elif monitor_state not in ("stopped", "lost"):
         meta.pop(_MONITOR_SETTLEMENT_CONFIG.next_action_field, None)
 
-    error = settle_shell_claim_and_followup(
+    error = settle_turn_claim_and_followup(
         artifacts_dir,
         meta,
         shell_state=monitor_state,
@@ -279,12 +279,12 @@ def _release_monitor_claim(
 
 def touch_monitor_refresh_pulse(project_name: str | None) -> None:
     """Nudge artifact watchers after monitor metadata changes."""
-    touch_shell_refresh_pulse(project_name)
+    touch_turn_refresh_pulse(project_name)
 
 
 def finalize_monitor_workflow_state(artifacts_dir: str) -> None:
     """Rewrite a settled monitor member's workflow_state.json to terminal."""
-    finalize_shell_workflow_state(artifacts_dir)
+    finalize_turn_workflow_state(artifacts_dir)
 
 
 def project_name_from_artifacts_dir(artifacts_dir: str) -> str | None:

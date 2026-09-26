@@ -367,15 +367,15 @@ def _publish_shell_terminal_before_epic_launch(
     ):
         return
     try:
-        from sase.gate_shell.settlement import publish_gate_shell_terminal_state
-        from sase.gate_shell.store import find_gate_shell_by_gate_id
+        from sase.gate_turn.settlement import publish_gate_turn_terminal_state
+        from sase.gate_turn.store import find_gate_turn_by_gate_id
 
-        record = find_gate_shell_by_gate_id(
+        record = find_gate_turn_by_gate_id(
             None, str(envelope.get("request_id") or bundle_path.name)
         )
         if record is None:
             return
-        publish_gate_shell_terminal_state(
+        publish_gate_turn_terminal_state(
             record,
             gate_state="answered",
             reason="gate answered",

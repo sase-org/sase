@@ -1,4 +1,4 @@
-"""Tests for monitor agent-session members as typed proc-shell ``#fork`` sources."""
+"""Tests for monitor agent-session members as typed named-proc ``#fork`` sources."""
 
 from __future__ import annotations
 

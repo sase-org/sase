@@ -29,6 +29,7 @@ class FeatureFlag(StrEnum):
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     card_blocks = "card_blocks"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
+    legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
     monitor_continuation_records = "monitor_continuation_records"
     muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
@@ -97,6 +98,19 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "removes sase-core's hidden `family` %id keyword alias."
         ),
         bead="sase-18l",
+    ),
+    FeatureFlag.legacy_sase_shell_syntax: FeatureFlagDefinition(
+        key=FeatureFlag.legacy_sase_shell_syntax,
+        kind="sunset",
+        description=(
+            "SASE silently accepts the retired sase-shell spellings as aliases "
+            "of their sase-turn replacements: `sase gate create --shell`, "
+            "`--shell-status`, `--shell-stop-status`, and `--next-fork shell`; "
+            'a gate spec\'s `"shell"` block, `"fork": "shell"`, and '
+            '`"continuation_mode": "gate_turn"`; `sase proc list/run --shell`; '
+            "and the `gate.shell.reclaim_grace_seconds` config key."
+        ),
+        bead="sase-1ar",
     ),
     FeatureFlag.bgcmd_legacy_slots: FeatureFlagDefinition(
         key=FeatureFlag.bgcmd_legacy_slots,

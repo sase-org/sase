@@ -11,7 +11,7 @@ from rich.cells import cell_len
 
 from sase.procs import (
     ACTIVE_PROC_STATUSES,
-    PROC_LIFECYCLE_PROC_SHELL,
+    PROC_LIFECYCLE_NAMED_PROC,
     XPROMPT_PROC_ORIGIN,
     short_proc_id,
 )
@@ -95,7 +95,7 @@ def proc_shell_agent_signature(
 
 def _is_standalone_xprompt_row(row: ObservedProc) -> bool:
     return (
-        row.lifecycle == PROC_LIFECYCLE_PROC_SHELL and row.origin == XPROMPT_PROC_ORIGIN
+        row.lifecycle == PROC_LIFECYCLE_NAMED_PROC and row.origin == XPROMPT_PROC_ORIGIN
     )
 
 
@@ -105,7 +105,7 @@ def _observed_proc_to_agent(row: ObservedProc) -> Agent:
     label = _explicit_proc_label(row, meta)
     shell_name = row.shell_name or short_proc_id(row.proc_id)
     agent = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name=project_key,
         project_file="",
         status=_display_status_value(row.status),

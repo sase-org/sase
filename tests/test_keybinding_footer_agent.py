@@ -23,13 +23,13 @@ def _make_agent(
     )
 
 
-def _make_proc_shell(
+def _make_named_proc(
     status: str = "RUNNING",
     proc_status: str = "running",
 ) -> Agent:
     """Create a projected proc shell for binding tests."""
     return Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status=status,
@@ -76,10 +76,10 @@ def test_keybinding_footer_agent_bindings_running_agent() -> None:
     assert (footer._kd("agents_retry"), "retry") in bindings
 
 
-def test_keybinding_footer_agent_bindings_running_proc_shell() -> None:
+def test_keybinding_footer_agent_bindings_running_named_proc() -> None:
     """Active proc shells expose native kill but not agent-only actions."""
     footer = KeybindingFooter()
-    agent = _make_proc_shell()
+    agent = _make_named_proc()
 
     bindings = footer._compute_agent_bindings(agent)
 
@@ -90,10 +90,10 @@ def test_keybinding_footer_agent_bindings_running_proc_shell() -> None:
     assert ("W", "wait for tribe") not in bindings
 
 
-def test_keybinding_footer_agent_bindings_terminal_proc_shell() -> None:
+def test_keybinding_footer_agent_bindings_terminal_named_proc() -> None:
     """Terminal proc shells are visible history rows, not agent controls."""
     footer = KeybindingFooter()
-    agent = _make_proc_shell(status="DONE", proc_status="success")
+    agent = _make_named_proc(status="DONE", proc_status="success")
 
     bindings = footer._compute_agent_bindings(agent)
 

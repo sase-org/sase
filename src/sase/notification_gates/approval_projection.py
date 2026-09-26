@@ -105,7 +105,7 @@ def project_accepted_decision(
                 },
             )
         if label is not None:
-            _write_gate_shell_projection(
+            _write_gate_turn_projection(
                 envelope,
                 {"gate_start_status": label},
             )
@@ -138,7 +138,7 @@ def project_plan_committed(
         if resolved_action == _COMMIT_ACTION:
             fields["plan_approved"] = True
             fields["plan_action"] = _COMMIT_ACTION
-            _write_gate_shell_projection(
+            _write_gate_turn_projection(
                 resolved,
                 {"gate_start_status": PLAN_COMMITTED_STATUS},
             )
@@ -171,7 +171,7 @@ def project_execution_failure(
                 "plan_committed": False,
             },
         )
-        _write_gate_shell_projection(
+        _write_gate_turn_projection(
             resolved,
             {"gate_start_status": label, "gate_stop_status": label},
         )
@@ -274,12 +274,12 @@ def _write_planner_projection(
     _patch_agent_meta(artifacts_dir, fields)
 
 
-def _write_gate_shell_projection(
+def _write_gate_turn_projection(
     envelope: Mapping[str, Any],
     fields: Mapping[str, Any],
 ) -> None:
     from sase.axe.run_agent_helpers_artifacts import update_meta_fields
-    from sase.gate_shell.store import find_gate_shell_by_gate_id
+    from sase.gate_turn.store import find_gate_turn_by_gate_id
 
     if not (
         isinstance(envelope.get("turn"), dict)
@@ -289,7 +289,7 @@ def _write_gate_shell_projection(
     gate_id = str(envelope.get("request_id") or "")
     if not gate_id:
         return
-    record = find_gate_shell_by_gate_id(None, gate_id)
+    record = find_gate_turn_by_gate_id(None, gate_id)
     if record is None:
         return
     update_meta_fields(record.artifacts_dir, dict(fields))

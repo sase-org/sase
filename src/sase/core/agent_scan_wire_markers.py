@@ -119,7 +119,7 @@ class DoneMarkerWire:
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:
-        """Deprecated alias for :attr:`agent_session_turn`."""
+        """Deprecated alias for :attr:`agent_session_turn` (legacy sase-shell spelling)."""
 
         return self.agent_session_turn
 
@@ -239,7 +239,7 @@ class AgentMetaWire:
 
     @property
     def agent_session_shell(self) -> AgentSessionTurnWire | None:
-        """Deprecated alias for :attr:`agent_session_turn`."""
+        """Deprecated alias for :attr:`agent_session_turn` (legacy sase-shell spelling)."""
 
         return self.agent_session_turn
 

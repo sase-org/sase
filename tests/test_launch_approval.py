@@ -19,7 +19,7 @@ from sase.agent.launch_request import (
 from sase.agent.launch_request_followup import launch_next_action
 from sase.agent.launch_request_types import LaunchRequestError
 from sase.agent.launch_types import AgentLaunchResult
-from sase.gate_shell.followup_policy import resolve_gate_branch_presentation
+from sase.gate_turn.followup_policy import resolve_gate_branch_presentation
 from sase.launch_approval_actions import (
     _LaunchApprovalActionContext,
     LaunchApprovalActionError,
@@ -135,7 +135,7 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
 
         def to_dict(self) -> dict[str, Any]:
             payload = self.gate.to_dict()
-            payload["gate_shell"] = {
+            payload["gate_turn"] = {
                 "gate_id": self.gate.request_id,
                 "member_agent_name": "agent--gate",
                 "artifacts_dir": str(tmp_path / "agent--gate"),
@@ -144,11 +144,11 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
             }
             return payload
 
-    def fake_create_gate_shell(spec: dict[str, Any]) -> _Creation:
+    def fake_create_gate_turn(spec: dict[str, Any]) -> _Creation:
         captured["spec"] = spec
         return _Creation(spec)
 
-    monkeypatch.setattr("sase.gate_shell.create_gate_shell", fake_create_gate_shell)
+    monkeypatch.setattr("sase.gate_turn.create_gate_turn", fake_create_gate_turn)
 
     result = create_launch_approval_request(
         {
@@ -159,8 +159,8 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
         }
     )
 
-    assert result.gate_shell_creation is not None
-    assert result.to_dict()["gate_shell"]["workspace_policy"] == "inherit"
+    assert result.gate_turn_creation is not None
+    assert result.to_dict()["gate_turn"]["workspace_policy"] == "inherit"
     envelope = json.loads(result.request_path.read_text(encoding="utf-8"))
     continuation = envelope["payload"]["requester_continuation"]
     assert continuation["mode"] == "resume_requester"
@@ -263,7 +263,7 @@ def test_launch_followup_next_action_reports_dispatch_failure() -> None:
     assert "sase-demo.1" in text
 
 
-def test_neutral_launch_shell_response_settles_gate_shell(
+def test_neutral_launch_shell_response_settles_gate_turn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -281,7 +281,7 @@ def test_neutral_launch_shell_response_settles_gate_shell(
             return self.gate.to_dict()
 
     monkeypatch.setattr(
-        "sase.gate_shell.create_gate_shell",
+        "sase.gate_turn.create_gate_turn",
         lambda spec: _Creation(spec),
     )
     request = create_launch_approval_request(
@@ -305,15 +305,15 @@ def test_neutral_launch_shell_response_settles_gate_shell(
     settled: dict[str, Any] = {}
 
     monkeypatch.setattr(
-        "sase.gate_shell.store.find_gate_shell_by_gate_id",
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
         lambda project, gate_id: fake_record,
     )
     monkeypatch.setattr(
-        "sase.gate_shell.log.bind_gate_shell_execution_callbacks",
+        "sase.gate_turn.log.bind_gate_turn_execution_callbacks",
         lambda artifacts_dir: SimpleNamespace(as_kwargs=lambda: {}),
     )
     monkeypatch.setattr(
-        "sase.gate_shell.settlement.settle_gate_shell",
+        "sase.gate_turn.settlement.settle_gate_turn",
         lambda record, **kwargs: settled.update(kwargs) or record,
     )
 

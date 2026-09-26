@@ -139,7 +139,7 @@ class CleanupProcMixin:
                 {
                     suffix
                     for agent_type, _cl_name, suffix in identities
-                    if agent_type == AgentType.PROC_SHELL and isinstance(suffix, str)
+                    if agent_type == AgentType.NAMED_PROC and isinstance(suffix, str)
                 }
             )
 

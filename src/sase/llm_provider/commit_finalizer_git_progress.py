@@ -497,10 +497,8 @@ def _names_match(recorded_agent: str, agent_name: str) -> bool:
 def _sase_agent_of(name: str) -> str:
     try:
         from sase.core.agent_identity_facade import AgentIdentitySnapshot
-        from sase.sase_agent import sase_agent_ref_for_shell
+        from sase.sase_agent import sase_agent_ref_for_turn
 
-        return sase_agent_ref_for_shell(
-            name, AgentIdentitySnapshot.current()
-        ).local_name
+        return sase_agent_ref_for_turn(name, AgentIdentitySnapshot.current()).local_name
     except Exception:
         return name

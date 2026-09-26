@@ -14,8 +14,8 @@ from rich.console import Console
 from rich.table import Table
 
 from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
-from sase.gate_shell.models import GateShellRecord
-from sase.gate_shell.status import effective_gate_status, gate_status_pair
+from sase.gate_turn.models import GateTurnRecord
+from sase.gate_turn.status import effective_gate_status, gate_status_pair
 from sase.notification_gates.cli_support import emit_json, resolve_gate_cli_bundle
 from sase.notification_gates.executor import execute_gate_selection, has_controlling_tty
 from sase.notification_gates.models import GateError
@@ -186,13 +186,13 @@ def _request(args: argparse.Namespace) -> int:
                 else None
             ),
         )
-        from sase.gate_shell import (
-            create_gate_shell,
+        from sase.gate_turn import (
+            create_gate_turn,
             maybe_handoff_gate_from_agent,
             will_handoff_gate_to_agent_runner,
         )
 
-        creation = create_gate_shell(spec)
+        creation = create_gate_turn(spec)
     except Exception:
         clear_gate_intent()
         raise
@@ -492,20 +492,20 @@ def _execution_fields(gate_id: str) -> dict[str, Any]:
     }
 
 
-def _shell_payload(row: GateShellRecord) -> dict[str, Any]:
+def _shell_payload(row: GateTurnRecord) -> dict[str, Any]:
     payload = {
         "gate_id": row.gate_id,
         "member_agent_name": row.member_agent_name,
         "project_name": row.project_name,
         "state": row.gate_state,
-        "status": _shell_status_label(row),
+        "status": _turn_status_label(row),
         "reason": row.reason,
     }
     payload.update(_execution_fields(row.gate_id))
     return payload
 
 
-def _shell_status_label(row: GateShellRecord) -> str:
+def _turn_status_label(row: GateTurnRecord) -> str:
     pair = gate_status_pair(row.start_status, row.stop_status)
     return effective_gate_status(
         pair,
@@ -521,7 +521,7 @@ def _print_execution(sudo: Mapping[str, Any]) -> None:
     print(f"Executing in background proc {proc_id}")
 
 
-def _print_list(rows: list[GateShellRecord]) -> None:
+def _print_list(rows: list[GateTurnRecord]) -> None:
     table = Table(title="Sudo Gates")
     table.add_column("ID")
     table.add_column("State")
@@ -537,7 +537,7 @@ def _print_list(rows: list[GateShellRecord]) -> None:
         table.add_row(
             row.gate_id,
             row.gate_state,
-            _shell_status_label(row),
+            _turn_status_label(row),
             exec_label,
             row.member_agent_name,
             row.reason,

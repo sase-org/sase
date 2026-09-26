@@ -135,17 +135,17 @@ def monitor_candidates(project: str | None) -> list[Candidate]:
         if not isinstance(meta, Mapping):
             continue
         shell = agent_session_turn_value(meta)
-        monitor_shell = (
+        monitor_turn = (
             shell
             if isinstance(shell, Mapping) and shell.get("kind") == "monitor"
             else None
         )
-        if agent_session_role_value(meta) != "monitor" or monitor_shell is None:
+        if agent_session_role_value(meta) != "monitor" or monitor_turn is None:
             continue
-        monitor_id = str(monitor_shell.get("id") or "")
+        monitor_id = str(monitor_turn.get("id") or "")
         if not monitor_id:
             continue
-        description = str(monitor_shell.get("label") or meta.get("name") or "")
+        description = str(monitor_turn.get("label") or meta.get("name") or "")
         candidates.append(Candidate(monitor_id, description))
     return dedupe(candidates)
 

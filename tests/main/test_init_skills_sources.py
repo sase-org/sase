@@ -264,7 +264,7 @@ def _disable_prettier_for_skill_generation(
             "sase_run",
             (
                 "sase launch request",
-                '"gate_shell"',
+                '"gate_turn"',
                 '"state": "pending"',
                 "does not return a terminal approval outcome",
                 "%i(reviewer, session=parent)",

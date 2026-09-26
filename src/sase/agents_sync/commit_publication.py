@@ -40,7 +40,7 @@ from sase.core.agent_identity_facade import (
     normalize_owned_agent_name,
 )
 from sase.repo_inventory import collect_repo_inventory
-from sase.sase_agent import sase_agent_ref_for_shell
+from sase.sase_agent import sase_agent_ref_for_turn
 from sase.sdd.plan_header_refresh import (
     PlanHeaderRefreshOutcome,
     refresh_committed_plan_header,
@@ -186,7 +186,7 @@ def _enqueue_committed_agent_publication(
     # publication scope is unchanged either way -- it was already whole-hood,
     # and a member and its sase agent share a hood -- but the recorded identity
     # flows into the request's logical key and notification subject.
-    agent_ref = sase_agent_ref_for_shell(normalized, identity)
+    agent_ref = sase_agent_ref_for_turn(normalized, identity)
     item = AgentPublicationOutboxItem(
         project_key=target.project_key,
         project=target.project,

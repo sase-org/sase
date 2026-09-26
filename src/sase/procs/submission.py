@@ -29,9 +29,7 @@ from .models import (
 )
 from .names import (
     NamedProcNameError,
-    ProcShellNameError,
     qualify_named_proc_name,
-    qualify_proc_shell_name,
 )
 from .request import (
     ProcSubmitRequest,
@@ -44,7 +42,7 @@ from .runtime import (
     proc_request_sidecar_path,
     write_json_atomic,
 )
-from .settlement import is_named_proc_row, is_proc_shell_row, settle_proc_shell
+from .settlement import is_named_proc_row, settle_named_proc
 from .spawn import (
     DetachedSupervisor,
     SupervisorSpawnError,
@@ -165,7 +163,7 @@ def submit_proc_request(
     )
 
 
-def stop_proc_shell(proc: Proc, *, requested_by: str | None = None) -> Proc:
+def stop_named_proc(proc: Proc, *, requested_by: str | None = None) -> Proc:
     """Record stop intent, signal the supervisor, and wait for settlement."""
     if proc.status in TERMINAL_PROC_STATUSES:
         return proc
@@ -179,14 +177,14 @@ def stop_proc_shell(proc: Proc, *, requested_by: str | None = None) -> Proc:
     )
     current = get_proc(proc.proc_id) or proc
     if supervisor_from_previous_boot(current.supervisor_id):
-        return _reconcile_proc_shell(current)
+        return _reconcile_named_proc(current)
     if not supervisor_is_alive(current.pid, current.supervisor_id):
-        return _reconcile_proc_shell(current)
+        return _reconcile_named_proc(current)
     assert current.pid is not None
     try:
         os.kill(current.pid, signal.SIGTERM)
     except ProcessLookupError:
-        return _reconcile_proc_shell(current)
+        return _reconcile_named_proc(current)
     except PermissionError as exc:
         raise ProcControlError(
             f"permission denied killing proc {current.proc_id}"
@@ -198,35 +196,35 @@ def stop_proc_shell(proc: Proc, *, requested_by: str | None = None) -> Proc:
         DetachedSupervisor(pid=current.pid, identity=current.supervisor_id)
     )
     finished = _wait_for_terminal(current.proc_id, timeout=2.0)
-    return finished or _reconcile_proc_shell(get_proc(current.proc_id) or current)
+    return finished or _reconcile_named_proc(get_proc(current.proc_id) or current)
 
 
-def reconcile_proc_shells(
+def reconcile_named_procs(
     *,
     match: Callable[[Proc], bool] | None = None,
 ) -> list[Proc]:
-    """Resume or finish proc-shell rows whose supervisor is gone.
+    """Resume or finish named-proc rows whose supervisor is gone.
 
     When *match* is given, only rows it accepts are reconciled; the rest
     are left untouched.
     """
     reconciled: list[Proc] = []
     for proc in read_procs(status=ACTIVE_PROC_STATUSES):
-        if not is_proc_shell_row(proc) or not _should_reconcile(proc):
+        if not is_named_proc_row(proc) or not _should_reconcile(proc):
             continue
         if match is not None and not match(proc):
             continue
         current = get_proc(proc.proc_id)
         if current is None or current.status not in ACTIVE_PROC_STATUSES:
             continue
-        finished = _reconcile_proc_shell(current)
+        finished = _reconcile_named_proc(current)
         if finished.status in TERMINAL_PROC_STATUSES:
             reconciled.append(finished)
     return reconciled
 
 
-def _reconcile_proc_shell(proc: Proc) -> Proc:
-    """Settle one active proc-shell after loss, reboot, or a crash boundary."""
+def _reconcile_named_proc(proc: Proc) -> Proc:
+    """Settle one active named-proc after loss, reboot, or a crash boundary."""
     current = get_proc(proc.proc_id) or proc
     if current.status in TERMINAL_PROC_STATUSES:
         return current
@@ -249,7 +247,7 @@ def _reconcile_proc_shell(proc: Proc) -> Proc:
     owner = (
         current.supervisor_id or f"reconcile-{supervisor_identity_token(os.getpid())}"
     )
-    return settle_proc_shell(
+    return settle_named_proc(
         current.proc_id,
         supervisor_id=owner,
         status=status,
@@ -270,7 +268,7 @@ def _launch_reserved(
         supervisor = spawn_detached_supervisor(proc.proc_id)
     except SupervisorSpawnError as exc:
         message = f"could not start proc supervisor: {_one_line(exc)}"
-        settle_proc_shell(
+        settle_named_proc(
             proc.proc_id,
             supervisor_id=_starter_supervisor_id(),
             status="error",
@@ -291,7 +289,7 @@ def _launch_reserved(
         _wait_for_terminal(proc.proc_id, timeout=_LAUNCH_SETTLE_SECONDS)
         current = get_proc(proc.proc_id) or proc
         if current.status not in TERMINAL_PROC_STATUSES:
-            settle_proc_shell(
+            settle_named_proc(
                 proc.proc_id,
                 supervisor_id=current.supervisor_id or _starter_supervisor_id(),
                 status="error",
@@ -312,7 +310,7 @@ def _launch_reserved(
     except OSError as exc:
         terminate_supervisor(supervisor)
         message = f"could not release proc launch barrier: {_one_line(exc)}"
-        settle_proc_shell(
+        settle_named_proc(
             proc.proc_id,
             supervisor_id=_starter_supervisor_id(),
             status="error",
@@ -339,7 +337,7 @@ def _raise_start_hook_error(
         else f"could not finish proc start: {_one_line(exc)}"
     )
     if current.status not in TERMINAL_PROC_STATUSES:
-        settle_proc_shell(
+        settle_named_proc(
             proc.proc_id,
             supervisor_id=current.supervisor_id or _starter_supervisor_id(),
             status="error",
@@ -352,8 +350,8 @@ def _raise_start_hook_error(
 
 
 def _should_reconcile(proc: Proc) -> bool:
-    # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
-    if proc.lifecycle not in ("named-proc", "proc-shell"):
+    # legacy sase-shell spelling: pre-rename rows carry ``named-proc``.
+    if proc.lifecycle not in ("named-proc", "named-proc"):
         return False
     if proc.status == "settling":
         return not supervisor_is_alive(proc.pid, proc.supervisor_id)
@@ -504,7 +502,7 @@ __all__ = [
     "ProcSubmitError",
     "REBOOT_LOSS_MESSAGE",
     "SUPERVISOR_LOSS_MESSAGE",
-    "reconcile_proc_shells",
-    "stop_proc_shell",
+    "reconcile_named_procs",
+    "stop_named_proc",
     "submit_proc_request",
 ]

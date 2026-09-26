@@ -17,7 +17,7 @@ from sase.agents_sync.inventory_models import InventoryRun
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
-from sase.sase_agent import sase_agent_ref_for_shell
+from sase.sase_agent import sase_agent_ref_for_turn
 
 
 def prompt_runs_by_request(
@@ -31,7 +31,7 @@ def prompt_runs_by_request(
         local_name = getattr(run, "local_name", None)
         if not isinstance(local_name, str):
             continue
-        agent_name = sase_agent_ref_for_shell(local_name, identity).local_name
+        agent_name = sase_agent_ref_for_turn(local_name, identity).local_name
         for commit in getattr(run, "commits", ()):
             sha = getattr(commit, "sha", None)
             if isinstance(sha, str):

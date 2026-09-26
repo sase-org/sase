@@ -422,14 +422,14 @@ def test_should_reconcile_dead_supervisor_skips_proc_lookup_for_terminal_record(
 
     calls: list[str] = []
 
-    def fake_proc_shell_owns(
+    def fake_named_proc_owns(
         monitor_id: str, *, snapshot: object | None = None
     ) -> bool:
         del snapshot
         calls.append(monitor_id)
         return False
 
-    monkeypatch.setattr(proc_adapter_module, "proc_shell_owns", fake_proc_shell_owns)
+    monkeypatch.setattr(proc_adapter_module, "named_proc_owns", fake_named_proc_owns)
 
     terminal_record = _make_monitor_record(monitor_state="completed", settled=True)
     assert should_reconcile_dead_supervisor(terminal_record) is False

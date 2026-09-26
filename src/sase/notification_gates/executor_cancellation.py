@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from sase.gate_shell.lifecycle import (
+from sase.gate_turn.lifecycle import (
     DISPOSITION_ACCEPTED_OWNER_LOST,
     classify_gate_lifecycle,
     collect_gate_lifecycle_facts,

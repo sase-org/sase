@@ -11,7 +11,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
-    agent_session_shell_from_mapping,
+    agent_session_turn_from_mapping,
 )
 from sase.plan_chain import (
     agent_session_parallel_value,
@@ -62,7 +62,7 @@ def record(
                 if isinstance(meta.get("runner_claim_owner_key"), str)
                 else None
             ),
-            agent_session_turn=agent_session_shell_from_mapping(meta),
+            agent_session_turn=agent_session_turn_from_mapping(meta),
             wait_priority=meta_wait_priority,
             queue_capacity=(
                 meta["queue_capacity"]

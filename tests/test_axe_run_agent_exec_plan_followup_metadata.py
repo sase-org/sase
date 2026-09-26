@@ -15,7 +15,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     _non_handoff_plan_gate_creation,
     make_ctx,
     make_state,
-    patch_plan_gate_shell_result,
+    patch_plan_gate_turn_result,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
@@ -49,11 +49,11 @@ class TestPlanFollowupMetadata:
                 return_value="4m32s",
             ) as runtime_mock,
             patch(
-                "sase.plan_shell.create_plan_gate_shell",
+                "sase.plan_gate_turn.create_plan_gate_turn",
                 return_value=_non_handoff_plan_gate_creation(),
             ) as gate_mock,
             patch(
-                "sase.plan_shell.plan_result_from_gate_creation",
+                "sase.plan_gate_turn.plan_result_from_gate_creation",
                 return_value=approval,
             ),
             patch(
@@ -90,7 +90,7 @@ class TestPlanFollowupMetadata:
             coder_model="gemini-3-flash-preview",
         )
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -177,7 +177,7 @@ class TestPlanFollowupMetadata:
             coder_model="opus",
         )
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -215,7 +215,7 @@ class TestPlanFollowupMetadata:
             coder_model=None,
         )
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -370,7 +370,7 @@ class TestPlanFollowupMetadata:
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -414,7 +414,7 @@ class TestPlanFollowupMetadata:
             return ("codex", "gpt-5.6-sol")
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -454,7 +454,7 @@ class TestPlanFollowupMetadata:
             coder_prompt="%m:sonnet %tribe\nUse the reviewed plan.",
         )
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),

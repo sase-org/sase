@@ -14,7 +14,7 @@ from sase.core.runner_slots import (
     MONITOR_INHERITED_QUEUE_WEIGHT_KEY,
     MONITOR_QUEUE_WEIGHT_OVERRIDDEN_KEY,
 )
-from sase.shells.member import create_agent_session_shell_member
+from sase.turns.member import create_agent_session_turn_member
 
 _MONITOR_INHERITED_METADATA_FIELDS = (
     "agent_clan",
@@ -129,7 +129,7 @@ def create_monitor_member(
         monitor_metadata["queue_weight"] = queue_weight_override
         monitor_metadata["queue_weight_explicit"] = True
 
-    return create_agent_session_shell_member(
+    return create_agent_session_turn_member(
         project_name,
         base_meta,
         agent_session=lane,

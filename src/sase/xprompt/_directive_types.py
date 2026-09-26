@@ -143,7 +143,7 @@ class PromptDirectives:
             ``%id``, or None.
         wait: List of agent names to wait for via positional %wait arguments.
         wait_units: Logical launch unit IDs from %wait(unit=...) keywords.
-        wait_procs: Proc IDs or shell names from %wait(proc=...) keywords.
+        wait_procs: Proc IDs or proc names from %wait(proc=...) keywords.
         wait_beads: Ordered, deduplicated bead IDs from %wait(bead=...) keywords.
         wait_hoods: Ordered, deduplicated hood names from %wait(hood=...) keywords.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.

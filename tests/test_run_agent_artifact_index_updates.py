@@ -40,7 +40,7 @@ def test_done_marker_write_pulses_project_refresh(
     )
     artifacts_dir.mkdir(parents=True)
     monkeypatch.setattr(
-        "sase.shells.settlement.sase_projects_dir",
+        "sase.turns.settlement.sase_projects_dir",
         lambda: projects,
     )
 
@@ -67,7 +67,7 @@ def test_runner_artifacts_write_done_marker_pulses_project_refresh(
     )
     artifacts_dir.mkdir(parents=True)
     monkeypatch.setattr(
-        "sase.shells.settlement.sase_projects_dir",
+        "sase.turns.settlement.sase_projects_dir",
         lambda: projects,
     )
 

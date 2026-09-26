@@ -170,10 +170,10 @@ class ProcShellDismissMixin:
     ) -> None:
         import asyncio
 
-        from sase.ace.dismissed_proc_shells import record_dismissed_proc_shells
+        from sase.ace.dismissed_procs import record_dismissed_procs
 
         try:
-            ok = await asyncio.to_thread(record_dismissed_proc_shells, proc_ids)
+            ok = await asyncio.to_thread(record_dismissed_procs, proc_ids)
         except Exception:
             log.exception("Dismissed-proc-shell persistence failed")
             ok = False

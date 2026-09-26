@@ -13,14 +13,14 @@ from rich.text import Text
 from sase.ace.hooks.timestamps import format_duration
 from sase.agent.artifact_files_cache import get_global_cache
 from sase.core.time import local_now
-from sase.gate_shell.naming import short_gate_shell_id
-from sase.gate_shell.state import (
+from sase.gate_turn.naming import short_gate_turn_id
+from sase.gate_turn.state import (
     GATE_FAILURE_GLYPH_COLOR,
     GATE_GLYPH,
     GATE_SETTLED_GLYPH_COLOR,
     gate_state_is_terminal,
 )
-from sase.gate_shell.status import (
+from sase.gate_turn.status import (
     effective_gate_status,
     gate_status_pair,
     gate_status_style,
@@ -208,10 +208,10 @@ def _gate_field_parts(
     if agent.gate_id:
         text.append(_field_label("Gate id:"), style=COLOR_SUMMARY)
         text.append(agent.gate_id, style=COLOR_REASON)
-        text.append(f"  ({short_gate_shell_id(agent.gate_id)})\n", style="dim")
+        text.append(f"  ({short_gate_turn_id(agent.gate_id)})\n", style="dim")
         text.append(_field_label(""), style=COLOR_SUMMARY)
         text.append(
-            f"sase gate show {short_gate_shell_id(agent.gate_id)}\n",
+            f"sase gate show {short_gate_turn_id(agent.gate_id)}\n",
             style=COLOR_EMPTY,
         )
     if agent.gate_bundle_path:

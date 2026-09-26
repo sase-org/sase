@@ -26,11 +26,11 @@ from sase.agent.status_buckets import (
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    AgentSessionShellWire,
+    AgentSessionTurnWire,
     DoneMarkerWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
-    agent_session_shell_from_mapping,
+    agent_session_turn_from_mapping,
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.patch_metadata import canonicalize_patch_metadata
@@ -571,7 +571,7 @@ def _read_meta(artifacts_dir: str | None) -> AgentMetaWire | None:
         data = canonicalize_agent_tribe_metadata(dict(data))
         # legacy agent-family spelling: pre-rename marker files carry
         # ``agent_family*`` / ``family_shell`` keys.
-        data["agent_session_shell"] = agent_session_shell_from_mapping(data)
+        data["agent_session_turn"] = agent_session_turn_from_mapping(data)
     return _wire_from_dict(
         AgentMetaWire,
         with_agent_session_keys(data) if data is not None else None,
@@ -594,7 +594,7 @@ def _read_done(artifacts_dir: str | None) -> DoneMarkerWire | None:
     data = _read_json_dict(artifacts_dir, "done.json")
     if data is not None:
         canonicalize_patch_metadata(data)
-        data["agent_session_shell"] = agent_session_shell_from_mapping(data)
+        data["agent_session_turn"] = agent_session_turn_from_mapping(data)
     return _wire_from_dict(
         DoneMarkerWire,
         with_agent_session_keys(data) if data is not None else None,
@@ -639,27 +639,27 @@ def _workflow_traceback(record: AgentArtifactRecordWire | None) -> str | None:
     return record.workflow_state.traceback
 
 
-def _monitor_shell(
+def _monitor_turn(
     source: AgentMetaWire | DoneMarkerWire | None,
-) -> AgentSessionShellWire | None:
-    shell = source.agent_session_shell if source is not None else None
+) -> AgentSessionTurnWire | None:
+    shell = source.agent_session_turn if source is not None else None
     return shell if shell is not None and shell.kind == "monitor" else None
 
 
 def _monitor_str(
     source: AgentMetaWire | DoneMarkerWire | None, attr: str
 ) -> str | None:
-    """Read a shared ``agent_session_shell`` string field, only for a monitor shell."""
-    return _text(_monitor_shell(source), attr)
+    """Read a shared ``agent_session_turn`` string field, only for a monitor shell."""
+    return _text(_monitor_turn(source), attr)
 
 
 def _monitor_command(source: AgentMetaWire | DoneMarkerWire | None) -> str | None:
-    shell = _monitor_shell(source)
+    shell = _monitor_turn(source)
     return _text(shell.monitor if shell is not None else None, "command")
 
 
 def _monitor_exit_code(source: AgentMetaWire | DoneMarkerWire | None) -> int | None:
-    shell = _monitor_shell(source)
+    shell = _monitor_turn(source)
     return _int(shell.monitor if shell is not None else None, "exit_code")
 
 

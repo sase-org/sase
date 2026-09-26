@@ -197,7 +197,7 @@ def test_launch_query_from_agent_context_requests_approval(
         to_dict=lambda: {
             "request_id": "launch-test",
             "response_dir": "/tmp/interaction_requests/launch/launch-test",
-            "gate_shell": {"state": "pending"},
+            "gate_turn": {"state": "pending"},
         },
     )
     with (
@@ -231,7 +231,7 @@ def test_launch_query_from_agent_context_requests_approval(
     mock_launch.assert_not_called()
     printed = json.loads(capsys.readouterr().out)
     assert printed["request_id"] == "launch-test"
-    assert printed["gate_shell"]["state"] == "pending"
+    assert printed["gate_turn"]["state"] == "pending"
 
 
 def test_entry_run_known_prompt_falls_through_to_run_branch(

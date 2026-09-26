@@ -17,7 +17,6 @@ from sase.core.time import get_timezone
 from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
 from sase.plan_chain import (
     agent_session_role_value,
-    agent_session_shell_value,
     agent_session_turn_value,
 )
 from sase.monitor_status import (
@@ -157,7 +156,7 @@ def is_monitor_member_meta(meta: object | None) -> bool:
     )
 
 
-def monitor_shell_field(source: object | None, field: str) -> Any:
+def monitor_turn_field(source: object | None, field: str) -> Any:
     """Read a shared ``agent_session_turn`` field, only when *source* is a monitor turn."""
     shell = agent_session_turn_value(source)
     if shell is not None and getattr(shell, "kind", None) == "monitor":
@@ -192,7 +191,7 @@ def active_status_for_record(record: AgentArtifactRecordWire) -> str:
     if meta is not None and is_monitor_member_meta(meta):
         if meta.run_started_at or meta.wait_completed_at:
             return clamp_monitor_status_or_default(
-                monitor_shell_field(meta, "start_status"),
+                monitor_turn_field(meta, "start_status"),
                 default=DEFAULT_MONITOR_START_STATUS,
             )
         return "STARTING"
@@ -205,9 +204,9 @@ def record_is_running_monitor(record: AgentArtifactRecordWire) -> bool:
     meta = record.agent_meta
     return bool(
         meta is not None
-        and monitor_shell_field(meta, "id")
+        and monitor_turn_field(meta, "id")
         and is_monitor_member_meta(meta)
-        and monitor_shell_field(meta, "state") == "running"
+        and monitor_turn_field(meta, "state") == "running"
     )
 
 
@@ -216,7 +215,7 @@ def record_status_bucket(
     meta: object | None,
     done: object | None,
 ) -> str | None:
-    monitor_state = monitor_shell_field(done, "state") or monitor_shell_field(
+    monitor_state = monitor_turn_field(done, "state") or monitor_turn_field(
         meta, "state"
     )
     if is_monitor_member_meta(meta):
@@ -230,7 +229,7 @@ __all__ = [
     "finish_decode_trace",
     "format_duration",
     "is_monitor_member_meta",
-    "monitor_shell_field",
+    "monitor_turn_field",
     "monitor_sub_field",
     "parse_iso_datetime",
     "parse_started_at",

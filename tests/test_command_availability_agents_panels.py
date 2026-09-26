@@ -197,11 +197,11 @@ def test_kill_agent_hidden_when_no_agent_no_group_no_marks() -> None:
     assert not is_command_available(spec, ctx)
 
 
-def test_kill_agent_available_for_terminal_proc_shell() -> None:
+def test_kill_agent_available_for_terminal_named_proc() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]
     agent = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status="DONE",

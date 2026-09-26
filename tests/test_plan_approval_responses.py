@@ -2,7 +2,7 @@
 
 ``plan_approval_result_from_gate_response`` is the single implementation that
 projects a settled plan gate's response back into the runner's
-``PlanApprovalResult`` contract, used both by ``plan_shell.followup`` (the
+``PlanApprovalResult`` contract, used both by ``plan_gate_turn.followup`` (the
 gate-shell path) and, historically, by the deleted blocking
 ``handle_plan_approval`` wait loop. These tests drive it directly: build a
 real gate spec, execute a host response against it exactly as
@@ -43,7 +43,7 @@ def _approve(
 
     Mirrors what the deleted ``handle_plan_approval`` did end to end, minus
     its own notification/polling machinery (now owned by
-    ``plan_shell.create_plan_gate_shell``, tested separately).
+    ``plan_gate_turn.create_plan_gate_turn``, tested separately).
     """
     spec = build_plan_approval_gate_spec(plan_file, session_id, **gate_kwargs)
     gate = create_gate(spec)

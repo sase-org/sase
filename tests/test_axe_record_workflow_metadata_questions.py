@@ -94,8 +94,8 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
     the gate even settles.
     """
     from sase.axe.run_agent_exec_questions import handle_questions_marker
-    from sase.gate_shell.models import GateShellRecord
-    from sase.gate_shell.transaction import GateShellCreation
+    from sase.gate_turn.models import GateTurnRecord
+    from sase.gate_turn.transaction import GateTurnCreation
     from sase.notification_gates.model_results import GateCreationResult
     from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
 
@@ -125,7 +125,7 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
         auto_resolution={"state": "resolved"},
         hashes={},
     )
-    record = GateShellRecord(
+    record = GateTurnRecord(
         gate_id="abc",
         member_agent_name="test_agent--gate",
         lane="test_agent",
@@ -146,7 +146,7 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
         request_fingerprint=None,
         workspace_policy="inherit",
     )
-    creation = GateShellCreation(
+    creation = GateTurnCreation(
         gate=gate, record=record, project_file=None, claim_move=None, cl_name=None
     )
 
@@ -167,9 +167,9 @@ def test_handle_questions_marker_persists_response_paths_on_interrupted_dir(
         "sase.axe.run_agent_helpers_artifacts."
         "update_agent_artifact_index_for_marker_mutation": None,
         "sase.main.plan_approve_handler.is_auto_approve_active": lambda: True,
-        "sase.question_shell.resolve_question_chain_parent": lambda *a, **k: None,
-        "sase.question_shell.create_question_gate_shell": lambda *a, **k: creation,
-        "sase.question_shell.question_rounds": lambda *a, **k: [],
+        "sase.question_gate_turn.resolve_question_chain_parent": lambda *a, **k: None,
+        "sase.question_gate_turn.create_question_gate_turn": lambda *a, **k: creation,
+        "sase.question_gate_turn.question_rounds": lambda *a, **k: [],
         "sase.axe.run_agent_exec_questions.uuid.uuid4": lambda: "abc",
     }
 

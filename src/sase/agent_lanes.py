@@ -18,7 +18,7 @@ from sase.sase_agent import (
     sase_agent_name,
     sase_agent_page_path,
     sase_agent_ref_for_name,
-    sase_agent_ref_for_shell,
+    sase_agent_ref_for_turn,
 )
 
 __all__ = [
@@ -31,5 +31,5 @@ __all__ = [
     "sase_agent_name",
     "sase_agent_page_path",
     "sase_agent_ref_for_name",
-    "sase_agent_ref_for_shell",
+    "sase_agent_ref_for_turn",
 ]

@@ -59,18 +59,14 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "'none': 'none' discards the turn, so no gate-turn row is "
             "registered. Omit continuation_mode to use the derived "
             "'gate_turn' mode, and create turn-backed gates with "
-            "sase.gate_shell.create_gate_shell so the row is registered.",
+            "sase.gate_turn.create_gate_turn so the row is registered.",
         )
-    if (
-        spec.turn is not None
-        and adapter.kind == "custom"
-        and not spec.shell_row_managed
-    ):
+    if spec.turn is not None and adapter.kind == "custom" and not spec.turn_row_managed:
         raise GateError(
             "missing_gate_turn_row",
             "turn",
             "a custom gate declaring a turn block must be created through "
-            "sase.gate_shell.create_gate_shell (or `sase gate create`) so its "
+            "sase.gate_turn.create_gate_turn (or `sase gate create`) so its "
             "gate-turn row is registered: creating it with "
             "sase.notification_gates.service.create_gate directly records "
             "continuation_mode 'gate_turn' but leaves the gate invisible to "

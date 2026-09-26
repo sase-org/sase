@@ -96,7 +96,7 @@ def test_progress_lines_with_a_spaced_prefix_do_not_become_the_summary() -> None
     logger.info(
         "gate shell reclaim progress: snapshot read in 1.0s (10 record(s), 2 gate shell(s))"
     )
-    line = emit_summary("gate_shell_reclaim", {"scanned": 0}, logger=logger)
+    line = emit_summary("gate_turn_reclaim", {"scanned": 0}, logger=logger)
 
     assert (
         parse_summary(

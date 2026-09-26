@@ -8,8 +8,8 @@ from pathlib import Path
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
     DoneMarkerWire,
-    AgentSessionShellMonitorWire,
-    AgentSessionShellWire,
+    AgentSessionTurnMonitorWire,
+    AgentSessionTurnWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
@@ -174,13 +174,13 @@ def test_record_status_bucket_uses_marker_override_for_custom_label() -> None:
 def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
     artifact_record = record(
         agent_meta=AgentMetaWire(
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 id="m123",
                 state="timeout",
                 label="sleep",
                 stop_status="SLEPT",
-                monitor=AgentSessionShellMonitorWire(command="sleep 60"),
+                monitor=AgentSessionTurnMonitorWire(command="sleep 60"),
             ),
             status_bucket="Running",
             agent_session_role="monitor",
@@ -189,7 +189,7 @@ def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
         has_done_marker=True,
         done=DoneMarkerWire(
             outcome="monitored",
-            agent_session_turn=AgentSessionShellWire(kind="monitor", state="timeout"),
+            agent_session_turn=AgentSessionTurnWire(kind="monitor", state="timeout"),
             status_label="SLEPT",
             status_bucket="Running",
         ),

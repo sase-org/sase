@@ -79,7 +79,7 @@ def test_load_agents_from_running_field_holds_pending_gate_claim() -> None:
 
     The claim itself contributes no row: the gate-shell member renders from
     its own artifact record. See
-    ``tests/test_agent_loader_pending_gate_shell.py`` for the row-producing
+    ``tests/test_agent_loader_pending_gate_turn.py`` for the row-producing
     counterpart.
     """
     claim = SimpleNamespace(
@@ -106,7 +106,7 @@ def test_load_agents_from_running_field_holds_pending_gate_claim() -> None:
             return_value=Path("/tmp/artifacts/20260512123456"),
         ),
         patch(
-            "sase.gate_shell.store.read_gate_shell_marker",
+            "sase.gate_turn.store.read_gate_turn_marker",
             return_value=MagicMock(is_terminal=False),
         ),
         patch(
@@ -149,7 +149,7 @@ def test_load_agents_from_running_field_releases_settled_gate_claim() -> None:
             return_value=Path("/tmp/artifacts/20260512123456"),
         ),
         patch(
-            "sase.gate_shell.store.read_gate_shell_marker",
+            "sase.gate_turn.store.read_gate_turn_marker",
             return_value=MagicMock(is_terminal=True),
         ),
         patch(

@@ -318,7 +318,7 @@ def test_show_rejects_neither_ref_nor_id_and_kind(
     assert "pass a gate-shell reference" in capsys.readouterr().err
 
 
-def test_show_resolves_a_gate_shell_by_member_name(
+def test_show_resolves_a_gate_turn_by_member_name(
     gate_home: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -327,9 +327,9 @@ def test_show_resolves_a_gate_shell_by_member_name(
     """A shell-backed gate is also addressable by its member name or id prefix."""
     del gate_home
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    from tests.gate_shell._cli_fixtures import (
-        make_gate_shell,
-        patch_gate_shell_project_records,
+    from tests.gate_turn._cli_fixtures import (
+        make_gate_turn,
+        patch_gate_turn_project_records,
     )
 
     # This test establishes the gate-shell row itself below: mark the spec
@@ -338,18 +338,18 @@ def test_show_resolves_a_gate_shell_by_member_name(
     gate = create_gate(
         replace(
             GateSpec.from_mapping({**_spec("shell-ref-1"), "shell": {}}),
-            shell_row_managed=True,
+            turn_row_managed=True,
         )
     )
 
-    artifacts_dir = make_gate_shell(
+    artifacts_dir = make_gate_turn(
         "proj", "20260812120000", "acme--gate", lane="acme", gate_id="shell-ref-1"
     )
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     meta = json.loads(meta_path.read_text())
     meta["gate_bundle_path"] = str(gate.bundle_path)
     meta_path.write_text(json.dumps(meta), encoding="utf-8")
-    patch_gate_shell_project_records(monkeypatch, [artifacts_dir])
+    patch_gate_turn_project_records(monkeypatch, [artifacts_dir])
 
     code = _run("show", "acme--gate", "--json")
 
@@ -360,7 +360,7 @@ def test_show_resolves_a_gate_shell_by_member_name(
     assert payload["gate_turn"]["member_agent_name"] == "acme--gate"
 
 
-def test_show_unknown_gate_shell_reference_exits_with_ref_error(
+def test_show_unknown_gate_turn_reference_exits_with_ref_error(
     gate_home: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,

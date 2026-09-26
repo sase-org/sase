@@ -153,7 +153,7 @@ def gate_failure_action_data(
         "gate_ref": f"{request_kind}/{request_id}"
         if request_kind and request_id
         else "",
-        "gate_shell_ref": request_id
+        "gate_turn_ref": request_id
         if (
             isinstance(envelope.get("turn"), dict)
             or isinstance(envelope.get("shell"), dict)

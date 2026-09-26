@@ -32,7 +32,7 @@ def gate_handoff_claim_moved(
         else:
             claims_loader = get_claimed_workspaces
 
-        from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
+        from sase.gate_turn.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 
         claims = tuple(claims_loader(project_file))
     except Exception:

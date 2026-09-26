@@ -185,9 +185,9 @@ def settle_orphaned_oneshots() -> list[Proc]:
     terminally with an unknown outcome and are never relaunched; rows whose
     supervisor is still alive are left alone.
     """
-    from .submission import reconcile_proc_shells
+    from .submission import reconcile_named_procs
 
-    return reconcile_proc_shells(match=_is_transient_oneshot)
+    return reconcile_named_procs(match=_is_transient_oneshot)
 
 
 def submit_oneshot(

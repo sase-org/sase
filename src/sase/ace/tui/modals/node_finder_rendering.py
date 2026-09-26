@@ -10,7 +10,7 @@ from rich.text import Text
 
 from sase.core.fuzzy_facade import fuzzy_match
 from sase.core.time import local_now
-from sase.gate_shell.state import GATE_GLYPH
+from sase.gate_turn.state import GATE_GLYPH
 from sase.monitor_state import MONITOR_GLYPH
 
 from ..models.agent import Agent, AgentType, format_compact_duration

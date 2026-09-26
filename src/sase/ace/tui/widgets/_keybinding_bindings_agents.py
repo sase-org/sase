@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
-from sase.gate_shell.state import gate_state_is_terminal
+from sase.gate_turn.state import gate_state_is_terminal
 from sase.procs import ACTIVE_PROC_STATUSES
 
 from ..keymaps.key_validation import is_unbound_key

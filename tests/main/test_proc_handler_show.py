@@ -128,7 +128,7 @@ def test_show_follow_json_waits_for_the_finished_proc(
     assert payload["proc"]["finished_at"] is not None
 
 
-def test_show_resolves_named_proc_shell_before_id(
+def test_show_resolves_named_named_proc_before_id(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An exact named proc shell wins over an id prefix of the same text."""
@@ -144,7 +144,7 @@ def test_show_resolves_named_proc_shell_before_id(
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["proc"]["proc_id"] == "bbbbbbbbbbbb"
-    assert payload["proc"]["named_proc_shell"] == "agent--build"
+    assert payload["proc"]["named_named_proc"] == "agent--build"
 
     assert dispatch(["proc", "show", "agent--build"]) == 0
     rendered = capsys.readouterr().out

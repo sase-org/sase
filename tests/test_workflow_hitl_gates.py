@@ -11,7 +11,7 @@ from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
-from sase.gate_shell.followup_policy import (
+from sase.gate_turn.followup_policy import (
     resolve_gate_branch_presentation,
     resolve_gate_followup,
 )

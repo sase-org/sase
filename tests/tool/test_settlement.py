@@ -32,7 +32,7 @@ from sase.procs.runtime import (
     write_json_atomic,
     write_termination_intent,
 )
-from sase.procs.settlement import settle_proc_shell
+from sase.procs.settlement import settle_named_proc
 from sase.procs.store import append_proc
 from sase.tool.argv import resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -207,14 +207,14 @@ def _expected_notification_id(run_id: str) -> str:
 
 
 def _fabricate_proc(tmp_path: Path, proc_id: str, run_id: str | None) -> Proc:
-    """Append a running proc-shell row whose supervisor is gone."""
+    """Append a running named-proc row whose supervisor is gone."""
 
     proc = Proc(
         proc_id=proc_id,
         label="tool:test",
         kind="command",
         status="running",
-        lifecycle="proc-shell",
+        lifecycle="named-proc",
         command=["true"],
         argv=["true"],
         cwd=str(tmp_path),
@@ -243,7 +243,7 @@ def _settle_fabricated(
     exit_code: int | None,
     message: str = "settled",
 ) -> Proc:
-    return settle_proc_shell(
+    return settle_named_proc(
         proc_id,
         supervisor_id=_DEAD_SUPERVISOR,
         status=status,

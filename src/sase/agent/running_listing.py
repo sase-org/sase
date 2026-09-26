@@ -15,7 +15,7 @@ from ._running_listing_common import (
     finish_decode_trace,
     format_duration,
     is_monitor_member_meta,
-    monitor_shell_field,
+    monitor_turn_field,
     monitor_sub_field,
     parse_iso_datetime,
     parse_started_at,
@@ -50,7 +50,7 @@ _format_duration = format_duration
 _is_monitor_member_meta = is_monitor_member_meta
 _is_visible_monitor_record = is_visible_monitor_record
 _is_visible_runner_slot_child = is_visible_runner_slot_child
-_monitor_shell_field = monitor_shell_field
+_monitor_turn_field = monitor_turn_field
 _monitor_sub_field = monitor_sub_field
 _parse_iso_datetime = parse_iso_datetime
 _parse_started_at = parse_started_at

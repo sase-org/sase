@@ -13,7 +13,7 @@ from sase.sdd.store import SddStore
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
-    patch_plan_gate_shell_result,
+    patch_plan_gate_turn_result,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_TALE_PLAN
@@ -48,7 +48,7 @@ class TestPlanFollowupApprovalArchives:
             saved_plan_path=str(published),
         )
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch("sase.sdd.files.write_sdd_files") as write_plan,
             patch(
                 "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
@@ -83,7 +83,7 @@ class TestPlanFollowupApprovalArchives:
         def _run() -> object:
             state = make_state(tmp_path)
             with (
-                patch_plan_gate_shell_result(approval),
+                patch_plan_gate_turn_result(approval),
                 patch("sase.sdd.files.write_sdd_files") as write_plan,
                 patch(
                     "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
@@ -156,7 +156,7 @@ class TestPlanFollowupApprovalArchives:
             return "planner.coder"
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch("sase.sdd.store.materialize_sdd_store", return_value=runner_store),
             patch("sase.sdd.files.write_sdd_files") as write_plan,
             patch(
@@ -222,7 +222,7 @@ class TestPlanFollowupApprovalArchives:
         )
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch("sase.sdd.files.write_sdd_files") as write_plan,
             pytest.raises(RuntimeError, match="plan_archive_ref"),
         ):
@@ -257,7 +257,7 @@ class TestPlanFollowupApprovalArchives:
         )
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch("sase.sdd.files.write_sdd_files") as write_plan,
             pytest.raises(RuntimeError, match="saved_plan_path"),
         ):
@@ -279,7 +279,7 @@ class TestPlanFollowupApprovalArchives:
             commit_plan=True,
         )
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_files",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),

@@ -365,13 +365,13 @@ def call_proc_dispatcher(
 def stop_proc_identity(identity: str) -> None:
     try:
         from sase.procs.models import TERMINAL_PROC_STATUSES
-        from sase.procs.submission import stop_proc_shell
+        from sase.procs.submission import stop_named_proc
         from sase.procs.store import get_proc
 
         proc = get_proc(identity)
         if proc is None or proc.status in TERMINAL_PROC_STATUSES:
             return
-        stop_proc_shell(proc, requested_by="launch-admission")
+        stop_named_proc(proc, requested_by="launch-admission")
     except Exception:
         return
 

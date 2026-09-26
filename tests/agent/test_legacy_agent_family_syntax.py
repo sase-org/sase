@@ -17,7 +17,7 @@ from sase.agent.agent_session_attach import load_agent_session_attach_plan_from_
 from sase.agent.detached_child import agent_session_attach_env
 from sase.feature_flags import override_flags
 from sase.main.parser_gate import register_gate_parser
-from sase.notification_gates.model_shell import GateShellNext
+from sase.notification_gates.model_turn import GateTurnNext
 from sase.notification_gates.models import GateError, GateSpec
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt._directive_edit_identity import set_prompt_name
@@ -138,7 +138,7 @@ def test_gate_help_lists_only_canonical_next_fork_value(
 
 def test_durable_legacy_gate_fork_loads_when_the_flag_is_off() -> None:
     with override_flags(legacy_agent_family_syntax=False):
-        policy = GateShellNext.from_mapping({"fork": "family"}, target="shell.next")
+        policy = GateTurnNext.from_mapping({"fork": "family"}, target="shell.next")
 
     assert policy.fork == "session"
 

@@ -158,7 +158,7 @@ def capacity_session_keys_for_core(
 
     Core serializes ``agent_session_parallel`` and still accepts the legacy
     parallel-marker spelling on read. Core still emits legacy
-    ``agent_session_shell_*`` spellings until the contract flip but accepts
+    ``agent_session_turn_*`` spellings until the contract flip but accepts
     the new ``agent_session_turn_*`` spellings via alias, so new writers emit
     only the new keys.
     """

@@ -1,17 +1,17 @@
-"""Named proc-shell qualification, validation, and completion."""
+"""Named named-proc qualification, validation, and completion."""
 
 from __future__ import annotations
 
 import pytest
 
 from sase.procs import (
-    ProcShellNameError,
+    NamedProcNameError,
     complete_proc_refs,
-    matching_procs_by_shell_name,
-    named_proc_shell_concurrency_key,
+    matching_procs_by_proc_name,
+    named_proc_concurrency_key,
     new_proc_id,
-    proc_shell_name_keys,
-    qualify_proc_shell_name,
+    proc_name_keys,
+    qualify_named_proc_name,
     resolve_proc_ref,
 )
 from sase.procs.ids import PROC_ID_ALPHABET
@@ -45,7 +45,7 @@ def test_qualify_attaches_bare_name_to_calling_sase_agent(
     monkeypatch.setenv("SASE_AGENT_NAME", "foo--code")
     monkeypatch.delenv("SASE_AGENT", raising=False)
 
-    assert qualify_proc_shell_name("build") == "foo--build"
+    assert qualify_named_proc_name("build") == "foo--build"
 
 
 def test_qualify_uses_sase_agent_when_shell_name_is_absent(
@@ -54,42 +54,42 @@ def test_qualify_uses_sase_agent_when_shell_name_is_absent(
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     monkeypatch.setenv("SASE_AGENT", "solo")
 
-    assert qualify_proc_shell_name("docs") == "solo--docs"
+    assert qualify_named_proc_name("docs") == "solo--docs"
 
 
 def test_qualify_keeps_fully_qualified_names() -> None:
-    assert qualify_proc_shell_name("agent--build") == "agent--build"
+    assert qualify_named_proc_name("agent--build") == "agent--build"
 
 
 def test_qualify_rejects_slash_proc_id_and_malformed_names() -> None:
-    with pytest.raises(ProcShellNameError, match="slash"):
-        qualify_proc_shell_name("agent/build")
-    with pytest.raises(ProcShellNameError, match="slash"):
-        qualify_proc_shell_name("agent\\build")
-    with pytest.raises(ProcShellNameError, match="malformed qualification"):
-        qualify_proc_shell_name("--build")
-    with pytest.raises(ProcShellNameError, match="malformed qualification"):
-        qualify_proc_shell_name("agent--")
-    with pytest.raises(ProcShellNameError, match="malformed qualification"):
-        qualify_proc_shell_name("agent--build--extra")
-    with pytest.raises(ProcShellNameError, match="malformed qualification"):
-        qualify_proc_shell_name("agent--build.role")
+    with pytest.raises(NamedProcNameError, match="slash"):
+        qualify_named_proc_name("agent/build")
+    with pytest.raises(NamedProcNameError, match="slash"):
+        qualify_named_proc_name("agent\\build")
+    with pytest.raises(NamedProcNameError, match="malformed qualification"):
+        qualify_named_proc_name("--build")
+    with pytest.raises(NamedProcNameError, match="malformed qualification"):
+        qualify_named_proc_name("agent--")
+    with pytest.raises(NamedProcNameError, match="malformed qualification"):
+        qualify_named_proc_name("agent--build--extra")
+    with pytest.raises(NamedProcNameError, match="malformed qualification"):
+        qualify_named_proc_name("agent--build.role")
 
 
 def test_qualify_rejects_proc_id_ambiguity() -> None:
     proc_id = new_proc_id()
     assert set(proc_id) <= set(PROC_ID_ALPHABET)
-    with pytest.raises(ProcShellNameError, match="ambiguous with a proc id"):
-        qualify_proc_shell_name(proc_id)
-    with pytest.raises(ProcShellNameError, match="ambiguous with a proc id"):
-        qualify_proc_shell_name(f"agent--{proc_id}")
+    with pytest.raises(NamedProcNameError, match="ambiguous with a proc id"):
+        qualify_named_proc_name(proc_id)
+    with pytest.raises(NamedProcNameError, match="ambiguous with a proc id"):
+        qualify_named_proc_name(f"agent--{proc_id}")
 
 
 def test_qualify_rejects_invalid_agent_components() -> None:
-    with pytest.raises(ProcShellNameError, match="invalid agent components"):
-        qualify_proc_shell_name("bad name--build")
-    with pytest.raises(ProcShellNameError, match="invalid agent components"):
-        qualify_proc_shell_name("agent--bad name")
+    with pytest.raises(NamedProcNameError, match="invalid agent components"):
+        qualify_named_proc_name("bad name--build")
+    with pytest.raises(NamedProcNameError, match="invalid agent components"):
+        qualify_named_proc_name("agent--bad name")
 
 
 def test_bare_name_requires_calling_sase_agent(
@@ -98,24 +98,24 @@ def test_bare_name_requires_calling_sase_agent(
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     monkeypatch.delenv("SASE_AGENT", raising=False)
 
-    with pytest.raises(ProcShellNameError, match="calling sase agent"):
-        qualify_proc_shell_name("build")
+    with pytest.raises(NamedProcNameError, match="calling sase agent"):
+        qualify_named_proc_name("build")
 
 
 def test_concurrency_key_is_namespaced_and_not_the_shell_name() -> None:
-    key = named_proc_shell_concurrency_key("sase", "agent--build")
+    key = named_proc_concurrency_key("sase", "agent--build")
 
     assert key == "named-proc:sase:agent--build"
     assert key != "agent--build"
 
 
-def test_proc_shell_name_keys_keep_historical_spellings(
+def test_proc_name_keys_keep_historical_spellings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_AGENT_NAME", "foo")
 
-    assert proc_shell_name_keys("build") == ("build", "foo--build")
-    assert proc_shell_name_keys("old/name") == ("old/name",)
+    assert proc_name_keys("build") == ("build", "foo--build")
+    assert proc_name_keys("old/name") == ("old/name",)
 
 
 def test_resolve_prefers_named_shell_then_exact_id() -> None:
@@ -135,7 +135,7 @@ def test_resolve_derives_bare_name_and_prefers_active_historical_reuse(
     active = _proc("bbb012345678", proc_name="foo--build", status="running")
 
     assert resolve_proc_ref("build", [active, settled]) is active
-    assert matching_procs_by_shell_name("build", [active, settled]) == [
+    assert matching_procs_by_proc_name("build", [active, settled]) == [
         active,
         settled,
     ]

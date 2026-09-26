@@ -9,7 +9,7 @@ from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
-    AgentSessionShellWire,
+    AgentSessionTurnWire,
     PendingQuestionMarkerWire,
 )
 from sase.core.agent_scan_wire import WaitingMarkerWire
@@ -410,7 +410,7 @@ def test_pending_gate_member_frees_runner_slot() -> None:
         agent_meta=AgentMetaWire(
             agent_session="fam",
             agent_session_role="gate",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="gate", id="gate-1", state="pending"
             ),
             pid=1234,
@@ -428,7 +428,7 @@ def test_inherited_gate_id_without_gate_role_uses_ordinary_started_rule() -> Non
         agent_meta=AgentMetaWire(
             agent_session="fam",
             agent_session_role="code",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="gate", id="gate-1", state="pending"
             ),
             pid=1234,

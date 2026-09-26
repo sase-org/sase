@@ -19,9 +19,9 @@ from typing import Any, Literal, NoReturn
 from rich.console import Console
 from rich.text import Text
 
-from sase.gate_shell.log import bind_gate_shell_execution_callbacks
-from sase.gate_shell.settlement import settle_gate_shell
-from sase.gate_shell.store import find_gate_shell_by_gate_id
+from sase.gate_turn.log import bind_gate_turn_execution_callbacks
+from sase.gate_turn.settlement import settle_gate_turn
+from sase.gate_turn.store import find_gate_turn_by_gate_id
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.cli_support import (
     EXIT_ERROR,
@@ -154,10 +154,10 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     # source of truth per the gate-shell design), never by whether the
     # agent-session-member lookup below happens to resolve one -- that lookup
     # goes through the artifact-index scan, which is best-effort here.
-    shell_backed = isinstance(bundle.envelope.get("turn"), dict) or isinstance(
+    turn_backed = isinstance(bundle.envelope.get("turn"), dict) or isinstance(
         bundle.envelope.get("shell"), dict
     )
-    if retry == "resume" and shell_backed and bundle.response_path.exists():
+    if retry == "resume" and turn_backed and bundle.response_path.exists():
         return _resume_answered_shell(
             bundle,
             selected_ids=selected_ids,
@@ -166,7 +166,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
             feedback=feedback,
             source=source,
         )
-    if _effective_detach(args, shell_backed=shell_backed):
+    if _effective_detach(args, turn_backed=turn_backed):
         _reject_detached_tty_options(selected)
         return _submit_detached_answer(
             bundle,
@@ -177,14 +177,14 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
             option_inputs=option_inputs,
         )
 
-    gate_shell = (
-        find_gate_shell_by_gate_id(None, bundle.request_id) if shell_backed else None
+    gate_turn = (
+        find_gate_turn_by_gate_id(None, bundle.request_id) if turn_backed else None
     )
 
     execution_kwargs: dict[str, Any] = (
         {}
-        if gate_shell is None
-        else bind_gate_shell_execution_callbacks(gate_shell.artifacts_dir).as_kwargs()
+        if gate_turn is None
+        else bind_gate_turn_execution_callbacks(gate_turn.artifacts_dir).as_kwargs()
     )
     execution = execute_gate_selection(
         bundle.root,
@@ -196,14 +196,14 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
         option_inputs=option_inputs,
         **execution_kwargs,
     )
-    if gate_shell is not None:
+    if gate_turn is not None:
         acceptance_id = receipt_acceptance_id(read_current_receipt(bundle.root))
         with_follow_up_stage_tracking(
             bundle.root,
             acceptance_id=acceptance_id,
             source=source,
-            run=lambda: settle_gate_shell(
-                gate_shell,
+            run=lambda: settle_gate_turn(
+                gate_turn,
                 gate_state="answered",
                 reason="gate answered",
                 resume=retry == "resume",
@@ -265,8 +265,8 @@ def _resume_answered_shell(
         )
         existing = execution.response
         receipt = read_current_receipt(bundle.root)
-    gate_shell = find_gate_shell_by_gate_id(None, bundle.request_id)
-    if gate_shell is None:
+    gate_turn = find_gate_turn_by_gate_id(None, bundle.request_id)
+    if gate_turn is None:
         raise GateCliError(
             "answered-gate --resume requires the original gate-shell member"
         )
@@ -274,8 +274,8 @@ def _resume_answered_shell(
         bundle.root,
         acceptance_id=receipt_acceptance_id(receipt),
         source=source,
-        run=lambda: settle_gate_shell(
-            gate_shell,
+        run=lambda: settle_gate_turn(
+            gate_turn,
             gate_state="answered",
             reason="gate answered",
             resume=True,
@@ -295,7 +295,7 @@ def _resume_answered_shell(
     return payload
 
 
-def _effective_detach(args: argparse.Namespace, *, shell_backed: bool) -> bool:
+def _effective_detach(args: argparse.Namespace, *, turn_backed: bool) -> bool:
     """Return whether this answer should run as a detached background proc.
 
     Explicit ``--detach``/``--no-detach`` always win; absent either flag, a
@@ -307,7 +307,7 @@ def _effective_detach(args: argparse.Namespace, *, shell_backed: bool) -> bool:
         return True
     if bool(getattr(args, "no_detach", False)):
         return False
-    return shell_backed
+    return turn_backed
 
 
 def _reject_detached_tty_options(selected: tuple[GateOption, ...]) -> None:

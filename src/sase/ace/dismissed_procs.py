@@ -21,7 +21,7 @@ SCHEMA_VERSION = 1
 
 _DISMISSED_PROCS_FILE: Path | None = None
 # legacy sase-shell spelling: pre-rename tests hook this path.
-_DISMISSED_PROC_SHELLS_FILE: Path | None = None
+_DISMISSED_NAMED_PROCS_FILE: Path | None = None
 _LOCK = threading.Lock()
 
 
@@ -30,9 +30,9 @@ def _dismissed_procs_file() -> Path:
     return _DISMISSED_PROCS_FILE or sase_home() / "dismissed_procs.json"
 
 
-def _legacy_dismissed_proc_shells_file() -> Path:
-    """Return the legacy dismissed-proc-shell JSON path."""
-    return _DISMISSED_PROC_SHELLS_FILE or sase_home() / "dismissed_proc_shells.json"
+def _legacy_dismissed_named_procs_file() -> Path:
+    """Return the legacy dismissed-named-proc JSON path."""
+    return _DISMISSED_NAMED_PROCS_FILE or sase_home() / "dismissed_named_procs.json"
 
 
 def _read_ids_from_path(path: Path) -> set[str] | None:
@@ -61,7 +61,7 @@ def load_dismissed_procs() -> set[str]:
     if ids is not None:
         return ids
     # legacy sase-shell spelling: pre-rename hosts carry only the old file.
-    legacy = _read_ids_from_path(_legacy_dismissed_proc_shells_file())
+    legacy = _read_ids_from_path(_legacy_dismissed_named_procs_file())
     return legacy if legacy is not None else set()
 
 
@@ -87,7 +87,7 @@ def record_dismissed_procs(
         ok = _write_proc_ids(current)
         if ok:
             try:
-                _legacy_dismissed_proc_shells_file().unlink(missing_ok=True)
+                _legacy_dismissed_named_procs_file().unlink(missing_ok=True)
             except OSError:
                 pass
         return ok
@@ -108,13 +108,13 @@ def prune_dismissed_procs(live_proc_ids: Collection[str]) -> set[str]:
         return pruned
 
 
-def load_dismissed_proc_shells() -> set[str]:
+def load_dismissed_named_procs() -> set[str]:
     """Deprecated alias for :func:`load_dismissed_procs`."""
 
     return load_dismissed_procs()
 
 
-def record_dismissed_proc_shells(
+def record_dismissed_named_procs(
     proc_ids: Collection[str],
     *,
     live_proc_ids: Collection[str] | None = None,
@@ -124,7 +124,7 @@ def record_dismissed_proc_shells(
     return record_dismissed_procs(proc_ids, live_proc_ids=live_proc_ids)
 
 
-def prune_dismissed_proc_shells(live_proc_ids: Collection[str]) -> set[str]:
+def prune_dismissed_named_procs(live_proc_ids: Collection[str]) -> set[str]:
     """Deprecated alias for :func:`prune_dismissed_procs`."""
 
     return prune_dismissed_procs(live_proc_ids)
@@ -156,10 +156,10 @@ def _write_proc_ids(proc_ids: set[str]) -> bool:
 
 __all__ = [
     "SCHEMA_VERSION",
-    "load_dismissed_proc_shells",
+    "load_dismissed_named_procs",
     "load_dismissed_procs",
-    "prune_dismissed_proc_shells",
+    "prune_dismissed_named_procs",
     "prune_dismissed_procs",
-    "record_dismissed_proc_shells",
+    "record_dismissed_named_procs",
     "record_dismissed_procs",
 ]

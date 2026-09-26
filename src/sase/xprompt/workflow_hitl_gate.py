@@ -89,16 +89,16 @@ def create_workflow_hitl_shell_gate(
         workflow_name=workflow_name,
         option_ids=tuple(str(option["id"]) for option in spec["options"]),
     )
-    from sase.gate_shell import create_gate_shell
+    from sase.gate_turn import create_gate_turn
 
-    return create_gate_shell(spec)
+    return create_gate_turn(spec)
 
 
 def maybe_handoff_workflow_hitl_from_agent(creation: Any) -> bool:
     """Hand a shell-backed workflow HITL gate to the agent runner."""
     if not getattr(creation, "should_handoff", False):
         return False
-    from sase.gate_shell import (
+    from sase.gate_turn import (
         maybe_handoff_gate_from_agent,
         will_handoff_gate_to_agent_runner,
     )

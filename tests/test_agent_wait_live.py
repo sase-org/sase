@@ -36,8 +36,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
-    AgentSessionShellMonitorWire,
-    AgentSessionShellWire,
+    AgentSessionTurnMonitorWire,
+    AgentSessionTurnWire,
     PendingQuestionMarkerWire,
     PlanPathMarkerWire,
     WaitingMarkerWire,
@@ -79,11 +79,11 @@ def _record(
 ) -> AgentArtifactRecordWire:
     done = None
     if outcome is not None:
-        done_agent_session_shell = (
-            AgentSessionShellWire(
+        done_agent_session_turn = (
+            AgentSessionTurnWire(
                 kind="monitor",
                 state=monitor_state,
-                monitor=AgentSessionShellMonitorWire(exit_code=monitor_exit_code),
+                monitor=AgentSessionTurnMonitorWire(exit_code=monitor_exit_code),
             )
             if monitor_state is not None or monitor_exit_code is not None
             else None
@@ -94,16 +94,16 @@ def _record(
             error=error,
             workspace_num=workspace_num,
             model=model,
-            agent_session_turn=done_agent_session_shell,
+            agent_session_turn=done_agent_session_turn,
             status_label=monitor_stop_status,
         )
-    meta_agent_session_shell = (
-        AgentSessionShellWire(
+    meta_agent_session_turn = (
+        AgentSessionTurnWire(
             kind="monitor",
             state=monitor_state,
             start_status=monitor_start_status,
             stop_status=monitor_stop_status,
-            monitor=AgentSessionShellMonitorWire(
+            monitor=AgentSessionTurnMonitorWire(
                 command=monitor_command, exit_code=monitor_exit_code
             ),
         )
@@ -137,7 +137,7 @@ def _record(
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
             wait_for=wait_for or [],
             agent_session_role=agent_session_role,
-            agent_session_turn=meta_agent_session_shell,
+            agent_session_turn=meta_agent_session_turn,
         ),
         done=done,
         waiting=waiting,

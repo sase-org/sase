@@ -13,7 +13,6 @@ from typing import Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.agent_scan_wire_agent_session_turn import (
-    agent_session_shell_from_mapping,
     agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_markers import (

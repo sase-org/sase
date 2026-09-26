@@ -1,4 +1,4 @@
-"""Crash-boundary tests for the detached proc-shell supervisor."""
+"""Crash-boundary tests for the detached named-proc supervisor."""
 
 from __future__ import annotations
 
@@ -169,7 +169,7 @@ def test_pid_reuse_is_not_treated_as_a_live_supervisor(
         label="reuse",
         kind="command",
         status="running",
-        lifecycle="proc-shell",
+        lifecycle="named-proc",
         command=["true"],
         argv=["true"],
         cwd=str(tmp_path),

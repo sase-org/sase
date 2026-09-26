@@ -231,7 +231,7 @@ def _stale_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bool
     gate shell's own markers decide. Imported lazily: this is only reached
     for a claim that already failed the liveness check.
     """
-    from sase.gate_shell.claims import (
+    from sase.gate_turn.claims import (
         GATE_WORKSPACE_CLAIM_WORKFLOW,
         gate_claim_is_releasable,
     )

@@ -1,7 +1,7 @@
 """Registry of SASE-owned processes that tree termination must not treat as leaks.
 
 An agent's process tree can legitimately contain processes that SASE tracks on
-their own: a proc-shell or monitor supervisor the agent started, or a freshly
+their own: a named-proc or monitor supervisor the agent started, or a freshly
 launched sibling agent still parented to the launcher. Terminating the tree
 must stop a supervisor through its canonical stop, so the store record settles
 instead of being orphaned as "running", and must leave other agents alone.

@@ -7,10 +7,10 @@ import argparse
 from sase.agent.legacy_agent_family_syntax import normalize_agent_session_fork
 from sase.ops.cli import add_operation_io_flags
 
-# Mirrors ``sase.gate_shell.state.TERMINAL_GATE_STATES`` plus ``pending`` and
+# Mirrors ``sase.gate_turn.state.TERMINAL_GATE_STATES`` plus ``pending`` and
 # ``settling``, spelled out here so building the parser never imports the
 # gate-shell engine.
-GATE_SHELL_STATE_CHOICES = (
+GATE_TURN_STATE_CHOICES = (
     "pending",
     "settling",
     "answered",
@@ -27,8 +27,14 @@ def _parse_next_fork(value: str) -> str:
         normalized = normalize_agent_session_fork(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
-    if normalized not in {"session", "shell", "none"}:
-        raise argparse.ArgumentTypeError("next-fork must be session, shell, or none")
+    from sase.agent.legacy_sase_shell_syntax import normalize_gate_fork
+
+    try:
+        normalized = normalize_gate_fork(normalized)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    if normalized not in {"session", "turn", "none"}:
+        raise argparse.ArgumentTypeError("next-fork must be session, turn, or none")
     return str(normalized)
 
 
@@ -156,14 +162,14 @@ def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None
         help=(
             "Submit to a supervised background proc instead of answering "
             "inline, so an approved command survives this client exiting; "
-            "gate shells default to this"
+            "gate turns default to this"
         ),
     )
     detach_group.add_argument(
         "-D",
         "--no-detach",
         action="store_true",
-        help="Answer inline even for a gate shell, overriding its detached default",
+        help="Answer inline even for a gate turn, overriding its detached default",
     )
     answer_parser.add_argument(
         "-f",
@@ -235,7 +241,7 @@ def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None
         action="store_true",
         help=(
             "Continue a partially executed option branch, or resume an "
-            "already-answered shell whose requested follow-up never launched"
+            "already-answered turn whose requested follow-up never launched"
         ),
     )
     answer_parser.add_argument(
@@ -255,7 +261,7 @@ def _register_cancel_parser(gate_subparsers: argparse._SubParsersAction) -> None
     """Register ``sase gate cancel``."""
     cancel_parser = gate_subparsers.add_parser(
         "cancel",
-        help="Cancel one pending gate or gate shell",
+        help="Cancel one pending gate or gate turn",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Cancel a pending gate by kind/request id, or cancel a pending gate "
@@ -267,7 +273,7 @@ def _register_cancel_parser(gate_subparsers: argparse._SubParsersAction) -> None
         epilog=(
             "exit codes:\n"
             "  0  cancelled (or already terminal; nothing to do)\n"
-            "  2  the gate-shell reference is unknown or ambiguous\n\n"
+            "  2  the gate-turn reference is unknown or ambiguous\n\n"
             "examples:\n"
             "  sase gate cancel --kind custom --id custom-123\n"
             "  sase gate cancel acme--gate\n"
@@ -279,7 +285,7 @@ def _register_cancel_parser(gate_subparsers: argparse._SubParsersAction) -> None
         nargs="?",
         metavar="ID",
         help=(
-            "Gate-shell id (or unique prefix), member agent name, or owning agent name"
+            "Gate-turn id (or unique prefix), member agent name, or owning agent name"
         ),
     )
     cancel_parser.add_argument(
@@ -314,11 +320,11 @@ def _register_list_parser(gate_subparsers: argparse._SubParsersAction) -> None:
     """Register ``sase gate list``."""
     list_parser = gate_subparsers.add_parser(
         "list",
-        help="List gate shells (rich table by default, -j/--json for JSON)",
+        help="List gate turns (rich table by default, -j/--json for JSON)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "List gate-shell agent session members, newest first, mirroring `sase "
-            "monitor list`. By default this shows only pending gate shells, "
+            "List gate-turn agent session members, newest first, mirroring `sase "
+            "monitor list`. By default this shows only pending gate turns, "
             "including any still holding a workspace claim; pass --all to "
             "include settled ones too."
         ),
@@ -335,7 +341,7 @@ def _register_list_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         "-a",
         "--all",
         action="store_true",
-        help="Include settled gate shells, not just pending ones",
+        help="Include settled gate turns, not just pending ones",
     )
     list_parser.add_argument(
         "-f",
@@ -355,7 +361,7 @@ def _register_list_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         "--agent",
         default=None,
         metavar="NAME",
-        help="Only gate shells belonging to this agent",
+        help="Only gate turns belonging to this agent",
     )
     list_parser.add_argument(
         "-n",
@@ -363,25 +369,25 @@ def _register_list_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         type=int,
         default=None,
         metavar="N",
-        help="Show at most N gate shells",
+        help="Show at most N gate turns",
     )
     list_parser.add_argument(
         "-p",
         "--project",
         default=None,
         metavar="NAME",
-        help="Only gate shells from this project (default: every project)",
+        help="Only gate turns from this project (default: every project)",
     )
     list_parser.add_argument(
         "-s",
         "--state",
         action="append",
-        choices=GATE_SHELL_STATE_CHOICES,
+        choices=GATE_TURN_STATE_CHOICES,
         default=None,
         metavar="STATE",
         help=(
-            "Only gate shells in this state; repeat to add more "
-            f"({', '.join(GATE_SHELL_STATE_CHOICES)})"
+            "Only gate turns in this state; repeat to add more "
+            f"({', '.join(GATE_TURN_STATE_CHOICES)})"
         ),
     )
 
@@ -401,7 +407,7 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
             "  sase gate create < gate-request.json\n"
             "  sase gate create --panel deployments --panel-icon 🚀 "
             "< gate-request.json\n"
-            "  sase gate create --shell --next 'Continue after approval' "
+            "  sase gate create --turn --next 'Continue after approval' "
             "< gate-request.json"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -410,22 +416,22 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
         "-n",
         "--next",
         default=None,
-        help="Follow-up prompt for a created gate shell",
+        help="Follow-up prompt for a created gate turn",
     )
     create_parser.add_argument(
         "-f",
         "--next-fork",
         default=None,
         type=_parse_next_fork,
-        choices=("session", "shell", "none"),
-        metavar="{session,shell,none}",
-        help="Gate-shell follow-up fork policy",
+        choices=("session", "turn", "none"),
+        metavar="{session,turn,none}",
+        help="Gate-turn follow-up fork policy",
     )
     create_parser.add_argument(
         "-m",
         "--next-model",
         default=None,
-        help="Model selector inherited by the gate-shell follow-up",
+        help="Model selector inherited by the gate-turn follow-up",
     )
     create_parser.add_argument(
         "-N",
@@ -433,7 +439,7 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
         action="append",
         default=None,
         choices=("none", "results", "tail", "file"),
-        help="Gate-shell follow-up output channel; repeat for multiple channels",
+        help="Gate-turn follow-up output channel; repeat for multiple channels",
     )
     create_parser.add_argument(
         "-o",
@@ -463,29 +469,45 @@ def _register_create_parser(gate_subparsers: argparse._SubParsersAction) -> None
         help="Override the notification sender in the gate presentation",
     )
     create_parser.add_argument(
-        "-G",
-        "--shell",
-        action="store_true",
-        help="Create a gate shell that owns the decision and hands off this agent",
-    )
-    create_parser.add_argument(
-        "-g",
-        "--shell-status",
-        default=None,
-        help="Pending status label for the created gate shell",
-    )
-    create_parser.add_argument(
-        "-E",
-        "--shell-stop-status",
-        default=None,
-        help="Settled status label for the created gate shell",
-    )
-    create_parser.add_argument(
         "-t",
         "--tag",
         action="append",
         default=None,
         help="Add a notification tag to the gate presentation; repeat to add more",
+    )
+    create_parser.add_argument(
+        "-G",
+        "--turn",
+        action="store_true",
+        help="Create a gate turn that owns the decision and hands off this agent",
+    )
+    create_parser.add_argument(
+        "-g",
+        "--turn-status",
+        default=None,
+        help="Pending status label for the created gate turn",
+    )
+    create_parser.add_argument(
+        "-E",
+        "--turn-stop-status",
+        default=None,
+        help="Settled status label for the created gate turn",
+    )
+    create_parser.add_argument(
+        "--shell",
+        action="store_true",
+        default=False,
+        help=argparse.SUPPRESS,
+    )
+    create_parser.add_argument(
+        "--shell-status",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    create_parser.add_argument(
+        "--shell-stop-status",
+        default=None,
+        help=argparse.SUPPRESS,
     )
 
 
@@ -497,7 +519,7 @@ def _register_show_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Print what a gate asks for: its branches, each option's declared "
             "input fields with their types, defaults, and choices, and every "
-            "repeatable action it declares. A gate shell also prints its "
+            "repeatable action it declares. A gate turn also prints its "
             "runtime state, workspace claim, and follow-up disposition. "
             "Use it to check that a gate you authored asks for what you "
             "intended."
@@ -506,7 +528,7 @@ def _register_show_parser(gate_subparsers: argparse._SubParsersAction) -> None:
             "exit codes:\n"
             "  0  printed\n"
             "  1  the gate could not be read\n"
-            "  2  the gate-shell reference is unknown or ambiguous\n\n"
+            "  2  the gate-turn reference is unknown or ambiguous\n\n"
             "examples:\n"
             "  sase gate show --id custom-1 --kind custom\n"
             "  sase gate show -i plan-123 -k plan --json\n"
@@ -521,9 +543,9 @@ def _register_show_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="ID",
         help=(
-            "Gate-shell id (or unique prefix), member agent name, or owning "
+            "Gate-turn id (or unique prefix), member agent name, or owning "
             "agent name; an alternative to -i/--id plus -k/--kind for a "
-            "gate created with --shell"
+            "gate created with --turn"
         ),
     )
     show_parser.add_argument(

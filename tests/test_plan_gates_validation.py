@@ -19,7 +19,7 @@ from sase.plan_gate import (
     _build_plan_gate_spec,
     build_plan_approval_gate_spec,
 )
-from sase.plan_shell.create import plan_gate_shell_block
+from sase.plan_gate_turn.create import plan_gate_turn_block
 
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers the gate_home fixture)
@@ -190,12 +190,12 @@ def test_plan_adapter_rejects_forged_shell_block(gate_home: Path) -> None:
         agent_runtime=None,
         agent_vcs_tag=None,
     )
-    spec["shell"] = plan_gate_shell_block("tale")
+    spec["shell"] = plan_gate_turn_block("tale")
     spec["shell"]["branches"]["approve+commit"]["suffix"] = "--plan-@"
 
     with pytest.raises(GateError) as exc_info:
         create_gate(spec)
-    assert exc_info.value.code == "invalid_plan_shell"
+    assert exc_info.value.code == "invalid_plan_gate_turn"
 
 
 def test_plan_adapter_accepts_tale_group_and_rejects_stale_label(

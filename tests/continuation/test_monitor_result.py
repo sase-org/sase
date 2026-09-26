@@ -103,9 +103,9 @@ def test_persist_monitor_result_waits_for_a_starter_still_finalizing(
     from sase.continuation_capture import persist_monitor_result
 
     monkeypatch.setattr(
-        "sase.shells.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 2.0
+        "sase.turns.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 2.0
     )
-    monkeypatch.setattr("sase.shells.followup.STARTER_SETTLE_POLL_SECONDS", 0.02)
+    monkeypatch.setattr("sase.turns.followup.STARTER_SETTLE_POLL_SECONDS", 0.02)
 
     starter = tmp_path / "starter"
     starter.mkdir()
@@ -169,9 +169,9 @@ def test_persist_monitor_result_stamps_needs_recovery_after_bounded_wait(
     from sase.continuation_capture import persist_monitor_result
 
     monkeypatch.setattr(
-        "sase.shells.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
+        "sase.turns.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
     )
-    monkeypatch.setattr("sase.shells.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
+    monkeypatch.setattr("sase.turns.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
 
     starter = tmp_path / "starter"
     starter.mkdir()
@@ -218,7 +218,7 @@ def test_persist_monitor_result_skips_the_wait_for_stopped_monitors(
     def _fail(*_args: object, **_kwargs: object) -> bool:
         raise AssertionError("stopped monitors must not wait for the starter")
 
-    monkeypatch.setattr("sase.shells.followup.wait_for_starter_artifacts_dir", _fail)
+    monkeypatch.setattr("sase.turns.followup.wait_for_starter_artifacts_dir", _fail)
 
     starter = tmp_path / "starter"
     starter.mkdir()
@@ -261,9 +261,9 @@ def test_repair_missing_starter_parent_disposition_recovers_after_starter_settle
     )
 
     monkeypatch.setattr(
-        "sase.shells.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
+        "sase.turns.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
     )
-    monkeypatch.setattr("sase.shells.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
+    monkeypatch.setattr("sase.turns.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
 
     starter = tmp_path / "starter"
     starter.mkdir()

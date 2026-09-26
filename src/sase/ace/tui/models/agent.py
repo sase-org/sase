@@ -13,7 +13,7 @@ from sase.core.agent_identity_facade import (
 )
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
-from sase.gate_shell.state import is_real_gate_member
+from sase.gate_turn.state import is_real_gate_member
 from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -304,7 +304,7 @@ class Agent(AgentState):
     @property
     def is_proc_shell(self) -> bool:
         """Whether this row projects one stand-alone durable proc shell."""
-        return self.agent_type == AgentType.PROC_SHELL
+        return self.agent_type == AgentType.NAMED_PROC
 
     @property
     def start_time_display(self) -> str:

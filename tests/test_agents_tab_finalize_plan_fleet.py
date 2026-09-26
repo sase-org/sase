@@ -350,8 +350,8 @@ def test_proc_rebase_reprojects_fleet_rows_and_drops_the_plan() -> None:
     """The proc rebase edits local rows and must keep the roster projected."""
     local = _make_agent(cl_name="alpha", status="RUNNING", raw_suffix="20260917090000")
     fleet = _fleet_epic_row()
-    proc_shell = _make_agent(
-        agent_type=AgentType.PROC_SHELL,
+    named_proc = _make_agent(
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         raw_suffix="proc-1",
         status="RUNNING",
@@ -369,7 +369,7 @@ def test_proc_rebase_reprojects_fleet_rows_and_drops_the_plan() -> None:
                 selected_identity=None,
                 load_state=None,
             ),
-            cached_agents_with_children=[proc_shell],
+            cached_agents_with_children=[named_proc],
             proc_generation=7,
         ),
     )
@@ -379,12 +379,12 @@ def test_proc_rebase_reprojects_fleet_rows_and_drops_the_plan() -> None:
     fold = rebased.fold
     assert [a.identity for a in fold.local_visible_agents] == [
         local.identity,
-        proc_shell.identity,
+        named_proc.identity,
     ]
     for roster in (fold.visible_agents, fold.unfiltered_agents):
         assert {a.identity for a in roster} == {
             local.identity,
-            proc_shell.identity,
+            named_proc.identity,
             fleet.identity,
         }
     del prep, snapshot

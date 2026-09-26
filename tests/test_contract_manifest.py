@@ -131,7 +131,7 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # overhead from four modules reloading the same script rather than added test
 # weight. The next candidate should displace an entry rather than add one.
 #
-# Re-curated to 58 on 2026-08-27 for `test_config_schema_gate_shell.py`, which
+# Re-curated to 58 on 2026-08-27 for `test_config_schema_gate_turn.py`, which
 # keeps the gate-shell schema/default-config contract beside the other split
 # config-schema domains. Like those files, it validates data files no import
 # edge reaches rather than expanding behavioral test weight. The whole 58-entry

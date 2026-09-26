@@ -1,4 +1,4 @@
-"""Runtime markers and sidecars for one reserved proc-shell."""
+"""Runtime markers and sidecars for one reserved named-proc."""
 
 from __future__ import annotations
 

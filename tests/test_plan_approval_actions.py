@@ -20,7 +20,7 @@ from sase.plan_approval_actions import (
     resolve_plan_agent_artifacts_dir,
 )
 from sase.plan_gate import build_plan_approval_gate_spec
-from sase.plan_shell.create import plan_gate_shell_block
+from sase.plan_gate_turn.create import plan_gate_turn_block
 from sase.xprompt.directive_edit import PromptWaitDirective
 from tests._plan_gate_fixtures import (
     plan_gate_home,  # noqa: F401 (registers fixture)
@@ -103,7 +103,7 @@ def test_capacity_is_emitted_for_epic_and_dropped_otherwise() -> None:
     assert "capacity" not in reject
 
 
-def test_neutral_plan_approval_settles_shell_backed_gate(
+def test_neutral_plan_approval_settles_turn_backed_gate(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -119,18 +119,18 @@ def test_neutral_plan_approval_settles_shell_backed_gate(
         agent_runtime="1m",
         agent_vcs_tag=None,
     )
-    spec["shell"] = plan_gate_shell_block("tale")
+    spec["shell"] = plan_gate_turn_block("tale")
     gate = create_gate(spec)
     member = gate_home / "member"
     member.mkdir()
     shell_record = SimpleNamespace(artifacts_dir=str(member))
     monkeypatch.setattr(
-        "sase.gate_shell.store.find_gate_shell_by_gate_id",
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
         lambda _project, gate_id: shell_record if gate_id == "shell-plan" else None,
     )
     settled: list[dict[str, Any]] = []
     monkeypatch.setattr(
-        "sase.gate_shell.settlement.settle_gate_shell",
+        "sase.gate_turn.settlement.settle_gate_turn",
         lambda record, **kwargs: settled.append({"record": record, **kwargs}),
     )
 

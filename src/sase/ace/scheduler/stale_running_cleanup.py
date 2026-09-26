@@ -160,7 +160,7 @@ def cleanup_stale_running_entries(
     Returns:
         Number of stale workspace claims released.
     """
-    from sase.gate_shell.claims import (
+    from sase.gate_turn.claims import (
         GATE_WORKSPACE_CLAIM_WORKFLOW,
         gate_claim_is_releasable,
     )

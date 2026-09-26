@@ -197,14 +197,14 @@ class TestPendingGateArrivalRefresh:
         gate_dir.mkdir()
         lookup_threads: list[int] = []
 
-        def find_gate_shell(_project: object, gate_id: str) -> object | None:
+        def find_gate_turn(_project: object, gate_id: str) -> object | None:
             lookup_threads.append(threading.get_ident())
             if gate_id == "legacy-gate":
                 return SimpleNamespace(artifacts_dir=str(gate_dir))
             return None
 
         monkeypatch.setattr(
-            "sase.gate_shell.store.find_gate_shell_by_gate_id", find_gate_shell
+            "sase.gate_turn.store.find_gate_turn_by_gate_id", find_gate_turn
         )
         app = _FakeApp()
         app.current_tab = "agents"  # type: ignore[attr-defined]

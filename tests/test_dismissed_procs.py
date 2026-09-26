@@ -7,11 +7,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.dismissed_procs import (
-    load_dismissed_proc_shells,
+    load_dismissed_named_procs,
     load_dismissed_procs,
-    prune_dismissed_proc_shells,
+    prune_dismissed_named_procs,
     prune_dismissed_procs,
-    record_dismissed_proc_shells,
+    record_dismissed_named_procs,
     record_dismissed_procs,
 )
 
@@ -120,13 +120,13 @@ def test_legacy_file_reads_when_no_new_file(tmp_path: Path) -> None:
     from sase.ace import dismissed_procs as dismissed
 
     new_file = tmp_path / "dismissed_procs.json"
-    legacy_file = tmp_path / "dismissed_proc_shells.json"
+    legacy_file = tmp_path / "dismissed_named_procs.json"
     legacy_file.write_text(
         json.dumps({"schema_version": 1, "proc_ids": ["old-id"]}), encoding="utf-8"
     )
     with (
         patch.object(dismissed, "_DISMISSED_PROCS_FILE", new_file),
-        patch.object(dismissed, "_DISMISSED_PROC_SHELLS_FILE", legacy_file),
+        patch.object(dismissed, "_DISMISSED_NAMED_PROCS_FILE", legacy_file),
     ):
         # legacy sase-shell spelling: old file loads when no new file exists.
         assert load_dismissed_procs() == {"old-id"}
@@ -139,6 +139,6 @@ def test_legacy_file_reads_when_no_new_file(tmp_path: Path) -> None:
 def test_legacy_aliases_still_work(tmp_path: Path) -> None:
     test_file = tmp_path / "dismissed_procs.json"
     with _patch_file(test_file):
-        assert record_dismissed_proc_shells({"legacy-id"})
-        assert load_dismissed_proc_shells() == {"legacy-id"}
-        assert prune_dismissed_proc_shells({"legacy-id"}) == {"legacy-id"}
+        assert record_dismissed_named_procs({"legacy-id"})
+        assert load_dismissed_named_procs() == {"legacy-id"}
+        assert prune_dismissed_named_procs({"legacy-id"}) == {"legacy-id"}

@@ -7,8 +7,8 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
-from sase.gate_shell.models import GateShellRecord
-from sase.gate_shell.transaction import GateShellCreation
+from sase.gate_turn.models import GateTurnRecord
+from sase.gate_turn.transaction import GateTurnCreation
 from sase.notification_gates.model_results import GateCreationResult
 
 
@@ -134,7 +134,7 @@ def patched_plan_deps():
             patcher.stop()
 
 
-def _non_handoff_plan_gate_creation() -> GateShellCreation:
+def _non_handoff_plan_gate_creation() -> GateTurnCreation:
     """Return a synchronously-settled (non-handoff) plan gate-shell creation."""
     gate = GateCreationResult(
         schema_version=3,
@@ -149,7 +149,7 @@ def _non_handoff_plan_gate_creation() -> GateShellCreation:
         auto_resolution={"state": "resolved"},
         hashes={},
     )
-    record = GateShellRecord(
+    record = GateTurnRecord(
         gate_id="plan-gate",
         member_agent_name="test_agent--gate",
         lane="test_agent",
@@ -170,36 +170,36 @@ def _non_handoff_plan_gate_creation() -> GateShellCreation:
         request_fingerprint=None,
         workspace_policy="inherit",
     )
-    return GateShellCreation(
+    return GateTurnCreation(
         gate=gate, record=record, project_file=None, claim_move=None, cl_name=None
     )
 
 
 @contextmanager
-def patch_plan_gate_shell_result(result: Any):
+def patch_plan_gate_turn_result(result: Any):
     """Patch the plan gate-shell seam to settle synchronously with *result*.
 
     Replaces the removed ``handle_plan_approval`` blocking seam: production
     code now always creates a plan gate shell and, when it settles
     in-process (no handoff), reads the result via
-    ``plan_shell.plan_result_from_gate_creation``. *result* is a
+    ``plan_gate_turn.plan_result_from_gate_creation``. *result* is a
     ``PlanApprovalResult`` for an accepted/feedback outcome, or ``None`` for
     a rejected one.
     """
     with (
         patch(
-            "sase.plan_shell.create_plan_gate_shell",
+            "sase.plan_gate_turn.create_plan_gate_turn",
             return_value=_non_handoff_plan_gate_creation(),
         ),
         patch(
-            "sase.plan_shell.plan_result_from_gate_creation",
+            "sase.plan_gate_turn.plan_result_from_gate_creation",
             return_value=result,
         ),
     ):
         yield
 
 
-def _non_handoff_question_gate_creation() -> GateShellCreation:
+def _non_handoff_question_gate_creation() -> GateTurnCreation:
     """Return a synchronously-settled (non-handoff) question gate-shell creation."""
     gate = GateCreationResult(
         schema_version=3,
@@ -214,7 +214,7 @@ def _non_handoff_question_gate_creation() -> GateShellCreation:
         auto_resolution={"state": "resolved"},
         hashes={},
     )
-    record = GateShellRecord(
+    record = GateTurnRecord(
         gate_id="question-gate",
         member_agent_name="test_agent--gate",
         lane="test_agent",
@@ -235,19 +235,19 @@ def _non_handoff_question_gate_creation() -> GateShellCreation:
         request_fingerprint=None,
         workspace_policy="inherit",
     )
-    return GateShellCreation(
+    return GateTurnCreation(
         gate=gate, record=record, project_file=None, claim_move=None, cl_name=None
     )
 
 
 @contextmanager
-def patch_question_gate_shell_rounds(rounds: list[Any]):
+def patch_question_gate_turn_rounds(rounds: list[Any]):
     """Patch the question gate-shell seam to settle in-process with *rounds*.
 
     Replaces the removed ``handle_questions_flow`` blocking seam: production
     code now always creates a question gate shell, and -- with auto-approval
     active -- settles it synchronously and continues in-process, rebuilding
-    the merged Q&A from ``question_shell.question_rounds`` rather than from
+    the merged Q&A from ``question_gate_turn.question_rounds`` rather than from
     ``LoopState.qa_rounds``. *rounds* is the full settled chain (oldest
     first), including the round this call is answering.
     """
@@ -257,15 +257,15 @@ def patch_question_gate_shell_rounds(rounds: list[Any]):
             return_value=True,
         ),
         patch(
-            "sase.question_shell.resolve_question_chain_parent",
+            "sase.question_gate_turn.resolve_question_chain_parent",
             return_value=None,
         ),
         patch(
-            "sase.question_shell.create_question_gate_shell",
+            "sase.question_gate_turn.create_question_gate_turn",
             return_value=_non_handoff_question_gate_creation(),
         ),
         patch(
-            "sase.question_shell.question_rounds",
+            "sase.question_gate_turn.question_rounds",
             return_value=rounds,
         ),
     ):

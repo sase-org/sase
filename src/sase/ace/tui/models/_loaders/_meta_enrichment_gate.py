@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.gate_shell.state import gate_member_status_bucket, gate_state_is_terminal
-from sase.gate_shell.status import gate_status_pair
+from sase.gate_turn.state import gate_member_status_bucket, gate_state_is_terminal
+from sase.gate_turn.status import gate_status_pair
 
 from ..agent import Agent
 

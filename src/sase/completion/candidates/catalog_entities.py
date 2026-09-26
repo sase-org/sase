@@ -23,10 +23,10 @@ def gate_source_path(_project: str | None) -> Path | None:
 
 def gate_candidates(project: str | None) -> list[Candidate]:
     """Return known gate-shell ids and member agent names, with their state."""
-    from sase.gate_shell.store import list_gate_shells
+    from sase.gate_turn.store import list_gate_turns
 
     try:
-        shells = list_gate_shells(project=project)
+        shells = list_gate_turns(project=project)
     except Exception:
         return []
     candidates: list[Candidate] = []

@@ -170,13 +170,13 @@ def _bead_catalog_entries(request: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _proc_catalog_entries() -> list[dict[str, Any]]:
     """Return prompt-owned proc shell rows for hold-target completion."""
-    from sase.procs import is_proc_shell_row, read_procs
+    from sase.procs import is_named_proc_row, read_procs
     from sase.project_display_names import project_display_name_for
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     for proc in read_procs():
-        if not is_proc_shell_row(proc):
+        if not is_named_proc_row(proc):
             continue
         name = (proc.shell_name or proc.label or "").strip()
         if not name or name in seen:
@@ -314,10 +314,10 @@ def _record_status(record: Any) -> str:
     if record.has_done_marker and done is not None:
         if done.outcome == "monitored":
             meta = record.agent_meta
-            meta_shell = meta.agent_session_shell if meta is not None else None
+            meta_turn = meta.agent_session_turn if meta is not None else None
             monitor_stop_status = (
-                meta_shell.stop_status
-                if meta_shell is not None and meta_shell.kind == "monitor"
+                meta_turn.stop_status
+                if meta_turn is not None and meta_turn.kind == "monitor"
                 else None
             )
             return clamp_monitor_status_or_default(

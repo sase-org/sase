@@ -25,7 +25,7 @@ from sase.core.continuation_wire import (
     RetainedLogMetadataWire,
 )
 from sase.llm_provider.continuation_budget_spans import open_reducible_span_marker
-from sase.shells.prompt import (
+from sase.turns.prompt import (
     fenced_block,
     format_shell_duration,
     untrusted_output_section,

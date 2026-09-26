@@ -6,7 +6,7 @@ from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 
 from sase.core.time import local_now, parse_local
-from sase.gate_shell.status import gate_status_pair, gate_status_style
+from sase.gate_turn.status import gate_status_pair, gate_status_style
 
 if TYPE_CHECKING:
     from ...models import Agent

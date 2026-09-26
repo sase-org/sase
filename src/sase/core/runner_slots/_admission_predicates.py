@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
-    AgentSessionShellWire,
+    AgentSessionTurnWire,
 )
 from sase.monitor_state import is_real_monitor_member
 
@@ -17,10 +17,10 @@ from ._admission_types import RecordLiveness
 GATE_AGENT_SESSION_ROLE = "gate"
 
 
-def _agent_session_shell_of_kind(
+def _agent_session_turn_of_kind(
     meta: AgentMetaWire | None, kind: str
-) -> AgentSessionShellWire | None:
-    shell = None if meta is None else meta.agent_session_shell
+) -> AgentSessionTurnWire | None:
+    shell = None if meta is None else meta.agent_session_turn
     return shell if shell is not None and shell.kind == kind else None
 
 
@@ -120,15 +120,15 @@ def is_runner_slot_occupying_record(
     meta = record.agent_meta
     if meta is None:
         return False
-    gate_shell = _agent_session_shell_of_kind(meta, "gate")
+    gate_turn = _agent_session_turn_of_kind(meta, "gate")
     if (
         is_real_gate_member_record(record)
-        and gate_shell is not None
-        and (gate_shell.state or "").strip() == "pending"
+        and gate_turn is not None
+        and (gate_turn.state or "").strip() == "pending"
     ):
         return False
-    monitor_shell = _agent_session_shell_of_kind(meta, "monitor")
-    monitor_id = monitor_shell.id if monitor_shell is not None else None
+    monitor_turn = _agent_session_turn_of_kind(meta, "monitor")
+    monitor_id = monitor_turn.id if monitor_turn is not None else None
     monitor = is_real_monitor_member(meta.agent_session_role, monitor_id)
     started = meta.pid is not None if monitor else bool(meta.run_started_at)
     if not started:
@@ -144,8 +144,8 @@ def is_real_gate_member_record(record: AgentArtifactRecordWire) -> bool:
         or (meta.agent_session_role or "").strip() != GATE_AGENT_SESSION_ROLE
     ):
         return False
-    gate_shell = _agent_session_shell_of_kind(meta, "gate")
-    gate_id = gate_shell.id if gate_shell is not None else None
+    gate_turn = _agent_session_turn_of_kind(meta, "gate")
+    gate_id = gate_turn.id if gate_turn is not None else None
     return bool((gate_id or "").strip())
 
 

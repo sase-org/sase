@@ -21,11 +21,11 @@ import json
 from typing import Any
 
 from sase.llm_provider.continuation_budget_spans import open_reducible_span_marker
-from sase.shells.followup import fork_target_for_settled_starter
-from sase.shells.prompt import (
+from sase.turns.followup import fork_target_for_settled_starter
+from sase.turns.prompt import (
     fenced_block as _fenced_block,
     format_shell_duration as _format_duration,
-    shell_routing_prefix,
+    turn_routing_prefix,
     untrusted_output_section,
 )
 from sase.tool.triage_display import followup_triage_lines, load_followup_triage
@@ -102,7 +102,7 @@ def _routing_prefix(
         settled=starter_name is not None,
         prefer_exact_starter=True,
     )
-    return shell_routing_prefix(fork_target, model, reasoning_effort, next_model)
+    return turn_routing_prefix(fork_target, model, reasoning_effort, next_model)
 
 
 def compose_followup_prompt(

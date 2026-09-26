@@ -93,8 +93,8 @@ class Proc:
         values["created_at"] = str(data["created_at"])
         values["log_path"] = str(data["log_path"])
         raw_lifecycle = str(data.get("lifecycle") or PROC_LIFECYCLE_LEGACY)
-        # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
-        if raw_lifecycle == "proc-shell":
+        # legacy sase-shell spelling: pre-rename rows carry ``named-proc``.
+        if raw_lifecycle == "named-proc":
             raw_lifecycle = "named-proc"
         values["lifecycle"] = raw_lifecycle
         values["log_owner"] = str(data.get("log_owner") or STORE_LOG_OWNER)

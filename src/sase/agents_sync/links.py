@@ -12,7 +12,7 @@ from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
 )
 from sase.core.commit_footer_facade import LinkedCommitTagValue
-from sase.sase_agent import sase_agent_page_path, sase_agent_ref_for_shell
+from sase.sase_agent import sase_agent_page_path, sase_agent_ref_for_turn
 from sase.sdd.checkout_anchor import resolve_checkout_anchor
 from sase.sdd.hosted_links import resolve_hosted_branch
 
@@ -33,7 +33,7 @@ def resolve_agent_commit_tag(
 
     snapshot = identity or AgentIdentitySnapshot.current()
     owner = snapshot.owner
-    agent_ref = sase_agent_ref_for_shell(agent_name, snapshot)
+    agent_ref = sase_agent_ref_for_turn(agent_name, snapshot)
     if owner is None:
         return agent_ref.global_name
 

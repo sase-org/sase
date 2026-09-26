@@ -171,7 +171,7 @@ def test_clan_running_lane_rows_agent_session_lane_represents_the_agent_session(
     assert clan_running_lane_rows(container) == (root,)
 
 
-def test_clan_running_lane_rows_agent_session_lane_counts_a_running_monitor_shell() -> (
+def test_clan_running_lane_rows_agent_session_lane_counts_a_running_monitor_turn() -> (
     None
 ):
     container = _agent("research", "RUNNING", suffix=None)

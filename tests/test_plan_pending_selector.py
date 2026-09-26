@@ -59,10 +59,10 @@ def _no_live_plan_agents(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _live_gate_shells(monkeypatch: pytest.MonkeyPatch) -> None:
+def _live_gate_turns(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default every gate id to a live (non-terminal) gate shell."""
     monkeypatch.setattr(
-        "sase.gate_shell.store.find_gate_shell_by_gate_id",
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
         lambda project, gate_id: _shell_record(terminal=False),
     )
 
@@ -128,7 +128,7 @@ def _pending_shell(
     def _find(project: Any, wanted: str) -> Any:
         return record if wanted == gate_id else None
 
-    monkeypatch.setattr("sase.gate_shell.store.find_gate_shell_by_gate_id", _find)
+    monkeypatch.setattr("sase.gate_turn.store.find_gate_turn_by_gate_id", _find)
 
 
 def _live_agent(name: str = "planner") -> Agent:
@@ -279,7 +279,7 @@ def test_user_exact_invocations_diagnose_never_gated() -> None:
 # --- visibility --------------------------------------------------------------
 
 
-def test_shell_backed_gate_visible_with_done_planner(
+def test_turn_backed_gate_visible_with_done_planner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = _archived_plan("shell_visible.md")
@@ -294,7 +294,7 @@ def test_shell_backed_gate_visible_with_done_planner(
     assert [p.notification.id for p in pending_plans()] == ["id-shell"]
 
 
-def test_shell_backed_gate_visible_when_dismissed(
+def test_turn_backed_gate_visible_when_dismissed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = _archived_plan("shell_dismissed.md")
@@ -314,15 +314,15 @@ def test_answered_or_cancelled_shell_is_invisible(
     assert pending_plans() == ()
 
 
-def _no_gate_shell_record(monkeypatch: pytest.MonkeyPatch) -> None:
+def _no_gate_turn_record(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.gate_shell.store.find_gate_shell_by_gate_id",
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
         lambda project, gate_id: None,
     )
 
 
 def test_legacy_live_planner_is_visible(monkeypatch: pytest.MonkeyPatch) -> None:
-    _no_gate_shell_record(monkeypatch)
+    _no_gate_turn_record(monkeypatch)
     plan = _archived_plan("legacy_live.md")
     _append_notification(
         "id-legacy",
@@ -338,7 +338,7 @@ def test_legacy_live_planner_is_visible(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_legacy_orphan_is_invisible(monkeypatch: pytest.MonkeyPatch) -> None:
-    _no_gate_shell_record(monkeypatch)
+    _no_gate_turn_record(monkeypatch)
     plan = _archived_plan("legacy_orphan.md")
     _append_notification(
         "id-orphan",
@@ -385,7 +385,7 @@ def test_miss_stale() -> None:
 
 
 def test_miss_orphaned_gate(monkeypatch: pytest.MonkeyPatch) -> None:
-    _no_gate_shell_record(monkeypatch)
+    _no_gate_turn_record(monkeypatch)
     plan = _archived_plan("orphaned_plan.md")
     _append_notification(
         "id-orphan-gate",

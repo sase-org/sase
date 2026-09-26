@@ -29,7 +29,7 @@ from sase.monitor_status import (
 )
 from sase.procs.models import ProcStoreSnapshot
 from sase.procs.store import read_proc_snapshot
-from sase.shells.settlement import stamp_shell_finished_at
+from sase.turns.settlement import stamp_turn_finished_at
 from sase.workflows.utils import get_project_file_path
 
 from .diagnostics import (
@@ -67,13 +67,13 @@ def should_reconcile_dead_supervisor(
     snapshot: ProcStoreSnapshot | None = None,
 ) -> bool:
     """Return whether a running monitor's supervisor needs reconciliation."""
-    from .proc_adapter import proc_shell_owns
+    from .proc_adapter import named_proc_owns
 
     if record.monitor_state != "running":
         return False
     if record.pid is None:
         return False
-    if proc_shell_owns(record.monitor_id, snapshot=snapshot):
+    if named_proc_owns(record.monitor_id, snapshot=snapshot):
         return False
     if _is_pre_reboot_monitor(record):
         return True
@@ -283,7 +283,7 @@ def _reconcile_dead_supervisor_locked(
     ):
         if meta.get(key):
             done_marker[key] = meta[key]
-    stamp_shell_finished_at(done_marker)
+    stamp_turn_finished_at(done_marker)
     write_done_marker_and_update_index(record.artifacts_dir, done_marker)
     finalize_monitor_workflow_state(record.artifacts_dir)
     touch_monitor_refresh_pulse(record.project_name)

@@ -284,7 +284,7 @@ def _append_pending_plan_notification(
     return response_dir
 
 
-def _mock_gate_shells(
+def _mock_gate_turns(
     monkeypatch: pytest.MonkeyPatch, states: dict[str, str] | None
 ) -> None:
     """Route the fast-path gate lookup to per-gate wire states.
@@ -298,11 +298,11 @@ def _mock_gate_shells(
             return None
         return SimpleNamespace(
             agent_meta=SimpleNamespace(
-                agent_session_shell=SimpleNamespace(state=states[gate_id])
+                agent_session_turn=SimpleNamespace(state=states[gate_id])
             )
         )
 
-    monkeypatch.setattr(facade, "find_gate_shell_by_gate_id", _find)
+    monkeypatch.setattr(facade, "find_gate_turn_by_gate_id", _find)
 
 
 def test_pending_plan_candidates_offer_display_names_newest_first(
@@ -316,7 +316,7 @@ def test_pending_plan_candidates_offer_display_names_newest_first(
     _append_pending_plan_notification(
         "id-newer", newer, request_id="gate-newer", minutes_ago=2
     )
-    _mock_gate_shells(monkeypatch, {"gate-older": "pending", "gate-newer": "pending"})
+    _mock_gate_turns(monkeypatch, {"gate-older": "pending", "gate-newer": "pending"})
 
     result = candidates_for("pending_plan", "", project=None, limit=200)
 
@@ -335,7 +335,7 @@ def test_pending_plan_candidates_show_colliding_shard_names(
     second = _pending_plan_file("same_name.md", ts=_OCT_2026, title="Second")
     _append_pending_plan_notification("id-first", first, request_id="gate-first")
     _append_pending_plan_notification("id-second", second, request_id="gate-second")
-    _mock_gate_shells(monkeypatch, {"gate-first": "pending", "gate-second": "pending"})
+    _mock_gate_turns(monkeypatch, {"gate-first": "pending", "gate-second": "pending"})
 
     result = candidates_for("pending_plan", "", project=None, limit=200)
 
@@ -370,7 +370,7 @@ def test_pending_plan_candidates_exclude_settled_stale_and_cancelled(
     store_path = sase_subdir("pending_actions") / "actions.json"
     if store_path.exists():
         store_path.unlink()
-    _mock_gate_shells(
+    _mock_gate_turns(
         monkeypatch,
         {
             "gate-live": "pending",
@@ -392,7 +392,7 @@ def test_pending_plan_candidates_hide_dismissed_legacy_gates(
     kept = _pending_plan_file("kept_plan.md", title="Kept Plan")
     _append_pending_plan_notification("id-dismissed", dismissed, dismissed=True)
     _append_pending_plan_notification("id-kept", kept)
-    _mock_gate_shells(monkeypatch, None)
+    _mock_gate_turns(monkeypatch, None)
 
     result = candidates_for("pending_plan", "", project=None, limit=200)
 
@@ -414,8 +414,8 @@ def test_pending_plan_catalog_stays_off_the_forbidden_imports() -> None:
         "{'textual', 'rich'} or m == 'sase.ace' or "
         "m.startswith(('sase.ace.', 'sase.sdd.', 'sase.bead.', "
         "'sase.workspace_provider.', 'sase.xprompt.', 'sase.llm_provider.', "
-        "'sase.notifications.', 'sase.gate_shell.')) "
-        "or m in ('sase.notifications', 'sase.gate_shell', 'sase.main.parser')]; "
+        "'sase.notifications.', 'sase.gate_turn.')) "
+        "or m in ('sase.notifications', 'sase.gate_turn', 'sase.main.parser')]; "
         "sys.exit('forbidden imports: ' + ','.join(bad) if bad else 0)"
     )
     completed = subprocess.run(
@@ -427,12 +427,12 @@ def test_pending_plan_catalog_stays_off_the_forbidden_imports() -> None:
     assert completed.returncode == 0, completed.stderr or completed.stdout
 
 
-def test_pending_plan_terminal_gate_states_match_gate_shell() -> None:
+def test_pending_plan_terminal_gate_states_match_gate_turn() -> None:
     """The pinned terminal-state set fails loudly if the source drifts."""
     from sase.completion.candidates.catalog_plans import (
         PENDING_PLAN_TERMINAL_GATE_STATES,
     )
-    from sase.gate_shell.state import TERMINAL_GATE_STATES
+    from sase.gate_turn.state import TERMINAL_GATE_STATES
 
     assert PENDING_PLAN_TERMINAL_GATE_STATES == set(TERMINAL_GATE_STATES)
 
@@ -477,9 +477,9 @@ def test_pending_plan_matches_resolver_name_set(
     )
     _append_pending_plan_notification("id-done", done, request_id="gate-done")
     states = {"gate-live": "pending", "gate-other": "pending", "gate-done": "answered"}
-    _mock_gate_shells(monkeypatch, states)
+    _mock_gate_turns(monkeypatch, states)
     monkeypatch.setattr(
-        "sase.gate_shell.store.find_gate_shell_by_gate_id",
+        "sase.gate_turn.store.find_gate_turn_by_gate_id",
         lambda project, gate_id: SimpleNamespace(
             is_terminal=(states.get(gate_id, "pending") != "pending")
         ),

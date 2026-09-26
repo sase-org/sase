@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from sase.plan_chain import PLAN_CHAIN_MONITOR_SUFFIX
-from sase.shells.naming import (
+from sase.turns.naming import (
     SequenceSuffixSpec,
-    ShellIdSpec,
-    allocate_shell_suffix,
-    new_shell_id,
-    short_shell_id,
+    TurnIdSpec,
+    allocate_turn_suffix,
+    new_turn_id,
+    short_turn_id,
 )
 
 #: Suffix template later monitor members in a lane allocate from, producing
@@ -23,7 +23,7 @@ _MONITOR_ID_LENGTH = 12
 #: Mirrors :data:`sase.procs.ids.SHORT_PROC_ID_LENGTH` for display.
 SHORT_MONITOR_ID_LENGTH = 6
 
-_MONITOR_ID_SPEC = ShellIdSpec(
+_MONITOR_ID_SPEC = TurnIdSpec(
     alphabet=_MONITOR_ID_ALPHABET,
     length=_MONITOR_ID_LENGTH,
     short_length=SHORT_MONITOR_ID_LENGTH,
@@ -36,12 +36,12 @@ _MONITOR_SUFFIX_SPEC = SequenceSuffixSpec(
 
 def new_monitor_id() -> str:
     """Mint a 12-character lowercase unambiguous base32 monitor id."""
-    return new_shell_id(_MONITOR_ID_SPEC)
+    return new_turn_id(_MONITOR_ID_SPEC)
 
 
 def short_monitor_id(monitor_id: str) -> str:
     """Return the standard six-character monitor-id display prefix."""
-    return short_shell_id(monitor_id, _MONITOR_ID_SPEC)
+    return short_turn_id(monitor_id, _MONITOR_ID_SPEC)
 
 
 def allocate_monitor_suffix(lane: str, *, has_existing_monitor: bool) -> str:
@@ -52,7 +52,7 @@ def allocate_monitor_suffix(lane: str, *, has_existing_monitor: bool) -> str:
     -- allocates a sequence suffix (``--mon-0``, ``--mon-1``, ...) since a
     lane is sequential and only ever has one *active* monitor at a time.
     """
-    return allocate_shell_suffix(
+    return allocate_turn_suffix(
         lane,
         has_existing_shell=has_existing_monitor,
         spec=_MONITOR_SUFFIX_SPEC,

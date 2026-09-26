@@ -11,7 +11,7 @@ from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
-    patch_plan_gate_shell_result,
+    patch_plan_gate_turn_result,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
@@ -55,7 +55,7 @@ def run_plan_approval(
         state = make_state(tmp_path)
 
     with contextlib.ExitStack() as stack:
-        stack.enter_context(patch_plan_gate_shell_result(approval))
+        stack.enter_context(patch_plan_gate_turn_result(approval))
         stack.enter_context(
             patch(
                 "sase.sdd.files.write_sdd_files",

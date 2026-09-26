@@ -1,4 +1,4 @@
-"""Integration tests for the agents-tab fold/capacity/proc-shell apply boundary."""
+"""Integration tests for the agents-tab fold/capacity/named-proc apply boundary."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
 )
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
-from sase.ace.tui.models.agent_proc_shells import merge_proc_shell_agents
+from sase.ace.tui.models.agent_named_procs import merge_named_proc_agents
 from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
@@ -211,20 +211,20 @@ def test_worker_boundary_observes_changed_effective_runner_limit(
 
 @pytest.mark.parametrize("merge_incomplete", [True, False])
 @pytest.mark.parametrize("incoming_has_proc", [False, True])
-def test_apply_boundary_carries_cached_proc_shell_before_fold_filtering(
+def test_apply_boundary_carries_cached_named_proc_before_fold_filtering(
     merge_incomplete: bool,
     incoming_has_proc: bool,
 ) -> None:
     disk_agent = _make_agent(cl_name="disk", raw_suffix="disk")
-    proc_shell = _make_agent(
-        agent_type=AgentType.PROC_SHELL,
+    named_proc = _make_agent(
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         raw_suffix="proc-123",
         status="RUNNING",
         proc_id="proc-123",
     )
     incoming = (
-        merge_proc_shell_agents([disk_agent], [proc_shell])
+        merge_named_proc_agents([disk_agent], [named_proc])
         if incoming_has_proc
         else [disk_agent]
     )
@@ -237,7 +237,7 @@ def test_apply_boundary_carries_cached_proc_shell_before_fold_filtering(
     )
 
     app = FakeAgentApp()
-    app._agents_with_children = [disk_agent, proc_shell]
+    app._agents_with_children = [disk_agent, named_proc]
     boundary = prepare_loaded_agents_apply_boundary(
         prep,
         app._make_prepared_apply_snapshot(
@@ -249,14 +249,14 @@ def test_apply_boundary_carries_cached_proc_shell_before_fold_filtering(
     )
 
     assert [agent.identity for agent in boundary.fold.unfiltered_agents].count(
-        proc_shell.identity
+        named_proc.identity
     ) == 1
     assert [agent.identity for agent in boundary.fold.visible_agents].count(
-        proc_shell.identity
+        named_proc.identity
     ) == 1
 
 
-def test_proc_shell_rows_do_not_occupy_runner_capacity() -> None:
+def test_named_proc_rows_do_not_occupy_runner_capacity() -> None:
     holder = _make_agent(
         cl_name="holder",
         status="RUNNING",
@@ -265,8 +265,8 @@ def test_proc_shell_rows_do_not_occupy_runner_capacity() -> None:
         artifacts_dir="/tmp/artifacts/ace-run/holder",
         run_start_time=datetime(2026, 8, 23, 10, 0),
     )
-    proc_shell = _make_agent(
-        agent_type=AgentType.PROC_SHELL,
+    named_proc = _make_agent(
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         raw_suffix="proc-123",
         status="RUNNING",
@@ -275,7 +275,7 @@ def test_proc_shell_rows_do_not_occupy_runner_capacity() -> None:
         run_start_time=datetime(2026, 8, 23, 10, 1),
     )
     app = FakeAgentApp()
-    app._agents_with_children = [holder, proc_shell]
+    app._agents_with_children = [holder, named_proc]
 
     boundary = prepare_loaded_agents_apply_boundary(
         PreparedApplyData(

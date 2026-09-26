@@ -211,24 +211,24 @@ def test_auto_question_uses_first_options_without_publishing_pending_action(
     assert pending_actions.read_pending_action_store()["actions"] == {}
 
 
-def test_shell_backed_question_settles_its_gate_shell_and_streams_output(
+def test_turn_backed_question_settles_its_gate_turn_and_streams_output(
     question_gate_home: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     del question_gate_home
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
     from sase.axe.run_agent_helpers_artifacts import update_meta_field
-    from sase.gate_shell.member import create_gate_shell_member
-    from sase.gate_shell.store import read_gate_shell_marker
-    from sase.notification_gates.model_shell import GateShellSpec
+    from sase.gate_turn.member import create_gate_turn_member
+    from sase.gate_turn.store import read_gate_turn_marker
+    from sase.notification_gates.model_turn import GateTurnSpec
 
     request = user_question_gate_spec(_questions(), session_id="shell-question")
     # No ``next.prompt`` declared: settlement must not attempt a follow-up
     # launch (and its starter-settle wait) for this test to stay fast.
-    request["shell"] = {}
+    request["turn"] = {}
     gate = create_gate(request)
-    shell = GateShellSpec.from_mapping(request["shell"], branches=(("submit",),))
-    artifacts_dir = create_gate_shell_member(
+    turn = GateTurnSpec.from_mapping(request["turn"], branches=(("submit",),))
+    artifacts_dir = create_gate_turn_member(
         "proj",
         {"name": "lane--0", "agent_session": "lane"},
         lane="lane",
@@ -242,7 +242,7 @@ def test_shell_backed_question_settles_its_gate_shell_and_streams_output(
         creator_agent="lane--0",
         timeout_seconds=86400.0,
         request_fingerprint=None,
-        shell=shell,
+        turn=turn,
     )
     update_meta_field(artifacts_dir, "gate_bundle_path", str(gate.bundle_path))
 
@@ -252,7 +252,7 @@ def test_shell_backed_question_settles_its_gate_shell_and_streams_output(
     )
 
     assert result.answers == _complete_response()
-    record = read_gate_shell_marker("proj", artifacts_dir)
+    record = read_gate_turn_marker("proj", artifacts_dir)
     assert record is not None
     assert record.gate_state == "answered"
     assert (Path(artifacts_dir) / "gate_decision.md").exists()

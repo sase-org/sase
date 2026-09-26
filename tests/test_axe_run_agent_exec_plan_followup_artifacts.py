@@ -12,7 +12,7 @@ from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
-    patch_plan_gate_shell_result,
+    patch_plan_gate_turn_result,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
@@ -33,7 +33,7 @@ def test_handle_plan_marker_leaves_epic_kickoff_metadata_to_host(
         patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact"),
         patch("sase.axe.run_agent_exec_plan.update_step_marker_chat_path"),
         patch("sase.axe.run_agent_exec_plan_accept.promote_to_workflow"),
-        patch_plan_gate_shell_result(approval),
+        patch_plan_gate_turn_result(approval),
         patch("sase.history.chat.save_chat_history", return_value="/fake/chat"),
         patch("sase.history.chat_extras.format_extra_sections", return_value=""),
         patch("sase.history.chat_links.format_plan_as_response", return_value="plan"),

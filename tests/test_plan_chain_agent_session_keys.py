@@ -14,10 +14,7 @@ from types import SimpleNamespace
 
 from sase.agents_sync.v2_validation import V2_METADATA_FIELDS
 from sase.axe.run_agent_directive_metadata import preserved_agent_metadata
-from sase.core.agent_scan_wire_agent_session_turn import (
-    agent_session_shell_from_mapping,
-    agent_session_turn_from_mapping,
-)
+from sase.core.agent_scan_wire_agent_session_turn import agent_session_turn_from_mapping
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.wire import known_field_kwargs, with_agent_session_keys
 from sase.plan_chain import (
@@ -31,13 +28,13 @@ from sase.plan_chain import (
     LEGACY_AGENT_FAMILY_ROLE_KEY,
     LEGACY_AGENT_FAMILY_SHELL_KEY,
     LEGACY_AGENT_SESSION_SHELL_KEY,
+    LEGACY_AGENT_SESSION_TURN_KEY,
     TURN_KIND_KEY,
     agent_session_base,
     agent_session_parallel_value,
     agent_session_phase_name,
     agent_session_role_for_suffix,
     agent_session_role_value,
-    agent_session_shell_value,
     agent_session_turn_value,
     agent_session_suffix_token,
     agent_session_value,
@@ -52,6 +49,7 @@ LEGACY_KEYS = (
     "agent_family_role",
     "agent_family_parallel",
     "family_shell",
+    "agent_session_turn",
     "agent_session_shell",
     "shell_kind",
 )
@@ -63,12 +61,13 @@ def test_canonical_constants_match_wire_spellings() -> None:
     assert AGENT_SESSION_PARALLEL_KEY == "agent_session_parallel"
     assert AGENT_SESSION_TURN_KEY == "agent_session_turn"
     assert TURN_KIND_KEY == "turn_kind"
-    assert LEGACY_AGENT_SESSION_SHELL_KEY == "agent_session_shell"
+    assert LEGACY_AGENT_SESSION_TURN_KEY == "agent_session_turn"
     assert AGENT_SESSION_SEPARATOR == "--"
     assert LEGACY_AGENT_FAMILY_KEY == "agent_family"
     assert LEGACY_AGENT_FAMILY_ROLE_KEY == "agent_family_role"
     assert LEGACY_AGENT_FAMILY_PARALLEL_KEY == "agent_family_parallel"
     assert LEGACY_AGENT_FAMILY_SHELL_KEY == "family_shell"
+    assert LEGACY_AGENT_SESSION_SHELL_KEY == "agent_session_shell"
 
 
 def test_accessors_read_new_keys() -> None:
@@ -82,7 +81,7 @@ def test_accessors_read_new_keys() -> None:
     assert agent_session_value(meta) == "acme"
     assert agent_session_role_value(meta) == "code"
     assert agent_session_parallel_value(meta) is True
-    assert agent_session_shell_value(meta) == {"kind": "monitor"}
+    assert agent_session_turn_value(meta) == {"kind": "monitor"}
     assert agent_session_turn_value(meta) == {"kind": "monitor"}
     assert turn_kind_value(meta) == "monitor"
 
@@ -97,17 +96,33 @@ def test_accessors_fall_back_to_legacy_keys() -> None:
     assert agent_session_value(meta) == "acme"
     assert agent_session_role_value(meta) == "code"
     assert agent_session_parallel_value(meta) is True
-    assert agent_session_shell_value(meta) == {"kind": "gate"}
     assert agent_session_turn_value(meta) == {"kind": "gate"}
-    # legacy sase-shell spelling: ``agent_session_shell`` and ``shell_kind``.
+    assert agent_session_turn_value(meta) == {"kind": "gate"}
+    # legacy sase-shell spelling: ``agent_session_turn`` and ``shell_kind``.
     shell_meta = {
-        "agent_session_shell": {"kind": "monitor", "id": "m"},
+        "agent_session_turn": {"kind": "monitor", "id": "m"},
         "shell_kind": "proc",
     }
     assert agent_session_turn_value(shell_meta) == {"kind": "monitor", "id": "m"}
     assert turn_kind_value(shell_meta) == "monitor"
     assert turn_kind_value({"turn_kind": "gate"}) == "gate"
     assert turn_kind_value({"shell_kind": "gate"}) == "gate"
+
+
+def test_accessors_read_pre_cutover_core_shell_spelling() -> None:
+    """The pinned Rust core still emits ``agent_session_shell`` (sase-1ab.3)."""
+    meta = {
+        "agent_session": "lane",
+        "agent_session_role": "gate",
+        "agent_session_shell": {"kind": "gate", "id": "g"},
+        "shell_kind": "gate",
+    }
+    assert agent_session_turn_value(meta) == {"kind": "gate", "id": "g"}
+    assert agent_session_turn_value(meta) == {"kind": "gate", "id": "g"}
+    turn = agent_session_turn_from_mapping(meta)
+    assert turn is not None and turn.kind == "gate" and turn.id == "g"
+    bridged = with_agent_session_keys(meta)
+    assert bridged["agent_session_turn"] == {"kind": "gate", "id": "g"}
 
 
 def test_accessors_prefer_new_spelling_for_mixed_files() -> None:
@@ -126,7 +141,7 @@ def test_accessors_return_none_when_absent() -> None:
     assert agent_session_value({}) is None
     assert agent_session_role_value({}) is None
     assert agent_session_parallel_value({}) is None
-    assert agent_session_shell_value({}) is None
+    assert agent_session_turn_value({}) is None
     assert agent_session_turn_value({}) is None
     assert turn_kind_value({}) is None
 
@@ -150,6 +165,8 @@ def test_set_agent_session_fields_writes_new_and_drops_legacy() -> None:
         "agent_family_role": "plan",
         "agent_family_parallel": True,
         "family_shell": {"kind": "monitor"},
+        "agent_session_shell": {"kind": "monitor"},
+        "shell_kind": "monitor",
     }
     set_agent_session_fields(meta, session="acme", role="code")
     assert meta["agent_session"] == "acme"
@@ -202,7 +219,7 @@ def test_legacy_agent_meta_resolves_through_accessors(tmp_path: Path) -> None:
     assert agent_session_value(loaded) == "acme"
     assert agent_session_role_value(loaded) == "code"
     assert agent_session_parallel_value(loaded) is True
-    shell = agent_session_shell_from_mapping(loaded)
+    shell = agent_session_turn_from_mapping(loaded)
     assert shell is not None and shell.kind == "monitor" and shell.id == "mon-1"
 
 
@@ -210,17 +227,17 @@ def test_done_json_nested_shell_reads_either_spelling() -> None:
     legacy = {"outcome": "MONITOR", "family_shell": {"kind": "monitor", "id": "m"}}
     shell_legacy = {
         "outcome": "MONITOR",
-        "agent_session_shell": {"kind": "monitor", "id": "m"},
+        "agent_session_turn": {"kind": "monitor", "id": "m"},
     }
     new = {"outcome": "MONITOR", "agent_session_turn": {"kind": "monitor", "id": "m"}}
     for done_data in (legacy, shell_legacy, new):
         turn = agent_session_turn_from_mapping(done_data)
         assert turn is not None and turn.kind == "monitor" and turn.id == "m"
         # legacy alias still hydrates
-        shell = agent_session_shell_from_mapping(done_data)
+        shell = agent_session_turn_from_mapping(done_data)
         assert shell is not None and shell.kind == "monitor" and shell.id == "m"
-    assert agent_session_shell_value(legacy) == {"kind": "monitor", "id": "m"}
-    assert agent_session_shell_value(shell_legacy) == {"kind": "monitor", "id": "m"}
+    assert agent_session_turn_value(legacy) == {"kind": "monitor", "id": "m"}
+    assert agent_session_turn_value(shell_legacy) == {"kind": "monitor", "id": "m"}
     assert agent_session_turn_value(new) == {"kind": "monitor", "id": "m"}
 
 
@@ -274,7 +291,7 @@ def test_wire_bridge_backfills_new_spellings_for_legacy_fields() -> None:
     )
     # legacy shell spelling also bridges
     shell_bridged = with_agent_session_keys(
-        {"agent_session_shell": {"kind": "gate", "id": "g"}}
+        {"agent_session_turn": {"kind": "gate", "id": "g"}}
     )
     assert shell_bridged["agent_session_turn"] == {"kind": "gate", "id": "g"}
     done = DoneMarkerWire(

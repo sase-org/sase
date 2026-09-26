@@ -7,7 +7,7 @@ from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.paths import sase_projects_dir
-from sase.gate_shell.status import DEFAULT_GATE_SHELL_SETTLED_STATUS
+from sase.gate_turn.status import DEFAULT_GATE_TURN_SETTLED_STATUS
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
@@ -124,7 +124,7 @@ def load_done_agent_for_dir(
             status = (
                 data.get("status_label")
                 if isinstance(data.get("status_label"), str)
-                else DEFAULT_GATE_SHELL_SETTLED_STATUS
+                else DEFAULT_GATE_TURN_SETTLED_STATUS
             )
             error_message = (
                 data.get("error") if isinstance(data.get("error"), str) else None

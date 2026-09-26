@@ -1,5 +1,5 @@
 """Tests for the Rust proc-store facade: CRUD round trips and the
-reserve/claim/settle proc-shell lifecycle.
+reserve/claim/settle named-proc lifecycle.
 """
 
 from __future__ import annotations
@@ -88,7 +88,7 @@ def test_get_proc_resolves_many_ids_from_one_snapshot(
     assert reads == ["read_procs_snapshot"]
 
 
-def test_proc_shell_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> None:
+def test_named_proc_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> None:
     store = tmp_path / "procs.jsonl"
 
     reserved = reserve_proc(_reserve("reserved-one"), path=store, history_limit=10)

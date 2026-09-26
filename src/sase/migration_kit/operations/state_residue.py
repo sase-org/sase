@@ -119,7 +119,7 @@ class StateResidueOperation:
                         "notifications",
                         "pending_actions",
                         "gates",
-                        "gate_shells",
+                        "gate_turns",
                         "procs",
                     ],
                 },

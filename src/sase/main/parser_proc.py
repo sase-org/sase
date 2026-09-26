@@ -40,7 +40,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Kill one running proc",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Kill one proc by exact fully qualified named proc shell, exact "
+            "Kill one proc by exact fully qualified named proc, exact "
             "id, or unique id prefix (at least three characters). A bare "
             "name is derived beneath the calling sase agent. A proc that is "
             "already finished is reported as an unchanged no-op."
@@ -55,7 +55,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
     kill_parser.add_argument(
         "proc_id",
         metavar="REF",
-        help="Named proc shell, proc id, or unique id prefix",
+        help="Named proc, proc id, or unique id prefix",
     )
     kill_parser.add_argument(
         "-j",
@@ -73,7 +73,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
             "shows procs for the current session — the TUI session of this "
             "process, else the newest live one — plus procs that belong to no "
             "session; pass --all to see every session's work. Filter by "
-            "named proc shell with -N/--shell; a bare name is derived "
+            "named proc with -N/--name; a bare name is derived "
             "beneath the calling sase agent, and historical names stay "
             "visible. Procs whose supervisor died without reporting are "
             "reconciled to `error` before the list is rendered."
@@ -119,13 +119,18 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     list_parser.add_argument(
         "-N",
-        "--shell",
+        "--name",
         default=None,
         metavar="NAME",
         help=(
-            "Only the named proc shell; a bare name is derived beneath the "
-            "calling sase agent"
+            "Only the named proc; a bare name is derived beneath the calling sase agent"
         ),
+    )
+    list_parser.add_argument(
+        "--shell",
+        default=None,
+        metavar="NAME",
+        help=argparse.SUPPRESS,
     )
     list_parser.add_argument(
         "-p",
@@ -141,7 +146,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="TEXT",
         help=(
             "Case-insensitive substring filter over label, command, Patch "
-            "name, and named proc shell"
+            "name, and named proc"
         ),
     )
     list_parser.add_argument(
@@ -184,7 +189,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Record a proc, start it under a supervisor, and return. "
             "The supervisor owns the command's process group and captures its "
-            "combined output, so the proc survives this shell and any TUI. "
+            "combined output, so the proc survives this process and any TUI. "
             "Everything after `--` is the command to run.\n\n"
             "Targeting a session is attribution, not delegation: the proc runs "
             "the same way regardless, but the chosen session's Procs tab shows "
@@ -221,13 +226,19 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     run_parser.add_argument(
         "-N",
-        "--shell",
+        "--name",
         default=None,
         metavar="NAME",
         help=(
-            "named proc shell; a bare name is derived beneath the calling "
+            "named proc; a bare name is derived beneath the calling "
             "sase agent, and the name may be reused only after settlement"
         ),
+    )
+    run_parser.add_argument(
+        "--shell",
+        default=None,
+        metavar="NAME",
+        help=argparse.SUPPRESS,
     )
     run_parser.add_argument(
         "-p",
@@ -280,7 +291,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show one proc and its captured output",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Show one proc by exact fully qualified named proc shell, exact "
+            "Show one proc by exact fully qualified named proc, exact "
             "id, or unique id prefix (at least three characters), followed "
             "by the tail of its captured output. A bare name is derived "
             "beneath the calling sase agent. `--follow` streams new output "
@@ -300,7 +311,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
     show_parser.add_argument(
         "proc_id",
         metavar="REF",
-        help="Named proc shell, proc id, or unique id prefix",
+        help="Named proc, proc id, or unique id prefix",
     )
     show_parser.add_argument(
         "-A",

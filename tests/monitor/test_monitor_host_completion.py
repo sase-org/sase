@@ -29,7 +29,7 @@ from sase.monitor.host_completion import (
     settle_host_completion,
 )
 from sase.monitor.output import OutputCapture
-from sase.shells.followup import FollowupLaunchResult
+from sase.turns.followup import FollowupLaunchResult
 from tests.core._continuation_facade_helpers import (
     digest,
     make_passed_stage,

@@ -7,8 +7,8 @@ import pytest
 from sase.core.agent_scan_wire import (
     AgentMetaWire,
     DoneMarkerWire,
-    AgentSessionShellMonitorWire,
-    AgentSessionShellWire,
+    AgentSessionTurnMonitorWire,
+    AgentSessionTurnWire,
 )
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.monitor.models import (
@@ -99,14 +99,14 @@ def test_is_monitor_member_record_requires_role_and_monitor_id() -> None:
         agent_meta=AgentMetaWire(
             name="acme--mon",
             agent_session_role="monitor",
-            agent_session_turn=AgentSessionShellWire(kind="monitor", id="abc123"),
+            agent_session_turn=AgentSessionTurnWire(kind="monitor", id="abc123"),
         )
     )
     other_role = _record(
         agent_meta=AgentMetaWire(
             name="acme--0",
             agent_session_role="root",
-            agent_session_turn=AgentSessionShellWire(kind="monitor", id="abc123"),
+            agent_session_turn=AgentSessionTurnWire(kind="monitor", id="abc123"),
         )
     )
 
@@ -120,7 +120,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_turn=AgentSessionShellWire(
+        agent_session_turn=AgentSessionTurnWire(
             kind="monitor",
             id="abc123",
             label="sleep",
@@ -130,7 +130,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
             timeout_seconds=60.0,
             state="running",
             next_model="@small",
-            monitor=AgentSessionShellMonitorWire(
+            monitor=AgentSessionTurnMonitorWire(
                 command="sleep 60",
                 cwd="/work",
                 idle_timeout_seconds=10.0,
@@ -157,18 +157,18 @@ def test_from_record_prefers_done_marker_over_running_meta() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_turn=AgentSessionShellWire(
+        agent_session_turn=AgentSessionTurnWire(
             kind="monitor",
             id="abc123",
             state="running",
-            monitor=AgentSessionShellMonitorWire(command="sh -c 'exit 3'"),
+            monitor=AgentSessionTurnMonitorWire(command="sh -c 'exit 3'"),
         ),
     )
     done = DoneMarkerWire(
-        agent_session_turn=AgentSessionShellWire(
+        agent_session_turn=AgentSessionTurnWire(
             kind="monitor",
             state="failed",
-            monitor=AgentSessionShellMonitorWire(exit_code=3),
+            monitor=AgentSessionTurnMonitorWire(exit_code=3),
         )
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta, done=done))
@@ -183,11 +183,11 @@ def test_from_record_treats_unsettled_terminal_meta_as_active() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_turn=AgentSessionShellWire(
+        agent_session_turn=AgentSessionTurnWire(
             kind="monitor",
             id="abc123",
             state="completed",
-            monitor=AgentSessionShellMonitorWire(command="true", settled=False),
+            monitor=AgentSessionTurnMonitorWire(command="true", settled=False),
         ),
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta))
@@ -202,12 +202,12 @@ def test_from_record_uses_settled_meta_without_done_marker() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_turn=AgentSessionShellWire(
+        agent_session_turn=AgentSessionTurnWire(
             kind="monitor",
             id="abc123",
             state="completed",
             request_fingerprint="sha256:test",
-            monitor=AgentSessionShellMonitorWire(command="true", settled=True),
+            monitor=AgentSessionTurnMonitorWire(command="true", settled=True),
         ),
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta))
@@ -222,11 +222,11 @@ def test_from_record_preserves_a_zero_exit_code() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_turn=AgentSessionShellWire(
+        agent_session_turn=AgentSessionTurnWire(
             kind="monitor",
             id="abc123",
             state="running",
-            monitor=AgentSessionShellMonitorWire(command="true", exit_code=0),
+            monitor=AgentSessionTurnMonitorWire(command="true", exit_code=0),
         ),
     )
     record = MonitorRecord.from_record(_record(agent_meta=meta))

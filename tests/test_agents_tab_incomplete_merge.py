@@ -344,9 +344,7 @@ def test_bounded_prefix_same_type_gate_settlement_still_replaces() -> None:
     assert settled_gate.gate_state == "answered"
 
 
-def test_bounded_prefix_shadow_without_shell_state_does_not_clobber_cached_row() -> (
-    None
-):
+def test_bounded_prefix_shadow_without_turn_state_does_not_clobber_cached_row() -> None:
     """A suffix shadow without shell state must still lose to the richer cache."""
     root, cached_gate, _, completed_coder = _settled_gate_merge_rows()
     shadow = _gate_shadow_row()

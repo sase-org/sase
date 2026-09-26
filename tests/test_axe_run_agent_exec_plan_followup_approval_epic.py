@@ -12,7 +12,7 @@ from sase.sdd._store_types import SddMaterializationError
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
-    patch_plan_gate_shell_result,
+    patch_plan_gate_turn_result,
     patched_plan_deps,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
@@ -39,7 +39,7 @@ class TestPlanFollowupEpicApprovals:
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -62,7 +62,7 @@ class TestPlanFollowupEpicApprovals:
         approval = PlanApprovalResult(action="epic", plan_file=str(plan))
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch("sase.sdd.files.write_sdd_spec") as write_sdd,
             pytest.raises(PlanApprovalValidationError),
         ):
@@ -85,7 +85,7 @@ class TestPlanFollowupEpicApprovals:
             run_coder=False,
         )
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -107,7 +107,7 @@ class TestPlanFollowupEpicApprovals:
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
@@ -134,7 +134,7 @@ class TestPlanFollowupEpicApprovals:
         )
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.store.materialize_sdd_store",
                 side_effect=SddMaterializationError("plans store is mid-rebase"),
@@ -174,7 +174,7 @@ class TestPlanFollowupEpicApprovals:
         approval = PlanApprovalResult(action="epic", plan_file=str(home_plan))
 
         with (
-            patch_plan_gate_shell_result(approval),
+            patch_plan_gate_turn_result(approval),
             patch(
                 "sase.sdd.store.materialize_sdd_store",
                 side_effect=SddMaterializationError("plans store is mid-rebase"),

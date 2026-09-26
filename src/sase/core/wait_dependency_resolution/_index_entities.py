@@ -342,7 +342,7 @@ class WaitDependencyEntityQueries:
         )
 
     @staticmethod
-    def _agent_session_shell_handoffs_have_successors(
+    def _agent_session_turn_handoffs_have_successors(
         candidates: tuple[ArtifactCandidate, ...],
         *,
         extra_present_names: frozenset[str] = frozenset(),
@@ -368,7 +368,7 @@ class WaitDependencyEntityQueries:
                 candidates,
                 extra_present_names=extra_present_names,
             ),
-            cls._agent_session_shell_handoffs_have_successors(
+            cls._agent_session_turn_handoffs_have_successors(
                 candidates,
                 extra_present_names=extra_present_names,
             ),

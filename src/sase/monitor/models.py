@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from sase.core.agent_scan_wire import (
         AgentArtifactRecordWire,
         AgentMetaWire,
-        AgentSessionShellWire,
+        AgentSessionTurnWire,
         DoneMarkerWire,
     )
 
@@ -64,10 +64,10 @@ class MonitorRefError(ValueError):
     """A monitor reference was empty, unknown, or ambiguous."""
 
 
-def _monitor_shell(
+def _monitor_turn(
     source: AgentMetaWire | DoneMarkerWire | None,
-) -> AgentSessionShellWire | None:
-    shell = None if source is None else source.agent_session_shell
+) -> AgentSessionTurnWire | None:
+    shell = None if source is None else source.agent_session_turn
     return shell if shell is not None and shell.kind == "monitor" else None
 
 
@@ -80,7 +80,7 @@ def is_monitor_member_record(record: AgentArtifactRecordWire) -> bool:
     meta = record.agent_meta
     if meta is None or meta.agent_session_role != "monitor":
         return False
-    shell = _monitor_shell(meta)
+    shell = _monitor_turn(meta)
     return shell is not None and bool(shell.id)
 
 
@@ -169,21 +169,21 @@ class MonitorRecord:
     def from_record(cls, record: AgentArtifactRecordWire) -> MonitorRecord:
         """Build a record from an agent-artifact-index scan row."""
         meta = record.agent_meta
-        meta_shell = _monitor_shell(meta)
-        if meta is None or meta_shell is None or not meta_shell.id:
+        meta_turn = _monitor_turn(meta)
+        if meta is None or meta_turn is None or not meta_turn.id:
             raise ValueError(
                 f"artifact record at {record.artifact_dir!r} is not a monitor member"
             )
-        meta_monitor = meta_shell.monitor
+        meta_monitor = meta_turn.monitor
         done = record.done
-        done_shell = _monitor_shell(done)
-        done_monitor = done_shell.monitor if done_shell is not None else None
+        done_turn = _monitor_turn(done)
+        done_monitor = done_turn.monitor if done_turn is not None else None
 
         monitor_state: MonitorState = "running"
-        if done_shell is not None and done_shell.state:
-            monitor_state = done_shell.state  # type: ignore[assignment]
-        elif meta_shell.state:
-            monitor_state = meta_shell.state  # type: ignore[assignment]
+        if done_turn is not None and done_turn.state:
+            monitor_state = done_turn.state  # type: ignore[assignment]
+        elif meta_turn.state:
+            monitor_state = meta_turn.state  # type: ignore[assignment]
 
         exit_code: int | None = None
         if done_monitor is not None and done_monitor.exit_code is not None:
@@ -192,35 +192,35 @@ class MonitorRecord:
             exit_code = meta_monitor.exit_code
 
         elapsed_seconds: float | None = None
-        if done_shell is not None and done_shell.elapsed_seconds is not None:
-            elapsed_seconds = done_shell.elapsed_seconds
+        if done_turn is not None and done_turn.elapsed_seconds is not None:
+            elapsed_seconds = done_turn.elapsed_seconds
 
         settled = bool((meta_monitor is not None and meta_monitor.settled) or done)
 
         followup_outcome = (
-            done_shell.followup_outcome if done_shell is not None else None
-        ) or meta_shell.followup_outcome
+            done_turn.followup_outcome if done_turn is not None else None
+        ) or meta_turn.followup_outcome
         followup_error = (
-            done_shell.followup_error if done_shell is not None else None
-        ) or meta_shell.followup_error
+            done_turn.followup_error if done_turn is not None else None
+        ) or meta_turn.followup_error
         followup_degraded_reason = (
-            done_shell.followup_degraded_reason if done_shell is not None else None
-        ) or meta_shell.followup_degraded_reason
+            done_turn.followup_degraded_reason if done_turn is not None else None
+        ) or meta_turn.followup_degraded_reason
         followup_prompt_path = (
-            done_shell.followup_prompt_path if done_shell is not None else None
-        ) or meta_shell.followup_prompt_path
+            done_turn.followup_prompt_path if done_turn is not None else None
+        ) or meta_turn.followup_prompt_path
         host_completion_status = (
-            done_shell.host_completion_status if done_shell is not None else None
-        ) or meta_shell.host_completion_status
+            done_turn.host_completion_status if done_turn is not None else None
+        ) or meta_turn.host_completion_status
         host_completion_message = (
-            done_shell.host_completion_message if done_shell is not None else None
-        ) or meta_shell.host_completion_message
+            done_turn.host_completion_message if done_turn is not None else None
+        ) or meta_turn.host_completion_message
         host_completion_reason = (
-            done_shell.host_completion_reason if done_shell is not None else None
-        ) or meta_shell.host_completion_reason
+            done_turn.host_completion_reason if done_turn is not None else None
+        ) or meta_turn.host_completion_reason
 
         status_pair: MonitorStatusPair = monitor_status_pair(
-            meta_shell.start_status, meta_shell.stop_status
+            meta_turn.start_status, meta_turn.stop_status
         )
 
         command = meta_monitor.command if meta_monitor is not None else None
@@ -239,7 +239,7 @@ class MonitorRecord:
             done, meta, "continuation_budget_decision_path"
         ) or _done_first(done, meta, "monitor_followup_budget_decision_path")
         return cls(
-            monitor_id=meta_shell.id,
+            monitor_id=meta_turn.id,
             member_agent_name=meta.name or "",
             lane=meta.agent_session or "",
             project_name=record.project_name,
@@ -247,11 +247,11 @@ class MonitorRecord:
             timestamp=record.timestamp,
             command=command or "",
             cwd=(meta_monitor.cwd if meta_monitor is not None else None) or "",
-            reason=meta_shell.reason or "",
-            label=meta_shell.label or command or "",
+            reason=meta_turn.reason or "",
+            label=meta_turn.label or command or "",
             start_status=status_pair.start,
             stop_status=status_pair.stop,
-            timeout_seconds=meta_shell.timeout_seconds or 0.0,
+            timeout_seconds=meta_turn.timeout_seconds or 0.0,
             tail_lines=(meta_monitor.tail_lines if meta_monitor is not None else None)
             or 200,
             monitor_state=monitor_state,
@@ -259,27 +259,27 @@ class MonitorRecord:
                 meta_monitor.idle_timeout_seconds if meta_monitor is not None else None
             )
             or 0.0,
-            next_action=meta_shell.next_action or None,
-            next_model=meta_shell.next_model or None,
-            next_output=meta_shell.next_output or LEGACY_NEXT_OUTPUT,
-            completion_ref=meta_shell.completion_ref or None,
-            profile=meta_shell.profile or None,
-            policy_digest=meta_shell.policy_digest or None,
+            next_action=meta_turn.next_action or None,
+            next_model=meta_turn.next_model or None,
+            next_output=meta_turn.next_output or LEGACY_NEXT_OUTPUT,
+            completion_ref=meta_turn.completion_ref or None,
+            profile=meta_turn.profile or None,
+            policy_digest=meta_turn.policy_digest or None,
             pid=meta.pid,
             exit_code=exit_code,
             elapsed_seconds=elapsed_seconds,
-            output_path=meta_shell.output_path,
-            output_truncated=meta_shell.output_truncated,
+            output_path=meta_turn.output_path,
+            output_truncated=meta_turn.output_truncated,
             starter_agent=(
                 meta_monitor.starter_agent if meta_monitor is not None else None
             ),
-            followup_agent=meta_shell.followup_agent,
+            followup_agent=meta_turn.followup_agent,
             pgid=meta_monitor.pgid if meta_monitor is not None else None,
             supervisor_identity=(
                 meta_monitor.supervisor_identity if meta_monitor is not None else None
             ),
             settled=settled,
-            request_fingerprint=meta_shell.request_fingerprint,
+            request_fingerprint=meta_turn.request_fingerprint,
             followup_outcome=followup_outcome,
             followup_error=followup_error,
             followup_degraded_reason=followup_degraded_reason,

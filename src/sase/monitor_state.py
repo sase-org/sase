@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from sase.monitor_status import DEFAULT_MONITOR_STOP_STATUS
-from sase.shells.state import (
-    ShellStateConfig,
-    is_real_shell_member,
-    is_shell_member_role,
-    shell_state_bucket,
-    shell_state_is_terminal,
+from sase.turns.state import (
+    TurnStateConfig,
+    is_real_turn_member,
+    is_turn_member_role,
+    turn_state_bucket,
+    turn_state_is_terminal,
 )
 
 MONITOR_AGENT_SESSION_ROLE = "monitor"
@@ -37,7 +37,7 @@ MONITOR_HANDOFF_FOLLOWUP_OUTCOMES = frozenset({"launched", "launched-degraded"})
 MONITOR_HOST_COMPLETED_OUTCOME = "host-completed"
 #: Host-completion status recorded when the host completes a monitor's follow-up.
 MONITOR_HOST_COMPLETED_STATUS = "completed_by_host"
-_MONITOR_STATE_CONFIG = ShellStateConfig(
+_MONITOR_STATE_CONFIG = TurnStateConfig(
     agent_session_role=MONITOR_AGENT_SESSION_ROLE,
     buckets=MONITOR_STATE_BUCKETS,
 )
@@ -50,7 +50,7 @@ def monitor_state_bucket(monitor_state: str | None) -> str:
     member that has not (yet) reached a terminal state never reads as
     finished.
     """
-    return shell_state_bucket(monitor_state, _MONITOR_STATE_CONFIG)
+    return turn_state_bucket(monitor_state, _MONITOR_STATE_CONFIG)
 
 
 def monitor_state_is_terminal(monitor_state: str | None) -> bool:
@@ -61,7 +61,7 @@ def monitor_state_is_terminal(monitor_state: str | None) -> bool:
     buckets as ``Running`` and is therefore not terminal, so a monitor that
     has not (yet) reported never reads as finished.
     """
-    return shell_state_is_terminal(monitor_state, _MONITOR_STATE_CONFIG)
+    return turn_state_is_terminal(monitor_state, _MONITOR_STATE_CONFIG)
 
 
 def monitor_lane_status_bucket(
@@ -115,7 +115,7 @@ def is_monitor_member_role(
     started it, so it cannot classify a row on its own. The explicit role wins;
     the suffix is a fallback for older metadata that omitted the role.
     """
-    return is_shell_member_role(
+    return is_turn_member_role(
         agent_session_role,
         role_suffix,
         config=_MONITOR_STATE_CONFIG,
@@ -132,7 +132,7 @@ def is_real_monitor_member(
     follow-ups, so the durable monitor predicate requires the explicit monitor
     role and a non-empty monitor id.
     """
-    return is_real_shell_member(
+    return is_real_turn_member(
         agent_session_role,
         monitor_id,
         config=_MONITOR_STATE_CONFIG,

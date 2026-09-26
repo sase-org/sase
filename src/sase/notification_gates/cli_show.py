@@ -18,19 +18,19 @@ from typing import Any, NoReturn
 from rich.console import Console
 from rich.text import Text
 
-from sase.gate_shell.lifecycle import (
+from sase.gate_turn.lifecycle import (
     DISPOSITION_ACCEPTED_FAILED,
     DISPOSITION_ACCEPTED_OWNER_LOST,
     DISPOSITION_ACCEPTED_UNFINISHED,
     classify_gate_lifecycle,
     collect_gate_lifecycle_facts,
 )
-from sase.gate_shell.models import GateShellRefError
-from sase.gate_shell.projection import gate_shell_runtime_json
-from sase.gate_shell.store import (
+from sase.gate_turn.models import GateTurnRefError
+from sase.gate_turn.projection import gate_turn_runtime_json
+from sase.gate_turn.store import (
     find_gate_turn_by_gate_id,
-    list_gate_shells,
-    resolve_gate_shell_ref,
+    list_gate_turns,
+    resolve_gate_turn_ref,
 )
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.cli_support import (
@@ -69,7 +69,7 @@ def handle_gate_show(args: argparse.Namespace) -> NoReturn:
     try:
         kind, request_id = _resolve_kind_and_id(args)
         payload = show_gate(kind, request_id)
-    except GateShellRefError as exc:
+    except GateTurnRefError as exc:
         print(f"sase gate show: {exc}", file=sys.stderr)
         sys.exit(EXIT_REF_ERROR)
     except GateCliError as exc:
@@ -104,8 +104,8 @@ def _resolve_kind_and_id(args: argparse.Namespace) -> tuple[str, str]:
     if request_id or kind:
         raise GateCliError("-i/--id and -k/--kind must be given together")
     if not gate_ref:
-        raise GateCliError("pass a gate-shell reference, or -i/--id plus -k/--kind")
-    record = resolve_gate_shell_ref(str(gate_ref), list_gate_shells())
+        raise GateCliError("pass a gate-turn reference, or -i/--id plus -k/--kind")
+    record = resolve_gate_turn_ref(str(gate_ref), list_gate_turns())
     return record.kind, record.gate_id
 
 
@@ -140,7 +140,7 @@ def _show(kind: str, request_id: str) -> dict[str, Any]:
     if payload["turn"] is not None:
         gate_turn = find_gate_turn_by_gate_id(None, bundle.request_id)
         if gate_turn is not None:
-            payload["gate_turn"] = gate_shell_runtime_json(gate_turn)
+            payload["gate_turn"] = gate_turn_runtime_json(gate_turn)
     return payload
 
 
@@ -153,7 +153,7 @@ def _acceptance_payload(
     published a response yet -- a plain pending gate, or one whose bundle
     carries a malformed/contradictory receipt, is reported through
     ``invalid_receipt`` instead of silently looking pending, per the
-    shared :mod:`sase.gate_shell.lifecycle` policy.
+    shared :mod:`sase.gate_turn.lifecycle` policy.
     """
     facts = collect_gate_lifecycle_facts(
         bundle_root, envelope, now=time.time(), deadline=None, grace_seconds=0.0
@@ -292,9 +292,10 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
 
     gate_turn = payload.get("gate_turn")
     if gate_turn is None:
+        # legacy sase-shell spelling
         gate_turn = payload.get("gate_shell")
     if isinstance(gate_turn, Mapping):
-        _print_gate_shell_runtime(console, gate_turn)
+        _print_gate_turn_runtime(console, gate_turn)
 
 
 def _print_option(console: Console, option: Mapping[str, Any]) -> None:
@@ -471,33 +472,33 @@ def _print_shell(console: Console, shell: Mapping[str, Any]) -> None:
         console.print(followup, soft_wrap=True)
 
 
-def _print_gate_shell_runtime(console: Console, gate_shell: Mapping[str, Any]) -> None:
-    """Print the live gate-shell state ``sase gate show`` extends onto §5."""
-    console.print(Text("Gate Shell Runtime", style="bold"), soft_wrap=True)
+def _print_gate_turn_runtime(console: Console, gate_turn: Mapping[str, Any]) -> None:
+    """Print the live gate-turn state ``sase gate show`` extends onto §5."""
+    console.print(Text("Gate Turn Runtime", style="bold"), soft_wrap=True)
     line = Text("  ")
-    line.append(str(gate_shell["gate_state"]), style="bold")
-    line.append(f" · {gate_shell['status_label']}", style="dim")
-    line.append(f" · member {gate_shell['member_agent_name']}", style="dim")
+    line.append(str(gate_turn["gate_state"]), style="bold")
+    line.append(f" · {gate_turn['status_label']}", style="dim")
+    line.append(f" · member {gate_turn['member_agent_name']}", style="dim")
     console.print(line, soft_wrap=True)
-    if gate_shell.get("holds_workspace_claim"):
+    if gate_turn.get("holds_workspace_claim"):
         console.print(
             Text("  holds a workspace claim", style="bold yellow"), soft_wrap=True
         )
-    if gate_shell.get("followup_agent"):
+    if gate_turn.get("followup_agent"):
         line = Text("  follow-up: ", style="dim")
-        line.append(str(gate_shell["followup_agent"]), style="bold")
-        if gate_shell.get("followup_outcome"):
-            line.append(f" ({gate_shell['followup_outcome']})", style="dim")
+        line.append(str(gate_turn["followup_agent"]), style="bold")
+        if gate_turn.get("followup_outcome"):
+            line.append(f" ({gate_turn['followup_outcome']})", style="dim")
         console.print(line, soft_wrap=True)
-    if gate_shell.get("followup_needs_attention"):
-        reason = gate_shell.get("followup_error") or gate_shell.get(
+    if gate_turn.get("followup_needs_attention"):
+        reason = gate_turn.get("followup_error") or gate_turn.get(
             "followup_degraded_reason"
         )
         console.print(
             Text(f"  ⚑ follow-up needs attention: {reason}", style="bold yellow"),
             soft_wrap=True,
         )
-        resume = gate_shell.get("followup_resume_command")
+        resume = gate_turn.get("followup_resume_command")
         if resume:
             console.print(Text(f"  resume with: {resume}", style="dim"), soft_wrap=True)
 

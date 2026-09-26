@@ -11,10 +11,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.gate_shell.member import create_gate_shell_member
+from sase.gate_turn.member import create_gate_turn_member
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
-from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.model_turn import GateTurnSpec
 from sase.notification_gates.models import GateSpec
 from sase.notification_gates.service import create_gate
 
@@ -74,20 +74,20 @@ def _spec(request_id: str, *, shell: bool = False) -> dict[str, Any] | GateSpec:
     if shell:
         spec["shell"] = {}
         # These tests establish the gate-shell row themselves with
-        # ``_make_gate_shell_member``: mark the spec the way the production
+        # ``_make_gate_turn_member``: mark the spec the way the production
         # transaction does so the shell-row guard accepts the setup.
-        return replace(GateSpec.from_mapping(spec), shell_row_managed=True)
+        return replace(GateSpec.from_mapping(spec), turn_row_managed=True)
     return spec
 
 
-def _make_gate_shell_member(request_id: str, bundle_path: Path) -> str:
+def _make_gate_turn_member(request_id: str, bundle_path: Path) -> str:
     from sase.axe.run_agent_helpers_artifacts import update_meta_field
 
-    shell = GateShellSpec.from_mapping(
+    turn = GateTurnSpec.from_mapping(
         {"pending_status": "GATE", "settled_status": "GATED"},
         branches=(("cleanup",),),
     )
-    artifacts_dir = create_gate_shell_member(
+    artifacts_dir = create_gate_turn_member(
         "proj",
         {"name": "lane--0", "agent_session": "lane", "model": "gpt-5"},
         lane="lane",
@@ -101,7 +101,7 @@ def _make_gate_shell_member(request_id: str, bundle_path: Path) -> str:
         creator_agent="lane--0",
         timeout_seconds=86400.0,
         request_fingerprint=None,
-        shell=shell,
+        turn=turn,
     )
     update_meta_field(artifacts_dir, "gate_bundle_path", str(bundle_path))
     return artifacts_dir
@@ -159,13 +159,13 @@ def test_ordinary_gate_detaches_when_explicitly_asked(
     assert not gate.response_path.exists()
 
 
-def test_gate_shell_defaults_to_detached(
+def test_gate_turn_defaults_to_detached(
     gate_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del gate_home
     mock = _mock_submit(monkeypatch)
     gate = create_gate(_spec("shell-1", shell=True))
-    _make_gate_shell_member("shell-1", gate.bundle_path)
+    _make_gate_turn_member("shell-1", gate.bundle_path)
 
     code, payload = _run("answer", "-i", "shell-1", "-k", "custom", "-o", "cleanup")
 
@@ -175,28 +175,28 @@ def test_gate_shell_defaults_to_detached(
     assert not gate.response_path.exists()
 
 
-def test_gate_shell_no_detach_runs_inline_and_settles(
+def test_gate_turn_no_detach_runs_inline_and_settles(
     gate_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Exercise the agent-session-member glue with a stubbed scan lookup.
 
-    ``find_gate_shell_by_gate_id`` resolves through the Rust artifact-index
+    ``find_gate_turn_by_gate_id`` resolves through the Rust artifact-index
     scanner, which does not yet propagate ``gate_*`` fields (that lands in
     the sibling ``gate-core-rs`` phase). Stubbing the lookup to return the
-    real record -- built the same way ``read_gate_shell_marker`` would once
+    real record -- built the same way ``read_gate_turn_marker`` would once
     the scanner catches up -- tests this phase's own wiring without taking
     on that dependency.
     """
     del gate_home
     mock = _mock_submit(monkeypatch)
     gate = create_gate(_spec("shell-2", shell=True))
-    artifacts_dir = _make_gate_shell_member("shell-2", gate.bundle_path)
-    from sase.gate_shell.store import read_gate_shell_marker
+    artifacts_dir = _make_gate_turn_member("shell-2", gate.bundle_path)
+    from sase.gate_turn.store import read_gate_turn_marker
 
-    record = read_gate_shell_marker("proj", artifacts_dir)
+    record = read_gate_turn_marker("proj", artifacts_dir)
     assert record is not None
     monkeypatch.setattr(
-        "sase.notification_gates.cli_answer.find_gate_shell_by_gate_id",
+        "sase.notification_gates.cli_answer.find_gate_turn_by_gate_id",
         lambda _project, _gate_id: record,
     )
 

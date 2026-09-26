@@ -28,7 +28,7 @@ from tests._launch_admission_helpers import (
 )
 
 
-def test_agent_hold_named_proc_shell_blocks_until_release(
+def test_agent_hold_named_named_proc_blocks_until_release(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pytest.importorskip("sase_core_rs")

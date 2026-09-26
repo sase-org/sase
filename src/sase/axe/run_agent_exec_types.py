@@ -83,7 +83,7 @@ class LoopState:
     # Snapshot of SASE_AGENT_TIMESTAMP at loop entry, restored after finalization.
     original_agent_timestamp: str | None = None
     # In-process hint for question gate-shell chain discovery (the
-    # ``gate_shell_handoff`` On branch): the artifacts dir of the question
+    # ``gate_turn_handoff`` On branch): the artifacts dir of the question
     # gate shell this loop last created, or ``None``. Its durable fallback is
     # the chain's ``gate_followup_agent`` link, since this hint does not
     # survive a runner death.

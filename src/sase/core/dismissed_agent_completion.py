@@ -14,8 +14,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_scan_wire_agent_session_shell import (
-    agent_session_shell_from_mapping,
+from sase.core.agent_scan_wire_agent_session_turn import (
+    agent_session_turn_from_mapping,
 )
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
@@ -29,7 +29,7 @@ MONITOR_SUCCESS_STATES = frozenset({"completed", "stopped"})
 GATE_OUTCOME = "gated"
 GATE_SUCCESS_STATES = frozenset({"answered", "completed", "stopped"})
 SHELL_HANDOFF_OUTCOMES = frozenset({MONITOR_OUTCOME, GATE_OUTCOME})
-_DEFAULT_GATE_SHELL_SETTLED_STATUS = "GATED"
+_DEFAULT_GATE_TURN_SETTLED_STATUS = "GATED"
 WAIT_SUCCESS_OUTCOMES = frozenset(
     {"completed", "noop", "epic_approved", "plan_committed"}
 )
@@ -137,7 +137,7 @@ def _effective_shell_outcome(
     fallback_state_field: str,
     success_states: frozenset[str],
 ) -> str:
-    shell = agent_session_shell_from_mapping(done_data)
+    shell = agent_session_turn_from_mapping(done_data)
     if shell is not None:
         shell_state = shell.state if shell.kind == expected_kind else None
     else:
@@ -277,7 +277,7 @@ def _archived_outcome_from_bundle(data: Mapping[str, Any]) -> str | None:
         return outcome
     if not isinstance(status, str):
         return None
-    if status.strip().upper() == _DEFAULT_GATE_SHELL_SETTLED_STATUS:
+    if status.strip().upper() == _DEFAULT_GATE_TURN_SETTLED_STATUS:
         return effective_done_outcome(
             {
                 "outcome": GATE_OUTCOME,

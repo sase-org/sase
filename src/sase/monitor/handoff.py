@@ -13,11 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
-from sase.shells.handoff import (
-    ShellHandoffError,
-    maybe_handoff_shell_from_agent,
-    will_handoff_shell_to_agent_runner,
-    write_shell_pending_marker,
+from sase.turns.handoff import (
+    TurnHandoffError,
+    maybe_handoff_turn_from_agent,
+    will_handoff_turn_to_agent_runner,
+    write_turn_pending_marker,
 )
 
 from .models import MonitorError, MonitorRecord
@@ -32,7 +32,7 @@ def will_handoff_monitor_to_agent_runner() -> bool:
     not conditioned on its return value, which the process never lives to
     observe when this is true.
     """
-    return will_handoff_shell_to_agent_runner(os.environ)
+    return will_handoff_turn_to_agent_runner(os.environ)
 
 
 def maybe_handoff_monitor_from_agent(
@@ -55,7 +55,7 @@ def maybe_handoff_monitor_from_agent(
             "cannot hand monitor to agent runner: SASE_ARTIFACTS_DIR is unset"
         )
     try:
-        return maybe_handoff_shell_from_agent(
+        return maybe_handoff_turn_from_agent(
             marker_name=MONITOR_PENDING_MARKER,
             marker_data=_monitor_pending_payload(
                 record,
@@ -63,9 +63,10 @@ def maybe_handoff_monitor_from_agent(
             ),
             artifacts_dir=resolved_artifacts_dir,
             env=os.environ,
+            member="monitor turn",
         )
-    except ShellHandoffError as exc:
-        raise MonitorError(str(exc).replace("shell", "monitor")) from exc
+    except TurnHandoffError as exc:
+        raise MonitorError(str(exc)) from exc
 
 
 def write_monitor_pending_marker(
@@ -76,14 +77,15 @@ def write_monitor_pending_marker(
 ) -> Path:
     """Persist the pending monitor handoff marker for the runner to adopt."""
     try:
-        return write_shell_pending_marker(
+        return write_turn_pending_marker(
             MONITOR_PENDING_MARKER,
             _monitor_pending_payload(record, starter_artifacts_dir=artifacts_dir),
             artifacts_dir,
             timestamp=timestamp,
+            member="monitor turn",
         )
-    except ShellHandoffError as exc:
-        raise MonitorError(str(exc).replace("shell", "monitor")) from exc
+    except TurnHandoffError as exc:
+        raise MonitorError(str(exc)) from exc
 
 
 def _monitor_pending_payload(

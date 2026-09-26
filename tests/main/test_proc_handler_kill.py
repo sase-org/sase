@@ -104,7 +104,7 @@ def test_kill_reports_bad_proc_references(
     assert "no proc matches reference" in result.message
 
 
-def test_kill_resolves_named_proc_shell(
+def test_kill_resolves_named_named_proc(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:

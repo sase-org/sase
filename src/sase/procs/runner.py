@@ -24,11 +24,11 @@ from .request import ProcSubmitRequest
 from .submission import (
     ProcControlError,
     ProcSubmitError,
-    reconcile_proc_shells,
-    stop_proc_shell,
+    reconcile_named_procs,
+    stop_named_proc,
     submit_proc_request,
 )
-from .settlement import is_named_proc_row, is_proc_shell_row
+from .settlement import is_named_proc_row
 from .store import get_proc, read_procs, update_proc
 
 LineCallback = Callable[[str], None]
@@ -182,7 +182,7 @@ def wait_for_proc(
 
 
 def kill_proc(proc_id: str) -> Proc:
-    """Stop a proc: intent plus signal for proc-shells, legacy terminal write."""
+    """Stop a proc: intent plus signal for named-procs, legacy terminal write."""
     proc = get_proc(proc_id)
     if proc is None:
         raise ProcControlError(f"no proc with id {proc_id!r}")
@@ -192,21 +192,21 @@ def kill_proc(proc_id: str) -> Proc:
         raise ProcControlError(
             "TUI-owned procs can only be killed from their owning sase's TUI session"
         )
-    if is_proc_shell_row(proc):
-        return stop_proc_shell(proc)
+    if is_named_proc_row(proc):
+        return stop_named_proc(proc)
     return _legacy_kill_proc(proc)
 
 
 def reconcile_running_procs() -> list[Proc]:
     """Mark active rows whose supervisor died without terminalizing them."""
-    reconciled = reconcile_proc_shells()
+    reconciled = reconcile_named_procs()
     for proc in read_procs(status=ACTIVE_PROC_STATUSES):
-        if is_proc_shell_row(proc) or not _legacy_is_orphaned(proc):
+        if is_named_proc_row(proc) or not _legacy_is_orphaned(proc):
             continue
         current = get_proc(proc.proc_id)
         if current is None or current.status not in ACTIVE_PROC_STATUSES:
             continue
-        if is_proc_shell_row(current):
+        if is_named_proc_row(current):
             continue
         outcome = update_proc(
             proc.proc_id,
@@ -220,9 +220,9 @@ def reconcile_running_procs() -> list[Proc]:
 
 
 def _reconcile_wait_target(proc: Proc) -> Proc:
-    if not is_proc_shell_row(proc):
+    if not is_named_proc_row(proc):
         return proc
-    for reconciled in reconcile_proc_shells():
+    for reconciled in reconcile_named_procs():
         if reconciled.proc_id == proc.proc_id:
             return reconciled
     return get_proc(proc.proc_id) or proc

@@ -31,7 +31,7 @@ def test_legacy_agent_meta_proc_kind_normalizes_to_monitor() -> None:
         "agent_session": "acme",
         "agent_session_role": "monitor",
         "shell_kind": "proc",
-        "agent_session_shell": {"kind": "monitor", "id": "m1"},
+        "agent_session_turn": {"kind": "monitor", "id": "m1"},
     }
     assert turn_kind_value(legacy_meta) == "monitor"
     turn = agent_session_turn_from_mapping(legacy_meta)
@@ -51,13 +51,13 @@ def test_new_writer_omits_legacy_member_keys() -> None:
     from sase.plan_chain import set_agent_session_fields
 
     meta: dict[str, object] = {
-        "agent_session_shell": {"kind": "monitor"},
+        "agent_session_turn": {"kind": "monitor"},
         "shell_kind": "proc",
         "family_shell": {"kind": "monitor"},
         "agent_family": "acme",
     }
     set_agent_session_fields(meta, turn={"kind": "monitor", "id": "m"})
-    assert "agent_session_shell" not in meta
+    assert "agent_session_turn" not in meta
     assert "shell_kind" not in meta
     assert "family_shell" not in meta
     assert "agent_family" not in meta
@@ -75,7 +75,7 @@ def test_legacy_proc_row_hydrates_to_named_proc() -> None:
         "origin": "xprompt-proc",
         "created_at": "2026-09-26T00:00:00Z",
         "log_path": "/tmp/proc.log",
-        "lifecycle": "proc-shell",
+        "lifecycle": "named-proc",
         "shell_name": "acme--build",
         "shell_kind": "proc",
         "concurrency_keys": ["shell:proj:acme--build"],
@@ -116,11 +116,11 @@ def test_new_rust_bindings_exist() -> None:
 
 
 def test_gate_fork_shell_normalizes_to_turn() -> None:
-    from sase.notification_gates.model_shell import GateShellNext
+    from sase.notification_gates.model_turn import GateTurnNext
 
-    nxt = GateShellNext.from_mapping({"fork": "shell"}, target="next")
+    nxt = GateTurnNext.from_mapping({"fork": "shell"}, target="next")
     assert nxt.fork == "turn"
-    nxt_new = GateShellNext.from_mapping({"fork": "turn"}, target="next")
+    nxt_new = GateTurnNext.from_mapping({"fork": "turn"}, target="next")
     assert nxt_new.fork == "turn"
 
 

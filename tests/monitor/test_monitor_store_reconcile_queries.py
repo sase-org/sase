@@ -143,7 +143,7 @@ def test_list_monitors_keeps_full_history_listing_query(
         calls.append((path, projects_root, query, options))
         return _empty_snapshot(projects_root, options)
 
-    monkeypatch.setattr(proc_service, "reconcile_proc_shells", lambda: None)
+    monkeypatch.setattr(proc_service, "reconcile_named_procs", lambda: None)
     monkeypatch.setattr(
         store_module,
         "reconcile_dead_supervisors",

@@ -1,0 +1,254 @@
+"""Gate-turn request-model and envelope coverage."""
+
+from __future__ import annotations
+
+import argparse
+import io
+import json
+from contextlib import redirect_stdout
+from pathlib import Path
+
+import pytest
+
+from sase.gate_turn.store import find_gate_turn_by_gate_id, list_gate_turns
+from sase.gate_turn.transaction import create_gate_turn
+from sase.main.gate_handler import handle_gate_command
+from sase.main.parser_gate import register_gate_parser
+from sase.notification_gates.durability import request_sha256
+from sase.notification_gates.hashing import load_and_verify_bundle
+from sase.notification_gates.model_turn import (
+    DEFAULT_GATE_TURN_PENDING_STATUS,
+    DEFAULT_GATE_TURN_SETTLED_STATUS,
+    GATE_TURN_DEFAULT_TIMEOUT_SECONDS,
+    GATE_TURN_STATUS_ELLIPSIS,
+)
+from sase.notification_gates.models import GateError, GateSpec
+from sase.notification_gates.service import create_gate
+from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
+from tests.gate_turn._settlement_followup_helpers import sandbox_home
+from tests.monitor._fixtures import make_starter_agent, write_project_file
+
+__all__ = ["sandbox_home"]
+
+
+def test_turn_block_defaults_timeout_and_statuses() -> None:
+    raw = gate_spec(request_id="shell-defaults")
+    raw["shell"] = {}
+
+    spec = GateSpec.from_mapping(raw)
+
+    assert spec.gate_timeout_seconds == GATE_TURN_DEFAULT_TIMEOUT_SECONDS
+    assert spec.shell is not None
+    assert spec.shell.pending_status == DEFAULT_GATE_TURN_PENDING_STATUS
+    assert spec.shell.settled_status == DEFAULT_GATE_TURN_SETTLED_STATUS
+    assert spec.shell.workspace == "inherit"
+    assert spec.shell.next.output == ("results",)
+    assert spec.shell.next.fork == "session"
+
+
+def test_explicit_shell_gate_timeout_is_preserved() -> None:
+    raw = gate_spec(request_id="shell-timeout", timeout=45)
+    raw["shell"] = {}
+
+    assert GateSpec.from_mapping(raw).gate_timeout_seconds == 45.0
+
+
+def test_shell_branch_keys_follow_compiled_gate_branches() -> None:
+    raw = custom_gate_spec(request_id="shell-branches")
+    raw["shell"] = {
+        "branches": {
+            "proceed+audit+broken": {
+                "status": "APPROVED",
+                "accent": "#00D7AF",
+                "prompt": "ship it",
+                "output": ["results", "tail"],
+            },
+            "timeout": {"status": "TIMED OUT"},
+        }
+    }
+
+    spec = GateSpec.from_mapping(raw)
+
+    assert spec.shell is not None
+    assert set(spec.shell.branches) == {"proceed+audit+broken", "timeout"}
+    approved = spec.shell.branches["proceed+audit+broken"]
+    assert approved.status == "APPROVED"
+    assert approved.prompt == "ship it"
+    assert approved.output == ("results", "tail")
+
+
+def test_shell_rejects_unknown_branch_keys() -> None:
+    raw = custom_gate_spec(request_id="shell-bad-branch")
+    raw["shell"] = {"branches": {"proceed": {"status": "APPROVED"}}}
+
+    with pytest.raises(GateError) as exc_info:
+        GateSpec.from_mapping(raw)
+
+    assert exc_info.value.code == "invalid_shell"
+    assert exc_info.value.target == "shell.branches.proceed"
+
+
+def test_shell_statuses_are_clamped_to_gate_display_width() -> None:
+    raw = gate_spec(request_id="shell-clamped")
+    raw["shell"] = {
+        "pending_status": "ABCDEFGHIJKLMNOPQRSTUV",
+        "settled_status": "ZYXWVUTSRQPONMLKJIHGF",
+    }
+
+    spec = GateSpec.from_mapping(raw)
+
+    assert spec.shell is not None
+    assert len(spec.shell.pending_status) == 20
+    assert spec.shell.pending_status.endswith(GATE_TURN_STATUS_ELLIPSIS)
+    assert len(spec.shell.settled_status) == 20
+    assert spec.shell.settled_status.endswith(GATE_TURN_STATUS_ELLIPSIS)
+
+
+def test_turn_survives_durable_envelope_and_request_hash(
+    gate_home: Path,
+) -> None:
+    raw = gate_spec(request_id="shell-envelope")
+    raw["shell"] = {
+        "pending_status": "WAIT",
+        "settled_status": "DONE",
+        "workspace": "release",
+        "next": {
+            "prompt": "continue after review",
+            "fork": "shell",
+            "model": "gpt-5",
+            "output": ["results", "file"],
+        },
+    }
+
+    result = create_gate(raw)
+    envelope, _adapter = load_and_verify_bundle(result.bundle_path)
+    request = json.loads(result.request_path.read_text(encoding="utf-8"))
+
+    assert envelope["turn"] == request["turn"]
+    assert envelope["turn"]["pending_status"] == "WAIT"
+    assert envelope["turn"]["settled_status"] == "DONE"
+    assert envelope["turn"]["workspace"] == "release"
+    assert envelope["turn"]["next"]["fork"] == "turn"
+    assert request_sha256(envelope) == result.hashes["request"]
+
+
+def test_turn_block_derives_gate_turn_continuation_mode() -> None:
+    """A shell block without an explicit mode keeps the shell (sase-14n.12)."""
+    raw = custom_gate_spec(request_id="shell-derived-mode")
+    raw["turn"] = {"next": {"fork": "session"}}
+
+    spec = GateSpec.from_mapping(raw)
+
+    assert spec.shell is not None
+    assert spec.continuation_mode == "gate_turn"
+
+
+def test_turn_block_rejects_explicit_none_continuation_mode() -> None:
+    """Shell plus an explicit "none" mode is rejected instead of dropped."""
+    raw = custom_gate_spec(request_id="shell-none-mode")
+    raw["turn"] = {"next": {"fork": "session"}}
+    raw["continuation_mode"] = "none"
+
+    with pytest.raises(GateError) as exc_info:
+        GateSpec.from_mapping(raw)
+
+    assert exc_info.value.code == "invalid_request"
+    assert exc_info.value.target == "continuation_mode"
+
+
+def test_turn_block_keeps_explicit_continuation_mode() -> None:
+    """An explicit non-"none" mode still wins over the derived default."""
+    raw = custom_gate_spec(request_id="shell-explicit-mode")
+    raw["turn"] = {"next": {"fork": "session"}}
+    raw["continuation_mode"] = "agent_question"
+
+    spec = GateSpec.from_mapping(raw)
+
+    assert spec.shell is not None
+    assert spec.continuation_mode == "agent_question"
+
+
+def test_turn_less_request_keeps_none_default() -> None:
+    """Requests without a shell block still default to "none"."""
+    spec = GateSpec.from_mapping(custom_gate_spec(request_id="no-shell-mode"))
+
+    assert spec.shell is None
+    assert spec.continuation_mode == "none"
+
+
+def _turn_row_request(request_id: str) -> dict[str, object]:
+    """Return a raw custom request with a turn block and no explicit mode."""
+    raw = custom_gate_spec(request_id=request_id)
+    raw["turn"] = {"next": {"prompt": "Verify the cleanup landed."}}
+    return raw
+
+
+def test_turn_block_custom_gate_registers_and_lists_row_end_to_end(
+    gate_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A turn-block custom gate registers its row through ``create_gate_turn``."""
+    del gate_home
+    project = "turn-row-e2e"
+    write_project_file(project)
+    creator_dir = make_starter_agent(
+        project,
+        "20260812120000",
+        "lane",
+        agent_session="lane",
+        agent_session_role="root",
+    )
+    monkeypatch.setenv("SASE_AGENT_NAME", "lane")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)
+    monkeypatch.setenv("SASE_AGENT", "1")
+    # This end-to-end creation is never a host finalizer turn: drop the outer
+    # agent's flag so the test is hermetic under agent-driven verification.
+    monkeypatch.delenv("SASE_FINALIZER_OWNED_TURN", raising=False)
+
+    request_id = "turn-row-custom"
+    creation = create_gate_turn(_turn_row_request(request_id))
+
+    assert creation.gate.continuation_mode == "gate_turn"
+    envelope = json.loads(
+        (creation.gate.bundle_path / "request.json").read_text(encoding="utf-8")
+    )
+    assert envelope["continuation_mode"] == "gate_turn"
+    assert isinstance(envelope.get("turn"), dict)
+
+    record = find_gate_turn_by_gate_id(project, request_id)
+    assert record is not None
+    assert record.gate_id == request_id
+
+    assert request_id in [row.gate_id for row in list_gate_turns(project=project)]
+
+    parser = argparse.ArgumentParser(prog="sase")
+    register_gate_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["gate", "list", "--all", "--project", project, "--json"])
+    out = io.StringIO()
+    with redirect_stdout(out):
+        with pytest.raises(SystemExit) as excinfo:
+            handle_gate_command(args)
+    assert int(excinfo.value.code or 0) == 0
+    payload = json.loads(out.getvalue())
+    assert request_id in [entry["gate_id"] for entry in payload["gate_turns"]]
+
+
+def test_direct_create_gate_with_turn_block_fails_loudly(
+    gate_home: Path,
+) -> None:
+    """Bypassing the gate-turn transaction fails instead of dropping the row."""
+    del gate_home
+    request_id = "turn-row-bypass"
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(_turn_row_request(request_id))
+
+    assert exc_info.value.code == "missing_gate_turn_row"
+    assert exc_info.value.target == "turn"
+    assert "create_gate_turn" in str(exc_info.value)
+
+    with pytest.raises(GateError) as obj_exc_info:
+        create_gate(GateSpec.from_mapping(_turn_row_request("shell-row-obj")))
+
+    assert obj_exc_info.value.code == "missing_gate_turn_row"

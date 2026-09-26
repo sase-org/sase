@@ -95,7 +95,7 @@ def test_gate_and_tool_run_providers_are_read_only_and_prompt_free(
     assert candidates_for("tool_run", "", project=None, limit=200) == []
 
 
-def test_gate_kind_covers_gate_shell_references() -> None:
+def test_gate_kind_covers_gate_turn_references() -> None:
     spec = build_spec()
     by_path = {command.path: command for command in _all_commands(spec.root)}
     show = by_path[("gate", "show")]

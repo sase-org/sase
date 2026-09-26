@@ -35,8 +35,8 @@ from sase.core.agent_scan_wire import (
     agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
 )
-from sase.core.agent_scan_wire_agent_session_shell import (
-    agent_session_shell_from_mapping,
+from sase.core.agent_scan_wire_agent_session_turn import (
+    agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_conversion import (
     _agent_meta_from_dict,
@@ -82,14 +82,14 @@ def test_agent_meta_hydrates_either_spelling_identically() -> None:
         {**_LEGACY_META, "family_shell": dict(_LEGACY_SHELL)}
     )
     new = _agent_meta_from_dict(
-        {**_NEW_META, "agent_session_shell": dict(_LEGACY_SHELL)}
+        {**_NEW_META, "agent_session_turn": dict(_LEGACY_SHELL)}
     )
     assert legacy == new
     assert legacy.agent_session == "acme"
     assert legacy.agent_session_role == "code"
     assert legacy.agent_session_parallel is False
-    assert legacy.agent_session_shell is not None
-    assert legacy.agent_session_shell.id == "m1"
+    assert legacy.agent_session_turn is not None
+    assert legacy.agent_session_turn.id == "m1"
 
 
 def test_agent_meta_parallel_backfill_reads_either_spelling() -> None:
@@ -110,22 +110,22 @@ def test_done_marker_hydrates_flat_and_nested_either_spelling() -> None:
         {"outcome": "x", "family_shell": dict(_LEGACY_SHELL)}
     )
     nested_new = _done_marker_from_dict(
-        {"outcome": "x", "agent_session_shell": dict(_LEGACY_SHELL)}
+        {"outcome": "x", "agent_session_turn": dict(_LEGACY_SHELL)}
     )
     for shell in (
-        flat.agent_session_shell,
-        nested_legacy.agent_session_shell,
-        nested_new.agent_session_shell,
+        flat.agent_session_turn,
+        nested_legacy.agent_session_turn,
+        nested_new.agent_session_turn,
     ):
         assert shell is not None
         assert shell.kind == "monitor"
         assert shell.id == "m1"
         assert shell.state == "running"
-    assert nested_legacy.agent_session_shell == nested_new.agent_session_shell
+    assert nested_legacy.agent_session_turn == nested_new.agent_session_turn
 
 
 def test_shell_from_mapping_reads_flat_legacy_keys() -> None:
-    shell = agent_session_shell_from_mapping(dict(_FLAT_SHELL_META))
+    shell = agent_session_turn_from_mapping(dict(_FLAT_SHELL_META))
     assert shell is not None and shell.kind == "monitor" and shell.id == "m1"
 
 
@@ -164,7 +164,7 @@ def test_scan_wire_json_emits_only_new_spellings() -> None:
         "agent_family_role",
         "agent_family_parallel",
         "family_shell",
-        "agent_session_shell",
+        "agent_session_turn",
     ):
         assert legacy_key not in meta_payload
     assert "agent_session_turn" in meta_payload
