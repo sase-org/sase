@@ -153,7 +153,7 @@ def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:
             concurrency_keys=["ace:patch:demo"],
             session_id="session-a",
             session_label="ace-sase",
-            shell_name="demo--build",
+            proc_name="demo--build",
         ),
         live_session_ids=frozenset({"session-a"}),
         with_output=True,

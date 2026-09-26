@@ -376,6 +376,10 @@ _lint-patch-stitch-terminology: _setup
 # decide_block_mode, reconcile_cursor, select_cursor, step_cursor) in its
 # block-paged projection; sase-19x.6 consumed cycle_block_id,
 # derive_spread_block and land_cursor in its block-spread navigation.
+# sase-19x.9 owns the still-unconsumed seams its goldens/bench/flag-removal
+# phase touches: the transition helpers (ReadingAnchor, capture_reading_anchor,
+# restore_block_offset) and the rail renderer (render_block_rail,
+# block_rail_text). That phase consumes, privatizes, or deletes them.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -383,11 +387,13 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-19x.4(phase_card_block)' \
-        --epic-symbol 'sase-19x.4(block_meta_for_session_shell)' \
-        --epic-symbol 'sase-19x.4(session_reply_heading)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
+        --epic-symbol 'sase-19x.9(ReadingAnchor)' \
+        --epic-symbol 'sase-19x.9(capture_reading_anchor)' \
+        --epic-symbol 'sase-19x.9(restore_block_offset)' \
+        --epic-symbol 'sase-19x.9(render_block_rail)' \
+        --epic-symbol 'sase-19x.9(block_rail_text)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

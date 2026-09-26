@@ -251,7 +251,7 @@ def store_task(
     kind: str = "command",
     message: str = "",
     origin: str = "cli",
-    shell_name: str | None = None,
+    proc_name: str | None = None,
 ) -> Proc:
     return Proc(
         proc_id=proc_id,
@@ -270,7 +270,7 @@ def store_task(
         session_id=session_id,
         session_label=session_label,
         message=message or None,
-        shell_name=shell_name,
+        proc_name=proc_name,
     )
 
 
@@ -303,7 +303,7 @@ def _store_task_row(
         session_live=bool(record.session_id and record.session_id in live_session_ids),
         origin=record.origin,
         log_path=record.log_path,
-        shell_name=record.shell_name,
+        shell_name=record.proc_name,
     )
 
 

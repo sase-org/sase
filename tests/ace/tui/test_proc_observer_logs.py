@@ -32,7 +32,7 @@ def _observer_context_stubs(monkeypatch) -> None:
     monkeypatch.setattr(po, "live_session_ids", lambda: frozenset())
 
 
-def _monitor_proc(*, proc_id: str, log_path: str, shell_name: str | None) -> Proc:
+def _monitor_proc(*, proc_id: str, log_path: str, proc_name: str | None) -> Proc:
     return Proc(
         proc_id=proc_id,
         label="just check-full",
@@ -45,7 +45,7 @@ def _monitor_proc(*, proc_id: str, log_path: str, shell_name: str | None) -> Pro
         started_at="2026-08-15T12:00:00Z",
         log_path=log_path,
         log_owner=ARTIFACTS_LOG_OWNER,
-        shell_name=shell_name,
+        proc_name=proc_name,
     )
 
 
@@ -58,9 +58,7 @@ def test_monitor_detail_row_reads_artifacts_log_including_rotated_sibling(
         "rotated-only\nolder-current\n", encoding="utf-8"
     )
     log_path.write_text("current-tail\n", encoding="utf-8")
-    proc = _monitor_proc(
-        proc_id="mon-1", log_path=str(log_path), shell_name="acme--mon"
-    )
+    proc = _monitor_proc(proc_id="mon-1", log_path=str(log_path), proc_name="acme--mon")
     _observer_context_stubs(monkeypatch)
     monkeypatch.setattr(po, "read_procs", lambda: [proc])
 
@@ -97,7 +95,7 @@ def test_store_owned_detail_row_reads_store_log(monkeypatch, tmp_path: Path) -> 
         started_at="2026-08-15T12:00:00Z",
         log_path=str(store_log),
         log_owner=STORE_LOG_OWNER,
-        shell_name="demo--build",
+        proc_name="demo--build",
     )
     _observer_context_stubs(monkeypatch)
     monkeypatch.setattr(po, "read_procs", lambda: [proc])
@@ -115,7 +113,7 @@ def test_store_owned_detail_row_reads_store_log(monkeypatch, tmp_path: Path) -> 
 def test_monitor_missing_log_yields_empty_output(monkeypatch, tmp_path: Path) -> None:
     log_path = tmp_path / "artifacts" / "live_reply.md"
     proc = _monitor_proc(
-        proc_id="mon-missing", log_path=str(log_path), shell_name="acme--mon"
+        proc_id="mon-missing", log_path=str(log_path), proc_name="acme--mon"
     )
     _observer_context_stubs(monkeypatch)
     monkeypatch.setattr(po, "read_procs", lambda: [proc])
@@ -135,7 +133,7 @@ def test_monitor_row_without_shell_name_round_trips_none(
     log_path = tmp_path / "artifacts" / "live_reply.md"
     log_path.parent.mkdir(parents=True)
     log_path.write_text("alive\n", encoding="utf-8")
-    proc = _monitor_proc(proc_id="mon-anon", log_path=str(log_path), shell_name=None)
+    proc = _monitor_proc(proc_id="mon-anon", log_path=str(log_path), proc_name=None)
     _observer_context_stubs(monkeypatch)
     monkeypatch.setattr(po, "read_procs", lambda: [proc])
 
@@ -155,7 +153,7 @@ def test_appending_monitor_log_changes_published_snapshot_signature(
     log_path.parent.mkdir(parents=True)
     log_path.write_text("initial\n", encoding="utf-8")
     proc = _monitor_proc(
-        proc_id="mon-grow", log_path=str(log_path), shell_name="acme--mon"
+        proc_id="mon-grow", log_path=str(log_path), proc_name="acme--mon"
     )
     _observer_context_stubs(monkeypatch)
     monkeypatch.setattr(po, "read_procs", lambda: [proc])

@@ -202,6 +202,9 @@ def test_shell_block_custom_gate_registers_and_lists_row_end_to_end(
     monkeypatch.setenv("SASE_AGENT_NAME", "lane")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)
     monkeypatch.setenv("SASE_AGENT", "1")
+    # This end-to-end creation is never a host finalizer turn: drop the outer
+    # agent's flag so the test is hermetic under agent-driven verification.
+    monkeypatch.delenv("SASE_FINALIZER_OWNED_TURN", raising=False)
 
     request_id = "shell-row-custom"
     creation = create_gate_shell(_shell_row_request(request_id))

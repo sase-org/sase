@@ -174,7 +174,7 @@ def test_submit_without_a_slot_takes_the_lowest_free_index() -> None:
     with (
         patch("sase.procs.oneshot.read_procs", return_value=rows),
         patch(
-            "sase.ace.dismissed_proc_shells.load_dismissed_proc_shells",
+            "sase.ace.dismissed_procs.load_dismissed_procs",
             return_value=set(),
         ),
     ):
@@ -196,7 +196,7 @@ def test_submit_reuses_a_finished_index_when_history_fills_all_nine() -> None:
     with (
         patch("sase.procs.oneshot.read_procs", return_value=rows),
         patch(
-            "sase.ace.dismissed_proc_shells.load_dismissed_proc_shells",
+            "sase.ace.dismissed_procs.load_dismissed_procs",
             return_value=set(),
         ),
     ):
@@ -209,7 +209,7 @@ def test_submit_refuses_a_tenth_active_oneshot() -> None:
     with (
         patch("sase.procs.oneshot.read_procs", return_value=rows),
         patch(
-            "sase.ace.dismissed_proc_shells.load_dismissed_proc_shells",
+            "sase.ace.dismissed_procs.load_dismissed_procs",
             return_value=set(),
         ),
         patch("sase.procs.oneshot.submit_proc_request") as submit,

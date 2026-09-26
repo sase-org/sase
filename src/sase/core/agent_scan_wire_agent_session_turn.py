@@ -299,8 +299,8 @@ def agent_session_turn_from_mapping(
 
     Reads either shape: the current nested wire shape (an ``agent_session_turn``
     key holding a dict, as produced by ``agent_scan_wire_to_json_dict`` and
-    by the Rust scanner), the legacy ``agent_session_shell`` / ``family_shell``
-    keys, or the flat legacy ``monitor_*`` / ``gate_*`` keys still written to
+    by the Rust scanner), the legacy pre-rename shell keys, or the flat
+    legacy ``monitor_*`` / ``gate_*`` keys still written to
     ``agent_meta.json`` / ``done.json`` on disk. Core still emits legacy
     spellings until the contract flip, so both are hydrated here.
     """

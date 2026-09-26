@@ -25,7 +25,7 @@ from sase.procs.models import Proc
 from sase.procs.service_meta import ProcServiceBlock
 
 _PATCH_READ_PROCS = "sase.procs.read_procs"
-_PATCH_DISMISSED = "sase.ace.dismissed_proc_shells.load_dismissed_proc_shells"
+_PATCH_DISMISSED = "sase.ace.dismissed_procs.load_dismissed_procs"
 _TRANSIENT_ONESHOT = ProcServiceBlock(name=None, mode="oneshot", source="transient")
 
 
@@ -287,7 +287,7 @@ def test_dismiss_records_a_durable_row_without_deleting_it() -> None:
     with _store([proc]):
         info = read_bgcmd_slots()[1]
     with patch(
-        "sase.ace.dismissed_proc_shells.record_dismissed_proc_shells",
+        "sase.ace.dismissed_procs.record_dismissed_procs",
         return_value=True,
     ) as record:
         assert dismiss_background_command(1, info) is True

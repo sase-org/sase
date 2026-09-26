@@ -129,7 +129,7 @@ async def test_header_counts_move_with_scope_toggle(
                 session_id="session-other",
                 session_label="ace·sase#7",
                 origin=MONITOR_PROC_ORIGIN,
-                shell_name="acme--mon",
+                proc_name="acme--mon",
             ),
         ],
         live_session_ids=frozenset({"session-other"}),
