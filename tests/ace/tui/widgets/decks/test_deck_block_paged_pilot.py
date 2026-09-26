@@ -489,3 +489,78 @@ async def test_focused_block_select_sticks_without_document_reshow() -> None:
         assert detail.deck_area.state.panels[0].preferred_card == "reply"
         # Split independence: the sibling panel keeps its own cursor.
         assert sibling.main_view.active_block_id("reply") == "b2"
+
+
+async def test_new_subject_spread_to_spread_keeps_scrollbar_in_sync() -> None:
+    """A tall-to-short spread new-subject swap must not strand the thumb.
+
+    Textual only pushes ``scroll_y`` to ``ScrollBar.position`` while the bar
+    is shown, and the layout shrink that hides the bar clamps ``scroll_y``
+    first -- so without an explicit sync the thumb keeps the old tall-spread
+    offset while the scroller sits at 0, until the next explicit scroll.
+    """
+    from textual.containers import VerticalScroll
+
+    from sase.ace.tui.widgets.decks.card_part import reply_card
+    from sase.ace.tui.widgets.decks.main_document import MainDeckDocument
+
+    def _scroller(panel: Any) -> VerticalScroll:
+        return panel.query_one(
+            f"#agent-deck-panel-{panel._panel_index}-main-scroll",
+            VerticalScroll,
+        )
+
+    app = _DetailApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        _pin(app, deck=1000, blocks=1000)
+        panel = await _panel(app)
+        panel.show_main_document(
+            _document("s1", _reply_card(12, lines_per_block=10), digest="d1"),
+            "reply",
+        )
+        await pilot.pause(delay=0.3)
+        await pilot.pause()
+        assert panel._render_mode[DeckId.MAIN] is RenderMode.SPREAD
+        assert panel.main_view.render_mode is RenderMode.SPREAD
+        scroller = _scroller(panel)
+        assert scroller.max_scroll_y > 0
+        scroller.scroll_to(y=scroller.max_scroll_y, animate=False, immediate=True)
+        await pilot.pause(delay=0.2)
+        await pilot.pause()
+        scroller = _scroller(panel)
+        assert scroller.scroll_y == scroller.max_scroll_y
+        assert scroller.scroll_y > 0
+        assert scroller.vertical_scrollbar.position == scroller.scroll_y
+        assert scroller.vertical_scrollbar.position > 0
+        # Swap to a one-line single-card document for a new subject; the
+        # Main deck stays in spread mode (single-card is trivially spread).
+        panel.show_main_document(
+            MainDeckDocument(
+                cards=(reply_card(Text("short line")),),
+                subject="s2",
+                partial=False,
+                digest="d2",
+            ),
+            None,
+        )
+
+        def _spread_and_synced() -> bool:
+            if panel._render_mode[DeckId.MAIN] is not RenderMode.SPREAD:
+                return False
+            if panel.main_view.render_mode is not RenderMode.SPREAD:
+                return False
+            scroller = _scroller(panel)
+            return (
+                scroller.max_scroll_y == 0
+                and scroller.scroll_y == 0
+                and float(scroller.vertical_scrollbar.position) == 0
+            )
+
+        await wait_for(pilot, _spread_and_synced)
+        scroller = _scroller(panel)
+        assert panel._render_mode[DeckId.MAIN] is RenderMode.SPREAD
+        assert panel.main_view.render_mode is RenderMode.SPREAD
+        assert scroller.max_scroll_y == 0
+        assert scroller.scroll_y == 0
+        assert scroller.vertical_scrollbar.position == scroller.scroll_y

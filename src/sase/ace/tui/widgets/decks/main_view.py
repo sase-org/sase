@@ -464,12 +464,7 @@ class MainDeckView(MainDeckViewBlocksMixin, SectionViewMixin, Static):
         # Active card is scroll-derived; default to first until scroll settles.
         if is_new_subject:
             self._active_card = document.cards[0].card_id
-            try:
-                scroll = self._scroll_container()
-                if scroll is not None:
-                    scroll.scroll_to(y=0, animate=False)
-            except Exception:
-                pass
+            self._scroll_main_to_top()
         else:
             pending = self._spread_pending_card
             if pending is not None and document.card(pending) is not None:
