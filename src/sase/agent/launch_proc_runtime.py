@@ -23,6 +23,7 @@ from sase.core.agent_launch_facade import (
     proc_script_argv,
     sanitized_proc_env,
     validate_proc_workspace_intent,
+    validate_standalone_named_proc_name,
     validate_standalone_proc_shell_name,
     xprompt_proc_origin,
 )
@@ -33,7 +34,7 @@ from sase.core.agent_launch_wire import (
 )
 from sase.procs.ids import new_proc_id
 from sase.procs.models import (
-    PROC_LIFECYCLE_PROC_SHELL,
+    PROC_LIFECYCLE_NAMED_PROC,
     Proc,
 )
 from sase.procs.request import ProcSubmitRequest
@@ -69,7 +70,8 @@ def dispatch_proc_unit(
     except Exception as exc:
         return False, None, _one_line(exc), []
     current = get_proc(proc.proc_id) or proc
-    if current.lifecycle != PROC_LIFECYCLE_PROC_SHELL:
+    # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
+    if current.lifecycle not in ("named-proc", "proc-shell"):
         return False, current.proc_id, "proc_lifecycle_is_not_proc_shell", []
     if current.origin != XPROMPT_PROC_ORIGIN:
         return False, current.proc_id, "proc_origin_is_not_xprompt_proc", []
@@ -149,7 +151,7 @@ def prepare_xprompt_proc_supervisor(
         "proc_id": proc.proc_id,
         "timeout": meta.get("timeout"),
         "idle_timeout": meta.get("idle_timeout"),
-        "shell_name": proc.shell_name,
+        "proc_name": proc.proc_name,
         "base_env": base_env,
     }
     try:
@@ -181,7 +183,7 @@ def prepare_xprompt_proc_supervisor(
     xprompt_meta = {
         "logical_id": str(meta.get("logical_id") or ""),
         "label": meta.get("label") or None,
-        "shell_name": meta.get("shell_name") or None,
+        "proc_name": meta.get("proc_name") or meta.get("shell_name") or None,
         "code_language": prepared.get("code_language"),
         "code_digest": prepared.get("code_digest"),
         "code_preview": prepared.get("code_preview"),
@@ -225,7 +227,7 @@ def _submit_unit(
     if selected_project is not None:
         selected_project = str(selected_project)
     validate_proc_workspace_intent(workspace, selected_project, declared_cwd)
-    validate_standalone_proc_shell_name(payload.shell_name)
+    validate_standalone_named_proc_name(payload.proc_name)
     if not workspace:
         from sase.core.agent_launch_facade import resolve_proc_execution_cwd
 
@@ -250,7 +252,7 @@ def _submit_unit(
     xprompt_meta = {
         "logical_id": unit.logical_id,
         "label": payload.label or None,
-        "shell_name": payload.shell_name or None,
+        "proc_name": payload.proc_name or None,
         "fingerprint": fingerprint,
         "code": agent_launch_wire_to_json_dict(payload.code),
         "workspace": workspace,
@@ -267,12 +269,12 @@ def _submit_unit(
     request = ProcSubmitRequest(
         argv=argv,
         command=[language, payload.code.digest],
-        label=payload.label or payload.shell_name or unit.logical_id,
+        label=payload.label or payload.proc_name or unit.logical_id,
         cwd=cwd,
         origin=xprompt_proc_origin(),
         proc_id=proc_id,
         project=selected_project,
-        shell_name=payload.shell_name,
+        proc_name=payload.proc_name,
         request_fingerprint=fingerprint,
         reserved_by="launch-admission",
         timeout_seconds=timeout_seconds,
@@ -308,7 +310,7 @@ def _rebind_launch_hold_to_proc(
     armer = {
         "kind": "proc",
         "key": f"proc:{proc.proc_id}",
-        "display": proc.shell_name or payload.label or proc.proc_id,
+        "display": proc.proc_name or payload.label or proc.proc_id,
         "project": _proc_hold_project(payload, context),
         "proc_id": proc.proc_id,
     }
@@ -362,7 +364,7 @@ def _acquire_lease(proc: Proc, meta: Mapping[str, Any]) -> Any:
         workflow=f"xprompt-proc:{proc.proc_id}",
         holder=proc.proc_id,
         project_file=meta.get("project_file"),
-        cl_name=proc.cl_name or proc.shell_name or proc.proc_id,
+        cl_name=proc.cl_name or proc.proc_name or proc.proc_id,
         pid=os.getpid(),
     )
 

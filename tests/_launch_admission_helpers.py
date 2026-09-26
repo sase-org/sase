@@ -100,7 +100,7 @@ def proc_unit(
     *,
     source_order: int = 0,
     waits: list[WaitTargetWire] | None = None,
-    shell_name: str | None = None,
+    proc_name: str | None = None,
     condition: Any = None,
     queue_capacity: int | None = None,
     wait_priority: int | None = None,
@@ -113,7 +113,7 @@ def proc_unit(
         source_order=source_order,
         payload=ProcUnitWire(
             code=code(),
-            shell_name=shell_name,
+            proc_name=proc_name,
             workspace=False,
             cwd=str(cwd),
             queue_capacity=queue_capacity,

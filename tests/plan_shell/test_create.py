@@ -211,15 +211,15 @@ def test_create_plan_shell_records_context_before_auto_settlement(
     )
 
     assert creation.record.artifacts_dir == str(member)
-    assert pre_auto_meta["plan_shell_session_id"] == "plan-1"
-    assert pre_auto_meta["plan_shell_source_role_suffix"] == PLAN_CHAIN_PLAN_SUFFIX
-    assert pre_auto_meta["plan_shell_source_plan_agent_name"] == "test_agent--plan"
+    assert pre_auto_meta["plan_gate_turn_session_id"] == "plan-1"
+    assert pre_auto_meta["plan_gate_turn_source_role_suffix"] == PLAN_CHAIN_PLAN_SUFFIX
+    assert pre_auto_meta["plan_gate_turn_source_plan_agent_name"] == "test_agent--plan"
     assert (
-        Path(pre_auto_meta["plan_shell_current_prompt_path"]).read_text(
+        Path(pre_auto_meta["plan_gate_turn_current_prompt_path"]).read_text(
             encoding="utf-8"
         )
         == state.current_prompt
     )
     final_meta = json.loads((member / "agent_meta.json").read_text(encoding="utf-8"))
-    assert final_meta["plan_shell_plan_path"] == str(plan)
+    assert final_meta["plan_gate_turn_plan_path"] == str(plan)
     assert final_meta["patch_name"] == ctx.cl_name

@@ -162,8 +162,17 @@ def maybe_crash(checkpoint: str) -> None:
         os._exit(90)
 
 
+def is_named_proc_row(proc: Proc) -> bool:
+    """Return whether *proc* is a named-proc lifecycle row (either spelling)."""
+
+    # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
+    return proc.lifecycle in ("named-proc", "proc-shell")
+
+
 def is_proc_shell_row(proc: Proc) -> bool:
-    return proc.lifecycle == PROC_LIFECYCLE_PROC_SHELL
+    """Deprecated alias for :func:`is_named_proc_row`."""
+
+    return is_named_proc_row(proc)
 
 
 def _ensure_claimed(proc: Proc, *, supervisor_id: str) -> Proc:
@@ -492,6 +501,7 @@ def _utc_timestamp() -> str:
 
 
 __all__ = [
+    "is_named_proc_row",
     "is_proc_shell_row",
     "maybe_crash",
     "settle_proc_shell",

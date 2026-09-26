@@ -62,7 +62,9 @@ def execute_neutral_plan_approval_response(
     from sase.gate_shell.settlement import settle_gate_shell
     from sase.gate_shell.store import find_gate_shell_by_gate_id
 
-    shell_backed = isinstance(envelope.get("shell"), dict)
+    shell_backed = isinstance(envelope.get("turn"), dict) or isinstance(
+        envelope.get("shell"), dict
+    )
     gate_shell = (
         find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
         if shell_backed

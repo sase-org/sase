@@ -41,7 +41,7 @@ def test_agent_hold_named_proc_shell_blocks_until_release(
         pid_override=os.getpid(),
     )
     dispatched: list[str] = []
-    launch_plan = _plan(_proc_unit("unit-1", tmp_path, shell_name="checks"))
+    launch_plan = _plan(_proc_unit("unit-1", tmp_path, proc_name="checks"))
 
     blocked, response_dir = _run_plan(
         tmp_path,
@@ -110,7 +110,7 @@ def test_agent_hold_does_not_retouch_dispatched_proc(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr("sase.core.agent_hold_facade._project_for_cwd", lambda: "sase")
     dispatched: list[str] = []
-    launch_plan = _plan(_proc_unit("unit-1", tmp_path, shell_name="checks"))
+    launch_plan = _plan(_proc_unit("unit-1", tmp_path, proc_name="checks"))
 
     first, _ = _run_plan(
         tmp_path,

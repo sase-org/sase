@@ -46,8 +46,8 @@ class Proc:
     started_at: str | None = None
     finished_at: str | None = None
     log_owner: str = STORE_LOG_OWNER
-    shell_name: str | None = None
-    shell_kind: str | None = None
+    proc_name: str | None = None
+    proc_role: str | None = None
     concurrency_keys: list[str] = field(default_factory=list)
     request_fingerprint: str | None = None
     reserved_by: str | None = None
@@ -92,7 +92,11 @@ class Proc:
         values["origin"] = str(data["origin"])
         values["created_at"] = str(data["created_at"])
         values["log_path"] = str(data["log_path"])
-        values["lifecycle"] = str(data.get("lifecycle") or PROC_LIFECYCLE_LEGACY)
+        raw_lifecycle = str(data.get("lifecycle") or PROC_LIFECYCLE_LEGACY)
+        # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
+        if raw_lifecycle == "proc-shell":
+            raw_lifecycle = "named-proc"
+        values["lifecycle"] = raw_lifecycle
         values["log_owner"] = str(data.get("log_owner") or STORE_LOG_OWNER)
         values["tags"] = [str(item) for item in data.get("tags") or []]
         values["concurrency_keys"] = [
@@ -107,8 +111,6 @@ class Proc:
             "message",
             "started_at",
             "finished_at",
-            "shell_name",
-            "shell_kind",
             "request_fingerprint",
             "reserved_by",
             "reserved_at",
@@ -123,6 +125,15 @@ class Proc:
             "finished_by",
         ):
             values[name] = None if data.get(name) is None else str(data[name])
+        # Readers prefer the new spelling and fall back to all old spellings.
+        proc_name = data.get("proc_name")
+        if proc_name is None:
+            proc_name = data.get("shell_name")
+        values["proc_name"] = None if proc_name is None else str(proc_name)
+        proc_role = data.get("proc_role")
+        if proc_role is None:
+            proc_role = data.get("shell_kind")
+        values["proc_role"] = None if proc_role is None else str(proc_role)
         for name in (
             "workspace_num",
             "pid",
@@ -136,19 +147,43 @@ class Proc:
         meta = data.get("xprompt_proc")
         if isinstance(meta, Mapping):
             xprompt_proc = dict(meta)
+            # Readers prefer the new spelling and fall back to the old one;
+            # rewriting drops the legacy key.
+            inner_proc_name = xprompt_proc.get("proc_name")
+            if inner_proc_name is None:
+                inner_proc_name = xprompt_proc.get("shell_name")
             if data.get("origin") == "xprompt-proc":
                 if "label" not in xprompt_proc and data.get("label") is not None:
                     xprompt_proc["label"] = str(data["label"])
-                if (
-                    "shell_name" not in xprompt_proc
-                    and data.get("shell_name") is not None
-                ):
-                    xprompt_proc["shell_name"] = str(data["shell_name"])
+                if inner_proc_name is None:
+                    new_proc_name = data.get("proc_name")
+                    if new_proc_name is None:
+                        new_proc_name = data.get("shell_name")
+                    if new_proc_name is not None:
+                        inner_proc_name = str(new_proc_name)
+            if inner_proc_name is not None:
+                xprompt_proc["proc_name"] = str(inner_proc_name)
+            xprompt_proc.pop("shell_name", None)
             values["xprompt_proc"] = xprompt_proc
         else:
             values["xprompt_proc"] = None
         values["service"] = ProcServiceBlock.from_dict(data.get("service"))
+        # Drop legacy keys that may have ridden along via known_field_kwargs.
+        values.pop("shell_name", None)
+        values.pop("shell_kind", None)
         return cls(**values)
+
+    @property
+    def shell_name(self) -> str | None:
+        """Deprecated alias for :attr:`proc_name` (legacy sase-shell spelling)."""
+
+        return self.proc_name
+
+    @property
+    def shell_kind(self) -> str | None:
+        """Deprecated alias for :attr:`proc_role` (legacy sase-shell spelling)."""
+
+        return self.proc_role
 
     @property
     def service_name(self) -> str | None:
@@ -200,8 +235,8 @@ class Proc:
                 "finished_at",
                 "log_path",
                 "log_owner",
-                "shell_name",
-                "shell_kind",
+                "proc_name",
+                "proc_role",
                 "concurrency_keys",
                 "request_fingerprint",
                 "reserved_by",

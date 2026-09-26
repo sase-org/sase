@@ -22,11 +22,11 @@ from sase.monitor_state import MONITOR_PROC_ORIGIN, monitor_state_bucket
 from sase.monitor_status import clamp_monitor_status_or_default
 from sase.procs.models import (
     ACTIVE_PROC_STATUSES,
-    PROC_LIFECYCLE_PROC_SHELL,
     TERMINAL_PROC_STATUSES,
     Proc,
     ProcStoreSnapshot,
 )
+from sase.procs.settlement import is_named_proc_row
 from sase.procs.store import get_proc
 from sase.shells.followup import wait_for_followup_started
 from sase.shells.settlement import stamp_shell_finished_at
@@ -83,7 +83,7 @@ def proc_shell_owns(
     Pass *snapshot* to answer many ownership checks from one store read.
     """
     proc = get_proc(monitor_id, snapshot=snapshot)
-    return proc is not None and proc.lifecycle == PROC_LIFECYCLE_PROC_SHELL
+    return proc is not None and is_named_proc_row(proc)
 
 
 def _monitor_state_from_proc(

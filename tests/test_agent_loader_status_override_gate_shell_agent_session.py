@@ -105,7 +105,7 @@ def _gate_member(
         agent,
         AgentMetaWire(
             name=f"{_AGENT_SESSION}--gate",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="gate",
                 id=gate_id,
                 state=state,

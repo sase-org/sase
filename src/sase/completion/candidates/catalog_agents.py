@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from sase.plan_chain import (
     agent_session_role_value,
-    agent_session_shell_value,
+    agent_session_turn_value,
 )
 
 from collections.abc import Mapping
@@ -134,7 +134,7 @@ def monitor_candidates(project: str | None) -> list[Candidate]:
         meta = record.get("agent_meta")
         if not isinstance(meta, Mapping):
             continue
-        shell = agent_session_shell_value(meta)
+        shell = agent_session_turn_value(meta)
         monitor_shell = (
             shell
             if isinstance(shell, Mapping) and shell.get("kind") == "monitor"

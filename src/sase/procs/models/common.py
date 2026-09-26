@@ -19,7 +19,10 @@ TUI_PROC_KIND: Final = "tui"
 DETACHED_PROC_KIND: Final = "detached"
 PROC_KINDS: Final = frozenset({COMMAND_PROC_KIND, TUI_PROC_KIND, DETACHED_PROC_KIND})
 PROC_LIFECYCLE_LEGACY: Final = "legacy"
-PROC_LIFECYCLE_PROC_SHELL: Final = "proc-shell"
+PROC_LIFECYCLE_NAMED_PROC: Final = "named-proc"
+# legacy sase-shell spelling: pre-rename proc rows carry ``proc-shell``.
+LEGACY_PROC_LIFECYCLE_PROC_SHELL: Final = "proc-shell"
+PROC_LIFECYCLE_PROC_SHELL: Final = LEGACY_PROC_LIFECYCLE_PROC_SHELL
 STORE_LOG_OWNER: Final = "proc-store"
 ARTIFACTS_LOG_OWNER: Final = "artifacts"
 XPROMPT_PROC_ORIGIN: Final = "xprompt-proc"
@@ -39,8 +42,10 @@ __all__ = [
     "ARTIFACTS_LOG_OWNER",
     "COMMAND_PROC_KIND",
     "DETACHED_PROC_KIND",
+    "LEGACY_PROC_LIFECYCLE_PROC_SHELL",
     "PROC_KINDS",
     "PROC_LIFECYCLE_LEGACY",
+    "PROC_LIFECYCLE_NAMED_PROC",
     "PROC_LIFECYCLE_PROC_SHELL",
     "PROC_WIRE_SCHEMA_VERSION",
     "STORE_LOG_OWNER",

@@ -158,15 +158,16 @@ def test_scan_wire_json_emits_only_new_spellings() -> None:
     meta_payload = payload["records"][0]["agent_meta"]
     assert meta_payload["agent_session"] == "acme"
     assert meta_payload["agent_session_role"] == "code"
-    assert meta_payload["agent_session_shell"]["id"] == "m1"
+    assert meta_payload["agent_session_turn"]["id"] == "m1"
     for legacy_key in (
         "agent_family",
         "agent_family_role",
         "agent_family_parallel",
         "family_shell",
+        "agent_session_shell",
     ):
         assert legacy_key not in meta_payload
-    assert "agent_session_shell" in meta_payload
+    assert "agent_session_turn" in meta_payload
 
 
 def test_cleanup_wire_hydrates_either_spelling_and_emits_new() -> None:
@@ -220,6 +221,25 @@ def test_capacity_session_keys_shape_uses_new_parallel_spelling() -> None:
         agent_session="acme",
         agent_session_role="member",
         agent_session_parallel=True,
+        turn_kind="monitor",
+        turn_id="m1",
+        turn_state="running",
+    )
+    assert keys == {
+        "agent_session": "acme",
+        "agent_session_role": "member",
+        "agent_session_parallel": True,
+        "agent_session_turn_kind": "monitor",
+        "agent_session_turn_id": "m1",
+        "agent_session_turn_state": "running",
+    }
+
+
+def test_capacity_session_keys_legacy_shell_spelling_still_resolves() -> None:
+    keys = capacity_session_keys_for_core(
+        agent_session="acme",
+        agent_session_role="member",
+        agent_session_parallel=True,
         shell_kind="monitor",
         shell_id="m1",
         shell_state="running",
@@ -228,9 +248,9 @@ def test_capacity_session_keys_shape_uses_new_parallel_spelling() -> None:
         "agent_session": "acme",
         "agent_session_role": "member",
         "agent_session_parallel": True,
-        "agent_session_shell_kind": "monitor",
-        "agent_session_shell_id": "m1",
-        "agent_session_shell_state": "running",
+        "agent_session_turn_kind": "monitor",
+        "agent_session_turn_id": "m1",
+        "agent_session_turn_state": "running",
     }
 
 
@@ -252,7 +272,7 @@ def test_capacity_snapshot_real_round_trip_accepts_new_spellings() -> None:
     capacity = capacity_record_from_scan(record, lambda _record: True)
     assert capacity["agent_session"] == "acme"
     assert "agent_family" not in capacity
-    assert capacity["agent_session_shell_kind"] == "monitor"
+    assert capacity["agent_session_turn_kind"] == "monitor"
     assert "family_shell_kind" not in capacity
     snapshot = runner_capacity_snapshot_from_capacity_records(
         [capacity], effective_limit=4.0

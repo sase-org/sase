@@ -268,11 +268,12 @@ def _dataclass_field_names(cls: type[Any]) -> frozenset[str]:
 
 
 def with_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
-    """Backfill new agent-session wire keys from legacy agent-family spellings.
+    """Backfill new agent-session wire keys from legacy spellings.
 
     Wire-cutover reader bridge: ``AgentMetaWire`` / ``DoneMarkerWire`` declare
-    only the ``agent_session*`` fields, but pre-rename marker files still
-    carry the ``agent_family*`` / ``family_shell`` keys. A present new
+    only the ``agent_session*`` / ``agent_session_turn`` fields, but
+    pre-rename marker files still carry the ``agent_family*`` /
+    ``family_shell`` and ``agent_session_shell`` keys. A present new
     spelling stays authoritative for those fields; legacy spellings backfill
     only absent new keys, and new-shape files pass through unchanged.
     """
@@ -280,25 +281,32 @@ def with_agent_session_keys(data: Mapping[str, Any]) -> dict[str, Any]:
         AGENT_SESSION_KEY,
         AGENT_SESSION_PARALLEL_KEY,
         AGENT_SESSION_ROLE_KEY,
-        AGENT_SESSION_SHELL_KEY,
+        AGENT_SESSION_TURN_KEY,
         LEGACY_AGENT_FAMILY_KEY,
         LEGACY_AGENT_FAMILY_PARALLEL_KEY,
         LEGACY_AGENT_FAMILY_ROLE_KEY,
         LEGACY_AGENT_FAMILY_SHELL_KEY,
+        LEGACY_AGENT_SESSION_SHELL_KEY,
     )
 
     pairs = (
         (AGENT_SESSION_KEY, LEGACY_AGENT_FAMILY_KEY),
         (AGENT_SESSION_ROLE_KEY, LEGACY_AGENT_FAMILY_ROLE_KEY),
         (AGENT_SESSION_PARALLEL_KEY, LEGACY_AGENT_FAMILY_PARALLEL_KEY),
-        (AGENT_SESSION_SHELL_KEY, LEGACY_AGENT_FAMILY_SHELL_KEY),
     )
-    if not any(key in data for _, key in pairs):
-        return dict(data)
     bridged = dict(data)
     for new_key, legacy_key in pairs:
         if new_key not in bridged and bridged.get(legacy_key) is not None:
             bridged[new_key] = bridged[legacy_key]
+    # Turn object: prefer new, then legacy shell, then family shell.
+    if AGENT_SESSION_TURN_KEY not in bridged:
+        for legacy_key in (
+            LEGACY_AGENT_SESSION_SHELL_KEY,
+            LEGACY_AGENT_FAMILY_SHELL_KEY,
+        ):
+            if bridged.get(legacy_key) is not None:
+                bridged[AGENT_SESSION_TURN_KEY] = bridged[legacy_key]
+                break
     return bridged
 
 

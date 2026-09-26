@@ -46,7 +46,7 @@ def cancel_gate_shell(
     if (bundle / RESPONSE_FILENAME).exists():
         return settle_gate_shell(record, gate_state="answered", reason="gate answered")
     try:
-        cancel_gate(bundle, reason=reason, source="gate_shell_cancel")
+        cancel_gate(bundle, reason=reason, source="gate_turn_cancel")
     except GateError as exc:
         if exc.code != "already_answered":
             raise

@@ -1,4 +1,4 @@
-"""Named proc-shell addressing: qualification, validation, and completion."""
+"""Named proc addressing: qualification, validation, and completion."""
 
 from __future__ import annotations
 
@@ -8,11 +8,17 @@ from collections.abc import Sequence
 from .ids import PROC_ID_ALPHABET, PROC_ID_LENGTH, short_proc_id
 from .models import Proc
 
-_SHELL_CONCURRENCY_PREFIX = "shell:"
+_NAMED_PROC_CONCURRENCY_PREFIX = "named-proc:"
+# legacy sase-shell spelling: pre-rename concurrency keys carry ``shell:``.
+_LEGACY_SHELL_CONCURRENCY_PREFIX = "shell:"
 
 
-class ProcShellNameError(ValueError):
-    """A named proc shell is empty, malformed, or ambiguous with a proc id."""
+class NamedProcNameError(ValueError):
+    """A named proc is empty, malformed, or ambiguous with a proc id."""
+
+
+# Deprecated alias kept for callers not yet moved to the turn spelling.
+ProcShellNameError = NamedProcNameError
 
 
 def calling_sase_agent() -> str | None:
@@ -25,22 +31,46 @@ def calling_sase_agent() -> str | None:
     return _sase_agent_projection(raw)
 
 
-def named_proc_shell_concurrency_key(project: str | None, shell_name: str) -> str:
-    """Return the namespaced concurrency key derived from a named proc shell.
+def named_proc_concurrency_key(project: str | None, proc_name: str) -> str:
+    """Return the namespaced concurrency key derived from a named proc.
 
     This is distinct from :attr:`Proc.concurrency_keys`. The store uses the
     namespaced form for conflict detection and does not write it back into
     that field.
     """
-    return f"{_SHELL_CONCURRENCY_PREFIX}{project or ''}:{shell_name}"
+    return f"{_NAMED_PROC_CONCURRENCY_PREFIX}{project or ''}:{proc_name}"
 
 
-def qualify_proc_shell_name(
+def named_proc_shell_concurrency_key(project: str | None, shell_name: str) -> str:
+    """Deprecated alias for :func:`named_proc_concurrency_key`."""
+
+    return named_proc_concurrency_key(project, shell_name)
+
+
+def _normalize_concurrency_key_for_compare(key: str) -> str:
+    """Normalize a concurrency key so legacy and new prefixes compare equal."""
+    # legacy sase-shell spelling: ``shell:<project>:<name>`` equals
+    # ``named-proc:<project>:<name>`` for the same project and name.
+    if key.startswith(_LEGACY_SHELL_CONCURRENCY_PREFIX):
+        return (
+            _NAMED_PROC_CONCURRENCY_PREFIX
+            + key[len(_LEGACY_SHELL_CONCURRENCY_PREFIX) :]
+        )
+    return key
+
+
+def normalize_concurrency_keys_for_compare(keys: Sequence[str]) -> set[str]:
+    """Return *keys* with legacy prefixes normalized for equality checks."""
+
+    return {_normalize_concurrency_key_for_compare(str(key)) for key in keys}
+
+
+def qualify_named_proc_name(
     name: str,
     *,
     agent: str | None = None,
 ) -> str:
-    """Return a fully qualified named proc shell, or raise ``ProcShellNameError``.
+    """Return a fully qualified named proc, or raise ``NamedProcNameError``.
 
     A name that already contains ``--`` is treated as fully qualified. A bare
     name is attached beneath the calling sase agent. Slash, proc-id-shaped
@@ -48,31 +78,37 @@ def qualify_proc_shell_name(
     """
     raw = name.strip()
     if not raw:
-        raise ProcShellNameError("named proc shell must not be empty")
+        raise NamedProcNameError("named proc must not be empty")
     _reject_slash(raw)
     if _is_full_proc_id(raw):
-        raise ProcShellNameError(
-            f"named proc shell {name!r} is ambiguous with a proc id"
-        )
+        raise NamedProcNameError(f"named proc {name!r} is ambiguous with a proc id")
     if "--" in raw:
         return _validate_qualified(raw)
 
     caller = (agent if agent is not None else calling_sase_agent()) or ""
     caller = caller.strip()
     if not caller:
-        raise ProcShellNameError(
-            f"bare named proc shell {name!r} requires a calling sase agent; "
-            "pass a fully qualified name such as <agent>--<shell>"
+        raise NamedProcNameError(
+            f"bare named proc {name!r} requires a calling sase agent; "
+            "pass a fully qualified name such as <agent>--<name>"
         )
     caller = _sase_agent_projection(caller)
     if _is_full_proc_id(raw):
-        raise ProcShellNameError(
-            f"named proc shell {name!r} is ambiguous with a proc id"
-        )
+        raise NamedProcNameError(f"named proc {name!r} is ambiguous with a proc id")
     return _validate_qualified(f"{caller}--{raw}")
 
 
-def proc_shell_name_keys(name: str, *, agent: str | None = None) -> tuple[str, ...]:
+def qualify_proc_shell_name(
+    name: str,
+    *,
+    agent: str | None = None,
+) -> str:
+    """Deprecated alias for :func:`qualify_named_proc_name`."""
+
+    return qualify_named_proc_name(name, agent=agent)
+
+
+def proc_name_keys(name: str, *, agent: str | None = None) -> tuple[str, ...]:
     """Return stored-name keys that should match *name* in filters and refs.
 
     The raw spelling is always included so historical names stay visible even
@@ -83,12 +119,31 @@ def proc_shell_name_keys(name: str, *, agent: str | None = None) -> tuple[str, .
         return ()
     keys = [raw]
     try:
-        qualified = qualify_proc_shell_name(raw, agent=agent)
-    except ProcShellNameError:
+        qualified = qualify_named_proc_name(raw, agent=agent)
+    except NamedProcNameError:
         qualified = None
     if qualified is not None and qualified not in keys:
         keys.append(qualified)
     return tuple(keys)
+
+
+def proc_shell_name_keys(name: str, *, agent: str | None = None) -> tuple[str, ...]:
+    """Deprecated alias for :func:`proc_name_keys`."""
+
+    return proc_name_keys(name, agent=agent)
+
+
+def matching_procs_by_proc_name(
+    name: str,
+    procs: Sequence[Proc],
+    *,
+    agent: str | None = None,
+) -> list[Proc]:
+    """Return procs whose stored named proc equals *name* or its FQ form."""
+    keys = set(proc_name_keys(name, agent=agent))
+    if not keys:
+        return []
+    return [proc for proc in procs if proc.proc_name in keys]
 
 
 def matching_procs_by_shell_name(
@@ -97,22 +152,20 @@ def matching_procs_by_shell_name(
     *,
     agent: str | None = None,
 ) -> list[Proc]:
-    """Return procs whose stored named proc shell equals *name* or its FQ form."""
-    keys = set(proc_shell_name_keys(name, agent=agent))
-    if not keys:
-        return []
-    return [proc for proc in procs if proc.shell_name in keys]
+    """Deprecated alias for :func:`matching_procs_by_proc_name`."""
+
+    return matching_procs_by_proc_name(name, procs, agent=agent)
 
 
 def complete_proc_refs(prefix: str, procs: Sequence[Proc]) -> list[str]:
-    """Return named proc shells and proc ids that start with *prefix*."""
+    """Return named procs and proc ids that start with *prefix*."""
     needle = prefix.strip()
     results: list[str] = []
     seen: set[str] = set()
     for proc in procs:
         candidates = []
-        if proc.shell_name:
-            candidates.append(proc.shell_name)
+        if proc.proc_name:
+            candidates.append(proc.proc_name)
         candidates.append(proc.proc_id)
         candidates.append(short_proc_id(proc.proc_id))
         for candidate in candidates:
@@ -124,27 +177,21 @@ def complete_proc_refs(prefix: str, procs: Sequence[Proc]) -> list[str]:
 
 def _validate_qualified(name: str) -> str:
     if name.count("--") != 1:
-        raise ProcShellNameError(
-            f"named proc shell {name!r} has malformed qualification"
-        )
+        raise NamedProcNameError(f"named proc {name!r} has malformed qualification")
     base, role = name.rsplit("--", 1)
     if not base or not role or "." in role:
-        raise ProcShellNameError(
-            f"named proc shell {name!r} has malformed qualification"
-        )
+        raise NamedProcNameError(f"named proc {name!r} has malformed qualification")
     if _is_full_proc_id(role):
-        raise ProcShellNameError(
-            f"named proc shell {name!r} is ambiguous with a proc id"
-        )
+        raise NamedProcNameError(f"named proc {name!r} is ambiguous with a proc id")
     try:
         from sase.core.agent_identity_facade import validate_new_agent_name
 
         validate_new_agent_name(name)
-    except ProcShellNameError:
+    except NamedProcNameError:
         raise
     except Exception as exc:
-        raise ProcShellNameError(
-            f"named proc shell {name!r} has invalid agent components: {exc}"
+        raise NamedProcNameError(
+            f"named proc {name!r} has invalid agent components: {exc}"
         ) from exc
     return name
 
@@ -160,7 +207,7 @@ def _sase_agent_projection(name: str) -> str:
 
 def _reject_slash(name: str) -> None:
     if "/" in name or "\\" in name:
-        raise ProcShellNameError(f"named proc shell {name!r} must not contain a slash")
+        raise NamedProcNameError(f"named proc {name!r} must not contain a slash")
 
 
 def _is_full_proc_id(value: str) -> bool:
@@ -171,11 +218,17 @@ def _is_full_proc_id(value: str) -> bool:
 
 
 __all__ = [
+    "NamedProcNameError",
     "ProcShellNameError",
     "calling_sase_agent",
     "complete_proc_refs",
+    "matching_procs_by_proc_name",
     "matching_procs_by_shell_name",
+    "named_proc_concurrency_key",
     "named_proc_shell_concurrency_key",
+    "normalize_concurrency_keys_for_compare",
+    "proc_name_keys",
     "proc_shell_name_keys",
+    "qualify_named_proc_name",
     "qualify_proc_shell_name",
 ]

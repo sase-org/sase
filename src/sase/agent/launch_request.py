@@ -156,7 +156,7 @@ def create_launch_approval_request(
     except GateError as exc:
         raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
     except GateShellError as exc:
-        raise LaunchRequestError("gate_shell_failed", "shell", str(exc)) from exc
+        raise LaunchRequestError("gate_turn_failed", "turn", str(exc)) from exc
     if gate.notification_id is None:  # Launch auto-resolution is forbidden.
         raise LaunchRequestError(
             "invalid_state",
@@ -200,9 +200,7 @@ def maybe_handoff_launch_approval_from_agent(
     try:
         return maybe_handoff_gate_from_agent(creation, artifacts_dir=artifacts_dir)
     except GateShellError as exc:
-        raise LaunchRequestError(
-            "gate_shell_handoff_failed", "shell", str(exc)
-        ) from exc
+        raise LaunchRequestError("gate_turn_handoff_failed", "turn", str(exc)) from exc
 
 
 def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:

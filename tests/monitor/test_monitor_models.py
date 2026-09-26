@@ -99,14 +99,14 @@ def test_is_monitor_member_record_requires_role_and_monitor_id() -> None:
         agent_meta=AgentMetaWire(
             name="acme--mon",
             agent_session_role="monitor",
-            agent_session_shell=AgentSessionShellWire(kind="monitor", id="abc123"),
+            agent_session_turn=AgentSessionShellWire(kind="monitor", id="abc123"),
         )
     )
     other_role = _record(
         agent_meta=AgentMetaWire(
             name="acme--0",
             agent_session_role="root",
-            agent_session_shell=AgentSessionShellWire(kind="monitor", id="abc123"),
+            agent_session_turn=AgentSessionShellWire(kind="monitor", id="abc123"),
         )
     )
 
@@ -120,7 +120,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_shell=AgentSessionShellWire(
+        agent_session_turn=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             label="sleep",
@@ -157,7 +157,7 @@ def test_from_record_prefers_done_marker_over_running_meta() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_shell=AgentSessionShellWire(
+        agent_session_turn=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="running",
@@ -165,7 +165,7 @@ def test_from_record_prefers_done_marker_over_running_meta() -> None:
         ),
     )
     done = DoneMarkerWire(
-        agent_session_shell=AgentSessionShellWire(
+        agent_session_turn=AgentSessionShellWire(
             kind="monitor",
             state="failed",
             monitor=AgentSessionShellMonitorWire(exit_code=3),
@@ -183,7 +183,7 @@ def test_from_record_treats_unsettled_terminal_meta_as_active() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_shell=AgentSessionShellWire(
+        agent_session_turn=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="completed",
@@ -202,7 +202,7 @@ def test_from_record_uses_settled_meta_without_done_marker() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_shell=AgentSessionShellWire(
+        agent_session_turn=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="completed",
@@ -222,7 +222,7 @@ def test_from_record_preserves_a_zero_exit_code() -> None:
     meta = AgentMetaWire(
         name="acme--mon",
         agent_session="acme",
-        agent_session_shell=AgentSessionShellWire(
+        agent_session_turn=AgentSessionShellWire(
             kind="monitor",
             id="abc123",
             state="running",

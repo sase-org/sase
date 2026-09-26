@@ -154,7 +154,9 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     # source of truth per the gate-shell design), never by whether the
     # agent-session-member lookup below happens to resolve one -- that lookup
     # goes through the artifact-index scan, which is best-effort here.
-    shell_backed = isinstance(bundle.envelope.get("shell"), dict)
+    shell_backed = isinstance(bundle.envelope.get("turn"), dict) or isinstance(
+        bundle.envelope.get("shell"), dict
+    )
     if retry == "resume" and shell_backed and bundle.response_path.exists():
         return _resume_answered_shell(
             bundle,

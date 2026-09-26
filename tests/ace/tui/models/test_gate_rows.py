@@ -52,7 +52,7 @@ def test_settling_gate_meta_projects_start_label_and_bucket() -> None:
         agent,
         AgentMetaWire(
             name="alpha--gate",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="gate",
                 id="g123",
                 state="settling",
@@ -87,7 +87,7 @@ def test_gate_starter_keeps_reference_without_gate_row_semantics() -> None:
         agent,
         AgentMetaWire(
             name="alpha--0",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="gate",
                 id="g123",
                 state="pending",
@@ -223,7 +223,7 @@ def test_terminal_gate_done_projects_stop_label_and_followup_fields() -> None:
                 timestamp="20260812090000",
                 agent_meta=AgentMetaWire(
                     name="alpha--gate",
-                    agent_session_shell=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="settling",
@@ -241,7 +241,7 @@ def test_terminal_gate_done_projects_stop_label_and_followup_fields() -> None:
                     outcome="gated",
                     cl_name="gate-row",
                     project_file="/tmp/.sase/projects/sase/sase.sase",
-                    agent_session_shell=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="failed",
@@ -332,7 +332,7 @@ def _enrich_gate_member(
         agent,
         AgentMetaWire(
             name="alpha--gate",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="gate",
                 id="g123",
                 state=state,
@@ -431,7 +431,7 @@ def test_done_marker_answered_tale_approved_buckets_running() -> None:
                 timestamp="20260812090000",
                 agent_meta=AgentMetaWire(
                     name="alpha--gate",
-                    agent_session_shell=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="settling",
@@ -449,7 +449,7 @@ def test_done_marker_answered_tale_approved_buckets_running() -> None:
                     outcome="gated",
                     cl_name="gate-row",
                     project_file="/tmp/.sase/projects/sase/sase.sase",
-                    agent_session_shell=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionShellWire(
                         kind="gate",
                         id="g123",
                         state="answered",

@@ -62,7 +62,7 @@ def record(
                 if isinstance(meta.get("runner_claim_owner_key"), str)
                 else None
             ),
-            agent_session_shell=agent_session_shell_from_mapping(meta),
+            agent_session_turn=agent_session_shell_from_mapping(meta),
             wait_priority=meta_wait_priority,
             queue_capacity=(
                 meta["queue_capacity"]

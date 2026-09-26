@@ -210,7 +210,7 @@ def _reclaim_one(
     if disposition == DISPOSITION_ACCEPTED_OWNER_LOST:
         failure = record_owner_lost_outcome_if_current(
             bundle,
-            source="gate_shell_reclaim",
+            source="gate_turn_reclaim",
             now=now,
             deadline=deadline,
             grace_seconds=grace_seconds,
@@ -255,7 +255,7 @@ def _settle_expired_gate(
     ``cancel_gate`` refuse.
     """
     try:
-        cancel_gate(bundle, reason=cancel_reason, source="gate_shell_reclaim")
+        cancel_gate(bundle, reason=cancel_reason, source="gate_turn_reclaim")
     except GateError as exc:
         if exc.code != "already_answered":
             raise

@@ -244,7 +244,7 @@ def _monitor_record(projects_root: Path, index: int) -> AgentArtifactRecordWire:
             cl_name=f"lane-{index}",
             agent_session=f"lane-{index}",
             agent_session_role="monitor",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="monitor",
                 id=monitor_id,
                 start_status="MONITORING",
@@ -262,9 +262,7 @@ def _monitor_record(projects_root: Path, index: int) -> AgentArtifactRecordWire:
             outcome="completed",
             cl_name=f"lane-{index}",
             name=name,
-            agent_session_shell=AgentSessionShellWire(
-                kind="monitor", state="completed"
-            ),
+            agent_session_turn=AgentSessionShellWire(kind="monitor", state="completed"),
             status_label="MONITORED",
         ),
         has_done_marker=True,

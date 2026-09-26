@@ -15,7 +15,7 @@ def _write_proc(
     proc_id: str,
     *,
     status: str = "running",
-    shell_name: str = "build-docs",
+    proc_name: str = "build-docs",
 ) -> None:
     append_proc(
         Proc(
@@ -29,7 +29,7 @@ def _write_proc(
             created_at="2026-07-25T12:00:00Z",
             log_path="/tmp/proc.log",
             project="proj",
-            shell_name=shell_name,
+            proc_name=proc_name,
         )
     )
 
@@ -430,7 +430,7 @@ class TestExtractDirectivesImplicitForkWait:
         self, tmp_path: Path, monkeypatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-        _write_proc("proc0123456789ab", shell_name="build-docs")
+        _write_proc("proc0123456789ab", proc_name="build-docs")
 
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(

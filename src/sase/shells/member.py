@@ -22,7 +22,8 @@ def create_agent_session_shell_member(
     suffix: str,
     prev_artifacts_timestamp: str,
     workspace_num: int | None,
-    shell_kind: str,
+    shell_kind: str | None = None,
+    turn_kind: str | None = None,
     agent_session_role: str,
     metadata: Mapping[str, Any] | None = None,
     inherited_metadata_fields: Sequence[str] = (),
@@ -50,7 +51,17 @@ def create_agent_session_shell_member(
     if not isinstance(meta, dict):
         raise ValueError(f"agent_meta.json at {artifacts_dir!r} is not an object")
 
-    meta["shell_kind"] = shell_kind
+    from sase.plan_chain import (
+        LEGACY_SHELL_KIND_KEY,
+        TURN_KIND_KEY,
+        normalize_turn_kind,
+    )
+
+    effective_kind = turn_kind if turn_kind is not None else shell_kind
+    # legacy sase-shell spelling: the old ``proc`` value reads as ``monitor``.
+    effective_kind = normalize_turn_kind(effective_kind)
+    meta[TURN_KIND_KEY] = effective_kind
+    meta.pop(LEGACY_SHELL_KIND_KEY, None)
     for key in inherited_metadata_fields:
         if _has_metadata_value(base_meta.get(key)):
             meta[key] = base_meta[key]

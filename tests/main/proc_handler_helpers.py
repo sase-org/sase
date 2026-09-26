@@ -62,7 +62,7 @@ def stored(
     command: list[str] | None = None,
     kind: str = "command",
     service: ProcServiceBlock | None = None,
-    shell_name: str | None = None,
+    proc_name: str | None = None,
 ) -> Proc:
     """Append and return a proc with concise test-friendly defaults."""
     proc = Proc(
@@ -79,7 +79,7 @@ def stored(
         tags=tags or [],
         pid=pid,
         service=service,
-        shell_name=shell_name,
+        proc_name=proc_name,
         exit_code=exit_code,
         created_at=created_at,
         started_at=started_at,

@@ -379,10 +379,24 @@ def parse_proc_duration_seconds(raw: str) -> int:
     return int(require_rust_binding("parse_proc_duration_seconds")(raw))
 
 
-def validate_standalone_proc_shell_name(name: str | None) -> None:
+def validate_standalone_named_proc_name(name: str | None) -> None:
     """Reject agent-session-qualified or malformed stand-alone proc names."""
 
-    require_rust_binding("validate_standalone_proc_shell_name")(name)
+    try:
+        require_rust_binding("validate_standalone_named_proc_name")(name)
+    except (ImportError, AttributeError):
+        # legacy sase-shell spelling: pre-cutover core builds expose
+        # only the old binding name.
+        require_rust_binding("validate_standalone_proc_shell_name")(name)
+
+
+def validate_standalone_proc_shell_name(name: str | None) -> None:
+    """Reject agent-session-qualified or malformed stand-alone proc names.
+
+    Deprecated alias for :func:`validate_standalone_named_proc_name`.
+    """
+
+    validate_standalone_named_proc_name(name)
 
 
 def validate_proc_workspace_intent(

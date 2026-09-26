@@ -61,7 +61,7 @@ def _proc_fork_source(name: str, proc_id: str) -> dict[str, str]:
     return {"kind": "proc", "name": name, "proc_id": proc_id}
 
 
-def _write_proc(proc_id: str, *, status: str, shell_name: str = "build-docs") -> None:
+def _write_proc(proc_id: str, *, status: str, proc_name: str = "build-docs") -> None:
     append_proc(
         Proc(
             proc_id=proc_id,
@@ -74,7 +74,7 @@ def _write_proc(proc_id: str, *, status: str, shell_name: str = "build-docs") ->
             created_at="2026-07-25T12:00:00Z",
             log_path="/tmp/proc.log",
             project="proj",
-            shell_name=shell_name,
+            proc_name=proc_name,
         )
     )
 
@@ -575,7 +575,7 @@ def test_fork_source_wait_resolves_proc_only_when_terminal(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     waiter_dir = make_waiting_agent(tmp_path, "build-docs")
-    _write_proc("proc0123456789ab", status=status, shell_name="build-docs")
+    _write_proc("proc0123456789ab", status=status, proc_name="build-docs")
 
     assert (
         initial_dependencies_resolved(

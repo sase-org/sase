@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 
 from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
-from sase.core.agent_scan_wire_agent_session_shell import (
-    agent_session_shell_from_mapping,
+from sase.core.agent_scan_wire_agent_session_turn import (
+    agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
@@ -191,5 +191,5 @@ def _load[WireT](path: Path, cls: type[WireT]) -> WireT:
     data = with_agent_session_keys(json.loads(path.read_text(encoding="utf-8")))
     kwargs = known_field_kwargs(cls, data)
     if cls in (AgentMetaWire, DoneMarkerWire):
-        kwargs["agent_session_shell"] = agent_session_shell_from_mapping(data)
+        kwargs["agent_session_turn"] = agent_session_turn_from_mapping(data)
     return cls(**kwargs)

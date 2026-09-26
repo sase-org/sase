@@ -125,7 +125,7 @@ def _record_as_of(shell: _Shell, instant: int) -> AgentArtifactRecordWire:
             agent_session=shell.agent_session,
             agent_session_role=shell.role,
             agent_session_parallel=shell.parallel,
-            agent_session_shell=(
+            agent_session_turn=(
                 AgentSessionShellWire(kind="monitor", id=shell.monitor_id)
                 if shell.monitor_id is not None
                 else None

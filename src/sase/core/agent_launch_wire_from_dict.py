@@ -268,11 +268,13 @@ def _launch_unit_payload_from_dict(
             hold=_hold_fields_from_dict(data.get("hold")),
         )
     if kind == "proc":
+        proc_name_value = data.get("proc_name")
+        if proc_name_value is None:
+            # legacy sase-shell spelling
+            proc_name_value = data.get("shell_name")
         return ProcUnitWire(
             code=_code_value_from_dict(dict(data["code"])),
-            shell_name=(
-                None if data.get("shell_name") is None else str(data["shell_name"])
-            ),
+            proc_name=(None if proc_name_value is None else str(proc_name_value)),
             label=None if data.get("label") is None else str(data["label"]),
             timeout=None if data.get("timeout") is None else str(data["timeout"]),
             idle_timeout=(

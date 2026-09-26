@@ -309,7 +309,10 @@ def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -
     row to refresh. A failure here must never turn a durably accepted
     decision into a raised error.
     """
-    if not isinstance(envelope.get("shell"), dict):
+    if not (
+        isinstance(envelope.get("turn"), dict)
+        or isinstance(envelope.get("shell"), dict)
+    ):
         return
     try:
         from sase.gate_shell.store import find_gate_shell_by_gate_id

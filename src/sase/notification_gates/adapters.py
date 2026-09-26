@@ -361,7 +361,10 @@ def _publish_shell_terminal_before_epic_launch(
     """
     if str(response.get("source") or "") == "auto_resolution":
         return
-    if not isinstance(envelope.get("shell"), dict):
+    if not (
+        isinstance(envelope.get("turn"), dict)
+        or isinstance(envelope.get("shell"), dict)
+    ):
         return
     try:
         from sase.gate_shell.settlement import publish_gate_shell_terminal_state

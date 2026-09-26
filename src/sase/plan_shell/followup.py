@@ -95,30 +95,77 @@ def _plan_feedback_bullets(
     return bullets
 
 
+def _meta_get(meta: Mapping[str, Any], new_key: str, legacy_key: str) -> Any:
+    """Read *new_key*, falling back to *legacy_key* (pre-rename plan gates)."""
+    # legacy sase-shell spelling: pre-rename gates carry ``plan_shell_*`` keys.
+    value = meta.get(new_key)
+    if value is None:
+        value = meta.get(legacy_key)
+    return value
+
+
 def _plan_original_prompt(head_artifacts_dir: str) -> str:
     """Return the chain's original planner prompt, or ``""``."""
     chain = _plan_shell_chain(head_artifacts_dir)
     root = chain[0] if chain else head_artifacts_dir
-    path = _read_meta(root).get("plan_shell_original_prompt_path")
-    return _read_text(path)
+    meta = _read_meta(root)
+    path = _meta_get(
+        meta,
+        "plan_gate_turn_original_prompt_path",
+        "plan_shell_original_prompt_path",
+    )
+    text = _read_text(path)
+    if text:
+        return text
+    # legacy sase-shell spelling: pre-rename gates carry old filenames.
+    legacy_path = _legacy_prompt_path(root, "original")
+    return _read_text(legacy_path) if legacy_path else ""
 
 
 def _plan_current_prompt(head_artifacts_dir: str) -> str:
     """Return the prompt used by this plan-shell's interrupted planner."""
-    path = _read_meta(head_artifacts_dir).get("plan_shell_current_prompt_path")
-    return _read_text(path)
+    meta = _read_meta(head_artifacts_dir)
+    path = _meta_get(
+        meta, "plan_gate_turn_current_prompt_path", "plan_shell_current_prompt_path"
+    )
+    text = _read_text(path)
+    if text:
+        return text
+    legacy_path = _legacy_prompt_path(head_artifacts_dir, "current")
+    return _read_text(legacy_path) if legacy_path else ""
 
 
 def _plan_qa_rounds(head_artifacts_dir: str) -> list[QARound]:
     """Return the Q&A rounds recorded for this plan-shell chain."""
     for artifacts_dir in reversed(_plan_shell_chain(head_artifacts_dir)):
-        path = _read_meta(artifacts_dir).get("plan_shell_qa_rounds_path")
+        meta = _read_meta(artifacts_dir)
+        path = _meta_get(
+            meta, "plan_gate_turn_qa_rounds_path", "plan_shell_qa_rounds_path"
+        )
         data = _read_json_array(path)
+        if data is None:
+            legacy_path = _legacy_prompt_path(artifacts_dir, "qa_rounds")
+            data = _read_json_array(legacy_path) if legacy_path else None
         if data is None:
             continue
         rounds = [_qa_round_from_json(item) for item in data]
         return [round_ for round_ in rounds if round_ is not None]
     return []
+
+
+def _legacy_prompt_path(artifacts_dir: str, which: str) -> str | None:
+    """Return the legacy plan-shell prompt path for *artifacts_dir*, if present."""
+    # legacy sase-shell spelling
+    names = {
+        "original": "plan_shell_original_prompt.md",
+        "current": "plan_shell_current_prompt.md",
+        "qa_rounds": "plan_shell_qa_rounds.json",
+    }
+    name = names.get(which)
+    if name is None:
+        return None
+    candidate = str(Path(artifacts_dir) / name)
+    return candidate if os.path.exists(candidate) else None
 
 
 def _feedback_next_action(
@@ -163,49 +210,127 @@ def _rebuild_exec_inputs(
     from sase.axe.run_agent_exec_types import AgentExecContext, LoopState
     from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, agent_session_base
 
-    source_agent = _str(meta.get("plan_shell_source_plan_agent_name"))
-    agent_name = _str(meta.get("plan_shell_agent_name"))
+    source_agent = _str(
+        _meta_get(
+            meta,
+            "plan_gate_turn_source_plan_agent_name",
+            "plan_shell_source_plan_agent_name",
+        )
+    )
+    agent_name = _str(
+        _meta_get(meta, "plan_gate_turn_agent_name", "plan_shell_agent_name")
+    )
     if agent_name is None and source_agent:
         agent_name = agent_session_base(source_agent) or source_agent
 
     source_artifacts_dir = (
-        _str(meta.get("plan_shell_source_artifacts_dir")) or artifacts_dir
+        _str(
+            _meta_get(
+                meta,
+                "plan_gate_turn_source_artifacts_dir",
+                "plan_shell_source_artifacts_dir",
+            )
+        )
+        or artifacts_dir
     )
     source_role_suffix = (
-        _str(meta.get("plan_shell_source_role_suffix")) or PLAN_CHAIN_PLAN_SUFFIX
+        _str(
+            _meta_get(
+                meta,
+                "plan_gate_turn_source_role_suffix",
+                "plan_shell_source_role_suffix",
+            )
+        )
+        or PLAN_CHAIN_PLAN_SUFFIX
     )
-    agent_meta = meta.get("plan_shell_agent_meta")
+    agent_meta = _meta_get(meta, "plan_gate_turn_agent_meta", "plan_shell_agent_meta")
     base_meta = dict(agent_meta) if isinstance(agent_meta, Mapping) else {}
-    for key, source_key in (
-        ("model", "plan_shell_agent_model"),
-        ("llm_provider", "plan_shell_agent_llm_provider"),
-        ("vcs_provider", "plan_shell_agent_vcs_provider"),
+    for key, new_key, legacy_key in (
+        ("model", "plan_gate_turn_agent_model", "plan_shell_agent_model"),
+        (
+            "llm_provider",
+            "plan_gate_turn_agent_llm_provider",
+            "plan_shell_agent_llm_provider",
+        ),
+        (
+            "vcs_provider",
+            "plan_gate_turn_agent_vcs_provider",
+            "plan_shell_agent_vcs_provider",
+        ),
     ):
-        value = meta.get(source_key)
+        value = _meta_get(meta, new_key, legacy_key)
         if isinstance(value, str) and value:
             base_meta.setdefault(key, value)
 
     ctx = AgentExecContext(
         cl_name=_str(meta.get("patch_name")) or _str(meta.get("changespec_name")) or "",
-        project_file=_str(meta.get("plan_shell_project_file")) or "",
-        workspace_dir=_str(meta.get("plan_shell_workspace_dir")) or os.getcwd(),
-        output_path=_str(meta.get("plan_shell_output_path")) or "",
-        workspace_num=_int(meta.get("plan_shell_workspace_num")) or 0,
-        timestamp=_str(meta.get("plan_shell_timestamp")) or "",
+        project_file=_str(
+            _meta_get(meta, "plan_gate_turn_project_file", "plan_shell_project_file")
+        )
+        or "",
+        workspace_dir=_str(
+            _meta_get(meta, "plan_gate_turn_workspace_dir", "plan_shell_workspace_dir")
+        )
+        or os.getcwd(),
+        output_path=_str(
+            _meta_get(meta, "plan_gate_turn_output_path", "plan_shell_output_path")
+        )
+        or "",
+        workspace_num=_int(
+            _meta_get(meta, "plan_gate_turn_workspace_num", "plan_shell_workspace_num")
+        )
+        or 0,
+        timestamp=_str(
+            _meta_get(meta, "plan_gate_turn_timestamp", "plan_shell_timestamp")
+        )
+        or "",
         update_target="",
-        project_name=_str(meta.get("plan_shell_project_name")) or "",
-        is_home_mode=bool(meta.get("plan_shell_is_home_mode", False)),
+        project_name=_str(
+            _meta_get(meta, "plan_gate_turn_project_name", "plan_shell_project_name")
+        )
+        or "",
+        is_home_mode=bool(
+            _meta_get(meta, "plan_gate_turn_is_home_mode", "plan_shell_is_home_mode")
+            or False
+        ),
         artifacts_dir=source_artifacts_dir,
-        artifacts_timestamp=_str(meta.get("plan_shell_artifacts_timestamp")) or "",
-        vcs_tag=_str(meta.get("plan_shell_vcs_tag")),
+        artifacts_timestamp=_str(
+            _meta_get(
+                meta,
+                "plan_gate_turn_artifacts_timestamp",
+                "plan_shell_artifacts_timestamp",
+            )
+        )
+        or "",
+        vcs_tag=_str(_meta_get(meta, "plan_gate_turn_vcs_tag", "plan_shell_vcs_tag")),
         agent_name=agent_name,
-        agent_model=_str(meta.get("plan_shell_agent_model")),
-        agent_llm_provider=_str(meta.get("plan_shell_agent_llm_provider")),
-        agent_vcs_provider=_str(meta.get("plan_shell_agent_vcs_provider")),
+        agent_model=_str(
+            _meta_get(meta, "plan_gate_turn_agent_model", "plan_shell_agent_model")
+        ),
+        agent_llm_provider=_str(
+            _meta_get(
+                meta,
+                "plan_gate_turn_agent_llm_provider",
+                "plan_shell_agent_llm_provider",
+            )
+        ),
+        agent_vcs_provider=_str(
+            _meta_get(
+                meta,
+                "plan_gate_turn_agent_vcs_provider",
+                "plan_shell_agent_vcs_provider",
+            )
+        ),
         agent_hidden=False,
         agent_meta=base_meta,
         local_xprompts={},
-        multi_agent_prompt_file=_str(meta.get("plan_shell_multi_agent_prompt_file")),
+        multi_agent_prompt_file=_str(
+            _meta_get(
+                meta,
+                "plan_gate_turn_multi_agent_prompt_file",
+                "plan_shell_multi_agent_prompt_file",
+            )
+        ),
     )
     state = LoopState(
         current_prompt=_plan_current_prompt(artifacts_dir)
@@ -213,11 +338,18 @@ def _rebuild_exec_inputs(
         current_role_suffix=source_role_suffix,
         current_artifacts_dir=artifacts_dir,
         loop_outcome="",
-        sdd_spec_path=_str(meta.get("plan_shell_sdd_spec_path")),
+        sdd_spec_path=_str(
+            _meta_get(meta, "plan_gate_turn_sdd_spec_path", "plan_shell_sdd_spec_path")
+        ),
         original_prompt=_plan_original_prompt(artifacts_dir),
         qa_rounds=_plan_qa_rounds(artifacts_dir),
         feedback_bullets=_plan_feedback_bullets(artifacts_dir),
-        feedback_round=_int(meta.get("plan_shell_feedback_round")) or 0,
+        feedback_round=_int(
+            _meta_get(
+                meta, "plan_gate_turn_feedback_round", "plan_shell_feedback_round"
+            )
+        )
+        or 0,
     )
     return ctx, state
 
@@ -229,7 +361,12 @@ def _plan_shell_chain(head_artifacts_dir: str) -> tuple[str, ...]:
     while current is not None and current not in seen and len(chain) < _MAX_CHAIN_LINKS:
         chain.append(current)
         seen.add(current)
-        prev = _read_meta(current).get("plan_shell_prev_artifacts_dir")
+        meta = _read_meta(current)
+        prev = _meta_get(
+            meta,
+            "plan_gate_turn_prev_artifacts_dir",
+            "plan_shell_prev_artifacts_dir",
+        )
         current = prev if isinstance(prev, str) and prev else None
     chain.reverse()
     return tuple(chain)

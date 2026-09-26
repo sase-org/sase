@@ -69,7 +69,7 @@ def _record(
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
         ),
         done=DoneMarkerWire(
-            outcome=outcome, agent_session_shell=done_agent_session_shell
+            outcome=outcome, agent_session_turn=done_agent_session_shell
         )
         if outcome is not None
         else None,

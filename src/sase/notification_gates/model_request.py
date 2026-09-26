@@ -166,12 +166,18 @@ class GateSpec:
     operations: tuple[GateOperation, ...]
     resources: tuple[GateResource, ...]
     auto: _GateAuto
-    shell: GateShellSpec | None = None
-    # Internal marker: the caller accepts responsibility for the gate-shell
-    # row. Set only by the gate-shell transaction (after it registers the
+    turn: GateShellSpec | None = None
+    # Internal marker: the caller accepts responsibility for the gate-turn
+    # row. Set only by the gate-turn transaction (after it registers the
     # member row) or by tests that establish their own rows. Never parsed
     # from request mappings, so raw JSON cannot claim it.
     shell_row_managed: bool = False
+
+    @property
+    def shell(self) -> GateShellSpec | None:
+        """Deprecated alias for :attr:`turn` (legacy sase-shell spelling)."""
+
+        return self.turn
 
     @classmethod
     def from_mapping(cls, value: object) -> GateSpec:
@@ -209,6 +215,7 @@ class GateSpec:
                 "assets",
                 "auto",
                 "shell",
+                "turn",
             },
             "request",
         )
@@ -257,33 +264,41 @@ class GateSpec:
         primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
         from sase.agent.legacy_agent_family_syntax import normalize_agent_session_fork
 
+        # Readers prefer the new spelling and fall back to all old spellings.
+        turn_data = data.get("turn")
+        if turn_data is None:
+            # legacy sase-shell spelling
+            turn_data = data.get("shell")
         shell = (
             GateShellSpec.from_mapping(
-                data["shell"],
+                turn_data,
                 branches=branches,
                 allow_branch_subsets=subset_branches_allowed(kind),
                 fork_normalizer=normalize_agent_session_fork,
             )
-            if "shell" in data
+            if turn_data is not None
             else None
         )
+        # legacy sase-shell spelling: pre-rename bundles carry ``gate_shell``.
+        if continuation == "gate_shell":
+            continuation = "gate_turn"
         if shell is not None and timeout is None:
             timeout = GATE_SHELL_DEFAULT_TIMEOUT_SECONDS
         if shell is not None:
             if continuation is None:
-                # A shell block without an explicit mode keeps the shell: every
-                # other shell-backed kind records an explicit mode (sudo
-                # records "gate_shell"), so derive the same default instead of
-                # the shell-less "none" that drops the block at creation time.
-                continuation = "gate_shell"
+                # A turn block without an explicit mode keeps the turn: every
+                # other turn-backed kind records an explicit mode (sudo
+                # records "gate_turn"), so derive the same default instead of
+                # the turn-less "none" that drops the block at creation time.
+                continuation = "gate_turn"
             elif continuation == "none":
                 raise GateError(
                     "invalid_request",
                     "continuation_mode",
                     "continuation_mode must not be 'none' when the request "
-                    "declares a shell block: 'none' discards the shell, so no "
-                    "gate-shell row is registered. Omit continuation_mode to "
-                    "use the derived 'gate_shell' mode, or drop the shell block.",
+                    "declares a turn block: 'none' discards the turn, so no "
+                    "gate-turn row is registered. Omit continuation_mode to "
+                    "use the derived 'gate_turn' mode, or drop the turn block.",
                 )
         elif continuation is None:
             continuation = "none"
@@ -338,5 +353,5 @@ class GateSpec:
             operations=operations,
             resources=resources,
             auto=_GateAuto.from_value(data.get("auto")),
-            shell=shell,
+            turn=shell,
         )

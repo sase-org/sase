@@ -154,7 +154,11 @@ def _parse_shell_result(
     envelope: dict[str, Any], *, log_error: bool = True
 ) -> _ShellParseResult:
     """Parse the envelope's shell block with settlement-time diagnostics."""
-    raw_shell = envelope.get("shell")
+    # Readers prefer the new spelling and fall back to all old spellings.
+    raw_shell = envelope.get("turn")
+    if not isinstance(raw_shell, dict):
+        # legacy sase-shell spelling
+        raw_shell = envelope.get("shell")
     if not isinstance(raw_shell, dict):
         return _ShellParseResult(None)
     raw_branches = envelope.get("branches")

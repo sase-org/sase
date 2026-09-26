@@ -22,7 +22,7 @@ def _write_proc(
     exit_code: int | None = 0,
     started_at: str | None = "2026-07-25T12:00:00Z",
     finished_at: str | None = "2026-07-25T12:00:05Z",
-    shell_name: str | None = None,
+    proc_name: str | None = None,
     log_text: str | None = None,
 ) -> Proc:
     proc = Proc(
@@ -39,7 +39,7 @@ def _write_proc(
         started_at=started_at,
         finished_at=finished_at,
         exit_code=exit_code,
-        shell_name=shell_name,
+        proc_name=proc_name,
     )
     append_proc(proc)
     if log_text is not None:

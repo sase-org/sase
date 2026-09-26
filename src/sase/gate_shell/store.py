@@ -16,15 +16,15 @@ from sase.core.agent_scan_facade import (
     scan_agent_artifacts,
 )
 from sase.core.agent_scan_facade import (
-    find_gate_shell_by_gate_id as _rust_find_gate_shell_by_gate_id,
+    find_gate_turn_by_gate_id as _rust_find_gate_turn_by_gate_id,
 )
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.agent_scan_wire_agent_session_shell import (
-    agent_session_shell_from_mapping,
+from sase.core.agent_scan_wire_agent_session_turn import (
+    agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
@@ -67,15 +67,22 @@ def read_gate_shell_marker(
         return None
     raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
     meta_kwargs = known_field_kwargs(AgentMetaWire, with_agent_session_keys(raw_meta))
-    # legacy agent-family spelling: pre-rename marker files carry
-    # ``agent_family*`` / ``family_shell`` keys.
-    meta_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_meta)
+    # legacy sase-shell spelling: pre-rename marker files carry
+    # ``agent_family*`` / ``family_shell`` / ``agent_session_shell`` keys.
+    meta_kwargs["agent_session_turn"] = agent_session_turn_from_mapping(raw_meta)
+    meta_kwargs.pop("agent_session_shell", None)
+    # Member kind: prefer new then legacy, normalizing proc to monitor.
+    from sase.plan_chain import turn_kind_value
+
+    meta_kwargs["turn_kind"] = turn_kind_value(raw_meta)
+    meta_kwargs.pop("shell_kind", None)
     done_kwargs = None
     if raw_done is not None:
         done_kwargs = known_field_kwargs(
             DoneMarkerWire, with_agent_session_keys(raw_done)
         )
-        done_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_done)
+        done_kwargs["agent_session_turn"] = agent_session_turn_from_mapping(raw_done)
+        done_kwargs.pop("agent_session_shell", None)
     record = AgentArtifactRecordWire(
         project_name=project_name,
         project_dir="",
@@ -143,11 +150,11 @@ def has_any_gate_shell(project_name: str, lane: str) -> bool:
     )
 
 
-def find_gate_shell_by_gate_id(
+def find_gate_turn_by_gate_id(
     project_name: str | None,
     gate_id: str,
 ) -> GateShellRecord | None:
-    """Return the newest gate-shell member for ``gate_id``, if present.
+    """Return the newest gate-turn member for ``gate_id``, if present.
 
     A ``None`` project searches every project's artifact index, the same
     unscoped lookup :func:`list_gate_shells` already performs for the
@@ -166,7 +173,7 @@ def find_gate_shell_by_gate_id(
     if index_path.is_file():
         started_at = time.monotonic()
         try:
-            wire = _rust_find_gate_shell_by_gate_id(index_path, project_name, gate_id)
+            wire = _rust_find_gate_turn_by_gate_id(index_path, project_name, gate_id)
         except _INDEX_ERRORS:
             pass
         else:
@@ -186,6 +193,15 @@ def find_gate_shell_by_gate_id(
         time.monotonic() - started_at
     )
     return matches[0] if matches else None
+
+
+def find_gate_shell_by_gate_id(
+    project_name: str | None,
+    gate_id: str,
+) -> GateShellRecord | None:
+    """Deprecated alias for :func:`find_gate_turn_by_gate_id`."""
+
+    return find_gate_turn_by_gate_id(project_name, gate_id)
 
 
 def resolve_gate_shell_ref(
@@ -309,6 +325,7 @@ __all__ = [
     "GateShellSnapshot",
     "MIN_GATE_SHELL_REF_LENGTH",
     "find_gate_shell_by_gate_id",
+    "find_gate_turn_by_gate_id",
     "has_any_gate_shell",
     "list_gate_shells",
     "load_gate_shell_snapshot",

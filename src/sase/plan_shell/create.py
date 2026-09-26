@@ -22,13 +22,17 @@ if TYPE_CHECKING:
     from sase.axe.run_agent_exec_types import AgentExecContext, LoopState
     from sase.plan_gate import PlanGateTier
 
-_PLAN_ORIGINAL_PROMPT_FILENAME = "plan_shell_original_prompt.md"
-_PLAN_CURRENT_PROMPT_FILENAME = "plan_shell_current_prompt.md"
-_PLAN_QA_ROUNDS_FILENAME = "plan_shell_qa_rounds.json"
+_PLAN_ORIGINAL_PROMPT_FILENAME = "plan_gate_turn_original_prompt.md"
+_PLAN_CURRENT_PROMPT_FILENAME = "plan_gate_turn_current_prompt.md"
+_PLAN_QA_ROUNDS_FILENAME = "plan_gate_turn_qa_rounds.json"
+# legacy sase-shell spelling: pre-rename plan gates carry ``plan_shell_*`` files.
+_LEGACY_PLAN_ORIGINAL_PROMPT_FILENAME = "plan_shell_original_prompt.md"
+_LEGACY_PLAN_CURRENT_PROMPT_FILENAME = "plan_shell_current_prompt.md"
+_LEGACY_PLAN_QA_ROUNDS_FILENAME = "plan_shell_qa_rounds.json"
 
 
-def plan_gate_shell_block(tier: PlanGateTier) -> dict[str, Any]:
-    """Return the additive shell block for the trusted plan gate contract."""
+def plan_gate_turn_block(tier: PlanGateTier) -> dict[str, Any]:
+    """Return the additive turn block for the trusted plan gate contract."""
     if tier == "epic":
         return {
             "pending_status": "EPIC",
@@ -103,7 +107,7 @@ def create_plan_gate_shell(
         agent_vcs_tag=ctx.vcs_tag,
     )
     tier: PlanGateTier = "epic" if spec["kind"] == "epic_plan" else "tale"
-    spec["shell"] = plan_gate_shell_block(tier)
+    spec["turn"] = plan_gate_turn_block(tier)
 
     source_role_suffix = state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     source_plan_agent_name = _agent_name_for_suffix(ctx.agent_name, source_role_suffix)
@@ -163,6 +167,12 @@ def create_plan_gate_shell(
         )
 
     return creation
+
+
+def plan_gate_shell_block(tier: PlanGateTier) -> dict[str, Any]:
+    """Deprecated alias for :func:`plan_gate_turn_block`."""
+
+    return plan_gate_turn_block(tier)
 
 
 def _resolve_plan_shell_parent(
@@ -239,48 +249,48 @@ def _write_shell_context(
     parent_artifacts_dir: str | None,
 ) -> None:
     fields: dict[str, Any] = {
-        "plan_shell_tier": tier,
-        "plan_shell_session_id": session_id,
-        "plan_shell_plan_path": plan_file,
-        "plan_shell_source_artifacts_dir": state.current_artifacts_dir,
-        "plan_shell_source_role_suffix": source_role_suffix,
-        "plan_shell_source_plan_agent_name": source_plan_agent_name,
-        "plan_shell_agent_name": ctx.agent_name,
-        "plan_shell_project_name": ctx.project_name,
-        "plan_shell_project_file": ctx.project_file,
-        "plan_shell_workspace_dir": ctx.workspace_dir,
-        "plan_shell_workspace_num": ctx.workspace_num,
-        "plan_shell_output_path": ctx.output_path,
-        "plan_shell_timestamp": ctx.timestamp,
-        "plan_shell_artifacts_timestamp": ctx.artifacts_timestamp,
-        "plan_shell_vcs_tag": ctx.vcs_tag,
-        "plan_shell_agent_model": ctx.agent_model,
-        "plan_shell_agent_llm_provider": ctx.agent_llm_provider,
-        "plan_shell_agent_vcs_provider": ctx.agent_vcs_provider,
-        "plan_shell_multi_agent_prompt_file": ctx.multi_agent_prompt_file,
-        "plan_shell_is_home_mode": ctx.is_home_mode,
-        "plan_shell_feedback_round": state.feedback_round,
-        "plan_shell_agent_meta": _json_safe_mapping(ctx.agent_meta),
+        "plan_gate_turn_tier": tier,
+        "plan_gate_turn_session_id": session_id,
+        "plan_gate_turn_plan_path": plan_file,
+        "plan_gate_turn_source_artifacts_dir": state.current_artifacts_dir,
+        "plan_gate_turn_source_role_suffix": source_role_suffix,
+        "plan_gate_turn_source_plan_agent_name": source_plan_agent_name,
+        "plan_gate_turn_agent_name": ctx.agent_name,
+        "plan_gate_turn_project_name": ctx.project_name,
+        "plan_gate_turn_project_file": ctx.project_file,
+        "plan_gate_turn_workspace_dir": ctx.workspace_dir,
+        "plan_gate_turn_workspace_num": ctx.workspace_num,
+        "plan_gate_turn_output_path": ctx.output_path,
+        "plan_gate_turn_timestamp": ctx.timestamp,
+        "plan_gate_turn_artifacts_timestamp": ctx.artifacts_timestamp,
+        "plan_gate_turn_vcs_tag": ctx.vcs_tag,
+        "plan_gate_turn_agent_model": ctx.agent_model,
+        "plan_gate_turn_agent_llm_provider": ctx.agent_llm_provider,
+        "plan_gate_turn_agent_vcs_provider": ctx.agent_vcs_provider,
+        "plan_gate_turn_multi_agent_prompt_file": ctx.multi_agent_prompt_file,
+        "plan_gate_turn_is_home_mode": ctx.is_home_mode,
+        "plan_gate_turn_feedback_round": state.feedback_round,
+        "plan_gate_turn_agent_meta": _json_safe_mapping(ctx.agent_meta),
         "patch_name": ctx.cl_name,
         "changespec_name": ctx.cl_name,
     }
     if state.sdd_spec_path:
-        fields["plan_shell_sdd_spec_path"] = state.sdd_spec_path
+        fields["plan_gate_turn_sdd_spec_path"] = state.sdd_spec_path
     if parent_artifacts_dir is not None:
-        fields["plan_shell_prev_artifacts_dir"] = parent_artifacts_dir
+        fields["plan_gate_turn_prev_artifacts_dir"] = parent_artifacts_dir
 
     original_prompt_path = _inherited_prompt_path(
         parent_artifacts_dir,
-        "plan_shell_original_prompt_path",
+        "plan_gate_turn_original_prompt_path",
     )
     if original_prompt_path is None:
         original_prompt_path = str(Path(artifacts_dir) / _PLAN_ORIGINAL_PROMPT_FILENAME)
         Path(original_prompt_path).write_text(state.original_prompt, encoding="utf-8")
-    fields["plan_shell_original_prompt_path"] = original_prompt_path
+    fields["plan_gate_turn_original_prompt_path"] = original_prompt_path
 
     current_prompt_path = str(Path(artifacts_dir) / _PLAN_CURRENT_PROMPT_FILENAME)
     Path(current_prompt_path).write_text(state.current_prompt, encoding="utf-8")
-    fields["plan_shell_current_prompt_path"] = current_prompt_path
+    fields["plan_gate_turn_current_prompt_path"] = current_prompt_path
 
     qa_rounds_path = str(Path(artifacts_dir) / _PLAN_QA_ROUNDS_FILENAME)
     Path(qa_rounds_path).write_text(
@@ -288,7 +298,7 @@ def _write_shell_context(
         + "\n",
         encoding="utf-8",
     )
-    fields["plan_shell_qa_rounds_path"] = qa_rounds_path
+    fields["plan_gate_turn_qa_rounds_path"] = qa_rounds_path
 
     update_meta_fields(artifacts_dir, fields)
 
@@ -299,8 +309,17 @@ def _inherited_prompt_path(
 ) -> str | None:
     if parent_artifacts_dir is None:
         return None
-    value = _read_meta(parent_artifacts_dir).get(key)
-    return value if isinstance(value, str) and value else None
+    meta = _read_meta(parent_artifacts_dir)
+    value = meta.get(key)
+    if isinstance(value, str) and value:
+        return value
+    # legacy sase-shell spelling: pre-rename gates carry ``plan_shell_*`` keys.
+    legacy_key = key.replace("plan_gate_turn_", "plan_shell_", 1)
+    if legacy_key != key:
+        legacy_value = meta.get(legacy_key)
+        if isinstance(legacy_value, str) and legacy_value:
+            return legacy_value
+    return None
 
 
 def _qa_round_to_json(round_: Any) -> dict[str, Any]:

@@ -110,8 +110,8 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             "workspace": record.workspace,
             "workspace_explicit": record.workspace_explicit,
         }
-        if record.shell_name is not None:
-            proc_payload["shell_name"] = record.shell_name
+        if record.proc_name is not None:
+            proc_payload["proc_name"] = record.proc_name
         if record.label is not None:
             proc_payload["label"] = record.label
         if record.timeout is not None:

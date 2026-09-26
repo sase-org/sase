@@ -60,10 +60,13 @@ def read_procs(
     project: str | None = None,
     tag: str | None = None,
     query: str | None = None,
+    proc_name: str | Collection[str] | None = None,
     shell_name: str | Collection[str] | None = None,
 ) -> list[Proc]:
     """Read newest-first procs, applying the shared CLI/TUI filters."""
     snapshot = read_proc_snapshot(path=path)
+    # legacy sase-shell spelling
+    effective_name = proc_name if proc_name is not None else shell_name
     return filter_procs(
         snapshot.procs,
         status=status,
@@ -72,7 +75,7 @@ def read_procs(
         project=project,
         tag=tag,
         query=query,
-        shell_name=shell_name,
+        proc_name=effective_name,
     )
 
 
@@ -303,12 +306,15 @@ def filter_procs(
     project: str | None = None,
     tag: str | None = None,
     query: str | None = None,
+    proc_name: str | Collection[str] | None = None,
     shell_name: str | Collection[str] | None = None,
 ) -> list[Proc]:
     """Apply the canonical exact-match fields and free-text proc query."""
     statuses = _value_set(status)
     kinds = _value_set(kind)
-    shells = _value_set(shell_name)
+    # legacy sase-shell spelling
+    effective = proc_name if proc_name is not None else shell_name
+    names = _value_set(effective)
     needle = query.casefold() if query else None
     result: list[Proc] = []
     for proc in procs:
@@ -322,7 +328,7 @@ def filter_procs(
             continue
         if tag is not None and tag not in proc.tags:
             continue
-        if shells is not None and proc.shell_name not in shells:
+        if names is not None and proc.proc_name not in names:
             continue
         if needle is not None and needle not in _search_text(proc).casefold():
             continue
@@ -346,7 +352,7 @@ def _search_text(proc: Proc) -> str:
             proc.label,
             " ".join(proc.command),
             proc.cl_name or "",
-            proc.shell_name or "",
+            proc.proc_name or "",
         )
     )
 

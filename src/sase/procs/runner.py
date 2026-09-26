@@ -28,7 +28,7 @@ from .submission import (
     stop_proc_shell,
     submit_proc_request,
 )
-from .settlement import is_proc_shell_row
+from .settlement import is_named_proc_row, is_proc_shell_row
 from .store import get_proc, read_procs, update_proc
 
 LineCallback = Callable[[str], None]
@@ -57,12 +57,15 @@ def submit_proc(
     origin: str = "api",
     cl_name: str | None = None,
     env: Mapping[str, str] | None = None,
+    proc_name: str | None = None,
     shell_name: str | None = None,
     concurrency_keys: Sequence[str] = (),
     timeout_seconds: int | None = None,
     idle_timeout_seconds: int | None = None,
 ) -> Proc:
     """Record and detach a command proc under the proc supervisor."""
+    # legacy sase-shell spelling
+    effective_name = proc_name if proc_name is not None else shell_name
     return submit_proc_request(
         ProcSubmitRequest(
             argv=argv,
@@ -77,7 +80,7 @@ def submit_proc(
             origin=origin,
             cl_name=cl_name,
             env=env,
-            shell_name=shell_name,
+            proc_name=effective_name,
             concurrency_keys=concurrency_keys,
             timeout_seconds=timeout_seconds,
             idle_timeout_seconds=idle_timeout_seconds,
@@ -96,6 +99,7 @@ def submit_detached_proc(
     tags: Sequence[str] = (),
     cl_name: str | None = None,
     env: Mapping[str, str] | None = None,
+    proc_name: str | None = None,
     shell_name: str | None = None,
     concurrency_keys: Sequence[str] = (),
     timeout_seconds: int | None = None,
@@ -108,6 +112,8 @@ def submit_detached_proc(
     attribution; ``origin`` remains required so the row still records where the
     work came from.
     """
+    # legacy sase-shell spelling
+    effective_name = proc_name if proc_name is not None else shell_name
     return submit_proc_request(
         ProcSubmitRequest(
             argv=argv,
@@ -121,7 +127,7 @@ def submit_detached_proc(
             origin=origin,
             cl_name=cl_name,
             env=env,
-            shell_name=shell_name,
+            proc_name=effective_name,
             concurrency_keys=concurrency_keys,
             timeout_seconds=timeout_seconds,
             idle_timeout_seconds=idle_timeout_seconds,

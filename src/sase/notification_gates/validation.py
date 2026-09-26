@@ -51,29 +51,29 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "schema_version",
             f"new gate requests require schema_version {GATE_REQUEST_SCHEMA_VERSION}",
         )
-    if spec.shell is not None and spec.continuation_mode == "none":
+    if spec.turn is not None and spec.continuation_mode == "none":
         raise GateError(
             "invalid_request",
             "continuation_mode",
-            "a gate declaring a shell block must not record continuation_mode "
-            "'none': 'none' discards the shell, so no gate-shell row is "
+            "a gate declaring a turn block must not record continuation_mode "
+            "'none': 'none' discards the turn, so no gate-turn row is "
             "registered. Omit continuation_mode to use the derived "
-            "'gate_shell' mode, and create shell-backed gates with "
+            "'gate_turn' mode, and create turn-backed gates with "
             "sase.gate_shell.create_gate_shell so the row is registered.",
         )
     if (
-        spec.shell is not None
+        spec.turn is not None
         and adapter.kind == "custom"
         and not spec.shell_row_managed
     ):
         raise GateError(
-            "missing_gate_shell_row",
-            "shell",
-            "a custom gate declaring a shell block must be created through "
+            "missing_gate_turn_row",
+            "turn",
+            "a custom gate declaring a turn block must be created through "
             "sase.gate_shell.create_gate_shell (or `sase gate create`) so its "
-            "gate-shell row is registered: creating it with "
+            "gate-turn row is registered: creating it with "
             "sase.notification_gates.service.create_gate directly records "
-            "continuation_mode 'gate_shell' but leaves the gate invisible to "
+            "continuation_mode 'gate_turn' but leaves the gate invisible to "
             "`sase gate list`.",
         )
     resource_paths = [resource.path for resource in spec.resources]

@@ -134,7 +134,9 @@ def execute_user_question_response(
         from sase.notification_gates.paths import RESPONSE_FILENAME
 
         envelope, _adapter = load_and_verify_bundle(bundle.root)
-        shell_backed = isinstance(envelope.get("shell"), dict)
+        shell_backed = isinstance(envelope.get("turn"), dict) or isinstance(
+            envelope.get("shell"), dict
+        )
         gate_shell = (
             find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
             if shell_backed

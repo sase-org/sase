@@ -36,8 +36,8 @@ class ProcSubmitRequest:
     tags: Sequence[str] = ()
     cl_name: str | None = None
     env: Mapping[str, str] | None = None
-    shell_name: str | None = None
-    shell_kind: str | None = "proc"
+    proc_name: str | None = None
+    proc_role: str | None = "proc"
     concurrency_keys: Sequence[str] = ()
     request_fingerprint: str | None = None
     reserved_by: str | None = None
@@ -54,6 +54,18 @@ class ProcSubmitRequest:
     followup: Mapping[str, Any] | None = None
     xprompt_proc: Mapping[str, Any] | None = None
     service: ProcServiceBlock | None = None
+
+    @property
+    def shell_name(self) -> str | None:
+        """Deprecated alias for :attr:`proc_name` (legacy sase-shell spelling)."""
+
+        return self.proc_name
+
+    @property
+    def shell_kind(self) -> str | None:
+        """Deprecated alias for :attr:`proc_role` (legacy sase-shell spelling)."""
+
+        return self.proc_role
 
 
 def proc_request_fingerprint(
@@ -82,7 +94,7 @@ def proc_request_fingerprint(
         "proc_id": proc_id,
         "project": request.project,
         "session_id": request.session_id,
-        "shell_name": request.shell_name,
+        "proc_name": request.proc_name,
         "timeout_seconds": request.timeout_seconds,
         "workspace_num": request.workspace_num,
     }

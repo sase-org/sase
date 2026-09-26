@@ -345,8 +345,8 @@ def _build_envelope(
         "review_revision": 1,
         "hashes": {"resources": resource_hashes},
     }
-    if spec.shell is not None:
-        envelope["shell"] = spec.shell.to_dict()
+    if spec.turn is not None:
+        envelope["turn"] = spec.turn.to_dict()
     envelope["hashes"]["request"] = request_sha256(envelope)
     return envelope
 
@@ -529,7 +529,7 @@ def _spec_fingerprint(
         "resources": [resource.envelope_dict() for resource in spec.resources],
         "resource_hashes": resource_hashes,
         "auto": spec.auto.to_dict(),
-        "shell": None if spec.shell is None else spec.shell.to_dict(),
+        "turn": None if spec.turn is None else spec.turn.to_dict(),
     }
     return sha256_bytes(canonical_json_bytes(value))
 

@@ -65,7 +65,10 @@ def agent_name(
 def role_suffix_from_name(
     agent_name: str | None, session_role: str | None
 ) -> str | None:
-    if session_role in {None, "root", "historical_shell"} or not agent_name:
+    if (
+        session_role in {None, "root", "historical_shell", "historical_turn"}
+        or not agent_name
+    ):
         return None
     for separator in ("--", "."):
         if separator not in agent_name:

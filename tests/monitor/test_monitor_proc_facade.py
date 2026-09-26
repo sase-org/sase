@@ -145,7 +145,7 @@ def test_start_uses_one_proc_id_and_artifacts_cross_links(
     assert proc.log_path == str(Path(record.artifacts_dir) / "live_reply.md")
 
     meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
-    assert meta["shell_kind"] == "proc"
+    assert meta["turn_kind"] == "monitor"
     assert meta["proc_id"] == record.monitor_id
     assert meta["monitor_id"] == record.monitor_id
 

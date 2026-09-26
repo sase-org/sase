@@ -95,7 +95,7 @@ def test_proc_shell_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> No
     assert reserved.reserved is True
     assert reserved.replayed is False
     assert reserved.proc.schema_version == PROC_WIRE_SCHEMA_VERSION
-    assert reserved.proc.lifecycle == "proc-shell"
+    assert reserved.proc.lifecycle == "named-proc"
     assert reserved.proc.argv == ["just", "docs"]
 
     replay = reserve_proc(
@@ -118,7 +118,7 @@ def test_proc_shell_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> No
         reserve_proc(
             _reserve(
                 "conflict-two",
-                shell_name="agent--test",
+                proc_name="agent--test",
                 fingerprint="third",
                 concurrency_keys=["docs"],
             ),

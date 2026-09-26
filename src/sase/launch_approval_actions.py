@@ -147,7 +147,9 @@ def _execute_neutral_launch_approval_response(
     # every selected option whose schema declares it.
     option_id = choice
     envelope, _adapter = load_and_verify_bundle(bundle_path)
-    shell_backed = isinstance(envelope.get("shell"), dict)
+    shell_backed = isinstance(envelope.get("turn"), dict) or isinstance(
+        envelope.get("shell"), dict
+    )
     gate_shell = (
         find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
         if shell_backed

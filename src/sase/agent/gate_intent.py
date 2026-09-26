@@ -63,7 +63,7 @@ def begin_gate_intent(
     payload: dict[str, Any] = {
         "kind": kind,
         "request_id": request_id,
-        "source": source or "create_gate_shell",
+        "source": source or "create_gate_turn",
         "pid": pid,
         "process_identity": process_identity_token(pid),
         "timestamp": time.time(),

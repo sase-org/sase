@@ -281,7 +281,10 @@ def _write_gate_shell_projection(
     from sase.axe.run_agent_helpers_artifacts import update_meta_fields
     from sase.gate_shell.store import find_gate_shell_by_gate_id
 
-    if not isinstance(envelope.get("shell"), dict):
+    if not (
+        isinstance(envelope.get("turn"), dict)
+        or isinstance(envelope.get("shell"), dict)
+    ):
         return
     gate_id = str(envelope.get("request_id") or "")
     if not gate_id:

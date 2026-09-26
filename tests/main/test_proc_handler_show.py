@@ -136,7 +136,7 @@ def test_show_resolves_named_proc_shell_before_id(
     stored(
         "bbbbbbbbbbbb",
         label="By name",
-        shell_name="agent--build",
+        proc_name="agent--build",
         created_at="2026-07-25T12:01:00Z",
     )
 

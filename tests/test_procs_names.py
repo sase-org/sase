@@ -21,7 +21,7 @@ from sase.procs.models import Proc
 def _proc(
     proc_id: str,
     *,
-    shell_name: str | None = None,
+    proc_name: str | None = None,
     status: str = "success",
     label: str = "Build",
 ) -> Proc:
@@ -35,7 +35,7 @@ def _proc(
         origin="test",
         created_at="2026-07-25T12:00:00Z",
         log_path=f"/tmp/{proc_id}.log",
-        shell_name=shell_name,
+        proc_name=proc_name,
     )
 
 
@@ -105,7 +105,7 @@ def test_bare_name_requires_calling_sase_agent(
 def test_concurrency_key_is_namespaced_and_not_the_shell_name() -> None:
     key = named_proc_shell_concurrency_key("sase", "agent--build")
 
-    assert key == "shell:sase:agent--build"
+    assert key == "named-proc:sase:agent--build"
     assert key != "agent--build"
 
 
@@ -119,7 +119,7 @@ def test_proc_shell_name_keys_keep_historical_spellings(
 
 
 def test_resolve_prefers_named_shell_then_exact_id() -> None:
-    named = _proc("zzz012345678", shell_name="agent--build", status="running")
+    named = _proc("zzz012345678", proc_name="agent--build", status="running")
     same_prefix = _proc("abc012345678")
     procs = [named, same_prefix]
 
@@ -131,8 +131,8 @@ def test_resolve_derives_bare_name_and_prefers_active_historical_reuse(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_AGENT_NAME", "foo")
-    settled = _proc("aaa012345678", shell_name="foo--build", status="success")
-    active = _proc("bbb012345678", shell_name="foo--build", status="running")
+    settled = _proc("aaa012345678", proc_name="foo--build", status="success")
+    active = _proc("bbb012345678", proc_name="foo--build", status="running")
 
     assert resolve_proc_ref("build", [active, settled]) is active
     assert matching_procs_by_shell_name("build", [active, settled]) == [
@@ -142,8 +142,8 @@ def test_resolve_derives_bare_name_and_prefers_active_historical_reuse(
 
 
 def test_complete_proc_refs_includes_historical_names() -> None:
-    named = _proc("abc012345678", shell_name="agent--build")
-    historical = _proc("def012345678", shell_name="old/name")
+    named = _proc("abc012345678", proc_name="agent--build")
+    historical = _proc("def012345678", proc_name="old/name")
 
     assert complete_proc_refs("agent", [named, historical]) == ["agent--build"]
     assert complete_proc_refs("old", [named, historical]) == ["old/name"]

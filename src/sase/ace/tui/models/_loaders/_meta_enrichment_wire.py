@@ -368,7 +368,7 @@ def enrich_agent_from_meta_wire(
             if plan_status is not None:
                 agent.status = plan_status
 
-    shell = meta.agent_session_shell
+    shell = meta.agent_session_turn
     monitor_shell = shell if shell is not None and shell.kind == "monitor" else None
     monitor = monitor_shell.monitor if monitor_shell is not None else None
     gate_shell = shell if shell is not None and shell.kind == "gate" else None

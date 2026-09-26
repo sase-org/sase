@@ -174,7 +174,7 @@ def test_record_status_bucket_uses_marker_override_for_custom_label() -> None:
 def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
     artifact_record = record(
         agent_meta=AgentMetaWire(
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="monitor",
                 id="m123",
                 state="timeout",
@@ -189,7 +189,7 @@ def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
         has_done_marker=True,
         done=DoneMarkerWire(
             outcome="monitored",
-            agent_session_shell=AgentSessionShellWire(kind="monitor", state="timeout"),
+            agent_session_turn=AgentSessionShellWire(kind="monitor", state="timeout"),
             status_label="SLEPT",
             status_bucket="Running",
         ),

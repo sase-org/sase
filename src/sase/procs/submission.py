@@ -1,4 +1,4 @@
-"""Typed proc-shell submission over the Rust lifecycle and detached supervisor."""
+"""Typed named-proc submission over the Rust lifecycle and detached supervisor."""
 
 from __future__ import annotations
 
@@ -21,13 +21,18 @@ from .logs import proc_log_path
 from .models import (
     ACTIVE_PROC_STATUSES,
     COMMAND_PROC_KIND,
-    PROC_LIFECYCLE_PROC_SHELL,
+    PROC_LIFECYCLE_NAMED_PROC,
     TERMINAL_PROC_STATUSES,
     Proc,
     ProcReserve,
     ProcStopRequest,
 )
-from .names import ProcShellNameError, qualify_proc_shell_name
+from .names import (
+    NamedProcNameError,
+    ProcShellNameError,
+    qualify_named_proc_name,
+    qualify_proc_shell_name,
+)
 from .request import (
     ProcSubmitRequest,
     proc_request_fingerprint,
@@ -39,7 +44,7 @@ from .runtime import (
     proc_request_sidecar_path,
     write_json_atomic,
 )
-from .settlement import is_proc_shell_row, settle_proc_shell
+from .settlement import is_named_proc_row, is_proc_shell_row, settle_proc_shell
 from .spawn import (
     DetachedSupervisor,
     SupervisorSpawnError,
@@ -75,7 +80,7 @@ def submit_proc_request(
     after_spawn: Callable[[DetachedSupervisor], None] | None = None,
     after_ack: Callable[[Proc], None] | None = None,
 ) -> Proc:
-    """Reserve a proc-shell and launch its detached supervisor.
+    """Reserve a named proc and launch its detached supervisor.
 
     *after_spawn* runs as soon as the detached supervisor reports its real
     pid, before waiting for its startup acknowledgement.  *after_ack* runs
@@ -88,11 +93,11 @@ def submit_proc_request(
     if request.kind != COMMAND_PROC_KIND:
         request = replace(request, kind=COMMAND_PROC_KIND)
     if request.origin == "xprompt-proc":
-        shell_name = _standalone_shell_name(request.shell_name)
+        proc_name = _standalone_proc_name(request.proc_name)
     else:
-        shell_name = _qualified_shell_name(request.shell_name)
-    if shell_name != request.shell_name:
-        request = replace(request, shell_name=shell_name)
+        proc_name = _qualified_proc_name(request.proc_name)
+    if proc_name != request.proc_name:
+        request = replace(request, proc_name=proc_name)
     proc_id = request.proc_id or new_proc_id()
     log_path = str(request.log_path or proc_log_path(proc_id))
     fingerprint = proc_request_fingerprint(request, proc_id=proc_id, cwd=cwd, argv=argv)
@@ -116,8 +121,8 @@ def submit_proc_request(
                 created_at=created_at,
                 log_path=log_path,
                 log_owner=request.log_owner,
-                shell_name=shell_name,
-                shell_kind=request.shell_kind,
+                proc_name=proc_name,
+                proc_role=request.proc_role,
                 concurrency_keys=list(request.concurrency_keys),
                 request_fingerprint=fingerprint,
                 reserved_by=reserved_by,
@@ -347,7 +352,8 @@ def _raise_start_hook_error(
 
 
 def _should_reconcile(proc: Proc) -> bool:
-    if proc.lifecycle != PROC_LIFECYCLE_PROC_SHELL:
+    # legacy sase-shell spelling: pre-rename rows carry ``proc-shell``.
+    if proc.lifecycle not in ("named-proc", "proc-shell"):
         return False
     if proc.status == "settling":
         return not supervisor_is_alive(proc.pid, proc.supervisor_id)
@@ -393,26 +399,26 @@ def _signal_leftover_group(pgid: int) -> None:
         pass
 
 
-def _standalone_shell_name(shell_name: str | None) -> str | None:
-    raw = None if shell_name is None else shell_name.strip()
+def _standalone_proc_name(proc_name: str | None) -> str | None:
+    raw = None if proc_name is None else proc_name.strip()
     if not raw:
         return None
-    from sase.core.agent_launch_facade import validate_standalone_proc_shell_name
+    from sase.core.agent_launch_facade import validate_standalone_named_proc_name
 
     try:
-        validate_standalone_proc_shell_name(raw)
+        validate_standalone_named_proc_name(raw)
     except Exception as exc:
         raise ProcSubmitError(str(exc)) from exc
     return raw
 
 
-def _qualified_shell_name(shell_name: str | None) -> str | None:
-    raw = None if shell_name is None else shell_name.strip()
+def _qualified_proc_name(proc_name: str | None) -> str | None:
+    raw = None if proc_name is None else proc_name.strip()
     if not raw:
         return None
     try:
-        return qualify_proc_shell_name(raw)
-    except ProcShellNameError as exc:
+        return qualify_named_proc_name(raw)
+    except NamedProcNameError as exc:
         raise ProcSubmitError(str(exc)) from exc
 
 

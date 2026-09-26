@@ -122,7 +122,7 @@ class ServiceHostSpawnMixin:
                 origin=SERVICE_HOST_ORIGIN,
                 tags=["service", f"service:{entry.name}"],
                 log_owner="service-host",
-                shell_kind="service",
+                proc_role="service",
                 service=service_block,
             )
         )

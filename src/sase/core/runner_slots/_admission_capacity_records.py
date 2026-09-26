@@ -147,6 +147,9 @@ def capacity_session_keys_for_core(
     agent_session: str | None,
     agent_session_role: str | None,
     agent_session_parallel: bool,
+    turn_kind: str | None = None,
+    turn_id: str | None = None,
+    turn_state: str | None = None,
     shell_kind: str | None = None,
     shell_id: str | None = None,
     shell_state: str | None = None,
@@ -154,15 +157,22 @@ def capacity_session_keys_for_core(
     """Runner-slot session projection for the Rust capacity engine.
 
     Core serializes ``agent_session_parallel`` and still accepts the legacy
-    parallel-marker spelling on read.
+    parallel-marker spelling on read. Core still emits legacy
+    ``agent_session_shell_*`` spellings until the contract flip but accepts
+    the new ``agent_session_turn_*`` spellings via alias, so new writers emit
+    only the new keys.
     """
+    # legacy sase-shell spelling
+    effective_kind = turn_kind if turn_kind is not None else shell_kind
+    effective_id = turn_id if turn_id is not None else shell_id
+    effective_state = turn_state if turn_state is not None else shell_state
     return {
         "agent_session": agent_session,
         "agent_session_role": agent_session_role,
         "agent_session_parallel": agent_session_parallel,
-        "agent_session_shell_kind": shell_kind,
-        "agent_session_shell_id": shell_id,
-        "agent_session_shell_state": shell_state,
+        "agent_session_turn_kind": effective_kind,
+        "agent_session_turn_id": effective_id,
+        "agent_session_turn_state": effective_state,
     }
 
 
@@ -181,7 +191,7 @@ def capacity_record_from_scan(
     meta = record.agent_meta
     state = record.workflow_state
     waiting = record.waiting
-    shell = None if meta is None else meta.agent_session_shell
+    shell = None if meta is None else meta.agent_session_turn
     queue_weight, queue_weight_explicit, queue_weight_invalid = _record_queue_weight(
         record
     )
@@ -225,9 +235,9 @@ def capacity_record_from_scan(
                 agent_session_parallel=False
                 if meta is None
                 else meta.agent_session_parallel,
-                shell_kind=None if shell is None else shell.kind,
-                shell_id=None if shell is None else shell.id,
-                shell_state=None if shell is None else shell.state,
+                turn_kind=None if shell is None else shell.kind,
+                turn_id=None if shell is None else shell.id,
+                turn_state=None if shell is None else shell.state,
             ),
             "queue_weight": queue_weight,
             "queue_weight_explicit": queue_weight_explicit,
@@ -327,9 +337,9 @@ def _synthetic_capacity_record(
                 agent_session=agent_session,
                 agent_session_role=None,
                 agent_session_parallel=False,
-                shell_kind=None,
-                shell_id=None,
-                shell_state=None,
+                turn_kind=None,
+                turn_id=None,
+                turn_state=None,
             ),
             "queue_weight": queue_weight,
             "queue_weight_explicit": queue_weight_explicit,

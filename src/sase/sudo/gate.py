@@ -45,7 +45,7 @@ def build_sudo_gate_request(
         "producer": dict(
             producer or {"agent": os.environ.get("SASE_AGENT_NAME", "agent")}
         ),
-        "continuation_mode": "gate_shell",
+        "continuation_mode": "gate_turn",
         "gate_timeout_seconds": float(request.gate_timeout_seconds),
         "payload": {
             "sudo": {

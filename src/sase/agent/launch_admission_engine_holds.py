@@ -123,8 +123,8 @@ def _proc_hold_candidate(
         "created_at": finite_float(state.get("first_recorded_at_unix")) or now_seconds,
         "artifact_dirs": [],
     }
-    if isinstance(payload, ProcUnitWire) and payload.shell_name:
-        candidate["proc_shell"] = payload.shell_name
+    if isinstance(payload, ProcUnitWire) and payload.proc_name:
+        candidate["named_proc"] = payload.proc_name
     if isinstance(payload, ProcUnitWire) and payload.hold is not None and request_id:
         try:
             from sase.agent.launch_hold import unit_hold_key

@@ -47,7 +47,7 @@ def _record(
             agent_session=agent_session,
             agent_session_role=agent_session_role,
             agent_session_parallel=agent_session_parallel,
-            agent_session_shell=(
+            agent_session_turn=(
                 AgentSessionShellWire(kind="monitor", id=monitor_id)
                 if monitor_id is not None
                 else None

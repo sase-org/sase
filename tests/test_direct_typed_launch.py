@@ -641,7 +641,7 @@ def test_isolated_direct_bash_proc_settles_without_agent(
     finished = wait_for_proc(identity, timeout=10)
     assert finished.status == "success"
     assert finished.origin == "xprompt-proc"
-    assert finished.lifecycle == "proc-shell"
+    assert finished.lifecycle == "named-proc"
     assert marker.read_text(encoding="utf-8") == "ready"
     artifacts = tmp_path / "home" / "projects"
     assert not any(artifacts.rglob("done.json")) if artifacts.exists() else True

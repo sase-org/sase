@@ -153,7 +153,12 @@ def gate_failure_action_data(
         "gate_ref": f"{request_kind}/{request_id}"
         if request_kind and request_id
         else "",
-        "gate_shell_ref": request_id if isinstance(envelope.get("shell"), dict) else "",
+        "gate_shell_ref": request_id
+        if (
+            isinstance(envelope.get("turn"), dict)
+            or isinstance(envelope.get("shell"), dict)
+        )
+        else "",
         "bundle_path": str(bundle_path),
         "gate_notification_id": str(envelope.get("notification_id") or ""),
         # Compatibility with the first failure-notification rollout.

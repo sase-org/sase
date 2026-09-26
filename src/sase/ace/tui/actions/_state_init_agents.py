@@ -359,7 +359,7 @@ def init_agent_state(self: Any) -> None:
         dismissed_agents_file_signature,
         load_dismissed_agents,
     )
-    from ...dismissed_proc_shells import load_dismissed_proc_shells
+    from ...dismissed_procs import load_dismissed_procs as load_dismissed_proc_shells
 
     self._last_unread_ids = set()
     self._delivered_notification_activity_cursors = set()

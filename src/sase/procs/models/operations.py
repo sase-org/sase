@@ -30,7 +30,7 @@ UpdateValue = str | int | list[str] | dict[str, Any] | None | _Unset
 
 @dataclass(frozen=True)
 class ProcReserve:
-    """Strict proc-shell reservation request."""
+    """Strict named-proc reservation request."""
 
     proc_id: str
     label: str
@@ -46,12 +46,12 @@ class ProcReserve:
     workspace_num: int | None = None
     session_id: str | None = None
     session_label: str | None = None
-    origin: str = "proc-shell"
+    origin: str = "named-proc"
     cl_name: str | None = None
     tags: list[str] = field(default_factory=list)
     log_owner: str = STORE_LOG_OWNER
-    shell_name: str | None = None
-    shell_kind: str | None = "proc"
+    proc_name: str | None = None
+    proc_role: str | None = "proc"
     concurrency_keys: list[str] = field(default_factory=list)
     timeout_seconds: int | None = None
     idle_timeout_seconds: int | None = None
@@ -66,7 +66,18 @@ class ProcReserve:
         values["concurrency_keys"] = [
             str(item) for item in data.get("concurrency_keys") or []
         ]
+        # Readers prefer the new spelling and fall back to all old spellings.
+        if "proc_name" not in values and data.get("shell_name") is not None:
+            values["proc_name"] = str(data["shell_name"])
+        if "proc_role" not in values and data.get("shell_kind") is not None:
+            values["proc_role"] = str(data["shell_kind"])
+        if "origin" in values and values["origin"] == "proc-shell":
+            values["origin"] = "named-proc"
+        elif data.get("origin") == "proc-shell" and "origin" not in values:
+            values["origin"] = "named-proc"
         values["service"] = ProcServiceBlock.from_dict(data.get("service"))
+        values.pop("shell_name", None)
+        values.pop("shell_kind", None)
         return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
@@ -198,8 +209,8 @@ class ProcUpdate:
     finished_at: UpdateValue = UNSET
     log_path: UpdateValue = UNSET
     log_owner: UpdateValue = UNSET
-    shell_name: UpdateValue = UNSET
-    shell_kind: UpdateValue = UNSET
+    proc_name: UpdateValue = UNSET
+    proc_role: UpdateValue = UNSET
     concurrency_keys: UpdateValue = UNSET
     request_fingerprint: UpdateValue = UNSET
     reserved_by: UpdateValue = UNSET
@@ -220,7 +231,15 @@ class ProcUpdate:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcUpdate:
-        return cls(**known_field_kwargs(cls, data))
+        values = known_field_kwargs(cls, data)
+        # legacy sase-shell spelling
+        if "proc_name" not in values and data.get("shell_name") is not None:
+            values["proc_name"] = data["shell_name"]
+        if "proc_role" not in values and data.get("shell_kind") is not None:
+            values["proc_role"] = data["shell_kind"]
+        values.pop("shell_name", None)
+        values.pop("shell_kind", None)
+        return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"proc_id": self.proc_id}

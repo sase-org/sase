@@ -74,7 +74,9 @@ def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
 
 def _is_shell_gate(bundle_path: Path) -> bool:
     envelope, _adapter = load_and_verify_bundle(bundle_path)
-    return isinstance(envelope.get("shell"), dict)
+    return isinstance(envelope.get("turn"), dict) or isinstance(
+        envelope.get("shell"), dict
+    )
 
 
 def _terminal_payload(

@@ -79,7 +79,7 @@ def test_marker_is_per_pid_and_restamps_request_id(
     assert len(intents) == 1
     assert intents[0].path.name == f"{GATE_INTENT_PREFIX}{os.getpid()}.json"
     assert intents[0].request_id == "sudo-two"
-    assert intents[0].source == "create_gate_shell"
+    assert intents[0].source == "create_gate_turn"
 
 
 def test_clear_removes_only_current_process_marker(

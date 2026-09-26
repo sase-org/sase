@@ -79,7 +79,7 @@ def test_create_agent_session_shell_member_layers_kind_role_and_metadata() -> No
     assert meta["role_suffix"] == "--gate"
     assert meta["parent_timestamp"] == "20260812120000"
     assert meta["workspace_num"] == 3
-    assert meta["shell_kind"] == "proc"
+    assert meta["turn_kind"] == "monitor"
     assert meta["gate_id"] == "g123"
     assert meta["pid"] is None
     assert "process_identity" not in meta

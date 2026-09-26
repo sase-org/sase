@@ -117,7 +117,7 @@ def test_kill_resolves_named_proc_shell(
         status="running",
         finished_at=None,
         exit_code=None,
-        shell_name="agent--build",
+        proc_name="agent--build",
     )
 
     assert dispatch(["proc", "kill", "agent--build"]) == 0

@@ -228,9 +228,9 @@ def submit_oneshot(
 
 
 def _choose_store_slot() -> int:
-    from sase.ace.dismissed_proc_shells import load_dismissed_proc_shells
+    from sase.ace.dismissed_procs import load_dismissed_procs
 
-    rows = oneshot_display_rows(read_procs(), dismissed=load_dismissed_proc_shells())
+    rows = oneshot_display_rows(read_procs(), dismissed=load_dismissed_procs())
     slot = choose_oneshot_slot(_proc_occupancy(rows))
     if slot is None:
         raise _OneshotSlotsExhaustedError(

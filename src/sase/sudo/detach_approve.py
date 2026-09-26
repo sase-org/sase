@@ -13,7 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal
 
-from sase.gate_shell.store import find_gate_shell_by_gate_id
+from sase.gate_shell.store import find_gate_turn_by_gate_id
 from sase.notification_gates.models import GateError
 from sase.ops.names import SUDO_FINALIZE
 from sase.procs.request import ProcSubmitRequest
@@ -311,7 +311,7 @@ def _submit_finalize_proc(
     if remote is not None:
         payload["remote"] = dict(remote)
     payload_digest = operation_payload_digest(payload)
-    shell = find_gate_shell_by_gate_id(None, state.gate_id)
+    shell = find_gate_turn_by_gate_id(None, state.gate_id)
     try:
         proc = facade.submit_proc_request(
             ProcSubmitRequest(
@@ -320,7 +320,7 @@ def _submit_finalize_proc(
                 cwd=str(Path.cwd()),
                 origin=SUDO_ANSWER_DETACH_ORIGIN,
                 project=None if shell is None else shell.project_name,
-                shell_kind="gate",
+                proc_role="gate",
                 timeout_seconds=_proc_timeout_seconds(manifest),
                 operation=SUDO_FINALIZE,
                 operation_payload=payload,

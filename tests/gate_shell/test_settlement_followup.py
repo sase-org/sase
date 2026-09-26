@@ -216,7 +216,7 @@ def test_unparseable_shell_block_records_followup_error(
     )
     _write_response(gate.bundle_path, ("cleanup",), result={"status": "ok"})
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
-    request["shell"]["branches"] = {
+    request["turn"]["branches"] = {
         "unknown": {"prompt": "this branch cannot parse at settlement"}
     }
     gate.request_path.write_text(

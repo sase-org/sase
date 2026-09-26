@@ -356,8 +356,8 @@ def test_show_resolves_a_gate_shell_by_member_name(
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["request_id"] == "shell-ref-1"
-    assert payload["gate_shell"]["gate_state"] == "pending"
-    assert payload["gate_shell"]["member_agent_name"] == "acme--gate"
+    assert payload["gate_turn"]["gate_state"] == "pending"
+    assert payload["gate_turn"]["member_agent_name"] == "acme--gate"
 
 
 def test_show_unknown_gate_shell_reference_exits_with_ref_error(

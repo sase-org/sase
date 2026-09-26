@@ -12,8 +12,9 @@ from dataclasses import MISSING, asdict, fields
 from typing import Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
-from sase.core.agent_scan_wire_agent_session_shell import (
+from sase.core.agent_scan_wire_agent_session_turn import (
     agent_session_shell_from_mapping,
+    agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
@@ -48,6 +49,7 @@ from sase.plan_chain import (
     agent_session_parallel_value,
     agent_session_role_value,
     agent_session_value,
+    turn_kind_value,
 )
 
 
@@ -412,9 +414,10 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     if "tag" in payload or isinstance(payload.get("tribe"), str):
         payload = canonicalize_agent_tribe_metadata(dict(payload))
     kwargs = _non_default_field_kwargs(AgentMetaWire, payload)
-    # legacy agent-family spelling: pre-rename marker files carry
-    # ``agent_family*`` / ``family_shell`` keys; new writers emit only the
-    # ``agent_session*`` spellings below.
+    # legacy sase-shell spelling: pre-rename marker files carry
+    # ``agent_family*`` / ``family_shell`` / ``agent_session_shell`` /
+    # ``shell_kind`` keys; new writers emit only the ``agent_session*`` /
+    # ``agent_session_turn`` / ``turn_kind`` spellings below.
     kwargs["agent_session"] = agent_session_value(payload)
     kwargs["agent_session_role"] = agent_session_role_value(payload)
     kwargs["agent_session_parallel"] = bool(agent_session_parallel_value(payload))
@@ -425,20 +428,26 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
         kwargs["agent_session_role"] = None
     if "plan_committed" in payload and type(payload.get("plan_committed")) is not bool:
         kwargs["plan_committed"] = None
-    agent_session_shell = agent_session_shell_from_mapping(payload)
-    if agent_session_shell is not None:
-        kwargs["agent_session_shell"] = agent_session_shell
+    agent_session_turn = agent_session_turn_from_mapping(payload)
+    if agent_session_turn is not None:
+        kwargs["agent_session_turn"] = agent_session_turn
+    kwargs.pop("agent_session_shell", None)
+    # Member kind: prefer new then legacy, normalizing proc to monitor.
+    kwargs["turn_kind"] = turn_kind_value(payload)
+    kwargs.pop("shell_kind", None)
     return AgentMetaWire(**kwargs)
 
 
 def _done_marker_from_dict(data: dict[str, Any]) -> DoneMarkerWire:
     payload = _dual_patch_name_payload(dict(data))
     kwargs = _non_default_field_kwargs(DoneMarkerWire, payload)
-    # legacy agent-family spelling: pre-rename marker files carry
-    # ``family_shell``; new writers emit only ``agent_session_shell``.
-    agent_session_shell = agent_session_shell_from_mapping(payload)
-    if agent_session_shell is not None:
-        kwargs["agent_session_shell"] = agent_session_shell
+    # legacy sase-shell spelling: pre-rename marker files carry
+    # ``family_shell`` / ``agent_session_shell``; new writers emit only
+    # ``agent_session_turn``.
+    agent_session_turn = agent_session_turn_from_mapping(payload)
+    if agent_session_turn is not None:
+        kwargs["agent_session_turn"] = agent_session_turn
+    kwargs.pop("agent_session_shell", None)
     return DoneMarkerWire(**kwargs)
 
 

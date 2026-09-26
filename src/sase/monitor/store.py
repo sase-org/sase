@@ -26,8 +26,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.agent_scan_wire_agent_session_shell import (
-    agent_session_shell_from_mapping,
+from sase.core.agent_scan_wire_agent_session_turn import (
+    agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
@@ -120,15 +120,21 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
     raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
 
     meta_kwargs = known_field_kwargs(AgentMetaWire, with_agent_session_keys(raw_meta))
-    # legacy agent-family spelling: pre-rename marker files carry
-    # ``agent_family*`` / ``family_shell`` keys.
-    meta_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_meta)
+    # legacy sase-shell spelling: pre-rename marker files carry
+    # ``agent_family*`` / ``family_shell`` / ``agent_session_shell`` keys.
+    meta_kwargs["agent_session_turn"] = agent_session_turn_from_mapping(raw_meta)
+    meta_kwargs.pop("agent_session_shell", None)
+    from sase.plan_chain import turn_kind_value
+
+    meta_kwargs["turn_kind"] = turn_kind_value(raw_meta)
+    meta_kwargs.pop("shell_kind", None)
     done_kwargs = None
     if raw_done is not None:
         done_kwargs = known_field_kwargs(
             DoneMarkerWire, with_agent_session_keys(raw_done)
         )
-        done_kwargs["agent_session_shell"] = agent_session_shell_from_mapping(raw_done)
+        done_kwargs["agent_session_turn"] = agent_session_turn_from_mapping(raw_done)
+        done_kwargs.pop("agent_session_shell", None)
     record = AgentArtifactRecordWire(
         project_name=project_name,
         project_dir="",

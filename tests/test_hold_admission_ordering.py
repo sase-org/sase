@@ -340,7 +340,7 @@ def test_stale_proc_dispatch_action_rechecks_holds(
     monkeypatch.setattr("sase.core.agent_hold_facade._project_for_cwd", lambda: "sase")
     dispatched: list[str] = []
     engine = AdmissionEngine(
-        plan=_plan(_proc_unit("unit-1", tmp_path, shell_name="checks")),
+        plan=_plan(_proc_unit("unit-1", tmp_path, proc_name="checks")),
         admission_dir=tmp_path / "admission",
         request_id="req-stale-proc",
         proc_dispatcher=lambda unit, fingerprint: (
@@ -374,7 +374,7 @@ def test_committed_proc_dispatch_is_immune_to_later_arm(
     monkeypatch.setattr("sase.core.agent_hold_facade._project_for_cwd", lambda: "sase")
     dispatched: list[str] = []
     engine = AdmissionEngine(
-        plan=_plan(_proc_unit("unit-1", tmp_path, shell_name="checks")),
+        plan=_plan(_proc_unit("unit-1", tmp_path, proc_name="checks")),
         admission_dir=tmp_path / "admission",
         request_id="req-committed-proc",
         proc_dispatcher=lambda unit, fingerprint: (
@@ -444,7 +444,7 @@ def test_arm_during_proc_commit_window_cannot_publish_before_dispatching(
         arm_finished.set()
 
     engine = AdmissionEngine(
-        plan=_plan(_proc_unit("unit-1", tmp_path, shell_name="checks")),
+        plan=_plan(_proc_unit("unit-1", tmp_path, proc_name="checks")),
         admission_dir=tmp_path / "admission",
         request_id="req-proc-race",
         proc_dispatcher=lambda unit, fingerprint: (

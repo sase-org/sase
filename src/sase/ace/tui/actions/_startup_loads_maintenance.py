@@ -212,14 +212,14 @@ class StartupLoadsMaintenanceMixin:
         """
         import asyncio
 
-        from sase.ace.dismissed_proc_shells import prune_dismissed_proc_shells
+        from sase.ace.dismissed_procs import prune_dismissed_procs
         from sase.procs import read_procs
 
         before = set(getattr(self, "_dismissed_proc_shells", ()))
 
         def _prune() -> set[str]:
             live_ids = {proc.proc_id for proc in read_procs()}
-            return prune_dismissed_proc_shells(live_ids)
+            return prune_dismissed_procs(live_ids)
 
         try:
             pruned = await asyncio.to_thread(_prune)

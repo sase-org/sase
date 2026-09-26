@@ -7,8 +7,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_scan_wire_agent_session_shell import (
+from sase.core.agent_scan_wire_agent_session_turn import (
     agent_session_shell_from_mapping,
+    agent_session_turn_from_mapping,
 )
 from sase.core.dismissed_agent_completion import (
     GATE_OUTCOME,
@@ -88,21 +89,22 @@ def _agent_session_shell_field(
     kind: str,
     field: str,
 ) -> Any:
-    """Read a shared ``agent_session_shell`` field from a ``meta`` / ``done_data`` mapping.
+    """Read a shared ``agent_session_turn`` field from a ``meta`` / ``done_data`` mapping.
 
     ``meta`` / ``done_data`` reach this function in either shape:
     ``dataclasses.asdict()`` projections of ``AgentMetaWire`` /
-    ``DoneMarkerWire`` already carry a nested ``agent_session_shell`` (see
+    ``DoneMarkerWire`` already carry a nested ``agent_session_turn`` (see
     ``sase.agents._wait_live_rows._index_from_snapshot``), while
     ``WaitDependencyIndex.build()`` reads flat ``monitor_*`` / ``gate_*``
-    on-disk marker keys directly. :func:`agent_session_shell_from_mapping`
-    understands both.
+    on-disk marker keys directly. :func:`agent_session_turn_from_mapping`
+    understands both, including legacy ``agent_session_shell`` /
+    ``family_shell`` keys.
     """
     if data is None:
         return None
-    shell = agent_session_shell_from_mapping(data)
-    if shell is not None and shell.kind == kind:
-        return getattr(shell, field, None)
+    turn = agent_session_turn_from_mapping(data)
+    if turn is not None and turn.kind == kind:
+        return getattr(turn, field, None)
     return None
 
 

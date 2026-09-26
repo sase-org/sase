@@ -136,7 +136,7 @@ def create_monitor_member(
         suffix=suffix,
         prev_artifacts_timestamp=prev_artifacts_timestamp,
         workspace_num=workspace_num,
-        shell_kind="proc",
+        turn_kind="monitor",
         agent_session_role="monitor",
         metadata=monitor_metadata,
         inherited_metadata_fields=_MONITOR_INHERITED_METADATA_FIELDS,

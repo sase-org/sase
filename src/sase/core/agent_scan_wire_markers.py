@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from sase.core.agent_scan_wire_agent_session_shell import AgentSessionShellWire
+from sase.core.agent_scan_wire_agent_session_turn import AgentSessionTurnWire
 
 
 @dataclass(frozen=True)
@@ -66,9 +66,9 @@ class DoneMarkerWire:
             transactional imports hidden until their whole hood is complete.
         status_label: The configured stop-status label to display
             (e.g. ``MONITORED``), overriding the raw ``outcome``.
-        agent_session_shell: Terminal monitor or gate-shell projection, folding the
+        agent_session_turn: Terminal monitor or gate-turn projection, folding the
             marker's flat ``monitor_*`` / ``gate_*`` fields (mirroring the
-            running member's ``agent_meta.json::agent_session_shell``). ``None``
+            running member's ``agent_meta.json::agent_session_turn``). ``None``
             when the record is neither.
     """
 
@@ -106,7 +106,7 @@ class DoneMarkerWire:
     source_machine: str | None = None
     imported_source_owner: dict[str, Any] | None = None
     status_label: str | None = None
-    agent_session_shell: AgentSessionShellWire | None = None
+    agent_session_turn: AgentSessionTurnWire | None = None
     monitor_diagnostic_manifest_ref: str | None = None
     monitor_retained_log_ref: str | None = None
     continuation_monitor_result_id: str | None = None
@@ -116,6 +116,12 @@ class DoneMarkerWire:
     continuation_manifest_ref: str | None = None
     continuation_budget_decision_path: str | None = None
     monitor_followup_budget_decision_path: str | None = None
+
+    @property
+    def agent_session_shell(self) -> AgentSessionTurnWire | None:
+        """Deprecated alias for :attr:`agent_session_turn`."""
+
+        return self.agent_session_turn
 
 
 @dataclass(frozen=True)
@@ -218,7 +224,7 @@ class AgentMetaWire:
     retry_terminal: bool = False
     retry_error_category: str | None = None
     status_bucket: str | None = None
-    agent_session_shell: AgentSessionShellWire | None = None
+    agent_session_turn: AgentSessionTurnWire | None = None
     monitor_diagnostic_manifest_ref: str | None = None
     monitor_retained_log_ref: str | None = None
     continuation_monitor_result_id: str | None = None
@@ -228,8 +234,20 @@ class AgentMetaWire:
     continuation_manifest_ref: str | None = None
     continuation_budget_decision_path: str | None = None
     monitor_followup_budget_decision_path: str | None = None
-    shell_kind: str | None = None
+    turn_kind: str | None = None
     proc_id: str | None = None
+
+    @property
+    def agent_session_shell(self) -> AgentSessionTurnWire | None:
+        """Deprecated alias for :attr:`agent_session_turn`."""
+
+        return self.agent_session_turn
+
+    @property
+    def shell_kind(self) -> str | None:
+        """Deprecated alias for :attr:`turn_kind`."""
+
+        return self.turn_kind
 
 
 @dataclass(frozen=True)

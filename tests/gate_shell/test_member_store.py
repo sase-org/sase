@@ -67,7 +67,7 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["name"] == "lane--gate"
-    assert meta["shell_kind"] == "gate"
+    assert meta["turn_kind"] == "gate"
     assert meta["agent_session_role"] == "gate"
     assert "agent_family_role" not in meta
     assert meta["gate_id"] == "gate-1"
@@ -75,7 +75,7 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     assert meta["gate_start_status"] == "WAIT"
     assert meta["gate_stop_status"] == "DONE"
     assert meta["gate_next_action"] == "continue"
-    assert meta["gate_next_fork"] == "shell"
+    assert meta["gate_next_fork"] == "turn"
     assert meta["gate_next_model"] == "gpt-5"
     assert meta["gate_next_output"] == "results,tail"
     assert meta["pid"] is None
@@ -94,7 +94,7 @@ def test_create_gate_shell_member_projects_gate_metadata() -> None:
     assert record.member_agent_name == "lane--gate"
     assert record.status_bucket == "Stopped"
     assert record.next_action == "continue"
-    assert record.next_fork == "shell"
+    assert record.next_fork == "turn"
     assert record.next_output == "results,tail"
 
 
@@ -181,7 +181,7 @@ def test_list_gate_shells_orders_tied_timestamps_deterministically(
                 name=Path(path).name,
                 agent_session="lane",
                 agent_session_role="gate",
-                agent_session_shell=AgentSessionShellWire(
+                agent_session_turn=AgentSessionShellWire(
                     kind="gate",
                     id="gate-1",
                     state="pending",
@@ -219,7 +219,7 @@ def _gate_wire(path: str, gate_id: str = "gate-1") -> AgentArtifactRecordWire:
             name=Path(path).name,
             agent_session="lane",
             agent_session_role="gate",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="gate",
                 id=gate_id,
                 state="pending",
@@ -251,7 +251,7 @@ def test_find_gate_shell_by_gate_id_uses_indexed_lookup_when_index_exists(
         calls.append((index, project_name, gate_id))
         return wire
 
-    monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", fake_lookup)
+    monkeypatch.setattr(gate_store, "_rust_find_gate_turn_by_gate_id", fake_lookup)
     monkeypatch.setattr(gate_store, "project_records", _fail)
 
     record = gate_store.find_gate_shell_by_gate_id("proj", "gate-1")
@@ -270,7 +270,7 @@ def test_find_gate_shell_by_gate_id_indexed_miss_is_authoritative(
         gate_store, "default_agent_artifact_index_path", lambda: index_path
     )
     monkeypatch.setattr(
-        gate_store, "_rust_find_gate_shell_by_gate_id", lambda *a, **k: None
+        gate_store, "_rust_find_gate_turn_by_gate_id", lambda *a, **k: None
     )
     monkeypatch.setattr(gate_store, "project_records", _fail)
 
@@ -290,7 +290,7 @@ def test_find_gate_shell_by_gate_id_falls_back_when_index_unusable(
     def broken_lookup(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("index corrupt")
 
-    monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", broken_lookup)
+    monkeypatch.setattr(gate_store, "_rust_find_gate_turn_by_gate_id", broken_lookup)
     wire = _gate_wire("/tmp/proj/artifacts/ace-run/20260812120000")
     monkeypatch.setattr(gate_store, "project_records", lambda project_name: [wire])
 
@@ -309,7 +309,7 @@ def test_find_gate_shell_by_gate_id_skips_indexed_lookup_when_index_missing(
         "default_agent_artifact_index_path",
         lambda: tmp_path / "agent_artifact_index.sqlite",
     )
-    monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", _fail)
+    monkeypatch.setattr(gate_store, "_rust_find_gate_turn_by_gate_id", _fail)
     monkeypatch.setattr(gate_store, "project_records", lambda project_name: [])
 
     assert gate_store.find_gate_shell_by_gate_id("proj", "gate-1") is None

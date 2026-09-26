@@ -102,22 +102,22 @@ def test_legacy_gate_shell_marker_fields_round_trip() -> None:
     record = snapshot.records[0]
     assert record.agent_meta is not None
     assert record.done is not None
-    meta_shell = record.agent_meta.agent_session_shell
-    assert meta_shell is not None
-    assert meta_shell.id == "gate-1"
-    assert meta_shell.next_model == "@large"
-    assert meta_shell.output_truncated is True
-    assert meta_shell.gate is not None
-    assert meta_shell.gate.decision_path == "gate_decision.md"
-    done_shell = record.done.agent_session_shell
-    assert done_shell is not None
-    assert done_shell.state == "answered"
-    assert done_shell.elapsed_seconds == 2.5
-    assert done_shell.output_truncated is True
+    meta_turn = record.agent_meta.agent_session_turn
+    assert meta_turn is not None
+    assert meta_turn.id == "gate-1"
+    assert meta_turn.next_model == "@large"
+    assert meta_turn.output_truncated is True
+    assert meta_turn.gate is not None
+    assert meta_turn.gate.decision_path == "gate_decision.md"
+    done_turn = record.done.agent_session_turn
+    assert done_turn is not None
+    assert done_turn.state == "answered"
+    assert done_turn.elapsed_seconds == 2.5
+    assert done_turn.output_truncated is True
 
     payload = agent_scan_wire_to_json_dict(snapshot)
-    meta_payload = payload["records"][0]["agent_meta"]["agent_session_shell"]
-    done_payload = payload["records"][0]["done"]["agent_session_shell"]
+    meta_payload = payload["records"][0]["agent_meta"]["agent_session_turn"]
+    done_payload = payload["records"][0]["done"]["agent_session_turn"]
     assert meta_payload["request_fingerprint"] == "sha256:cafe"
     assert meta_payload["gate"]["decision_path"] == "gate_decision.md"
     assert done_payload["gate"]["notification_id"] == "notif-1"
@@ -183,32 +183,32 @@ def test_legacy_monitor_marker_fields_round_trip() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
-    meta_shell = record.agent_meta.agent_session_shell
-    assert meta_shell is not None
-    assert meta_shell.start_status == "MONITORING"
-    assert meta_shell.stop_status == "MONITORED"
-    assert meta_shell.id == "m4kq"
-    assert meta_shell.state == "running"
-    assert meta_shell.output_truncated is True
-    assert meta_shell.request_fingerprint == "sha256:deadbeef"
-    assert meta_shell.monitor is not None
-    assert meta_shell.monitor.command == "just check-full"
-    assert meta_shell.monitor.tail_lines == 200
-    assert meta_shell.monitor.pgid == 4242
-    assert meta_shell.monitor.supervisor_identity == "boot-abc123:98765"
-    assert meta_shell.monitor.settled is True
-    assert meta_shell.monitor.idle_timeout_seconds == 600.0
+    meta_turn = record.agent_meta.agent_session_turn
+    assert meta_turn is not None
+    assert meta_turn.start_status == "MONITORING"
+    assert meta_turn.stop_status == "MONITORED"
+    assert meta_turn.id == "m4kq"
+    assert meta_turn.state == "running"
+    assert meta_turn.output_truncated is True
+    assert meta_turn.request_fingerprint == "sha256:deadbeef"
+    assert meta_turn.monitor is not None
+    assert meta_turn.monitor.command == "just check-full"
+    assert meta_turn.monitor.tail_lines == 200
+    assert meta_turn.monitor.pgid == 4242
+    assert meta_turn.monitor.supervisor_identity == "boot-abc123:98765"
+    assert meta_turn.monitor.settled is True
+    assert meta_turn.monitor.idle_timeout_seconds == 600.0
     assert record.done is not None
-    done_shell = record.done.agent_session_shell
-    assert done_shell is not None
-    assert done_shell.state == "completed"
-    assert done_shell.elapsed_seconds == 17.5
-    assert done_shell.monitor is not None
-    assert done_shell.monitor.exit_code == 0
+    done_turn = record.done.agent_session_turn
+    assert done_turn is not None
+    assert done_turn.state == "completed"
+    assert done_turn.elapsed_seconds == 17.5
+    assert done_turn.monitor is not None
+    assert done_turn.monitor.exit_code == 0
     assert record.done.status_label == "MONITORED"
 
     payload = agent_scan_wire_to_json_dict(snapshot)
-    meta_payload = payload["records"][0]["agent_meta"]["agent_session_shell"]
+    meta_payload = payload["records"][0]["agent_meta"]["agent_session_turn"]
     assert meta_payload["id"] == "m4kq"
     assert meta_payload["state"] == "running"
     assert meta_payload["monitor"]["pgid"] == 4242
@@ -219,7 +219,7 @@ def test_legacy_monitor_marker_fields_round_trip() -> None:
     assert meta_payload["next_model"] == "@small"
     assert meta_payload["request_fingerprint"] == "sha256:deadbeef"
     done_payload = payload["records"][0]["done"]
-    assert done_payload["agent_session_shell"]["state"] == "completed"
+    assert done_payload["agent_session_turn"]["state"] == "completed"
     assert done_payload["status_label"] == "MONITORED"
     assert meta_payload["start_status"] == "MONITORING"
     assert meta_payload["stop_status"] == "MONITORED"
@@ -260,15 +260,15 @@ def test_legacy_monitor_custom_stop_status_round_trips() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
-    meta_shell = record.agent_meta.agent_session_shell
-    assert meta_shell is not None
-    assert meta_shell.start_status == "TESTING"
-    assert meta_shell.stop_status == "TESTED"
+    meta_turn = record.agent_meta.agent_session_turn
+    assert meta_turn is not None
+    assert meta_turn.start_status == "TESTING"
+    assert meta_turn.stop_status == "TESTED"
     assert record.done is not None
     assert record.done.status_label == "TESTED"
 
     payload = agent_scan_wire_to_json_dict(snapshot)
-    meta_payload = payload["records"][0]["agent_meta"]["agent_session_shell"]
+    meta_payload = payload["records"][0]["agent_meta"]["agent_session_turn"]
     assert meta_payload["start_status"] == "TESTING"
     assert meta_payload["stop_status"] == "TESTED"
     assert payload["records"][0]["done"]["status_label"] == "TESTED"
@@ -293,7 +293,7 @@ def test_monitor_marker_fields_default_for_older_records() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
-    assert record.agent_meta.agent_session_shell is None
+    assert record.agent_meta.agent_session_turn is None
     assert record.done is not None
-    assert record.done.agent_session_shell is None
+    assert record.done.agent_session_turn is None
     assert record.done.status_label is None

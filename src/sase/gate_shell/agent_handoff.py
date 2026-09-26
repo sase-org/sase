@@ -60,7 +60,7 @@ def _compensate_failed_handoff(creation: GateShellCreation, error: str) -> None:
         cancel_gate(
             creation.gate.bundle_path,
             reason="handoff_failed",
-            source="gate_shell",
+            source="gate_turn",
         )
     except Exception:
         pass

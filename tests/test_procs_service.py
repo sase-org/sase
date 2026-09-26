@@ -14,7 +14,7 @@ import pytest
 from sase.ace.hooks.processes import is_process_running
 from sase.procs import (
     COMMAND_PROC_KIND,
-    PROC_LIFECYCLE_PROC_SHELL,
+    PROC_LIFECYCLE_NAMED_PROC,
     ProcSubmitError,
     ProcSubmitRequest,
     append_proc,
@@ -57,7 +57,7 @@ def test_submit_records_a_proc_shell_and_settles_success(
     )
     finished = wait_for_proc(proc.proc_id, timeout=15)
 
-    assert proc.lifecycle == PROC_LIFECYCLE_PROC_SHELL
+    assert proc.lifecycle == PROC_LIFECYCLE_NAMED_PROC
     assert proc.argv == [sys.executable, "-c", "print('ready', flush=True)"]
     assert finished.status == "success"
     assert finished.settled_at is not None
@@ -76,7 +76,7 @@ def test_submit_request_replay_returns_the_active_row(
         cwd=tmp_path,
         origin="test",
         project="sase",
-        shell_name="agent--build",
+        proc_name="agent--build",
         request_fingerprint="sha256:same",
     )
     first = submit_proc_request(request)
@@ -120,13 +120,13 @@ def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
         cwd=tmp_path,
         origin="test",
         project="sase",
-        shell_name="agent--build",
+        proc_name="agent--build",
         concurrency_keys=["docs"],
     )
     finished = wait_for_proc(first.proc_id, timeout=15)
 
     assert finished.status == "success"
-    assert finished.shell_name == "agent--build"
+    assert finished.proc_name == "agent--build"
     assert finished.concurrency_keys == ["docs"]
     assert "agent--build" not in finished.concurrency_keys
 
@@ -136,7 +136,7 @@ def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
         cwd=tmp_path,
         origin="test",
         project="other",
-        shell_name="agent--build",
+        proc_name="agent--build",
     )
     wait_for_proc(other_project.proc_id, timeout=15)
     assert other_project.proc_id != first.proc_id
@@ -147,7 +147,7 @@ def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
         cwd=tmp_path,
         origin="test",
         project="sase",
-        shell_name="agent--build",
+        proc_name="agent--build",
         concurrency_keys=["docs"],
     )
     wait_for_proc(reused.proc_id, timeout=15)
@@ -159,7 +159,7 @@ def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
         cwd=tmp_path,
         origin="test",
         project="sase",
-        shell_name="agent--docs",
+        proc_name="agent--docs",
     )
     with pytest.raises(ProcSubmitError, match="shell_name"):
         submit_proc(
@@ -168,7 +168,7 @@ def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
             cwd=tmp_path,
             origin="test",
             project="sase",
-            shell_name="agent--docs",
+            proc_name="agent--docs",
         )
     kill_proc(active.proc_id)
     wait_for_proc(active.proc_id, timeout=15)
@@ -183,11 +183,11 @@ def test_submit_derives_bare_named_proc_shell(monkeypatch: Any, tmp_path: Path) 
         cwd=tmp_path,
         origin="test",
         project="sase",
-        shell_name="build",
+        proc_name="build",
     )
     wait_for_proc(proc.proc_id, timeout=15)
 
-    assert proc.shell_name == "foo--build"
+    assert proc.proc_name == "foo--build"
     assert proc.concurrency_keys == []
 
 
@@ -435,7 +435,7 @@ def test_legacy_rows_still_reconcile_without_settlement(
 
     assert [proc.proc_id for proc in reconciled] == [orphan.proc_id]
     assert reconciled[0].status == "error"
-    assert reconciled[0].lifecycle != PROC_LIFECYCLE_PROC_SHELL
+    assert reconciled[0].lifecycle != PROC_LIFECYCLE_NAMED_PROC
     assert reconciled[0].settled_at is None
 
 

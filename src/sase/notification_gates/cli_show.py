@@ -28,7 +28,7 @@ from sase.gate_shell.lifecycle import (
 from sase.gate_shell.models import GateShellRefError
 from sase.gate_shell.projection import gate_shell_runtime_json
 from sase.gate_shell.store import (
-    find_gate_shell_by_gate_id,
+    find_gate_turn_by_gate_id,
     list_gate_shells,
     resolve_gate_shell_ref,
 )
@@ -130,17 +130,17 @@ def _show(kind: str, request_id: str) -> dict[str, Any]:
         "primary_branch": list(gate.primary_branch),
         "query": gate.query,
         "request_id": bundle.request_id,
-        "shell": _shell_payload(bundle.envelope),
+        "turn": _turn_payload(bundle.envelope),
         "status": "pending" if poll is None else _STATUS_PROJECTION[poll.status],
     }
     if poll is None or poll.status == "failed":
         acceptance = _acceptance_payload(bundle.root, bundle.envelope)
         if acceptance is not None:
             payload["acceptance"] = acceptance
-    if payload["shell"] is not None:
-        gate_shell = find_gate_shell_by_gate_id(None, bundle.request_id)
-        if gate_shell is not None:
-            payload["gate_shell"] = gate_shell_runtime_json(gate_shell)
+    if payload["turn"] is not None:
+        gate_turn = find_gate_turn_by_gate_id(None, bundle.request_id)
+        if gate_turn is not None:
+            payload["gate_turn"] = gate_shell_runtime_json(gate_turn)
     return payload
 
 
@@ -229,8 +229,18 @@ def _action_payload(operation: GateOperation) -> dict[str, Any]:
 
 
 def _shell_payload(envelope: Mapping[str, Any]) -> dict[str, Any] | None:
-    shell = envelope.get("shell")
-    return dict(shell) if isinstance(shell, Mapping) else None
+    # Readers prefer the new spelling and fall back to all old spellings.
+    turn = envelope.get("turn")
+    if turn is None:
+        # legacy sase-shell spelling
+        turn = envelope.get("shell")
+    return dict(turn) if isinstance(turn, Mapping) else None
+
+
+def _turn_payload(envelope: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Return the turn block, preferring new then legacy spellings."""
+
+    return _shell_payload(envelope)
 
 
 def print_human_gate(payload: Mapping[str, Any]) -> None:
@@ -273,13 +283,18 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
     if isinstance(acceptance, Mapping):
         _print_acceptance(console, acceptance)
 
-    shell = payload.get("shell")
-    if isinstance(shell, Mapping):
-        _print_shell(console, shell)
+    # Readers prefer the new spelling and fall back to all old spellings.
+    turn = payload.get("turn")
+    if turn is None:
+        turn = payload.get("shell")
+    if isinstance(turn, Mapping):
+        _print_shell(console, turn)
 
-    gate_shell = payload.get("gate_shell")
-    if isinstance(gate_shell, Mapping):
-        _print_gate_shell_runtime(console, gate_shell)
+    gate_turn = payload.get("gate_turn")
+    if gate_turn is None:
+        gate_turn = payload.get("gate_shell")
+    if isinstance(gate_turn, Mapping):
+        _print_gate_shell_runtime(console, gate_turn)
 
 
 def _print_option(console: Console, option: Mapping[str, Any]) -> None:

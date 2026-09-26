@@ -209,7 +209,7 @@ class ProcUnitWire:
     """Stand-alone proc payload inside a typed launch unit."""
 
     code: Any
-    shell_name: str | None = None
+    proc_name: str | None = None
     label: str | None = None
     timeout: str | None = None
     idle_timeout: str | None = None

@@ -30,6 +30,10 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
         "sase.gate_shell.store",
         "find_gate_shell_by_gate_id",
     ),
+    "find_gate_turn_by_gate_id": (
+        "sase.gate_shell.store",
+        "find_gate_turn_by_gate_id",
+    ),
     "has_any_gate_shell": ("sase.gate_shell.store", "has_any_gate_shell"),
     "list_gate_shells": ("sase.gate_shell.store", "list_gate_shells"),
     "maybe_handoff_gate_from_agent": (
@@ -81,6 +85,7 @@ __all__ = [
     "cancel_gate_shell",
     "create_gate_shell",
     "find_gate_shell_by_gate_id",
+    "find_gate_turn_by_gate_id",
     "has_any_gate_shell",
     "is_gate_shell_member_record",
     "list_gate_shells",

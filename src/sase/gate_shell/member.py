@@ -70,7 +70,7 @@ def create_gate_shell_member(
         suffix=suffix,
         prev_artifacts_timestamp=prev_artifacts_timestamp,
         workspace_num=workspace_num,
-        shell_kind="gate",
+        turn_kind="gate",
         agent_session_role="gate",
         metadata=gate_metadata,
         inherited_metadata_fields=_GATE_INHERITED_METADATA_FIELDS,

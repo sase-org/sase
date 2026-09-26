@@ -24,7 +24,10 @@ GATE_SHELL_STATUS_MAX_CHARS = 20
 GATE_SHELL_STATUS_ELLIPSIS = "\u2026"
 
 GATE_SHELL_WORKSPACES = frozenset({"inherit", "release"})
-GATE_SHELL_NEXT_FORKS = frozenset({"session", "shell", "none"})
+GATE_SHELL_NEXT_FORKS = frozenset({"session", "turn", "none"})
+# legacy sase-shell spelling: gate-spec input and pre-rename bundles carry
+# ``"shell"``; new writers emit only ``"turn"``.
+LEGACY_GATE_SHELL_NEXT_FORK_SHELL = "shell"
 # legacy agent-family spelling: gate-spec input and pre-rename bundles carry
 # ``"family"``; new writers emit only ``"session"``.
 LEGACY_GATE_SHELL_NEXT_FORK = "family"
@@ -105,11 +108,14 @@ class GateShellNext:
             )
 
             fork = normalize_persisted_agent_session_fork(fork)
+        # legacy sase-shell spelling: pre-rename bundles carry ``shell``.
+        if fork == LEGACY_GATE_SHELL_NEXT_FORK_SHELL:
+            fork = "turn"
         if fork not in GATE_SHELL_NEXT_FORKS:
             raise GateError(
                 "invalid_shell",
                 f"{target}.fork",
-                "next.fork must be session, shell, or none",
+                "next.fork must be session, turn, or none",
             )
         output = _next_output(data.get("output", list(base.output)), f"{target}.output")
         return cls(

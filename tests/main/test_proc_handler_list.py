@@ -316,11 +316,11 @@ def test_list_filters_by_named_proc_shell_and_shows_historical_names(
     """``-N`` matches derived names and still shows historical spellings."""
     monkeypatch.setenv("COLUMNS", "160")
     monkeypatch.setenv("SASE_AGENT_NAME", "foo")
-    stored("aaaaaaaaaaaa", label="Current", shell_name="foo--build")
+    stored("aaaaaaaaaaaa", label="Current", proc_name="foo--build")
     stored(
         "bbbbbbbbbbbb",
         label="Legacy",
-        shell_name="old/name",
+        proc_name="old/name",
         created_at="2026-07-25T12:01:00Z",
     )
 

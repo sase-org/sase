@@ -47,8 +47,8 @@ def test_sudo_gate_contains_tty_approve_and_headless_deny(
     assert options[APPROVE_OPTION_ID]["requires_tty"] is True
     assert options[DENY_OPTION_ID]["requires_tty"] is False
     assert request["presentation"]["chip"]["label"] == "sudo"
-    assert request["shell"]["pending_status"] == "SUDO"
-    assert request["shell"]["settled_status"] == "SUDOED"
+    assert request["turn"]["pending_status"] == "SUDO"
+    assert request["turn"]["settled_status"] == "SUDOED"
 
 
 def test_sudo_manifest_subset_rehashes_in_reviewed_order() -> None:

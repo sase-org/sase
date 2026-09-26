@@ -265,7 +265,10 @@ def accepted_gate_shell_artifact_dir(
         ):
             return None, False
         envelope = read_json_object(bundle.request)
-        if not isinstance(envelope.get("shell"), dict):
+        if not (
+            isinstance(envelope.get("turn"), dict)
+            or isinstance(envelope.get("shell"), dict)
+        ):
             return None, False
         gate_id = str(
             envelope.get("request_id")

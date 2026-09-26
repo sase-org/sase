@@ -308,7 +308,7 @@ def test_agent_list_includes_live_monitor_agent_session_child(
             agent_session_role="monitor",
             role_suffix="--mon",
             run_started_at="2026-08-12T13:00:00Z",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="monitor",
                 id="m123",
                 state="running",
@@ -366,7 +366,7 @@ def test_agent_list_includes_terminal_monitor_agent_session_child() -> None:
             agent_session="alpha",
             agent_session_role="monitor",
             role_suffix="--mon",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="monitor",
                 id="m123",
                 state="timeout",
@@ -380,7 +380,7 @@ def test_agent_list_includes_terminal_monitor_agent_session_child() -> None:
         has_done_marker=True,
         done=DoneMarkerWire(
             outcome="monitored",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="monitor",
                 state="timeout",
                 monitor=AgentSessionShellMonitorWire(exit_code=124),
@@ -424,7 +424,7 @@ def test_agent_list_monitor_starter_with_monitor_id_buckets_by_done_status() -> 
             agent_session="alpha",
             agent_session_role="root",
             role_suffix="--0",
-            agent_session_shell=AgentSessionShellWire(kind="monitor", id="m123"),
+            agent_session_turn=AgentSessionShellWire(kind="monitor", id="m123"),
         ),
         has_done_marker=True,
         done=DoneMarkerWire(outcome="completed"),
@@ -456,7 +456,7 @@ def test_agent_list_monitored_outcome_starter_buckets_as_terminal_agent() -> Non
             agent_session="alpha",
             agent_session_role="root",
             role_suffix="--0",
-            agent_session_shell=AgentSessionShellWire(kind="monitor", id="m123"),
+            agent_session_turn=AgentSessionShellWire(kind="monitor", id="m123"),
         ),
         has_done_marker=True,
         done=DoneMarkerWire(outcome="monitored", status_bucket="Done"),

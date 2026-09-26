@@ -94,7 +94,7 @@ def _record(
             error=error,
             workspace_num=workspace_num,
             model=model,
-            agent_session_shell=done_agent_session_shell,
+            agent_session_turn=done_agent_session_shell,
             status_label=monitor_stop_status,
         )
     meta_agent_session_shell = (
@@ -137,7 +137,7 @@ def _record(
             run_started_at="2026-08-23T12:00:00Z" if pid is not None else None,
             wait_for=wait_for or [],
             agent_session_role=agent_session_role,
-            agent_session_shell=meta_agent_session_shell,
+            agent_session_turn=meta_agent_session_shell,
         ),
         done=done,
         waiting=waiting,

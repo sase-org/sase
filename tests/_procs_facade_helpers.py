@@ -21,7 +21,7 @@ def _proc(
     tags: list[str] | None = None,
     command: list[str] | None = None,
     cl_name: str | None = "docs_refresh",
-    shell_name: str | None = None,
+    proc_name: str | None = None,
     service: ProcServiceBlock | None = None,
 ) -> Proc:
     return Proc(
@@ -38,7 +38,7 @@ def _proc(
         tags=tags or ["docs"],
         created_at=created_at,
         log_path=f"/tmp/{proc_id}.log",
-        shell_name=shell_name,
+        proc_name=proc_name,
         service=service,
     )
 
@@ -46,7 +46,7 @@ def _proc(
 def _reserve(
     proc_id: str,
     *,
-    shell_name: str = "agent--build",
+    proc_name: str = "agent--build",
     fingerprint: str = "fingerprint",
     concurrency_keys: list[str] | None = None,
     service: ProcServiceBlock | None = None,
@@ -63,7 +63,7 @@ def _reserve(
         tags=["docs"],
         created_at="2026-07-25T12:00:00Z",
         log_path=f"/tmp/{proc_id}.log",
-        shell_name=shell_name,
+        proc_name=proc_name,
         concurrency_keys=concurrency_keys or ["docs"],
         request_fingerprint=fingerprint,
         reserved_by="agent-one",

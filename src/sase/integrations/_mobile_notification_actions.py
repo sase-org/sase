@@ -78,7 +78,9 @@ def execute_mobile_gate_action(
         envelope, _adapter = load_and_verify_bundle(bundle.root)
     except GateError as exc:
         raise MobileGateActionError("invalid_request", "bundle_path", str(exc)) from exc
-    shell_backed = isinstance(envelope.get("shell"), dict)
+    shell_backed = isinstance(envelope.get("turn"), dict) or isinstance(
+        envelope.get("shell"), dict
+    )
     gate_shell = (
         find_gate_shell_by_gate_id(None, str(envelope.get("request_id")))
         if shell_backed

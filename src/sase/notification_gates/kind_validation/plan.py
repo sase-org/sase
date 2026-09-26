@@ -157,10 +157,10 @@ def _validate_plan_shell(spec: GateSpec, tier: PlanGateTier) -> None:
     if spec.shell is None:
         return
     from sase.notification_gates.model_shell import GateShellSpec
-    from sase.plan_shell.create import plan_gate_shell_block
+    from sase.plan_shell.create import plan_gate_shell_block, plan_gate_turn_block
 
     expected = GateShellSpec.from_mapping(
-        plan_gate_shell_block(tier),
+        plan_gate_turn_block(tier),
         branches=spec.branches,
         allow_branch_subsets=True,
     )

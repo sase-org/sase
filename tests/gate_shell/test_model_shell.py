@@ -124,11 +124,11 @@ def test_shell_survives_durable_envelope_and_request_hash(
     envelope, _adapter = load_and_verify_bundle(result.bundle_path)
     request = json.loads(result.request_path.read_text(encoding="utf-8"))
 
-    assert envelope["shell"] == request["shell"]
-    assert envelope["shell"]["pending_status"] == "WAIT"
-    assert envelope["shell"]["settled_status"] == "DONE"
-    assert envelope["shell"]["workspace"] == "release"
-    assert envelope["shell"]["next"]["fork"] == "shell"
+    assert envelope["turn"] == request["turn"]
+    assert envelope["turn"]["pending_status"] == "WAIT"
+    assert envelope["turn"]["settled_status"] == "DONE"
+    assert envelope["turn"]["workspace"] == "release"
+    assert envelope["turn"]["next"]["fork"] == "turn"
     assert request_sha256(envelope) == result.hashes["request"]
 
 
@@ -140,7 +140,7 @@ def test_shell_block_derives_gate_shell_continuation_mode() -> None:
     spec = GateSpec.from_mapping(raw)
 
     assert spec.shell is not None
-    assert spec.continuation_mode == "gate_shell"
+    assert spec.continuation_mode == "gate_turn"
 
 
 def test_shell_block_rejects_explicit_none_continuation_mode() -> None:
@@ -206,12 +206,12 @@ def test_shell_block_custom_gate_registers_and_lists_row_end_to_end(
     request_id = "shell-row-custom"
     creation = create_gate_shell(_shell_row_request(request_id))
 
-    assert creation.gate.continuation_mode == "gate_shell"
+    assert creation.gate.continuation_mode == "gate_turn"
     envelope = json.loads(
         (creation.gate.bundle_path / "request.json").read_text(encoding="utf-8")
     )
-    assert envelope["continuation_mode"] == "gate_shell"
-    assert isinstance(envelope.get("shell"), dict)
+    assert envelope["continuation_mode"] == "gate_turn"
+    assert isinstance(envelope.get("turn"), dict)
 
     record = find_gate_shell_by_gate_id(project, request_id)
     assert record is not None
@@ -241,11 +241,11 @@ def test_direct_create_gate_with_shell_block_fails_loudly(
     with pytest.raises(GateError) as exc_info:
         create_gate(_shell_row_request(request_id))
 
-    assert exc_info.value.code == "missing_gate_shell_row"
-    assert exc_info.value.target == "shell"
+    assert exc_info.value.code == "missing_gate_turn_row"
+    assert exc_info.value.target == "turn"
     assert "create_gate_shell" in str(exc_info.value)
 
     with pytest.raises(GateError) as obj_exc_info:
         create_gate(GateSpec.from_mapping(_shell_row_request("shell-row-obj")))
 
-    assert obj_exc_info.value.code == "missing_gate_shell_row"
+    assert obj_exc_info.value.code == "missing_gate_turn_row"

@@ -382,14 +382,18 @@ def _agent_from_summary(
         monitor_command=optional_str(fact("monitor_command")),
         monitor_label=optional_str(fact("monitor_label")),
         monitor_start_status=_shell_status(
-            fact("shell_start_status"),
+            fact("turn_start_status")
+            if fact("turn_start_status") is not None
+            else fact("shell_start_status"),
             is_shell=is_monitor,
             fallback=_shell_pair_status(
                 status, is_shell=is_monitor, active=monitor_state == "running"
             ),
         ),
         monitor_stop_status=_shell_status(
-            fact("shell_stop_status"),
+            fact("turn_stop_status")
+            if fact("turn_stop_status") is not None
+            else fact("shell_stop_status"),
             is_shell=is_monitor,
             fallback=_shell_pair_status(
                 status, is_shell=is_monitor, active=monitor_state != "running"
@@ -401,14 +405,18 @@ def _agent_from_summary(
         gate_label=optional_str(fact("gate_label")),
         gate_accent=optional_str(fact("gate_accent")),
         gate_start_status=_shell_status(
-            fact("shell_start_status"),
+            fact("turn_start_status")
+            if fact("turn_start_status") is not None
+            else fact("shell_start_status"),
             is_shell=is_gate,
             fallback=_shell_pair_status(
                 status, is_shell=is_gate, active=gate_state == "pending"
             ),
         ),
         gate_stop_status=_shell_status(
-            fact("shell_stop_status"),
+            fact("turn_stop_status")
+            if fact("turn_stop_status") is not None
+            else fact("shell_stop_status"),
             is_shell=is_gate,
             fallback=_shell_pair_status(
                 status, is_shell=is_gate, active=gate_state != "pending"

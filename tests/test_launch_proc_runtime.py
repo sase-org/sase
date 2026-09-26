@@ -39,7 +39,7 @@ from sase.core.agent_launch_wire import (
 from sase.procs import wait_for_proc
 from sase.procs.models import (
     DETACHED_PROC_KIND,
-    PROC_LIFECYCLE_PROC_SHELL,
+    PROC_LIFECYCLE_NAMED_PROC,
     XPROMPT_PROC_ORIGIN,
     Proc,
 )
@@ -80,7 +80,7 @@ def _proc_unit(
     language: str = "bash",
     workspace: bool = False,
     cwd: str | None = None,
-    shell_name: str | None = None,
+    proc_name: str | None = None,
     label: str | None = None,
     timeout: str | None = None,
     logical_id: str = "unit-1",
@@ -94,7 +94,7 @@ def _proc_unit(
             code=make_code_value(source, language, language),
             workspace=workspace,
             cwd=cwd,
-            shell_name=shell_name,
+            proc_name=proc_name,
             label=label,
             timeout=timeout,
             selected_project=selected_project,
@@ -126,13 +126,13 @@ def _proc_row(
     *,
     proc_id: str,
     status: str = "running",
-    shell_name: str = "checks",
+    proc_name: str = "checks",
     project: str | None = "sase",
     xprompt_proc: dict[str, Any] | None = None,
 ) -> Proc:
     return Proc(
         proc_id=proc_id,
-        label=shell_name,
+        label=proc_name,
         kind=DETACHED_PROC_KIND,
         status=status,
         command=["bash", "script.sh"],
@@ -140,9 +140,9 @@ def _proc_row(
         origin=XPROMPT_PROC_ORIGIN,
         created_at="2026-09-17T00:00:00+00:00",
         log_path="/tmp/proc.log",
-        lifecycle=PROC_LIFECYCLE_PROC_SHELL,
+        lifecycle=PROC_LIFECYCLE_NAMED_PROC,
         project=project,
-        shell_name=shell_name,
+        proc_name=proc_name,
         xprompt_proc=xprompt_proc or {"code_digest": "digest"},
     )
 
@@ -199,7 +199,7 @@ def test_bash_proc_runs_without_agent_artifacts(
     unit = _proc_unit(
         f"printf ready > {marker}\nprintf env=$SASE_AGENT.\\n",
         cwd=str(tmp_path),
-        shell_name="checks",
+        proc_name="checks",
     )
     ok, identity, message, spawned = dispatch_proc_unit(
         unit,
@@ -212,8 +212,8 @@ def test_bash_proc_runs_without_agent_artifacts(
     finished = wait_for_proc(identity, timeout=10)
     assert finished.status == "success"
     assert finished.origin == "xprompt-proc"
-    assert finished.lifecycle == "proc-shell"
-    assert finished.shell_name == "checks"
+    assert finished.lifecycle == "named-proc"
+    assert finished.proc_name == "checks"
     assert finished.xprompt_proc is not None
     assert finished.xprompt_proc["code_language"] == "bash"
     assert marker.read_text(encoding="utf-8") == "ready"
@@ -242,7 +242,7 @@ def test_proc_dispatch_rebinds_launch_hold_and_settlement_releases_it(
     unit = _proc_unit(
         "sleep 1",
         cwd=str(tmp_path),
-        shell_name="held-proc",
+        proc_name="held-proc",
         hold=HoldFieldsWire(future=True),
     )
 
@@ -275,7 +275,7 @@ def test_proc_dispatch_releases_launch_hold_when_rebind_fails(
     unit = _proc_unit(
         "echo held",
         cwd=str(tmp_path),
-        shell_name="held-proc",
+        proc_name="held-proc",
         hold=HoldFieldsWire(future=True),
     )
     proc = _proc_row(proc_id="proc-rebind-fails")
@@ -320,7 +320,7 @@ def test_proc_dispatch_releases_rebound_hold_when_proc_is_already_terminal(
     unit = _proc_unit(
         "echo held",
         cwd=str(tmp_path),
-        shell_name="held-proc",
+        proc_name="held-proc",
         hold=HoldFieldsWire(future=True),
     )
     proc = _proc_row(proc_id="proc-terminal", status="success")
@@ -411,7 +411,7 @@ def test_standalone_proc_resolves_user_installed_command_and_preserves_host_env(
     _write_fake_just(user_bin, marker)
     monkeypatch.setenv("PATH", f"{user_bin}:{os.environ.get('PATH', '')}")
 
-    unit = _proc_unit("just", cwd=str(tmp_path), shell_name="checks")
+    unit = _proc_unit("just", cwd=str(tmp_path), proc_name="checks")
     ok, identity, message, _spawned = dispatch_proc_unit(
         unit,
         "fp-just-immediate",
@@ -496,7 +496,7 @@ def test_proc_metadata_preserves_label_provenance_through_prepare(
     unit = _proc_unit(
         "printf ready\n",
         cwd=str(tmp_path),
-        shell_name="checks",
+        proc_name="checks",
         label="Verify docs",
     )
 
@@ -514,13 +514,13 @@ def test_proc_metadata_preserves_label_provenance_through_prepare(
     assert submitted is not None
     assert submitted.xprompt_proc is not None
     assert submitted.xprompt_proc["label"] == "Verify docs"
-    assert submitted.xprompt_proc["shell_name"] == "checks"
+    assert submitted.xprompt_proc["proc_name"] == "checks"
 
     finished = wait_for_proc(identity, timeout=10)
     assert finished.status == "success"
     assert finished.xprompt_proc is not None
     assert finished.xprompt_proc["label"] == "Verify docs"
-    assert finished.xprompt_proc["shell_name"] == "checks"
+    assert finished.xprompt_proc["proc_name"] == "checks"
     assert finished.xprompt_proc["code_digest"]
 
 
@@ -613,7 +613,7 @@ def test_duplicate_fingerprint_does_not_spawn_a_second_child(
 ) -> None:
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    unit = _proc_unit("sleep 2", cwd=str(tmp_path), shell_name="once")
+    unit = _proc_unit("sleep 2", cwd=str(tmp_path), proc_name="once")
     context = {"source_cwd": str(tmp_path), "python_executable": sys.executable}
     ok1, first, message1, _spawned = dispatch_proc_unit(unit, "fp-once", context)
     assert ok1, message1

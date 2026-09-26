@@ -28,7 +28,7 @@ def _gate_wire(path: str) -> AgentArtifactRecordWire:
             name=Path(path).name,
             agent_session="lane",
             agent_session_role="gate",
-            agent_session_shell=AgentSessionShellWire(
+            agent_session_turn=AgentSessionShellWire(
                 kind="gate",
                 id="gate-1",
                 state="pending",
@@ -49,7 +49,7 @@ def test_indexed_lookup_records_duration(
     )
     wire = _gate_wire("/tmp/proj/artifacts/ace-run/20260812120000")
     monkeypatch.setattr(
-        gate_store, "_rust_find_gate_shell_by_gate_id", lambda *a, **k: wire
+        gate_store, "_rust_find_gate_turn_by_gate_id", lambda *a, **k: wire
     )
 
     record = gate_store.find_gate_shell_by_gate_id("proj", "gate-1")

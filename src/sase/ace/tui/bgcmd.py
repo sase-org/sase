@@ -115,11 +115,11 @@ def _info_from_proc(proc: Proc) -> BackgroundCommandInfo:
 
 
 def _read_oneshot_infos() -> dict[int, BackgroundCommandInfo]:
-    from sase.ace.dismissed_proc_shells import load_dismissed_proc_shells
+    from sase.ace.dismissed_procs import load_dismissed_procs
     from sase.procs import read_procs
     from sase.procs.oneshot import oneshot_display_rows
 
-    rows = oneshot_display_rows(read_procs(), dismissed=load_dismissed_proc_shells())
+    rows = oneshot_display_rows(read_procs(), dismissed=load_dismissed_procs())
     return {slot: _info_from_proc(proc) for slot, proc in rows.items()}
 
 
@@ -299,9 +299,9 @@ def dismiss_background_command(slot: int, info: BackgroundCommandInfo) -> bool:
     the run stays in ``sase proc list`` with its exit code.
     """
     if info.proc_id is not None:
-        from sase.ace.dismissed_proc_shells import record_dismissed_proc_shells
+        from sase.ace.dismissed_procs import record_dismissed_procs
 
-        return record_dismissed_proc_shells([info.proc_id])
+        return record_dismissed_procs([info.proc_id])
     slot_dir = _slot_dir(slot)
     if slot_dir.exists():
         shutil.rmtree(slot_dir, ignore_errors=True)

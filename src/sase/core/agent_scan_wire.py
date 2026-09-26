@@ -93,11 +93,15 @@ from sase.core.agent_scan_wire_conversion import (
     agent_scan_wire_from_dict,
     agent_scan_wire_to_json_dict,
 )
-from sase.core.agent_scan_wire_agent_session_shell import (
+from sase.core.agent_scan_wire_agent_session_turn import (
     AgentSessionShellGateWire,
     AgentSessionShellMonitorWire,
     AgentSessionShellWire,
+    AgentSessionTurnGateWire,
+    AgentSessionTurnMonitorWire,
+    AgentSessionTurnWire,
     agent_session_shell_from_mapping,
+    agent_session_turn_from_mapping,
 )
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
@@ -162,6 +166,9 @@ __all__ = [
     "AgentSessionShellGateWire",
     "AgentSessionShellMonitorWire",
     "AgentSessionShellWire",
+    "AgentSessionTurnGateWire",
+    "AgentSessionTurnMonitorWire",
+    "AgentSessionTurnWire",
     "PendingQuestionMarkerWire",
     "PlanPathMarkerWire",
     "PromptStepMarkerWire",
@@ -179,4 +186,5 @@ __all__ = [
     "agent_scan_wire_from_dict",
     "agent_scan_wire_to_json_dict",
     "agent_session_shell_from_mapping",
+    "agent_session_turn_from_mapping",
 ]

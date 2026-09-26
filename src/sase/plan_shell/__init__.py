@@ -5,6 +5,7 @@ from typing import Any
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "create_plan_gate_shell": ("sase.plan_shell.create", "create_plan_gate_shell"),
     "plan_gate_shell_block": ("sase.plan_shell.create", "plan_gate_shell_block"),
+    "plan_gate_turn_block": ("sase.plan_shell.create", "plan_gate_turn_block"),
     "plan_result_from_gate_creation": (
         "sase.plan_shell.followup",
         "plan_result_from_gate_creation",
@@ -33,5 +34,6 @@ _PEP562_HOOKS = (__getattr__, __dir__)
 __all__ = [
     "create_plan_gate_shell",
     "plan_gate_shell_block",
+    "plan_gate_turn_block",
     "plan_result_from_gate_creation",
 ]

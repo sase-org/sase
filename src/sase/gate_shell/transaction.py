@@ -66,9 +66,9 @@ class GateShellCreation:
         return not self.record.is_terminal
 
     def to_dict(self) -> dict[str, Any]:
-        """Return the CLI descriptor with additive gate-shell metadata."""
+        """Return the CLI descriptor with additive gate-turn metadata."""
         payload = self.gate.to_dict()
-        payload["gate_shell"] = {
+        payload["gate_turn"] = {
             "gate_id": self.record.gate_id,
             "member_agent_name": self.record.member_agent_name,
             "artifacts_dir": self.record.artifacts_dir,

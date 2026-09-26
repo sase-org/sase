@@ -178,7 +178,7 @@ def test_launch_unit_armer_for_proc_unit_sets_no_identity() -> None:
                 preview="echo hi",
                 info_string=None,
             ),
-            shell_name="myshell",
+            proc_name="myshell",
         ),
     )
 

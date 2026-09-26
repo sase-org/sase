@@ -13,8 +13,12 @@ from ._fleet_agents_scalars import int_or_none, mapping, optional_str
 from .agent import Agent, AgentType
 
 
-_NESTED_ROLES = frozenset({"member", "monitor", "gate", "proc", "historical_shell"})
-_NESTED_KINDS = frozenset({"monitor", "gate", "proc", "historical_shell"})
+_NESTED_ROLES = frozenset(
+    {"member", "monitor", "gate", "proc", "historical_shell", "historical_turn"}
+)
+_NESTED_KINDS = frozenset(
+    {"monitor", "gate", "proc", "historical_shell", "historical_turn"}
+)
 
 _SummaryPair = tuple[Mapping[str, Any], Agent]
 
@@ -86,6 +90,7 @@ def _summary_owner_lineage_keys(summary: Mapping[str, Any]) -> tuple[str, ...]:
         nested_logical.get("agent_session_id"),
         nested_logical.get("family_id"),
         exact_locator.get("run_id"),
+        exact_locator.get("turn_id"),
         exact_locator.get("shell_id"),
     )
     seen: set[str] = set()

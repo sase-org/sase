@@ -35,7 +35,7 @@ def test_settlement_releases_proc_hold_before_publishing_terminal_row(
         )
     )
     proc = outcome.proc
-    assert proc.lifecycle == "proc-shell"
+    assert proc.lifecycle == "named-proc"
     arm_agent_hold(
         armer={
             "kind": "proc",

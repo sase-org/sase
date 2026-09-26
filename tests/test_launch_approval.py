@@ -172,7 +172,7 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
         "timeout",
         "failed",
     ]
-    shell = envelope["shell"]
+    shell = envelope["turn"]
     assert shell["pending_status"] == "LAUNCH"
     assert shell["branches"]["approve"]["status"] == "LAUNCHED"
     assert shell["branches"]["approve"]["prompt"]
