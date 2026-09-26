@@ -128,7 +128,11 @@ def tree_parent_lookup(agents: Iterable[Agent]) -> dict[str, Agent]:
                 agent
             )
         if agent.raw_suffix and (
-            not agent.is_child_row or agent.raw_suffix not in lookup
+            # Inlined ``is_child_row`` (``child_linkage is not ROOT`` is
+            # exactly these two ``None`` checks): the property call per
+            # agent dominates this loop on wide rosters.
+            (agent.parent_workflow is None and agent.parent_timestamp is None)
+            or agent.raw_suffix not in lookup
         ):
             # Some legacy workflow children repeat their parent's suffix.
             # Prefer the root row while still indexing uniquely-keyed child
@@ -169,11 +173,41 @@ def presentation_anchor_lookup(
     never disappear or trigger an unbounded ancestry walk.
     """
     lookup = parent_lookup if parent_lookup is not None else tree_parent_lookup(agents)
-    input_positions = {id(agent): i for i, agent in enumerate(agents)}
+    # The cycle tiebreak below re-iterates the roster, so normalize
+    # one-shot iterables once up front; lists skip the copy.
+    if not isinstance(agents, list):
+        agents = list(agents)
+    # Built lazily on the first cycle only: well-formed rosters never
+    # need input positions, and the dict costs a full pass by itself.
+    input_positions: dict[int, int] | None = None
     resolved: dict[int, Agent] = {}
 
     for agent in agents:
-        if id(agent) in resolved:
+        agent_id = id(agent)
+        if agent_id in resolved:
+            continue
+
+        # The common shape needs no walk: a root anchors to itself and a
+        # row whose parent already resolved shares its anchor. Either
+        # outcome matches the general walk below exactly (a resolved
+        # anchor is final, and a missing parent terminates the path at
+        # the row itself); anything else falls through to it.
+        # ``_tree_parent`` is inlined (same field reads): the call per
+        # agent dominates this loop on wide rosters. A truthy timestamp
+        # already implies the child row, so the child check collapses
+        # into the timestamp read.
+        _tpk = agent.tree_parent_key
+        if _tpk:
+            parent = lookup.get(_tpk)
+        else:
+            _pts = agent.parent_timestamp
+            parent = lookup.get(_pts) if _pts else None
+        if parent is None:
+            resolved[agent_id] = agent
+            continue
+        parent_anchor = resolved.get(id(parent))
+        if parent_anchor is not None:
+            resolved[agent_id] = parent_anchor
             continue
 
         path: list[Agent] = []
@@ -188,12 +222,16 @@ def presentation_anchor_lookup(
 
             cycle_start = path_positions.get(current_id)
             if cycle_start is not None:
+                if input_positions is None:
+                    input_positions = {id(row): i for i, row in enumerate(agents)}
+                positions = input_positions
+                roster_len = len(agents)
                 cycle = path[cycle_start:]
                 anchor = min(
                     cycle,
                     key=lambda row: (
                         agent_tree_depth(row),
-                        input_positions.get(id(row), len(agents)),
+                        positions.get(id(row), roster_len),
                     ),
                 )
                 for row in cycle:

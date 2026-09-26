@@ -33,7 +33,6 @@ from sase.core.agent_tribe import (
 from .agent import Agent
 from ._agent_tree import (
     TreeIndex,
-    presentation_anchor,
     presentation_anchor_lookup,
     tree_parent_lookup,
 )
@@ -96,8 +95,15 @@ def _panel_key_for_agent(
     parent_lookup: dict[str, Agent],
     anchors: dict[int, Agent],
 ) -> PanelKey:
-    target = presentation_anchor(agent, parent_lookup, anchors)
-    return normalize_panel_key(target.tribe)
+    # Inlined ``presentation_anchor`` hit path (``anchors`` is never
+    # ``None`` at any caller) plus the ``normalize_panel_key`` body: the
+    # call overheads exceed the dict hit and the tribe check on wide
+    # rosters.
+    target = anchors.get(id(agent), agent)
+    tribe = target.tribe
+    if not tribe or tribe == DEFAULT_AGENT_TRIBE:
+        return None
+    return tribe
 
 
 def agent_is_rendered_in_agents_panel(agent: Agent) -> bool:
@@ -125,7 +131,10 @@ def panel_keys_for(
     if not agents:
         return [None]
 
-    rendered_agents = [a for a in agents if agent_is_rendered_in_agents_panel(a)]
+    # Inlined ``agent_is_rendered_in_agents_panel`` (a ``STARTING`` row
+    # never renders); the call overhead exceeds the status check on
+    # wide rosters.
+    rendered_agents = [a for a in agents if a.status != "STARTING"]
     if tree_state is None:
         parent_lookup = _build_parent_lookup(agents)
         anchors = presentation_anchor_lookup(agents, parent_lookup)

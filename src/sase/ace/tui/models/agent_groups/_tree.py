@@ -13,7 +13,6 @@ from .._agent_clan import sase_agent_status_counts
 from .._agent_tree import (
     TreeIndex,
     agent_is_tree_child,
-    presentation_anchor,
     presentation_anchor_lookup,
     tree_parent_lookup,
 )
@@ -127,7 +126,10 @@ def _grouped_walk(
     else:
         keys_by_anchor: dict[int, GroupingKeys] = {}
         for agent in agents:
-            anchor = presentation_anchor(agent, parent_lookup, anchors)
+            # Inlined ``presentation_anchor`` hit path (``anchors`` is
+            # never ``None`` here): the call overhead exceeds the dict
+            # hit on wide rosters.
+            anchor = anchors.get(id(agent), agent)
             cached = keys_by_anchor.get(id(anchor))
             if cached is None:
                 cached = grouping_keys_for(
@@ -360,24 +362,54 @@ def build_agent_tree(
     subgroup_indices: dict[tuple[str, str], list[int]] = {}
     root_indices: dict[tuple[tuple[str, ...], str], list[int]] = {}
     prefix_indices: dict[tuple[tuple[str, ...], str, str], list[int]] = {}
-    for i in walk:
-        k = keys_per_agent[i]
-        proj_indices.setdefault(k.project, []).append(i)
-        if use_cs:
-            cs_indices.setdefault((k.project, k.patch), []).append(i)
-            parent: tuple[str, ...] = (k.project, k.patch)
-        elif mode is GroupingMode.BY_MACHINE:
-            parent = (k.project, k.subgroup)
-        else:
-            parent = (k.project,)
-        if mode in {GroupingMode.BY_DATE, GroupingMode.BY_MACHINE} and k.subgroup:
-            subgroup_indices.setdefault((k.project, k.subgroup), []).append(i)
-        if k.name_root:
-            root_indices.setdefault((parent, k.name_root), []).append(i)
-        if k.name_root and k.name_prefix:
-            prefix_indices.setdefault((parent, k.name_root, k.name_prefix), []).append(
-                i
-            )
+    cs_counts: dict[tuple[str, str], int] = {}
+    subgroup_counts: dict[tuple[str, str], int] = {}
+    root_counts: dict[tuple[tuple[str, ...], str], int] = {}
+    prefix_counts: dict[tuple[tuple[str, ...], str, str], int] = {}
+    if materialize_indices:
+        for i in walk:
+            k = keys_per_agent[i]
+            proj_indices.setdefault(k.project, []).append(i)
+            if use_cs:
+                cs_indices.setdefault((k.project, k.patch), []).append(i)
+                parent: tuple[str, ...] = (k.project, k.patch)
+            elif mode is GroupingMode.BY_MACHINE:
+                parent = (k.project, k.subgroup)
+            else:
+                parent = (k.project,)
+            if mode in {GroupingMode.BY_DATE, GroupingMode.BY_MACHINE} and k.subgroup:
+                subgroup_indices.setdefault((k.project, k.subgroup), []).append(i)
+            if k.name_root:
+                root_indices.setdefault((parent, k.name_root), []).append(i)
+            if k.name_root and k.name_prefix:
+                prefix_indices.setdefault(
+                    (parent, k.name_root, k.name_prefix), []
+                ).append(i)
+    else:
+        # Counts only: banner emission decisions read membership sizes,
+        # and no caller on this path consumes member index tuples, so
+        # the per-agent index lists (and their append traffic) are
+        # skipped. Key derivation per agent is identical to the branch
+        # above, so the same banners emit.
+        for i in walk:
+            k = keys_per_agent[i]
+            if use_cs:
+                cs_key = (k.project, k.patch)
+                cs_counts[cs_key] = cs_counts.get(cs_key, 0) + 1
+                parent = (k.project, k.patch)
+            elif mode is GroupingMode.BY_MACHINE:
+                parent = (k.project, k.subgroup)
+            else:
+                parent = (k.project,)
+            if mode in {GroupingMode.BY_DATE, GroupingMode.BY_MACHINE} and k.subgroup:
+                sg_key = (k.project, k.subgroup)
+                subgroup_counts[sg_key] = subgroup_counts.get(sg_key, 0) + 1
+            if k.name_root:
+                root_key = (parent, k.name_root)
+                root_counts[root_key] = root_counts.get(root_key, 0) + 1
+            if k.name_root and k.name_prefix:
+                prefix_key = (parent, k.name_root, k.name_prefix)
+                prefix_counts[prefix_key] = prefix_counts.get(prefix_key, 0) + 1
 
     entries: list[TreeEntry] = []
     cur_proj: str | None = None
@@ -391,14 +423,32 @@ def build_agent_tree(
     cur_root_collapsed = False
     cur_prefix_collapsed = False
 
-    def root_has_prefix_groups(parent_key: tuple[str, ...], name_root: str) -> bool:
+    def root_has_prefix_groups(
+        parent_key: tuple[str, ...],
+        name_root: str,
+        prefix_sizes: dict[tuple[tuple[str, ...], str, str], int] | None = None,
+    ) -> bool:
+        if prefix_sizes is not None:
+            return any(
+                p_parent == parent_key and p_root == name_root and count >= 2
+                for (p_parent, p_root, _prefix), count in prefix_sizes.items()
+            )
         return any(
             p_parent == parent_key and p_root == name_root and len(indices) >= 2
             for (p_parent, p_root, _prefix), indices in prefix_indices.items()
         )
 
-    def subgroup_has_root_groups(l0: str, subgroup: str) -> bool:
+    def subgroup_has_root_groups(
+        l0: str,
+        subgroup: str,
+        root_sizes: dict[tuple[tuple[str, ...], str], int] | None = None,
+    ) -> bool:
         parent_key = (l0, subgroup)
+        if root_sizes is not None:
+            return any(
+                p_parent == parent_key and count >= 2
+                for (p_parent, _root), count in root_sizes.items()
+            )
         return any(
             p_parent == parent_key and len(indices) >= 2
             for (p_parent, _root), indices in root_indices.items()
@@ -483,7 +533,10 @@ def build_agent_tree(
             cur_prefix = ""
             cur_root_collapsed = False
             cur_prefix_collapsed = False
-            subgroup_count = len(subgroup_indices.get((k.project, k.subgroup), []))
+            if materialize_indices:
+                subgroup_count = len(subgroup_indices.get((k.project, k.subgroup), []))
+            else:
+                subgroup_count = subgroup_counts.get((k.project, k.subgroup), 0)
             if _should_emit_subgroup_banner(mode, k.subgroup, subgroup_count):
                 subgroup_key: GroupKey = (k.project, k.subgroup)
                 cur_subgroup_collapsed = registry.is_collapsed(subgroup_key)
@@ -500,7 +553,11 @@ def build_agent_tree(
                             ),
                             is_collapsed=cur_subgroup_collapsed,
                             has_child_groups=(
-                                subgroup_has_root_groups(k.project, k.subgroup)
+                                subgroup_has_root_groups(
+                                    k.project,
+                                    k.subgroup,
+                                    None if materialize_indices else root_counts,
+                                )
                                 if mode is GroupingMode.BY_MACHINE
                                 else False
                             ),
@@ -515,7 +572,15 @@ def build_agent_tree(
             cur_prefix = ""
             cur_root_collapsed = False
             cur_prefix_collapsed = False
-            if k.name_root and len(root_indices[(parent_key, k.name_root)]) >= 2:
+            if (
+                k.name_root
+                and (
+                    root_counts[(parent_key, k.name_root)]
+                    if not materialize_indices
+                    else len(root_indices[(parent_key, k.name_root)])
+                )
+                >= 2
+            ):
                 deep_key: GroupKey = (*parent_key, k.name_root)
                 cur_root_collapsed = registry.is_collapsed(deep_key)
                 entries.append(
@@ -531,7 +596,9 @@ def build_agent_tree(
                             ),
                             is_collapsed=cur_root_collapsed,
                             has_child_groups=root_has_prefix_groups(
-                                parent_key, k.name_root
+                                parent_key,
+                                k.name_root,
+                                None if materialize_indices else prefix_counts,
                             ),
                         ),
                     )
@@ -545,7 +612,12 @@ def build_agent_tree(
             if (
                 k.name_root
                 and k.name_prefix
-                and len(prefix_indices[(parent_key, k.name_root, k.name_prefix)]) >= 2
+                and (
+                    prefix_counts[(parent_key, k.name_root, k.name_prefix)]
+                    if not materialize_indices
+                    else len(prefix_indices[(parent_key, k.name_root, k.name_prefix)])
+                )
+                >= 2
             ):
                 prefix_key: GroupKey = (*parent_key, k.name_root, k.name_prefix)
                 cur_prefix_collapsed = registry.is_collapsed(prefix_key)
@@ -571,7 +643,10 @@ def build_agent_tree(
                 )
         if cur_prefix_collapsed:
             continue
-        entries.append(TreeEntry(kind="agent", agent_idx=i))
+        # Positional construction in field order: agent entries are the
+        # hottest allocation in the tree build. Keep the order in sync
+        # with the dataclass definition.
+        entries.append(TreeEntry("agent", None, i))
 
     return entries
 

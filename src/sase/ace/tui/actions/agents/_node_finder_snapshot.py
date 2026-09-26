@@ -217,33 +217,77 @@ def _snapshot_all_facets(
     is_gate_map: dict[int, bool] = {}
     is_child_row_map: dict[int, bool] = {}
     describe_facts: dict[int, tuple[Any, ...]] = {}
+    # ``humanize_cl_name`` is module-cached, but the plain branch below
+    # still pays a call plus a tuple-keyed lookup per agent for a value
+    # that repeats per Patch: one snapshot-local entry per distinct name.
+    _plain_display_cache: dict[str, str] = {}
     for agent in complete:
         key = id(agent)
         # ``agent_parent_fold_key`` is the first truthy link (a falsy
         # ``tree_parent_key`` falls through exactly like the ``if`` does);
         # ``agent_fold_key`` is the clan key for clan containers and the
         # raw suffix otherwise. Inlining both skips two calls per agent.
-        parent_keys[key] = agent.tree_parent_key or agent.parent_timestamp or None
-        if agent.is_clan_container and agent.agent_clan:
+        # Repeated fields are bound once: the loop below re-reads the
+        # parent timestamp and Patch name several times per agent.
+        parent_timestamp = agent.parent_timestamp
+        parent_keys[key] = agent.tree_parent_key or parent_timestamp or None
+        is_clan = agent.is_clan_container
+        agent_clan = agent.agent_clan if is_clan else None
+        raw_suffix = agent.raw_suffix
+        cl_name = agent.cl_name
+        if agent_clan:
             fold_keys[key] = agent_fold_key(agent)
         else:
-            fold_keys[key] = agent.raw_suffix or None
-        linkage = agent.child_linkage
+            fold_keys[key] = raw_suffix or None
+        # ``child_linkage`` is two ``None`` checks; inlining the field
+        # reads skips a property call per agent with identical values.
+        if agent.parent_workflow is not None:
+            linkage = AgentChildLinkage.WORKFLOW_STEP
+        elif parent_timestamp is not None:
+            linkage = AgentChildLinkage.AGENT_SESSION_MEMBER
+        else:
+            linkage = AgentChildLinkage.ROOT
         is_child_row = linkage is not AgentChildLinkage.ROOT
         # ``agent_tree_depth`` prefers the stored depth and falls back to
         # child-row detection; the linkage read above already answers it.
         tree_depth = agent.tree_depth
         depths[key] = tree_depth if tree_depth > 0 else (1 if is_child_row else 0)
-        identity_of[key] = agent.identity
+        # Identity's fallthrough for ordinary rows is exactly
+        # ``(agent_type, cl_name, raw_suffix)`` (see ``Agent.identity``):
+        # only clan/imported/remote containers take another branch, so
+        # only they pay the property call.
+        if (
+            is_clan
+            or agent.is_imported_agent_session_container
+            or agent.is_remote_agent_session_container
+        ):
+            identity_of[key] = agent.identity
+        else:
+            identity_of[key] = (
+                agent.agent_type,
+                cl_name,
+                raw_suffix,
+            )
         if agent.is_hidden_step:
             hidden_steps.add(key)
         # The monitor/gate predicates stay the single implementation in
-        # their state modules; reading the three metadata fields once here
-        # skips two property indirections per agent.
+        # their state modules. A falsy session role can never be a durable
+        # gate member (``is_real_turn_member`` needs a non-blank role
+        # string, and the gate leg never consults the suffix fallback), so
+        # the gate call is skipped outright; the monitor call is skipped
+        # when the suffix fallback has nothing to parse either. Rows
+        # carrying either field take the exact predicate calls below.
         agent_session_role = agent.agent_session_role
-        is_monitor = is_monitor_member_role(agent_session_role, agent.role_suffix)
-        is_gate = is_real_gate_member(agent_session_role, agent.gate_id)
-        is_clan = agent.is_clan_container
+        if agent_session_role:
+            role_suffix = agent.role_suffix
+            is_monitor = is_monitor_member_role(agent_session_role, role_suffix)
+            is_gate = is_real_gate_member(agent_session_role, agent.gate_id)
+        elif agent.role_suffix:
+            is_monitor = is_monitor_member_role(None, agent.role_suffix)
+            is_gate = False
+        else:
+            is_monitor = False
+            is_gate = False
         is_proc = agent.is_proc_shell
         is_wf_step = linkage is AgentChildLinkage.WORKFLOW_STEP
         is_session_child = linkage is AgentChildLinkage.AGENT_SESSION_MEMBER
@@ -254,7 +298,7 @@ def _snapshot_all_facets(
         # linkage through the property. The container flag adds the member
         # check from its body.
         is_root_entry = (linkage is AgentChildLinkage.ROOT) and (
-            agent.plan_chain_root or agent.agent_session_role == "root"
+            agent.plan_chain_root or agent_session_role == "root"
         )
         if (
             not is_clan
@@ -272,21 +316,28 @@ def _snapshot_all_facets(
             # The display name inlines ``display_name``'s tail: the plain
             # condition already excluded clan/proc/gate shapes and
             # non-RUNNING types, so only the project-agent branch can still
-            # apply; anything else humanizes the cl name.
+            # apply; anything else humanizes the cl name. The humanized
+            # value repeats per Patch, so one snapshot-local entry per
+            # distinct cl name replaces a call per agent.
             project_display = agent.project_display_name
             if (
                 project_display
                 and agent.project_file
-                and agent.cl_name == project_file_parent_name(agent.project_file)
+                and cl_name == project_file_parent_name(agent.project_file)
             ):
                 plain_display = project_display
             else:
-                plain_display = humanize_cl_name(agent.cl_name)
+                try:
+                    plain_display = _plain_display_cache[cl_name]
+                except KeyError:
+                    plain_display = _plain_display_cache[cl_name] = humanize_cl_name(
+                        cl_name
+                    )
             describe_facts[key] = (
                 agent.presented_agent_name,
                 agent.agent_name,
                 plain_display,
-                agent.cl_name,
+                cl_name,
                 agent.is_pre_prompt_step,
             )
             continue
@@ -338,6 +389,7 @@ def _unmet_with_facets(
     parents: dict[str, Agent],
     parent_keys: dict[int, str | None],
     hidden_steps: set[int],
+    identity_of: dict[int, AgentIdentity] | None = None,
 ) -> dict[AgentIdentity, tuple[str, ...]]:
     """Return each row's unmet ancestor fold keys, nearest first.
 
@@ -360,11 +412,8 @@ def _unmet_with_facets(
 
     bound = len(complete) + 1
     get_level = fold_manager.get
-    # ``memo`` maps ``id(agent)`` to ``(requirements, valid)`` where
-    # requirements lists ``(fold_key, level)`` nearest-first exactly as the
-    # historical walk. ``met`` memoizes the fold-level check per distinct
-    # ``(fold_key, level)`` pair.
-    memo: dict[int, tuple[tuple[tuple[str, FoldLevel], ...], bool]] = {}
+    # ``met`` memoizes the fold-level check per distinct ``(fold_key,
+    # level)`` pair.
     met: dict[tuple[str, FoldLevel], bool] = {}
 
     def _met(fold_key: str, level: FoldLevel) -> bool:
@@ -374,6 +423,131 @@ def _unmet_with_facets(
             result = fold_requirement_is_met(get_level(fold_key), level)
             met[(fold_key, level)] = result
             return result
+
+    if not hidden_steps:
+        # Without hidden steps every requirement in the roster carries
+        # ``EXPANDED`` (``FULLY_EXPANDED`` only guards hidden non-clan
+        # rows), so chains resolve per distinct parent fold key instead
+        # of per agent: members under one clan container share one walk.
+        # Cycle, bound, and missing-parent guards match the per-agent
+        # walk exactly, so rows with invalid ancestry are omitted the
+        # same way; ``_met`` still consults live fold levels per key.
+        key_memo: dict[str, tuple[tuple[tuple[str, FoldLevel], ...], bool]] = {}
+
+        def _resolve_key(
+            start_key: str,
+        ) -> tuple[tuple[tuple[str, FoldLevel], ...], bool]:
+            """Resolve one parent key's chain iteratively.
+
+            Returns ``(requirements, valid)`` where requirements lists
+            ``(fold_key, EXPANDED)`` nearest-first for a hypothetical row
+            whose own edge is ``start_key``. Shared ancestors resolve
+            once per snapshot; a cycle, a missing owner, or a chain at
+            the bound marks every key on the walk invalid, mirroring
+            the per-agent stack guards (including the memoized-ancestor
+            rewrite on bound overflow).
+            """
+            hit = key_memo.get(start_key)
+            if hit is not None:
+                return hit
+            walk_keys: list[str] = []
+            walk_set: set[str] = {start_key}
+            current_key = start_key
+            while True:
+                owner = parents.get(current_key)
+                if owner is None:
+                    for stale_key in walk_keys:
+                        key_memo[stale_key] = ((), False)
+                    key_memo[start_key] = ((), False)
+                    return (), False
+                owner_id = id(owner)
+                if owner_id in parent_keys:
+                    owner_key = parent_keys[owner_id]
+                else:
+                    owner_key = agent_parent_fold_key(owner)
+                # The current key's own edge is part of every chain
+                # through it, so it joins the walk before any break.
+                walk_keys.append(current_key)
+                if owner_key is None:
+                    base_reqs: tuple[tuple[str, FoldLevel], ...] = ()
+                    base_valid = True
+                    base_key: str | None = None
+                    break
+                base_hit = key_memo.get(owner_key)
+                if base_hit is not None:
+                    base_reqs, base_valid = base_hit
+                    base_key = owner_key
+                    break
+                if owner_key in walk_set:
+                    for stale_key in walk_keys:
+                        key_memo[stale_key] = ((), False)
+                    key_memo[start_key] = ((), False)
+                    return (), False
+                walk_set.add(owner_key)
+                current_key = owner_key
+            if not base_valid:
+                for stale_key in walk_keys:
+                    key_memo[stale_key] = ((), False)
+                assert base_key is not None
+                key_memo[base_key] = (base_reqs, False)
+                return (), False
+            requirements = base_reqs
+            for key in reversed(walk_keys):
+                if len(requirements) + 1 >= bound:
+                    for stale_key in walk_keys:
+                        key_memo[stale_key] = ((), False)
+                    if base_key is not None:
+                        key_memo[base_key] = (base_reqs, False)
+                    return (), False
+                requirements = ((key, FoldLevel.EXPANDED),) + requirements
+                key_memo[key] = (requirements, True)
+            # Every break above appended the start key to the walk, so
+            # the unwind always spliced (and memoized) it.
+            return key_memo[start_key]
+
+        # Both the chain and the unmet set depend only on the parent
+        # key, so each distinct key pays one walk and one ``_met`` scan
+        # no matter how many members share it. Identity comes from the
+        # facet table (the same value the property would build).
+        miss_memo: dict[str, tuple[str, ...]] = {}
+        unmet: dict[AgentIdentity, tuple[str, ...]] = {}
+        for agent in complete:
+            agent_id = id(agent)
+            try:
+                agent_key = parent_keys[agent_id]
+            except KeyError:
+                agent_key = agent_parent_fold_key(agent)
+            if agent_key is None:
+                continue
+            resolved = key_memo.get(agent_key)
+            if resolved is None:
+                resolved = _resolve_key(agent_key)
+            requirements, valid = resolved
+            if not valid:
+                continue
+            try:
+                missing = miss_memo[agent_key]
+            except KeyError:
+                missing = miss_memo[agent_key] = tuple(
+                    fold_key
+                    for fold_key, level in requirements
+                    if not _met(fold_key, level)
+                )
+            if missing:
+                if identity_of is not None:
+                    try:
+                        identity = identity_of[agent_id]
+                    except KeyError:
+                        identity = agent.identity
+                else:
+                    identity = agent.identity
+                unmet[identity] = missing
+        return unmet
+
+    # ``memo`` maps ``id(agent)`` to ``(requirements, valid)`` where
+    # requirements lists ``(fold_key, level)`` nearest-first exactly as the
+    # historical walk.
+    memo: dict[int, tuple[tuple[tuple[str, FoldLevel], ...], bool]] = {}
 
     def _edge(
         agent: Agent, agent_id: int
@@ -417,6 +591,31 @@ def _unmet_with_facets(
         historical ``range(bound)`` loop: a chain terminates validly only
         when its total edge count stays under ``bound``.
         """
+        agent_id = id(agent)
+        hit = memo.get(agent_id)
+        if hit is not None:
+            return hit
+        # The common shape is a single edge onto an already-resolved
+        # parent (one clan/session container above many members): splice
+        # the parent's requirements directly instead of allocating the
+        # walk stack. The checks mirror the general loop's first
+        # iteration exactly — root and missing-parent edges resolve the
+        # same way, a memoized invalid parent propagates invalid, and a
+        # chain that would overflow the bound falls through to the exact
+        # general path (including its ancestor-poisoning branch).
+        parent_key, level, parent = _edge(agent, agent_id)
+        if parent is None:
+            if parent_key is None:
+                result: tuple[tuple[tuple[str, FoldLevel], ...], bool] = ((), True)
+            else:
+                result = ((), False)
+            memo[agent_id] = result
+            return result
+        parent_hit = memo.get(id(parent))
+        if parent_hit is not None and parent_hit[1] and len(parent_hit[0]) + 1 < bound:
+            requirements = ((parent_key, level),) + parent_hit[0]
+            memo[agent_id] = (requirements, True)
+            return requirements, True
         stack: list[tuple[Agent, int, str, FoldLevel, Agent]] = []
         stack_ids: set[int] = set()
         current = agent
@@ -556,19 +755,24 @@ def _expanded_roster_keep_all(
         key = fold_keys[agent_id]
         if key is None:
             continue
+        # The child-row maps only hold non-plain rows (plain values are
+        # bools, never ``None``), so a missing id falls back to the same
+        # live read every consumer uses. ``dict.get`` beats
+        # try/except here: misses are the common case, and raising per
+        # plain row costs more than the lookup.
+        agent_is_child = is_child_row_map.get(agent_id)
+        if agent_is_child is None:
+            agent_is_child = agent.is_child_row
         existing = owners_by_key.get(key)
-        if existing is not None and (
-            not owners_child_row.get(key, existing.is_child_row)
-            or is_child_row_map.get(agent_id, agent.is_child_row)
-        ):
+        # ``owners_child_row`` is populated exactly when ``owners_by_key``
+        # is, so an existing owner always has a stored child flag: the
+        # original ``dict.get`` default only ever wasted a property call.
+        if existing is not None and (not owners_child_row[key] or agent_is_child):
             continue
-        if (
-            is_child_row_map.get(agent_id, agent.is_child_row)
-            and parent_keys[agent_id] == key
-        ):
+        if agent_is_child and parent_keys[agent_id] == key:
             continue
         owners_by_key[key] = agent
-        owners_child_row[key] = is_child_row_map.get(agent_id, agent.is_child_row)
+        owners_child_row[key] = agent_is_child
     get_level = projection.get
     visible: dict[str, bool] = {}
     visiting: set[str] = set()
@@ -599,9 +803,15 @@ def _expanded_roster_keep_all(
         visible[key] = result
         return result
 
+    # Distinct keys only: shared clan/session ancestors resolve once.
+    # First-occurrence order is preserved, so the early exit behaves
+    # exactly as the full scan — without materializing a roster-sized
+    # dedup dict per open.
+    seen_parents: set[str] = set()
     for parent_key in parent_keys.values():
-        if parent_key is None:
+        if parent_key is None or parent_key in seen_parents:
             continue
+        seen_parents.add(parent_key)
         if _owner_chain_visible(parent_key) is not True:
             return None
     return list(complete)
@@ -775,7 +985,13 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         collapse_state = expanded_tree_state
     else:
         collapse_state = None
-    collapsed_panels = effective_panel_collapses(owner, tree_state=collapse_state)
+    # Only live panels can hide a row (``panel_key in collapsed_panels``
+    # below) or decide the fast rendered path: config-default collapses
+    # for absent panels (e.g. ``chop``) must not defeat it. This matches
+    # ``_jump_candidate_targets``, which already passes its live keys.
+    collapsed_panels = effective_panel_collapses(
+        owner, list(panel_group.panel_keys), tree_state=collapse_state
+    )
 
     jump_targets = getattr(owner, "_jump_candidate_targets", None)
     no_banner_collapse = False
@@ -815,7 +1031,12 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
 
     if fold_manager is not None and not no_fold_parents:
         unmet = _unmet_with_facets(
-            complete, fold_manager, parents, parent_keys, hidden_steps
+            complete,
+            fold_manager,
+            parents,
+            parent_keys,
+            hidden_steps,
+            identity_of,
         )
     else:
         # Without fold parents every chain resolves valid with no
@@ -860,9 +1081,10 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             # (``from_agents`` derived it from these agents), so every
             # rendered agent belongs to it: filter by the shared rendered
             # predicate instead of re-resolving each agent's panel key.
-            panel_agents = [
-                agent for agent in expanded if agent_is_rendered_in_agents_panel(agent)
-            ]
+            # The status check is inlined from
+            # ``agent_is_rendered_in_agents_panel`` (a ``STARTING`` row
+            # never renders); the call overhead dominates the check.
+            panel_agents = [agent for agent in expanded if agent.status != "STARTING"]
         else:
             panel_agents = agents_for_panel(
                 expanded,
@@ -875,9 +1097,10 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         # The index above already covers this exact roster when the panel
         # kept every row, so the tree reuses it instead of rebuilding the
         # same parent/anchor tables for the same objects in the same order.
-        if len(panel_agents) == len(expanded) and all(
-            new is old for new, old in zip(panel_agents, expanded, strict=True)
-        ):
+        # ``panel_agents`` filters ``expanded`` in order with no
+        # transformation, so equal length alone proves elementwise
+        # identity — no second pass needed.
+        if len(panel_agents) == len(expanded):
             panel_tree_state: tuple[dict[str, Agent], dict[int, Agent]] | None = (
                 expanded_tree_state
             )
@@ -1000,14 +1223,30 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             except KeyError:
                 facts = None
             if facts is not None and len(facts) == 5:
-                jumpable, name, title, kind_label, kind_accent = _describe_plain_row(
-                    facts[0],
-                    facts[1],
-                    facts[2],
-                    facts[3],
-                    facts[4],
-                    _describe_styles,
+                # Inlined ``_describe_plain_row``: ordinary running rows
+                # are the hot path, and the call plus result packing
+                # costs more than the name/title/kind reads themselves.
+                # Any other shape uses the full batched describer below;
+                # the differential test pins this against the single-row
+                # contract.
+                _plain_presented = facts[0]
+                _plain_agent_name = facts[1]
+                _plain_display = facts[2]
+                _plain_cl = facts[3]
+                name = (
+                    _plain_presented
+                    or _plain_agent_name
+                    or _plain_display
+                    or humanize_cl_name(_plain_cl)
                 )
+                title = (
+                    ""
+                    if (not _plain_display or _plain_display == name)
+                    else _plain_display
+                )
+                jumpable = not facts[4]
+                kind_label = "AGENT SHELL"
+                kind_accent = _describe_styles["agent_entry"]
             elif facts is not None and len(facts) != 5:
                 # The facet pass stores a short 5-tuple exactly for ordinary
                 # running rows and a full 19-tuple otherwise, keyed by the
@@ -1048,16 +1287,65 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
 
             parent_row = group_stack[-1][1] if group_stack else panel_idx
             try:
-                parent_key = parent_keys[agent_key]
+                first_key = parent_keys[agent_key]
             except KeyError:
-                parent_key = agent_parent_fold_key(agent)
-            tree_parent = parents.get(parent_key, None) if parent_key else None
-            if tree_parent is not None:
-                tree_identity = identity_of.get(id(tree_parent))
-                if tree_identity is None:
-                    tree_identity = tree_parent.identity
-                if tree_identity in index_by_identity and tree_identity != identity:
-                    parent_row = index_by_identity[tree_identity]
+                first_key = agent_parent_fold_key(agent)
+            # Without fold parents the climb below would exit immediately
+            # and record nothing, so it is skipped outright; with an empty
+            # parent map the lookups below would miss the same way.
+            if first_key and not no_fold_parents:
+                if jumpable:
+                    # One climb serves the tree-parent override (first
+                    # hop) and the jumpable-descendant marking (every
+                    # hop) that the omission pass below consumes. Without
+                    # fold parents this walk would exit immediately, so
+                    # the gate above already skipped it. A single hop
+                    # cannot revisit a key, so the cycle set is only
+                    # allocated when the chain continues past it.
+                    fold_parent = parents.get(first_key)
+                    if fold_parent is not None:
+                        fold_parent_id = id(fold_parent)
+                        try:
+                            _fold_identity = identity_of[fold_parent_id]
+                        except KeyError:
+                            _fold_identity = fold_parent.identity
+                        descendant_of_jumpable.add(_fold_identity)
+                        if (
+                            _fold_identity in index_by_identity
+                            and _fold_identity != identity
+                        ):
+                            parent_row = index_by_identity[_fold_identity]
+                        if fold_parent_id in parent_keys:
+                            current_key = parent_keys[fold_parent_id]
+                        else:
+                            current_key = agent_parent_fold_key(fold_parent)
+                        seen_keys: set[str] = {first_key}
+                        while current_key and current_key not in seen_keys:
+                            seen_keys.add(current_key)
+                            fold_parent = parents.get(current_key)
+                            if fold_parent is None:
+                                break
+                            fold_parent_id = id(fold_parent)
+                            try:
+                                _fold_identity = identity_of[fold_parent_id]
+                            except KeyError:
+                                _fold_identity = fold_parent.identity
+                            descendant_of_jumpable.add(_fold_identity)
+                            if fold_parent_id in parent_keys:
+                                current_key = parent_keys[fold_parent_id]
+                            else:
+                                current_key = agent_parent_fold_key(fold_parent)
+                else:
+                    tree_parent = parents.get(first_key, None)
+                    if tree_parent is not None:
+                        tree_identity = identity_of.get(id(tree_parent))
+                        if tree_identity is None:
+                            tree_identity = tree_parent.identity
+                        if (
+                            tree_identity in index_by_identity
+                            and tree_identity != identity
+                        ):
+                            parent_row = index_by_identity[tree_identity]
 
             if missing:
                 if missing not in _nearest_collapsed_memo:
@@ -1093,7 +1381,11 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
                     (
                         _NO_REASONS
                         if reason_mask == 0
-                        else _reasons_for_mask(reason_mask, _reason_sets)
+                        # Inlined ``_reasons_for_mask`` hit path: shared
+                        # combinations reuse one interned frozenset, and
+                        # the call overhead exceeds the dict hit.
+                        else _reason_sets.get(reason_mask)
+                        or _reasons_for_mask(reason_mask, _reason_sets)
                     ),
                     len(missing),
                     nearest_collapsed,
@@ -1104,32 +1396,9 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
                 all_jumpable = False
             elif reason_mask == 0 and identity not in rendered:
                 has_bare_unrendered = True
-            # Jumpable rows mark their fold ancestors while the agent is
-            # live here, instead of a second pass re-reading every row.
-            # Without fold parents the walk below would exit immediately
-            # and record nothing, so it is skipped outright.
-            if jumpable and not no_fold_parents:
-                if agent_key in parent_keys:
-                    current_key = parent_keys[agent_key]
-                else:
-                    current_key = agent_parent_fold_key(agent)
-                seen_keys: set[str] = set()
-                while current_key and current_key not in seen_keys:
-                    seen_keys.add(current_key)
-                    fold_parent = parents.get(current_key)
-                    if fold_parent is None:
-                        break
-                    _fold_identity = identity_of.get(id(fold_parent))
-                    descendant_of_jumpable.add(
-                        _fold_identity
-                        if _fold_identity is not None
-                        else fold_parent.identity
-                    )
-                    fold_parent_id = id(fold_parent)
-                    if fold_parent_id in parent_keys:
-                        current_key = parent_keys[fold_parent_id]
-                    else:
-                        current_key = agent_parent_fold_key(fold_parent)
+            # Fold ancestors of jumpable rows were marked during the
+            # fused parent climb above, so the omission pass below needs
+            # no second walk over every row.
 
     clean_keep = (
         not dismissed

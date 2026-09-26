@@ -422,21 +422,20 @@ def walk_order(
     cluster_roots: list[int] | None = None,
 ) -> list[int]:
     """Return a stable permutation, optionally treating root trees atomically."""
-    parent_keys: list[tuple[str, str]] = [
-        (k.project, k.patch) if use_patch_level else (k.project, k.subgroup)
-        for k in keys_per_agent
-    ]
+    # One pass builds the per-agent parent keys and the banner counts
+    # over them: the counts loop below used to re-walk the same pairs.
+    parent_keys: list[tuple[str, str]] = [("", "")] * len(keys_per_agent)
     root_counts: dict[tuple[tuple[str, str], str], int] = {}
     prefix_counts: dict[tuple[tuple[str, str], str, str], int] = {}
-    for parent, k in zip(parent_keys, keys_per_agent, strict=True):
+    for i, k in enumerate(keys_per_agent):
+        parent = (k.project, k.patch) if use_patch_level else (k.project, k.subgroup)
+        parent_keys[i] = parent
         if k.name_root:
-            root_counts[(parent, k.name_root)] = (
-                root_counts.get((parent, k.name_root), 0) + 1
-            )
+            root_key = (parent, k.name_root)
+            root_counts[root_key] = root_counts.get(root_key, 0) + 1
         if k.name_root and k.name_prefix:
-            prefix_counts[(parent, k.name_root, k.name_prefix)] = (
-                prefix_counts.get((parent, k.name_root, k.name_prefix), 0) + 1
-            )
+            prefix_key = (parent, k.name_root, k.name_prefix)
+            prefix_counts[prefix_key] = prefix_counts.get(prefix_key, 0) + 1
     cluster_members: dict[int, list[int]] | None = None
     if cluster_roots is not None and len(cluster_roots) == len(keys_per_agent):
         cluster_members = {}
@@ -548,11 +547,16 @@ def walk_order(
     # trailing ``i`` stay per index: walk recency and stability are
     # positional, not key properties.
     by_date = mode is GroupingMode.BY_DATE
-    shared_sort_parts: dict[GroupingKeys, tuple[Any, ...]] = {}
+    # Keyed by object identity: ``keys_per_agent`` reuses a handful of
+    # shared key objects (one per anchor), all alive for this call, so
+    # identity keys hit exactly when value keys would — without hashing
+    # the eight grouping fields per agent.
+    shared_sort_parts: dict[int, tuple[Any, ...]] = {}
     precomputed: list[tuple[Any, ...]] = [()] * len(keys_per_agent)
     for i in sortable_indices:
         k = keys_per_agent[i]
-        parts = shared_sort_parts.get(k)
+        key_id = id(k)
+        parts = shared_sort_parts.get(key_id)
         if parts is None:
             parent = parent_keys[i]
             prefix_count = (
@@ -579,7 +583,7 @@ def walk_order(
                     else 0
                 ),
             )
-            shared_sort_parts[k] = parts
+            shared_sort_parts[key_id] = parts
         precomputed[i] = parts
     if mode is GroupingMode.STANDARD and len(shared_sort_parts) * 8 < len(
         sortable_indices
