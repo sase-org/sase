@@ -1,4 +1,5 @@
 tests/ace/tui/test_visual_fixture_host_paths.py
+tests/test_agent_session_terminology.py
 tests/test_agent_stop_hook_config.py
 tests/test_agent_tribe_terminology.py
 tests/test_check_sase_core_rs_bindings_tool.py

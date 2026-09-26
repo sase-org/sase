@@ -37,6 +37,7 @@ AGENT_INFO = AgentInfo(
     wait_duration=None,
     wait_until=None,
     wait_runners=None,
+    queue_capacity_multiplier=None,
     wait_priority=None,
     queue_weight=1.0,
     queue_weight_explicit=False,
