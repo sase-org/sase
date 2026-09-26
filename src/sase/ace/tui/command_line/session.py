@@ -41,7 +41,9 @@ class CommandLineBlock:
     proc_id: str | None = None
     placeholder_id: str | None = None
     exit_code: int | None = None
-    started_at: float = field(default_factory=time.monotonic)
+    #: Wall-clock epoch seconds, like ``finished_at`` (its ``HH:MM`` stamp
+    #: and restored proc rows need epoch time, not a monotonic clock).
+    started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
     elapsed: float | None = None
     tail_text: str = ""
@@ -74,7 +76,7 @@ class CommandLineBlock:
         end = (
             self.finished_at
             if self.finished_at is not None
-            else (now if now is not None else time.monotonic())
+            else (now if now is not None else time.time())
         )
         return max(0.0, end - self.started_at)
 

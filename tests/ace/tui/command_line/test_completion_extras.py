@@ -32,6 +32,7 @@ from sase.ace.tui.command_line.extras import (
     relative_age,
     slot_is_variadic,
 )
+from sase.core.time import get_timezone
 
 
 def _entry(
@@ -41,7 +42,9 @@ def _entry(
 
 
 def _stamp(**kwargs: Any) -> str:
-    moment = datetime.now().astimezone() - timedelta(**kwargs)
+    # ``relative_age`` reads stamps as configured-zone wall time, so the
+    # stamps must come from that zone too, not from the host's clock.
+    moment = datetime.now(get_timezone()) - timedelta(**kwargs)
     return moment.strftime("%y%m%d_%H%M%S")
 
 

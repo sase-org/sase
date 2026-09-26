@@ -60,6 +60,10 @@ async def _open_panel(
         from sase.history import command_line as history_store
 
         monkeypatch.setattr(history_store, "_history_file_override", history_file)
+    # Treat the one-time palette tip as already shown. The real marker read
+    # lands from an off-thread worker, so whether the tip or a later hint
+    # owns the hint row at capture time would otherwise depend on host load.
+    command_line_session_for(page.app).palette_tip_show = False
     page.app.action_open_command_line()
     await wait_for_visual_idle(page)
     screen = page.app.screen
@@ -618,16 +622,21 @@ async def test_command_line_empty_state_png_snapshot(
             monkeypatch.setattr(screen, "_help_lookup", _extras_help_lookup)
             # Freeze relative ages to hour/day buckets so the RECENT
             # descriptions ("2h ago", "1d ago") cannot tick between
-            # capture and verify samples.
+            # capture and verify samples. Stamp in the configured zone the
+            # ages render in, and re-sort: both seeded lines usually share
+            # one ``last_used`` second, so the loaded order is a tie.
             from datetime import datetime as _dt
             from datetime import timedelta as _td
 
-            _now = _dt.now().astimezone()
+            from sase.core.time import get_timezone
+
+            _now = _dt.now(get_timezone())
             for _entry in screen._history.entries:
                 if _entry.line == "bead show sase-17x":
                     _entry.last_used = (_now - _td(hours=2)).strftime("%y%m%d_%H%M%S")
                 elif _entry.line == "bead list --status open":
                     _entry.last_used = (_now - _td(days=1)).strftime("%y%m%d_%H%M%S")
+            screen._history.entries.sort(key=lambda e: e.last_used, reverse=True)
             screen._refresh_completion()
             await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "bead list --status open")

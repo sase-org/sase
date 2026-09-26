@@ -36,6 +36,7 @@ from sase.ace.tui.command_line.session import (
 )
 from sase.ace.tui.command_line.submit import (
     apply_exit_completion,
+    apply_local_block,
     apply_submit_failure,
     apply_submit_success,
     prepare_submit,
@@ -365,6 +366,24 @@ def test_submit_success_and_exit_settle() -> None:
     failed = session.add_block("bead close sase-zz")
     apply_exit_completion(failed, exit_code=2, status="done")
     assert failed.status == "error"
+
+
+def test_exit_elapsed_uses_one_clock_for_live_blocks() -> None:
+    """A live block's elapsed is seconds since submit, not an epoch timestamp.
+
+    ``finished_at`` is wall-clock time (it renders the ``HH:MM`` stamp), so a
+    fresh block must start on the same clock.
+    """
+    session = CommandLineSession()
+    block = session.add_block("bead list")
+    apply_submit_success(block, SimpleNamespace(proc_id="proc124"), placeholder_id="p2")
+    apply_exit_completion(block, exit_code=0, status="done")
+    assert block.elapsed is not None
+    assert 0.0 <= block.elapsed < 60.0
+    local = session.add_block("history")
+    apply_local_block(local, status="builtin", text="", exit_code=0)
+    assert local.elapsed is not None
+    assert 0.0 <= local.elapsed < 60.0
 
 
 # -- rendering -------------------------------------------------------------------
@@ -766,6 +785,12 @@ async def test_real_input_history_filters_prefix_and_resets_new_walk() -> None:
             assert widget.text == "bead list"
             await page.press("down")
             assert widget.text == "bead show sase-2"
+
+            # An edit back to the same prefix starts a new walk at the newest.
+            widget.set_line("bead")
+            await page.pause()
+            await page.press("up")
+            assert widget.text == "bead show sase-3"
 
             widget.set_line("git")
             await page.pause()

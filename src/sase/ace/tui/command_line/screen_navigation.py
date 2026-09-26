@@ -102,7 +102,10 @@ class CommandLineScreenNavigationMixin:
         except Exception:  # noqa: BLE001 - unmounted screen cannot walk.
             return
         if self._walk_anchor is None:
+            # A new walk starts from the newest match even when the edit
+            # restored the prefix of the previous walk.
             self._walk_anchor = widget.text
+            self._history.cursor = None
         cwd = self._working_context.cwd if self._working_context else None
         match = self._history.walk(self._walk_anchor, direction=direction, cwd=cwd)
         self._applying_history = True
