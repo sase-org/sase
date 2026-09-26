@@ -27,6 +27,7 @@ from .panel_blocks import DeckPanelBlocksMixin
 from .panel_chrome import DeckPanelChromeMixin
 from .panel_files import DeckPanelFilesMixin
 from .panel_spread import DeckPanelSpreadMixin
+from .panel_transitions import DeckPanelTransitionsMixin
 
 _DECK_ACCENT_CLASS = {
     DeckId.MAIN: "-deck-main",
@@ -49,6 +50,7 @@ class DeckPanel(  # type: ignore[misc]
     DeckPanelChromeMixin,
     DeckPanelSpreadMixin,
     DeckPanelFilesMixin,
+    DeckPanelTransitionsMixin,
     Vertical,
 ):
     """One pre-composed deck panel showing a single active deck."""
@@ -150,18 +152,102 @@ class DeckPanel(  # type: ignore[misc]
             pass
 
     def _on_main_scroll_y(self, _old: int, _new: int) -> None:
-        if not self.is_spread(DeckId.MAIN) or self._deck is not DeckId.MAIN:
+        if self._deck is not DeckId.MAIN:
             return
+        spread = False
         try:
-            derived = self._main_spread_active()
+            spread = bool(self.is_spread(DeckId.MAIN))
+        except Exception:
+            spread = False
+        if spread:
+            try:
+                derived = self._main_spread_active()
+            except Exception:
+                derived = None
+            if derived is not None and derived != self._main_active_card:
+                self._main_active_card = derived
+                try:
+                    self.refresh_chrome()
+                except Exception:
+                    pass
+        # Scroll-derived block cursor for spread renderings (O(blocks) over
+        # cached anchors; content growth does not move scroll_y, so streaming
+        # never silently flips following).
+        try:
+            self._sync_spread_block_cursor_from_scroll()
+        except Exception:
+            pass
+
+    def _sync_spread_block_cursor_from_scroll(self) -> None:
+        """Recompute the spread block cursor from the scroll position."""
+        try:
+            from .flag import card_blocks_enabled
+
+            if not card_blocks_enabled():
+                return
         except Exception:
             return
-        if derived is not None and derived != self._main_active_card:
-            self._main_active_card = derived
-            try:
-                self.refresh_chrome()
-            except Exception:
-                pass
+        try:
+            document = self._main_document
+            if getattr(document, "partial", False):
+                return
+        except Exception:
+            return
+        try:
+            view = self.main_view
+        except Exception:
+            return
+        try:
+            spread = bool(self.is_spread(DeckId.MAIN))
+        except Exception:
+            spread = False
+        card = None
+        try:
+            if spread:
+                try:
+                    preferred = self._main_active_card
+                except Exception:
+                    preferred = None
+                card = self._spread_block_card(document, preferred)  # type: ignore[attr-defined]
+            else:
+                try:
+                    active = view.active_card_id
+                except Exception:
+                    active = None
+                if active is None:
+                    try:
+                        active = self._main_active_card
+                    except Exception:
+                        active = None
+                if active is None:
+                    return
+                try:
+                    block_mode = view.block_mode_for_active_card()
+                except Exception:
+                    block_mode = None
+                if block_mode is not RenderMode.SPREAD:
+                    return
+                card = document.card(active)
+                if card is None or not bool(card.has_block_navigation):
+                    return
+        except Exception:
+            return
+        if card is None:
+            return
+        try:
+            updated = view.sync_spread_cursor_from_scroll(card)  # type: ignore[attr-defined]
+        except Exception:
+            updated = None
+        if updated is None:
+            return
+        try:
+            self.refresh_chrome()
+        except Exception:
+            pass
+        try:
+            self._sync_block_navigable()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _on_files_scroll_y(self, _old: int, _new: int) -> None:
         if not self.is_spread(DeckId.FILES) or self._deck is not DeckId.FILES:
@@ -406,20 +492,82 @@ class DeckPanel(  # type: ignore[misc]
                 )
             except Exception:
                 active = None
-            # New spread subjects honor a duplicate-panel one-shot card.
-            if (
-                new_mode is RenderMode.SPREAD
-                and is_new_subject
-                and preferred_card is not None
-                and document.card(preferred_card) is not None
-                and preferred_card
-                != (document.cards[0].card_id if document.cards else None)
-            ):
-                try:
-                    self.main_view.scroll_to_card(preferred_card)
-                    active = preferred_card
-                except Exception:
-                    pass
+            if new_mode is RenderMode.SPREAD:
+                if is_new_subject:
+                    # Sticky-Reply landing replaces scroll_to_card when the
+                    # preferred card carries blocks; <2 blocks keeps today.
+                    landed = False
+                    if (
+                        preferred_card is not None
+                        and document.card(preferred_card) is not None
+                        and preferred_card
+                        != (document.cards[0].card_id if document.cards else None)
+                    ):
+                        try:
+                            landed = bool(
+                                self._land_deck_spread_on_blocks(  # type: ignore[attr-defined]
+                                    document, preferred_card
+                                )
+                            )
+                        except Exception:
+                            landed = False
+                        if landed:
+                            active = self._main_active_card
+                        else:
+                            try:
+                                self.main_view.scroll_to_card(preferred_card)
+                                active = preferred_card
+                            except Exception:
+                                pass
+                    elif (
+                        preferred_card is None or document.card(preferred_card) is None
+                    ):
+                        # No explicit choice: sticky landing still applies when
+                        # the preferred/sticky card has blocks (e.g. Reply).
+                        try:
+                            sticky = self._land_deck_spread_on_blocks(  # type: ignore[attr-defined]
+                                document, preferred_card
+                            )
+                            if sticky:
+                                active = self._main_active_card
+                        except Exception:
+                            pass
+                else:
+                    # Same-subject streaming: a follower re-lands with the
+                    # clamp; a parked reader stays put. A bottom pin persists
+                    # via the scheduled reapply.
+                    try:
+                        pinned = bool(
+                            getattr(self.main_view, "is_pinned_to_bottom", False)
+                        )
+                    except Exception:
+                        pinned = False
+                    if not pinned:
+                        try:
+                            view = self.main_view
+                            card = self._spread_block_card(  # type: ignore[attr-defined]
+                                document, preferred_card
+                            )
+                            if card is not None:
+                                try:
+                                    cursor = view._block_cursors.get(card.card_id)  # type: ignore[attr-defined]
+                                except Exception:
+                                    cursor = None
+                                if cursor is not None and bool(
+                                    getattr(cursor, "following", False)
+                                ):
+                                    try:
+                                        if bool(
+                                            self._land_deck_spread_on_blocks(  # type: ignore[attr-defined]
+                                                document,
+                                                card.card_id,
+                                            )
+                                        ):
+                                            active = self._main_active_card
+                                    except Exception:
+                                        pass
+                        except Exception:
+                            pass
             self._main_active_card = active
         self._render_mode[DeckId.MAIN] = new_mode
         self._mode_subject[DeckId.MAIN] = document.subject
@@ -436,205 +584,6 @@ class DeckPanel(  # type: ignore[misc]
             pass
         try:
             self._schedule_block_redecision()
-        except Exception:
-            pass
-        return self._main_active_card
-
-    def _refresh_main_mode_for_shown(self) -> None:
-        document = self._main_document
-        if not document.cards or document.partial:
-            return
-        stored = self._mode_subject.get(DeckId.MAIN)
-        same = stored is not None and stored == document.subject
-        new_mode = self._decide_main_mode(document, same_subject=same)
-        old_mode = self._render_mode.get(DeckId.MAIN, RenderMode.PAGED)
-        if new_mode is old_mode:
-            # Deck mode is stable, but the block mode may be stale
-            # (unmeasured first paint, resize, split or header toggles).
-            try:
-                if new_mode is RenderMode.PAGED and self._needs_block_refresh():
-                    active = self._show_main_paged(
-                        document, self._main_active_card, new_mode
-                    )
-                    self._main_active_card = active
-            except Exception:
-                pass
-            try:
-                self._sync_block_navigable()
-            except Exception:
-                pass
-            return
-        # show_main_document already handles transitions; reuse it with the
-        # panel's preferred card so scroll anchoring stays consistent.
-        try:
-            from .area import DeckArea  # noqa: F401
-        except Exception:
-            pass
-        preferred: str | None = None
-        try:
-            node: Any | None = self.parent
-            for _ in range(5):
-                if node is None:
-                    break
-                state = getattr(node, "_state", None)
-                if state is not None:
-                    try:
-                        preferred = state.panels[self._panel_index].preferred_card
-                    except Exception:
-                        preferred = None
-                    break
-                node = getattr(node, "parent", None)
-        except Exception:
-            preferred = None
-        # Avoid recursion via set_deck: apply directly.
-        self._render_mode[DeckId.MAIN] = new_mode
-        self._mode_subject[DeckId.MAIN] = document.subject
-        try:
-            if new_mode is RenderMode.SPREAD:
-                self.main_view.show_document(
-                    document, preferred_card=preferred, mode=new_mode
-                )
-                if (
-                    preferred is not None
-                    and document.card(preferred) is not None
-                    and preferred
-                    != (document.cards[0].card_id if document.cards else None)
-                ):
-                    # Spread starts at the top; keep the stuck explicit
-                    # choice (e.g. a split duplicate's card) like the
-                    # transition one-shot does.
-                    try:
-                        self.main_view.scroll_to_card(preferred)
-                    except Exception:
-                        pass
-                self._main_active_card = self.main_view.active_card_id
-            else:
-                # Spread -> paged anchors the card at the viewport top.
-                spread_active = self._main_spread_active() or self._main_active_card
-                active = self._show_main_paged(
-                    document, spread_active or preferred, new_mode
-                )
-                self._main_active_card = active
-        except Exception:
-            pass
-        self._sync_files_views()
-        self.refresh_chrome()
-        try:
-            self._sync_block_navigable()
-        except Exception:
-            pass
-
-    def _apply_main_transition(
-        self,
-        document: MainDeckDocument,
-        preferred_card: str | None,
-        *,
-        old_mode: RenderMode,
-        new_mode: RenderMode,
-        is_new_subject: bool,
-        previous_document: MainDeckDocument,
-    ) -> str | None:
-        # Capture reading position before recomposing.
-        scroll_y = 0
-        pinned = False
-        try:
-            scroll = self.query_one(
-                f"#agent-deck-panel-{self._panel_index}-main-scroll",
-                VerticalScroll,
-            )
-            scroll_y = int(scroll.scroll_y)
-        except Exception:
-            scroll = None
-        try:
-            pinned = bool(getattr(self.main_view, "is_pinned_to_bottom", False))
-        except Exception:
-            pinned = False
-        anchor_card: str | None = None
-        offset = 0
-        if old_mode is RenderMode.SPREAD and new_mode is RenderMode.PAGED:
-            anchor_card = self._main_spread_active() or self._main_active_card
-            try:
-                body_start = self.main_view.spread_body_start(anchor_card or "")
-            except Exception:
-                body_start = None
-            if body_start is not None:
-                offset = max(0, scroll_y - body_start)
-            else:
-                offset = 0
-        elif old_mode is RenderMode.PAGED and new_mode is RenderMode.SPREAD:
-            anchor_card = self._main_active_card
-            offset = scroll_y
-        try:
-            if new_mode is RenderMode.SPREAD:
-                active = self.main_view.show_document(
-                    document, preferred_card=preferred_card, mode=new_mode
-                )
-            else:
-                active = self._show_main_paged(
-                    document,
-                    anchor_card or preferred_card,
-                    new_mode,
-                )
-        except Exception:
-            active = None
-        self._main_active_card = active
-        if new_mode is RenderMode.SPREAD:
-            # Spread starts at the top; honor duplicate one-shot cards and
-            # the stuck explicit choice across PAGED->SPREAD transitions
-            # (a fresh panel first paints PAGED before the viewport settles,
-            # so the transition is same-subject and still must keep it).
-            if (
-                preferred_card is not None
-                and document.card(preferred_card) is not None
-                and preferred_card
-                != (document.cards[0].card_id if document.cards else None)
-            ):
-                try:
-                    self.main_view.scroll_to_card(preferred_card)
-                    self._main_active_card = preferred_card
-                except Exception:
-                    pass
-            return self._main_active_card
-        if pinned:
-            try:
-                self.main_view.pin_to_bottom()
-            except Exception:
-                pass
-            return self._main_active_card
-        # Anchor the reading position after layout settles.
-        try:
-            if new_mode is RenderMode.PAGED:
-                target = max(0, offset)
-
-                def _restore_paged() -> None:
-                    try:
-                        sc = self.query_one(
-                            f"#agent-deck-panel-{self._panel_index}-main-scroll",
-                            VerticalScroll,
-                        )
-                        sc.scroll_to(y=target, animate=False)
-                    except Exception:
-                        pass
-
-                self.call_after_refresh(_restore_paged)
-            else:
-                base = anchor_card or (active or "")
-                body = self.main_view.spread_body_start(base) if base else None
-                target_spread = (body or 0) + offset
-
-                def _restore_spread() -> None:
-                    row = self.main_view.spread_body_start(base) if base else None
-                    target = (row or 0) + offset if row is not None else target_spread
-                    try:
-                        sc = self.query_one(
-                            f"#agent-deck-panel-{self._panel_index}-main-scroll",
-                            VerticalScroll,
-                        )
-                        sc.scroll_to(y=target, animate=False)
-                    except Exception:
-                        pass
-
-                self.call_after_refresh(_restore_spread)
         except Exception:
             pass
         return self._main_active_card

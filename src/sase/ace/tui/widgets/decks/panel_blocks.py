@@ -143,19 +143,245 @@ class DeckPanelBlocksMixin:
                 document, preferred_card=preferred_card, mode=mode
             )
 
-    def cycle_block(self, direction: int) -> bool:
-        """Step the paged deck's active card one block; False when a no-op."""
+    def _spread_block_card(
+        self, document: Any, preferred: str | None = None
+    ) -> Any | None:
+        """Return the deck-spread card with blocks (preferred wins)."""
         try:
-            if self._deck is not DeckId.MAIN:
+            if preferred is not None:
+                card = document.card(preferred)
+                if card is not None and bool(card.has_block_navigation):
+                    return card
+        except Exception:
+            pass
+        try:
+            for card in document.cards:
+                if bool(getattr(card, "has_block_navigation", False)):
+                    return card
+        except Exception:
+            pass
+        return None
+
+    def _land_deck_spread_on_blocks(self, document: Any, preferred: str | None) -> bool:
+        """Sticky-Reply chat-log landing for a deck-spread document."""
+        try:
+            if not card_blocks_enabled():
                 return False
-            if self.is_spread(DeckId.MAIN):  # type: ignore[attr-defined]
+            if getattr(document, "partial", False):
                 return False
+            card = self._spread_block_card(document, preferred)
+            if card is None:
+                return False
+            view = self.main_view  # type: ignore[attr-defined]
+            landed = bool(view.land_block_spread(card))  # type: ignore[attr-defined]
+            if not landed:
+                return False
+            self._main_active_card = card.card_id  # type: ignore[attr-defined]
+            try:
+                view._active_card = card.card_id  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                self.refresh_chrome()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            self._sync_block_navigable()
+            return True
+        except Exception:
+            return False
+
+    def _cycle_spread_block(self, direction: int) -> bool:
+        """Anchor-motion step for spread decks and block-spread cards."""
+        try:
             if not card_blocks_enabled():
                 return False
             document = self._main_document  # type: ignore[attr-defined]
             if document.partial:
                 return False
             view = self.main_view  # type: ignore[attr-defined]
+            spread = bool(self.is_spread(DeckId.MAIN))  # type: ignore[attr-defined]
+            if spread:
+                try:
+                    preferred = self._main_active_card  # type: ignore[attr-defined]
+                except Exception:
+                    preferred = None
+                card = self._spread_block_card(document, preferred)
+                if card is None:
+                    return False
+            else:
+                try:
+                    active = view.active_card_id
+                except Exception:
+                    active = self._main_active_card  # type: ignore[attr-defined]
+                card = document.card(active) if active is not None else None
+                if card is None or not card.has_block_navigation:
+                    return False
+                try:
+                    block_mode = view.block_mode_for_active_card()
+                except Exception:
+                    block_mode = None
+                if block_mode is not RenderMode.SPREAD:
+                    return False
+            try:
+                ids = tuple(card.block_ids)
+            except Exception:
+                return False
+            if len(ids) < 2:
+                return False
+            # The current block comes from scroll in spread modes. When
+            # the viewport is above the first block header the derivation
+            # is None and unknown-anchor stepping applies (] -> oldest,
+            # [ -> newest); only fall back to the explicit cursor when
+            # anchors are not published yet.
+            current: str | None = None
+            anchors_ready = False
+            try:
+                current = view.derive_spread_cursor(card)  # type: ignore[attr-defined]
+                try:
+                    width = int(view._spread_content_width())  # type: ignore[attr-defined]
+                    pairs = (
+                        view.block_anchor_rows(width=width)  # type: ignore[attr-defined]
+                        if width > 0
+                        else None
+                    )
+                    anchors_ready = bool(pairs)
+                except Exception:
+                    anchors_ready = current is not None
+            except Exception:
+                current = None
+                anchors_ready = False
+            if current is None and not anchors_ready:
+                try:
+                    current = view.active_block_id(card.card_id)  # type: ignore[attr-defined]
+                except Exception:
+                    current = None
+            elif current is not None and card.block(current) is None:
+                try:
+                    current = view.active_block_id(card.card_id)  # type: ignore[attr-defined]
+                except Exception:
+                    current = None
+            try:
+                target = view.step_block_id_from(tuple(ids), current, direction)  # type: ignore[attr-defined]
+            except Exception:
+                target = None
+            if target is None or card.block(target) is None:
+                return False
+            selected = view.select_block_cursor(card, target)
+            if selected is None:
+                return False
+            if spread:
+                # Deck-spread and block-spread stay in place; top-align the
+                # target header with the block-aware reserve. scroll_to_block
+                # schedules a retry when anchors are cold; the cursor is
+                # already stepped, so report success.
+                try:
+                    view.scroll_to_block(target)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                moved = True
+            else:
+                mode = self._block_mode_for_card(document, card.card_id)
+                shown = view.show_card(card.card_id, block_mode=mode)
+                if shown is None:
+                    return False
+                try:
+                    view.scroll_to_block(target)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                moved = True
+                shown = card.card_id
+            self._main_active_card = card.card_id  # type: ignore[attr-defined]
+            try:
+                view._active_card = card.card_id  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                self.refresh_chrome()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            self._sync_block_navigable()
+            return bool(moved)
+        except Exception:
+            return False
+
+    def _select_spread_block(self, block_id: str | None) -> bool:
+        """Direct selection for spread decks and block-spread cards."""
+        try:
+            if not card_blocks_enabled():
+                return False
+            if block_id is None:
+                return False
+            document = self._main_document  # type: ignore[attr-defined]
+            if document.partial:
+                return False
+            view = self.main_view  # type: ignore[attr-defined]
+            spread = bool(self.is_spread(DeckId.MAIN))  # type: ignore[attr-defined]
+            if spread:
+                try:
+                    preferred = self._main_active_card  # type: ignore[attr-defined]
+                except Exception:
+                    preferred = None
+                card = self._spread_block_card(document, preferred)
+                if card is None:
+                    return False
+            else:
+                try:
+                    active = view.active_card_id
+                except Exception:
+                    active = self._main_active_card  # type: ignore[attr-defined]
+                card = document.card(active) if active is not None else None
+                if card is None or not card.has_block_navigation:
+                    return False
+                if not spread:
+                    try:
+                        block_mode = view.block_mode_for_active_card()
+                    except Exception:
+                        block_mode = None
+                    if block_mode is not RenderMode.SPREAD:
+                        return False
+            if card.block(block_id) is None:
+                return False
+            selected = view.select_block_cursor(card, block_id)
+            if selected is None:
+                return False
+            if not spread:
+                mode = self._block_mode_for_card(document, card.card_id)
+                shown = view.show_card(card.card_id, block_mode=mode)
+                if shown is None:
+                    return False
+            try:
+                view.scroll_to_block(block_id)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            moved = True
+            self._main_active_card = card.card_id  # type: ignore[attr-defined]
+            try:
+                view._active_card = card.card_id  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                self.refresh_chrome()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            self._sync_block_navigable()
+            return bool(moved)
+        except Exception:
+            return False
+
+    def cycle_block(self, direction: int) -> bool:
+        """Step the active card one block; False when a no-op."""
+        try:
+            if self._deck is not DeckId.MAIN:
+                return False
+            if not card_blocks_enabled():
+                return False
+            document = self._main_document  # type: ignore[attr-defined]
+            if document.partial:
+                return False
+            spread = bool(self.is_spread(DeckId.MAIN))  # type: ignore[attr-defined]
+            view = self.main_view  # type: ignore[attr-defined]
+            if spread:
+                return bool(self._cycle_spread_block(direction))
             try:
                 active = view.active_card_id
             except Exception:
@@ -163,6 +389,12 @@ class DeckPanelBlocksMixin:
             card = document.card(active) if active is not None else None
             if card is None or not card.has_block_navigation:
                 return False
+            try:
+                block_mode = view.block_mode_for_active_card()
+            except Exception:
+                block_mode = None
+            if block_mode is RenderMode.SPREAD:
+                return bool(self._cycle_spread_block(direction))
             stepped = view.step_block_cursor(card, direction)
             if stepped is None:
                 return False
@@ -181,18 +413,19 @@ class DeckPanelBlocksMixin:
             return False
 
     def select_block(self, block_id: str | None) -> bool:
-        """Select ``block_id`` on the paged deck's card; False when a no-op."""
+        """Select ``block_id`` on the active card; False when a no-op."""
         try:
             if self._deck is not DeckId.MAIN:
-                return False
-            if self.is_spread(DeckId.MAIN):  # type: ignore[attr-defined]
                 return False
             if not card_blocks_enabled():
                 return False
             document = self._main_document  # type: ignore[attr-defined]
             if document.partial:
                 return False
+            spread = bool(self.is_spread(DeckId.MAIN))  # type: ignore[attr-defined]
             view = self.main_view  # type: ignore[attr-defined]
+            if spread:
+                return bool(self._select_spread_block(block_id))
             try:
                 active = view.active_card_id
             except Exception:
@@ -200,6 +433,12 @@ class DeckPanelBlocksMixin:
             card = document.card(active) if active is not None else None
             if card is None or not card.has_block_navigation:
                 return False
+            try:
+                block_mode = view.block_mode_for_active_card()
+            except Exception:
+                block_mode = None
+            if block_mode is RenderMode.SPREAD:
+                return bool(self._select_spread_block(block_id))
             selected = view.select_block_cursor(card, block_id)
             if selected is None:
                 return False

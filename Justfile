@@ -372,8 +372,8 @@ _lint-patch-stitch-terminology: _setup
 # followup_agents Reply path.
 # sase-19x.5 consumed the block-cursor seams (BlockCursor, arrived_ids,
 # decide_block_mode, reconcile_cursor, select_cursor, step_cursor) in its
-# block-paged projection; cycle_block_id, derive_spread_block and land_cursor
-# await later block-navigation phases.
+# block-paged projection; sase-19x.6 consumed cycle_block_id,
+# derive_spread_block and land_cursor in its block-spread navigation.
 # Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
@@ -388,9 +388,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19f(resolve_queue_capacity_multiplier)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
-        --epic-symbol 'sase-19x(cycle_block_id)' \
-        --epic-symbol 'sase-19x(derive_spread_block)' \
-        --epic-symbol 'sase-19x(land_cursor)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

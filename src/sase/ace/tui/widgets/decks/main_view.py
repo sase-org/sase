@@ -326,15 +326,24 @@ class MainDeckView(MainDeckViewBlocksMixin, SectionViewMixin, Static):
             self._active_card = active
             self._render_mode = RenderMode.PAGED
             return active
+        # Block-spread new subjects land via the chat-log clamp after
+        # render; every other paged subject starts at the top.
+        _block_spread_new_subject = bool(
+            blocks_enabled
+            and block_mode is RenderMode.SPREAD
+            and active is not None
+            and is_new_subject
+        )
         if is_new_subject:
             self._previous_subject = document.subject
             self._subject_seen = True
-            try:
-                parent = self.parent
-                if isinstance(parent, VerticalScroll):
-                    parent.scroll_to(y=0, animate=False)
-            except Exception:
-                pass
+            if not _block_spread_new_subject:
+                try:
+                    parent = self.parent
+                    if isinstance(parent, VerticalScroll):
+                        parent.scroll_to(y=0, animate=False)
+                except Exception:
+                    pass
         if active is None:
             renderable: Any = Text("")
         elif projection is not None:
@@ -371,6 +380,41 @@ class MainDeckView(MainDeckViewBlocksMixin, SectionViewMixin, Static):
                     self.pin_to_bottom()
                 except Exception:
                     pass
+            elif projection[3] is None:
+                # Block-spread: chat-log newest landing and following re-land
+                # with the min(header, real bottom) clamp; a parked reader
+                # stays put.
+                try:
+                    card_obj = document.card(active)
+                except Exception:
+                    card_obj = None
+                if card_obj is not None:
+                    if is_new_subject or previous_projected != projected:
+                        try:
+                            self.land_block_spread(card_obj)  # type: ignore[attr-defined]
+                        except Exception:
+                            try:
+                                self._scroll_main_to_top()
+                            except Exception:
+                                pass
+                    else:
+                        try:
+                            cursor = self._block_cursors.get(active)  # type: ignore[attr-defined]
+                        except Exception:
+                            cursor = None
+                        following = bool(
+                            cursor is not None and getattr(cursor, "following", False)
+                        )
+                        if following:
+                            try:
+                                self.land_block_spread(card_obj)  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                else:
+                    try:
+                        self._scroll_main_to_top()
+                    except Exception:
+                        pass
             elif is_new_subject or previous_projected != projected:
                 self._scroll_main_to_top()
         return active

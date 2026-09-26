@@ -35,6 +35,7 @@ class SectionViewMixin(Static):
     _section_real_content_height: int = 0
     _section_layout_reserve: int = 0
     _section_layout_reserve_enabled: bool = False
+    _section_layout_reserve_include_blocks: bool = False
     _section_tracking_visual: SectionTrackingVisual | None = None
     _section_tracking_visual_generation: int = -1
     _section_content_digest: str | None = None
@@ -55,6 +56,7 @@ class SectionViewMixin(Static):
             self._active_section_identity = None
             self._pending_section_direction = None
             self._section_layout_reserve_enabled = False
+            self._section_layout_reserve_include_blocks = False
             self.release_bottom_pin()
         self._section_document_identity = identity
 
@@ -188,15 +190,22 @@ class SectionViewMixin(Static):
             else ()
         )
         reserve = 0
-        top_anchors = [
-            anchor
-            for anchor in anchors
-            if anchor.role
-            in (
+        include_blocks = bool(
+            getattr(self, "_section_layout_reserve_include_blocks", False)
+        )
+        wanted_roles = (
+            (
+                PromptPanelSectionRole.TITLE,
+                PromptPanelSectionRole.CARD,
+                PromptPanelSectionRole.BLOCK,
+            )
+            if include_blocks
+            else (
                 PromptPanelSectionRole.TITLE,
                 PromptPanelSectionRole.CARD,
             )
-        ]
+        )
+        top_anchors = [anchor for anchor in anchors if anchor.role in wanted_roles]
         if (
             getattr(self, "_section_layout_reserve_enabled", False)
             and self._section_view_features_enabled()
@@ -246,13 +255,36 @@ class SectionViewMixin(Static):
                 pairs.append((identity, anchor.row))
         return tuple(pairs)
 
-    def enable_section_layout_reserve(self) -> bool:
-        """Enable final-title alignment extent on the first navigation request."""
-        if not self._section_view_features_enabled() or getattr(
-            self, "_section_layout_reserve_enabled", False
-        ):
+    def enable_section_layout_reserve(self, *, include_blocks: bool = False) -> bool:
+        """Enable final-title alignment extent on the first navigation request.
+
+        Block navigation passes ``include_blocks=True`` so BLOCK anchors
+        join TITLE/CARD in the trailing reserve and the newest header can
+        top-align; card navigation keeps today's reserve.
+        """
+        if not self._section_view_features_enabled():
+            if bool(include_blocks):
+                try:
+                    if not bool(
+                        getattr(self, "_section_layout_reserve_include_blocks", False)
+                    ):
+                        self._section_layout_reserve_include_blocks = bool(
+                            include_blocks
+                        )
+                        self.refresh(layout=True)
+                        return True
+                except Exception:
+                    pass
+            return False
+        already = bool(getattr(self, "_section_layout_reserve_enabled", False))
+        blocks_already = bool(
+            getattr(self, "_section_layout_reserve_include_blocks", False)
+        )
+        if already and (not bool(include_blocks) or blocks_already):
             return False
         self._section_layout_reserve_enabled = True
+        if bool(include_blocks):
+            self._section_layout_reserve_include_blocks = True
         self.refresh(layout=True)
         return True
 
