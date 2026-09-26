@@ -27,7 +27,7 @@ from .block_model import (
 from .model import RenderMode
 
 
-def _sync_scrollbar_position(scroll: VerticalScroll) -> None:
+def sync_scrollbar_position(scroll: VerticalScroll) -> None:
     """Pin ``scroll``'s thumb to its scroller, even while the bar is hidden.
 
     Textual only pushes ``scroll_y`` to ``ScrollBar.position`` while the bar
@@ -252,7 +252,7 @@ class MainDeckViewBlocksMixin:
                 parent.scroll_to(y=0, animate=False, immediate=True)
                 try:
                     self.call_after_refresh(  # type: ignore[attr-defined]
-                        lambda: _sync_scrollbar_position(parent)
+                        lambda: sync_scrollbar_position(parent)
                     )
                 except Exception:
                     pass

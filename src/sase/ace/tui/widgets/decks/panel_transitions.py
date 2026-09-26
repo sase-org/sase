@@ -16,7 +16,7 @@ from typing import Any
 from textual.containers import VerticalScroll
 
 from .block_model import derive_spread_block
-from .main_view_blocks import _sync_scrollbar_position
+from .main_view_blocks import sync_scrollbar_position
 from .model import DeckId, RenderMode
 
 __all__ = [
@@ -268,7 +268,7 @@ def _synced_block_scroll_to(panel: Any, target: int) -> None:
         if scroll is not None:
             scroll.scroll_to(y=target, animate=False, immediate=True)
             try:
-                panel.call_after_refresh(lambda: _sync_scrollbar_position(scroll))
+                panel.call_after_refresh(lambda: sync_scrollbar_position(scroll))
             except Exception:
                 pass
     except Exception:
