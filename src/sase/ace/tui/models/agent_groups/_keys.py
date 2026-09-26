@@ -83,30 +83,44 @@ def _project_name(agent: Agent) -> str:
     return agent.project_display_name or project_file_parent_name(agent.project_file)
 
 
-def _name_root(agent: Agent) -> str:
-    """Return the grouping root for an agent name."""
-    name = _grouping_name(agent)
+def _name_root_from_grouping_name(name: str) -> str:
+    """Return the grouping root for a precomputed grouping name."""
     if "." in name:
         return name.split(".", 1)[0]
     return name
 
 
-def _name_prefix(agent: Agent) -> str:
-    """Return the first two name segments when the grouping name is dotted."""
-    name = _grouping_name(agent)
+def _name_prefix_from_grouping_name(name: str) -> str:
+    """Return the first two segments of a precomputed grouping name."""
     parts = name.split(".", 2)
     if len(parts) >= 2:
         return ".".join(parts[:2])
     return ""
 
 
-def _name_prefix_member_rank(agent: Agent) -> int:
+def _name_prefix_member_rank_from_names(name: str, prefix: str) -> int:
     """Sort exact parent-marker names before their dotted descendants."""
-    name = _grouping_name(agent)
-    prefix = _name_prefix(agent)
     if prefix and name == prefix:
         return 0
     return 1
+
+
+def _name_root(agent: Agent) -> str:
+    """Return the grouping root for an agent name."""
+    return _name_root_from_grouping_name(_grouping_name(agent))
+
+
+def _name_prefix(agent: Agent) -> str:
+    """Return the first two name segments when the grouping name is dotted."""
+    return _name_prefix_from_grouping_name(_grouping_name(agent))
+
+
+def _name_prefix_member_rank(agent: Agent) -> int:
+    """Sort exact parent-marker names before their dotted descendants."""
+    name = _grouping_name(agent)
+    return _name_prefix_member_rank_from_names(
+        name, _name_prefix_from_grouping_name(name)
+    )
 
 
 def status_grouping_signature(
@@ -260,16 +274,29 @@ def grouping_keys_for(
     target = presentation_anchor(agent, parent_lookup, anchors)
     reference = now if now is not None else local_now()
     l0 = _l0_value_for(target, mode, reference)
+    # The grouping name re-derives plan-chain role state, so read it once
+    # per agent and derive root/prefix/rank from that single value instead
+    # of recomputing it per field. ``BY_DATE`` suppresses name subgroups,
+    # so it skips the name read entirely.
+    if mode is GroupingMode.BY_DATE:
+        name_root = ""
+        name_prefix = ""
+        name_prefix_member_rank = 1
+    else:
+        grouping_name = _grouping_name(target)
+        name_root = _name_root_from_grouping_name(grouping_name)
+        name_prefix = _name_prefix_from_grouping_name(grouping_name)
+        name_prefix_member_rank = _name_prefix_member_rank_from_names(
+            grouping_name, name_prefix
+        )
     return GroupingKeys(
         project=l0,
         patch=(
             _patch_name_for_grouping(target) if mode is GroupingMode.STANDARD else ""
         ),
-        name_root="" if mode is GroupingMode.BY_DATE else _name_root(target),
-        name_prefix="" if mode is GroupingMode.BY_DATE else _name_prefix(target),
-        name_prefix_member_rank=(
-            1 if mode is GroupingMode.BY_DATE else _name_prefix_member_rank(target)
-        ),
+        name_root=name_root,
+        name_prefix=name_prefix,
+        name_prefix_member_rank=name_prefix_member_rank,
         subgroup=(
             date_subgroup_bucket_for(target, l0)
             if mode is GroupingMode.BY_DATE

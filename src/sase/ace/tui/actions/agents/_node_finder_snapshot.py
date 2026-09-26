@@ -47,21 +47,55 @@ def _evolve(row: NodeFinderRow, **changes: Any) -> NodeFinderRow:
     return replace(row, **changes)
 
 
-def _roster_needs_no_fold_filter(complete: list[Agent]) -> bool:
-    """Return whether the fold filter would return *complete* unchanged.
+def _snapshot_facets(
+    complete: list[Agent],
+) -> tuple[
+    dict[int, str | None],
+    dict[int, str | None],
+    dict[int, int],
+    dict[int, AgentIdentity],
+    set[int],
+]:
+    """Read per-agent facets once for one snapshot build.
+
+    Parent and fold keys, tree depth, identity, and the hidden-step flag
+    re-derive plan-chain role state, so they are read once per agent here
+    and reused by the fold-filter check, levels fill, descendant walk, and
+    row construction below instead of once per pass. Every table is local
+    to this snapshot; live owner state is still read afresh on every open.
+    """
+    from ...models._agent_tree import agent_fold_key, agent_tree_depth
+
+    parent_keys: dict[int, str | None] = {}
+    fold_keys: dict[int, str | None] = {}
+    depths: dict[int, int] = {}
+    identity_of: dict[int, AgentIdentity] = {}
+    hidden_steps: set[int] = set()
+    for agent in complete:
+        key = id(agent)
+        parent_keys[key] = agent_parent_fold_key(agent)
+        fold_keys[key] = agent_fold_key(agent)
+        depths[key] = agent_tree_depth(agent)
+        identity_of[key] = agent.identity
+        if agent.is_hidden_step:
+            hidden_steps.add(key)
+    return (parent_keys, fold_keys, depths, identity_of, hidden_steps)
+
+
+def _roster_needs_no_fold_filter(
+    parent_keys: dict[int, str | None],
+    hidden_steps: set[int],
+) -> bool:
+    """Return whether the fold filter would return the roster unchanged.
 
     With no fold parent on any agent, :func:`is_visible` succeeds before
     consulting any level; with no hidden step, the hidden-only-parents
-    exclusion is empty. Both scans short-circuit on the first counterexample,
-    so folded rosters fall through to the full filter immediately.
+    exclusion is empty. The facet tables already hold one read per agent,
+    so this check re-scans values instead of re-deriving predicates.
     """
-    for agent in complete:
-        if agent.is_hidden_step:
-            return False
-    for agent in complete:
-        if agent_parent_fold_key(agent) is not None:
-            return False
-    return True
+    if hidden_steps:
+        return False
+    return all(parent_key is None for parent_key in parent_keys.values())
 
 
 def _kind_word(agent: Agent) -> str:
@@ -127,12 +161,7 @@ def _complete_roster_for_snapshot(owner: Any) -> tuple[list[Agent], set[AgentIde
 def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     """Project every reachable node row and classify why each is hidden."""
     from ...models import filter_agents_by_fold_state
-    from ...models._agent_tree import (
-        agent_fold_key,
-        agent_parent_fold_key,
-        agent_tree_depth,
-        tree_parent_lookup,
-    )
+    from ...models._agent_tree import agent_tree_depth, tree_parent_lookup
     from ...models.agent_groups import build_agent_tree
     from ..navigation._agent_reveal import unmet_ancestor_folds
     from ._fold_scope import panel_fold_registry
@@ -141,6 +170,9 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
 
     complete, hidden_by_i = _complete_roster_for_snapshot(owner)
     parents = tree_parent_lookup(complete)
+    parent_keys, fold_keys, depths, identity_of, hidden_steps = _snapshot_facets(
+        complete
+    )
 
     fold_manager = getattr(owner, "_fold_manager", None)
     if fold_manager is not None:
@@ -149,11 +181,10 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         levels = {}
     from ...models.fold_state import FoldLevel
 
-    for agent in complete:
-        fold_key = agent_fold_key(agent)
+    for fold_key in fold_keys.values():
         if fold_key is not None:
             levels[fold_key] = FoldLevel.FULLY_EXPANDED
-    if _roster_needs_no_fold_filter(complete):
+    if _roster_needs_no_fold_filter(parent_keys, hidden_steps):
         # No agent has a fold parent and no hidden step exists, so the
         # fold filter would return the roster unchanged: skip its
         # per-agent walk. The discarded fold counts are unused here.
@@ -273,7 +304,11 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             if not (0 <= entry.agent_idx < len(panel_agents)):
                 continue
             agent = panel_agents[entry.agent_idx]
-            identity = agent.identity
+            agent_key = id(agent)
+            # Panel rows are the same objects as the complete roster, so the
+            # one-per-open facet read above applies; fall back to a direct
+            # read for any object outside that roster.
+            identity = identity_of.get(agent_key, agent.identity)
             if identity in index_by_identity:
                 continue
 
@@ -309,10 +344,13 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             )
 
             parent_row = group_stack[-1][1] if group_stack else panel_idx
-            parent_key = agent_parent_fold_key(agent)
+            if agent_key in parent_keys:
+                parent_key = parent_keys[agent_key]
+            else:
+                parent_key = agent_parent_fold_key(agent)
             tree_parent = parents.get(parent_key, None) if parent_key else None
             if tree_parent is not None:
-                tree_identity = tree_parent.identity
+                tree_identity = identity_of.get(id(tree_parent), tree_parent.identity)
                 if tree_identity in index_by_identity and tree_identity != identity:
                     parent_row = index_by_identity[tree_identity]
 
@@ -330,7 +368,7 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
                     title=title,
                     kind_label=kind_label,
                     kind_accent=kind_accent,
-                    depth=agent_tree_depth(agent) + 1,
+                    depth=depths.get(agent_key, agent_tree_depth(agent)) + 1,
                     panel_key=panel_key,
                     parent_row=parent_row,
                     jumpable=jumpable,
@@ -351,15 +389,25 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         row_agent = row.agent
         if row_agent is None:
             continue
-        current_key = agent_parent_fold_key(row_agent)
+        row_key = id(row_agent)
+        if row_key in parent_keys:
+            current_key = parent_keys[row_key]
+        else:
+            current_key = agent_parent_fold_key(row_agent)
         seen_keys: set[str] = set()
         while current_key and current_key not in seen_keys:
             seen_keys.add(current_key)
             fold_parent = parents.get(current_key)
             if fold_parent is None:
                 break
-            descendant_of_jumpable.add(fold_parent.identity)
-            current_key = agent_parent_fold_key(fold_parent)
+            descendant_of_jumpable.add(
+                identity_of.get(id(fold_parent), fold_parent.identity)
+            )
+            fold_parent_id = id(fold_parent)
+            if fold_parent_id in parent_keys:
+                current_key = parent_keys[fold_parent_id]
+            else:
+                current_key = agent_parent_fold_key(fold_parent)
 
     keep = [True] * len(rows)
     for pos, row in enumerate(rows):
