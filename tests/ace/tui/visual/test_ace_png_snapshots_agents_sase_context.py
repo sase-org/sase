@@ -23,7 +23,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailContextLane
 from sase.bead.model import Issue, IssueType
-from sase.core.bead_touch_index_facade import BeadNotePreview, BeadTouch
+from sase.core.bead_touch_index_facade import (
+    BeadNotePreview,
+    BeadTouch,
+    BeadTouchClose,
+)
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     choose_agent_metadata_view,
@@ -109,6 +113,160 @@ async def test_agents_bead_note_preview_png_snapshot(
             page,
             "agents_bead_note_preview_120x40",
             title="ACE agents Context-card bead note preview",
+        )
+
+
+def _closed_bead_touches() -> tuple[_BeadTouchDisplayEvent, ...]:
+    """Return touches covering standing-done, canceled, plain, stale closes.
+
+    Bead ids stay short so the CLOSED pill fits the 90x32 split-card
+    viewport as well as the wide card.
+    """
+    actor = "visual.bead-closed"
+    return (
+        _BeadTouchDisplayEvent(
+            touch=BeadTouch(
+                actor=actor,
+                bead_id="sase-19f.2",
+                title="Render closed beads distinctly",
+                verbs={"closed": 1, "noted": 1},
+                first_at="2026-09-25T14:02:00Z",
+                last_at="2026-09-25T14:05:00Z",
+                close=BeadTouchClose(
+                    closed_at="2026-09-25T14:05:00Z",
+                    resolution="done",
+                    reason="Phase checks green",
+                    standing=True,
+                ),
+            )
+        ),
+        _BeadTouchDisplayEvent(
+            touch=BeadTouch(
+                actor=actor,
+                bead_id="sase-1a2",
+                title="Canceled duplicate",
+                verbs={"closed": 1, "created": 1},
+                first_at="2026-09-25T14:01:00Z",
+                last_at="2026-09-25T14:04:00Z",
+                close=BeadTouchClose(
+                    closed_at="2026-09-25T14:04:00Z",
+                    resolution="canceled",
+                    reason="duplicate of sase-19z",
+                    standing=True,
+                ),
+            )
+        ),
+        _BeadTouchDisplayEvent(
+            touch=BeadTouch(
+                actor=actor,
+                bead_id="sase-19f",
+                title="Closed beads in Context card",
+                verbs={"noted": 1},
+                first_at="2026-09-25T14:00:00Z",
+                last_at="2026-09-25T14:03:00Z",
+            )
+        ),
+        _BeadTouchDisplayEvent(
+            touch=BeadTouch(
+                actor=actor,
+                bead_id="sase-17m.4",
+                title="Legacy attribution",
+                verbs={"noted": 1, "closed": 1},
+                first_at="2026-09-25T13:00:00Z",
+                last_at="2026-09-25T14:02:00Z",
+                close=BeadTouchClose(
+                    closed_at="2026-09-25T14:02:00Z",
+                    resolution="done",
+                    reason="",
+                    standing=False,
+                ),
+            )
+        ),
+    )
+
+
+def _closed_bead_agent(tmp_path: Path) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-bead-closed",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 9, 25, 14, 0, 0),
+        raw_suffix="20260925140000",
+        agent_name="visual.bead-closed",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+
+
+async def test_agents_bead_closed_by_agent_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The Context card paints standing closes with a CLOSED pill."""
+    agent = _closed_bead_agent(tmp_path)
+    touches = _closed_bead_touches()
+    monkeypatch.setattr(
+        "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
+        lambda _agent: touches,
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "sase-19f.2")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "SASE CONTEXT")
+        assert_page_svg_contains(page, "Beads:")
+        assert_page_svg_contains(page, "sase-19f.2")
+        assert_page_svg_contains(page, "CLOSED")
+        assert_page_svg_contains(page, "canceled")
+        assert_page_svg_contains(page, "reopened since")
+        assert_page_svg_contains(page, "closed")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_bead_closed_by_agent_120x40",
+            title="ACE agents Context-card closed beads",
+        )
+
+
+async def test_agents_bead_closed_by_agent_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The CLOSED pill stays contiguous in a narrow split card."""
+    agent = _closed_bead_agent(tmp_path)
+    touches = _closed_bead_touches()
+    monkeypatch.setattr(
+        "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
+        lambda _agent: touches,
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', patches=patches(), size=(90, 32)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "Beads:")
+        await wait_for_svg_contains(page, "CLOSED")
+        await wait_for_visual_idle(page)
+
+        # The narrow card wraps the "SASE CONTEXT" heading itself, so assert
+        # the lane and pill tokens that prove the closed rendering instead.
+        assert_page_svg_contains(page, "Beads:")
+        assert_page_svg_contains(page, "CLOSED")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_bead_closed_by_agent_90x32",
+            title="ACE agents Context-card closed beads narrow",
         )
 
 

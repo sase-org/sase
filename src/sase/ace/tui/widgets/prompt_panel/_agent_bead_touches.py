@@ -11,11 +11,20 @@ from rich.text import Text
 
 from sase.ace.tui.bead_hint_targets import bead_hint_target as _bead_hint_target
 from sase.ace.tui.bead_touches import BeadTouchEntry
-from sase.core.bead_touch_index_facade import BeadNotePreview
+from sase.core.bead_touch_index_facade import BeadNotePreview, BeadTouchClose
 from sase.bead.touch_glyphs import touch_glyph
 
 from ._agent_context_common import (
+    COLOR_BEAD_CLOSED_CAP,
+    COLOR_BEAD_CLOSED_GLYPH,
+    COLOR_BEAD_CLOSED_MUTED_CAP,
+    COLOR_BEAD_CLOSED_MUTED_GLYPH,
+    COLOR_BEAD_CLOSED_MUTED_PILL,
+    COLOR_BEAD_CLOSED_PILL,
+    COLOR_BEAD_CLOSED_STALE,
     COLOR_BEAD_PRIMARY,
+    COLOR_BEAD_REOPENED_SINCE,
+    COLOR_BEAD_RESOLUTION,
     COLOR_BEAD_SUBHEADER,
     COLOR_ROLE,
     COLOR_SUMMARY,
@@ -40,6 +49,133 @@ __all__ = [
     "append_agent_bead_touch_rows",
     "bead_touches_section_for",
 ]
+
+CLOSED_PILL_TEXT = "CLOSED"
+CLOSED_PILL_LEFT = "▐"
+CLOSED_PILL_RIGHT = "▌"
+REOPENED_SINCE_CHIP = "reopened since"
+
+
+def _standing_close(entry: BeadTouchEntry) -> BeadTouchClose | None:
+    """Return the standing agent close, or ``None`` when there is none."""
+    close = entry.agent_close
+    if close is not None and close.standing:
+        return close
+    return None
+
+
+def _close_resolution(entry: BeadTouchEntry) -> str:
+    """Return the normalized close resolution, ``done`` when absent."""
+    close = entry.agent_close
+    if close is None:
+        return "done"
+    resolution = close.resolution if isinstance(close.resolution, str) else ""
+    resolution = resolution.strip()
+    return resolution or "done"
+
+
+def _bead_touch_glyph_style(entry: BeadTouchEntry) -> str:
+    """Return the glyph style, green/grey for standing closes."""
+    if _standing_close(entry) is not None:
+        if _close_resolution(entry) == "done":
+            return COLOR_BEAD_CLOSED_GLYPH
+        return COLOR_BEAD_CLOSED_MUTED_GLYPH
+    return COLOR_BEAD_SUBHEADER
+
+
+def _closed_pill_styles(entry: BeadTouchEntry) -> tuple[str, str]:
+    """Return ``(cap_style, pill_style)`` for a standing close row."""
+    if _close_resolution(entry) == "done":
+        return (COLOR_BEAD_CLOSED_CAP, COLOR_BEAD_CLOSED_PILL)
+    return (COLOR_BEAD_CLOSED_MUTED_CAP, COLOR_BEAD_CLOSED_MUTED_PILL)
+
+
+def _styled_bead_verb_chips(entry: BeadTouchEntry) -> list[tuple[str, str]]:
+    """Return ``(chip, style)`` pairs with the closed rewrite applied.
+
+    Standing closes drop the plain ``closed`` chip because the pill replaces
+    it; a non-``done`` resolution adds its raw resolution chip, and a
+    non-standing close keeps a struck ``closed`` followed by
+    ``reopened since``. Rows without an agent close render exactly as today.
+    """
+    close = entry.agent_close
+    if close is None:
+        return [
+            (chip, COLOR_ROLE if chip == "own" else COLOR_SUMMARY)
+            for chip in _ordered_bead_verb_chips(entry)
+        ]
+    styled: list[tuple[str, str]] = []
+    if entry.own:
+        styled.append(("own", COLOR_ROLE))
+    if close.standing:
+        if _close_resolution(entry) != "done":
+            styled.append((_close_resolution(entry), COLOR_BEAD_RESOLUTION))
+        for verb, count in entry.verbs.items():
+            if verb in ("closed", "read", "viewed"):
+                continue
+            styled.append((_chip(verb, count), COLOR_SUMMARY))
+    else:
+        for verb, count in entry.verbs.items():
+            if verb in ("read", "viewed"):
+                continue
+            if verb == "closed":
+                styled.append((_chip(verb, count), COLOR_BEAD_CLOSED_STALE))
+                styled.append((REOPENED_SINCE_CHIP, COLOR_BEAD_REOPENED_SINCE))
+                continue
+            styled.append((_chip(verb, count), COLOR_SUMMARY))
+    if "read" in entry.verbs:
+        styled.append((_chip("read", entry.verbs["read"]), COLOR_SUMMARY))
+    if "viewed" in entry.verbs:
+        styled.append((_chip("viewed", entry.verbs["viewed"]), COLOR_SUMMARY))
+    return styled
+
+
+def _standing_close_reason(entry: BeadTouchEntry) -> str:
+    """Return the ``↳`` line for a standing close with a reason, else ````."""
+    close = _standing_close(entry)
+    if close is None:
+        return ""
+    reason = close.reason.strip() if isinstance(close.reason, str) else ""
+    if not reason:
+        return ""
+    resolution = _close_resolution(entry)
+    if resolution == "done":
+        return f"closed: {reason}"
+    return f"{resolution}: {reason}"
+
+
+def _visible_bead_entries(
+    entries: tuple[BeadTouchEntry, ...] | Sequence[BeadTouchEntry],
+) -> tuple[BeadTouchEntry, ...]:
+    """Return the rows that claim the visible slots, newest-first.
+
+    Standing closes claim slots first (newest first, up to
+    ``MAX_VISIBLE_BEADS``); the remaining slots fill by rank. The chosen rows
+    keep the original newest-first order so hint numbers and rows stay
+    aligned.
+    """
+    ordered = tuple(entries)
+    if len(ordered) <= MAX_VISIBLE_BEADS:
+        return ordered
+    picked: list[BeadTouchEntry] = []
+    picked_ids: set[int] = set()
+    for item in ordered:
+        if len(picked) >= MAX_VISIBLE_BEADS:
+            break
+        if _standing_close(item) is not None:
+            picked.append(item)
+            picked_ids.add(id(item))
+    if len(picked) < MAX_VISIBLE_BEADS:
+        for item in ordered:
+            if id(item) in picked_ids:
+                continue
+            picked.append(item)
+            picked_ids.add(id(item))
+            if len(picked) >= MAX_VISIBLE_BEADS:
+                break
+    order = {id(item): index for index, item in enumerate(ordered)}
+    picked.sort(key=lambda item: order[id(item)])
+    return tuple(picked)
 
 
 def _bead_touch_glyph(entry: BeadTouchEntry) -> str:
@@ -167,7 +303,7 @@ def _bead_touch_hint_labels(
 ) -> tuple[Text | None, ...]:
     """Assign numbered bead hints once so logical and card renders stay aligned."""
     labels: list[Text | None] = []
-    for item in entries[:MAX_VISIBLE_BEADS]:
+    for item in _visible_bead_entries(entries):
         label: Text | None = None
         if hint_state is not None:
             target = _bead_hint_target(item.bead_id)
@@ -202,7 +338,7 @@ def append_agent_bead_touch_rows(
     ``append_context_reason``. Note wrapping honors ``line_cell_limit`` so a
     split Context card can keep three physical body lines.
     """
-    visible = entries[:MAX_VISIBLE_BEADS]
+    visible = _visible_bead_entries(entries)
     if hint_labels is None:
         resolved_hints = _bead_touch_hint_labels(entries, hint_state)
     else:
@@ -221,7 +357,7 @@ def append_agent_bead_touch_rows(
                 text,
                 timestamp=item.last_at or item.first_at,
                 glyph=glyph,
-                glyph_style=COLOR_BEAD_SUBHEADER,
+                glyph_style=_bead_touch_glyph_style(item),
                 primary=item.bead_id,
                 primary_style=COLOR_BEAD_PRIMARY,
                 role_label=item.agent_label,
@@ -230,9 +366,15 @@ def append_agent_bead_touch_rows(
             )
             + extra_indent
         )
-        for chip in _ordered_bead_verb_chips(item):
+        if _standing_close(item) is not None:
+            cap_style, pill_style = _closed_pill_styles(item)
+            text.append(" ", style=COLOR_SUMMARY)
+            text.append(CLOSED_PILL_LEFT, style=cap_style)
+            text.append(CLOSED_PILL_TEXT, style=pill_style)
+            text.append(CLOSED_PILL_RIGHT, style=cap_style)
+        for chip, chip_style in _styled_bead_verb_chips(item):
             text.append(" · ", style=COLOR_SUMMARY)
-            text.append(chip, style=COLOR_ROLE if chip == "own" else COLOR_SUMMARY)
+            text.append(chip, style=chip_style)
         text.append("\n")
         if item.note_preview is not None:
             _append_bead_note_preview(
@@ -243,11 +385,15 @@ def append_agent_bead_touch_rows(
                 role_label=item.note_agent_label,
                 line_cell_limit=line_cell_limit,
             )
-        reason_text = (
-            f"read: {item.read_reasons[0]}"
-            if item.note_preview is not None and item.read_reasons
-            else (item.read_reasons[0] if item.read_reasons else item.title)
-        )
+        close_reason = _standing_close_reason(item)
+        if close_reason:
+            reason_text = close_reason
+        else:
+            reason_text = (
+                f"read: {item.read_reasons[0]}"
+                if item.note_preview is not None and item.read_reasons
+                else (item.read_reasons[0] if item.read_reasons else item.title)
+            )
         if reason_text.strip():
             append_context_reason(
                 text,
@@ -258,12 +404,23 @@ def append_agent_bead_touch_rows(
 
     overflow = len(entries) - len(visible)
     if overflow > 0:
-        earliest = entries[-1]
+        visible_ids = {id(item) for item in visible}
+        hidden = [item for item in entries if id(item) not in visible_ids]
+        earliest = hidden[-1] if hidden else entries[-1]
         text.append(
             f"  {_SUBSECTION_ROW_PREFIX}+ {overflow} more · "
-            f"{format_local_hhmm(earliest.last_at or earliest.first_at)} earliest\n",
+            f"{format_local_hhmm(earliest.last_at or earliest.first_at)} earliest",
             style=COLOR_TRUNCATION,
         )
+        hidden_standing = sum(1 for item in hidden if _standing_close(item) is not None)
+        if hidden_standing:
+            text.append(" (", style=COLOR_TRUNCATION)
+            text.append(
+                f"✓ {hidden_standing} closed",
+                style=COLOR_BEAD_CLOSED_GLYPH,
+            )
+            text.append(")", style=COLOR_TRUNCATION)
+        text.append("\n")
 
 
 def _line_cell_limit_for_width(width: int) -> int:

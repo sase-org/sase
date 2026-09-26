@@ -12,7 +12,7 @@ from rich.text import Text
 
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.ace.tui.bead_touches import BeadTouchEntry
-from sase.core.bead_touch_index_facade import BeadNotePreview
+from sase.core.bead_touch_index_facade import BeadNotePreview, BeadTouchClose
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_artifacts_lane import (
     append_agent_artifacts_lane,
@@ -22,6 +22,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_bead_touches import (
     _bead_touch_glyph,
     _ordered_bead_verb_chips,
     append_agent_bead_touch_rows,
+    _visible_bead_entries,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
     ARTIFACT_READ_GLYPH,
@@ -30,7 +31,16 @@ from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
     BEAD_EDITED_GLYPH,
     BEAD_REMOVED_GLYPH,
     BEAD_REOPENED_GLYPH,
+    COLOR_BEAD_CLOSED_CAP,
+    COLOR_BEAD_CLOSED_GLYPH,
+    COLOR_BEAD_CLOSED_MUTED_CAP,
+    COLOR_BEAD_CLOSED_MUTED_GLYPH,
+    COLOR_BEAD_CLOSED_MUTED_PILL,
+    COLOR_BEAD_CLOSED_PILL,
+    COLOR_BEAD_CLOSED_STALE,
     COLOR_BEAD_PRIMARY,
+    COLOR_BEAD_REOPENED_SINCE,
+    COLOR_BEAD_RESOLUTION,
     COLOR_BEAD_SUBHEADER,
     COLOR_REASON,
     COLOR_ROLE,
@@ -73,6 +83,7 @@ def _entry(
     current_note_count: int = 0,
     note_preview: BeadNotePreview | None = None,
     note_label: str | None = None,
+    agent_close: BeadTouchClose | None = None,
 ) -> BeadTouchEntry:
     return BeadTouchEntry(
         bead_id=bead_id,
@@ -86,6 +97,22 @@ def _entry(
         current_note_count=current_note_count,
         note_preview=note_preview,
         note_agent_label=note_label,
+        agent_close=agent_close,
+    )
+
+
+def _close(
+    timestamp: str,
+    *,
+    resolution: str = "done",
+    reason: str = "",
+    standing: bool = True,
+) -> BeadTouchClose:
+    return BeadTouchClose(
+        closed_at=timestamp,
+        resolution=resolution,
+        reason=reason,
+        standing=standing,
     )
 
 
@@ -731,3 +758,266 @@ def test_clan_hint_target_rejects_invalid_bead_id() -> None:
         )
         is None
     )
+
+
+# --- closed pill (sase-19p.3) --------------------------------------------------
+
+
+def test_standing_done_row_shows_pill_and_drops_closed_chip() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-19f.2",
+                "2026-09-25T17:34:01+00:00",
+                verbs={"closed": 1, "noted": 2},
+                title="Render agent-closed beads distinctly",
+                own=True,
+                agent_close=_close("2026-09-25T17:34:01+00:00"),
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "✓ sase-19f.2 ▐CLOSED▌ · own · noted ×2" in plain
+    assert "· closed" not in plain
+    assert_span_covers(text, "✓", COLOR_BEAD_CLOSED_GLYPH)
+    assert_span_covers(text, "▐", COLOR_BEAD_CLOSED_CAP)
+    assert_span_covers(text, "CLOSED", COLOR_BEAD_CLOSED_PILL)
+    assert_span_covers(text, "▌", COLOR_BEAD_CLOSED_CAP)
+    assert_span_covers(text, "own", COLOR_ROLE)
+
+
+def test_standing_canceled_row_shows_grey_pill_and_resolution() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-1a2",
+                "2026-09-25T17:20:45+00:00",
+                verbs={"closed": 1, "created": 1},
+                title="duplicate",
+                agent_close=_close(
+                    "2026-09-25T17:20:45+00:00",
+                    resolution="canceled",
+                    reason="duplicate of sase-19z",
+                ),
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "✓ sase-1a2 ▐CLOSED▌ · canceled · created" in plain
+    assert_span_covers(text, "✓", COLOR_BEAD_CLOSED_MUTED_GLYPH)
+    assert_span_covers(text, "▐", COLOR_BEAD_CLOSED_MUTED_CAP)
+    assert_span_covers(text, "CLOSED", COLOR_BEAD_CLOSED_MUTED_PILL)
+    assert_span_covers(text, "canceled", COLOR_BEAD_RESOLUTION)
+    assert "↳ canceled: duplicate of sase-19z" in plain
+
+
+def test_non_standing_row_keeps_struck_closed_and_reopened_since() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-17m.4",
+                "2026-09-25T16:02:55+00:00",
+                verbs={"noted": 1, "closed": 1},
+                title="Legacy close attribution",
+                agent_close=_close("2026-09-25T16:02:55+00:00", standing=False),
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "▐CLOSED▌" not in plain
+    assert "· noted · closed · reopened since" in plain
+    assert "↳ Legacy close attribution" in plain
+    assert_span_covers(text, "✓", COLOR_BEAD_SUBHEADER)
+    assert_span_covers(text, "closed", COLOR_BEAD_CLOSED_STALE)
+    assert_span_covers(text, "reopened since", COLOR_BEAD_REOPENED_SINCE)
+
+
+def test_no_close_row_renders_exactly_as_before() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-19f",
+                "2026-09-25T16:58:02+00:00",
+                verbs={"noted": 1},
+                title="Agent-closed beads in the Context card",
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "✎ sase-19f · noted" in plain
+    assert "▐CLOSED▌" not in plain
+    assert "↳ Agent-closed beads in the Context card" in plain
+    assert_span_covers(text, "✎", COLOR_BEAD_SUBHEADER)
+
+
+def test_standing_close_reason_beats_read_reason_and_title() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-19f.2",
+                "2026-09-25T17:34:01+00:00",
+                verbs={"closed": 1},
+                title="Bead title",
+                read_reasons=("Need the scope",),
+                agent_close=_close(
+                    "2026-09-25T17:34:01+00:00", reason="Phase checks green"
+                ),
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "↳ closed: Phase checks green" in plain
+    assert "Need the scope" not in plain
+    assert "Bead title" not in plain
+
+
+def test_standing_close_without_reason_falls_back_to_title() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-19f.2",
+                "2026-09-25T17:34:01+00:00",
+                verbs={"closed": 1},
+                title="Bead title",
+                agent_close=_close("2026-09-25T17:34:01+00:00"),
+            ),
+        ),
+    )
+    assert "↳ Bead title" in text.plain
+
+
+def test_lane_header_announces_standing_close_count() -> None:
+    text = Text()
+    append_agent_artifacts_lane(
+        text,
+        bead_touch_entries=(
+            _entry(
+                "sase-19f.2",
+                "2026-09-25T17:34:01+00:00",
+                verbs={"closed": 1},
+                title="t",
+                agent_close=_close("2026-09-25T17:34:01+00:00"),
+            ),
+            _entry(
+                "sase-1a2",
+                "2026-09-25T17:20:45+00:00",
+                verbs={"closed": 1},
+                title="t",
+                agent_close=_close("2026-09-25T17:20:45+00:00", resolution="canceled"),
+            ),
+            _entry(
+                "sase-19f",
+                "2026-09-25T16:58:02+00:00",
+                verbs={"noted": 1},
+                title="t",
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "▸ ARTIFACTS · 3 beads (✓ 2 closed)\n" in plain
+    assert_span_covers(text, "✓ 2 closed", COLOR_BEAD_CLOSED_GLYPH)
+
+
+def test_lane_header_without_closes_is_unchanged() -> None:
+    text = Text()
+    append_agent_artifacts_lane(
+        text,
+        bead_touch_entries=(
+            _entry(
+                "sase-19f",
+                "2026-09-25T16:58:02+00:00",
+                verbs={"noted": 1},
+                title="t",
+            ),
+        ),
+    )
+    assert "▸ ARTIFACTS · 1 bead\n" in text.plain
+    assert "closed" not in text.plain.splitlines()[0]
+
+
+def test_visible_selection_keeps_older_standing_close_and_hints() -> None:
+    entries = tuple(
+        _entry(
+            f"sase-{index}",
+            f"2026-05-24T14:{30 - index:02d}:00+00:00",
+            verbs={"noted": 1},
+            title=f"title {index}",
+        )
+        for index in range(MAX_VISIBLE_BEADS + 1)
+    ) + (
+        _entry(
+            "sase-old",
+            "2026-05-24T13:00:00+00:00",
+            verbs={"closed": 1},
+            title="old close",
+            agent_close=_close("2026-05-24T13:00:00+00:00"),
+        ),
+    )
+    visible = _visible_bead_entries(entries)
+    assert len(visible) == MAX_VISIBLE_BEADS
+    assert visible[-1].bead_id == "sase-old"
+
+    state = _hint_state(start=7)
+    text = Text()
+    append_agent_bead_touch_rows(text, entries=entries, hint_state=state)
+    plain = text.plain
+    assert "sase-old" in plain
+    assert "▐CLOSED▌" in plain
+    assert state.hint_mappings[7 + MAX_VISIBLE_BEADS - 1] == "bead:sase-old"
+    assert state.hint_counter == 7 + MAX_VISIBLE_BEADS
+
+
+def test_overflow_footer_uses_hidden_earliest_and_hidden_closed() -> None:
+    many = tuple(
+        _entry(
+            f"sase-c{index}",
+            f"2026-05-24T14:{30 - index:02d}:00+00:00",
+            verbs={"closed": 1},
+            title="t",
+            agent_close=_close(f"2026-05-24T14:{30 - index:02d}:00+00:00"),
+        )
+        for index in range(MAX_VISIBLE_BEADS + 2)
+    )
+    text = Text()
+    append_agent_bead_touch_rows(text, entries=many)
+    plain = text.plain
+    assert f"+ 2 more · {many[-1].last_at[11:16]} earliest (✓ 2 closed)" in plain
+    assert_span_covers(text, "✓ 2 closed", COLOR_BEAD_CLOSED_GLYPH)
+
+
+def test_narrow_console_keeps_pill_contiguous() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-19f.2",
+                "2026-09-25T17:34:01+00:00",
+                verbs={"closed": 1, "noted": 2},
+                title="Render agent-closed beads distinctly",
+                own=True,
+                agent_close=_close("2026-09-25T17:34:01+00:00"),
+            ),
+        ),
+        line_cell_limit=40,
+    )
+    output = StringIO()
+    console = Console(file=output, width=40, color_system=None)
+    console.print(text, end="")
+    rendered = output.getvalue()
+    assert "▐CLOSED▌" in rendered
+    assert "▐CLOSED" not in rendered.replace("▐CLOSED▌", "")
+    for line in rendered.splitlines():
+        assert cell_len(line) <= 40 or "sase-19f.2" in line

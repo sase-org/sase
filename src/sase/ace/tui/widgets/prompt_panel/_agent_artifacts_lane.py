@@ -22,6 +22,7 @@ from ._agent_commits import (
 )
 from ._agent_context_common import (
     COLOR_ARTIFACTS_SUBHEADER,
+    COLOR_BEAD_CLOSED_GLYPH,
     COLOR_SUMMARY,
     append_context_lane_header,
     count_phrase,
@@ -75,27 +76,42 @@ def append_agent_artifacts_lane(
     artifact_files = artifact_file_paths or []
     reads = _non_bead_reads(artifact_reads)
 
-    details: list[str] = []
+    closed_count = sum(
+        1
+        for entry in bead_touch_entries
+        if entry.agent_close is not None and entry.agent_close.standing
+    )
+    detail_parts: list[str] = []
     if bead_touch_entries:
-        details.append(count_phrase(len(bead_touch_entries), "bead"))
+        detail_parts.append(count_phrase(len(bead_touch_entries), "bead"))
     if reads:
-        details.append(count_phrase(len(reads), "read"))
+        detail_parts.append(count_phrase(len(reads), "read"))
     commit_count = count_agent_commit_groups(commit_groups)
     if commit_count:
-        details.append(count_phrase(commit_count, "commit"))
+        detail_parts.append(count_phrase(commit_count, "commit"))
     delta_count = len(deltas) + sum(len(group.entries) for group in linked_groups)
     if delta_count:
-        details.append(count_phrase(delta_count, "file"))
+        detail_parts.append(count_phrase(delta_count, "file"))
     if artifact_files:
-        details.append(count_phrase(len(artifact_files), "artifact file"))
-    if not details:
+        detail_parts.append(count_phrase(len(artifact_files), "artifact file"))
+    if not detail_parts:
         return None
+
+    details = Text()
+    details.append(detail_parts[0], style=COLOR_SUMMARY)
+    if bead_touch_entries and closed_count:
+        details.append(" (", style=COLOR_SUMMARY)
+        details.append(f"✓ {closed_count} closed", style=COLOR_BEAD_CLOSED_GLYPH)
+        details.append(")", style=COLOR_SUMMARY)
+    for part in detail_parts[1:]:
+        details.append(" · ", style=COLOR_SUMMARY)
+        details.append(part, style=COLOR_SUMMARY)
 
     append_context_lane_header(
         text,
         "ARTIFACTS",
         label_style=COLOR_ARTIFACTS_SUBHEADER,
-        details=" · ".join(details),
+        details=details,
     )
     beads_range: tuple[int, int] | None = None
     if bead_touch_entries:
