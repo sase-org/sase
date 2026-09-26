@@ -124,7 +124,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: No description set.
 - Lines: 37
-- Approx. tokens: 483
+- Approx. tokens: 492
 
 ### `sase/memory/task_types.md`
 
@@ -178,8 +178,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
   types and tiers, the status lifecycle agents must never hand-edit, task-bead triage,
   phase-bead description prefixes, and non-cascading close, resolution, and note
   semantics.
-- Lines: 150
-- Approx. tokens: 2024
+- Lines: 145
+- Approx. tokens: 1949
 
 ### `sase/memory/sase_flags.md`
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1415
-- Total approx. tokens: 19134
+- Total lines: 1410
+- Total approx. tokens: 19068
 
 ## Commands
 
