@@ -355,13 +355,14 @@ def filter_node_finder(
             keep.add(current)
             current = rows[current].parent_row if 0 <= current < len(rows) else None
 
-    # Drop headers with no kept node rows beneath them.
+    # Drop headers with no kept node rows beneath them. One ancestor walk
+    # per kept node replaces a per-header scan over all kept nodes.
     kept_nodes = {pos for pos in keep if rows[pos].role is NodeFinderRole.NODE}
+    headers_with_nodes = _headers_with_kept_descendants(rows, kept_nodes)
     excluded_headers = {
         pos
         for pos in keep
-        if rows[pos].role is not NodeFinderRole.NODE
-        and not any(_is_descendant(rows, node_pos, pos) for node_pos in kept_nodes)
+        if rows[pos].role is not NodeFinderRole.NODE and pos not in headers_with_nodes
     }
     keep -= excluded_headers
 
@@ -406,19 +407,22 @@ def filter_node_finder(
     )
 
 
-def _is_descendant(
+def _headers_with_kept_descendants(
     rows: tuple[NodeFinderRow, ...] | list[NodeFinderRow],
-    node_pos: int,
-    ancestor_pos: int,
-) -> bool:
-    current = rows[node_pos].parent_row
-    seen: set[int] = set()
-    while current is not None and current not in seen:
-        if current == ancestor_pos:
-            return True
-        seen.add(current)
-        current = rows[current].parent_row if 0 <= current < len(rows) else None
-    return False
+    kept_nodes: set[int],
+) -> set[int]:
+    """Return header positions with at least one kept node beneath them."""
+    headers: set[int] = set()
+    for node_pos in kept_nodes:
+        current = rows[node_pos].parent_row
+        seen: set[int] = set()
+        while current is not None and current not in seen:
+            if not 0 <= current < len(rows):
+                break
+            seen.add(current)
+            headers.add(current)
+            current = rows[current].parent_row
+    return headers
 
 
 def next_jumpable_index(view: NodeFinderView, index: int, direction: int) -> int:

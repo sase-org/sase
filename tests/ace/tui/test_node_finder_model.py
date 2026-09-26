@@ -320,6 +320,46 @@ def test_filter_keeps_ancestors_and_headers_as_context() -> None:
     assert list(view.hint_to_identity.values()) == [("test", "research.8.cdx", None)]
 
 
+def test_filter_header_pruning_keeps_only_ancestor_headers() -> None:
+    """Linear header pruning keeps exactly the matched nodes' ancestors."""
+    panel_a = NodeFinderRow(role=NodeFinderRole.PANEL, depth=0)
+    group_a = NodeFinderRow(
+        role=NodeFinderRole.GROUP, depth=1, parent_row=0, group_label="alpha"
+    )
+    panel_b = NodeFinderRow(role=NodeFinderRole.PANEL, depth=0)
+    group_b = NodeFinderRow(
+        role=NodeFinderRole.GROUP, depth=1, parent_row=3, group_label="beta"
+    )
+    snap = _snapshot(
+        panel_a,
+        group_a,
+        _node("alpha-one", pos=2, parent=1),
+        panel_b,
+        group_b,
+        _node("beta-one", pos=5, parent=4),
+        _node("beta-two", pos=6, parent=4),
+        here=None,
+    )
+    view = filter_node_finder(snap, "beta-one")
+    names = [row.name for row in view.rows]
+    assert "beta-one" in names
+    assert "alpha-one" not in names
+    assert "beta-two" not in names
+    # Panel B and its group survive as context; panel A drops entirely.
+    roles = [row.role for row in view.rows]
+    assert roles.count(NodeFinderRole.PANEL) == 1
+    assert roles.count(NodeFinderRole.GROUP) == 1
+    matched = next(
+        index for index, row in enumerate(view.rows) if row.name == "beta-one"
+    )
+    assert matched not in view.context
+    assert view.context == set(range(len(view.rows))) - {matched}
+
+    empty = filter_node_finder(snap, "zzz-no-match")
+    assert empty.rows == ()
+    assert empty.best_index is None
+
+
 def test_filter_incremental_narrowing_equals_full_eval() -> None:
     snap = _snapshot(
         _node("research.8.cdx", pos=0),

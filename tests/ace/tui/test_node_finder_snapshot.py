@@ -452,3 +452,80 @@ def test_snapshot_filter_hints_map_to_identities() -> None:
     }
     member_view = filter_node_finder(snap, "member-1")
     assert [row.name for row in member_view.rows if row.jumpable] == ["member-1"]
+
+
+def test_snapshot_header_counts_match_brute_force_with_mixed_hidden_reasons() -> None:
+    """Linear header counts stay exact with folds, query, and I-hidden rows."""
+    from sase.ace.tui.models._agent_tree import project_clan_tree
+
+    projected, container = make_clan(3)
+    sess_proj, _sroot, _schild = make_agent_session(in_clan=False)
+    alpha = make_agent("alpha-one", tribe="alpha")
+    beta = make_agent("beta-one", tribe="beta")
+    visible = make_agent("visible", clan="research")
+    hidden = make_agent("hidden", clan="research")
+    hidden.hidden = True
+    full = project_clan_tree([visible, hidden])
+    visible_only = project_clan_tree([visible])
+    complete = list(projected) + list(sess_proj) + [alpha, beta] + list(visible_only)
+    app = NodeFinderHarness(complete, container)
+    app._agents_local_with_children = full
+    app._hideable_agents = [hidden]
+    app.hide_non_run_agents = True
+    app._agent_search_query = "member-0"
+    with override_flags(agents_unified_query=False):
+        app._refilter_agents()
+        snap = build_node_finder_snapshot(app)
+
+    rows = list(snap.rows)
+    assert sum(1 for row in rows if row.role is not NodeFinderRole.NODE) >= 2
+
+    def is_descendant(node_pos: int, ancestor_pos: int) -> bool:
+        current = rows[node_pos].parent_row
+        seen: set[int] = set()
+        while current is not None and current not in seen:
+            if current == ancestor_pos:
+                return True
+            seen.add(current)
+            current = rows[current].parent_row if 0 <= current < len(rows) else None
+        return False
+
+    # Brute-force oracle: every header counts jumpable nodes beneath it.
+    for pos, row in enumerate(rows):
+        if row.role is NodeFinderRole.NODE:
+            continue
+        expected_jumpable = 0
+        expected_hidden = 0
+        for node_pos, node in enumerate(rows):
+            if node.role is not NodeFinderRole.NODE or not node.jumpable:
+                continue
+            if node_pos == pos or is_descendant(node_pos, pos):
+                expected_jumpable += 1
+                if node.reasons:
+                    expected_hidden += 1
+        assert row.jumpable_count == expected_jumpable, f"header {pos}"
+        assert row.hidden_count == expected_hidden, f"header {pos}"
+
+    # Every kept header still has a kept node beneath it, and every kept
+    # node's ancestors are kept.
+    kept = set(range(len(rows)))
+    node_positions = [pos for pos in kept if rows[pos].role is NodeFinderRole.NODE]
+    assert node_positions
+    for pos, row in enumerate(rows):
+        if row.role is NodeFinderRole.NODE:
+            continue
+        assert any(
+            node_pos == pos or is_descendant(node_pos, pos)
+            for node_pos in node_positions
+        ), f"header {pos} has no kept descendant"
+    reasons_seen = {reason for row in rows for reason in row.reasons}
+    assert NodeFinderReason.FOLDED in reasons_seen
+    assert NodeFinderReason.QUERY in reasons_seen
+    assert NodeFinderReason.NON_RUN in reasons_seen
+    for pos in node_positions:
+        current = rows[pos].parent_row
+        seen: set[int] = set()
+        while current is not None and current not in seen:
+            assert current in kept, f"ancestor {current} of {pos} dropped"
+            seen.add(current)
+            current = rows[current].parent_row if 0 <= current < len(rows) else None

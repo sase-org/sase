@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
+from collections.abc import Iterator
 
 from ...models.agent import AgentType
 from ...models.agent_groups import GroupingMode, banner_label_for_group_key
@@ -322,10 +323,11 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         for pos, row in enumerate(rows)
         if keep[pos] and row.role is NodeFinderRole.NODE
     }
+    headers_with_nodes = _headers_with_kept_descendants(rows, kept_nodes)
     for pos, row in enumerate(rows):
         if not keep[pos] or row.role is NodeFinderRole.NODE:
             continue
-        if not any(_is_descendant(rows, node_pos, pos) for node_pos in kept_nodes):
+        if pos not in headers_with_nodes:
             keep[pos] = False
 
     kept_positions = [pos for pos, kept in enumerate(keep) if kept]
@@ -351,21 +353,10 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         if row.role is NodeFinderRole.NODE and row.identity is not None
     }
 
-    # Header counts over the final row set.
-    header_counts: dict[int, tuple[int, int]] = {}
-    for pos, row in enumerate(rows):
-        if row.role is NodeFinderRole.NODE:
-            continue
-        jumpable_count = 0
-        hidden_count = 0
-        for node_pos, node in enumerate(rows):
-            if node.role is not NodeFinderRole.NODE or not node.jumpable:
-                continue
-            if node_pos == pos or _is_descendant(rows, node_pos, pos):
-                jumpable_count += 1
-                if node.reasons:
-                    hidden_count += 1
-        header_counts[pos] = (jumpable_count, hidden_count)
+    # Header counts over the final row set. Each jumpable node contributes
+    # to every header above it in one ancestor walk instead of scanning all
+    # nodes once per header.
+    header_counts: dict[int, tuple[int, int]] = _accumulate_header_counts(rows)
     if header_counts:
         rows = [
             _evolve(
@@ -420,22 +411,57 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     )
 
 
-def _is_descendant(rows: list[NodeFinderRow], node_pos: int, ancestor_pos: int) -> bool:
-    for ancestor in _ancestor_chain(rows, node_pos):
-        if ancestor == ancestor_pos:
-            return True
-    return False
-
-
-def _ancestor_chain(rows: list[NodeFinderRow], pos: int) -> list[int]:
-    chain: list[int] = []
-    current = rows[pos].parent_row
+def _ancestor_positions(rows: list[NodeFinderRow], pos: int) -> Iterator[int]:
+    """Yield strict ancestor positions of *pos* with cycle and bounds guards."""
     seen: set[int] = set()
+    current = rows[pos].parent_row
     while current is not None and current not in seen:
+        if not 0 <= current < len(rows):
+            break
         seen.add(current)
-        chain.append(current)
-        current = rows[current].parent_row if 0 <= current < len(rows) else None
-    return chain
+        yield current
+        current = rows[current].parent_row
+
+
+def _headers_with_kept_descendants(
+    rows: list[NodeFinderRow], kept_nodes: set[int]
+) -> set[int]:
+    """Return header positions that have at least one kept node beneath them."""
+    headers: set[int] = set()
+    for node_pos in kept_nodes:
+        for ancestor in _ancestor_positions(rows, node_pos):
+            headers.add(ancestor)
+    return headers
+
+
+def _accumulate_header_counts(
+    rows: list[NodeFinderRow],
+) -> dict[int, tuple[int, int]]:
+    """Count jumpable/hidden nodes beneath each header in one linear pass."""
+    jumpable_counts: dict[int, int] = {}
+    hidden_counts: dict[int, int] = {}
+    headers: list[int] = []
+    for pos, row in enumerate(rows):
+        if row.role is NodeFinderRole.NODE:
+            continue
+        headers.append(pos)
+        jumpable_counts[pos] = 0
+        hidden_counts[pos] = 0
+    header_set = set(headers)
+    for node_pos, node in enumerate(rows):
+        if node.role is not NodeFinderRole.NODE or not node.jumpable:
+            continue
+        hidden = bool(node.reasons)
+        if node_pos in header_set:
+            jumpable_counts[node_pos] += 1
+            if hidden:
+                hidden_counts[node_pos] += 1
+        for ancestor in _ancestor_positions(rows, node_pos):
+            if ancestor in header_set:
+                jumpable_counts[ancestor] += 1
+                if hidden:
+                    hidden_counts[ancestor] += 1
+    return {pos: (jumpable_counts[pos], hidden_counts[pos]) for pos in headers}
 
 
 __all__ = [
