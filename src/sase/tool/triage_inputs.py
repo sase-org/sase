@@ -181,6 +181,51 @@ def _selection_dir(project_key: str) -> Path:
     return sase_home() / "test-selection" / key
 
 
+def _selection_evidence_items(
+    failures: object, project_root: str
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Turn a full-run ``failures`` list into wire-valid witness items."""
+
+    nodes = [str(item) for item in failures] if isinstance(failures, list) else []
+    nodes = [node for node in nodes if node]
+    if not nodes:
+        return [], []
+    try:
+        extracted = tool_run_triage_extract(
+            {
+                "stage_key": "test (scoped)",
+                "output": "\n".join(f"FAILED {node}" for node in nodes),
+                "project_root": project_root,
+            }
+        )
+    except Exception as error:  # noqa: BLE001 - drop only this record's items.
+        return [], [f"selection record extraction failed: {error}"]
+    items: list[dict[str, Any]] = []
+    for item in extracted.get("items") or []:
+        if not isinstance(item, Mapping):
+            continue
+        extractor = item.get("extractor")
+        version = item.get("extractor_version")
+        signature = item.get("signature")
+        if (
+            isinstance(extractor, str)
+            and isinstance(version, int)
+            and isinstance(signature, str)
+        ):
+            items.append(
+                {
+                    "extractor": extractor,
+                    "extractor_version": version,
+                    "signature": signature,
+                    "stage_key": "test (scoped)",
+                }
+            )
+    diagnostics = [
+        str(note) for note in extracted.get("diagnostics") or [] if str(note)
+    ]
+    return items, diagnostics
+
+
 def gather_selection_records(
     project_key: str,
     *,
@@ -190,24 +235,37 @@ def gather_selection_records(
     tool: str | None = None,
     extra_args_digest: str | None = None,
     selection_dir: Path | None = None,
+    project_root: str | Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Project full-run records into bounded witness wires.
 
     The caller supplies the subject's matching fields because selection-health
-    records intentionally do not duplicate a ToolRun definition.
+    records intentionally do not duplicate a ToolRun definition.  Each record's
+    ``failures`` are extracted into ``items`` here so the result validates as
+    ``ToolRunTriageEvidenceRunWire``.
     """
 
     now = int(time.time()) if now_ts is None else now_ts
     root = selection_dir or _selection_dir(project_key)
+    extract_root = str(Path(project_root) if project_root is not None else Path.cwd())
+    lookback = now - LOOKBACK_SECONDS
     try:
-        paths = sorted(
-            root.glob("*-full-run.json"), key=lambda path: path.stat().st_mtime
-        )
+        candidates = list(root.glob("*-full-run.json"))
     except OSError as error:
         return [], [f"selection records unavailable: {error}"]
+    dated: list[tuple[float, Path]] = []
+    for path in candidates:
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            continue
+        if mtime < lookback:
+            continue
+        dated.append((mtime, path))
+    dated.sort(key=lambda item: item[0])
     records: list[tuple[int, dict[str, Any]]] = []
     diagnostics: list[str] = []
-    for path in paths:
+    for _mtime, path in dated:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as error:
@@ -220,7 +278,7 @@ def gather_selection_records(
         ):
             continue
         recorded_at = _timestamp(payload.get("recorded_at"))
-        if recorded_at is None or recorded_at < now - LOOKBACK_SECONDS:
+        if recorded_at is None or recorded_at < lookback:
             continue
         if before_ts is not None and recorded_at >= before_ts:
             continue
@@ -233,17 +291,21 @@ def gather_selection_records(
             [str(path) for path in raw_changed] if isinstance(raw_changed, list) else []
         )
         tree_dirty = record.get("tree_dirty")
+        items, item_notes = _selection_evidence_items(
+            record.get("failures"), extract_root
+        )
+        raw_head = record.get("head")
+        head = raw_head if isinstance(raw_head, str) else None
+        diagnostics.extend(f"{note} ({head or 'unknown'})" for note in item_notes)
         out.append(
             {
-                "run_id": f"selection:{recorded_at}:{record.get('head') or 'unknown'}",
+                "run_id": f"selection:{recorded_at}:{head or 'unknown'}",
                 "project": project or project_key,
                 "tool": tool or "check",
                 "extra_args_digest": extra_args_digest or "",
                 "workspace": workspace_identity(str(record.get("workspace") or "")),
                 "settled_ts": recorded_at,
-                "base_head": record.get("head")
-                if isinstance(record.get("head"), str)
-                else None,
+                "base_head": head,
                 "complete_fingerprint": True,
                 "dirty_paths": changed,
                 "dirty_unknown": raw_changed is None and tree_dirty is True,
@@ -251,9 +313,8 @@ def gather_selection_records(
                 "ad_hoc": False,
                 "failed": record.get("exit_status") != 0,
                 "stage_completions": [],
-                "items": [],
+                "items": items,
                 "selection_source": True,
-                "failures": [str(item) for item in record.get("failures") or []],
             }
         )
     return out, diagnostics

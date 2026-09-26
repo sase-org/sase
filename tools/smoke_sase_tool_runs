@@ -106,6 +106,7 @@ GROUPS: tuple[Group, ...] = (
             "dod-7-triage-safety-net",
             "dod-2-triage-show-after-reap",
             "dod-9-triage-failures",
+            "dod-7-triage-selection",
         ),
         triage.failure_triage,
     ),

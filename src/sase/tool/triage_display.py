@@ -24,7 +24,7 @@ def footer_triage_lines(
 
     if not isinstance(triage, dict):
         return [], None
-    diagnostics = _strings(triage.get("diagnostics"))
+    diagnostics = _triage_diagnostics(triage)
     if not triage.get("triaged") and diagnostics:
         return [f"triage unavailable: {diagnostics[0]}"], None
     items = _dicts(triage.get("items"))
@@ -131,9 +131,24 @@ def show_triage_lines(triage: object) -> list[str]:
                 f"{item.get('stage_key') or '—'}  {item.get('display') or item.get('item_id') or '—'}"
                 f"  {_evidence_summary(item)}  {_owner_summary(item)}"
             )
-    for diagnostic in _strings(triage.get("diagnostics")):
+    for diagnostic in _triage_diagnostics(triage):
         lines.append(f"  DIAG     {diagnostic}")
     return lines
+
+
+def _triage_diagnostics(triage: dict[str, Any]) -> list[str]:
+    """Union top-level and run-facts diagnostics, preserving order."""
+
+    facts = triage.get("run_facts")
+    seen: list[str] = []
+    for source in (
+        triage.get("diagnostics"),
+        facts.get("diagnostics") if isinstance(facts, dict) else None,
+    ):
+        for item in _strings(source):
+            if item not in seen:
+                seen.append(item)
+    return seen
 
 
 def _stage_line(stage: dict[str, Any], items: list[dict[str, Any]]) -> str:
@@ -150,8 +165,12 @@ def _stage_line(stage: dict[str, Any], items: list[dict[str, Any]]) -> str:
     marker = ""
     if isinstance(decision, dict):
         value = str(decision.get("decision") or "")
-        if value:
-            marker = f" {value}d" if value in {"continue", "stop"} else f" {value}"
+        if value == "continue":
+            marker = " continued"
+        elif value == "stop":
+            marker = " stopped"
+        elif value:
+            marker = f" {value}"
     suffix = f" {details}" if details else f" {extraction}"
     return f"triage {stage.get('stage_key') or '—'}:{suffix}{marker}"
 

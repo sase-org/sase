@@ -696,6 +696,7 @@ def _settle_failure_triage(
             project=project,
             tool=ctx.resolved.tool_name,
             extra_args_digest=extra_args,
+            project_root=root,
         ),
         deadline,
     )
@@ -708,9 +709,11 @@ def _settle_failure_triage(
         for note in notes
     )
     if time.monotonic() >= deadline:
+        diagnostics.append("triage budget exceeded")
+        persist_notes = _persist_triage_diagnostics(ctx, diagnostics, deadline)
         return {
             "triaged": False,
-            "diagnostics": [*diagnostics, "triage budget exceeded"],
+            "diagnostics": [*diagnostics, *persist_notes],
         }
     request = {
         "run_id": ctx.run_id,
@@ -729,10 +732,14 @@ def _settle_failure_triage(
         "now_ts": int(time.time()),
     }
     try:
-        tool_run_triage_settle(
+        settled = tool_run_triage_settle(
             request,
             busy_timeout_ms=max(1, int((deadline - time.monotonic()) * 1000)),
         )
+        if isinstance(settled, dict) and settled.get("refused"):
+            diagnostics.append(f"triage settle refused: {settled['refused']}")
+        persist_notes = _persist_triage_diagnostics(ctx, diagnostics, deadline)
+        diagnostics.extend(persist_notes)
         # The settle response intentionally omits stage facts. Read back the
         # stored shape so the footer and explicit show surface share it.
         triage = tool_run_triage_show(
@@ -749,10 +756,58 @@ def _settle_failure_triage(
         ]
         return triage
     except Exception as exc:  # noqa: BLE001 - triage must always fail open.
-        return {"triaged": False, "diagnostics": [str(exc), *diagnostics]}
+        diagnostics.append(str(exc))
+        persist_notes = _persist_triage_diagnostics(ctx, diagnostics, deadline)
+        return {
+            "triaged": False,
+            "diagnostics": [*diagnostics, *persist_notes],
+        }
 
 
 _DECISION_RECORD_MIN_SECONDS = 0.3
+_DIAGNOSTIC_RECORD_MIN_SECONDS = 0.2
+
+
+def _persist_triage_diagnostics(
+    ctx: RecordedRunContext, diagnostics: list[str], deadline: float
+) -> list[str]:
+    """Store gatherer and settle diagnostics on the run's triage facts.
+
+    Fail-open and inside the remaining settle budget.  An empty list is a
+    no-op.  The core unions diagnostics onto the existing run-facts row.
+    """
+
+    notes: list[str] = []
+    unique = [item for item in dict.fromkeys(diagnostics) if item]
+    if not unique:
+        return notes
+    remaining = deadline - time.monotonic()
+    if remaining <= _DIAGNOSTIC_RECORD_MIN_SECONDS:
+        notes.append("triage diagnostics record skipped: budget exhausted")
+        return notes
+    try:
+        tool_run_triage_record(
+            {
+                "run_id": ctx.run_id,
+                "stages": [],
+                "run_facts": {
+                    "continuation_mode": ctx.continuation_mode,
+                    "recipe_finished_ts": None,
+                    "first_continued_exit_code": None,
+                    "continuation_extra_ms": None,
+                    "repeat_of_run_id": None,
+                    "triaged_ts": None,
+                    "diagnostics": unique,
+                },
+                "now_ts": int(time.time()),
+            },
+            busy_timeout_ms=max(1, int(remaining * 1000)),
+        )
+    except Exception as exc:  # noqa: BLE001 - diagnostics must fail open.
+        notes.append(f"triage diagnostics record failed: {exc}")
+    return notes
+
+
 _EXTRACTION_STATUSES = frozenset(
     {"parsed", "generic", "output_missing", "output_truncated"}
 )

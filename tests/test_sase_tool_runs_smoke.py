@@ -86,6 +86,7 @@ def test_group_ids_are_unique_and_every_case_maps_to_a_dod() -> None:
         "dod-7-triage-safety-net",
         "dod-2-triage-show-after-reap",
         "dod-9-triage-failures",
+        "dod-7-triage-selection",
     } <= set(ids)
 
 

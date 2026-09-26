@@ -245,35 +245,6 @@ def _workspace_for(
     return candidate
 
 
-def _selection_items(record: dict[str, Any], root: Path) -> dict[str, Any]:
-    failures = record.pop("failures", [])
-    if not failures:
-        record["items"] = []
-        return record
-    try:
-        extracted = tool_run_triage_extract(
-            {
-                "stage_key": "test (scoped)",
-                "output": "\n".join(f"FAILED {node}" for node in failures),
-                "project_root": str(root),
-            }
-        )
-    except Exception:  # noqa: BLE001 - selection input remains absent.
-        record["items"] = []
-        return record
-    record["items"] = [
-        {
-            "extractor": item["extractor"],
-            "extractor_version": item["extractor_version"],
-            "signature": item["signature"],
-            "stage_key": "test (scoped)",
-        }
-        for item in extracted.get("items") or []
-        if isinstance(item, Mapping)
-    ]
-    return record
-
-
 def _dirty_touch(locators: Iterable[str], dirty: Iterable[Mapping[str, str]]) -> bool:
     paths = [entry["path"] for entry in dirty]
     return any(
@@ -515,8 +486,8 @@ def replay_runs(
             selection_dir=Path(namespace.selection_dir).expanduser()
             if namespace.selection_dir
             else None,
+            project_root=root,
         )
-        selection = [_selection_items(row, root) for row in selection]
         witness_rows = {str(row["run_id"]): row for row in (*previous, *selection)}
         result = tool_run_triage_classify(
             {
@@ -655,7 +626,8 @@ def replay_runs(
             "known_on_added_or_untracked": len(known_on_added),
             "known_items_in_runs_with_untracked_paths": old_any_path_count,
             "workspace_attribution": {
-                source: attribution[source] for source in ("ledger", "agent_meta", "none")
+                source: attribution[source]
+                for source in ("ledger", "agent_meta", "none")
             },
         },
         "label_distribution": dict(sorted(label_counts.items())),

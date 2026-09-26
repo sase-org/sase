@@ -239,7 +239,7 @@ def _show_triage(run_id: str) -> dict[str, Any]:
     """Read durable triage without making explicit show depend on the footer flag."""
 
     try:
-        return tool_run_triage_show({"run_id": run_id})
+        shown = tool_run_triage_show({"run_id": run_id})
     except Exception as exc:  # noqa: BLE001 - preserve ordinary show for old stores.
         return {
             "schema_version": 1,
@@ -250,6 +250,18 @@ def _show_triage(run_id: str) -> dict[str, Any]:
             "items": [],
             "diagnostics": [f"triage unavailable: {exc}"],
         }
+    if not isinstance(shown, dict):
+        return shown
+    facts = shown.get("run_facts")
+    extra = facts.get("diagnostics") if isinstance(facts, dict) else None
+    if extra:
+        merged = [str(item) for item in shown.get("diagnostics") or () if str(item)]
+        for item in extra:
+            text = str(item)
+            if text and text not in merged:
+                merged.append(text)
+        shown["diagnostics"] = merged
+    return shown
 
 
 def _notice_unretained_output(run: dict[str, Any], notified: list[bool]) -> None:
@@ -470,18 +482,16 @@ def _replay_pruned_owner_log(run: dict[str, Any]) -> None:
 
 def _replay_monitor_log(monitor_id: str, project: str, run: dict[str, Any]) -> int:
     try:
-        from sase.monitor.logs import monitor_log_path
-        from sase.monitor.store import list_monitors, resolve_monitor_ref
+        from sase.tool.control import monitor_output_path
     except Exception as exc:  # noqa: BLE001 - missing owner is reported.
         print(f"sase: monitor owner log unavailable: {exc}", file=sys.stderr)
         return 0
-    try:
-        records = list_monitors(project=project or None)
-        record = resolve_monitor_ref(monitor_id, records)
-    except Exception:  # noqa: BLE001 - expired owners fall back to the recorded log.
+    if project and not run.get("project"):
+        run = {**run, "project": project}
+    path = monitor_output_path(run, monitor_id)
+    if path is None:
         _replay_pruned_owner_log(run)
         return 0
-    path = Path(record.output_path or monitor_log_path(record.artifacts_dir))
     if not path.is_file():
         print(
             f"sase: monitor owner log is missing or expired: {path}",

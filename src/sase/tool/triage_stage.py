@@ -130,6 +130,7 @@ def _gather_stage_inputs(
             project=project,
             tool=tool,
             extra_args_digest=extra_args,
+            project_root=root,
         )
     return ancestry, baseline, selection
 

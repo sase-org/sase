@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import shlex
+import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -33,9 +35,7 @@ def _project(h: Harness, name: str, script: str) -> Path:
 
 
 def _agent_env(h: Harness, world: dict[str, str], agent: str) -> dict[str, str]:
-    return h.env(
-        Path(world["SASE_HOME"]), HOME=world["HOME"], SASE_AGENT_NAME=agent
-    )
+    return h.env(Path(world["SASE_HOME"]), HOME=world["HOME"], SASE_AGENT_NAME=agent)
 
 
 def _events(h: Harness, run_id: str, env: dict[str, str]) -> list[dict[str, Any]]:
@@ -51,7 +51,7 @@ def failure_triage(h: Harness) -> list[dict[str, Any]]:
     """Exercise E3's observable triage contract through the real CLI/store."""
 
     known_output = (
-        "sh -c 'printf \"src/known.py:1: error: established  [attr-defined]\\n\"; "
+        'sh -c \'printf "src/known.py:1: error: established  [attr-defined]\\n"; '
         "exit 7'"
     )
     continuing_script = "\n".join(
@@ -119,7 +119,9 @@ def failure_triage(h: Harness) -> list[dict[str, Any]]:
     )
     h.note(new_id, "agent check stopped on a NEW/UNKNOWN triage item")
 
-    unfinished_project = _project(h, "triage-safety", _stage("lint (mypy)", known_output))
+    unfinished_project = _project(
+        h, "triage-safety", _stage("lint (mypy)", known_output)
+    )
     unfinished_world = h.world("triage-safety")
     witness = h.run(
         ["tool", "run", "check"], env=unfinished_world, cwd=unfinished_project
@@ -140,7 +142,7 @@ def failure_triage(h: Harness) -> list[dict[str, Any]]:
     h.note(safety_id, "continued failure without --finish triggers the safety net")
 
     reap = h.helper("retention", {"apply": True}, env=world)
-    reaped_triage = (h.show(agent_id, env=world).get("triage") or {})
+    reaped_triage = h.show(agent_id, env=world).get("triage") or {}
     reaped_ok = (
         reap.get("owner") == "tool_run_retention"
         and reap.get("mode") == "apply"
@@ -157,6 +159,77 @@ def failure_triage(h: Harness) -> list[dict[str, Any]]:
     failures_ok = failures.returncode == 0 and any(
         group.get("tool") == "check" for group in groups if isinstance(group, dict)
     )
+
+    scoped_output = (
+        'sh -c \'printf "FAILED tests/test_foo.py::test_bar - AssertionError\\n"; '
+        "exit 5'"
+    )
+    selection_script = "\n".join(
+        (
+            _stage("test (scoped)", scoped_output),
+            '"$RS" "after known" sh -c \'printf "after known reached\\n"\'',
+            '"$RS" --finish',
+        )
+    )
+    selection_project = _project(h, "triage-selection", selection_script)
+    selection_world = h.world("triage-selection")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=selection_project,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=selection_world,
+    ).stdout.strip()
+    selection_dir = Path(selection_world["SASE_HOME"]) / "test-selection" / "records"
+    selection_dir.mkdir(parents=True)
+    recorded = datetime.now(UTC)
+    stamp = recorded.strftime("%Y%m%dT%H%M%SZ")
+    (selection_dir / f"{stamp}-{head[:12]}-1-full-run.json").write_text(
+        json.dumps(
+            {
+                "schema": 2,
+                "kind": "full-run",
+                "recorded_at": recorded.isoformat(),
+                "head": head,
+                "mode": "full",
+                "exit_status": 1,
+                "workspace": "/tmp/sase_99",
+                "changed_files": [],
+                "tree_dirty": False,
+                "failures": ["tests/test_foo.py::test_bar"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    selection_env = _agent_env(h, selection_world, "triage-smoke-agent")
+    selection_env["SASE_TEST_SELECTION_HEALTH_DIR"] = str(selection_dir)
+    selection_run = h.run(
+        ["tool", "run", "check"],
+        env=selection_env,
+        cwd=selection_project,
+    )
+    selection_id = run_id_from(selection_run.stderr)
+    selection_shown = h.show(selection_id, env=selection_env)
+    selection_triage = selection_shown.get("triage") or {}
+    selection_stages = [
+        stage.get("description") for stage in selection_shown.get("stages") or ()
+    ]
+    selection_events = _events(h, selection_id, selection_env)
+    selection_continued = [
+        event for event in selection_events if event.get("kind") == "continued"
+    ]
+    selection_stopped = [
+        event for event in selection_events if event.get("kind") == "stopped"
+    ]
+    selection_ok = (
+        selection_run.returncode == 5
+        and "after known" in selection_stages
+        and selection_triage.get("triaged") is True
+        and len(selection_continued) == 1
+        and selection_continued[0].get("reason") == "all_known_or_flaky"
+    )
+    h.note(selection_id, "selection-record witness continued an all-KNOWN stage")
 
     return [
         case(
@@ -207,5 +280,20 @@ def failure_triage(h: Harness) -> list[dict[str, Any]]:
             dod=["DoD-9"],
             run_ids=[agent_id],
             group_count=len(groups),
+        ),
+        case(
+            "dod-7-triage-selection",
+            selection_ok,
+            dod=["DoD-7", "DoD-8"],
+            run_ids=[selection_id],
+            triaged=selection_triage.get("triaged"),
+            stages=selection_stages,
+            continued=len(selection_continued),
+            continued_reason=(
+                selection_continued[0].get("reason") if selection_continued else None
+            ),
+            stopped_reason=(
+                selection_stopped[0].get("reason") if selection_stopped else None
+            ),
         ),
     ]

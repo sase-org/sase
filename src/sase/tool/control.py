@@ -597,8 +597,11 @@ def monitor_output_path(run: dict[str, Any], monitor_id: str) -> Path | None:
     try:
         records = list_monitors(project=str(run.get("project") or "") or None)
         record = resolve_monitor_ref(monitor_id, records)
-    except Exception:  # noqa: BLE001 - expired owners have no log.
-        return None
+    except Exception:  # noqa: BLE001 - linked-repo runs retry unscoped.
+        try:
+            record = resolve_monitor_ref(monitor_id, list_monitors())
+        except Exception:  # noqa: BLE001 - expired owners have no log.
+            return None
     raw = record.output_path or None
     if raw:
         return Path(raw)

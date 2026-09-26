@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.tool.control import monitor_output_path
 from sase.tool.query import ToolShowCliRequest, handle_show
 
 
@@ -84,3 +85,39 @@ def test_show_identifies_runs_whose_detail_may_have_been_pruned(
     assert "older than 60 days is pruned by retention" in capsys.readouterr().err
     assert handle_show(ToolShowCliRequest(run_id=fresh, json=False, logs=False)) == 0
     assert "pruned by retention" not in capsys.readouterr().err
+
+
+def test_monitor_output_path_retries_unscoped_when_project_misses(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.monitor.models import MonitorRecord
+
+    log = tmp_path / "owner.log"
+    log.write_text("hello\n", encoding="utf-8")
+    record = MonitorRecord(
+        monitor_id="mon-linked-1",
+        member_agent_name="agent",
+        lane="lane",
+        project_name="host",
+        artifacts_dir=str(tmp_path),
+        timestamp="2026-01-01T00:00:00Z",
+        command="true",
+        cwd=str(tmp_path),
+        reason="reason",
+        label="label",
+        start_status="START",
+        stop_status="STOP",
+        timeout_seconds=1.0,
+        tail_lines=10,
+        monitor_state="completed",
+        output_path=str(log),
+    )
+
+    def fake_list(*, project: str | None = None) -> list[MonitorRecord]:
+        if project == "linked-repo":
+            return []
+        return [record]
+
+    monkeypatch.setattr("sase.monitor.store.list_monitors", fake_list)
+    path = monitor_output_path({"project": "linked-repo"}, "mon-linked-1")
+    assert path == log
