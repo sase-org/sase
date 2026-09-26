@@ -7,17 +7,21 @@ from pathlib import Path
 
 import pytest
 
-import sase.ace.tui.bead_touches as bead_touches
-from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
-from sase.ace.tui.bead_touches import (
+import sase.ace.tui._bead_touches_loader as bead_touches
+from sase.ace.tui._bead_touches_loader import (
     MAX_KEPT_TOUCHES,
-    _BeadTouchDisplayEvent,
+    load_bead_touches_for_agent_context,
+)
+from sase.ace.tui._bead_touches_merge import (
     BeadTouchEntry,
     _canonical_bead_id,
-    load_bead_touches_for_agent_context,
     merge_bead_touch_entries,
     own_bead_ids_for_agent,
 )
+from sase.ace.tui._bead_touches_shared import (
+    BeadTouchDisplayEvent as _BeadTouchDisplayEvent,
+)
+from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
 from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
 from sase.core.bead_touch_index_facade import (

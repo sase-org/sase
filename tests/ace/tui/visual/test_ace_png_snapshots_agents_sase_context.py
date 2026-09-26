@@ -9,7 +9,9 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.bead_touches import _BeadTouchDisplayEvent
+from sase.ace.tui._bead_touches_shared import (
+    BeadTouchDisplayEvent as _BeadTouchDisplayEvent,
+)
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_associated_plan import (

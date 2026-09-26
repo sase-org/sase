@@ -14,11 +14,11 @@ from pathlib import Path
 
 import pytest
 
-import sase.ace.tui.bead_touches as bead_touches
-from sase.ace.tui.bead_touches import (
-    _BeadTouchDisplayEvent,
-    load_bead_touches_for_agent_context,
-    merge_bead_touch_entries,
+import sase.ace.tui._bead_touches_loader as bead_touches
+from sase.ace.tui._bead_touches_loader import load_bead_touches_for_agent_context
+from sase.ace.tui._bead_touches_merge import merge_bead_touch_entries
+from sase.ace.tui._bead_touches_shared import (
+    BeadTouchDisplayEvent as _BeadTouchDisplayEvent,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_bead_touches import (
     _bead_touch_glyph,
