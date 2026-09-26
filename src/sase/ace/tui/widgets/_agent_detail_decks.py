@@ -439,6 +439,54 @@ class AgentDetailDeckMixin:
             self.set_deck_preferred_card(index, shown)
         return shown
 
+    def cycle_focused_card_block(self, direction: int) -> bool:
+        """Cycle card blocks in the focused panel; the owning card sticks."""
+        try:
+            area = self.deck_area
+            panel = area.focused_panel()
+        except Exception:
+            return False
+        try:
+            moved = panel.cycle_block(direction)
+        except Exception:
+            return False
+        if not moved:
+            return False
+        try:
+            index = panel.panel_index
+        except Exception:
+            return True
+        try:
+            active = panel.active_main_card()
+        except Exception:
+            active = None
+        self.set_deck_preferred_card(index, active)
+        return True
+
+    def select_focused_card_block(self, block_id: str | None) -> bool:
+        """Select a card block in the focused panel; the owning card sticks."""
+        try:
+            area = self.deck_area
+            panel = area.focused_panel()
+        except Exception:
+            return False
+        try:
+            moved = panel.select_block(block_id)
+        except Exception:
+            return False
+        if not moved:
+            return False
+        try:
+            index = panel.panel_index
+        except Exception:
+            return True
+        try:
+            active = panel.active_main_card()
+        except Exception:
+            active = None
+        self.set_deck_preferred_card(index, active)
+        return True
+
     def cycle_focused_deck(self, direction: int) -> None:
         """Cycle the focused panel to the next/previous deck (wraps)."""
         from .decks.model import cycle_deck_id

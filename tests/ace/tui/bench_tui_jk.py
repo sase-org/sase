@@ -31,6 +31,10 @@ from tests.ace.tui.bench_tui_jk_agents import (
     test_bench_clan_jk_at_each_panel_fold_level as test_bench_clan_jk_at_each_panel_fold_level,
     test_bench_selected_tribe_jk_at_each_fold_level as test_bench_selected_tribe_jk_at_each_fold_level,
 )
+from tests.ace.tui.bench_tui_jk_blocks import (
+    test_bench_block_cycle_paged as test_bench_block_cycle_paged,
+    test_bench_sticky_reply_flag_off_vs_on as test_bench_sticky_reply_flag_off_vs_on,
+)
 from tests.ace.tui.bench_tui_jk_fleet import (
     test_bench_agents_fleet_jk_fault_scenarios as test_bench_agents_fleet_jk_fault_scenarios,
 )

@@ -11,10 +11,11 @@ from textual.widgets import Static
 
 from ..prompt_panel._section_view import SectionViewMixin
 from .main_document import MainDeckDocument
+from .main_view_blocks import MainDeckViewBlocksMixin
 from .model import RenderMode, resolve_active_card
 
 
-class MainDeckView(SectionViewMixin, Static):
+class MainDeckView(MainDeckViewBlocksMixin, SectionViewMixin, Static):
     """One Main card view that lives inside a VerticalScroll."""
 
     def __init__(self, **kwargs: Any) -> None:
@@ -28,6 +29,7 @@ class MainDeckView(SectionViewMixin, Static):
         self._render_mode: RenderMode = RenderMode.PAGED
         self._spread_pending_card: str | None = None
         self._spread_retry_count: int = 0
+        self._init_block_view_state()
 
     @property
     def active_card_id(self) -> str | None:
@@ -142,7 +144,9 @@ class MainDeckView(SectionViewMixin, Static):
             return None
         return anchor + 1
 
-    def show_card(self, card_id: str) -> str | None:
+    def show_card(
+        self, card_id: str, *, block_mode: RenderMode | None = None
+    ) -> str | None:
         """Activate ``card_id`` from the stored document; return it or None."""
         document = self._document
         if document is None:
@@ -152,18 +156,52 @@ class MainDeckView(SectionViewMixin, Static):
             return None
         if self._render_mode is RenderMode.SPREAD:
             return self.scroll_to_card(card_id)
-        self.prepare_section_document((document.subject, card_id, "paged"))
+        from .flag import card_blocks_enabled
+
         try:
-            parent = self.parent
-            if isinstance(parent, VerticalScroll):
-                parent.scroll_to(y=0, animate=False)
+            blocks_enabled = (
+                block_mode is not None
+                and card_blocks_enabled()
+                and not document.partial
+            )
         except Exception:
-            pass
-        renderable: Any = Group(*card.renderables)
-        digest = None if document.digest is None else f"{document.digest}:{card_id}"
+            blocks_enabled = False
+        if blocks_enabled:
+            try:
+                self._reconcile_block_cursors(document, new_subject=False, enabled=True)
+            except Exception:
+                pass
+        projection = None
+        if blocks_enabled:
+            try:
+                projection = self._project_block_content(document, card, block_mode)
+            except Exception:
+                projection = None
+        identity: tuple[object, ...]
+        render_key: tuple[object, ...]
+        if projection is None:
+            identity = (document.subject, card_id, "paged")
+            render_key = (document.digest, card_id, document.partial, "paged")
+        else:
+            identity = projection[2]
+            token = projection[3] if projection[3] is not None else "spread"
+            render_key = (document.digest, card_id, document.partial, "paged", token)
+        self.prepare_section_document(identity)
+        self._scroll_main_to_top()
+        if projection is None:
+            renderable: Any = Group(*card.renderables)
+            digest = None if document.digest is None else f"{document.digest}:{card_id}"
+        else:
+            renderable = projection[0]
+            digest = projection[1]
         self._apply_section_content(renderable, digest, layout=True)
         self._active_card = card_id
-        self._last_render_key = (document.digest, card_id, document.partial, "paged")
+        self._last_render_key = render_key
+        if projection is not None:
+            try:
+                self._block_projected = (card_id, projection[3])
+            except Exception:
+                pass
         return card_id
 
     def scroll_to_card(self, card_id: str) -> str | None:
@@ -225,20 +263,70 @@ class MainDeckView(SectionViewMixin, Static):
         *,
         preferred_card: str | None,
         mode: RenderMode = RenderMode.PAGED,
+        block_mode: RenderMode | None = None,
     ) -> str | None:
         """Show ``document`` with ``preferred_card`` and ``mode``."""
         if mode is RenderMode.SPREAD:
             return self._show_document_spread(document)
+        from .flag import card_blocks_enabled
+
+        try:
+            blocks_enabled = (
+                block_mode is not None
+                and card_blocks_enabled()
+                and not document.partial
+            )
+        except Exception:
+            blocks_enabled = False
         active = resolve_active_card(
             document.card_ids, preferred_card, partial=document.partial
         )
-        self.prepare_section_document((document.subject, active, "paged"))
-        render_key = (document.digest, active, document.partial, "paged")
+        is_new_subject = (
+            not self._subject_seen or document.subject != self._previous_subject
+        )
+        if blocks_enabled:
+            try:
+                self._reconcile_block_cursors(
+                    document, new_subject=is_new_subject, enabled=True
+                )
+            except Exception:
+                pass
+        projection = None
+        if blocks_enabled and active is not None:
+            try:
+                card = document.card(active)
+            except Exception:
+                card = None
+            if card is not None:
+                try:
+                    projection = self._project_block_content(document, card, block_mode)
+                except Exception:
+                    projection = None
+        identity: tuple[object, ...]
+        render_key: tuple[object, ...]
+        if projection is None:
+            identity = (document.subject, active, "paged")
+            render_key = (document.digest, active, document.partial, "paged")
+        else:
+            identity = projection[2]
+            token = projection[3] if projection[3] is not None else "spread"
+            render_key = (
+                document.digest,
+                active,
+                document.partial,
+                "paged",
+                token,
+            )
+        try:
+            was_pinned = bool(self.is_pinned_to_bottom)
+        except Exception:
+            was_pinned = False
+        self.prepare_section_document(identity)
         if render_key == self._last_render_key and self._document is not None:
             self._active_card = active
             self._render_mode = RenderMode.PAGED
             return active
-        if not self._subject_seen or document.subject != self._previous_subject:
+        if is_new_subject:
             self._previous_subject = document.subject
             self._subject_seen = True
             try:
@@ -249,18 +337,42 @@ class MainDeckView(SectionViewMixin, Static):
                 pass
         if active is None:
             renderable: Any = Text("")
+        elif projection is not None:
+            renderable = projection[0]
         else:
             card = document.card(active)
             if card is None:
                 renderable = Text("")
             else:
                 renderable = Group(*card.renderables)
-        digest = None if document.digest is None else f"{document.digest}:{active}"
+        if projection is not None:
+            digest = projection[1]
+        else:
+            digest = None if document.digest is None else f"{document.digest}:{active}"
         self._apply_section_content(renderable, digest, layout=True)
         self._document = document
         self._active_card = active
         self._render_mode = RenderMode.PAGED
         self._last_render_key = render_key
+        if projection is not None and active is not None:
+            projected = (active, projection[3])
+            try:
+                previous_projected = self._block_projected
+            except Exception:
+                previous_projected = None
+            try:
+                self._block_projected = projected
+            except Exception:
+                pass
+            if was_pinned:
+                # The page identity changed, which released the bottom pin;
+                # restore it so a pinned follower tails the new page.
+                try:
+                    self.pin_to_bottom()
+                except Exception:
+                    pass
+            elif is_new_subject or previous_projected != projected:
+                self._scroll_main_to_top()
         return active
 
     def _show_document_spread(self, document: MainDeckDocument) -> str | None:
@@ -291,6 +403,15 @@ class MainDeckView(SectionViewMixin, Static):
         if is_new_subject:
             self._previous_subject = document.subject
             self._subject_seen = True
+        try:
+            from .flag import card_blocks_enabled
+
+            if card_blocks_enabled() and not document.partial:
+                self._reconcile_block_cursors(
+                    document, new_subject=is_new_subject, enabled=True
+                )
+        except Exception:
+            pass
         if not document.cards:
             self._apply_section_content(Text(""), None, layout=True)
             self._document = document

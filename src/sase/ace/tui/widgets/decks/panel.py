@@ -23,6 +23,7 @@ from .files_spread import FilesSpreadView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
 from .main_view import MainDeckView
 from .model import DeckId, RenderMode, cycle_card_id
+from .panel_blocks import DeckPanelBlocksMixin
 from .panel_chrome import DeckPanelChromeMixin
 from .panel_files import DeckPanelFilesMixin
 from .panel_spread import DeckPanelSpreadMixin
@@ -44,7 +45,11 @@ class DeckPanelFocusRequested(Message):
 
 
 class DeckPanel(  # type: ignore[misc]
-    DeckPanelChromeMixin, DeckPanelSpreadMixin, DeckPanelFilesMixin, Vertical
+    DeckPanelBlocksMixin,
+    DeckPanelChromeMixin,
+    DeckPanelSpreadMixin,
+    DeckPanelFilesMixin,
+    Vertical,
 ):
     """One pre-composed deck panel showing a single active deck."""
 
@@ -66,6 +71,7 @@ class DeckPanel(  # type: ignore[misc]
         self._file_capped = False
         self._tools_has_content = False
         self._init_spread_state()
+        self._init_block_panel_state()
 
     @property
     def panel_index(self) -> int:
@@ -232,6 +238,10 @@ class DeckPanel(  # type: ignore[misc]
                 self._refresh_files_mode_for_shown()
             except Exception:
                 pass
+        try:
+            self._sync_block_navigable()
+        except Exception:
+            pass
 
     def _deck_is_empty(self, deck: DeckId) -> bool:
         if deck is DeckId.MAIN:
@@ -300,13 +310,24 @@ class DeckPanel(  # type: ignore[misc]
             if next_id is None:
                 return None
             try:
-                shown = self.main_view.show_card(next_id)
+                block_mode = self._block_mode_for_card(self._main_document, next_id)
+            except Exception:
+                block_mode = None
+            try:
+                try:
+                    shown = self.main_view.show_card(next_id, block_mode=block_mode)
+                except TypeError:
+                    shown = self.main_view.show_card(next_id)
             except Exception:
                 return None
             if shown is None:
                 return None
             self._main_active_card = shown
             self.refresh_chrome()
+            try:
+                self._sync_block_navigable()
+            except Exception:
+                pass
             return shown
         if self._deck is DeckId.FILES:
             if self.is_spread(DeckId.FILES):
@@ -351,6 +372,10 @@ class DeckPanel(  # type: ignore[misc]
                 self.set_deck(DeckId.MAIN)
             else:
                 self.refresh_chrome()
+            try:
+                self._sync_block_navigable()
+            except Exception:
+                pass
             return active
         stored_subject = self._mode_subject.get(DeckId.MAIN)
         same_subject = stored_subject is not None and stored_subject == document.subject
@@ -369,9 +394,12 @@ class DeckPanel(  # type: ignore[misc]
             )
         else:
             try:
-                active = self.main_view.show_document(
-                    document, preferred_card=preferred_card, mode=new_mode
-                )
+                if new_mode is RenderMode.PAGED:
+                    active = self._show_main_paged(document, preferred_card, new_mode)
+                else:
+                    active = self.main_view.show_document(
+                        document, preferred_card=preferred_card, mode=new_mode
+                    )
             except TypeError:
                 active = self.main_view.show_document(
                     document, preferred_card=preferred_card
@@ -402,6 +430,14 @@ class DeckPanel(  # type: ignore[misc]
         # set_deck re-decides with same subject; guard against recursion by
         # restoring the just-decided mode when set_deck did not change it.
         self._render_mode[DeckId.MAIN] = new_mode
+        try:
+            self._sync_block_navigable()
+        except Exception:
+            pass
+        try:
+            self._schedule_block_redecision()
+        except Exception:
+            pass
         return self._main_active_card
 
     def _refresh_main_mode_for_shown(self) -> None:
@@ -413,6 +449,20 @@ class DeckPanel(  # type: ignore[misc]
         new_mode = self._decide_main_mode(document, same_subject=same)
         old_mode = self._render_mode.get(DeckId.MAIN, RenderMode.PAGED)
         if new_mode is old_mode:
+            # Deck mode is stable, but the block mode may be stale
+            # (unmeasured first paint, resize, split or header toggles).
+            try:
+                if new_mode is RenderMode.PAGED and self._needs_block_refresh():
+                    active = self._show_main_paged(
+                        document, self._main_active_card, new_mode
+                    )
+                    self._main_active_card = active
+            except Exception:
+                pass
+            try:
+                self._sync_block_navigable()
+            except Exception:
+                pass
             return
         # show_main_document already handles transitions; reuse it with the
         # panel's preferred card so scroll anchoring stays consistent.
@@ -461,14 +511,18 @@ class DeckPanel(  # type: ignore[misc]
             else:
                 # Spread -> paged anchors the card at the viewport top.
                 spread_active = self._main_spread_active() or self._main_active_card
-                active = self.main_view.show_document(
-                    document, preferred_card=spread_active or preferred, mode=new_mode
+                active = self._show_main_paged(
+                    document, spread_active or preferred, new_mode
                 )
                 self._main_active_card = active
         except Exception:
             pass
         self._sync_files_views()
         self.refresh_chrome()
+        try:
+            self._sync_block_navigable()
+        except Exception:
+            pass
 
     def _apply_main_transition(
         self,
@@ -516,10 +570,10 @@ class DeckPanel(  # type: ignore[misc]
                     document, preferred_card=preferred_card, mode=new_mode
                 )
             else:
-                active = self.main_view.show_document(
+                active = self._show_main_paged(
                     document,
-                    preferred_card=anchor_card or preferred_card,
-                    mode=new_mode,
+                    anchor_card or preferred_card,
+                    new_mode,
                 )
         except Exception:
             active = None
