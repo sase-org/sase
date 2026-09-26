@@ -232,6 +232,7 @@ from .prompt_submit_choice_modal import (
 from .property_picker_modal import PropertyPickerItem as PropertyPickerItem
 from .property_picker_modal import PropertyPickerModal as PropertyPickerModal
 from .property_picker_modal import PropertyPickerRecord as PropertyPickerRecord
+from .trash_pane import PurgeRequested as PurgeRequested
 from .query_edit_modal import QueryEditModal as QueryEditModal
 from .quit_options_modal import QuitOption as QuitOption
 from .quit_options_modal import QuitOptionsModal as QuitOptionsModal
@@ -288,6 +289,11 @@ from .config_transaction_preview import TransactionDiagnostic as TransactionDiag
 from .config_transaction_preview import (
     TransactionEffectivePreview as TransactionEffectivePreview,
 )
+from .trash_pane import TrashActionResult as TrashActionResult
+from .trash_pane import TrashCopyRequested as TrashCopyRequested
+from .trash_pane import TrashPane as TrashPane
+from .stash_pane import TrashRequested as TrashRequested
+from .trash_pane import TrashRestoreRequested as TrashRestoreRequested
 from .unified_xprompt_save_modal import UnifiedSaveLocation as UnifiedSaveLocation
 from .unified_xprompt_save_modal import (
     UnifiedXPromptSaveModal as UnifiedXPromptSaveModal,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.prompt_stash_entries import entry_prompt_segments
-from sase.core.prompt_stash_wire import PromptStashEntryWire
+from sase.core.prompt_stash_wire import PromptStashEntryWire, PromptStashTrashRecordWire
 from sase.notifications.models import format_relative_time
 from sase.project_display_names import ProjectDisplaySnapshot
 
@@ -161,6 +161,84 @@ def stash_row_age(entry: PromptStashEntryWire) -> str:
     return format_relative_time(entry.created_at)
 
 
+def trash_row_age(record: PromptStashTrashRecordWire) -> str:
+    """Return the display deletion age for one trash row."""
+    return format_relative_time(record.trashed_at)
+
+
+def trash_row_label(
+    record: PromptStashTrashRecordWire,
+    *,
+    marked_for_restore: bool,
+    marked_for_purge: bool,
+    trashed_age: str,
+    prompt_count: int = 1,
+    preview_width: int = DEFAULT_STASH_PREVIEW_WIDTH,
+    project_display_snapshot: ProjectDisplaySnapshot | None = None,
+) -> Text:
+    """Build the styled single-line label for one trash row.
+
+    Trash shares the Stash list/preview treatment (shortcut gutter, project
+    chip, bundle chip, one-line preview) while keeping its verb rules
+    distinct: there is no pin glyph, the age column shows the deletion time,
+    restore marks use the orchid ``✓`` and permanent-deletion marks use a
+    red ``✗``. Kept pure (no widget access) so row rendering can be unit
+    tested without a running app.
+    """
+    text = Text(no_wrap=True, overflow="ellipsis")
+    if marked_for_purge:
+        text.append("✗ ", style="bold red")
+    elif marked_for_restore:
+        text.append("✓ ", style="bold #AF87FF")
+    else:
+        text.append("  ")
+
+    row_style = "dim strike" if marked_for_purge else ""
+    text.append(
+        trashed_age.rjust(_AGE_WIDTH),
+        style="dim" if not marked_for_purge else row_style,
+    )
+    text.append("  ")
+    entry = record.entry
+    project = entry.project
+    if project and project_display_snapshot is not None:
+        project = project_display_snapshot.label_for(project)
+    if marked_for_purge:
+        project_style = row_style
+    else:
+        try:
+            from sase.project_tag_style import project_column_style
+
+            project_style = project_column_style(project, fallback="cyan")
+        except Exception:
+            project_style = "cyan"
+    text.append(
+        _project_chip(project),
+        style=project_style,
+    )
+    text.append("  ")
+    text.append(
+        _bundle_chip(prompt_count),
+        style="magenta" if prompt_count > 1 and not marked_for_purge else row_style,
+    )
+    text.append("  ")
+    preview = first_line_preview(entry.text, preview_width)
+    preview_style = row_style or ("bold" if marked_for_restore else "")
+    if marked_for_purge:
+        text.append(preview, style=preview_style)
+    else:
+        try:
+            from sase.project_display_names import humanize_vcs_refs_in_text
+            from sase.project_tag_style import append_tagified_text
+
+            append_tagified_text(
+                text, humanize_vcs_refs_in_text(preview), preview_style
+            )
+        except Exception:
+            text.append(preview, style=preview_style)
+    return text
+
+
 __all__ = [
     "INDEX_KEYS",
     "PIN_GLYPH",
@@ -171,4 +249,6 @@ __all__ = [
     "stash_row_age",
     "stash_row_label",
     "stash_row_prompt_count",
+    "trash_row_age",
+    "trash_row_label",
 ]

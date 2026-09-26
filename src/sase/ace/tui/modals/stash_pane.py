@@ -50,14 +50,17 @@ class StashRestoreResult:
 
     ``pop_ids`` are loaded into the bar and removed from the stash; ``keep_ids``
     are loaded while staying stashed; ``delete_ids`` are removed without
-    loading. Entries in none of these sets stay untouched. Order is irrelevant —
-    the app re-sorts loaded entries by creation time before restoring them as
-    panes.
+    loading; ``trash_ids`` move to Trash instead of permanent deletion (only
+    the tabbed overlay produces these — the standalone picker keeps permanent
+    ``delete_ids``). Entries in none of these sets stay untouched. Order is
+    irrelevant — the app re-sorts loaded entries by creation time before
+    restoring them as panes.
     """
 
     pop_ids: list[str] = field(default_factory=list)
     keep_ids: list[str] = field(default_factory=list)
     delete_ids: list[str] = field(default_factory=list)
+    trash_ids: list[str] = field(default_factory=list)
 
 
 class PinToggled(Message, namespace="stashed_prompts_modal"):
@@ -78,6 +81,103 @@ class DeleteRequested(Message, namespace="stashed_prompts_modal"):
     def __init__(self, entry_ids: list[str]) -> None:
         super().__init__()
         self.entry_ids = entry_ids
+
+
+class TrashRequested(Message, namespace="stashed_prompts_modal"):
+    """Posted when ``enter`` confirms a trash-only selection leaving rows.
+
+    Only the tabbed overlay posts this (its delete marks mean Trash): the
+    panel keeps its pending marks and the host confirms, moves the ids to
+    Trash through Rust, then repaints authoritatively from the store outcome.
+    """
+
+    def __init__(self, entry_ids: list[str]) -> None:
+        super().__init__()
+        self.entry_ids = entry_ids
+
+
+@dataclass(frozen=True, slots=True)
+class TrashCommitPreview:
+    """Preview of a staged Stash → Trash commit.
+
+    ``expected_evictions`` is the permanent-loss count the batch would cause
+    under the current limit (``max(0, trash_count + marked - limit)``),
+    because other processes may change Trash between preview and commit the
+    host re-reads the Rust outcome for the actual evictions. ``pinned_ids``
+    need explicit confirmation before a pinned row may move.
+    """
+
+    marked_ids: tuple[str, ...]
+    pinned_ids: tuple[str, ...]
+    expected_evictions: int
+    trash_count: int
+    trash_limit: int
+
+
+def preview_trash_commit(
+    marked_ids: list[str],
+    entries: list[PromptStashEntryWire],
+    *,
+    trash_count: int,
+    trash_limit: int,
+) -> TrashCommitPreview:
+    """Compute the confirmation preview for moving marked rows to Trash.
+
+    Stale IDs (absent from *entries*) are dropped: unknown IDs are no-ops.
+    """
+    live = {entry.id for entry in entries}
+    pinned = {entry.id for entry in entries if entry.pinned}
+    marked = [entry_id for entry_id in marked_ids if entry_id in live]
+    pinned_marks = tuple(entry_id for entry_id in marked if entry_id in pinned)
+    expected = max(0, trash_count + len(marked) - trash_limit) if trash_limit > 0 else 0
+    return TrashCommitPreview(
+        marked_ids=tuple(marked),
+        pinned_ids=pinned_marks,
+        expected_evictions=expected,
+        trash_count=trash_count,
+        trash_limit=trash_limit,
+    )
+
+
+def trash_commit_confirm_text(preview: TrashCommitPreview) -> str:
+    """Return the explicit confirmation message for a Stash → Trash commit."""
+    count = len(preview.marked_ids)
+    noun = "draft" if count == 1 else "drafts"
+    lines = [f"Move {count} {noun} to Trash?"]
+    if preview.pinned_ids:
+        pinned = len(preview.pinned_ids)
+        noun_pinned = "is pinned" if pinned == 1 else "are pinned"
+        lines.append(f"{pinned} marked {noun_pinned}: restoring keeps them stashed.")
+    if preview.expected_evictions:
+        lost = preview.expected_evictions
+        noun_lost = "draft" if lost == 1 else "drafts"
+        lines.append(
+            f"Trash holds {preview.trash_count} of {preview.trash_limit}: "
+            f"{lost} oldest {noun_lost} will be permanently deleted."
+        )
+    return "\n".join(lines)
+
+
+def trash_outcome_text(moved: int, evicted: list[str]) -> str:
+    """Return the success summary naming the actual Trash evictions."""
+    noun = "draft" if moved == 1 else "drafts"
+    message = f"Moved {moved} {noun} to Trash"
+    if evicted:
+        lost = len(evicted)
+        noun_lost = "draft" if lost == 1 else "drafts"
+        message += (
+            f" (permanently deleted {lost} oldest {noun_lost}: {', '.join(evicted)})"
+        )
+    return message
+
+
+def stash_empty_text(*, trash_count: int) -> str:
+    """Return the empty-Stash explanation, pointing at Trash when it has rows."""
+    base = "No stashed drafts yet. Stash the current prompt to save it here."
+    if trash_count:
+        noun = "draft" if trash_count == 1 else "drafts"
+        base += f" Trash holds {trash_count} discarded {noun} — switch with ]."
+    return base
 
 
 STASH_BINDINGS: list[Any] = [
@@ -111,11 +211,19 @@ class StashControllerMixin:
 
     _option_list_id = "stashed-prompts-list"
 
+    # When True, delete marks mean Trash (the tabbed overlay): confirms
+    # produce ``trash_ids`` / ``TrashRequested`` and the panel waits for an
+    # authoritative repaint instead of deleting optimistically. The
+    # standalone picker keeps permanent ``delete_ids``.
+    _delete_marks_mean_trash = False
+
     def _init_stash_controller(
         self,
         entries: list[PromptStashEntryWire],
         *,
         project_display_snapshot: ProjectDisplaySnapshot | None = None,
+        trash_limit: int = 20,
+        trash_count: int = 0,
     ) -> None:
         # Newest first; ISO timestamps sort lexicographically, ties broken by
         # pane order so a "stash all" group keeps a stable display order.
@@ -133,11 +241,113 @@ class StashControllerMixin:
         self._pop: set[str] = set()
         self._pinned: set[str] = {entry.id for entry in self._entries if entry.pinned}
         self._deleted: set[str] = set()
+        # Trash-flow configuration (only the overlay changes the defaults):
+        # with a zero limit there is no recovery, so delete marks stay
+        # permanent even in trash mode.
+        self._trash_limit = trash_limit
+        self._trash_count = trash_count
         self._highlight_cache: dict[str, Text] = {}
         self._preview_debouncer: DetailPanelDebouncer | None = None
         self._refreshing_options = False
         self._narrow = True
         self._last_preview_width_budget = DEFAULT_STASH_PREVIEW_WIDTH
+
+    def _trash_mode(self) -> bool:
+        """Return True when delete marks mean Trash (overlay, limit > 0)."""
+        return bool(self._delete_marks_mean_trash) and self._trash_limit > 0
+
+    def _placeholder_text(self) -> str | None:
+        """Return placeholder text for an empty list, if the host has any."""
+        return None
+
+    def _show_placeholder(self) -> None:
+        try:
+            pane = self.query_one(PromptStashPreviewPane)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        text = self._placeholder_text()
+        if text is None:
+            pane.show_placeholder()
+        else:
+            pane.show_placeholder(text)
+
+    def apply_lifecycle_snapshot(
+        self,
+        entries: list[PromptStashEntryWire],
+        *,
+        trash_count: int | None = None,
+    ) -> None:
+        """Repaint the pane from an authoritative store snapshot.
+
+        Staged marks for IDs absent from the snapshot are dropped (unknown
+        IDs are no-ops); surviving marks are kept so a failed write leaves
+        the visible rows and marks truthful. Pin state follows the snapshot.
+        """
+        highlighted_id: str | None = None
+        highlighted = self._highlighted_index_and_entry()
+        if highlighted is not None:
+            highlighted_id = highlighted[1].id
+        self._entries = sorted(
+            entries,
+            key=lambda e: (e.created_at, e.pane_index),
+            reverse=True,
+        )
+        live = {entry.id for entry in self._entries}
+        self._pop.intersection_update(live)
+        self._deleted.intersection_update(live)
+        self._pinned = {entry.id for entry in self._entries if entry.pinned}
+        self._prompt_counts = {
+            entry.id: len(entry_prompt_segments(entry)) for entry in self._entries
+        }
+        for cached_id in list(self._highlight_cache):
+            if cached_id not in live:
+                del self._highlight_cache[cached_id]
+        if trash_count is not None:
+            self._trash_count = trash_count
+        try:
+            self.query_one("#stashed-prompts-title", Label).update(self._title_text())  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        self._refresh_rows()
+        self._repaint_highlight(highlighted_id)
+
+    def apply_store_failure(self) -> None:
+        """Repaint truthfully after a failed write, keeping rows and marks."""
+        self._refresh_rows()
+        entry = self._highlighted_entry()
+        if entry is not None:
+            self._paint_preview(entry.id)
+        else:
+            self._show_placeholder()
+
+    def _repaint_highlight(self, highlighted_id: str | None) -> None:
+        if not self._entries:
+            self._show_placeholder()
+            return
+        new_index: int | None = None
+        if highlighted_id is not None:
+            for idx, entry in enumerate(self._entries):
+                if entry.id == highlighted_id:
+                    new_index = idx
+                    break
+        if new_index is None:
+            new_index = 0
+        try:
+            option_list = self.query_one("#stashed-prompts-list", OptionList)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        option_list.highlighted = new_index
+        self._paint_preview(self._entries[new_index].id)
+
+    def trash_preview_for_marks(self) -> TrashCommitPreview:
+        """Return the Trash confirmation preview for the current marks."""
+        marked = [e.id for e in self._entries if e.id in self._deleted]
+        return preview_trash_commit(
+            marked,
+            self._entries,
+            trash_count=self._trash_count,
+            trash_limit=self._trash_limit,
+        )
 
     # -- layout --------------------------------------------------------------
 
@@ -171,7 +381,7 @@ class StashControllerMixin:
         if self._entries:
             self._paint_preview(self._entries[0].id)
         else:
-            self.query_one(PromptStashPreviewPane).show_placeholder()  # type: ignore[attr-defined]
+            self._show_placeholder()
         self.call_after_refresh(self._refresh_rows_for_current_width)  # type: ignore[attr-defined]
 
     def _on_stash_unmount(self) -> None:
@@ -195,6 +405,11 @@ class StashControllerMixin:
         return f"Stashed prompts ({count})"
 
     def _hint_text(self) -> str:
+        if self._trash_mode():
+            return (
+                "1-9/0 restore · a all · j/k move · enter · esc/q · ^d/u\n"
+                f"space {PIN_GLYPH} pin · tab ✓ · d trash row · D trash all"
+            )
         return (
             "1-9/0 restore · a all · j/k move · enter · esc/q · ^d/u\n"
             f"space {PIN_GLYPH} pin · tab ✓ · d delete row · D delete all"
@@ -304,7 +519,7 @@ class StashControllerMixin:
     def _paint_preview(self, entry_id: str) -> None:
         entry = next((item for item in self._entries if item.id == entry_id), None)
         if entry is None:
-            self.query_one(PromptStashPreviewPane).show_placeholder()  # type: ignore[attr-defined]
+            self._show_placeholder()
             return
         highlighted = self._highlight_cache.get(entry.id)
         if highlighted is None:
@@ -444,11 +659,22 @@ class StashControllerMixin:
         marked = [e.id for e in self._entries if e.id in self._pop]
         pop_ids = [entry_id for entry_id in marked if entry_id not in self._pinned]
         keep_ids = [entry_id for entry_id in marked if entry_id in self._pinned]
-        delete_ids = [e.id for e in self._entries if e.id in self._deleted]
-        if not marked and delete_ids and len(delete_ids) < len(self._entries):
+        discard_ids = [e.id for e in self._entries if e.id in self._deleted]
+        # In trash mode delete marks mean Trash (the host confirms, applies
+        # through Rust, and repaints authoritatively); with a zero limit, or
+        # in the standalone picker, they stay permanent deletions.
+        trash_mode = self._trash_mode()
+        delete_ids = [] if trash_mode else list(discard_ids)
+        trash_ids = list(discard_ids) if trash_mode else []
+        if not marked and discard_ids and len(discard_ids) < len(self._entries):
+            if trash_mode:
+                # Pending state: keep rows and marks; the host confirms and
+                # repaints from the store outcome (success or failure).
+                self.post_message(TrashRequested(list(discard_ids)))  # type: ignore[attr-defined]
+                return
             self._apply_deletions_in_place(delete_ids)
             return
-        if not marked and not delete_ids:
+        if not marked and not discard_ids:
             highlighted = self._highlighted_entry()
             if highlighted is not None:
                 self._emit_result(self._single_restore_result(highlighted))
@@ -460,6 +686,7 @@ class StashControllerMixin:
                 pop_ids=pop_ids,
                 keep_ids=keep_ids,
                 delete_ids=delete_ids,
+                trash_ids=trash_ids,
             )
         )
 
@@ -487,6 +714,12 @@ class StashPane(StashControllerMixin, OptionListNavigationMixin, Widget):
     # Re-export the shared stash messages so hosts can reference one home.
     PinToggled = PinToggled
     DeleteRequested = DeleteRequested
+    TrashRequested = TrashRequested
+
+    # In the overlay, delete marks commit to Trash rather than permanent
+    # deletion; the pane holds pending state until the host repaints from
+    # the authoritative store outcome.
+    _delete_marks_mean_trash = True
 
     BINDINGS = STASH_BINDINGS
 
@@ -495,11 +728,21 @@ class StashPane(StashControllerMixin, OptionListNavigationMixin, Widget):
         entries: list[PromptStashEntryWire],
         *,
         project_display_snapshot: ProjectDisplaySnapshot | None = None,
+        trash_limit: int = 20,
+        trash_count: int = 0,
     ) -> None:
         super().__init__()
         self._init_stash_controller(
-            entries, project_display_snapshot=project_display_snapshot
+            entries,
+            project_display_snapshot=project_display_snapshot,
+            trash_limit=trash_limit,
+            trash_count=trash_count,
         )
+
+    def _placeholder_text(self) -> str | None:
+        if self._entries:
+            return None
+        return stash_empty_text(trash_count=self._trash_count)
 
     def dismiss(self, result: StashRestoreResult | None = None) -> None:
         """Translate screen-style cancel/confirm into a bubbled selection."""
@@ -529,4 +772,10 @@ __all__ = [
     "StashControllerMixin",
     "StashPane",
     "StashRestoreResult",
+    "TrashCommitPreview",
+    "TrashRequested",
+    "preview_trash_commit",
+    "stash_empty_text",
+    "trash_commit_confirm_text",
+    "trash_outcome_text",
 ]

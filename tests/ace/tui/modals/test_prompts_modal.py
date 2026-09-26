@@ -95,7 +95,7 @@ async def test_opens_on_stash_without_history_io(
         assert isinstance(modal, PromptsModal)
         strip = modal.query_one("#prompts-modal-tabs", PanelTabStrip)
         labels = [tab.label for tab in strip._tabs]
-        assert labels == ["Stash 2", "History"]
+        assert labels == ["Stash 2", "History", "Trash 0/20"]
         assert modal.query_one("#stashed-prompts-list", OptionList)
         assert modal._active_tab is PromptsTab.STASH
         # History pane is not mounted, so no catalog/page read could have run.
@@ -145,13 +145,16 @@ async def test_brackets_cycle_tabs_with_wraparound(
         assert modal._active_tab is PromptsTab.HISTORY
         await pilot.press("]")
         await pilot.pause()
+        assert modal._active_tab is PromptsTab.TRASH
+        await pilot.press("]")
+        await pilot.pause()
         assert modal._active_tab is PromptsTab.STASH
+        await pilot.press("[")
+        await pilot.pause()
+        assert modal._active_tab is PromptsTab.TRASH
         await pilot.press("[")
         await pilot.pause()
         assert modal._active_tab is PromptsTab.HISTORY
-        await pilot.press("[")
-        await pilot.pause()
-        assert modal._active_tab is PromptsTab.STASH
 
 
 async def test_click_selects_tab(monkeypatch: pytest.MonkeyPatch) -> None:

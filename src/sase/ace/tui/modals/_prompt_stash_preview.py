@@ -161,11 +161,11 @@ class PromptStashPreviewPane(Vertical):
         metadata.update(content.metadata)
         self.reset_scroll()
 
-    def show_placeholder(self) -> None:
-        """Show the empty-selection placeholder."""
-        self.query_one(".prompt-stash-preview-placeholder", Static).remove_class(
-            "hidden"
-        )
+    def show_placeholder(self, text: str | None = None) -> None:
+        """Show the empty-selection placeholder, optionally with *text*."""
+        placeholder = self.query_one(".prompt-stash-preview-placeholder", Static)
+        placeholder.update(text if text is not None else _NO_PROMPT_SELECTED)
+        placeholder.remove_class("hidden")
         frontmatter = self.query_one(".prompt-stash-preview-frontmatter", Static)
         frontmatter.update("")
         frontmatter.add_class("hidden")

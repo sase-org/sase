@@ -5618,7 +5618,8 @@ PromptsModal #prompts-modal-footer {
 }
 
 PromptsModal #stash-pane-body,
-PromptsModal #history-pane-body {
+PromptsModal #history-pane-body,
+PromptsModal #trash-pane-body {
     width: 100%;
     height: 1fr;
 }
@@ -5757,6 +5758,49 @@ PromptsModal #prompts-modal-container.-narrow #prompt-history-preview-panel {
 }
 
 PromptsModal #prompts-modal-container.-narrow #prompt-history-list-panel {
+    width: 100%;
+}
+
+/* Trash pane shares the Stash list/preview treatment: one stable frame,
+   one list/preview split, amber at rest with red permanent-deletion marks
+   (row marks are Rich Text, see trash_row_label). */
+PromptsModal #trash-pane-body {
+    width: 100%;
+    height: 1fr;
+}
+
+PromptsModal #trash-panels {
+    width: 100%;
+    height: 23;
+}
+
+PromptsModal #trash-list-panel {
+    width: 6fr;
+    min-width: 54;
+    height: 100%;
+}
+
+PromptsModal #trash-list {
+    height: 18;
+    max-height: 18;
+    border: solid $warning;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+PromptsModal #trash-list-panel OptionList > .option-list--option {
+    height: 1;
+    padding: 0 1;
+}
+
+PromptsModal #trash-preview-pane {
+    width: 5fr;
+    min-width: 46;
+    height: 100%;
+    margin-left: 1;
+}
+
+PromptsModal #prompts-modal-container.-narrow #trash-list-panel {
     width: 100%;
 }
 
