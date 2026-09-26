@@ -113,7 +113,7 @@ def render_scope_strip(
     if snapshot.query:
         parts.append(f"{snapshot.query_hidden_count} ⊘")
     if snapshot.hidden_by_i_count:
-        parts.append(f"I hides {snapshot.hidden_by_i_count}")
+        parts.append(f"{snapshot.hidden_by_i_count} ◌")
     if snapshot.query_incomplete:
         parts.append("history partial")
     if snapshot.hint_overflow:

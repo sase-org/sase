@@ -63,6 +63,44 @@ def _nearest_collapsed_label(
     return f"{_kind_word(parent)} {node_finder_name(parent)}"
 
 
+def _complete_roster_for_snapshot(owner: Any) -> tuple[list[Agent], set[AgentIdentity]]:
+    """Return the pre-``I`` roster and identities hidden from the live list.
+
+    The regular Agents caches deliberately contain only the visible roster while
+    ``I`` is on.  Node Finder needs the same in-memory source that the next
+    reload will project, so it can show those rows in their real tree positions
+    without starting a load or changing the live view.
+    """
+    live_complete = list(getattr(owner, "_agents_with_children", None) or ())
+    if not bool(getattr(owner, "hide_non_run_agents", False)):
+        return live_complete, set()
+
+    hideable = list(getattr(owner, "_hideable_agents", None) or ())
+    if not hideable:
+        return live_complete, set()
+
+    local = list(getattr(owner, "_agents_local_with_children", None) or ())
+    roster: list[Agent] = []
+    seen: set[AgentIdentity] = set()
+    for agent in [*local, *hideable]:
+        if agent.identity not in seen:
+            seen.add(agent.identity)
+            roster.append(agent)
+
+    filter_removed = getattr(owner, "filter_explicitly_removed", None)
+    if callable(filter_removed):
+        roster = list(filter_removed(roster))
+    project_current_mode = getattr(owner, "_agents_source_for_current_mode", None)
+    complete = (
+        list(project_current_mode(roster)) if callable(project_current_mode) else roster
+    )
+    live_identities = {agent.identity for agent in live_complete}
+    hidden_by_i = {
+        agent.identity for agent in complete if agent.identity not in live_identities
+    }
+    return complete, hidden_by_i
+
+
 def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     """Project every reachable node row and classify why each is hidden."""
     from ...models import filter_agents_by_fold_state
@@ -78,7 +116,7 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     from ._panel_fold_intent import effective_panel_collapses
     from ._prospective_clan import FoldStateProjection, apply_active_agent_query
 
-    complete: list[Agent] = list(getattr(owner, "_agents_with_children", None) or ())
+    complete, hidden_by_i = _complete_roster_for_snapshot(owner)
     parents = tree_parent_lookup(complete)
 
     fold_manager = getattr(owner, "_fold_manager", None)
@@ -202,6 +240,8 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
                 reasons.add(NodeFinderReason.FOLDED)
             if query_set is not None and agent.identity not in query_set:
                 reasons.add(NodeFinderReason.QUERY)
+            if agent.identity in hidden_by_i:
+                reasons.add(NodeFinderReason.NON_RUN)
             if agent.identity in rendered:
                 if reasons:
                     logger.debug(
@@ -372,10 +412,8 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         query_hidden_count=query_hidden,
         query=raw_query,
         query_incomplete=bool(getattr(load_state, "query_incomplete", False)),
-        hidden_by_i_count=(
-            int(getattr(owner, "_hidden_count", 0) or 0)
-            if bool(getattr(owner, "hide_non_run_agents", False))
-            else 0
+        hidden_by_i_count=sum(
+            1 for row in node_rows if NodeFinderReason.NON_RUN in row.reasons
         ),
         hint_overflow=len(node_rows) > NODE_FINDER_HINT_CAPACITY,
         focused_panel_key=focused_panel_key,

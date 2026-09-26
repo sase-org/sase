@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 
 class AgentFilterActionsMixin:
     """Mixin providing agent visibility and query filter actions."""
@@ -33,6 +35,16 @@ class AgentFilterActionsMixin:
         # built with the previous flag value, so a reload is required for
         # the toggle to take effect.
         self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
+
+    def _show_hidden_agents_for_navigation(
+        self, on_complete: Callable[[], None]
+    ) -> None:
+        """Turn ``I`` off and resume a Node Finder jump after the reload."""
+        self.hide_non_run_agents = False
+        self._refilter_agents()  # type: ignore[attr-defined]
+        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
+            source="filter", on_complete=on_complete
+        )
 
     def _edit_agent_search_query(self) -> None:
         """Edit the agent search/filter query.

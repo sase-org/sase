@@ -10,6 +10,7 @@ from sase.ace.tui.actions.agents._node_finder_snapshot import (
 )
 from sase.ace.tui.actions.navigation._entry_jump_mode import EntryJumpModeMixin
 from sase.ace.tui.models._agent_tree import agent_fold_key
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
 from sase.ace.tui.models.node_finder import (
@@ -226,6 +227,54 @@ def test_folded_and_query_hidden_at_once() -> None:
     assert member.reasons == frozenset(
         {NodeFinderReason.FOLDED, NodeFinderReason.QUERY}
     )
+
+
+def test_i_hidden_rows_use_the_pre_hide_roster_and_keep_tree_position() -> None:
+    visible = make_agent("visible", clan="research")
+    hidden = make_agent("hidden", clan="research")
+    hidden.hidden = True
+    full = project_clan_tree([visible, hidden])
+    visible_only = project_clan_tree([visible])
+    container = next(agent for agent in full if agent.is_clan_container)
+    app = NodeFinderHarness(visible_only, visible_only[0])
+    app._agents_local_with_children = full
+    app._hideable_agents = [hidden]
+    app.hide_non_run_agents = True
+    app._refilter_agents()
+
+    snap = build_node_finder_snapshot(app)
+    hidden_row = _by_name(snap, "hidden")
+    visible_row = _by_name(snap, "visible")
+    container_row = next(
+        row for row in _node_rows(snap) if row.identity == container.identity
+    )
+
+    assert NodeFinderReason.NON_RUN in hidden_row.reasons
+    assert NodeFinderReason.FOLDED in hidden_row.reasons
+    assert hidden_row.parent_row == snap.rows.index(container_row)
+    assert visible_row.parent_row == hidden_row.parent_row
+    assert snap.hidden_by_i_count == 1
+
+
+def test_i_hidden_snapshot_omits_dismissed_and_explicitly_removed_rows() -> None:
+    visible = make_agent("visible")
+    dismissed = make_agent("dismissed")
+    removed = make_agent("removed")
+    dismissed.hidden = True
+    removed.hidden = True
+    app = NodeFinderHarness([visible], visible)
+    app._agents_local_with_children = [visible]
+    app._hideable_agents = [dismissed, removed]
+    app.hide_non_run_agents = True
+    app._dismissed_agents = {dismissed.identity}
+    app.filter_explicitly_removed = lambda agents: [
+        agent for agent in agents if agent.identity != removed.identity
+    ]
+
+    snap = build_node_finder_snapshot(app)
+
+    assert [row.name for row in _node_rows(snap)] == ["visible"]
+    assert snap.hidden_by_i_count == 0
 
 
 def test_remote_fleet_row_is_listed() -> None:

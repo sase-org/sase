@@ -82,6 +82,14 @@ def _bulk_agents(count: int = 70) -> list[Agent]:
     ]
 
 
+def _clan_agents_with_i_hidden_row() -> list[Agent]:
+    """Return the clan fixture with one running ``%hide``-style member."""
+    agents = clan_tree_agents()
+    hidden = next(agent for agent in agents if agent.agent_name == "research.waiting")
+    hidden.hidden = True
+    return agents
+
+
 async def test_node_finder_hints_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -213,6 +221,38 @@ async def test_node_finder_query_hidden_png_snapshot(
             page,
             "node_finder_query_hidden_160x48",
             title="ACE Node Finder query hidden",
+        )
+
+
+async def test_node_finder_i_hidden_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, _VISUAL_NOW)
+    patch_startup_loaders(monkeypatch, agents=_clan_agents_with_i_hidden_row())
+
+    async with AcePage(query='"visual"', patches=patches(), size=(160, 48)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+
+        modal = await _open_finder(page)
+        hidden_row = next(
+            row
+            for row in modal._snapshot.rows
+            if NodeFinderReason.NON_RUN in row.reasons
+        )
+        assert hidden_row.name == "research.waiting"
+        assert modal._snapshot.hidden_by_i_count == 1
+        assert "shows agents hidden by I" in node_finder_action_text(
+            hidden_row, modal._view.query
+        )
+        assert_page_svg_contains(page, "◌")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "node_finder_hidden_by_i_160x48",
+            title="ACE Node Finder hidden by I",
         )
 
 

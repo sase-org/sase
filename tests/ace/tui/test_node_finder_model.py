@@ -24,6 +24,7 @@ from sase.ace.tui.models.node_finder import (
     node_finder_reason_text,
     node_finder_title,
 )
+from sase.ace.tui.modals.node_finder_rendering import render_scope_strip
 from sase.ace.tui.widgets.prompt_panel._identity_header import (
     identity_kind_for_agent,
 )
@@ -225,6 +226,15 @@ def test_glyph_precedence_query_over_fold() -> None:
         is_here=True,
     )
     assert node_finder_glyph(here) == "◆"
+
+
+def test_scope_strip_reports_listed_i_hidden_rows() -> None:
+    snapshot = NodeFinderSnapshot(node_count=3, hidden_count=1, hidden_by_i_count=1)
+    view = filter_node_finder(snapshot, "")
+
+    assert render_scope_strip(snapshot, view, search_mode=False).plain == (
+        "3 nodes · 1 hidden · 1 ◌"
+    )
 
 
 def test_filter_token_and_and_empty_query() -> None:

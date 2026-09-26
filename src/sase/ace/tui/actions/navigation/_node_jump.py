@@ -82,7 +82,7 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
         return query
 
     def _jump_to_node_identity(self, identity: AgentIdentity, *, name: str) -> bool:
-        """Reveal ``identity``, clearing only a query that filters it out."""
+        """Reveal ``identity`` through the I and query visibility rungs."""
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return False
@@ -93,6 +93,27 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
         failure = reveal(identity)
         if failure is None:
             return True
+        if self._should_show_hidden_agents(identity, failure):
+            selected_identity = self._selected_agent_identity_for_navigation()
+
+            def _after_hidden_agents_reload() -> None:
+                if (
+                    getattr(self, "current_tab", None) != "agents"
+                    or self._selected_agent_identity_for_navigation()
+                    != selected_identity
+                ):
+                    self.notify(f"Jump to {name} cancelled — you moved")  # type: ignore[attr-defined]
+                    return
+                self._jump_to_node_identity(identity, name=name)
+
+            show_hidden = getattr(self, "_show_hidden_agents_for_navigation", None)
+            if callable(show_hidden):
+                show_hidden(_after_hidden_agents_reload)
+                self.notify(  # type: ignore[attr-defined]
+                    f"Showing agents hidden by I to reach {name} — "
+                    "press I to hide them again"
+                )
+                return True
         query = getattr(self, "_agent_search_query", "") or ""
         if failure is AgentRevealFailure.TARGET_FILTERED and query.strip():
             cleared = self._clear_agents_query_for_navigation()
@@ -105,6 +126,24 @@ class NodeJumpNavigationMixin(NavigationMixinBase):
         if callable(notify):
             notify(failure, subject="Node")
         return False
+
+    def _should_show_hidden_agents(
+        self, identity: AgentIdentity, failure: AgentRevealFailure
+    ) -> bool:
+        """Whether the first rung can expose a target omitted by ``I``."""
+        if failure is not AgentRevealFailure.TARGET_MISSING:
+            return False
+        if not bool(getattr(self, "hide_non_run_agents", False)):
+            return False
+        return any(
+            getattr(agent, "identity", None) == identity
+            for agent in getattr(self, "_hideable_agents", ())
+        )
+
+    def _selected_agent_identity_for_navigation(self) -> AgentIdentity | None:
+        """Read the selection again after an asynchronous Agents reload."""
+        selected = getattr(self, "_get_selected_agent", lambda: None)()
+        return getattr(selected, "identity", None)
 
     def _notify_query_clear(self, name: str, query: str) -> None:
         """Toast the one persistent view-state mutation made by this ladder."""
