@@ -210,14 +210,17 @@ def test_prepare_service_launch_uses_direct_gateway_argv() -> None:
     ):
         launch = mobile_gateway.prepare_mobile_gateway_service_launch()
 
+    # The gateway appends `mobile agent-bridge/<helper-bridge> <op>` itself,
+    # so the service launch must pass the bare sase executable (regression:
+    # the full subcommand path made every bridge call fail arg parsing).
     assert launch.argv == [
         "sase_gateway",
         "--bind",
         "127.0.0.1:7629",
         "--agent-bridge-command",
-        "sase mobile agent-bridge",
+        "sase",
         "--helper-bridge-command",
-        "sase mobile helper-bridge",
+        "sase",
     ]
     assert "gateway start" not in " ".join(launch.argv)
 

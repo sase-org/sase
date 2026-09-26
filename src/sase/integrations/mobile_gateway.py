@@ -195,12 +195,12 @@ def prepare_mobile_gateway_service_launch() -> _MobileGatewayLaunch:
             state_dir=None,
             allow_non_loopback=False,
             gateway_command=None,
-            agent_bridge_command=shlex.join(
-                (*_sase_command(), "mobile", "agent-bridge")
-            ),
-            helper_bridge_command=shlex.join(
-                (*_sase_command(), "mobile", "helper-bridge")
-            ),
+            # The gateway appends `mobile agent-bridge/<helper-bridge> <op>`
+            # itself (see CommandAgentHostBridge::invoke), so pass the bare
+            # sase executable here; including the subcommand path breaks every
+            # bridge call with `invalid choice`.
+            agent_bridge_command=shlex.join(_sase_command()),
+            helper_bridge_command=shlex.join(_sase_command()),
             push_provider=None,
             fcm_project_id=None,
             fcm_service_account_json=None,
