@@ -28,7 +28,7 @@ NEIGHBOR_GROUP_LIMIT = 50
 
 @dataclass(frozen=True, slots=True)
 class _NodeKinshipRow:
-    """One related agent node on a published agent or family page."""
+    """One related agent node on a published agent or session page."""
 
     lane_name: str
     relation: str
@@ -78,7 +78,7 @@ class HoodKinshipProjection:
         return _NodeKinshipProjection(lane_name, ())
 
     def lane_for_source(self, source_run_id: str) -> str:
-        """Return the authoritative family-or-solo agent node for a source run."""
+        """Return the authoritative session-or-solo agent node for a source run."""
 
         for candidate_id, lane_name in self.source_lanes:
             if candidate_id == source_run_id:
@@ -177,7 +177,7 @@ def render_neighbors_section(
     lane_name: str,
     source_path: str,
 ) -> list[str]:
-    """Render the shared Neighbors section for an agent or family page."""
+    """Render the shared Neighbors section for an agent or session page."""
 
     projection = kinship.for_lane(lane_name)
     if not projection.groups:

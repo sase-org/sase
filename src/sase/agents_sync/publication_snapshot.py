@@ -55,7 +55,7 @@ def build_hood_snapshot(
     previous: V2HoodSnapshot | None,
 ) -> tuple[V2HoodSnapshot, dict[str, bytes]]:
     current = inventory.hood_runs(hood)
-    family_history = inventory.family_lane_commits(hood)
+    agent_session_history = inventory.agent_session_lane_commits(hood)
     if not current and previous is None:
         from sase.agents_sync.io import AgentsSyncFormatError
 
@@ -84,7 +84,7 @@ def build_hood_snapshot(
     containers = _build_containers(
         combined,
         owner,
-        family_history,
+        agent_session_history,
         previous.containers if previous is not None else (),
     )
     relationships = _build_relationships(
@@ -187,29 +187,29 @@ def _build_containers(
     lane_commits: tuple[InventoryLaneCommitHistory, ...] = (),
     previous: tuple[V2ContainerRecord, ...] = (),
 ) -> tuple[V2ContainerRecord, ...]:
-    families: dict[str, set[str]] = {}
+    agent_sessions: dict[str, set[str]] = {}
     clans: dict[str, set[str]] = {}
-    family_commits: dict[str, dict[str, CommitRecord]] = {}
+    agent_session_commits: dict[str, dict[str, CommitRecord]] = {}
     for run in runs:
         metadata = dict(run.metadata)
         parsed = parse_agent_session_name(run.local_name)
-        family = (
+        agent_session = (
             parsed.agent_session_name
             if parsed.kind is AgentSessionNameKind.MEMBER
             else _text(agent_session_value(metadata))
         )
-        if family:
-            families.setdefault(family, set()).add(run.source_run_id)
+        if agent_session:
+            agent_sessions.setdefault(agent_session, set()).add(run.source_run_id)
         clan = _text(metadata.get("agent_clan"))
         if clan:
             clans.setdefault(clan, set()).add(run.source_run_id)
     for history in lane_commits:
-        if history.local_name not in families:
+        if history.local_name not in agent_sessions:
             # Containers require at least one member; retain but do not fabricate
-            # a run merely to carry family-lane history.
+            # a run merely to carry session-lane history.
             continue
-        families.setdefault(history.local_name, set())
-        commits = family_commits.setdefault(history.local_name, {})
+        agent_sessions.setdefault(history.local_name, set())
+        commits = agent_session_commits.setdefault(history.local_name, {})
         commits.update({commit.sha: commit for commit in history.commits})
     containers = [
         V2ContainerRecord(
@@ -219,7 +219,7 @@ def _build_containers(
             (
                 tuple(
                     sorted(
-                        family_commits.get(name, {}).values(),
+                        agent_session_commits.get(name, {}).values(),
                         key=lambda item: (item.committed_at, item.sha),
                     )
                 )
@@ -227,7 +227,7 @@ def _build_containers(
                 else ()
             ),
         )
-        for kind, groups in (("session", families), ("clan", clans))
+        for kind, groups in (("session", agent_sessions), ("clan", clans))
         for name, members in sorted(groups.items())
     ]
     by_key = {

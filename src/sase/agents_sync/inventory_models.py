@@ -28,7 +28,7 @@ class InventoryLaneCommitHistory:
     """Primary commit history attributed to one lane-valued footer label."""
 
     local_name: str
-    is_family: bool
+    is_agent_session: bool
     commits: tuple[CommitRecord, ...]
 
 
@@ -45,7 +45,7 @@ class InventoryRun:
     commits: tuple[CommitRecord, ...]
     prompt_bytes: bytes | None
     chat_bytes: bytes | None
-    family_name: str | None
+    agent_session_name: str | None
     clan_name: str | None
     relationships: tuple[InventoryRelationship, ...]
     timestamp: str
@@ -95,9 +95,9 @@ class ProjectHoodInventory:
                 self._record_selection_exclusion(run, exc)
         for history in self.lane_commits:
             if (
-                not history.is_family
+                not history.is_agent_session
                 or not history.commits
-                or not self._family_lane_has_member(history.local_name)
+                or not self._agent_session_lane_has_member(history.local_name)
             ):
                 continue
             try:
@@ -106,15 +106,15 @@ class ProjectHoodInventory:
                 continue
         return tuple(sorted(hoods))
 
-    def family_lane_commits(
+    def agent_session_lane_commits(
         self,
         hood: str,
     ) -> tuple[InventoryLaneCommitHistory, ...]:
-        """Return commit-bearing family lanes selected by *hood*."""
+        """Return commit-bearing agent-session lanes selected by *hood*."""
 
         selected: list[InventoryLaneCommitHistory] = []
         for history in self.lane_commits:
-            if not history.is_family or not history.commits:
+            if not history.is_agent_session or not history.commits:
                 continue
             try:
                 in_hood = agent_name_in_hood(history.local_name, hood)
@@ -124,7 +124,7 @@ class ProjectHoodInventory:
                 selected.append(history)
         return tuple(selected)
 
-    def _family_lane_has_member(self, lane: str) -> bool:
+    def _agent_session_lane_has_member(self, lane: str) -> bool:
         for run in self.runs:
             try:
                 parsed = parse_agent_session_name(run.local_name)

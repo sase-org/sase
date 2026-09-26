@@ -26,7 +26,7 @@ _FAMILY_IDENTIFIER_RE = re.compile(
 # Every exception below is one of: the canonical legacy-reader homes
 # (plan_chain, core/wire), a legacy durable-data reader, the
 # legacy_agent_family_syntax sunset-flag branch, the sidecar families/ redirect
-# stubs, the removed workflow-kind error, or a known straggler pending rename.
+# stubs, or the removed workflow-kind error.
 # New exceptions must name an equally explicit migration boundary.
 _FAMILY_IDENTIFIER_ALLOWLIST = {
     # Canonical legacy-key homes.
@@ -77,8 +77,6 @@ _FAMILY_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/shells/followup.py"),
     # Historical-data normalization (reads pre-rename inventory metadata).
     Path("src/sase/agents_sync/inventory.py"),
-    # Known straggler pending rename to agent_session_name (see bead note).
-    Path("src/sase/agents_sync/inventory_models.py"),
     # Sidecar families/ permanent-redirect stubs for historical footer links.
     Path("src/sase/sase_agent.py"),
     Path("src/sase/sdd/hosted_links.py"),

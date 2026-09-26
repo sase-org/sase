@@ -121,7 +121,7 @@ def _render_run_pages(
             render_agent_page(
                 snapshot,
                 run,
-                family=sessions_by_member.get(run.source_run_id),
+                agent_session=sessions_by_member.get(run.source_run_id),
                 commit_url_base=commit_url_base,
                 commit_repo_name=commit_repo_name,
                 kinship=kinship,

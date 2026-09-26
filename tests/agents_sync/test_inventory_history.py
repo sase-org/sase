@@ -142,7 +142,7 @@ def test_inventory_synthesizes_run_for_linked_commit_without_local_artifact(
 
 
 @pytest.mark.parametrize("page_dir", ("families", "sessions"))
-def test_inventory_diagnoses_unrepresentable_family_history_without_phantom_run(
+def test_inventory_diagnoses_unrepresentable_session_history_without_phantom_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     page_dir: str,
@@ -152,7 +152,7 @@ def test_inventory_diagnoses_unrepresentable_family_history_without_phantom_run(
     monkeypatch.setattr(inventory, "_dismissed_records", lambda _target: ())
     sha = "c" * 40
     log = (
-        f"{sha}\x001\x00family lane\x00family lane\n\n"
+        f"{sha}\x001\x00session lane\x00session lane\n\n"
         "SASE_AGENT=[alice.athena.crew][2]\n\n"
         "[2]: https://github.com/acme/project--agents/blob/main/"
         f"{page_dir}/alice.athena.crew.md\x00"
@@ -185,17 +185,17 @@ def test_inventory_diagnoses_unrepresentable_family_history_without_phantom_run(
         inventory_models.InventoryLaneCommitHistory(
             "crew",
             True,
-            (CommitRecord(sha, "family lane", 1),),
+            (CommitRecord(sha, "session lane", 1),),
         ),
     )
     assert result.diagnostics == (
-        "primary commit history for family lane alice.athena.crew: retained "
-        "1 commit(s), but no family member run remains and v2 family containers "
-        "require at least one member",
+        "primary commit history for agent session lane alice.athena.crew: "
+        "retained 1 commit(s), but no session member run remains and v2 session "
+        "containers require at least one member",
     )
 
 
-def test_inventory_preserves_legacy_member_attribution_beside_family_lane_history(
+def test_inventory_preserves_legacy_member_attribution_beside_session_lane_history(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -215,7 +215,7 @@ def test_inventory_preserves_legacy_member_attribution_beside_family_lane_histor
         (
             f"{legacy_sha}\x001\x00legacy member\x00legacy member\n\n"
             "SASE_AGENT=alice.athena.crew--code\x00",
-            f"{lane_sha}\x002\x00family lane\x00family lane\n\n"
+            f"{lane_sha}\x002\x00session lane\x00session lane\n\n"
             "SASE_AGENT=[alice.athena.crew][2]\n\n"
             "[2]: https://github.com/acme/project--agents/blob/main/"
             "families/alice.athena.crew.md\x00",
@@ -261,7 +261,9 @@ def test_inventory_preserves_legacy_member_attribution_beside_family_lane_histor
     )
 
     assert snapshot.runs[0].commits == (CommitRecord(legacy_sha, "legacy member", 1),)
-    assert snapshot.containers[0].commits == (CommitRecord(lane_sha, "family lane", 2),)
+    assert snapshot.containers[0].commits == (
+        CommitRecord(lane_sha, "session lane", 2),
+    )
     assert {run.local_name for run in snapshot.runs} == {"crew--code"}
 
 
@@ -348,7 +350,7 @@ def test_inventory_disambiguates_historical_runs_that_share_a_timestamp_id(
     assert len({run.source_run_id for run in snapshot.runs}) == 2
 
 
-def test_inventory_diagnoses_and_drops_stale_solo_family_metadata(
+def test_inventory_diagnoses_and_drops_stale_solo_legacy_session_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -400,10 +402,10 @@ def test_inventory_diagnoses_and_drops_stale_solo_family_metadata(
     )
 
     run = result.runs[0]
-    assert run.family_name is None
+    assert run.agent_session_name is None
     assert "agent_family" not in dict(run.metadata)
     assert any(
-        "historical agent_family 'research.g.final' disagrees with canonical name "
+        "historical agent session 'research.g.final' disagrees with canonical name "
         "'research.g.image'" in diagnostic
         for diagnostic in result.diagnostics
     )

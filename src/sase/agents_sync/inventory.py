@@ -139,7 +139,7 @@ def build_project_hood_inventory(
         diagnostics,
     )
     normalized_runs = tuple(
-        _normalize_historical_family_metadata(run, diagnostics)
+        _normalize_historical_agent_session_metadata(run, diagnostics)
         for run in by_global.values()
     )
     unique_runs = _disambiguate_source_run_ids(
@@ -147,7 +147,7 @@ def build_project_hood_inventory(
         target.project_key,
         diagnostics,
     )
-    _diagnose_unrepresented_family_history(
+    _diagnose_unrepresented_agent_session_history(
         unique_runs,
         history.lane_commits,
         owner,
@@ -219,30 +219,30 @@ def _add_commit_only_runs(
         )
 
 
-def _normalize_historical_family_metadata(
+def _normalize_historical_agent_session_metadata(
     run: InventoryRun,
     diagnostics: list[str],
 ) -> InventoryRun:
-    """Make stale family metadata agree with canonical name classification."""
+    """Make stale agent-session metadata agree with canonical name classification."""
 
     try:
         parsed = parse_agent_session_name(run.local_name)
     except Exception as exc:  # noqa: BLE001 - defensive history boundary.
         source = run.source_label or run.source_run_id
         diagnostics.append(
-            f"{source}: could not normalize historical family metadata: {exc}"
+            f"{source}: could not normalize historical agent-session metadata: {exc}"
         )
         return run
-    raw_family = run.family_name
-    canonical_family = (
+    raw_session = run.agent_session_name
+    canonical_session = (
         parsed.agent_session_name
         if parsed.member_role is not None
-        else raw_family
-        if raw_family == parsed.agent_session_name
+        else raw_session
+        if raw_session == parsed.agent_session_name
         else None
     )
     metadata = dict(run.metadata)
-    if canonical_family is None:
+    if canonical_session is None:
         strip_legacy_agent_family_keys(metadata)
         metadata.pop("role_suffix", None)
         metadata.pop(AGENT_SESSION_KEY, None)
@@ -250,51 +250,51 @@ def _normalize_historical_family_metadata(
     else:
         set_agent_session_fields(
             metadata,
-            session=canonical_family,
+            session=canonical_session,
             role=parsed.member_role if parsed.member_role is not None else None,
         )
         if parsed.member_role is not None:
             metadata["role_suffix"] = parsed.member_role
-    if raw_family is not None and raw_family != canonical_family:
+    if raw_session is not None and raw_session != canonical_session:
         source = run.source_label or run.source_run_id
         diagnostics.append(
-            f"{source}: historical agent_family {raw_family!r} disagrees with "
+            f"{source}: historical agent session {raw_session!r} disagrees with "
             f"canonical name {run.local_name!r}; using "
-            f"{canonical_family or 'solo classification'!r}"
+            f"{canonical_session or 'solo classification'!r}"
         )
     return replace(
         run,
-        family_name=canonical_family,
+        agent_session_name=canonical_session,
         metadata=tuple(sorted(metadata.items())),
     )
 
 
-def _diagnose_unrepresented_family_history(
+def _diagnose_unrepresented_agent_session_history(
     runs: tuple[InventoryRun, ...],
     lane_commits: tuple[InventoryLaneCommitHistory, ...],
     owner: AgentOwnerIdentity,
     diagnostics: list[str],
 ) -> None:
-    member_families: set[str] = set()
+    member_sessions: set[str] = set()
     for run in runs:
         try:
             parsed = parse_agent_session_name(run.local_name)
         except Exception:
             continue
         if parsed.member_role is not None:
-            member_families.add(parsed.agent_session_name)
+            member_sessions.add(parsed.agent_session_name)
     for history in lane_commits:
         if (
-            not history.is_family
+            not history.is_agent_session
             or not history.commits
-            or history.local_name in member_families
+            or history.local_name in member_sessions
         ):
             continue
         global_name = globalize_agent_name(history.local_name, owner)
         diagnostics.append(
-            f"primary commit history for family lane {global_name}: retained "
-            f"{len(history.commits)} commit(s), but no family member run remains "
-            "and v2 family containers require at least one member"
+            f"primary commit history for agent session lane {global_name}: retained "
+            f"{len(history.commits)} commit(s), but no session member run remains "
+            "and v2 session containers require at least one member"
         )
 
 

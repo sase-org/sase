@@ -7,6 +7,7 @@ from pathlib import Path
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord
 from sase.agents_sync.v2_models import (
+    SESSION_CONTAINER_KINDS,
     V2ContainerRecord,
     V2FileReference,
     V2HoodSnapshot,
@@ -46,7 +47,8 @@ from sase.core.agent_identity_facade import (
 )
 
 _STATES = {"active", "waiting", "completed", "failed", "stopped", "dismissed"}
-_CONTAINER_KINDS = {"session", "family", "clan"}
+# SESSION_CONTAINER_KINDS includes the legacy agent-family container kind.
+_CONTAINER_KINDS = {*SESSION_CONTAINER_KINDS, "clan"}
 _RELATIONSHIP_KINDS = {"parent", "workflow_parent", "retry", "wait"}
 _FILE_KINDS = {
     "meta",

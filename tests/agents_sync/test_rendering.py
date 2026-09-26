@@ -68,11 +68,11 @@ def test_renderer_escapes_markdown_tables_and_contains_no_volatile_text() -> Non
     )
 
 
-def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
+def test_agent_and_session_pages_render_relative_breadcrumbs() -> None:
     owner = AgentOwnerIdentity("alice", "athena")
     project = V2ProjectIdentity("proj", "Project")
-    family_run = V2RunRecord(
-        "run-family",
+    session_run = V2RunRecord(
+        "run-session",
         "foo.bar--code",
         "alice.athena.foo.bar--code",
         "active",
@@ -83,18 +83,18 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
         "alice.athena.foo.solo",
         "completed",
     )
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
         "alice.athena.foo.bar",
-        ("run-family",),
+        ("run-session",),
     )
     snapshot = V2HoodSnapshot(
         owner,
         project,
         "foo",
         "alice.athena.foo",
-        runs=(family_run, solo_run),
-        containers=(family,),
+        runs=(session_run, solo_run),
+        containers=(agent_session,),
     )
     manifest = V2OwnerManifest(
         owner,
@@ -106,9 +106,9 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
     )
-    family_agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
+    session_agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
     solo_agent_page = payload["agents/alice.athena.foo.solo/README.md"].decode()
-    family_page = payload["sessions/alice.athena.foo.bar.md"].decode()
+    session_page = payload["sessions/alice.athena.foo.bar.md"].decode()
     redirect = payload["families/alice.athena.foo.bar.md"].decode()
     assert "`sessions/alice.athena.foo.bar.md`" in redirect
     assert "../sessions/alice.athena.foo.bar.md" in redirect
@@ -122,25 +122,25 @@ def test_agent_and_family_pages_render_relative_breadcrumbs() -> None:
     assert (
         agent_ancestors
         + " / [foo.bar](../../sessions/alice.athena.foo.bar.md) / foo.bar--code"
-        in family_agent_page
+        in session_agent_page
     )
     assert agent_ancestors + " / foo.solo" in solo_agent_page
     assert "- Variables:" not in solo_agent_page
-    assert "represented in its family lineage" not in family_agent_page
+    assert "represented in its" not in session_agent_page
     assert (
         "[Agent Hoods](../README.md) / "
         "[alice](../users/alice/README.md) / "
         "[athena](../users/alice/machines/athena/README.md) / "
         "[foo](../users/alice/machines/athena/hoods/foo/README.md) / foo.bar"
-        in family_page
+        in session_page
     )
 
 
-def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
+def test_agent_and_session_neighbor_links_resolve_inside_payload() -> None:
     owner = AgentOwnerIdentity("alice", "athena")
     project = V2ProjectIdentity("proj", "Project")
-    family_run = V2RunRecord(
-        "run-family",
+    session_run = V2RunRecord(
+        "run-session",
         "foo.bar--code",
         "alice.athena.foo.bar--code",
         "completed",
@@ -151,18 +151,18 @@ def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
         "alice.athena.foo.sibling",
         "failed",
     )
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
         "alice.athena.foo.bar",
-        ("run-family",),
+        ("run-session",),
     )
     snapshot = V2HoodSnapshot(
         owner,
         project,
         "foo",
         "alice.athena.foo",
-        runs=(family_run, sibling_run),
-        containers=(family,),
+        runs=(session_run, sibling_run),
+        containers=(agent_session,),
     )
     manifest = V2OwnerManifest(
         owner,
@@ -174,23 +174,23 @@ def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
     )
-    family_agent_path = "agents/alice.athena.foo.bar--code/README.md"
-    family_path = "sessions/alice.athena.foo.bar.md"
+    session_agent_path = "agents/alice.athena.foo.bar--code/README.md"
+    session_path = "sessions/alice.athena.foo.bar.md"
     sibling_path = "agents/alice.athena.foo.sibling/README.md"
 
-    family_agent_page = payload[family_agent_path].decode()
-    family_page = payload[family_path].decode()
+    session_agent_page = payload[session_agent_path].decode()
+    session_page = payload[session_path].decode()
     sibling_page = payload[sibling_path].decode()
-    assert "## Neighbors" in family_agent_page
-    assert "## Neighbors" in family_page
-    assert "[foo.sibling](../alice.athena.foo.sibling/README.md)" in family_agent_page
-    assert "[foo.sibling](../agents/alice.athena.foo.sibling/README.md)" in family_page
+    assert "## Neighbors" in session_agent_page
+    assert "## Neighbors" in session_page
+    assert "[foo.sibling](../alice.athena.foo.sibling/README.md)" in session_agent_page
+    assert "[foo.sibling](../agents/alice.athena.foo.sibling/README.md)" in session_page
     assert (
         "[foo.bar](../../sessions/alice.athena.foo.bar.md) (session · 1)"
         in sibling_page
     )
 
-    for source_path in (family_agent_path, family_path, sibling_path):
+    for source_path in (session_agent_path, session_path, sibling_path):
         page = payload[source_path].decode()
         section = page.partition("## Neighbors")[2]
         for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", section):
@@ -200,7 +200,9 @@ def test_agent_and_family_neighbor_links_resolve_inside_payload() -> None:
             assert resolved in payload
 
 
-def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() -> None:
+def test_agent_and_session_pages_render_sorted_escaped_and_truncated_variables() -> (
+    None
+):
     owner = AgentOwnerIdentity("alice", "athena")
     project = V2ProjectIdentity("proj", "Project")
     code = V2RunRecord(
@@ -225,7 +227,7 @@ def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() 
         "completed",
         metadata=(("output_variables", {"plan_file": "plans/foo.md"}),),
     )
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
         "alice.athena.foo.bar",
         ("run-code", "run-plan"),
@@ -236,7 +238,7 @@ def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() 
         "foo",
         "alice.athena.foo",
         runs=(code, plan),
-        containers=(family,),
+        containers=(agent_session,),
     )
     manifest = V2OwnerManifest(
         owner,
@@ -249,7 +251,7 @@ def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() 
         {("alice", "athena", "foo"): snapshot},
     )
     agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
-    family_page = payload["sessions/alice.athena.foo.bar.md"].decode()
+    session_page = payload["sessions/alice.athena.foo.bar.md"].decode()
 
     assert "- Variables: [2](#variables)" in agent_page
     assert agent_page.index("| `a_long` |") < agent_page.index("| `z_notes` |")
@@ -259,11 +261,11 @@ def test_agent_and_family_pages_render_sorted_escaped_and_truncated_variables() 
         "Values are truncated for display; see [meta.json](meta.json) "
         "for the full values." in agent_page
     )
-    assert "| code | `a_long` |" in family_page
-    assert "| code | `z_notes` |" in family_page
-    assert "| plan | `plan_file` | plans/foo.md |" in family_page
+    assert "| code | `a_long` |" in session_page
+    assert "| code | `z_notes` |" in session_page
+    assert "| plan | `plan_file` | plans/foo.md |" in session_page
     assert (
-        family_page.index("| code | `a_long` |")
-        < family_page.index("| code | `z_notes` |")
-        < family_page.index("| plan | `plan_file` |")
+        session_page.index("| code | `a_long` |")
+        < session_page.index("| code | `z_notes` |")
+        < session_page.index("| plan | `plan_file` |")
     )

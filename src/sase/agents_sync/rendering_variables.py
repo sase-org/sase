@@ -84,10 +84,10 @@ def render_agent_variables(run: V2RunRecord, *, source_path: str) -> list[str]:
     return lines
 
 
-def render_family_variables(
+def render_agent_session_variables(
     members: tuple[tuple[str, V2RunRecord], ...],
 ) -> list[str]:
-    """Render attributed output variables for a family."""
+    """Render attributed output variables for an agent session."""
 
     rows = sorted(
         (
@@ -175,5 +175,5 @@ def _block_fence(block: str) -> str:
 __all__ = [
     "output_variables",
     "render_agent_variables",
-    "render_family_variables",
+    "render_agent_session_variables",
 ]

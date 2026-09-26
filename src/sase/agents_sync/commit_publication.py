@@ -182,7 +182,7 @@ def _enqueue_committed_agent_publication(
         normalize_owned_agent_name(local_agent, identity)
     )
     # The request's identity is the committing agent's sase-agent projection:
-    # a family member publishes as its family, a solo agent as itself.  The
+    # a session member publishes as its session, a solo agent as itself.  The
     # publication scope is unchanged either way -- it was already whole-hood,
     # and a member and its sase agent share a hood -- but the recorded identity
     # flows into the request's logical key and notification subject.

@@ -40,7 +40,7 @@ def publish_agent_hood(
     """Refresh exactly the committing sase agent's complete top-level local hood.
 
     ``committing_agent`` names a sase agent: either a solo agent, which is
-    also a run, or a family container, which never is. Both spellings are
+    also a run, or a session container, which never is. Both spellings are
     accepted deliberately, and a concrete agent-shell name is still tolerated
     for legacy callers.
     """
@@ -56,7 +56,7 @@ def publish_agent_hood(
     agent_ref: SaseAgentRef = sase_agent_ref_for_name(local_name, snapshot)
     hood = agent_local_hood(agent_ref.local_name, snapshot)
     if agent_ref.is_agent_session:
-        # A family sase agent is a container, not a run, so only its hood
+        # An agent-session sase agent is a container, not a run, so only its hood
         # decides whether there is anything to publish.
         publishable = bool(project_inventory.hood_runs(hood))
     else:

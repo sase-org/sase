@@ -31,7 +31,7 @@ def render_agent_page(
     snapshot: V2HoodSnapshot,
     run: V2RunRecord,
     *,
-    family: V2ContainerRecord | None,
+    agent_session: V2ContainerRecord | None,
     commit_url_base: str | None,
     commit_repo_name: str | None,
     kinship: HoodKinshipProjection,
@@ -68,7 +68,7 @@ def render_agent_page(
     lines = [
         f"# Agent: {md_escape(run.local_name)}",
         "",
-        _breadcrumb(snapshot, run, source_path, family),
+        _breadcrumb(snapshot, run, source_path, agent_session),
         "",
         f"**Global name:** `{md_code(run.global_name)}` · **State:** "
         f"{md_escape(run.state)} · **Source run:** `{md_code(run.source_run_id)}`",
@@ -119,7 +119,7 @@ def _breadcrumb(
     snapshot: V2HoodSnapshot,
     run: V2RunRecord,
     source_path: str,
-    family: V2ContainerRecord | None,
+    agent_session: V2ContainerRecord | None,
 ) -> str:
     owner = snapshot.owner
     parts = [
@@ -131,13 +131,13 @@ def _breadcrumb(
         f"[{md_escape(snapshot.local_hood)}]"
         f"({relative_page_url(source_path, f'users/{owner.username}/machines/{owner.machine_name}/hoods/{snapshot.local_hood}/README.md')})",
     ]
-    if family is not None:
-        local_family = family.global_name.removeprefix(
+    if agent_session is not None:
+        local_session = agent_session.global_name.removeprefix(
             f"{owner.username}.{owner.machine_name}."
         )
         parts.append(
-            f"[{md_escape(local_family)}]"
-            f"({relative_page_url(source_path, agent_session_page_path(family.global_name))})"
+            f"[{md_escape(local_session)}]"
+            f"({relative_page_url(source_path, agent_session_page_path(agent_session.global_name))})"
         )
     parts.append(md_escape(run.local_name))
     return " / ".join(parts)

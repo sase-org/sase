@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sase.agents_sync.bead_links import BeadPageLink
-from sase.agents_sync.rendering_commits import render_family_commits
+from sase.agents_sync.rendering_commits import render_agent_session_commits
 from sase.agents_sync.rendering_kinship import (
     HoodKinshipProjection,
     render_neighbors_section,
@@ -18,7 +18,7 @@ from sase.agents_sync.rendering_markdown import (
     relative_page_url,
     run_timing,
 )
-from sase.agents_sync.rendering_variables import render_family_variables
+from sase.agents_sync.rendering_variables import render_agent_session_variables
 from sase.agents_sync.v2_models import (
     V2ContainerRecord,
     V2FileReference,
@@ -128,7 +128,7 @@ def render_agent_session_page(
             [
                 "## Commits",
                 "",
-                *render_family_commits(
+                *render_agent_session_commits(
                     session_commits,
                     commit_url_base=commit_url_base,
                     commit_repo_name=commit_repo_name,
@@ -136,7 +136,7 @@ def render_agent_session_page(
                 "",
             ]
         )
-    lines.extend(render_family_variables(member_roles))
+    lines.extend(render_agent_session_variables(member_roles))
     lines.extend(
         render_neighbors_section(
             kinship,

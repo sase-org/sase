@@ -74,7 +74,7 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
     assert "alice.athena.foo.bar" in snapshot.structural_ancestors
     assert "alice.athena.foo.bar.baz" in snapshot.structural_ancestors
     assert (repo / "sessions" / "alice.athena.foo.bar.baz.md").is_file()
-    family = (repo / "sessions" / "alice.athena.foo.bar.baz.md").read_text()
+    session_page = (repo / "sessions" / "alice.athena.foo.bar.baz.md").read_text()
     agent = (
         repo / "agents" / "alice.athena.foo.bar.baz--code" / "README.md"
     ).read_text()
@@ -85,24 +85,24 @@ def test_targeted_publication_captures_complete_hood_and_is_byte_stable(
         "Variables",
         "Neighbors",
     )
-    assert _section_titles(family) == (
+    assert _section_titles(session_page) == (
         "Lineage",
         "Commits",
         "Variables",
         "Neighbors",
     )
     assert (
-        family.index("## Lineage")
-        < family.index("| Role | Agent | State |")
-        < family.index("## Commits")
+        session_page.index("## Lineage")
+        < session_page.index("| Role | Agent | State |")
+        < session_page.index("## Commits")
     )
     assert (
         "| [foo.bar.baz.child](../agents/alice.athena.foo.bar.baz.child/README.md) "
-        "| descendant | completed |" in family
+        "| descendant | completed |" in session_page
     )
     _assert_summary_anchors_resolve(agent)
-    assert '<a id="member-code"></a>' in family
-    assert "```mermaid" in family
+    assert '<a id="member-code"></a>' in session_page
+    assert "```mermaid" in session_page
     assert not (repo / "agents" / "alice.athena.foo.bar.baz--code" / "chat.md").exists()
 
     golden_root = Path(__file__).with_name("goldens")
@@ -189,7 +189,7 @@ def test_refresh_adds_optional_chat_and_preserves_temporarily_absent_run(
     ).read_bytes() == b"late chat\n"
 
 
-def test_targeted_publication_accepts_family_container_request(
+def test_targeted_publication_accepts_session_container_request(
     tmp_path: Path,
 ) -> None:
     target = _target(tmp_path)
@@ -216,7 +216,7 @@ def test_targeted_publication_accepts_family_container_request(
     ).is_file()
 
 
-def test_family_lane_and_member_requests_publish_identical_payloads(
+def test_session_lane_and_member_requests_publish_identical_payloads(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -256,7 +256,7 @@ def test_family_lane_and_member_requests_publish_identical_payloads(
     assert _publish("foo.rootless--left", "member") == _publish("foo.rootless", "lane")
 
 
-def test_registered_family_lane_without_runs_is_rejected(
+def test_registered_session_lane_without_runs_is_rejected(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

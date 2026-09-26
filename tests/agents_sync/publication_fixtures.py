@@ -10,6 +10,7 @@ from sase.agents_sync.inventory import (
 )
 from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.plan_chain import AGENT_SESSION_KEY
 
 _HEADING_RE = re.compile(r"^## (?P<title>.+)$", re.MULTILINE)
 
@@ -33,15 +34,15 @@ def _run(
     *,
     state: str = "completed",
     commit: bool = False,
-    family: str | None = None,
+    agent_session: str | None = None,
     output_variables: dict[str, str] | None = None,
     chat: bytes | None = b"chat\n",
     relationships: tuple[_InventoryRelationship, ...] = (),
 ) -> InventoryRun:
     owner = AgentOwnerIdentity("alice", "athena")
     metadata = (("model", "gpt"),)
-    if family is not None:
-        metadata += (("agent_family", family),)
+    if agent_session is not None:
+        metadata += ((AGENT_SESSION_KEY, agent_session),)
     if output_variables is not None:
         metadata += (("output_variables", output_variables),)
     commits = (CommitRecord("a" * 39 + suffix[-1], name, 1),) if commit else ()
@@ -60,7 +61,7 @@ def _run(
         commits,
         f"prompt for {name}\n".encode(),
         chat,
-        family,
+        agent_session,
         None,
         relationships,
         f"20260723120{suffix[-2:]}",
@@ -76,7 +77,7 @@ def _inventory(owner: AgentOwnerIdentity) -> ProjectHoodInventory:
             "03",
             state="active",
             commit=True,
-            family="foo.bar.baz",
+            agent_session="foo.bar.baz",
             output_variables={"report_path": "reports/code.md"},
             chat=None,
             relationships=(_InventoryRelationship("parent", "foo.bar", "name"),),
@@ -84,7 +85,7 @@ def _inventory(owner: AgentOwnerIdentity) -> ProjectHoodInventory:
         _run(
             "foo.bar.baz--plan",
             "04",
-            family="foo.bar.baz",
+            agent_session="foo.bar.baz",
             output_variables={
                 "plan_file": "plans/foo.md",
                 "status": "approved",
@@ -94,8 +95,8 @@ def _inventory(owner: AgentOwnerIdentity) -> ProjectHoodInventory:
         _run("foo.bar.baz.child", "12"),
         _run("foo.boom", "05", state="waiting"),
         _run("foo.bar.kazam", "06", state="failed"),
-        _run("foo.rootless--left", "07", family="foo.rootless"),
-        _run("foo.rootless--right", "08", family="foo.rootless"),
+        _run("foo.rootless--left", "07", agent_session="foo.rootless"),
+        _run("foo.rootless--right", "08", agent_session="foo.rootless"),
         _run("foo.archive", "11", state="dismissed"),
         _run("zap.solo", "09"),
         _run("work.committer", "10", commit=True),

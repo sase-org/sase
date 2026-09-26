@@ -24,6 +24,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_launch_wire_records import AGENT_LAUNCH_WIRE_SCHEMA_VERSION
+from sase.core.commit_footer_facade import COMMIT_FOOTER_WIRE_SCHEMA_VERSION
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME, require_rust_extension
 
 HEALTH_OK = "ok"
@@ -147,8 +149,11 @@ def check_backend_health() -> BackendHealthReport:
         else:
             try:
                 version = int(footer_schema_version())
-                if version != 1:
-                    raise RuntimeError(f"unexpected schema version {version}")
+                if version != COMMIT_FOOTER_WIRE_SCHEMA_VERSION:
+                    raise RuntimeError(
+                        f"unexpected schema version {version} "
+                        f"(expected {COMMIT_FOOTER_WIRE_SCHEMA_VERSION})"
+                    )
                 probes["commit_footer_wire_schema_version"] = True
             except Exception as exc:  # noqa: BLE001 — surface broken wheel.
                 error = (
@@ -195,8 +200,11 @@ def check_backend_health() -> BackendHealthReport:
         else:
             try:
                 version = int(wire_schema_version())
-                if version != 1:
-                    raise RuntimeError(f"unexpected schema version {version}")
+                if version != AGENT_LAUNCH_WIRE_SCHEMA_VERSION:
+                    raise RuntimeError(
+                        f"unexpected schema version {version} "
+                        f"(expected {AGENT_LAUNCH_WIRE_SCHEMA_VERSION})"
+                    )
                 probes["agent_launch_wire_schema_version"] = True
             except Exception as exc:  # noqa: BLE001 — surface broken wheel.
                 error = (

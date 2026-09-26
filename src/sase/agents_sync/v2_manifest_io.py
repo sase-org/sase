@@ -143,6 +143,8 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
     for hood, raw_entry in sorted(raw_hoods.items()):
         validate_component(hood, label="hood")
         row = json_object(raw_entry, f"hood {hood!r}")
+        # legacy agent-family spelling: pre-rename manifests carry
+        # ``family_count``; new writers emit only ``agent_session_count``.
         count_key = (
             "agent_session_count"
             if "agent_session_count" in row

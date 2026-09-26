@@ -67,28 +67,30 @@ def test_projection_orders_ancestors_descendants_and_hood_groups() -> None:
     assert len({row.lane_name for row in parent.rows}) == len(parent.rows)
 
 
-def test_family_is_one_lane_and_never_lists_its_members() -> None:
-    root = _run("foo.family--root")
-    code = _run("foo.family--code", state="failed")
+def test_agent_session_is_one_lane_and_never_lists_its_members() -> None:
+    root = _run("foo.crew--root")
+    code = _run("foo.crew--code", state="failed")
     sibling = _run("foo.sibling")
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
-        "alice.athena.foo.family",
+        "alice.athena.foo.crew",
         (root.source_run_id, code.source_run_id),
     )
 
-    kinship = build_hood_kinship(_snapshot(root, code, sibling, containers=(family,)))
+    kinship = build_hood_kinship(
+        _snapshot(root, code, sibling, containers=(agent_session,))
+    )
 
-    assert kinship.lane_for_source(root.source_run_id) == "foo.family"
-    assert kinship.lane_for_source(code.source_run_id) == "foo.family"
-    projection = kinship.for_lane("foo.family")
+    assert kinship.lane_for_source(root.source_run_id) == "foo.crew"
+    assert kinship.lane_for_source(code.source_run_id) == "foo.crew"
+    projection = kinship.for_lane("foo.crew")
     assert [row.lane_name for row in projection.rows] == ["foo.sibling"]
     sibling_projection = kinship.for_lane("foo.sibling")
-    family_row = sibling_projection.rows[0]
-    assert family_row.lane_name == "foo.family"
-    assert family_row.is_session is True
-    assert family_row.member_count == 2
-    assert family_row.state == "completed 1, failed 1"
+    session_row = sibling_projection.rows[0]
+    assert session_row.lane_name == "foo.crew"
+    assert session_row.is_session is True
+    assert session_row.member_count == 2
+    assert session_row.state == "completed 1, failed 1"
 
 
 def test_lone_lane_has_no_neighbor_groups() -> None:

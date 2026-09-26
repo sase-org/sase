@@ -1,4 +1,4 @@
-"""Tests for bead and epic links on rendered agent and family pages."""
+"""Tests for bead and epic links on rendered agent and session pages."""
 
 from __future__ import annotations
 
@@ -131,7 +131,7 @@ def test_run_absent_from_bead_links_mapping_renders_unchanged() -> None:
     assert without_bead_links == with_empty_bead_links == with_unrelated_bead_links
 
 
-def test_family_page_header_renders_single_distinct_bead() -> None:
+def test_session_page_header_renders_single_distinct_bead() -> None:
     owner = AgentOwnerIdentity("alice", "athena")
     project = V2ProjectIdentity("proj", "Project")
     left = V2RunRecord(
@@ -140,7 +140,7 @@ def test_family_page_header_renders_single_distinct_bead() -> None:
     right = V2RunRecord(
         "run-right", "foo.bar--right", "alice.athena.foo.bar--right", "completed"
     )
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
         "alice.athena.foo.bar",
         ("run-left", "run-right"),
@@ -151,7 +151,7 @@ def test_family_page_header_renders_single_distinct_bead() -> None:
         "foo",
         "alice.athena.foo",
         runs=(left, right),
-        containers=(family,),
+        containers=(agent_session,),
     )
     manifest = V2OwnerManifest(
         owner,
@@ -163,17 +163,17 @@ def test_family_page_header_renders_single_distinct_bead() -> None:
         right.global_name: BeadPageLink("sase-ar.6", "https://example/beads/sase-ar.6"),
     }
 
-    family_page = render_browsing_payload(
+    session_page = render_browsing_payload(
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         bead_links=bead_links,
     )["sessions/alice.athena.foo.bar.md"].decode()
 
-    assert "Bead: [sase-ar.6](https://example/beads/sase-ar.6)" in family_page
-    assert "Beads:" not in family_page
+    assert "Bead: [sase-ar.6](https://example/beads/sase-ar.6)" in session_page
+    assert "Beads:" not in session_page
 
 
-def test_family_page_header_caps_distinct_beads_and_reports_remainder() -> None:
+def test_session_page_header_caps_distinct_beads_and_reports_remainder() -> None:
     owner = AgentOwnerIdentity("alice", "athena")
     project = V2ProjectIdentity("proj", "Project")
     letters = "abcdef"
@@ -186,7 +186,7 @@ def test_family_page_header_caps_distinct_beads_and_reports_remainder() -> None:
         )
         for letter in letters
     )
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
         "alice.athena.foo.bar",
         tuple(run.source_run_id for run in members),
@@ -197,7 +197,7 @@ def test_family_page_header_caps_distinct_beads_and_reports_remainder() -> None:
         "foo",
         "alice.athena.foo",
         runs=members,
-        containers=(family,),
+        containers=(agent_session,),
     )
     manifest = V2OwnerManifest(
         owner,
@@ -209,14 +209,14 @@ def test_family_page_header_caps_distinct_beads_and_reports_remainder() -> None:
         for run, letter in zip(members, letters, strict=True)
     }
 
-    family_page = render_browsing_payload(
+    session_page = render_browsing_payload(
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         bead_links=bead_links,
     )["sessions/alice.athena.foo.bar.md"].decode()
 
-    assert "Beads: sase-a, sase-b, sase-c, sase-d, sase-e, … +1 more" in family_page
-    assert "sase-f" not in family_page
+    assert "Beads: sase-a, sase-b, sase-c, sase-d, sase-e, … +1 more" in session_page
+    assert "sase-f" not in session_page
 
 
 def test_bead_linked_agent_page_golden(request: pytest.FixtureRequest) -> None:

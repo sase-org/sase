@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sase.agents_sync.rendering_variables import (
     render_agent_variables,
-    render_family_variables,
+    render_agent_session_variables,
 )
 from sase.agents_sync.v2_models import V2RunRecord
 
@@ -13,8 +13,8 @@ def _run(
 ) -> V2RunRecord:
     return V2RunRecord(
         run_id,
-        f"family--{run_id}",
-        f"alice.athena.family--{run_id}",
+        f"crew--{run_id}",
+        f"alice.athena.crew--{run_id}",
         "completed",
         metadata=(("output_variables", variables),),
     )
@@ -37,11 +37,11 @@ def test_agent_variables_render_inline_previews_and_container_blocks() -> None:
 
     first = render_agent_variables(
         run,
-        source_path="agents/alice.athena.family--code/README.md",
+        source_path="agents/alice.athena.crew--code/README.md",
     )
     second = render_agent_variables(
         run,
-        source_path="agents/alice.athena.family--code/README.md",
+        source_path="agents/alice.athena.crew--code/README.md",
     )
     rendered = "\n".join(first)
 
@@ -73,9 +73,9 @@ def test_agent_variables_render_inline_previews_and_container_blocks() -> None:
     assert "#### empty\n\n```yaml\n[]\n```" in rendered
 
 
-def test_family_container_blocks_retain_member_attribution() -> None:
+def test_session_container_blocks_retain_member_attribution() -> None:
     rendered = "\n".join(
-        render_family_variables(
+        render_agent_session_variables(
             (
                 ("plan", _run("plan", {"config": {"phase": "plan"}})),
                 ("code", _run("code", {"config": {"phase": "code"}})),
@@ -92,7 +92,7 @@ def test_container_block_and_preview_truncation_is_visible_and_bounded() -> None
     rendered = "\n".join(
         render_agent_variables(
             _run("code", {"many": [f"item-{index}" for index in range(300)]}),
-            source_path="agents/alice.athena.family--code/README.md",
+            source_path="agents/alice.athena.crew--code/README.md",
         )
     )
 
@@ -111,7 +111,7 @@ def test_container_block_uses_a_fence_longer_than_nested_backticks() -> None:
     rendered = "\n".join(
         render_agent_variables(
             _run("code", {"config": {"command": "```shell"}}),
-            source_path="agents/alice.athena.family--code/README.md",
+            source_path="agents/alice.athena.crew--code/README.md",
         )
     )
 

@@ -1,4 +1,4 @@
-"""Shared commit-table rendering for agent and family browsing pages."""
+"""Shared commit-table rendering for agent and session browsing pages."""
 
 from __future__ import annotations
 
@@ -32,13 +32,13 @@ def render_agent_commits(
     )
 
 
-def render_family_commits(
+def render_agent_session_commits(
     commits: tuple[tuple[CommitRecord, str], ...],
     *,
     commit_url_base: str | None,
     commit_repo_name: str | None,
 ) -> list[str]:
-    """Render a family's bounded, role-attributed commit table."""
+    """Render an agent session's bounded, role-attributed commit table."""
 
     rows = tuple(
         sorted(
@@ -98,5 +98,5 @@ def _render_commit_table(
 __all__ = [
     "MAX_RENDERED_COMMITS",
     "render_agent_commits",
-    "render_family_commits",
+    "render_agent_session_commits",
 ]

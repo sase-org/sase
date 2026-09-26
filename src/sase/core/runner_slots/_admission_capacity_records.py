@@ -153,8 +153,8 @@ def capacity_session_keys_for_core(
 ) -> dict[str, Any]:
     """Runner-slot session projection for the Rust capacity engine.
 
-    Core serializes ``agent_session_parallel`` and still accepts the
-    ``agent_family_parallel`` alias on read.
+    Core serializes ``agent_session_parallel`` and still accepts the legacy
+    parallel-marker spelling on read.
     """
     return {
         "agent_session": agent_session,

@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 
+from sase.core.agent_launch_wire_records import AGENT_LAUNCH_WIRE_SCHEMA_VERSION
+from sase.core.commit_footer_facade import COMMIT_FOOTER_WIRE_SCHEMA_VERSION
 from sase.core.health import (
     HEALTH_ERROR,
     HEALTH_OK,
@@ -43,8 +45,11 @@ def _install_fake_extension(
     def _ok(_query: str) -> dict[str, Any]:
         return {"kind": "MetadataField", "field": "status", "value": "Ready"}
 
-    def _schema_version() -> int:
-        return 1
+    def _commit_footer_schema_version() -> int:
+        return COMMIT_FOOTER_WIRE_SCHEMA_VERSION
+
+    def _agent_launch_schema_version() -> int:
+        return AGENT_LAUNCH_WIRE_SCHEMA_VERSION
 
     def _parse_commit_footer(_message: str) -> dict[str, Any]:
         return {
@@ -92,7 +97,7 @@ def _install_fake_extension(
         fake.commit_footer_wire_schema_version = (  # type: ignore[attr-defined]
             commit_footer_wire_schema_version
             if commit_footer_wire_schema_version is not None
-            else _schema_version
+            else _commit_footer_schema_version
         )
     if not omit_parse_commit_footer:
         fake.parse_commit_footer = (  # type: ignore[attr-defined]
@@ -104,7 +109,7 @@ def _install_fake_extension(
         fake.agent_launch_wire_schema_version = (  # type: ignore[attr-defined]
             agent_launch_wire_schema_version
             if agent_launch_wire_schema_version is not None
-            else _schema_version
+            else _agent_launch_schema_version
         )
     if not omit_plan_agent_launch_fanout:
         fake.plan_agent_launch_fanout = (  # type: ignore[attr-defined]
@@ -245,6 +250,30 @@ def test_health_extension_missing_launch_binding(
     assert "plan_agent_launch_fanout" in report.error
     assert report.extras["probes"]["parse_query"] is True
     assert report.extras["probes"]["plan_agent_launch_fanout"] is False
+
+
+def test_health_launch_schema_version_mismatch_names_expected_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale = AGENT_LAUNCH_WIRE_SCHEMA_VERSION + 1
+    _install_fake_extension(monkeypatch, agent_launch_wire_schema_version=lambda: stale)
+
+    report = check_backend_health()
+
+    assert report.status == HEALTH_ERROR
+    assert report.error_kind == "RuntimeError"
+    assert report.error is not None
+    assert f"unexpected schema version {stale}" in report.error
+    assert f"expected {AGENT_LAUNCH_WIRE_SCHEMA_VERSION}" in report.error
+    assert report.extras["probes"]["agent_launch_wire_schema_version"] is False
+
+
+def test_health_ok_against_installed_extension() -> None:
+    """The real extension must agree with the Python schema-version mirrors."""
+    report = check_backend_health()
+
+    assert report.error is None
+    assert report.status == HEALTH_OK
 
 
 def test_health_extension_missing_bead_binding(

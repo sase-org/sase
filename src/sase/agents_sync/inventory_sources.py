@@ -164,7 +164,7 @@ def run_from_artifact(
     prompt_steps = _prompt_steps_payload(artifact)
     state = _artifact_state(record, done)
     metadata = _portable_metadata(meta)
-    family = _canonical_optional_name(agent_session_value(meta), identity)
+    agent_session = _canonical_optional_name(agent_session_value(meta), identity)
     clan = _canonical_optional_name(meta.get("agent_clan"), identity)
     relationships = artifact_relationships(meta, record, identity)
     return InventoryRun(
@@ -179,7 +179,7 @@ def run_from_artifact(
         tuple(sorted(commits.values(), key=lambda item: (item.committed_at, item.sha))),
         prompt,
         chat,
-        family,
+        agent_session,
         clan,
         relationships,
         timestamp,
@@ -243,7 +243,7 @@ def run_from_dismissed(
     metadata = _portable_metadata(raw)
     prompt = _prompt_bytes_from_dismissed(raw, project_key)
     chat = _read_referenced_text(raw.get("response_path"), raw.get("chat_path"))
-    family = _canonical_optional_name(agent_session_value(raw), identity)
+    agent_session = _canonical_optional_name(agent_session_value(raw), identity)
     clan = _canonical_optional_name(raw.get("agent_clan"), identity)
     relationships = dismissed_relationships(raw, identity)
     return InventoryRun(
@@ -258,7 +258,7 @@ def run_from_dismissed(
         history.run_commits.get(local_name, ()),
         prompt,
         chat,
-        family,
+        agent_session,
         clan,
         relationships,
         raw_suffix,

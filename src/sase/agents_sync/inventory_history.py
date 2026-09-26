@@ -48,7 +48,7 @@ def historical_associations(
         return HistoricalAssociations({}, ())
     exact_runs: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
     lanes: dict[str, dict[str, CommitRecord]] = defaultdict(dict)
-    family_lanes: dict[str, bool] = {}
+    agent_session_lanes: dict[str, bool] = {}
     chunks = result.stdout.split("\x00")
     for index in range(0, len(chunks) - 3, 4):
         sha = chunks[index].lstrip("\r\n").strip().lower()
@@ -77,9 +77,9 @@ def historical_associations(
             continue
         commit = CommitRecord(sha, subject, committed_at)
         if parsed.member_role is not None:
-            # Legacy footers named the concrete family member. Preserve that
+            # Legacy footers named the concrete session member. Preserve that
             # exact run attribution forever; only sase-agent-valued footers
-            # belong to the family container.
+            # belong to the session container.
             exact_runs[local_name][sha] = commit
             continue
         try:
@@ -88,23 +88,23 @@ def historical_associations(
             continue
         if value is None:
             continue
-        is_family = _sase_agent_footer_is_family(value, agent_ref)
+        is_agent_session = _sase_agent_footer_is_agent_session(value, agent_ref)
         lanes[agent_ref.local_name][sha] = commit
-        family_lanes[agent_ref.local_name] = (
-            family_lanes.get(agent_ref.local_name, False) or is_family
+        agent_session_lanes[agent_ref.local_name] = (
+            agent_session_lanes.get(agent_ref.local_name, False) or is_agent_session
         )
 
     lane_commits = tuple(
         InventoryLaneCommitHistory(
             name,
-            family_lanes[name],
+            agent_session_lanes[name],
             _sorted_commit_rows(rows),
         )
         for name, rows in sorted(lanes.items())
     )
     run_rows = dict(exact_runs)
     for history in lane_commits:
-        if history.is_family:
+        if history.is_agent_session:
             continue
         current = run_rows.setdefault(history.local_name, {})
         current.update({commit.sha: commit for commit in history.commits})
@@ -125,7 +125,7 @@ def _sorted_commit_rows(
     return tuple(sorted(rows.values(), key=lambda item: (item.committed_at, item.sha)))
 
 
-def _destination_is_family_page(destination: str) -> bool:
+def _destination_is_agent_session_page(destination: str) -> bool:
     """Return whether a linked footer destination names a session page.
 
     Historical commit footers used ``families/``; current footers use
@@ -136,13 +136,13 @@ def _destination_is_family_page(destination: str) -> bool:
     return bool({"families", "sessions"} & {part for part in path.split("/") if part})
 
 
-def _sase_agent_footer_is_family(
+def _sase_agent_footer_is_agent_session(
     value: CommitTagValue, agent_ref: SaseAgentRef
 ) -> bool:
     """Classify an ambiguous sase-agent label from its own footer evidence first."""
 
     if isinstance(value, LinkedCommitTagValue):
-        return _destination_is_family_page(value.destination)
+        return _destination_is_agent_session_page(value.destination)
     return agent_ref.is_agent_session
 
 

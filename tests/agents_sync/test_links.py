@@ -23,7 +23,7 @@ def _git_result(
     raise AssertionError(args)
 
 
-def test_family_member_commit_tag_links_to_lane_page_without_member_anchor(
+def test_session_member_commit_tag_links_to_lane_page_without_member_anchor(
     tmp_path: Path,
     monkeypatch,
 ) -> None:

@@ -1,4 +1,4 @@
-"""Tests for commit tables on rendered agent and family pages."""
+"""Tests for commit tables on rendered agent and session pages."""
 
 from __future__ import annotations
 
@@ -34,16 +34,16 @@ def test_commit_tables_link_escape_and_format_utc(
         project = V2ProjectIdentity("proj", "Project")
         sha = "a" * 40
         run = V2RunRecord(
-            "run-family",
+            "run-session",
             "foo.bar--code",
             "alice.athena.foo.bar--code",
             "completed",
             commits=(CommitRecord(sha, "unsafe | `tick` <tag>", 1),),
         )
-        family = V2ContainerRecord(
+        agent_session = V2ContainerRecord(
             "session",
             "alice.athena.foo.bar",
-            ("run-family",),
+            ("run-session",),
         )
         snapshot = V2HoodSnapshot(
             owner,
@@ -51,7 +51,7 @@ def test_commit_tables_link_escape_and_format_utc(
             "foo",
             "alice.athena.foo",
             runs=(run,),
-            containers=(family,),
+            containers=(agent_session,),
         )
         manifest = V2OwnerManifest(
             owner,
@@ -73,7 +73,7 @@ def test_commit_tables_link_escape_and_format_utc(
             commit_repo_name="project",
         )
         agent_page = payload["agents/alice.athena.foo.bar--code/README.md"].decode()
-        family_page = payload["sessions/alice.athena.foo.bar.md"].decode()
+        session_page = payload["sessions/alice.athena.foo.bar.md"].decode()
 
         expected_commit = (
             "[`aaaaaaa`](https://github.com/acme/project/commit/" + sha + ")"
@@ -84,10 +84,11 @@ def test_commit_tables_link_escape_and_format_utc(
         assert expected_commit in agent_page
         assert "unsafe \\| \\`tick\\` \\<tag\\>" in agent_page
         assert "1969-12-31 19:00:01 EST" in agent_page
-        assert "| Role | Repo | Commit | Subject | Committed |" in family_page
-        assert "| code | project | " + expected_commit in family_page
+        assert "| Role | Repo | Commit | Subject | Committed |" in session_page
+        assert "| code | project | " + expected_commit in session_page
         assert (
-            "[1](../agents/alice.athena.foo.bar--code/README.md#commits)" in family_page
+            "[1](../agents/alice.athena.foo.bar--code/README.md#commits)"
+            in session_page
         )
     finally:
         if original_tz is None:
@@ -97,22 +98,22 @@ def test_commit_tables_link_escape_and_format_utc(
         time.tzset()
 
 
-def test_family_page_unions_lane_commits_with_member_attribution_winning() -> None:
+def test_session_page_unions_lane_commits_with_member_attribution_winning() -> None:
     owner = AgentOwnerIdentity("alice", "athena")
     project = V2ProjectIdentity("proj", "Project")
     member_commit = CommitRecord("a" * 40, "member subject", 2)
     lane_commit = CommitRecord("b" * 40, "lane subject", 1)
     run = V2RunRecord(
-        "run-family",
+        "run-session",
         "foo.bar--code",
         "alice.athena.foo.bar--code",
         "completed",
         commits=(member_commit,),
     )
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
         "alice.athena.foo.bar",
-        ("run-family",),
+        ("run-session",),
         (
             lane_commit,
             CommitRecord(member_commit.sha, "lane duplicate", 3),
@@ -124,7 +125,7 @@ def test_family_page_unions_lane_commits_with_member_attribution_winning() -> No
         "foo",
         "alice.athena.foo",
         runs=(run,),
-        containers=(family,),
+        containers=(agent_session,),
     )
     manifest = V2OwnerManifest(
         owner,
@@ -132,17 +133,17 @@ def test_family_page_unions_lane_commits_with_member_attribution_winning() -> No
         (("foo", V2OwnerHoodEntry("a" * 64, (), 1, 1)),),
     )
 
-    family_page = render_browsing_payload(
+    session_page = render_browsing_payload(
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         commit_repo_name="project",
     )["sessions/alice.athena.foo.bar.md"].decode()
 
-    assert "| — | project | `bbbbbbb` | lane subject |" in family_page
-    assert "| code | project | `aaaaaaa` | member subject |" in family_page
-    assert "lane duplicate" not in family_page
-    assert family_page.count("`aaaaaaa`") == 1
-    assert family_page.index("lane subject") < family_page.index("member subject")
+    assert "| — | project | `bbbbbbb` | lane subject |" in session_page
+    assert "| code | project | `aaaaaaa` | member subject |" in session_page
+    assert "lane duplicate" not in session_page
+    assert session_page.count("`aaaaaaa`") == 1
+    assert session_page.index("lane subject") < session_page.index("member subject")
 
 
 @pytest.mark.parametrize(
@@ -206,7 +207,7 @@ def test_commit_rendering_is_bounded_and_validates_link_shas() -> None:
         "completed",
         commits=commits,
     )
-    family = V2ContainerRecord(
+    agent_session = V2ContainerRecord(
         "session",
         "alice.athena.foo",
         ("run-1",),
@@ -217,7 +218,7 @@ def test_commit_rendering_is_bounded_and_validates_link_shas() -> None:
         "foo",
         "alice.athena.foo",
         runs=(run,),
-        containers=(family,),
+        containers=(agent_session,),
     )
     manifest = V2OwnerManifest(
         owner,
@@ -235,13 +236,13 @@ def test_commit_rendering_is_bounded_and_validates_link_shas() -> None:
     assert "… and 1 more commits" in page
     assert "subject 49" in page
     assert "subject 50" not in page
-    family_page = render_browsing_payload(
+    session_page = render_browsing_payload(
         (manifest,),
         {("alice", "athena", "foo"): snapshot},
         commit_url_base=None,
         commit_repo_name="project",
     )["sessions/alice.athena.foo.md"].decode()
-    assert "… and 1 more commits" in family_page
+    assert "… and 1 more commits" in session_page
     assert (
         github_commit_url(
             "git@github.com:acme/project.git",
