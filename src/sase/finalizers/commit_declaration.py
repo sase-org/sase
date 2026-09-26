@@ -191,13 +191,16 @@ def dirty_repos_in_context_order(
     if missing:
         if ledger is not None:
             attempt = ledger.allocate_attempt()
+        detail = ", ".join(
+            _describe_dirty_repo(repos_by_id[repo_id]) for repo_id in missing
+        )
+        message_text = "commit declaration is stale; missing decision(s): " + detail
         raise BuiltinCommitFinalizerError(
-            "commit declaration is stale; missing decision(s): " + ", ".join(missing),
+            message_text,
             result=_failed_result(
                 "commit",
                 "stale_commit_declaration",
-                "commit declaration is stale; missing decision(s): "
-                + ", ".join(missing),
+                message_text,
                 attempts=[
                     FinalizerAttemptWire(
                         attempt=attempt,
@@ -208,6 +211,11 @@ def dirty_repos_in_context_order(
             ),
         )
     return ordered
+
+
+def _describe_dirty_repo(repo: DirtyRepo) -> str:
+    files = ", ".join(repo.changed_files) if repo.changed_files else "no listed paths"
+    return f"{repo.name} ({repo.kind}:{repo.name} at {repo.path}: {files})"
 
 
 def repository_decision_id(repo: DirtyRepo) -> str:
@@ -228,14 +236,16 @@ def reject_stale_repository_obligation(
     if obligation is None:
         if ledger is not None:
             attempt = ledger.allocate_attempt()
+        message_text = (
+            f"commit declaration is stale; repository {_describe_dirty_repo(repo)} "
+            "is not in the accepted context"
+        )
         raise BuiltinCommitFinalizerError(
-            f"commit declaration is stale; repository {repo.name} is not in "
-            "the accepted context",
+            message_text,
             result=_failed_result(
                 instance_id,
                 "stale_commit_declaration",
-                f"commit declaration is stale; repository {repo.name} is not "
-                "in the accepted context",
+                message_text,
                 attempts=[
                     FinalizerAttemptWire(
                         attempt=attempt,

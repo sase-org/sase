@@ -25,6 +25,7 @@ from ._dirty_repos import (
     dirty_configured_sibling_repos as _dirty_configured_sibling_repos,
     dirty_opened_external_repos as _dirty_opened_external_repos,
     dirty_sdd_store_repos as _dirty_sdd_store_repos,
+    known_sdd_sidecar_paths as _known_sdd_sidecar_paths,
 )
 from ._sibling_targets import configured_sibling_targets as _configured_sibling_targets
 
@@ -87,6 +88,10 @@ def collect_dirty_state(
         if has_main_changes
         else None
     )
+    # Resolve SDD sidecar identities before any status call so each
+    # normalized path is scanned once and an SDD path is always classified
+    # as ``sdd`` even when a sibling target also names it.
+    known_sdd_paths = _known_sdd_sidecar_paths(project_dir)
     sibling_targets = _configured_sibling_targets(project_dir)
     opened_names = opened_linked_repo_names(artifact_root)
     opened_workspace_dirs = opened_linked_repo_workspace_dirs(artifact_root)
@@ -99,10 +104,14 @@ def collect_dirty_state(
         _dirty_configured_sibling_repos(
             sibling_targets,
             opened_workspace_dirs=opened_workspace_dirs,
+            known_sdd_paths=known_sdd_paths,
         )
     )
     external_repos = tuple(
-        _dirty_opened_external_repos(opened_external_repo_records(artifact_root))
+        _dirty_opened_external_repos(
+            opened_external_repo_records(artifact_root),
+            known_sdd_paths=known_sdd_paths,
+        )
     )
     sdd_repos = (
         *_dirty_sdd_store_repos(project_dir),

@@ -26,10 +26,12 @@ def collect_baseline_repositories(project_dir: str) -> tuple[BaselineRepo, ...]:
     main = _baseline_main_repo(project_dir)
     if main is not None:
         repos.append(main)
-    repos.extend(_baseline_configured_sibling_repos(project_dir))
-    repos.extend(_baseline_sdd_store_repos(project_dir))
-    repos.extend(_baseline_agents_prompt_archive_repo(project_dir))
-    repos.extend(_baseline_workspace_repo_checkouts(project_dir))
+    sdd_repos = _baseline_sdd_store_repos(project_dir)
+    sdd_repos.extend(_baseline_agents_prompt_archive_repo(project_dir))
+    known_sdd_paths = {finalizer_git.normalize_path(repo.path) for repo in sdd_repos}
+    repos.extend(_baseline_configured_sibling_repos(project_dir, known_sdd_paths))
+    repos.extend(sdd_repos)
+    repos.extend(_baseline_workspace_repo_checkouts(project_dir, known_sdd_paths))
     return tuple(_dedupe_baseline_repos_by_path(repos))
 
 
@@ -44,16 +46,22 @@ def _baseline_main_repo(project_dir: str) -> BaselineRepo | None:
     )
 
 
-def _baseline_configured_sibling_repos(project_dir: str) -> list[BaselineRepo]:
+def _baseline_configured_sibling_repos(
+    project_dir: str,
+    known_sdd_paths: set[str] | None = None,
+) -> list[BaselineRepo]:
     repos: list[BaselineRepo] = []
     for target in configured_sibling_targets(project_dir):
+        normalized = finalizer_git.normalize_path(target.workspace_dir)
+        if known_sdd_paths is not None and normalized in known_sdd_paths:
+            continue
         path = Path(target.workspace_dir).expanduser()
         if not _has_git_entry(path):
             continue
         repos.append(
             BaselineRepo(
                 name=target.name,
-                path=finalizer_git.normalize_path(str(path)),
+                path=normalized,
                 kind="sibling",
             )
         )
@@ -132,7 +140,10 @@ def _baseline_agents_prompt_archive_repo(project_dir: str) -> list[BaselineRepo]
         return []
 
 
-def _baseline_workspace_repo_checkouts(project_dir: str) -> list[BaselineRepo]:
+def _baseline_workspace_repo_checkouts(
+    project_dir: str,
+    known_sdd_paths: set[str] | None = None,
+) -> list[BaselineRepo]:
     """Return pre-existing checkouts below ``sase/repos``."""
 
     repos_root = Path(project_dir).expanduser() / "sase" / "repos"
@@ -141,10 +152,13 @@ def _baseline_workspace_repo_checkouts(project_dir: str) -> list[BaselineRepo]:
 
     repos: list[BaselineRepo] = []
     for repo_root in _iter_workspace_repo_checkouts(repos_root):
+        normalized = finalizer_git.normalize_path(str(repo_root))
+        if known_sdd_paths is not None and normalized in known_sdd_paths:
+            continue
         repos.append(
             BaselineRepo(
                 name=_workspace_checkout_name(repos_root, repo_root),
-                path=finalizer_git.normalize_path(str(repo_root)),
+                path=normalized,
                 kind="external",
             )
         )

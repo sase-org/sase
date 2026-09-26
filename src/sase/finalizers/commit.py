@@ -169,7 +169,25 @@ def execute_commit_finalizer(
         accepted_deferrals_raw, instance.instance_id
     )
     current_result = invoke_result
+    (
+        state,
+        ledger_after_reconciliation,
+        dirty_before_decisions,
+        (dirty_before_reconciliation),
+    ) = _refresh_state_for_transient_extra_dirty(
+        state,
+        obligation_by_id,
+        project_dir=project_dir,
+        artifacts=artifacts,
+        ledger_after_reconciliation=ledger_after_reconciliation,
+    )
+    current_repo_ids = {
+        _repository_decision_id(repo) for repo in state.dirty_state.repos
+    }
     for repo in dirty_before_reconciliation.repos:
+        repo_id = _repository_decision_id(repo)
+        if repo_id not in obligation_by_id and repo_id not in current_repo_ids:
+            continue
         _reject_stale_repository_obligation(
             repo,
             obligation_by_id,
@@ -200,16 +218,16 @@ def execute_commit_finalizer(
     current_by_id = {
         _repository_decision_id(repo): repo for repo in state.dirty_state.repos
     }
-    extra_dirty = sorted(set(current_by_id) - set(obligation_by_id))
-    if extra_dirty:
+    extra_dirty_ids = sorted(set(current_by_id) - set(obligation_by_id))
+    if extra_dirty_ids:
+        extra_repos = [current_by_id[repo_id] for repo_id in extra_dirty_ids]
+        message_text = _extra_dirty_message(extra_repos)
         raise BuiltinCommitFinalizerError(
-            "commit declaration is stale; unexpected dirty repository "
-            "obligation(s): " + ", ".join(extra_dirty),
+            message_text,
             result=_failed_result(
                 instance.instance_id,
                 "stale_commit_declaration",
-                "commit declaration is stale; unexpected dirty repository "
-                "obligation(s): " + ", ".join(extra_dirty),
+                message_text,
             ),
             invoke_result=invoke_result,
         )
@@ -448,6 +466,73 @@ def execute_commit_finalizer(
             evidence=evidence,
             diagnostics=diagnostics,
         ),
+    )
+
+
+_TRANSIENT_EXTRA_RECHECK_LIMIT = 1
+
+
+def _describe_extra_repo(repo: DirtyRepo) -> str:
+    files = ", ".join(repo.changed_files) if repo.changed_files else "no listed paths"
+    return f"{repo.name} ({repo.kind}:{repo.name} at {repo.path}: {files})"
+
+
+def _extra_dirty_message(extra_repos: Sequence[DirtyRepo]) -> str:
+    detail = ", ".join(_describe_extra_repo(repo) for repo in extra_repos)
+    return (
+        "commit declaration is stale; unexpected dirty repository "
+        f"obligation(s): {detail}"
+    )
+
+
+def _extra_dirty_repos(
+    dirty_state: DirtyState,
+    obligation_by_id: Mapping[str, Any],
+) -> list[DirtyRepo]:
+    current_by_id = {_repository_decision_id(repo): repo for repo in dirty_state.repos}
+    return [
+        current_by_id[repo_id]
+        for repo_id in sorted(set(current_by_id) - set(obligation_by_id))
+    ]
+
+
+def _refresh_state_for_transient_extra_dirty(
+    state: Any,
+    obligation_by_id: Mapping[str, Any],
+    *,
+    project_dir: str,
+    artifacts: Any,
+    ledger_after_reconciliation: list[dict[str, Any]],
+) -> tuple[Any, list[dict[str, Any]], DirtyState, DirtyState]:
+    """Recheck newly observed dirty repos after machine-owned reconciliation.
+
+    A bead-sidecar sync/rebase can dirty a sidecar between the declaration
+    and the finalizer's first scan, then clean it before the next scan. When
+    the post-reconciliation state shows repos absent from the accepted
+    declaration, refresh once through ``prepare_commit_dirty_state`` (which
+    re-runs proven auto-commits) and continue with only the accepted
+    decisions when the extra repos prove clean. Persistently dirty repos
+    stay dirty and fail closed downstream with their names and paths.
+    """
+
+    if not _extra_dirty_repos(state.dirty_state, obligation_by_id):
+        return (
+            state,
+            ledger_after_reconciliation,
+            state.dirty_state,
+            pre_reconciliation_dirty_state(state),
+        )
+    refreshed = state
+    for _ in range(_TRANSIENT_EXTRA_RECHECK_LIMIT):
+        refreshed = prepare_commit_dirty_state(project_dir, artifacts)
+        if not _extra_dirty_repos(refreshed.dirty_state, obligation_by_id):
+            break
+    ledger_after = _load_commit_results(artifacts)
+    return (
+        refreshed,
+        ledger_after,
+        refreshed.dirty_state,
+        pre_reconciliation_dirty_state(refreshed),
     )
 
 
