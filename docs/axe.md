@@ -497,7 +497,7 @@ Periodic maintenance:
 | `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                    |
 | `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                        |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
-| `gate_shell_reclaim`         | Settle pending gate shells whose gates answered, canceled, expired, or vanished |
+| `gate_turn_reclaim`          | Settle pending gate turns whose gates answered, canceled, expired, or vanished  |
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                         |
 
@@ -620,11 +620,11 @@ and cannot cancel a healthy pending gate, because the true roster is then unknow
 `sase axe job run bead_stale_cleanup` to raise or refresh that gate without waiting for
 the hour.
 
-The `gate_shell_reclaim` job is the backstop for
-[gate shells](notifications.md#gate-shells-and-continuation). It scans gate-shell
-session members across projects, settles shells whose gate bundle is already terminal,
-cancels gates that reached their own deadline, and force-settles a shell as `lost` once
-`gate.shell.reclaim_grace_seconds` (one hour by default) has passed after that deadline.
+The `gate_turn_reclaim` job is the backstop for
+[gate turns](notifications.md#gate-turns-and-continuation). It scans gate-turn session
+members across projects, settles shells whose gate bundle is already terminal, cancels
+gates that reached their own deadline, and force-settles a shell as `lost` once
+`gate.turn.reclaim_grace_seconds` (one hour by default) has passed after that deadline.
 It then diagnoses settled gates whose requested successor never recorded, reading the
 agent artifact index once per pass and resuming from a per-project cursor. Work left
 when the pass-wide time budget runs out is deferred to the next tick.

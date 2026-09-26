@@ -155,8 +155,8 @@ hands `sase bead work <plan-file> --yes-to-all` to a durable supervisor, because
 launching an epic's phases is itself a long-running command that must outlive the
 approving process.
 
-The preferred form is a [monitor](monitors.md) shell under the planner's own agent
-session, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
+The preferred form is a [monitor](monitors.md) turn under the planner's own agent
+session, labeled `Epic launch · <plan>`. The monitor turn reads `EPIC APPROVED` while
 `sase bead work` runs and uses its configured `EPIC CREATED` label after any terminal
 outcome—even failure, timeout, stop, or loss. Treat the monitor's state, bucket, exit
 code, and output as the result. Only a successful launch attempts to back-fill the epic
@@ -344,7 +344,7 @@ earlier refresh already wrote.
 Both sources are normalized to the **sase agent**, so each sase agent is listed exactly
 once: a plan touched by `pc--code` and `pc--plan` shows a single `pc` row linked to the
 session page, never the member and its session as two agents. Solo agents are listed
-exactly as before. The row's link is taken from the concrete shell when any source knew
+exactly as before. The row's link is taken from the concrete turn when any source knew
 one, otherwise from the destination recorded in the commit footer, and it degrades to an
 unlinked label rather than guessing a URL. Bead-page agent rows follow the same rule,
 and their commit counts are the sase agent's commits. An epic plan's sections roll up

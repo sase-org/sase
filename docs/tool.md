@@ -91,8 +91,8 @@ proc id whose owner has already settled (agents launched by a monitored epic lau
 inherit that id) is stale: it owns nothing and is not recorded. A SASE agent is always a
 new ownership root: agent launches scrub every inherited `SASE_TOOL_*`,
 `SASE_MONITOR_*`, and `SASE_PROC_*` variable (including `SASE_TOOL_BYPASS`), and a run
-started from an agent's shell never attributes itself to an ancestor's monitor, proc, or
-parent run.
+started from a SASE agent process never attributes itself to an ancestor's monitor,
+proc, or parent run.
 
 ## Stream fidelity
 
@@ -342,7 +342,7 @@ implement this table from scratch (linked-repo catalogs do exactly that):
 
 | Variable                 | Set by                  | Meaning                                                                       |
 | ------------------------ | ----------------------- | ----------------------------------------------------------------------------- |
-| `SASE_AGENT`             | the agent runner        | this process tree is a SASE agent's own shell                                 |
+| `SASE_AGENT`             | the agent runner        | this process tree is a SASE agent process                                     |
 | `SASE_TOOL_NAME`         | `sase tool run`, always | the tree is inside `sase tool run <name>`, or `ad-hoc`                        |
 | `SASE_TOOL_PROJECT_ROOT` | `sase tool run`, always | the resolved project root the named run executes in; empty for an ad-hoc run  |
 | `SASE_TOOL_BYPASS`       | an agent or human       | run raw on purpose; any non-empty value bypasses, and the value is the reason |

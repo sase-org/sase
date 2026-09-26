@@ -168,9 +168,9 @@ opening Artifacts still selects Stitch by default.
 
 sase's TUI owns one link rail across the three top-level tabs. It appears when the
 current selection has artifact links: an Artifacts-pane entry, a named agent or session
-shell, or an AXE job. Synthetic clan containers, routines, and background-command rows
-do not provide a link subject. The rail includes a breadcrumb while a link-follow trail
-is active.
+turn, or an AXE job. Synthetic clan containers, routines, and background-command rows do
+not provide a link subject. The rail includes a breadcrumb while a link-follow trail is
+active.
 
 Press `$` to arm the rail. Then press `$` again to follow its first entry, `1`-`9` for a
 numbered entry, or `0` to open the complete links panel. The rail always advertises
@@ -229,7 +229,7 @@ keeps the current `limit:`, raising it only when the session would not fit:
 | Bead task or flag `sase-abc`        | `id:sase-abc`                                                                                      | `bead sase-abc`                        |
 | Agent hood member `sase-16n.7`      | `name:sase-16n.*`, or `(name:sase-16n OR name:sase-16n.*)` when the root exists                    | `sase-16n hood`                        |
 | Lone agent `x`                      | `name:x`                                                                                           | `agent x`                              |
-| Agent session shell `x--y`          | `session:x`                                                                                        | `session x`                            |
+| Agent session turn `x--y`           | `session:x`                                                                                        | `session x`                            |
 | File                                | `agent:<creating agent>`, else `id:<file>`                                                         | `files from <agent>`, else `file <id>` |
 | Plan or provider doc                | `path:<doc path>`                                                                                  | `plan <name>` or `<provider> <name>`   |
 | Stitch `repo@sha`                   | `repo:<repo> since:<day> until:<day>`, plus `project:`, `sidecar:true`, or `merges:show` as needed | `<repo> · <day>`                       |
@@ -1337,10 +1337,10 @@ or grouping folds before focus moves.
 
 When a clan or a sase agent is selected, its jump panel assigns a fixed number to each
 numbered row, up to 100 targets. A sase agent is a multi-member session container or a
-single agent; sase-agent panels number their `SESSION SHELLS` roster (when present) and
-then their `NEIGHBORS` section from one continuous ladder. A selected session **shell**
-row numbers its enclosing session's `SESSION SHELLS` roster the same way, listing every
-sibling except itself from the same ladder; a shell row owns no sase agent, so it has no
+single agent; sase-agent panels number their `SESSION TURNS` roster (when present) and
+then their `NEIGHBORS` section from one continuous ladder. A selected session **turn**
+row numbers its enclosing session's `SESSION TURNS` roster the same way, listing every
+sibling except itself from the same ladder; a turn row owns no sase agent, so it has no
 `NEIGHBORS` rows to follow the roster. Documents with at most ten numbered rows use
 `0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and
 show any remaining entries as an unnumbered count. Every live numbered target lives in
@@ -1362,7 +1362,7 @@ rather than landing somewhere stale.
 | `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                                                                             |
 | `+`                 | Run custom agent                                                                                                                                                           |
 | `A`                 | Toggle bare `%auto` plan auto-approval / answer HITL                                                                                                                       |
-| `F`                 | Prepare a fork of the selected agent/session, proc shell, monitor, clan container, or focused named tribe panel                                                            |
+| `F`                 | Prepare a fork of the selected agent/session, named proc, monitor, clan container, or focused named tribe panel                                                            |
 | `n`                 | Name agent                                                                                                                                                                 |
 | `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                               |
 | `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                      |
@@ -1423,12 +1423,12 @@ If a process survives SIGKILL, the row stays dismissed, the workspace claim and
 artifacts are kept, and an error toast names the surviving PIDs. `sase agent kill NAME`
 runs the same termination in the foreground.
 
-`x` on a running monitor, an active proc shell, or a pending gate removes its row in the
+`x` on a running monitor, an active named proc, or a pending gate removes its row in the
 same step. A running monitor goes through the ordinary kill confirmation and the durable
-proc stops it before the other side effects. An active proc shell or pending gate asks
+proc stops it before the other side effects. An active named proc or pending gate asks
 for confirmation, then its row is hidden at once while the same durable bulk transaction
-stops the proc shell (through the native proc service) or cancels the gate. Clan, panel,
-group, and marked cleanups include active proc shells and pending gates the same way
+stops the named proc (through the native proc service) or cancels the gate. Clan, panel,
+group, and marked cleanups include active named procs and pending gates the same way
 instead of skipping them; any selected member the cleanup cannot cover is named in the
 confirmation modal. A gate whose decision started executing under the cancel comes back
 with an error toast. A gate that is already settling keeps the "waiting for a decision"
@@ -1451,7 +1451,7 @@ What counts as a target depends on the selected row:
   `This gate already settled (<state>)`.
 - A **session container** collects every pending gate across its members, plus the
   session's Patch (or, when the container has none, the Patch of its most recently
-  started member). A gate reachable through both a gate shell row and its inbox
+  started member). A gate reachable through both a gate turn row and its inbox
   notification counts once, so a session waiting on a single tale plan, with no Patch,
   runs `Enter` directly (footer `review tale plan`); a session that also has a Patch
   shows the `choose action` footer instead.
@@ -1462,8 +1462,8 @@ What counts as a target depends on the selected row:
   workflow uses that workflow's meta Patch, if it recorded one.
 - A **remote row** answers its pending
   [remote attention](notifications.md#remote-attention) request.
-- A **clan container** toasts `Select an agent inside this clan`. Monitors and proc
-  shells have no targets, and a grouping banner ignores `Enter`.
+- A **clan container** toasts `Select an agent inside this clan`. Monitors and named
+  procs have no targets, and a grouping banner ignores `Enter`.
 
 With no target, `Enter` toasts `No pending gate or Patch for this agent`. `Enter` works
 from the first frame: if the notification inbox has not been polled yet, sase's TUI
@@ -1497,12 +1497,12 @@ fork targets.
 
 Finished planner rows (`EPIC CREATED`, `PLAN COMMITTED`) are also fork targets; a
 session root forks its whole session, including the planner transcript and its
-gate/monitor shells. `PLAN REJECTED` and `STOPPED` rows are not fork targets.
+gate/monitor turns. `PLAN REJECTED` and `STOPPED` rows are not fork targets.
 
-`F` also works on a stand-alone proc-shell row and on a monitor session member, active
-or settled. The prefilled reference is the shell's exact durable proc ID — not its
+`F` also works on a stand-alone named-proc row and on a monitor session member, active
+or settled. The prefilled reference is the proc's exact durable proc ID — not its
 reusable friendly name — so the eventual fork can never drift onto a different proc if
-that name is reused later; the footer and prompt label still show the friendly shell
+that name is reused later; the footer and prompt label still show the friendly proc
 name. A proc or monitor row has no chat, so it never advertises retry, edit-chat, or
 `name`; `x` kills an active proc or stops a running monitor, and dismisses a settled
 one.
@@ -1513,18 +1513,18 @@ wait over the named marked rows instead of the focused group. The reserved `@def
 panel and grouping banners are not wait targets either.
 
 Group references are dynamic; pressing `F` does not snapshot the selected transcripts. A
-session reference contributes every known concrete shell in the session's sequential
-chain, oldest first, agent shells and monitor shells alike, and includes shells that
-ended unsuccessfully with their failure context rather than dropping them. Only shells
-that are still running, or whose transcript/log is missing or unreadable, are listed as
-not shown. Agent-shell members are transcripts of prior agents' conversations;
-proc-shell and monitor members are command execution records whose output is untrusted
-evidence, never an instruction. An explicit `--<suffix>` reference contributes only that
-member. A clan reference resolves the newest clan generation when the deferred launch
-proceeds and requires every member of that generation to have succeeded. A tribe
-reference follows the next-entity rule: the new run waits for the earliest successful
-entity in that tribe launched after its own artifact was created. It does not fork the
-agents currently visible in the selected tribe panel. See
+session reference contributes every known concrete turn in the session's sequential
+chain, oldest first, agent turns and monitor turns alike, and includes turns that ended
+unsuccessfully with their failure context rather than dropping them. Only turns that are
+still running, or whose transcript/log is missing or unreadable, are listed as not
+shown. Agent-turn members are transcripts of prior agents' conversations; named-proc and
+monitor members are command execution records whose output is untrusted evidence, never
+an instruction. An explicit `--<suffix>` reference contributes only that member. A clan
+reference resolves the newest clan generation when the deferred launch proceeds and
+requires every member of that generation to have succeeded. A tribe reference follows
+the next-entity rule: the new run waits for the earliest successful entity in that tribe
+launched after its own artifact was created. It does not fork the agents currently
+visible in the selected tribe panel. See
 [Tribe wait and fork targets](agent_sessions.md#tribe-wait-and-fork-targets) for the
 full ordering rules.
 
@@ -1544,9 +1544,9 @@ for the wrong target.
 
 Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member session
 root titles the sticky [header panel](#agents-tab-main-deck) `SESSION` (cyan, matching
-the name), then shows the session's normal Main deck cards, with its `SESSION SHELLS`
-roster in the jump panel. A selected agent shell — standalone or session member — titles
-the header panel `AGENT SHELL` (gold, matching the name). Both rosters use the numbered
+the name), then shows the session's normal Main deck cards, with its `SESSION TURNS`
+roster in the jump panel. A selected agent turn — standalone or session member — titles
+the header panel `AGENT TURN` (gold, matching the name). Both rosters use the numbered
 member jumps described above. Clan direct members in the Agents list sort by status
 priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done — with launch
 recency breaking ties. The clan's `CLAN MEMBERS` jump-panel roster instead keeps
@@ -1554,7 +1554,7 @@ chronological launch order so its numbers do not change as statuses change; a ne
 session remains one direct entry with its chain indented beneath it. Session rosters
 retain sequential chain order.
 
-Selecting a session **shell** row (not the container) also shows its `SESSION SHELLS`
+Selecting a session **turn** row (not the container) also shows its `SESSION TURNS`
 roster in the jump panel: the same enclosing session's members, in the same chain order,
 minus the selected member itself. The heading carries a dim ` · <session name>` suffix
 naming the session, since the count shown is one less than the session's full size.
@@ -1775,11 +1775,11 @@ in place after the editor exits.
 ### Sase Agent Neighbors Section
 
 Every sase agent panel carries a numbered `NEIGHBORS` roster in the jump panel. The
-section appears on session container panels after their `SESSION SHELLS` roster when
-both exist, and on ordinary agent panels. Clan containers, tribe panel summaries,
-session member child rows, and workflow aggregate rows have no `NEIGHBORS` section. A
-selected session shell row owns no sase agent, so its panel carries only the
-`SESSION SHELLS` roster (siblings, minus itself) and never a `NEIGHBORS` section.
+section appears on session container panels after their `SESSION TURNS` roster when both
+exist, and on ordinary agent panels. Clan containers, tribe panel summaries, session
+member child rows, and workflow aggregate rows have no `NEIGHBORS` section. A selected
+session turn row owns no sase agent, so its panel carries only the `SESSION TURNS`
+roster (siblings, minus itself) and never a `NEIGHBORS` section.
 
 The rows for that sase agent are ancestors, descendants including same-session dismissed
 descendants, then hood neighbors grouped by hood, nearest hood first — under dim
@@ -1790,7 +1790,7 @@ descendant exactly as two single agents with those names would. Row labels are s
 relative to their group, so a `myclan` hood neighbor reads `.code` and a descendant
 reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
 `folded` marks a prospective row that currently lives inside a collapsed clan. In the
-jump panel the section sits after `SESSION SHELLS` when both exist, so a sase agent's
+jump panel the section sits after `SESSION TURNS` when both exist, so a sase agent's
 numbered neighbors stay reachable without scrolling the Main deck body.
 
 Every neighbor always renders and gets a digit whatever the fold level. The fold level
@@ -1800,8 +1800,8 @@ toggles: the collapsed legend, the expanded roster, and the published jump map a
 one continuous ladder. The heading count is always the sase agent's total neighbor
 count. The only hidden-row tail is the shared 100-slot numbering capacity, which reports
 `… +N more neighbors (not numbered)`. On a session, siblings that already appear under
-`SESSION SHELLS` are not repeated; they are reported by a dim
-`… +N also listed under SESSION SHELLS` tail instead. The heading count still includes
+`SESSION TURNS` are not repeated; they are reported by a dim
+`… +N also listed under SESSION TURNS` tail instead. The heading count still includes
 the suppressed rows.
 
 ### Opened Repository Context
@@ -1870,7 +1870,7 @@ Behavior depends on the agent's status:
 
 The **Capacity** field is this launch's capacity budget, replacing the current global
 `max_running_agents` budget for its own admission decision. It is not a count of
-individual shells. A serial session — including its monitor and `--next` follow-up —
+individual turns. A serial session — including its monitor and `--next` follow-up —
 still occupies one claim of its session weight, so that weight still counts against this
 budget. Only a root or a live parallel clan member waits here; a serial session member
 rides the session's slot and never parks.
@@ -2028,7 +2028,7 @@ that panel's current lifetime, and the configured initial state is applied again
 the panel appears after a restart or after the tribe disappears and returns. Once a
 panel has shown rows under the current Agents query, it stays mounted for the session
 even if a bounded or incomplete load briefly omits them; it retires only when every node
-it showed is authoritatively gone — dismissed, killed, a dismissed proc shell, moved to
+it showed is authoritatively gone — dismissed, killed, a dismissed named proc, moved to
 another tribe, or absent from a complete history load — including a clan whose members
 are all gone. Changing the Agents query starts that bookkeeping over. Across structured
 sase's TUI surfaces, identity colors apply only to an existing configured icon and the
@@ -2176,10 +2176,10 @@ There is no separate clan chooser. A synthetic clan container row is never a cle
 target itself: every scope above expands it into the live members of its generation, so
 members folded away behind a collapsed clan are still reached by a panel, tribe, group,
 or marked cleanup. Loaded workflow children are pulled in when their parent is a
-candidate, and identities are de-duplicated in Agents-tab order. Proc-shell handling
+candidate, and identities are de-duplicated in Agents-tab order. Named-proc handling
 depends on the chosen scope: panel/global and marked/group bulk actions can dismiss a
-terminal proc shell but skip an active one with a warning, while tribe-planner and
-custom-selector cleanup omit proc shells. To stop an active stand-alone proc shell,
+terminal named proc but skip an active one with a warning, while tribe-planner and
+custom-selector cleanup omit named procs. To stop an active stand-alone named proc,
 select its row in the Agents tab and press `x`. Every scope then continues through its
 normal bulk-cleanup confirmation or planner flow.
 
@@ -2317,7 +2317,7 @@ shows that member's own status label and styling instead of the generic bucket l
 For example, a session running a `TESTING` monitor makes the clan read `TESTING`, while
 a failed monitor with an authored stop label can read `TESTED [W1 F1 D9]` and still
 remain in the Failed group. The status bucket, precedence, and count chip are unchanged;
-`TESTED` is only the authored shell label, not proof that verification passed. When the
+`TESTED` is only the authored turn label, not proof that verification passed. When the
 aggregate is `QUEUED` and exactly one direct member is queued, the clan row and CLAN
 `Status:` line also show that member's admission rank (`QUEUED #3/4`), plus the same
 `pN` / `held by` extras the member row shows. Two queued members stay generic `QUEUED`
@@ -2568,15 +2568,15 @@ badges instead of verbose text:
 | `❑`   | Patch / Patch row (top-level)                                                                       |
 | `⚡`  | Autonomous (`%auto`) agent                                                                          |
 | `◌`   | Hidden agent (visible only when `.` toggles them in)                                                |
-| `⚙`   | Monitor shell (row label)                                                                           |
+| `⚙`   | Monitor turn (row label)                                                                            |
 | `⚙N`  | N running monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (amber) |
 | `⚙N`  | N finished monitors in a session/clan subtree, or in a tribe panel title for its whole tribe (grey) |
-| `⋔`   | Gate shell; its gate accent while pending/running, grey when settled, red on failure                |
+| `⋔`   | Gate turn; its gate accent while pending/running, grey when settled, red on failure                 |
 | `⋔N`  | N gates in a session/clan subtree or tribe panel title, colored by lifecycle bucket                 |
-| `▣`   | Stand-alone `%proc` proc shell (row label; beta, `typed_launch_units`)                              |
-| `▣N`  | N stand-alone proc shells in a panel title's separate proc chip                                     |
+| `▣`   | Stand-alone `%proc` named proc (row label; beta, `typed_launch_units`)                              |
+| `▣N`  | N stand-alone named procs in a panel title's separate proc chip                                     |
 
-A monitor shell (a session member whose work is a supervised command, started with
+A monitor turn (a session member whose work is a supervised command, started with
 `sase monitor start`) renders an amber `⚙` glyph and omits a left-side title — identity
 is the right-hand `%id` (`<session>--mon`), not the configured monitor label. A live
 elapsed suffix or exit-code/timeout badge replaces the ordinary agent statuses. The
@@ -2588,7 +2588,7 @@ monitor's supervisor never reported a real exit code, and an amber `⚑` follows
 when its `--next` follow-up was dropped or launched degraded — a monitor can finish
 cleanly and still strand its follow-up. See [Monitors](monitors.md).
 
-Gate shells use `⋔` and their authored pending/settled labels, such as `GATE`/`GATED`,
+Gate turns use `⋔` and their authored pending/settled labels, such as `GATE`/`GATED`,
 `QUESTION`/`ANSWERED`, or plan-tier statuses. A pending gate has no LLM process and does
 not occupy a runner slot, but it may retain the session's workspace claim. Its state is
 one of pending, settling, answered, completed, failed, timeout, stopped, or lost.
@@ -2669,8 +2669,8 @@ Workflow child rows for `python` and `bash` steps render a leading `❯` glyph p
 step name, styled with the matching step-type accent — bash amber, python green —
 because that name is those rows' identity. The glyph's presence is a stronger signal
 than the step-type color alone for colorblind users and for rapid scanning; color still
-carries the bash/python distinction. Sase shells (session-member agent shells, monitor
-proc shells, and workflow `agent` steps) omit a left-side title; their identity is the
+carries the bash/python distinction. Sase turns (session-member agent turns, monitor
+named procs, and workflow `agent` steps) omit a left-side title; their identity is the
 right-hand `%id` / session-member name. Parallel rows fan out into structural children,
 and `prompt_part` rows are invisible by default.
 
@@ -2682,9 +2682,9 @@ finished in a `FAILED` state; and user-paused rows (`PLAN`, `QUESTION`, `WAITING
 use a `✋` marker while waiting for a human response. Pre-run `WAITING` and `QUEUED`
 rows with no `BEGIN` time hide the suffix so admission waits do not look like live
 runtime. On an active sequential-session container, the live suffix is
-`🏃‍♂️ <current-shell-runtime> / <session-total-runtime>`: the left value is the concrete
-agent or monitor shell currently executing, and the right value is the aggregate session
-interval. Gate-shell windows are excluded from that session total — they measure the
+`🏃‍♂️ <current-turn-runtime> / <session-total-runtime>`: the left value is the concrete
+agent or monitor turn currently executing, and the right value is the aggregate session
+interval. Gate-turn windows are excluded from that session total — they measure the
 human decision, not agent runtime — and the same exclusion applies to clan totals. On an
 active clan container the live suffix is
 `<lowest-running-lane-runtime> / <clan-total-runtime>` (same marker), where the left
@@ -2717,10 +2717,10 @@ proc store — it is never an agent, never nested under an agent session, and ne
 counted in agent runner, unread, clan, or session totals. It renders as its own
 top-level `▣` row with a Bash/Python language badge, current phase/status, elapsed time,
 and project, and a panel title reports it in a separate `▣<count>` chip alongside the
-ordinary agent metrics. Selecting one opens a `PROC SHELL` detail (status/phase
+ordinary agent metrics. Selecting one opens a `NAMED PROC` detail (status/phase
 timeline, project/ workspace/cwd, language, code digest and safe preview, waits,
 condition result, timeouts, and a bounded live-log tail). `x` on a running stand-alone
-proc shell asks for confirmation and then kills it and removes its row in one step — the
+named proc asks for confirmation and then kills it and removes its row in one step — the
 durable cleanup proc stops it through the native proc service — and `x` dismisses a
 finished one with no confirmation. Dismissal only clears the Agents-tab row — the proc
 stays visible in the [Procs pane](#durable-procs) and in `sase proc show`, and a
@@ -3531,7 +3531,7 @@ Plugins, and Agent CLIs alike.
 
 Pressing `Q` opens the **quit / restart menu**. When procs are still running, the menu
 warns inline with the count that leaving will stop (`N procs will be stopped`; service
-procs, oneshots, and monitor shells are not counted), and it offers three actions:
+procs, oneshots, and monitor turns are not counted), and it offers three actions:
 
 - `1` / `s` — quit sase's TUI and stop the `scheduler` service proc (best effort: the
   TUI still quits if the stop fails); the service host and its other service procs keep
@@ -4123,7 +4123,7 @@ agents advance through the existing priority/FIFO gate on their next poll. Launc
 an explicit `%queue(capacity=N)` use that positive-integer budget for their own
 admission decision, so they can intentionally start above the global budget while still
 holding an ordinary weighted claim once admitted. Question continuations reacquire
-against the current effective global cap after their gate shell has released capacity.
+against the current effective global cap after their gate turn has released capacity.
 
 ### Provider routing controls
 
@@ -4843,8 +4843,8 @@ same hint-character navigation.
 ## Node Finder
 
 Press `"` (quotation mark) on the Agents tab to open the Node Finder modal. It lists
-every reachable sase node as a tree — clans, agent nodes, session shells (including
-monitors and gates), workflow roots, workflow `agent` steps, and stand-alone proc shells
+every reachable sase node as a tree — clans, agent nodes, session turns (including
+monitors and gates), workflow roots, workflow `agent` steps, and stand-alone named procs
 — including rows hidden by collapsed folds, collapsed grouping banners, collapsed or
 isolated tribe panels, and the Agents query. Every jumpable row carries a jump hint.
 
@@ -4962,7 +4962,7 @@ personal queues: `procs`, `updates`, `overrides`, `priority`, `disabled`, `stash
 `inbox`. The always-visible `inbox` anchors the right edge directly above `project:`.
 Labels are fixed strings that never pluralize. Count chips carry their identity glyph
 inside the fill — `⚙` for procs (a blue chip for sase's TUI procs, plus an orange chip
-for monitor shells), `⬆` for updates, `≡` for the stash, `★` for priority — so compact
+for monitor turns), `⬆` for updates, `≡` for the stash, `★` for priority — so compact
 mode (labels dropped together when the full cluster does not fit in the cells left over
 after the tab strip and a 2-cell minimum gap; separators kept) still identifies each
 group; widening restores full labels without oscillation. Every group is clickable:
@@ -4976,8 +4976,8 @@ stash picker, and inbox opens the notification modal. While SASE is updating its
 
 The `procs:` group shows a filled blue `⚙ N` chip while sase's TUI own procs are running
 (e.g., sync, mail, accept, and notification-gate operations) and an orange `⚙ N` chip
-for running monitor shells (`sase monitor start` supervised commands) — the same pair
-the Procs tab header shows. Procs that are updating SASE move to the green `⚙` gear in
+for running monitor turns (`sase monitor start` supervised commands) — the same pair the
+Procs tab header shows. Procs that are updating SASE move to the green `⚙` gear in
 `updates:` and no longer count in the blue chip. Monitors are counted separately because
 a monitor is a detached supervisor that survives TUI exit and never blocks TUI procs.
 Either chip hides at zero, and the group hides only when both counts are zero. The group
@@ -5115,39 +5115,39 @@ artifacts.
 
 Each row in the Agents tab displays a status label. The sections below separate labels
 that represent execution, waiting, review, or a successor handoff from labels that
-represent completed work. This is a display-oriented grouping: a gate shell can be
+represent completed work. This is a display-oriented grouping: a gate turn can be
 processless or already settled while its label still uses the Running bucket to
 represent an in-progress handoff.
 
 ### Execution, Waiting, Review, and Handoff Statuses
 
-Gate-shell rows use lifecycle presentation rather than a separate hard-coded color for
+Gate-turn rows use lifecycle presentation rather than a separate hard-coded color for
 every plan or question label: pending/settling labels use the gate's configured or
 deterministic accent, answered/completed/stopped labels turn grey, and
-failed/timeout/lost labels turn red. Legacy non-shell rows retain their older status
+failed/timeout/lost labels turn red. Legacy non-turn rows retain their older status
 presentation where noted, with specialized lifecycle labels falling back to dim text.
 Presentation and bucket are separate: a grey settled gate can still appear in the
 Running bucket when it handed off to a successor.
 
-| Status            | Presentation                   | Description                                                                                                      |
-| ----------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| **RUNNING**       | Gold                           | Agent subprocess is executing                                                                                    |
-| **QUEUED**        | Cornflower blue                | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
-| **WAITING**       | Amethyst/purple                | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
-| **WAITING INPUT** | Gate accent; legacy dim        | Workflow is paused at a human-in-the-loop (HITL) step                                                            |
-| **TALE**          | Gate accent; legacy dim        | An authored tale is waiting for user review                                                                      |
-| **EPIC**          | Gate accent; legacy dim        | An authored epic is waiting for user review                                                                      |
-| **PLAN**          | Gate accent; legacy dim        | A legacy or unreadable-tier plan is waiting for user review                                                      |
-| **PLAN APPROVED** | Grey on the settled gate shell | Plan approval was durably accepted; follow-up execution is being attempted                                       |
-| **TALE APPROVED** | Grey on the settled gate shell | Tale approval and commit were durably accepted; follow-up execution is being attempted                           |
-| **EPIC APPROVED** | Grey on the settled gate shell | Epic approval was durably accepted; creation is being attempted and no epic ID has been back-filled yet          |
-| **QUESTION**      | Gate accent; legacy dim        | Agent is asking the user a question (via `/sase_questions`)                                                      |
-| **ANSWERED**      | Grey on the settled gate shell | The answer was accepted and a successor is being launched                                                        |
-| **SUDO**          | Gate accent                    | An agent's [sudo request](sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
-| **RETRYING**      | Orange                         | Agent hit a retryable error and is in a countdown before retrying                                                |
+| Status            | Presentation                  | Description                                                                                                      |
+| ----------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **RUNNING**       | Gold                          | Agent subprocess is executing                                                                                    |
+| **QUEUED**        | Cornflower blue               | Cleared dependency, bead, and time waits; parked for runner capacity                                             |
+| **WAITING**       | Amethyst/purple               | Paused on a dependency, bead, or time wait; `?N` marks unknown targets; matching bead tokens follow agent tokens |
+| **WAITING INPUT** | Gate accent; legacy dim       | Workflow is paused at a human-in-the-loop (HITL) step                                                            |
+| **TALE**          | Gate accent; legacy dim       | An authored tale is waiting for user review                                                                      |
+| **EPIC**          | Gate accent; legacy dim       | An authored epic is waiting for user review                                                                      |
+| **PLAN**          | Gate accent; legacy dim       | A legacy or unreadable-tier plan is waiting for user review                                                      |
+| **PLAN APPROVED** | Grey on the settled gate turn | Plan approval was durably accepted; follow-up execution is being attempted                                       |
+| **TALE APPROVED** | Grey on the settled gate turn | Tale approval and commit were durably accepted; follow-up execution is being attempted                           |
+| **EPIC APPROVED** | Grey on the settled gate turn | Epic approval was durably accepted; creation is being attempted and no epic ID has been back-filled yet          |
+| **QUESTION**      | Gate accent; legacy dim       | Agent is asking the user a question (via `/sase_questions`)                                                      |
+| **ANSWERED**      | Grey on the settled gate turn | The answer was accepted and a successor is being launched                                                        |
+| **SUDO**          | Gate accent                   | An agent's [sudo request](sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
+| **RETRYING**      | Orange                        | Agent hit a retryable error and is in a countdown before retrying                                                |
 
-Modern `/sase_questions` calls hand the session to a processless `QUESTION` gate shell
-and end the asking LLM turn. The shell owns the durable question until it is answered,
+Modern `/sase_questions` calls hand the session to a processless `QUESTION` gate turn
+and end the asking LLM turn. The turn owns the durable question until it is answered,
 cancelled, or times out, so dismissing its notification does not dismiss the session
 state. An answer settles it as `ANSWERED` and launches the next ordinary session member
 with the accumulated Q&A. That successor starts under the serial-session admission
@@ -5233,7 +5233,7 @@ fall back to dim text unless a gate or monitor supplies lifecycle presentation.
 | **PLAN FAILED**    | Red                                   | Accepted plan action or archive failed                           |
 | **EPIC FAILED**    | Red                                   | Accepted epic-creation action failed                             |
 
-Monitor shells are the exception to this status table's success-oriented labels: a
+Monitor turns are the exception to this status table's success-oriented labels: a
 gate-approved epic monitor uses `EPIC APPROVED` as its start label and `EPIC CREATED` as
 its stop label for every terminal state. A failed, timed-out, stopped, or lost monitor
 can therefore display `EPIC CREATED` in its state-dependent color. Inspect the monitor
@@ -5365,7 +5365,7 @@ through the Main, Files, and Tools decks (wrapping, nothing skipped), and `p` op
 move to the next / previous card in the focused panel.
 
 - **Main deck.** `Context` (details and prompt; the default card) and `Reply` — titled
-  `Output` for proc shells, monitors, gates, and workflow steps — plus a leading
+  `Output` for named procs, monitors, gates, and workflow steps — plus a leading
   `TRACEBACK` section at the top of Reply when the agent failed. Clan rows and
   whole-panel tribe focus show a single `Summary` card instead. A paged deck keeps the
   card last chosen with `Ctrl+J` / `Ctrl+K` (for example Reply) as the selection moves
@@ -5461,7 +5461,7 @@ keep `V` bound to the Agent Run Log modal.
 scrolls the next / previous card's header to the top. The chosen card is the panel's
 preferred card: on a new selection the panel shows the preferred card when the node has
 it, otherwise the default card (`Context`, or `Summary` for clan and tribe documents),
-while the preference itself is kept. Numbered roster rows (`SESSION SHELLS`,
+while the preference itself is kept. Numbered roster rows (`SESSION TURNS`,
 `CLAN MEMBERS`, `TRIBE MEMBERS`, `NEIGHBORS`) live in the jump panel and are not cards;
 within a session container's `SASE CONTEXT` region, its lane sub-headings (`BEAD`,
 `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not
@@ -5497,12 +5497,12 @@ the preferred card.
   that member in the Agents list. At most 100 members receive numbers.
 - **SESSION**: Shown when a real multi-member session root is selected. The cyan kind
   label renders as the header panel title and the cyan `Name:` value matches the session
-  row's identity block. The title is header chrome, not a card; the `SESSION SHELLS`
+  row's identity block. The title is header chrome, not a card; the `SESSION TURNS`
   roster lives in the jump panel and is not a navigable section. On a session container,
   its `SASE CONTEXT` heading opens the Context card region; its per-lane sub-headings
   (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) stay fold
   anchors only.
-- **AGENT SHELL**: Shown when a standalone sase agent or session member row is selected.
+- **AGENT TURN**: Shown when a standalone sase agent or session member row is selected.
   The gold kind label renders as the header panel title and the gold `Name:` value
   matches the list-row name annotation. The title is header chrome, not a card. Monitor
   members and workflow step children (`bash` / `python` / `parallel`) do not get this
@@ -5524,21 +5524,21 @@ the preferred card.
   border subtitle becomes `+N lines · ▾ d more` (`+1 line` when one line is hidden). `d`
   expands the panel to the full field list plus the complete `AGENT XPROMPT` under its
   own heading (or collapses it back). The kind label moves into the panel's border title
-  in the node's accent color — `AGENT`, `AGENT SHELL`, `SESSION`, `CLAN`, `WORKFLOW`,
-  `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a selected whole tribe panel, `TRIBE`
-  — and the border subtitle shows what `d` will do (`▾ d more` / `▴ d less`, naming the
-  configured `toggle_agent_header` key). The panel is hidden only for "No agent
-  selected". `AGENT XPROMPT` no longer renders in the scrolling body and is not a
-  `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through `AGENT PROMPT`. A
-  clan's collapsed rows mirror the tribe layout: name, status, and count chip on row 1;
-  tribes, member totals, runtime, and the fold chip on row 2. Collapsed/expanded state
-  is per session and holds across row moves, tribe focus, and layout changes. While
-  file-hint markers (`[N]`) are visible the panel renders expanded so every hint stays
-  selectable. Attempt-pinned views never rendered `AGENT XPROMPT` and show no preview,
-  and nodes without an xprompt show exactly the two chip rows inside the border. Deck
-  search (`,/`) covers the focused panel's deck only, since header fields stay on
-  screen.
-- **Jump panel**: Every live numbered roster target (session shells, neighbors, clan
+  in the node's accent color — `AGENT`, `AGENT TURN`, `SESSION`, `CLAN`, `WORKFLOW`,
+  `STEP`, `GATE TURN`, `MONITOR TURN`, `NAMED PROC`, or, for a selected whole tribe
+  panel, `TRIBE` — and the border subtitle shows what `d` will do (`▾ d more` /
+  `▴ d less`, naming the configured `toggle_agent_header` key). The panel is hidden only
+  for "No agent selected". `AGENT XPROMPT` no longer renders in the scrolling body and
+  is not a `Ctrl+J`/`Ctrl+K` stop; `,/` still finds the user's words through
+  `AGENT PROMPT`. A clan's collapsed rows mirror the tribe layout: name, status, and
+  count chip on row 1; tribes, member totals, runtime, and the fold chip on row 2.
+  Collapsed/expanded state is per session and holds across row moves, tribe focus, and
+  layout changes. While file-hint markers (`[N]`) are visible the panel renders expanded
+  so every hint stays selectable. Attempt-pinned views never rendered `AGENT XPROMPT`
+  and show no preview, and nodes without an xprompt show exactly the two chip rows
+  inside the border. Deck search (`,/`) covers the focused panel's deck only, since
+  header fields stay on screen.
+- **Jump panel**: Every live numbered roster target (session turns, neighbors, clan
   members, tribe members) lives in its own always-visible panel at the bottom of the
   detail column, below the deck panels in every deck layout; the Main deck body does not
   contain these sections. The panel is shown only while the current document has
@@ -5720,18 +5720,18 @@ the preferred card.
   each agent turn. For agents with follow-up phases (planner, feedback rounds, coder),
   the AGENT REPLY section consolidates replies from all phases into a single view with
   phase dividers showing each phase's label and start time. Phases follow the session's
-  chain order: a monitor phase renders immediately after the shell that started it,
+  chain order: a monitor phase renders immediately after the turn that started it,
   including a monitor started by the session root, which renders after the root's own
-  phase. Agent-shell members follow one rule, `AGENT (<role>)`, derived from the
-  member's session role: `--plan` renders as `AGENT (plan)`, `--code` as `AGENT (code)`,
-  `--epic` as `AGENT (epic)`, `--commit` as `AGENT (commit)`, and numeric feedback
-  suffixes such as `--2` as `AGENT (plan round 2)`. Custom session members render the
-  same way with their suffix token, e.g. `AGENT (bar)`. A monitor member is a proc
-  shell, so its phase renders as an amber `⚙ MONITOR` divider followed by the monitor's
-  command, its recorded detail fields, and its full captured output — the same block the
-  monitor's own panel shows. A gate-shell member renders as a lifecycle-colored `⋔ GATE`
-  divider with its decision, kind, state, deadline, reason, request identity, branch
-  policy, follow-up disposition, and captured command output. Its phase remains in the
+  phase. Agent-turn members follow one rule, `AGENT (<role>)`, derived from the member's
+  session role: `--plan` renders as `AGENT (plan)`, `--code` as `AGENT (code)`, `--epic`
+  as `AGENT (epic)`, `--commit` as `AGENT (commit)`, and numeric feedback suffixes such
+  as `--2` as `AGENT (plan round 2)`. Custom session members render the same way with
+  their suffix token, e.g. `AGENT (bar)`. A monitor member is a named proc, so its phase
+  renders as an amber `⚙ MONITOR` divider followed by the monitor's command, its
+  recorded detail fields, and its full captured output — the same block the monitor's
+  own panel shows. A gate-turn member renders as a lifecycle-colored `⋔ GATE` divider
+  with its decision, kind, state, deadline, reason, request identity, branch policy,
+  follow-up disposition, and captured command output. Its phase remains in the
   consolidated session reply after settlement, including terminal branches that
   intentionally launch no successor. Legacy dotted and single-dash suffixes render the
   same way.
@@ -6009,15 +6009,15 @@ kind, and planned member name. Press `a` to approve, `r` to reject, and `q` or `
 cancel. sase's TUI resolves the same hash-verified command bundle used by mobile and
 remote callbacks, while retaining legacy launch-request fallback. The CLI equivalents
 are `sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
-agent, `sase launch request` creates a `LAUNCH` gate shell and ends the requesting turn;
+agent, `sase launch request` creates a `LAUNCH` gate turn and ends the requesting turn;
 the process does not wait for the response. By default, approval, rejection, timeout, or
-gate/dispatch failure settles the shell and resumes the original requester as one
-session successor. That successor receives the decision, reviewer feedback, typed
-dispatch result, requester/workspace/session identity, and checkpoint; a stopped gate
-does not resume. A request can explicitly choose `terminal_handoff` when every branch
-should end without a requester continuation. Outside a SASE agent, terminal handoff is
-the default: the command registers the gate, prints its creation descriptor, and
-returns. Automation that needs the terminal gate result can then run
+gate/dispatch failure settles the turn and resumes the original requester as one session
+successor. That successor receives the decision, reviewer feedback, typed dispatch
+result, requester/workspace/session identity, and checkpoint; a stopped gate does not
+resume. A request can explicitly choose `terminal_handoff` when every branch should end
+without a requester continuation. Outside a SASE agent, terminal handoff is the default:
+the command registers the gate, prints its creation descriptor, and returns. Automation
+that needs the terminal gate result can then run
 `sase gate wait -i <request-id> -k launch -j`.
 
 ## Agent Holds
@@ -6855,7 +6855,7 @@ token under the cursor:
   menu; `Ctrl+F` accepts the highlighted row without requiring `Ctrl+N`, `Down`, or
   another ownership signal. Agent inputs such as `#fork` offer agent, proc/monitor,
   session, clan, and `@tribe` targets with kind and member context. A proc or monitor
-  row inserts its exact durable proc ID while displaying the friendly, reusable shell
+  row inserts its exact durable proc ID while displaying the friendly, reusable proc
   name. Session rows also show the associated plan or bead when SASE can resolve one:
   the row reads `<kind> · <phases/waves> · <title>` (for example
   `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is
@@ -7873,7 +7873,7 @@ oldest-first, and running procs are never pruned. Because the store owns that re
 
 The top-bar `procs:` group's blue chip counts this session's active procs plus **every
 active unattributed proc globally**, including an approved epic that had to use the
-unattributed command fallback. Running monitor shells are counted in its orange chip
+unattributed command fallback. Running monitor turns are counted in its orange chip
 instead, and service procs and oneshots are left to the Services tab.
 
 ### Layout
@@ -7884,15 +7884,15 @@ is visible.
 
 ### Proc Status Icons
 
-| Icon | Color  | Meaning                                                     |
-| ---- | ------ | ----------------------------------------------------------- |
-| `◌`  | Dim    | Pending (supervisor starting)                               |
-| `●`  | Green  | Running                                                     |
-| `✓`  | Cyan   | Success                                                     |
-| `✗`  | Red    | Error                                                       |
-| `⊘`  | Yellow | Killed                                                      |
-| `?`  | Dim    | Unknown                                                     |
-| `⚙`  | Orange | Monitor shell (same mark as the Agents tab and the top bar) |
+| Icon | Color  | Meaning                                                    |
+| ---- | ------ | ---------------------------------------------------------- |
+| `◌`  | Dim    | Pending (supervisor starting)                              |
+| `●`  | Green  | Running                                                    |
+| `✓`  | Cyan   | Success                                                    |
+| `✗`  | Red    | Error                                                      |
+| `⊘`  | Yellow | Killed                                                     |
+| `?`  | Dim    | Unknown                                                    |
+| `⚙`  | Orange | Monitor turn (same mark as the Agents tab and the top bar) |
 
 ### Monitors on this tab
 
@@ -7917,7 +7917,7 @@ it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
   Agents tab, sase's TUI says so and stays put.
 - **Visible in both scopes.** Monitor procs are unattributed, so they appear in both
   **this session** and **all sessions**.
-- **`K` stops the supervisor.** Kill uses the proc-shell stop path: it stops the
+- **`K` stops the supervisor.** Kill uses the named-proc stop path: it stops the
   supervisor, settles the session, and runs any `--next` action.
 
 ### Durable Procs
@@ -7935,14 +7935,14 @@ supervisor died without reporting is reconciled to `error` rather than left runn
 forever. `sase proc list` reuses the icons above and adds `◌` for pending and `⊘` for
 killed.
 
-A proc may also carry a **named proc shell**: `sase proc run -N/--shell NAME` (bare
-names resolve beneath the calling sase-agent; `agent/name` is fully qualified) names the
-proc so `sase proc show`, `sase proc list -N`, and `sase proc kill` can address it by
-name instead of id. Resolution tries an exact fully qualified name, then an exact proc
-id, then a unique id prefix. Active uniqueness is scoped per project — starting a proc
-under a name already held by an active proc in the same project is a conflict — and a
-name is only reusable once the proc holding it settles. A monitor's member agent name
-(for example `acme--mon`) is its own named proc shell.
+A proc may also carry a **named proc**: `sase proc run -N/--name NAME` (bare names
+resolve beneath the calling sase-agent; `agent/name` is fully qualified) names the proc
+so `sase proc show`, `sase proc list -N`, and `sase proc kill` can address it by name
+instead of id. Resolution tries an exact fully qualified name, then an exact proc id,
+then a unique id prefix. Active uniqueness is scoped per project — starting a proc under
+a name already held by an active proc in the same project is a conflict — and a name is
+only reusable once the proc holding it settles. A monitor's member agent name (for
+example `acme--mon`) is its own named proc.
 
 **Kinds and ownership.**
 
@@ -7981,7 +7981,7 @@ limit. The legacy `tasks.history_limit` key is still honored as a deprecated ali
 The CLI equivalents are `sase proc list`, `sase proc show ID` (`--follow` to stream),
 `sase proc run [--session SESSION|none] -- COMMAND` (`--wait` to stream and inherit the
 exit code), and `sase proc kill ID`. A hidden legacy `--kind` filter remains for
-historical kind rows. Approved epics normally launch as [monitor shells](monitors.md);
+historical kind rows. Approved epics normally launch as [monitor turns](monitors.md);
 only an unresolvable planner agent session uses an unattributed command proc. See the
 [CLI reference](cli.md#daily-operation).
 
@@ -8018,7 +8018,7 @@ committed query is persisted — a user-cleared query stays cleared.
 | `project:` | string   | Project key or display name                                    |
 | `status:`  | enum     | `pending`, `running`, `settling`, `success`, `error`, `killed` |
 | `kind:`    | enum     | `command`, `tui`, `detached`                                   |
-| `monitor`  | bool     | A `sase monitor start` proc shell                              |
+| `monitor`  | bool     | A `sase monitor start` named proc                              |
 | `service`  | bool     | A service proc run (daemon or oneshot)                         |
 | `svc:`     | string   | Service name (exact)                                           |
 | `tag:`     | string   | Proc tag (exact, for example `command-line`)                   |
@@ -8076,7 +8076,7 @@ press clears the filter and removes the bar.
 finished rows age out according to `procs.history_limit`.
 
 `K` opens a danger confirmation only for a store-backed row that sase's TUI still
-considers active. The backend stops command/proc-shell records, including monitor
+considers active. The backend stops command/named-proc records, including monitor
 supervisors. It refuses a TUI-owned record because only its owning sase's TUI session
 may stop it, and a legacy record whose supervisor has died is reconciled to `error`
 rather than killed. Other ineligible rows explain why: a finished proc reports
@@ -8186,8 +8186,8 @@ refresh in place and report per-provider results (versions, failures, and manual
 commands) in the completion toast instead of restarting. Before that restart, sase's TUI
 waits up to 60 seconds for tracked background procs to finish (a toast reports the
 queued restart) and then restarts anyway with a warning naming whatever is still active.
-Long-lived services that outlive sase's TUI by design — monitor shells and the
-persistent Telegram receiver — never delay the restart.
+Long-lived services that outlive sase's TUI by design — monitor turns and the persistent
+Telegram receiver — never delay the restart.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates marked agent CLIs from anywhere in the pane, and

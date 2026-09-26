@@ -17,7 +17,7 @@ reviewed, retried, and handed off through stable project artifacts.
 | Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](axe.md)                                                      |
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [XPrompts](xprompt.md)                                             |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](workflow_spec.md)                                  |
-| Gates        | Durable, command-backed user decisions and processless session-shell handoffs.                                                                    | [Notifications](notifications.md#command-backed-interaction-gates) |
+| Gates        | Durable, command-backed user decisions and processless session-turn handoffs.                                                                     | [Notifications](notifications.md#command-backed-interaction-gates) |
 | Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](change_spec.md)                                          |
 | Memory       | Always-loaded and on-demand context, explicit flat-note xprompt inclusion, audited reads, and sase's TUI-backed note/strand changes.              | [Memory](memory.md)                                                |
 | SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](sdd.md)                                                      |
@@ -97,18 +97,18 @@ using their explicit source cwd. A false `%if` is still terminal without allocat
 runner, agent identity, proc identity, or model request. Eligible Agent units still use
 the established agent launch path. An eligible `%proc` unit stays undispatched while an
 active agent hold matches it, and one that authors `%queue` fields must also fit the
-shared runner-capacity budget; it then dispatches as a native `proc-shell` record with
+shared runner-capacity budget; it then dispatches as a native `named-proc` record with
 origin `xprompt-proc`. Restarts replay the journal instead of re-running settled
 predicates or duplicating reserved identities.
 
 Detached launches appear in the agent registry and sase's TUI Agents tab. Multi-prompt
-launches create a sequence of detached agents. Stand-alone `%proc` shells appear in the
-same Agents tab as top-level `▣` rows backed only by the proc store, counted separately
-from agents. Workflow launches persist step state so sase's TUI and axe can inspect
-progress and recover meaningful output.
+launches create a sequence of detached agents. Stand-alone `%proc` named procs appear in
+the same Agents tab as top-level `▣` rows backed only by the proc store, counted
+separately from agents. Workflow launches persist step state so sase's TUI and axe can
+inspect progress and recover meaningful output.
 
 Agent holds are durable reverse waits. [`sase agent hold`](cli.md#sase-agent-hold) arms
-a hold in `~/.sase/agent_holds.json` that selects agents or proc shells by name, tribe,
+a hold in `~/.sase/agent_holds.json` that selects agents or named procs by name, tribe,
 or hood; it can freeze the WAITING/QUEUED agents already in scope and fence launches
 submitted later. Runner admission and undispatched `%proc` dispatch both consult active
 holds. A hold ends when it is released, when its armer settles or exits, or when its TTL
@@ -134,23 +134,25 @@ runners, file-hook batch runners, the bead sync worker, and the chat-install wor
 into their own transient user scopes, so restarting that service does not kill them.
 `SASE_DETACH_SCOPE_DISABLE=1` turns this off.
 
-## Agent, Monitor, and Gate Shells
+## Agent, Monitor, and Gate Turns
 
-A SASE agent is either one standalone agent shell or a sequential session of shells.
-Agent shells are provider/LLM turns. Monitor shells are supervised commands attached to
-that session. Gate shells are non-LLM members that own a durable user decision; while a
-gate is pending, it has no provider or command process. All three appear in one session
-timeline. Once their evidence is readable, later session forks can include the agent
-transcript, monitor log, or gate decision record.
+A SASE agent is either one standalone agent turn or a sequential session of turns. Turns
+were formerly called shells. Agent turns are provider/LLM turns. Monitor turns are
+supervised commands attached to that session. Gate turns are non-LLM members that own a
+durable user decision; while a gate is pending, it has no provider or command process.
+All three appear in one session timeline. Read the three kinds like a chat transcript:
+an agent turn is the assistant speaking, a monitor turn is a tool result arriving, and a
+gate turn is the human's move. Once their evidence is readable, later session forks can
+include the agent transcript, monitor log, or gate decision record.
 
 Questions, plan review, agent-side workflow HITL, agent-initiated launch approval, and
-beta [sudo requests](sudo.md) use gate shells. At the handoff boundary SASE persists the
-verified gate bundle, names the shell, transfers or releases the workspace claim
+beta [sudo requests](sudo.md) use gate turns. At the handoff boundary SASE persists the
+verified gate bundle, names the turn, transfers or releases the workspace claim
 according to policy, releases the runner slot, and ends the provider turn. A client
 later selects a branch; SASE first writes a write-once decision receipt, so the choice
 is durable and a conflicting answer fails before any command runs. It then runs the
 branch's hashed commands (normally in a supervised detached proc), records their output,
-settles the shell, and optionally launches the next agent-shell session member. The
+settles the turn, and optionally launches the next agent-turn session member. The
 answered branch can inherit a default follow-up; timeout, stopped, failed, and lost
 outcomes require explicit follow-up policy. This makes a human pause durable without
 holding a provider process or runner slot open.
@@ -189,7 +191,7 @@ The project-adjacent taxonomy has three non-overlapping roles:
 | Configuration     | `~/.config/sase/sase.yml`, overlays, project `sase/sase.yml`                     | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                                                                                                      |
 | Notifications     | Notification store facade backed by Rust operations                              | User-visible actions, unread state, agent completion, errors, and mobile events.                                                                                                               |
 | Interaction gates | `~/.sase/interaction_requests/<kind>/<request-id>/`                              | Immutable request bundles, owned commands and resources, write-once decision receipts, and terminal responses for user decisions.                                                              |
-| Procs             | `~/.sase/procs/`                                                                 | Rust-owned proc rows, logs, and runtime directories for `%proc` shells, gate answers, and other supervised background commands.                                                                |
+| Procs             | `~/.sase/procs/`                                                                 | Rust-owned proc rows, logs, and runtime directories for `%proc` named procs, gate answers, and other supervised background commands.                                                           |
 | Agent holds       | `~/.sase/agent_holds.json`                                                       | Durable reverse-wait holds consulted by runner admission and undispatched `%proc` dispatch.                                                                                                    |
 | Service state     | `~/.sase/service/`                                                               | Service-host lock, status, machine enablement/stop overrides, proc start/restart requests, captured environment, and bounded host/proc logs.                                                   |
 | Managed temp      | `$SASE_TMPDIR`, else `~/.sase/tmp/`                                              | Per-launch agent scratch, Cargo targets, handoff files, and workflow scratch, bounded by the owner reaper and runner-exit cleanup.                                                             |

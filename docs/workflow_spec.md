@@ -807,8 +807,8 @@ When a HITL step completes:
 
 The workflow state machine handles accept, edit, and reject as direct control actions.
 When the workflow is running inside a SASE agent, the HITL boundary hands the session to
-a processless `HITL` gate shell and ends that agent turn. Accept and edit can launch the
-next session member to resume the workflow; gate-shell feedback and rerun branches may
+a processless `HITL` gate turn and ends that agent turn. Accept and edit can launch the
+next session member to resume the workflow; gate-turn feedback and rerun branches may
 also launch a fresh continuation. Reject, cancellation, timeout, and terminal branches
 without an explicit follow-up stop the workflow. Outside an agent-runner context, the
 executor waits inline for the same durable decision instead.

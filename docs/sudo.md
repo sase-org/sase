@@ -12,8 +12,8 @@ A sudo request moves through four steps:
 1. An agent finishes all non-root preparation, then pipes one JSON request to
    `sase sudo request`. SASE validates it, snapshots the SHA-256 of every executable,
    seals the reviewed command manifest, and creates a `sudo` gate backed by a
-   [gate shell](notifications.md#gate-shells-and-continuation). The shell shows the
-   `SUDO` status, and the agent's turn ends.
+   [gate turn](notifications.md#gate-turns-and-continuation). The turn shows the `SUDO`
+   status, and the agent's turn ends.
 2. A reviewer opens the request in sase's TUI, checks the commands, and chooses which
    ones to run.
 3. `sase sudo answer` authenticates through the real `sudo` prompt in a terminal. The
@@ -133,13 +133,13 @@ Example:
 ```
 
 `sase sudo request` prints a JSON gate descriptor. Inside an agent, it then hands the
-turn to the gate shell, so run it in the foreground and treat the descriptor as the only
+turn to the gate turn, so run it in the foreground and treat the descriptor as the only
 proof that the gate exists. Use `-o/--origin-agent` to attribute a request created
 outside an agent.
 
 ## Review UX
 
-In sase's TUI, a pending request appears on the Agents tab as a gate-shell row with the
+In sase's TUI, a pending request appears on the Agents tab as a gate-turn row with the
 `SUDO` status and in the notification inbox as a sudo request. Its notification carries
 the `sudo` and `gate` tags and no declared panel, so it lands in a `sudo` tag tab rather
 than `Gates`. Selecting the notification opens the **Sudo Request** review modal:
@@ -188,12 +188,12 @@ leaves the gate pending. Those surfaces can still display or deny the request, a
 
 | Command                        | Flags                                                                                                                                                      | Behavior                                                                   |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `sase sudo` / `sase sudo list` | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                                                      | List pending sudo gate shells; `--all` includes settled ones.              |
+| `sase sudo` / `sase sudo list` | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                                                      | List pending sudo gate turns; `--all` includes settled ones.               |
 | `sase sudo show ID`            | `-j/--json`                                                                                                                                                | Show one gate; `--json` adds the sealed manifest, target, and risk badges. |
 | `sase sudo request`            | `-j/--json`, `-o/--origin-agent`                                                                                                                           | Create a sudo gate from one JSON object on stdin.                          |
 | `sase sudo answer ID`          | `-u/--run` or `-a/--approve`, `-d/--deny`, `-c/--command ID`, `-D/--detach`, `-N/--no-detach`, `-f/--feedback`, `-j/--json`, `-r/--resume`, `-R/--restart` | Approve (authenticate and run) or deny one gate.                           |
 
-`ID` is a sudo gate ID such as `sudo-<uuid>` or a gate-shell reference. `--run` and
+`ID` is a sudo gate ID such as `sudo-<uuid>` or a gate-turn reference. `--run` and
 `--approve` both authenticate and run. Approval detaches by default after the
 authentication phase; use `--no-detach` to keep command execution in the foreground.
 `--detach` is accepted as an explicit spelling of the default. `--command` is repeatable

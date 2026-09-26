@@ -1,10 +1,9 @@
 # Monitors
 
-A **monitor shell** is a real [agent session](agent_sessions.md) member whose work is
-one supervised OS command instead of an LLM turn. `sase monitor start` hands a slow
-command off to a detached supervisor process and returns immediately, so an agent can
-run `just check`, wait on a CI job, or sleep before a deploy without blocking its own
-turn.
+A **monitor turn** is a real [agent session](agent_sessions.md) member whose work is one
+supervised OS command instead of an LLM turn. `sase monitor start` hands a slow command
+off to a detached supervisor process and returns immediately, so an agent can run
+`just check`, wait on a CI job, or sleep before a deploy without blocking its own turn.
 
 SASE agents are single-turn: a provider turn runs, the runner captures it, and the agent
 is done. Provider-native background-execution or scheduled wake-up tools assume a
@@ -16,7 +15,7 @@ scheduled wake-up tool.
 ## The agent-session picture
 
 Starting a monitor promotes the calling sase-agent to an agent session, exactly as
-`%id(suffix, session=parent)` would, and adds the monitor as a proc shell member. No
+`%id(suffix, session=parent)` would, and adds the monitor as a named proc member. No
 successor is launched yet. After the command settles, the frozen outcome branch may
 launch one ordinary follow-up, complete through the host, or do nothing. `stopped` and
 `lost` always do nothing:
@@ -24,9 +23,9 @@ launch one ordinary follow-up, complete through the host, or do nothing. `stoppe
 ```
 sase-agent "acme"    before                     right after `sase monitor start`
 ────────────────────────────────────────────────────────────────────────────────
-acme                 (one-shell agent, RUNNING) acme            (agent session)
-                                                ├─ acme--0      DONE       ← starter shell, killed
-                                                └─ acme--mon    TESTING    ← monitor proc shell
+acme                 (one-turn agent, RUNNING) acme            (agent session)
+                                                ├─ acme--0      DONE       ← starter turn, killed
+                                                └─ acme--mon    TESTING    ← monitor named proc
 ```
 
 After the command finishes on an ordinary `continue` branch:
@@ -35,15 +34,15 @@ After the command finishes on an ordinary `continue` branch:
 acme
 ├─ acme--0      DONE
 ├─ acme--mon    TESTED     ← monitor finished
-└─ acme--1      RUNNING    ← follow-up shell
+└─ acme--1      RUNNING    ← follow-up turn
 ```
 
-| Term          | Meaning                                                                          |
-| ------------- | -------------------------------------------------------------------------------- |
-| starter shell | The agent shell that ran `sase monitor start` (absent for host-started monitors) |
-| monitor shell | The `--mon` proc shell representing the supervised command                       |
-| supervisor    | The detached process that runs the command and streams its output                |
-| follow-up     | The agent shell launched under the session after the command finishes            |
+| Term         | Meaning                                                                         |
+| ------------ | ------------------------------------------------------------------------------- |
+| starter turn | The agent turn that ran `sase monitor start` (absent for host-started monitors) |
+| monitor turn | The `--mon` named proc representing the supervised command                      |
+| supervisor   | The detached process that runs the command and streams its output               |
+| follow-up    | The agent turn launched under the session after the command finishes            |
 
 `sase monitor start`, run from inside an agent, is the last thing that agent does: it
 kills the calling agent's turn (the same handoff mechanism `sase plan propose` and
@@ -52,7 +51,7 @@ workspace claim. The workspace is never released and re-claimed between the star
 the follow-up — the follow-up sees exactly the tree the monitor started with, plus
 whatever the command itself changed.
 
-A monitor shell has an ordinary artifacts directory, just like an agent shell, so
+A monitor turn has an ordinary artifacts directory, just like an agent turn, so
 everything that already understands agent sessions — the Agents tab, session roster,
 runtime aggregation, `sase chat`, `%wait`/`#fork` resolution — works on it with no
 special casing. There is no separate monitor store: a monitor's durable record is its
@@ -345,17 +344,17 @@ child's exit code.
 
 ### Resolving the implicit agent
 
-`--agent` / `-a` is only needed to start a monitor outside an agent shell (no
+`--agent` / `-a` is only needed to start a monitor outside an agent turn (no
 `SASE_AGENT_NAME` set) or to target a different agent than the caller. From inside an
 agent -- including an epic phase lane and a promoted agent session -- omitting it
-resolves the calling agent shell metadata-first:
+resolves the calling agent turn metadata-first:
 
 1. The caller's own artifacts dir (`SASE_ARTIFACTS_DIR`), when it belongs to the caller.
 2. An exact `SASE_AGENT_NAME` match against an artifact's own name.
 3. The newest non-monitor member of the caller's own session, when `SASE_AGENT_NAME`
-   names a session container rather than a concrete shell -- session members can replace
+   names a session container rather than a concrete turn -- session members can replace
    one another inside a single process, leaving `SASE_AGENT_NAME` set to the session
-   while the running shell's own artifacts carry the concrete member name. A settled
+   while the running turn's own artifacts carry the concrete member name. A settled
    `--mon` member is never selected here, even when it is the newest member of the
    session.
 
@@ -511,7 +510,7 @@ follow-up action is not launched.
 
 ## The follow-up agent
 
-When the frozen outcome branch selects `continue`, one follow-up agent shell launches
+When the frozen outcome branch selects `continue`, one follow-up agent turn launches
 under the same agent session once the command finishes and the monitor settles. A shared
 `--next`, the `verify` profile, or an explicit policy may supply that branch. It
 receives:
@@ -543,7 +542,7 @@ UNKNOWN items with their evidence and possible owners, KNOWN/FLAKY counts, and t
 available; it never changes the monitor result or the command's exit code.
 
 Continuation history is replayed from versioned parent links rather than reconstructed
-from shell names. Each ancestor is hydrated once in order, including local authored
+from turn names. Each ancestor is hydrated once in order, including local authored
 prompt segments, host instructions, final responses, checkpoints, and monitor-result
 evidence. A missing ancestor is disclosed as a gap; SASE does not guess across uncertain
 legacy history. Artifact-run pruning keeps old runs that a live or recoverable
@@ -637,7 +636,7 @@ sase monitor stop [<id>]                   # stop a running monitor; omit id to 
                                             # the calling agent's active monitor
 ```
 
-`ID` accepts a monitor id (or unique prefix), the monitor shell's agent name, or the
+`ID` accepts a monitor id (or unique prefix), the monitor turn's agent name, or the
 owning sase-agent name. `sase monitor stop` never launches the recorded follow-up agent,
 even when `--next` was given.
 
@@ -675,30 +674,30 @@ precise eligible resume command to stderr when one exists; with `-j`, the JSON r
 carries `code` and `suggested_command` fields.
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
-sase's TUI Agents tab refresh path, and the axe scheduler look for running monitor
-shells whose supervisor identity is no longer alive. Same-boot dead supervisors are
-reconciled to `failed`: SASE kills the recorded process group, finalizes the log,
-disposes the workspace claim, and launches or records the follow-up disposition.
-Pre-reboot supervisors reconcile to `lost`; their command effects are unknown, so the
-follow-up is recorded as not launched.
+sase's TUI Agents tab refresh path, and the axe scheduler look for running monitor turns
+whose supervisor identity is no longer alive. Same-boot dead supervisors are reconciled
+to `failed`: SASE kills the recorded process group, finalizes the log, disposes the
+workspace claim, and launches or records the follow-up disposition. Pre-reboot
+supervisors reconcile to `lost`; their command effects are unknown, so the follow-up is
+recorded as not launched.
 
 ## In sase's TUI
 
 A monitor row renders with an amber `⚙` glyph beside the agent list's bash/python step
 glyphs and omits a left-side title — identity is the right-hand `%id`
 (`<session>--mon`), not the configured monitor label or command. A live elapsed suffix
-shows while running, or an exit-code / timeout badge once terminal. Monitor shells
-appear in the session roster and contribute to the session's total runtime (unlike a
-gate shell, whose window is a human wait and is excluded from that total), but — like
-workflow steps — they are not counted as agents in the
-[Statistics tab](ace.md#statistics-tab) or tribe/clan summaries: a session with one
-agent and one monitor shell is a one-agent session that ran one command. A collapsed
-session or clan container row carries an amber `⚙N` badge for its running monitors and a
-grey `⚙N` badge for its finished ones, so both counts are visible without expanding the
-subtree; the two badges partition the subtree's monitors exactly, and a failed,
-timed-out, or lost monitor counts in the finished (grey) lane along with a clean
-completion. The tribe panel title aggregates both lanes across the whole tribe, so a
-fully collapsed panel still reports running and completed monitored work.
+shows while running, or an exit-code / timeout badge once terminal. Monitor turns appear
+in the session roster and contribute to the session's total runtime (unlike a gate turn,
+whose window is a human wait and is excluded from that total), but — like workflow steps
+— they are not counted as agents in the [Statistics tab](ace.md#statistics-tab) or
+tribe/clan summaries: a session with one agent and one monitor turn is a one-agent
+session that ran one command. A collapsed session or clan container row carries an amber
+`⚙N` badge for its running monitors and a grey `⚙N` badge for its finished ones, so both
+counts are visible without expanding the subtree; the two badges partition the subtree's
+monitors exactly, and a failed, timed-out, or lost monitor counts in the finished (grey)
+lane along with a clean completion. The tribe panel title aggregates both lanes across
+the whole tribe, so a fully collapsed panel still reports running and completed
+monitored work.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It opens with compact `Result`,
@@ -738,14 +737,14 @@ behaves like an ordinary dismiss. See [Agent Row Glyphs](ace.md#agent-row-glyphs
 
 A monitor row is also a fork target, active or settled: `F` opens a prompt prefilled
 with `#fork:<id>`, where `<id>` is the monitor's exact durable proc ID (not the reusable
-`<session>--mon` shell name), so a later monitor that reuses the same shell name can
-never hijack an already-queued fork. The footer and prompt label still show the friendly
-shell name. Because a monitor has no chat, retry, edit-chat, and rename are never
-offered for it. The injected fork content is the same command execution record described
-above (`Command`, `Status`/`State`, timeout/elapsed, and the captured `OUTPUT`),
-explicitly labeled as untrusted program output rather than a prior conversation. An
-implicit `%wait` on a monitor fork target releases on that monitor's terminal state —
-completed, failed, timed out, stopped, or lost — not only on a clean completion.
+`<session>--mon` proc name), so a later monitor that reuses the same proc name can never
+hijack an already-queued fork. The footer and prompt label still show the friendly proc
+name. Because a monitor has no chat, retry, edit-chat, and rename are never offered for
+it. The injected fork content is the same command execution record described above
+(`Command`, `Status`/`State`, timeout/elapsed, and the captured `OUTPUT`), explicitly
+labeled as untrusted program output rather than a prior conversation. An implicit
+`%wait` on a monitor fork target releases on that monitor's terminal state — completed,
+failed, timed out, stopped, or lost — not only on a clean completion.
 
 ## Visibility
 
@@ -793,7 +792,7 @@ launcher below releases the planner's completion notification when its monitor s
 
 Launching an approved epic (`sase bead work <plan> --yes-to-all …`) is itself a
 long-running command, so it normally runs under a monitor rather than a bare detached
-proc. Its monitor shell reads `EPIC APPROVED` while running and uses the configured
+proc. Its monitor turn reads `EPIC APPROVED` while running and uses the configured
 `EPIC CREATED` label after every terminal state, even failure, timeout, stop, or loss;
 check the state and exit details instead of treating that label as success. A successful
 launch attempts to back-fill the epic ID; when that metadata lands, the planner row
@@ -833,7 +832,7 @@ Concretely:
 |                         | Monitor                                      | Pipe                                            |
 | ----------------------- | -------------------------------------------- | ----------------------------------------------- |
 | What runs               | A supervised OS command                      | Nothing — the successor is an ordinary LLM turn |
-| New member's shell      | `--mon` proc shell, then a `--<n>` follow-up | One `--<n>` (or `--<name>`) session member      |
+| New member's turn       | `--mon` named proc, then a `--<n>` follow-up | One `--<n>` (or `--<name>`) session member      |
 | Follow-up prompt source | `--next` text plus a command-run breakdown   | The `PROMPT` argument, verbatim                 |
 | Bound                   | One monitor active per agent                 | `max_agent_pipe_chain` config field             |
 
@@ -851,7 +850,7 @@ necessary. See the `/sase_pipe` skill for the command's flags and hazards.
 
 ## See also
 
-- [Agent Clans, Sessions, and Tribes](agent_sessions.md) for how a monitor shell fits
+- [Agent Clans, Sessions, and Tribes](agent_sessions.md) for how a monitor turn fits
   into a sequential agent session.
 - [CLI Reference](cli.md) for the full `sase monitor` command table.
 - [sase's TUI User Guide](ace.md) for how monitor rows render in the Agents tab.

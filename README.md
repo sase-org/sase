@@ -154,7 +154,7 @@ Run `just check-full` before submitting changes. That exhaustive local lane upda
 screenshot goldens; CI checks them with `just fix-tui-screenshots --check`. SASE agents
 use `just check` unless explicitly instructed to run `just check-full`, and run either
 through `sase tool run` (`sase tool run check` or `sase tool run check-full`); the raw
-`just` recipes refuse to run in an agent shell.
+`just` recipes refuse to run in a SASE agent process.
 
 ## Acknowledgements
 

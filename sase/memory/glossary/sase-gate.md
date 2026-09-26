@@ -14,8 +14,8 @@ exclusive branches; answering selects a non-empty subset of exactly one branch, 
 those options' commands, and writes `response.json` once, while a gate's declared
 actions are repeatable and never answer it. Typed kinds (plan, epic plan, question,
 launch, task triage) have their own front doors; `sase gate create` builds a `custom`
-one. A gate carrying a `shell` block is a gate shell and settles as `completed`,
-`failed`, `timeout`, `stopped`, or `lost`; a gate with no `shell` block settles only as
-answered, cancelled, or timed out. `sase gate wait` reports the latter and is for
-non-agent callers — an agent observes a gate shell through the session it hands off to,
-never by waiting. Unrelated to the pytest suite gate and `just check`'s lint gates.
+one. A gate carrying a `turn` block is a gate turn and settles as `completed`, `failed`,
+`timeout`, `stopped`, or `lost`; a gate with no `turn` block settles only as answered,
+cancelled, or timed out. `sase gate wait` reports the latter and is for non-agent
+callers — an agent observes a gate turn through the session it hands off to, never by
+waiting. Unrelated to the pytest suite gate and `just check`'s lint gates.

@@ -1554,7 +1554,7 @@ Common entries include:
 | `#commit`             | Create a normal commit from completed agent changes                                                         |
 | `#propose`            | Create a proposal from completed agent changes                                                              |
 | `#file`               | Require the agent to write its response to a named markdown artifact                                        |
-| `#fork`               | Resume context from an agent, proc shell, monitor, a complete clan, or the next completed entity in a tribe |
+| `#fork`               | Resume context from an agent, named proc, monitor, a complete clan, or the next completed entity in a tribe |
 | `#fork_by_chat`       | Resume context from a specific chat transcript path                                                         |
 | `#mentor`             | Run a structured mentor review against a PR                                                                 |
 | `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                                  |
@@ -1604,17 +1604,17 @@ against the fork target's completeness. The implied wait still holds for any oth
 session member, because that member's transcript or execution record is not ready to
 inject yet.
 
-`#fork` also resolves a stand-alone proc shell (by its reusable shell name or its exact
-proc ID) and a monitor session member (by its `--mon`/`--mon-N` shell name or exact proc
+`#fork` also resolves a stand-alone named proc (by its reusable proc name or its exact
+proc ID) and a monitor session member (by its `--mon`/`--mon-N` proc name or exact proc
 ID). Both are execution records, never a prior conversation: the injected block states
-the shell kind, command or safe code preview, cwd/project, timestamps, exit/timeout
+the proc role, command or safe code preview, cwd/project, timestamps, exit/timeout
 status, and a bounded, explicitly untrusted tail of program output, plus the full log
 path and exact `sase proc show <id> --all-lines` (or `sase monitor show`) command when
-more output is available. A reusable proc/monitor shell name is bound to one exact
+more output is available. A reusable proc/monitor turn name is bound to one exact
 durable proc ID when the fork directive is extracted, so a later proc reusing that name
 never redirects an already-queued fork. An exact proc ID is always the unambiguous
 choice when a proc name collides with an agent name. Like an agent source, an implicit
-`%wait` for a proc or monitor target releases on that shell's terminal success or
+`%wait` for a proc or monitor target releases on that target's terminal success or
 failure, not only on success.
 
 To see the exact body of any built-in inline xprompt, run
@@ -1943,7 +1943,7 @@ The script-admission form `%if::` accepts exactly one closed `bash` or `python` 
 references, YAML frontmatter, Jinja, and `$()` inside them are preserved literally. The
 parser strips each directive and its body from the model prompt. Each planned fanout
 slot is one launch unit. A slot containing `%proc` becomes a process unit and cannot
-also contain agent prompt prose; `%id:<name>` gives that process unit a shell name.
+also contain agent prompt prose; `%id:<name>` gives that process unit a proc name.
 
 Execution depends on who initiated the launch:
 
@@ -1951,7 +1951,7 @@ Execution depends on who initiated the launch:
   durable typed admission. They freeze the same immutable typed plan and digest used
   after approval, then the admission coordinator waits for prerequisites, evaluates
   script `%if::`, and dispatches eligible units — agent units through the established
-  agent launch path, and `%proc` units as native `proc-shell` records with origin
+  agent launch path, and `%proc` units as native `named-proc` records with origin
   `xprompt-proc`. A direct user submission does not create a LaunchApproval
   notification. If a wait remains unresolved, the `sase run` / sase's TUI launch proc
   can finish while a detached coordinator continues waiting; the coordinator writes a
@@ -1984,8 +1984,8 @@ cancel the dependent unit.
 
 An eligible `%proc` unit dispatches natively once its waits and `%if::` pass, no active
 [agent hold](#hold-directive) matches it, and any authored queue fields pass the
-runner-capacity check described below: the admission coordinator reserves a `proc-shell`
-(lifecycle `proc-shell`, origin `xprompt-proc`) and starts its detached supervisor. The
+runner-capacity check described below: the admission coordinator reserves a `named-proc`
+(lifecycle `named-proc`, origin `xprompt-proc`) and starts its detached supervisor. The
 supervisor then acquires an operational workspace lease when `workspace` is true,
 materializes the approved source as a private `0600` script, executes it by argv —
 `/bin/bash --noprofile --norc <script>` or the SASE interpreter plus that script, never
@@ -2028,7 +2028,7 @@ In project context `workspace` defaults to `true` and an optional relative `cwd`
 resolved beneath the leased checkout; `workspace="false"` opts out and requires an
 ordinary `cwd`. Outside project context no lease is taken and an explicit `cwd` is
 required — `workspace="true"` without a selected project is a hard error. `%id:<name>` /
-`%id(<name>)` becomes the proc's optional bare `shell_name` (validated independently of
+`%id(<name>)` becomes the proc's optional bare `proc_name` (validated independently of
 the agent-session `--` naming convention); the canonical proc id is always allocated by
 the proc store. Stop/kill is routed through the native proc-stop path and is responsive
 in every phase — waiting, checking, acquiring the workspace, preparing the script,
@@ -2057,13 +2057,13 @@ request fingerprint written at approval. CLI and sase's TUI notifications report
 same counts the receipt stores — total, eligible, launched, skipped, condition errors,
 and launch errors.
 
-Stand-alone proc shells created this way appear in sase's TUI Agents tab as their own
+Stand-alone named procs created this way appear in sase's TUI Agents tab as their own
 top-level rows (never nested under an agent session), each marked with a `▣` glyph
-alongside its shell name or short proc id, an optional `label`, a Bash/Python language
+alongside its proc name or short proc id, an optional `label`, a Bash/Python language
 badge, the current phase/status, elapsed time, and project. Panel titles report a
 separate `▣<count>` chip for stand-alone procs next to the ordinary agent-status chips;
 a stand-alone proc never changes agent runner, unread, clan, or session counts.
-Selecting a row opens a `PROC SHELL` detail with status/phase timeline,
+Selecting a row opens a `NAMED PROC` detail with status/phase timeline,
 project/workspace/cwd, language, code digest and safe preview, waits and condition
 result, timeouts, and a bounded live-log tail — never the private script, the
 `SASE_CONDITION_CONTEXT` file, or unbounded output. The same rows and details are
@@ -2474,13 +2474,13 @@ launch, the notification also names the `sase monitor resume <id>` command and a
 worktree recovery diff. The waiter itself stays parked: kill and relaunch it, clear the
 wait, or let a later successful run release it.
 
-A bare session target makes one exception for retried shells. A monitor or gate member
+A bare session target makes one exception for retried turns. A monitor or gate member
 that ended unsuccessfully without handing off to a follow-up is ignored once a newer
 member of the same kind exists in the same session generation, so a failed `--mon` or
 `--gate` no longer blocks the session forever after `--mon-0` or `--gate-0` takes over.
-This applies to every older failed shell of that kind; the newest shell then counts like
+This applies to every older failed turn of that kind; the newest turn then counts like
 any other member and must itself succeed. A monitor never replaces a failed gate or vice
-versa, and an exact shell-name wait such as `<session>--mon` still reports that shell's
+versa, and an exact turn-name wait such as `<session>--mon` still reports that turn's
 own outcome. See
 [Sequential Agent Sessions](agent_sessions.md#sequential-agent-sessions).
 
@@ -2606,22 +2606,22 @@ not priority aging or preemption, and a steady stream of fitting higher-priority
 arrivals can still starve lower-priority work.
 
 A standalone agent owns one claim of its effective weight. A live serial session shares
-one claim across its agent, monitor, and serial successor shells; serial continuations
+one claim across its agent, monitor, and serial successor turns; serial continuations
 inherit the session weight when their prompt omits one, and must reacquire capacity
 after the session releases its claim. Independently launched clan members and live
 parallel session members each hold their own claim. Processless gates and modern
-question shells hold zero capacity while waiting for a human, and their follow-up work
-must either transfer a live claim or re-enter admission. Once a decision arrives, the
-gate shell makes one capacity attempt before running the chosen option's commands, and
-that attempt never parks: if the gate's weight fits, it claims capacity so the follow-up
-can inherit it; otherwise the commands run right away without a claim and the follow-up
-queues normally. A gate that `%auto` resolves at creation time runs its commands inside
-the creating agent's existing claim instead of taking a second one. The host-owned
-monitor that launches an approved epic records an explicit zero weight and consumes no
-capacity; the phase agents it launches claim their own. A zero weight can also be
-authored with `%q(w=0)`: a user-authored zero is inherited by successors as explicit,
-while the monitor's host-set zero never leaks to them. A `%proc` unit with queue fields
-is checked against this budget but never holds a claim (see
+question gate turns hold zero capacity while waiting for a human, and their follow-up
+work must either transfer a live claim or re-enter admission. Once a decision arrives,
+the gate turn makes one capacity attempt before running the chosen option's commands,
+and that attempt never parks: if the gate's weight fits, it claims capacity so the
+follow-up can inherit it; otherwise the commands run right away without a claim and the
+follow-up queues normally. A gate that `%auto` resolves at creation time runs its
+commands inside the creating agent's existing claim instead of taking a second one. The
+host-owned monitor that launches an approved epic records an explicit zero weight and
+consumes no capacity; the phase agents it launches claim their own. A zero weight can
+also be authored with `%q(w=0)`: a user-authored zero is inherited by successors as
+explicit, while the monitor's host-set zero never leaks to them. A `%proc` unit with
+queue fields is checked against this budget but never holds a claim (see
 [Experimental typed launch units](#experimental-typed-launch-units)). Workflow
 Python/bash steps and axe Patch runners are outside this budget.
 
@@ -2806,7 +2806,7 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 
 | Selector                     | Matches                                                                                                                       |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Name (`planner`)             | An exact agent name or `%proc` shell name                                                                                     |
+| Name (`planner`)             | An exact agent name or named proc name                                                                                        |
 | Tribe (`@nightly`, `tribe=`) | Agents in that tribe                                                                                                          |
 | Hood (`hood=sase-s7`)        | Agents in that [hood](agent_sessions.md), written without a `--role` suffix                                                   |
 | `pending`                    | The agents that are WAITING or QUEUED in scope when the hold is armed; later launches and undispatched procs are not captured |
@@ -2900,7 +2900,7 @@ sase's TUI docs for the full review flow.
 SASE's planning workflow is driven by the `/sase_plan` skill together with the
 `sase plan` approval pipeline. An agent drafts a plan and submits it with `/sase_plan`
 (or `sase plan propose`). In an agent-runner context, submission hands the session to a
-processless plan gate shell and ends the planner turn; that shell, not the provider
+processless plan gate turn and ends the planner turn; that turn, not the provider
 process, owns the pending review. In the TUI it shows the authored `TALE` or `EPIC`
 status (or legacy `PLAN`) and settles when the selected branch's commands complete.
 Feedback launches a replanner; tale approval launches a coder; epic approval may be

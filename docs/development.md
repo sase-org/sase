@@ -115,7 +115,7 @@ so a scoped false negative surfaces there within roughly the CI test leg's runti
 is the backstop, not a silent gap. A `just check` pass with a `just check-full` failure
 is a test-infrastructure bug; file it rather than treating it as remaining product work.
 
-Both recipes are [guarded](tool.md#guarded-recipes): in a SASE agent's own shell
+Both recipes are [guarded](tool.md#guarded-recipes): in a SASE agent process
 (`SASE_AGENT` set), `just check` and `just check-full` refuse with exit 2 unless they
 run inside `sase tool run check` / `sase tool run check-full` for this checkout, or with
 an explicit `SASE_TOOL_BYPASS='<reason>'` (the guard also fails open when `sase` is not
@@ -1004,9 +1004,9 @@ those goldens are not known to be current. Direct `check-full` in CI refuses at 
 update stage; repository CI uses `just fix-tui-screenshots --check` instead. Update mode
 also refuses when `GITHUB_ACTIONS` is set, when `CI` is set outside a SASE agent
 workspace or `sase monitor` command, off Linux, or when the renderer fingerprint is
-skewed. SASE agent shells export `CI=true` for pytest/tooling; that flag alone does not
-block local golden updates. Detached monitor commands do not inherit `SASE_AGENT*`, but
-they set `SASE_MONITOR_ID`, which is treated the same way.
+skewed. SASE agent processes export `CI=true` for pytest/tooling; that flag alone does
+not block local golden updates. Detached monitor commands do not inherit `SASE_AGENT*`,
+but they set `SASE_MONITOR_ID`, which is treated the same way.
 `--sase-update-visual-snapshots` is retired; pytest rejects it with the replacement
 command.
 
@@ -1213,7 +1213,7 @@ boundaries, and docs/tests:
 | `src/sase/workspace_provider/` | Workspace provider hook specs, plugin registry, and bare-git workspace support.                        |
 | `src/sase/running_field/`      | Workspace claim and slot-management helpers.                                                           |
 | `src/sase/procs/`              | Durable proc store, ids, logs, supervisor, and runner for background work.                             |
-| `src/sase/monitor/`            | Monitor shell lifecycle: start handoff, detached supervisor, store queries, and follow-up launch.      |
+| `src/sase/monitor/`            | Monitor turn lifecycle: start handoff, detached supervisor, store queries, and follow-up launch.       |
 | `src/sase/notification_gates/` | Command-backed gate bundles, decision receipts, branch execution, and gate CLI helpers.                |
 | `src/sase/sudo/`               | Typed sudo gate requests, reviewed terminal handoff, leases, and receipts.                             |
 | `src/sase/notifications/`      | Notification delivery and storage integration.                                                         |

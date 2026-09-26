@@ -578,7 +578,7 @@ The following events generate notifications:
 | `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                                                                             |
 | `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                             |
 | `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy the waiter                                                                                                                     |
-| `gate`                         | A gate shell's follow-up handoff failed; the notes name the failed stage and the resume command                                                                                                      |
+| `gate`                         | A gate turn's follow-up handoff failed; the notes name the failed stage and the resume command                                                                                                       |
 | `agent_hold`                   | A `%hold` or `sase agent hold` admission hold was armed or released                                                                                                                                  |
 | `runner_slot_admission`        | A held agent and the agent holding it are blocking each other (hold deadlock)                                                                                                                        |
 | Workflow-specific sender label | Workflow completion (success or failure)                                                                                                                                                             |
@@ -806,7 +806,7 @@ agent is selected after it has been marked unread, or when the user jumps to it 
 unread-agent shortcut, sase's TUI clears the row's unread marker and dismisses the
 matching completion notification. A host-owned settlement row (`epic-launch` or
 `monitor-settlement`) that names the exact `(cl_name, raw_suffix)` of that row or of any
-shell on its `parent_timestamp` chain — for example, an epic launch approved through the
+turn on its `parent_timestamp` chain — for example, an epic launch approved through the
 EpicApproval gate names the gate's launch monitor, and reading the session row clears it
 — is acknowledged with the row and dismissed alongside the completion notification. Plan
 approvals and user questions remain explicit response workflows and are not auto-read
@@ -816,12 +816,12 @@ Unread state on the Agents tab is projected from the active user-agent completio
 notifications in the store, plus any active host-owned settlement notification — the
 notification an epic launch or monitor handoff posts when an agent session finishes
 (senders `epic-launch` or `monitor-settlement`) — whose `(cl_name, raw_suffix)` matches
-the Agents-tab row or any shell on its `parent_timestamp` chain, not only direct
+the Agents-tab row or any turn on its `parent_timestamp` chain, not only direct
 children. Unread state is not written as separate per-row state. A finished agent row
 whose session settles is therefore flagged unread until that notification is dismissed;
 when the underlying notification is dismissed (per-row selection, response modal, or any
 other path) the row's unread marker clears on the next refresh. A host-owned settlement
-notification that names the exact `(cl_name, raw_suffix)` of an agent row or of a shell
+notification that names the exact `(cl_name, raw_suffix)` of an agent row or of a turn
 on its `parent_timestamp` chain is acknowledged with that row — read, dismissed, or
 marked — exactly like the row's completion notification. Manually toggling a row unread
 with `U` overrides this projection locally so a deliberately re-flagged row is not
@@ -1302,7 +1302,7 @@ to sase's TUI modals: `answer` selects a branch and supplies each selected optio
 declared input (`--set field=value` typed by its declaration,
 `--option-input <opt>=@file.json` for a whole per-option value, or `--input @file.json`
 for the legacy shared value) and resumes or restarts a partially executed AND branch
-with `--resume` / `--restart`. On an already-answered shell-backed tale whose selected
+with `--resume` / `--restart`. On an already-answered turn-backed tale whose selected
 branch requested a coder, `--resume` retries only that unfinished handoff: it reuses the
 stored answer, skips option commands and plan archival, and launches nothing when the
 successor is already recorded. Conflicting `--option` / input values are refused.
@@ -1461,7 +1461,7 @@ gate. The gate preview is generated from the bead's title, description, and note
 the notes section present only when the bead has notes. Automatic resolution is
 forbidden, and all client surfaces use the same host-side side effects.
 
-Inside a running SASE agent, workflow `HITL` now uses the same gate-shell handoff as
+Inside a running SASE agent, workflow `HITL` now uses the same gate-turn handoff as
 questions and plans. Historical HITL bundles remain readable and use their compatibility
 response-file path; every neutral bundle is resolved through the same hash-verified
 executor in sase's TUI and Telegram.
@@ -1493,9 +1493,9 @@ The decision status and the execution status are separate:
   succeeds. If the archive fails, the label is rolled back.
 - A durably recorded failure outcome shows as a distinct failed status that the approved
   label cannot hide.
-- `response.json`, the shell's terminal state, and the refresh pulse are published
-  before post-terminal epic launch preparation, so sase's TUI does not wait on the
-  follow-up launch.
+- `response.json`, the turn's terminal state, and the refresh pulse are published before
+  post-terminal epic launch preparation, so sase's TUI does not wait on the follow-up
+  launch.
 
 #### Failure outcomes and recovery
 
@@ -1546,7 +1546,7 @@ working: labels come from `agent_meta.json` and `response.json` as before, and t
 finish through the historical `response.json` path.
 
 An accepted decision whose execution has not finished is protected from cleanup.
-`sase gate cancel` leaves that shell as it is, the `gate_shell_reclaim` housekeeping job
+`sase gate cancel` leaves that turn as it is, the `gate_turn_reclaim` housekeeping job
 never settles it as lost or timed out, and `sase gate show` reports it in an
 **Acceptance** block. A receipt whose attempt failed partway, or whose owner died, is
 superseded by the next submission instead of blocking it. sase's TUI submits gate
@@ -1554,7 +1554,7 @@ decisions, including plan and epic approvals, as a tracked `sase gate answer` pr
 an accepted decision keeps running after the modal closes.
 
 Rollout keeps existing bundles readable. Upgrade `sase-core` first so every surface has
-the indexed shell lookup and acceptance policy. Then upgrade the SASE Python package,
+the indexed turn lookup and acceptance policy. Then upgrade the SASE Python package,
 sase's TUI, and mobile clients against that binding, and finally upgrade Telegram so its
 receiver submits answers through the same supervised proc path. In-flight legacy gates
 still fall back to their historical `response.json` path. Telegram receiver adoption
@@ -1571,9 +1571,9 @@ current code starts.
 
 Latency evidence from isolated probes on 2026-09-14:
 
-- Exact shell lookup over 5,002 fixture artifacts had p50 1.317 ms, p95 3.755 ms, and
-  max 13.008 ms across 25 lookups. Index rebuild took 3.554 s off the click path. The
-  target resolved to the owning gate shell rather than a later inherited-code successor.
+- Exact turn lookup over 5,002 fixture artifacts had p50 1.317 ms, p95 3.755 ms, and max
+  13.008 ms across 25 lookups. Index rebuild took 3.554 s off the click path. The target
+  resolved to the owning gate turn rather than a later inherited-code successor.
 - Ten blocked-command acceptance runs wrote `decision_receipt.json` at p50 18.95 ms, p95
   21.6 ms, and max 22.53 ms. Notification dismissal followed at p50 35.37 ms, p95 44.47
   ms, and max 46.35 ms, while `response.json` stayed unwritten until the held command
@@ -1599,21 +1599,21 @@ Telegram callback acknowledgement, message delivery, and keyboard edits remain b
 by Bot API round-trip time and rate limits; terminal keyboard cleanup is retried from
 the on-disk tombstone when a remote edit fails.
 
-### Gate shells and continuation
+### Gate turns and continuation
 
-A gate shell is a named, non-LLM member of an agent session, normally `--gate` or
+A gate turn is a named, non-LLM member of an agent session, normally `--gate` or
 `--gate-N`. It makes a user decision durable without keeping the asking provider process
-or a runner slot alive. The shell can retain the session's workspace claim while
-pending, records approved command output in `gate.log`, and settles only after the
-selected commands finish. Its lifecycle is pending, settling, answered, completed,
-failed, timeout, stopped, or lost. Answered commands start right away even when every
-runner slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a
-full queue never delays the decision itself.
+or a runner slot alive. The turn can retain the session's workspace claim while pending,
+records approved command output in `gate.log`, and settles only after the selected
+commands finish. Its lifecycle is pending, settling, answered, completed, failed,
+timeout, stopped, or lost. Answered commands start right away even when every runner
+slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a full
+queue never delays the decision itself.
 
-The hourly `gate_shell_reclaim` housekeeping job settles pending shells whose gates were
+The hourly `gate_turn_reclaim` housekeeping job settles pending turns whose gates were
 already answered, cancelled, or removed. It also times out gates past their own
-`gate_timeout_seconds` deadline, and it marks a shell lost once
-[`gate.shell.reclaim_grace_seconds`](configuration.md#gate) (one hour by default) has
+`gate_timeout_seconds` deadline, and it marks a turn lost once
+[`gate.turn.reclaim_grace_seconds`](configuration.md#gate) (one hour by default) has
 passed after that deadline.
 
 Agent-side gate creation also writes a per-process intent marker before slow setup work
@@ -1628,7 +1628,7 @@ The built-in front doors choose statuses and continuation policy for their domai
 
 - `/sase_questions` creates `QUESTION` / `ANSWERED`; an answer launches the next session
   member with the accumulated Q&A.
-- `/sase_plan` creates a `TALE`, `EPIC`, or legacy `PLAN` shell. Feedback launches a
+- `/sase_plan` creates a `TALE`, `EPIC`, or legacy `PLAN` turn. Feedback launches a
   replanner, while approval follows the selected tale/epic/commit policy.
 - Agent-side workflow HITL creates `HITL`; accept, edit, feedback, and rerun branches
   may launch a continuation, while rejection or an unconfigured terminal branch stops.
@@ -1641,27 +1641,27 @@ The built-in front doors choose statuses and continuation policy for their domai
   launches the request's `next.prompt` successor with the runner ledger; denial settles
   it as `DENIED` without a follow-up. See [Sudo Requests](sudo.md).
 
-For a custom handoff, pass `--shell` to `sase gate create`. `--next` supplies the
-default answered-branch prompt; `--next-fork session|shell|none`, `--next-model`, and
-repeatable `--next-output none|results|tail|file` control its context, model, and output
-channels. Branch policy in the specification may override or suppress that default. A
-shell block without an explicit `continuation_mode` records the derived `gate_shell`
-mode; pairing a shell block with an explicit `"none"` is rejected, because `"none"`
-would discard the shell and leave the gate without a row in `sase gate list`. Selected
-option IDs joined with `+` in query order form the answered branch key. Timeout,
-stopped, failed, and lost branches never inherit the answered default: they launch only
-when explicitly configured.
+For a custom handoff, pass `--turn` to `sase gate create`. `--next` supplies the default
+answered-branch prompt; `--next-fork session|turn|none`, `--next-model`, and repeatable
+`--next-output none|results|tail|file` control its context, model, and output channels.
+Branch policy in the specification may override or suppress that default. A turn block
+without an explicit `continuation_mode` records the derived `gate_turn` mode; pairing a
+turn block with an explicit `"none"` is rejected, because `"none"` would discard the
+turn and leave the gate without a row in `sase gate list`. Selected option IDs joined
+with `+` in query order form the answered branch key. Timeout, stopped, failed, and lost
+branches never inherit the answered default: they launch only when explicitly
+configured.
 
-Answering a shell-backed gate runs its commands in a supervised detached proc by
-default, so they survive the client that submitted the decision;
-`sase gate answer --no-detach` opts into inline execution. Use `sase gate list` for
-pending shells, `sase gate list --all` for their history, `sase gate show <shell>` for
-the resolved branches and follow-up disposition, and `sase gate cancel <shell>` to
-settle a pending shell without a follow-up. Approval history keeps its decision label
-(`TALE APPROVED` and similar); that label does not imply the coder is running. A failed
-or interrupted handoff is shown as needing attention with the
+Answering a turn-backed gate runs its commands in a supervised detached proc by default,
+so they survive the client that submitted the decision; `sase gate answer --no-detach`
+opts into inline execution. Use `sase gate list` for pending turns,
+`sase gate list --all` for their history, `sase gate show <turn>` for the resolved
+branches and follow-up disposition, and `sase gate cancel <turn>` to settle a pending
+turn without a follow-up. Approval history keeps its decision label (`TALE APPROVED` and
+similar); that label does not imply the coder is running. A failed or interrupted
+handoff is shown as needing attention with the
 `sase gate answer --kind <kind> --id <id> --option ... --resume` recovery command. An
-agent that creates a gate shell must end its turn rather than call `sase gate wait`;
+agent that creates a gate turn must end its turn rather than call `sase gate wait`;
 direct waiting remains available to non-agent scripts.
 
 ### Gate inputs

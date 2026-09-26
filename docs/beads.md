@@ -2273,8 +2273,8 @@ Once an epic bead exists, the shared launch path:
    because a signal was sent: SASE records explicit kill intent, waits for the old
    process group to stop, escalates when needed, and only then removes artifacts,
    releases workspaces, preclaims beads, or launches the replacement. If two waiting
-   shells share the same selected name, every matching shell must be confirmed stopped
-   before the new shell can reuse that name; an unresolved or still-running duplicate
+   turns share the same selected name, every matching turn must be confirmed stopped
+   before the new turn can reuse that name; an unresolved or still-running duplicate
    blocks the launch. `--dry-run` performs no cleanup; it only warns which live agents a
    real launch would force-reuse.
 
@@ -2284,7 +2284,7 @@ Once an epic bead exists, the shared launch path:
    `ACTION (current-state) agent-name bead=<expected-bead> reason`, with the `bead=`
    part omitted when the slot has no expected bead. `BLOCKED` marks a slot whose
    existing owner cannot be safely classified, usually a conflicting bead association,
-   an unknown live state, or a second still-running shell that holds the same name;
+   an unknown live state, or a second still-running turn that holds the same name;
    session and clan members reached without their own bead ids are accepted rather than
    treated as conflicts. Every blocker is listed instead of aborting on the first one,
    and a real launch still stops before any wipe, bead mutation, or spawn. `--dry-run`
@@ -2518,8 +2518,8 @@ blank (Default) means omission; an explicit value must be at least 1, and `1` ru
 alone. The durable approve result retains that integer so launch argv can emit
 `--capacity N`; tale, reject, and feedback actions never submit it.
 
-The preferred handoff is a [monitor](monitors.md) shell under the planner's own agent
-session, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
+The preferred handoff is a [monitor](monitors.md) turn under the planner's own agent
+session, labeled `Epic launch · <plan>`. The monitor turn reads `EPIC APPROVED` while
 `sase bead work` runs. After any terminal outcome its configured label is
 `EPIC CREATED`, including when the monitor failed, timed out, was stopped, or was lost;
 the monitor's state, bucket, exit code, and output—not that label—show whether the
@@ -2533,7 +2533,7 @@ session cannot be resolved, the same command is submitted as one deduplicated gl
 
 Either handoff is durable and unowned by any interactive session: it survives the
 approving process, and normal command success or failure emits the epic-completion
-notification. For a monitor handoff, that notification is held until the monitor shell
+notification. For a monitor handoff, that notification is held until the monitor turn
 itself settles, so opening it shows the settled monitor rather than a running one. If
 the process that settles the monitor dies before sending it, monitor reconciliation or
 the `epic_launch_flush` AXE job publishes it later, at most once. Inspect a monitor

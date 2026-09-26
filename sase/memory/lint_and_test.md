@@ -123,8 +123,8 @@ or snapshot coverage, run `just fix-tui-screenshots` explicitly. Use selectors a
 is the update alias. `--sase-update-visual-snapshots` is retired.
 
 Local `just check-full` runs the update form after the other exhaustive gates and can
-modify goldens. SASE agent shells export `CI=true`; that flag alone does not block the
-update. Detached `sase monitor` commands drop `SASE_AGENT*` identity but set
+modify goldens. SASE agent processes export `CI=true`; that flag alone does not block
+the update. Detached `sase monitor` commands drop `SASE_AGENT*` identity but set
 `SASE_MONITOR_ID`, which is treated the same way so a monitored local update still
 writes. CI's dedicated `visual-test` job runs `just fix-tui-screenshots --check` and
 never writes goldens. Comparison is exact pixel equality locally and in CI; do not treat

@@ -225,7 +225,7 @@ while the default `$SASE_HOME/tmp` root still holds entries; see
 [the `housekeeping` routine](axe.md#housekeeping-1-hour-interval) for what that warning
 does and does not catch.
 
-`init --yes` refuses an agent shell. When the calling shell sets `SASE_AGENT` or
+`init --yes` refuses a SASE agent process. When the calling shell sets `SASE_AGENT` or
 `SASE_AGENT_NAME`, or its `PATH` contains an ephemeral workspace entry, apply exits 2
 and names a login shell as the fix. Pass `-a/--allow-agent-env` (on both
 `sase service init` and the `sase init service` alias) to capture deliberately.

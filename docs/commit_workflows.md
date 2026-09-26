@@ -339,14 +339,14 @@ launch that should carry plan attribution sets it explicitly.
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and
 `create_pull_request`, `CommitWorkflow` appends or updates a trailing
 `SASE_AGENT=<username>.<machine>.<sase-agent>` line. The value is the committing sase
-agent, not the concrete agent shell that ran: a session member commits as its session
+agent, not the concrete agent turn that ran: a session member commits as its session
 (`pc--code` is tagged `<username>.<machine>.pc`), and a solo agent is tagged with its
 own name exactly as before. When the configured agents sidecar is hosted on GitHub, the
 value is a Markdown reference link to the sase agent's page — the session page for a
 session and the agent README for a solo agent — with no `#member-<role>` fragment. Every
 fallback path (no owner, no project, unresolvable or non-hosted sidecar) still emits the
 sase-agent label unlinked. `AGENT` comes from `SASE_AGENT_NAME`, falling back to
-`SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete shell name is resolved first only so
+`SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete turn name is resolved first only so
 its sase agent can be derived — and it is omitted for manual non-agent commits. New
 commits never produce `SASE_MACHINE`, while cleanup still removes inherited `AGENT` and
 historical `MACHINE` values. `create_proposal` does not get runtime commit tags because

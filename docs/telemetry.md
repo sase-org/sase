@@ -326,22 +326,22 @@ loaded keeps the prior result visible while marking the refresh as failed.
 
 The catalog contains 40 counters, gauges, and histograms across eight groups: Agent
 Lifecycle, LLM Provider, Finalizers, Axe Orchestrator, Hooks/Mentors/Workflows,
-VCS/Workspace, Gate Shell, and Tool Runs. Run `sase telemetry list` for the
-authoritative metric names, kinds, and labels.
+VCS/Workspace, Gate Turn, and Tool Runs. Run `sase telemetry list` for the authoritative
+metric names, kinds, and labels.
 
 Instrumentation remains at debugging and health boundaries: agent runner
 setup/finalization, LLM invocation, commit finalizers, axe and routine loops, hook and
 mentor runners, VCS operations, active-workspace tracking, zombie detection, the
-gate-shell exact-id lookup, and ToolRun recording attempts/errors/outcomes. Call sites
+gate-turn exact-id lookup, and ToolRun recording attempts/errors/outcomes. Call sites
 keep the stable `.labels().inc()`, `.observe()`, and `.set()` API regardless of whether
 recording is enabled.
 
-The Gate Shell group covers the lookup that maps a gate request ID to its owning gate
-shell. `sase_gate_shell_lookup_duration_seconds` times each lookup with a `path` label
-of `indexed` (the agent-artifact index answered) or `fallback` (a full-history scan
-answered). `sase_gate_shell_lookup_fallbacks_total` counts lookups where the indexed
-path could not run at all, so a rising count points at a missing, corrupt, or
-mid-migration index (or a stale Rust binding) rather than at slow gates.
+The Gate Turn group covers the lookup that maps a gate request ID to its owning gate
+turn. `sase_gate_turn_lookup_duration_seconds` times each lookup with a `path` label of
+`indexed` (the agent-artifact index answered) or `fallback` (a full-history scan
+answered). `sase_gate_turn_lookup_fallbacks_total` counts lookups where the indexed path
+could not run at all, so a rising count points at a missing, corrupt, or mid-migration
+index (or a stale Rust binding) rather than at slow gates.
 
 ## Migration from the external stack
 

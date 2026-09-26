@@ -229,16 +229,16 @@ into status subgroups.
 - The list loads the bounded remote catalog across enrolled machines and keeps host
   failures visible as diagnostics rather than hiding healthy hosts.
 - Remote rows are grouped into the same session and clan nodes as local rows, using the
-  membership the owning machine reports. Member shells nest under their remote parent
-  and do not repeat its host chip.
+  membership the owning machine reports. Member turns nest under their remote parent and
+  do not repeat its host chip.
 - The owning machine serves the same bounded recent window the local list shows (seven
   days, at most 200 completed rows). A completed plan-chain session has no separate root
-  record, so its `--plan` shell (the one shell with no parent) stands in for the root
-  and presents the session: every recent shell of it is served and the viewer nests them
-  under one session row. Shells whose parent no record supplies, and artifact
-  directories that carry no lifecycle marker at all, are never served. Workflow step
-  rows are not agents and are not served, so a remote session's `×N` can be lower than
-  the owner's own, which also counts workflow steps.
+  record, so its `--plan` turn (the one turn with no parent) stands in for the root and
+  presents the session: every recent turn of it is served and the viewer nests them
+  under one session row. Turns whose parent no record supplies, and artifact directories
+  that carry no lifecycle marker at all, are never served. Workflow step rows are not
+  agents and are not served, so a remote session's `×N` can be lower than the owner's
+  own, which also counts workflow steps.
 - A host whose feed is invalid or served from a stale cache says so loudly. The header
   names the alias and error (for example `apollo: feed invalid: … (cached 5m ago)`, or
   `2 machines with feed errors`), its **by machine** banner adds `feed invalid` or

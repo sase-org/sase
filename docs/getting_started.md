@@ -363,7 +363,7 @@ The names you'll keep bumping into, in one place:
   Admin Center's [Procs tab](ace.md#procs-tab).
 - **[Monitors](monitors.md)** — agent-session members used to hand off a slow command
   (`just check-full`, a CI wait, a deploy) at the end of an agent turn. A detached
-  supervisor runs the command, and an optional follow-up agent shell returns under the
+  supervisor runs the command, and an optional follow-up agent turn returns under the
   same agent session; the session keeps its one runner slot for the monitor and then the
   follow-up. SASE reports explicitly if that follow-up cannot inherit the monitor's
   workspace.

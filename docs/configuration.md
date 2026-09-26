@@ -3918,25 +3918,25 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.p
 ### gate
 
 Settings for durable, command-backed gates. The only current setting controls how the
-hourly `gate_shell_reclaim` housekeeping job settles a
-[gate shell](notifications.md#gate-shells-and-continuation) whose gate has already
-passed its own deadline.
+hourly `gate_turn_reclaim` housekeeping job settles a
+[gate turn](notifications.md#gate-turns-and-continuation) whose gate has already passed
+its own deadline.
 
 ```yaml
 gate:
-  shell:
+  turn:
     reclaim_grace_seconds: 3600
 ```
 
-| Field                              | Type | Default | Minimum | Description                                                                                   |
-| ---------------------------------- | ---- | ------- | ------- | --------------------------------------------------------------------------------------------- |
-| `gate.shell.reclaim_grace_seconds` | int  | `3600`  | `0`     | Seconds after a shell gate's deadline before reclaim force-settles the pending shell as lost. |
+| Field                             | Type | Default | Minimum | Description                                                                                 |
+| --------------------------------- | ---- | ------- | ------- | ------------------------------------------------------------------------------------------- |
+| `gate.turn.reclaim_grace_seconds` | int  | `3600`  | `0`     | Seconds after a turn gate's deadline before reclaim force-settles the pending turn as lost. |
 
-Within the grace window, reclaim cancels an expired gate and settles its shell as a
-normal `timeout`; once the window has passed, a still-pending shell settles as `lost`
+Within the grace window, reclaim cancels an expired gate and settles its turn as a
+normal `timeout`; once the window has passed, a still-pending turn settles as `lost`
 instead. A missing, negative, or non-integer value falls back to `3600`.
 
-Source: `src/sase/default_config.yml`, `src/sase/gate_shell/reclaim.py`
+Source: `src/sase/default_config.yml`, `src/sase/gate_turn/reclaim.py`
 
 ### max_running_agents
 
@@ -3946,10 +3946,10 @@ units. A normal launch claims `1.0`; `%queue(weight=...)` / `%q(w=...)` can requ
 non-negative finite weight (`%q(w=0)` adds no load but still takes its queue turn).
 
 A standalone agent owns one claim of its effective weight. A live serial session shares
-one claim across its agent, monitor, and serial successor shells; serial continuations
+one claim across its agent, monitor, and serial successor turns; serial continuations
 inherit the session weight when omitted, and must reacquire capacity after the session
 has released its claim. Independently launched clan members and live parallel clan
-members each hold their own claim. A processless gate shell deliberately releases runner
+members each hold their own claim. A processless gate turn deliberately releases runner
 capacity while it owns a user decision, even when it retains the session's workspace
 claim. Workflow Python/bash steps and axe Patch runners hold none of this capacity; axe
 runners continue to use their separate `axe.max_*_runners` limits.
@@ -4849,7 +4849,7 @@ complete `%id` and `%clan` identity binding, and keyed `{@<id>}` markers resolve
 batch creation. Agent-initiated launches still freeze the typed plan for LaunchApproval;
 after approval, the same admission coordinator resolves waits, evaluates `%if::`
 predicates, and dispatches eligible units — agent units through the established agent
-launch path, and `%proc` units through native stand-alone proc-shell dispatch; see
+launch path, and `%proc` units through native stand-alone named-proc dispatch; see
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
 
 #### Saved machine preferences
@@ -5473,24 +5473,24 @@ explains that a tmux session is required, and still prints the catalog.
 Bare `sase service` defaults to `status`, and bare `sase service proc` defaults to
 `proc list`.
 
-| Command                                 | Flags / arguments                                                           | Description                                                                                                                              |
-| --------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase service status`                   | `-j, --json`                                                                | Show host/native-unit state and every configured proc; exits `0` for running/starting, otherwise `1`.                                    |
-| `sase service start`                    | `-j, --json`                                                                | Start through the installed native unit when present, otherwise start a detached host.                                                   |
-| `sase service stop`                     | `-j, --json`                                                                | Stop the host.                                                                                                                           |
-| `sase service restart`                  | `-j, --json`                                                                | Stop and start the host.                                                                                                                 |
-| `sase service run`                      | -                                                                           | Run the host in the foreground until SIGINT/SIGTERM.                                                                                     |
-| `sase service logs`                     | `-n, --lines N`                                                             | Print the bounded host log (default 200 lines).                                                                                          |
-| `sase service init`                     | `-a/--allow-agent-env`, `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes` | Plan, check, diff, or install/update the native user unit and captured environment; `--yes` refuses an agent shell unless `-a` is given. |
-| `sase service uninstall`                | `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes`                         | Plan, check, diff, or remove the native user unit.                                                                                       |
-| `sase service proc list`                | `-j, --json`                                                                | List effective enablement, desired state, runtime state, and summary.                                                                    |
-| `sase service proc show NAME`           | `-j, --json`                                                                | Show source, launcher, effective enablement, state, and log path.                                                                        |
-| `sase service proc logs NAME`           | `-n, --lines N`                                                             | Print one proc's bounded output log (default 200 lines).                                                                                 |
-| `sase service proc start NAME`          | `-n/--no-wait`, `-t/--timeout SECONDS`                                      | Record a start request the host confirms; prints the pid.                                                                                |
-| `sase service proc stop NAME`           | -                                                                           | Stop the proc until the next host boot.                                                                                                  |
-| `sase service proc restart NAME`        | `-n/--no-wait`, `-t/--timeout SECONDS`                                      | Record a restart request the host confirms; prints `pid OLD -> pid NEW`.                                                                 |
-| `sase service proc enable/disable NAME` | -                                                                           | Persist a machine-local enabled or disabled override.                                                                                    |
-| `sase service proc run -- COMMAND...`   | `-c/--cwd`, `-j/--json`, `-l/--label`, `-p/--project`, `-w/--workspace`     | Submit a transient durable oneshot that is never added to daemon desired state.                                                          |
+| Command                                 | Flags / arguments                                                           | Description                                                                                                                                    |
+| --------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase service status`                   | `-j, --json`                                                                | Show host/native-unit state and every configured proc; exits `0` for running/starting, otherwise `1`.                                          |
+| `sase service start`                    | `-j, --json`                                                                | Start through the installed native unit when present, otherwise start a detached host.                                                         |
+| `sase service stop`                     | `-j, --json`                                                                | Stop the host.                                                                                                                                 |
+| `sase service restart`                  | `-j, --json`                                                                | Stop and start the host.                                                                                                                       |
+| `sase service run`                      | -                                                                           | Run the host in the foreground until SIGINT/SIGTERM.                                                                                           |
+| `sase service logs`                     | `-n, --lines N`                                                             | Print the bounded host log (default 200 lines).                                                                                                |
+| `sase service init`                     | `-a/--allow-agent-env`, `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes` | Plan, check, diff, or install/update the native user unit and captured environment; `--yes` refuses a SASE agent process unless `-a` is given. |
+| `sase service uninstall`                | `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes`                         | Plan, check, diff, or remove the native user unit.                                                                                             |
+| `sase service proc list`                | `-j, --json`                                                                | List effective enablement, desired state, runtime state, and summary.                                                                          |
+| `sase service proc show NAME`           | `-j, --json`                                                                | Show source, launcher, effective enablement, state, and log path.                                                                              |
+| `sase service proc logs NAME`           | `-n, --lines N`                                                             | Print one proc's bounded output log (default 200 lines).                                                                                       |
+| `sase service proc start NAME`          | `-n/--no-wait`, `-t/--timeout SECONDS`                                      | Record a start request the host confirms; prints the pid.                                                                                      |
+| `sase service proc stop NAME`           | -                                                                           | Stop the proc until the next host boot.                                                                                                        |
+| `sase service proc restart NAME`        | `-n/--no-wait`, `-t/--timeout SECONDS`                                      | Record a restart request the host confirms; prints `pid OLD -> pid NEW`.                                                                       |
+| `sase service proc enable/disable NAME` | -                                                                           | Persist a machine-local enabled or disabled override.                                                                                          |
+| `sase service proc run -- COMMAND...`   | `-c/--cwd`, `-j/--json`, `-l/--label`, `-p/--project`, `-w/--workspace`     | Submit a transient durable oneshot that is never added to daemon desired state.                                                                |
 
 Without `--yes`, `init` and `uninstall` only print the plan and the apply command. Their
 `--check` forms are read-only and return `1` for drift. `--force` allows a non-default
@@ -6804,17 +6804,17 @@ With no subcommand, `sase file-history` defaults to `sase file-history list`.
 ### `sase gate`
 
 Create, inspect, answer, and manage durable command-backed gates and their optional
-gate-shell session members.
+gate-turn session members.
 
-| Form               | Principal flags                                                                                                                                                                                                                          | Description                                                                                 |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase gate act`    | `-i/--id`, `-k/--kind`, `-o/--operation`, `-I/--input`, `-j/--json`                                                                                                                                                                      | Run one repeatable declared action without answering the gate                               |
-| `sase gate answer` | `-i/--id`, `-k/--kind`, repeatable `-o/--option`, `-s/--set`, `-O/--option-input`, `-I/--input`, `-f/--feedback`, `-d/--detach` / `-D/--no-detach`, `-r/--resume` / `-R/--restart`, `-j/--json`                                          | Answer one branch; `--resume` continues a partial option run or an unfinished coder handoff |
-| `sase gate cancel` | `<shell>` or `-i/--id -k/--kind`, `-r/--reason`, `-j/--json`                                                                                                                                                                             | Cancel a pending gate or shell; launches no follow-up                                       |
-| `sase gate create` | `-G/--shell`, `-n/--next`, `-f/--next-fork`, `-m/--next-model`, repeatable `-N/--next-output`, `-o/--origin-agent`, `-g/--shell-status`, `-E/--shell-stop-status`, `-p/--panel`, `-P/--panel-icon`, `-s/--sender`, repeatable `-t/--tag` | Create a gate from JSON on stdin, optionally handing an agent to a gate shell               |
-| `sase gate list`   | `-a/--all`, `-l/--agent`, `-p/--project`, repeatable `-s/--state`, `-n/--limit`, `-f/--format`, `-j/--json`                                                                                                                              | List pending gate shells newest first; `--all` includes settled shells                      |
-| `sase gate show`   | `[shell]` or `-i/--id -k/--kind`, `-j/--json`                                                                                                                                                                                            | Show branches, inputs, actions, runtime state, workspace claim, and follow-up disposition   |
-| `sase gate wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout`                                                                                                                                                                                      | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout, 5 failed                         |
+| Form               | Principal flags                                                                                                                                                                                                                       | Description                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `sase gate act`    | `-i/--id`, `-k/--kind`, `-o/--operation`, `-I/--input`, `-j/--json`                                                                                                                                                                   | Run one repeatable declared action without answering the gate                               |
+| `sase gate answer` | `-i/--id`, `-k/--kind`, repeatable `-o/--option`, `-s/--set`, `-O/--option-input`, `-I/--input`, `-f/--feedback`, `-d/--detach` / `-D/--no-detach`, `-r/--resume` / `-R/--restart`, `-j/--json`                                       | Answer one branch; `--resume` continues a partial option run or an unfinished coder handoff |
+| `sase gate cancel` | `<turn>` or `-i/--id -k/--kind`, `-r/--reason`, `-j/--json`                                                                                                                                                                           | Cancel a pending gate or turn; launches no follow-up                                        |
+| `sase gate create` | `-G/--turn`, `-n/--next`, `-f/--next-fork`, `-m/--next-model`, repeatable `-N/--next-output`, `-o/--origin-agent`, `-g/--turn-status`, `-E/--turn-stop-status`, `-p/--panel`, `-P/--panel-icon`, `-s/--sender`, repeatable `-t/--tag` | Create a gate from JSON on stdin, optionally handing an agent to a gate turn                |
+| `sase gate list`   | `-a/--all`, `-l/--agent`, `-p/--project`, repeatable `-s/--state`, `-n/--limit`, `-f/--format`, `-j/--json`                                                                                                                           | List pending gate turns newest first; `--all` includes settled turns                        |
+| `sase gate show`   | `[turn]` or `-i/--id -k/--kind`, `-j/--json`                                                                                                                                                                                          | Show branches, inputs, actions, runtime state, workspace claim, and follow-up disposition   |
+| `sase gate wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout`                                                                                                                                                                                   | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout, 5 failed                         |
 
 Gate creation accepts one option `query`, a required complete `primary_branch`, an
 `options` list with configurable labels, icons, default selections, and feedback modes,
@@ -6825,17 +6825,17 @@ descriptor with the request identity, owned paths, continuation/auto state, and 
 error report path and exact safe recovery commands. A CLI timeout can shorten but not
 extend the request timeout.
 
-`--shell` creates a processless session member that owns the pending decision and ends
-an agent-side creator's turn. `--next` is the default answered-branch follow-up prompt;
+`--turn` creates a processless session member that owns the pending decision and ends an
+agent-side creator's turn. `--next` is the default answered-branch follow-up prompt;
 branch-specific policy may override or suppress it, and non-answered terminal branches
-need their own explicit follow-up. `--next-fork session|shell|none` chooses inherited
+need their own explicit follow-up. `--next-fork session|turn|none` chooses inherited
 context, `--next-model` pins the successor model, and repeatable
 `--next-output none|results|tail|file` chooses what gate-command evidence reaches it.
-Use `sase gate wait` from non-agent automation; an agent that created a shell-backed
-gate must hand off rather than hold a provider process open. `-p/--panel` places the
-gate's notification in a named notification-panel tab and requires `-P/--panel-icon`.
-For `sase gate answer`, per-option input (`-s/--set`, `-O/--option-input`) and the
-legacy shared `-I/--input` value are mutually exclusive; a gate shell answers through a
+Use `sase gate wait` from non-agent automation; an agent that created a turn-backed gate
+must hand off rather than hold a provider process open. `-p/--panel` places the gate's
+notification in a named notification-panel tab and requires `-P/--panel-icon`. For
+`sase gate answer`, per-option input (`-s/--set`, `-O/--option-input`) and the legacy
+shared `-I/--input` value are mutually exclusive; a gate turn answers through a
 supervised background proc unless `-D/--no-detach` is given.
 
 ### `sase sudo`
@@ -6846,12 +6846,12 @@ subcommand requires the `agent_sudo_requests` beta flag and fails with a
 `feature_disabled` error otherwise. With no subcommand, `sase sudo` defaults to
 `sase sudo list`.
 
-| Form                    | Flags                                                                                                                               | Description                                                                                                               |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `sase sudo request`     | `-j/--json`, `-o/--origin-agent`                                                                                                    | Read one JSON request object from stdin, create the gate shell, and print its descriptor; an agent caller then hands off. |
-| `sase sudo list`        | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                               | List pending sudo gate shells; `--all` includes settled ones.                                                             |
-| `sase sudo show <ID>`   | `-j/--json`                                                                                                                         | Show one sudo gate by gate id or shell ref.                                                                               |
-| `sase sudo answer <ID>` | `-u/--run` or `-a/--approve`, `-d/--deny`, repeatable `-c/--command`, `-f/--feedback`, `-r/--resume` or `-R/--restart`, `-j/--json` | Approve and run, or deny, one sudo gate.                                                                                  |
+| Form                    | Flags                                                                                                                               | Description                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `sase sudo request`     | `-j/--json`, `-o/--origin-agent`                                                                                                    | Read one JSON request object from stdin, create the gate turn, and print its descriptor; an agent caller then hands off. |
+| `sase sudo list`        | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                               | List pending sudo gate turns; `--all` includes settled ones.                                                             |
+| `sase sudo show <ID>`   | `-j/--json`                                                                                                                         | Show one sudo gate by gate id or turn ref.                                                                               |
+| `sase sudo answer <ID>` | `-u/--run` or `-a/--approve`, `-d/--deny`, repeatable `-c/--command`, `-f/--feedback`, `-r/--resume` or `-R/--restart`, `-j/--json` | Approve and run, or deny, one sudo gate.                                                                                 |
 
 `--run` and `--approve` both authenticate and run the reviewed commands; `-c/--command`
 limits the run to selected reviewed command ids. Without `--run`, `--approve`, or

@@ -123,7 +123,7 @@ runtime treats legacy records with absent `queue_weight` as `1.0`, but that stor
 compatibility does not make a mixed old/new scheduler fleet safe: an old runner binary
 cannot enforce weighted claims for new work.
 
-A modern unanswered `QUESTION` is a gate shell and consumes no runner capacity. On
+A modern unanswered `QUESTION` is a gate turn and consumes no runner capacity. On
 answer, its next session member transfers or reacquires the session capacity claim
 through the locked queue. Existing compatibility runs may instead carry
 `pending_question.json`; that marker remains authoritative while the user decides and
@@ -131,8 +131,8 @@ while the same process is queued to resume. Killing a legacy run during either p
 cleans up its question and queue markers, and its authored priority is retained while
 reacquiring.
 
-Other gate shells follow the same rule while a human decides. Once the decision arrives,
-the gate shell makes a single capacity attempt before running the chosen option's
+Other gate turns follow the same rule while a human decides. Once the decision arrives,
+the gate turn makes a single capacity attempt before running the chosen option's
 commands, and that attempt never parks: if the gate's weight fits, it claims capacity
 that its follow-up can inherit; otherwise the commands run immediately without a claim
 and the follow-up queues normally. A gate that `%auto` resolves at creation time runs

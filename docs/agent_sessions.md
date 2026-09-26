@@ -234,10 +234,10 @@ Agents list, direct members sort by status priority — Failed, Stopped, Running
 Queued, Waiting, Done — and then by launch recency within a bucket. The `CLAN MEMBERS`
 jump-panel roster uses chronological launch order instead, keeping its number-to-member
 mapping stable while statuses change. The runtime is the union of member run intervals,
-with human-wait windows excluded — including a gate shell's pending and settling window
-— so concurrent members are not double-counted. When a sequential session has a concrete
-agent or monitor shell currently executing, the collapsed and expanded session container
-row shows `🏃‍♂️ <current-shell-runtime> / <session-total-runtime>` so the active shell
+with human-wait windows excluded — including a gate turn's pending and settling window —
+so concurrent members are not double-counted. When a sequential session has a concrete
+agent or monitor turn currently executing, the collapsed and expanded session container
+row shows `🏃‍♂️ <current-turn-runtime> / <session-total-runtime>` so the active turn
 duration is visible without opening the session. A clan container's live suffix
 collapses its parallel lanes with a minimum instead, since more than one lane can be
 live at once: `<lowest-running-lane-runtime> / <clan-total-runtime>`, where a
@@ -348,18 +348,21 @@ Arbitrary suffixes are ordinary session labels, not configured lifecycle hooks. 
 does not discover or execute custom `kind: agent_session` definitions. Replace a stale
 definition with an explicit session attachment or an agent-requested launch.
 
+Session members were formerly called shells: an agent turn is the assistant speaking, a
+monitor turn is a tool result arriving, and a gate turn is the human's move.
+
 A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same session) is
-a **monitor shell**: a session member whose work is one supervised OS command instead of
+a **monitor turn**: a session member whose work is one supervised OS command instead of
 an LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
 
-A `--gate` suffix (then `--gate-0`, `--gate-1`, …) is a **gate shell**: a named, non-LLM
+A `--gate` suffix (then `--gate-0`, `--gate-1`, …) is a **gate turn**: a named, non-LLM
 session member that owns a durable user decision. The asking agent ends its turn, the
 pending gate occupies no runner slot and contributes no accumulated session or clan
-runtime, and the shell settles after the decision's commands complete. It can retain or
-release the workspace claim according to its shell policy. An answered branch may launch
-the next agent-shell member; timeout, stop, failure, and loss do so only when that
-branch explicitly declares a follow-up. The built-in question, plan, workflow HITL, and
-agent-initiated launch flows use this model, as can custom `sase gate create --shell`
+runtime, and the turn settles after the decision's commands complete. It can retain or
+release the workspace claim according to its claim policy. An answered branch may launch
+the next agent-turn member; timeout, stop, failure, and loss do so only when that branch
+explicitly declares a follow-up. The built-in question, plan, workflow HITL, and
+agent-initiated launch flows use this model, as can custom `sase gate create --turn`
 requests. See
 [Command-backed interaction gates](notifications.md#command-backed-interaction-gates).
 
@@ -384,41 +387,41 @@ session target and waits for successors that appear after the wait begins. An ex
 `--<suffix>` name targets one member. A member attached to an agent already inside a
 clan inherits that clan membership.
 
-A monitor or gate shell that ended unsuccessfully without handing off to a follow-up
+A monitor or gate turn that ended unsuccessfully without handing off to a follow-up
 member normally keeps a bare-session wait blocked. Retries are the exception: when the
 same session generation (the newest root plus its attached members) also contains a
-newer shell of the same kind, SASE ignores the older failed shell while resolving the
-bare session name. For example, if `--mon` fails to start and `--mon-0` takes over, the
+newer turn of the same kind, SASE ignores the older failed turn while resolving the bare
+session name. For example, if `--mon` fails to start and `--mon-0` takes over, the
 session wait follows `--mon-0` and the other members instead of staying blocked on
-`--mon`. The newer shell only replaces the older failure; it still has to finish
+`--mon`. The newer turn only replaces the older failure; it still has to finish
 successfully (or hand off) before the session can settle. Kinds never mix: a newer gate
-does not excuse a failed monitor, or vice versa. An exact wait on the old shell's full
-name still reports that shell's own failed outcome. A session member that has crossed
-its own dependency waits and is only queued for a runner slot is still a live member, so
+does not excuse a failed monitor, or vice versa. An exact wait on the old turn's full
+name still reports that turn's own failed outcome. A session member that has crossed its
+own dependency waits and is only queued for a runner slot is still a live member, so
 bare-session `%wait` and `#fork` targets stay blocked until it finishes. Members still
 parked on their own dependency waits stay out of the session aggregate so sibling waits
-cannot deadlock. A failed shell that handed off to a follow-up does not release a
-`#fork` wait while that follow-up is still pending.
+cannot deadlock. A failed turn that handed off to a follow-up does not release a `#fork`
+wait while that follow-up is still pending.
 
-`#fork:<session>` contributes every known concrete shell — agent, monitor, and gate
-shells alike — in chain order, oldest first, including shells that ended unsuccessfully
-with their recorded failure context. Only a shell that is still running, or whose
-transcript or log is missing or unreadable, is listed as not shown rather than injected.
-Shared inherited history is de-duplicated across the included agent-shell transcripts.
-When a session member forks its own session, that member is omitted from both the shown
-and not-shown member lists. At least one shown member is required. Use
+`#fork:<session>` contributes every known concrete turn — agent, monitor, and gate turns
+alike — in chain order, oldest first, including turns that ended unsuccessfully with
+their recorded failure context. Only a turn that is still running, or whose transcript
+or log is missing or unreadable, is listed as not shown rather than injected. Shared
+inherited history is de-duplicated across the included agent-turn transcripts. When a
+session member forks its own session, that member is omitted from both the shown and
+not-shown member lists. At least one shown member is required. Use
 `#fork:<session>--<suffix>` when only one member should be a parent — this also accepts
 a monitor's `--mon`/`--mon-N` suffix, and a monitor's exact durable proc ID is always
-the unambiguous choice if its reusable shell name is ever reused. A session container
-can also be combined with independent agent, proc/monitor, session, clan, or tribe
-parents in one multi-parent fork.
+the unambiguous choice if its reusable proc name is ever reused. A session container can
+also be combined with independent agent, proc/monitor, session, clan, or tribe parents
+in one multi-parent fork.
 
 ### Session detail folding
 
 Selecting a real multi-member session root in sase's TUI opens the Main deck with
-underlined `SESSION` (cyan, matching the name), with a numbered `SESSION SHELLS` roster
-in the jump panel in stable chain order: agent shells in chain order, with each monitor
-spliced in directly after its starter shell. The original member and each follow-up are
+underlined `SESSION` (cyan, matching the name), with a numbered `SESSION TURNS` roster
+in the jump panel in stable chain order: agent turns in chain order, with each monitor
+spliced in directly after its starter turn. The original member and each follow-up are
 direct jump targets; synthetic planner projections and legacy parallel-family
 scaffolding are not. The roster follows the global panel fold keys (`zz`, `zZ`, and the
 direct level keys); the root's foldable output variables, workflow variables, SASE
@@ -431,7 +434,7 @@ panel is expanded with `.`). Press `zZ` at level 1 to open every fold to level 2
 level 2 to close every fold to level 1. Press `z1` or `z2` to select either level
 directly. `z3` and `z4` are invalid in a session context and leave both the panel level
 and section overrides untouched. A member-specific override inherits from the
-`SESSION SHELLS` section, which in turn inherits the panel level; any leftover roster
+`SESSION TURNS` section, which in turn inherits the panel level; any leftover roster
 override still applies until a global fold key clears overrides. The numbered roster and
 its digit jumps remain present at both effective levels.
 
@@ -451,33 +454,33 @@ remain visible with their pending state.
 
 A session root is a sase agent, so its jump panel also carries a `NEIGHBORS` section
 listing the sase agent's ancestors, descendants, and hood neighbors; it sits after
-`SESSION SHELLS` when both exist. The session participates under its bare session name
+`SESSION TURNS` when both exist. The session participates under its bare session name
 rather than the root member's `--` name, so a session `fam` lists `fam.helper` as a
 descendant and `fam.helper` lists `fam` back as its ancestor. Both rosters draw their
 digits from one continuous ladder, so session members are numbered first and neighbors
 after, with a single shared number width. Session members already shown under
-`SESSION SHELLS` are never repeated in `NEIGHBORS`; they are reported as a dim
-`… +N also listed under SESSION SHELLS` tail. Every neighbor is always listed and
+`SESSION TURNS` are never repeated in `NEIGHBORS`; they are reported as a dim
+`… +N also listed under SESSION TURNS` tail. Every neighbor is always listed and
 numbered after the session members, whatever the fold level. See
 [Sase Agent Neighbors Section](ace.md#sase-agent-neighbors-section) for the full
 behavior, which single agents share through their own three-level scale.
 
 #### Session member detail folding
 
-Selecting a session **shell** row — not the container — also renders a numbered
-`SESSION SHELLS` roster in the jump panel: every shell of the enclosing session in the
-same stable chain order, except the selected shell itself, numbered starting from `0`.
+Selecting a session **turn** row — not the container — also renders a numbered
+`SESSION TURNS` roster in the jump panel: every turn of the enclosing session in the
+same stable chain order, except the selected turn itself, numbered starting from `0`.
 The heading carries a dim ` · <session name>` suffix naming the session. Digit jumps
 behave exactly as they do on the container roster — `0`–`9` (or two-key `00`–`99` past
-ten shells) reveal the target shell, and a roster that changed since the panel was drawn
+ten turns) reveal the target turn, and a roster that changed since the panel was drawn
 cancels the jump with a warning instead of landing somewhere stale.
 
 Unlike the container's two-level session scale, a member panel folds every other section
 on the selected member's own three-level agent scale (`z1`–`z3`, `zz`, `za`, `zA`),
 while its jump-panel roster follows the global panel fold keys, so no `Fold: N/M` header
-line appears. A member row is an agent shell node rather than a sase agent, so its panel
-names that with underlined `AGENT SHELL` (gold, matching the name), has no `NEIGHBORS`
-section, and shows only `SESSION SHELLS` for the enclosing session. The container panel
+line appears. A member row is an agent turn node rather than a sase agent, so its panel
+names that with underlined `AGENT TURN` (gold, matching the name), has no `NEIGHBORS`
+section, and shows only `SESSION TURNS` for the enclosing session. The container panel
 names itself `SESSION`.
 
 #### Per-member model lanes
@@ -499,13 +502,13 @@ every other SASE surface — the single-agent panel and `sase agent show` includ
 one reading habit covers all of them. The `← @<alias>` chip appears only when the member
 was launched with an `@` model alias, and it is launch-time provenance: completed runs
 keep showing the alias that launched them even if that alias is later retargeted or
-deleted. Member labels are the `--<suffix>` labels from the `SESSION SHELLS` roster,
+deleted. Member labels are the `--<suffix>` labels from the `SESSION TURNS` roster,
 padded to one aligned value column, and a member with no recorded model renders a dim
 `default`. Long values wrap beneath that column rather than pushing the layout wide. At
 most 12 lanes are shown; a larger session adds a dim
-`… +N more shells (see SESSION SHELLS)` tail. The lanes are not part of the two-level
-fold scale — they read the same at level 1 and level 2. A session that projects to fewer
-than two concrete members, and every ordinary single agent, keeps the original one-line
+`… +N more turns (see SESSION TURNS)` tail. The lanes are not part of the two-level fold
+scale — they read the same at level 1 and level 2. A session that projects to fewer than
+two concrete members, and every ordinary single agent, keeps the original one-line
 `Model:` field.
 
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only;
@@ -537,7 +540,7 @@ targets.
 ### Sase Agents, Sessions, and Commit Provenance
 
 A sase agent is either a session or a single agent that does not belong to one. Commit
-provenance is anchored on the sase agent, not on the concrete shell that happened to be
+provenance is anchored on the sase agent, not on the concrete turn that happened to be
 running: a commit by `fam--code` is tagged `SASE_AGENT=<username>.<machine>.fam` and
 links to `sessions/<username>.<machine>.fam.md` with no member anchor, while a solo
 agent's footer is exactly what it has always been. The same projection is used for the
@@ -785,7 +788,7 @@ sase launch request -f launch_request.json -o json
 The request may contain `%i(suffix, session=parent)` in its prompt, so the approved
 launch joins an existing session with any valid suffix. `launch_preview.md` shows the
 resolved launch plan before approval. Inside an agent, the request creates a pending
-`LAUNCH` gate shell, hands off the session lane, and ends the requesting turn. Its
+`LAUNCH` gate turn, hands off the session lane, and ends the requesting turn. Its
 default `requester_continuation.mode` is `resume_requester`: after approval, rejection,
 timeout, or gate/dispatch failure, one successor resumes the original assignment with
 the gate decision, feedback, typed launch results, requester identity, workspace/session
