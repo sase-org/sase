@@ -60,9 +60,6 @@ class AgentStepDisplayMixin:
             source_content = Text("No source available.\n", style="dim italic")
 
         output_header = Text()
-        output_header.append("\n")
-        output_header.append("\u2500" * 50 + "\n", style="dim")
-        output_header.append("\n")
         append_section_heading(output_header, "STEP OUTPUT")
 
         output_parts: list[Any] = [*build_traceback_block(error_tb_syntax)]

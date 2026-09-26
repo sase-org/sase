@@ -460,9 +460,6 @@ class AgentDisplayRenderMixin(
             # For agents with follow-ups, show consolidated reply
             if agent.followup_agents:
                 reply_header = Text()
-                reply_header.append("\n")
-                reply_header.append("\u2500" * 50 + "\n", style="dim")
-                reply_header.append("\n")
                 append_section_heading(reply_header, "AGENT REPLY")
 
                 reply_parts: list[Any] = [
@@ -502,9 +499,6 @@ class AgentDisplayRenderMixin(
             # For completed or failed agents/steps, also show the response
             elif agent.status in ("DONE", "FAILED"):
                 reply_header = Text()
-                reply_header.append("\n")
-                reply_header.append("\u2500" * 50 + "\n", style="dim")
-                reply_header.append("\n")
                 append_section_heading(reply_header, "AGENT CHAT")
 
                 response_content = agent.get_response_content()
@@ -563,9 +557,6 @@ class AgentDisplayRenderMixin(
             else:
                 # AGENT REPLY section for running agents
                 reply_header = Text()
-                reply_header.append("\n")
-                reply_header.append("\u2500" * 50 + "\n", style="dim")
-                reply_header.append("\n")
                 append_section_heading(reply_header, "AGENT REPLY")
 
                 reply_parts = [*build_traceback_block(error_tb_syntax)]

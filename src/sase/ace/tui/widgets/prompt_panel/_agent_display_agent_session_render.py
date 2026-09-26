@@ -20,8 +20,10 @@ from ._agent_display_content import (
 )
 from ._agent_display_agent_session import (
     effective_agent_session_fold_level,
+    agent_session_shell_facts,
     agent_session_shell_rows,
 )
+from ._agent_session_reply_blocks import build_session_reply_blocks
 from ._agent_display_header import AgentHeader
 from ._agent_display_state import HeaderHintState
 from ._agent_display_xprompt import (
@@ -36,7 +38,6 @@ from ._agent_xprompt_highlighting import (
     apply_authored_prompt_overlays,
 )
 from ._container_hint_text import container_text_with_file_hints
-from ._fold_language import fold_count_style
 from ._file_path_hints import (
     has_file_path,
     iter_container_file_path_matches,
@@ -44,11 +45,9 @@ from ._file_path_hints import (
     resolve_agent_workspace_dir,
 )
 from ._hint_caps import HintContentBudget
+from ..decks.card_block import BlockSpreadOnly
 from ..decks.card_part import card_document, context_card, reply_card
-from ._helpers import (
-    PROMPT_PANEL_SECTION_HEADING_STYLE,
-    append_section_heading,
-)
+from ._helpers import append_section_heading
 from ._traceback_section import build_traceback_block
 
 
@@ -191,77 +190,84 @@ class AgentSessionDisplayMixin:
                 )
             rendered_content_section = True
 
-        reply_header = Text()
-        if rendered_content_section:
-            reply_header.append("\n")
-            reply_header.append("\u2500" * 50 + "\n", style="dim")
-            reply_header.append("\n")
         phases = agent_session_shell_rows(agent)
-        reply_heading = Text(
-            "AGENT REPLY",
-            style=PROMPT_PANEL_SECTION_HEADING_STYLE,
-        )
-        reply_heading.append(
-            f" · {len(phases)}",
-            style=fold_count_style("AGENT REPLY"),
-        )
-        append_section_heading(reply_header, reply_heading)
-        reply_parts: list[Any] = [*traceback_parts, reply_header]
-        for phase in phases:
-            if phase.is_monitor:
-                reply_parts.extend(
-                    build_monitor_phase(
-                        phase,
-                        annotate=(
-                            None
-                            if hint_state is None
-                            else self._monitor_phase_annotator(
-                                phase, hint_state, hint_budget
+        if hint_state is None:
+
+            def render_phase(phase: Agent, block_id: str) -> list[Any]:
+                if phase.is_monitor:
+                    return build_monitor_phase(phase, block_id=block_id)
+                if phase.is_gate:
+                    return build_gate_phase(phase, block_id=block_id)
+                return [
+                    render_phase_divider(
+                        get_phase_label(phase),
+                        phase.run_start_time or phase.start_time,
+                        block_id=block_id,
+                    ),
+                    *(
+                        render_agent_reply_content(
+                            phase,
+                            self._render_markdown,
+                        )
+                        or [
+                            Text(
+                                "No response content yet.\n",
+                                style="dim italic",
                             )
-                        ),
-                    )
-                )
-                continue
-            if phase.is_gate:
-                reply_parts.extend(
-                    build_gate_phase(
-                        phase,
-                        annotate=(
-                            None
-                            if hint_state is None
-                            else self._gate_phase_annotator(
-                                phase, hint_state, hint_budget
-                            )
-                        ),
-                    )
-                )
-                continue
-            reply_parts.append(
-                render_phase_divider(
-                    get_phase_label(phase),
-                    phase.run_start_time or phase.start_time,
-                )
-            )
-            if hint_state is None:
-                reply_renderables = render_agent_reply_content(
-                    phase,
-                    self._render_markdown,
-                )
-            else:
-                reply_renderables = self._agent_session_reply_renderables_with_hints(
-                    phase,
-                    hint_state,
-                    budget=hint_budget,
-                )
-            reply_parts.extend(
-                reply_renderables
-                or [
-                    Text(
-                        "No response content yet.\n",
-                        style="dim italic",
-                    )
+                        ]
+                    ),
                 ]
-            )
+
+        else:
+
+            def render_phase(phase: Agent, block_id: str) -> list[Any]:
+                if phase.is_monitor:
+                    return build_monitor_phase(
+                        phase,
+                        annotate=self._monitor_phase_annotator(
+                            phase, hint_state, hint_budget
+                        ),
+                        block_id=block_id,
+                    )
+                if phase.is_gate:
+                    return build_gate_phase(
+                        phase,
+                        annotate=self._gate_phase_annotator(
+                            phase, hint_state, hint_budget
+                        ),
+                        block_id=block_id,
+                    )
+                return [
+                    render_phase_divider(
+                        get_phase_label(phase),
+                        phase.run_start_time or phase.start_time,
+                        block_id=block_id,
+                    ),
+                    *(
+                        self._agent_session_reply_renderables_with_hints(
+                            phase,
+                            hint_state,
+                            budget=hint_budget,
+                        )
+                        or [
+                            Text(
+                                "No response content yet.\n",
+                                style="dim italic",
+                            )
+                        ]
+                    ),
+                ]
+
+        reply_heading, reply_blocks = build_session_reply_blocks(
+            phases,
+            agent_session_shell_facts(agent),
+            render_phase=render_phase,
+        )
+        reply_parts: list[Any] = [
+            *traceback_parts,
+            BlockSpreadOnly(reply_heading),
+            *reply_blocks,
+        ]
 
         renderable: object = card_document(
             context_card(*context_parts),

@@ -50,12 +50,14 @@ def assert_kind_header(
 
 
 def _logical_plain(renderable: Any) -> str:
-    """Return logical plain text for Text, Group, CardPart, or caches."""
+    """Return logical plain text for Text, Group, card containers, or caches."""
     from rich.console import Group
+
+    from sase.ace.tui.widgets.decks.card_block import is_card_container
 
     if isinstance(renderable, Text):
         return renderable.plain
-    if bool(getattr(renderable, "__sase_card_part__", False)):
+    if is_card_container(renderable):
         return "\n".join(
             _logical_plain(child) for child in getattr(renderable, "renderables", ())
         )

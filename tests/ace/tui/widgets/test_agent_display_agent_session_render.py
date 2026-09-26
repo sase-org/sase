@@ -62,10 +62,12 @@ def _conversation_document(renderable: object) -> str:
 
 
 def _section_ids(renderable: object) -> list[str]:
+    from sase.ace.tui.widgets.decks.card_block import is_card_container
+
     identities: list[str] = []
 
     def _visit(candidate: object) -> None:
-        if bool(getattr(candidate, "__sase_card_part__", False)):
+        if is_card_container(candidate):
             for child in getattr(candidate, "renderables", ()):
                 _visit(child)
             return

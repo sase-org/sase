@@ -9,7 +9,7 @@ from typing import Any
 from rich.text import Text
 
 from sase.gate_shell.state import GATE_GLYPH
-from sase.monitor_state import MONITOR_GLYPH
+from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
@@ -26,9 +26,12 @@ from ...models.fold_scale import (
     effective_fold_level,
 )
 from ...models.fold_state import FoldLevel
+from dataclasses import dataclass
+
 from ._agent_display_content import (
     GATE_PHASE_LABEL,
     MONITOR_PHASE_LABEL,
+    PHASE_DIVIDER_ACCENT,
     get_phase_label,
 )
 from ._fold_language import append_fold_section_heading
@@ -129,13 +132,24 @@ def _gate_roster_bucket(member: Agent) -> str:
     return "Stopped"
 
 
-def agent_session_roster_entries(
-    agent: Agent,
-    *,
-    now: datetime | None = None,
-    exclude: Agent | None = None,
-) -> tuple[MemberRosterEntry, ...]:
-    """Adapt an agent-session chain into shared numbered roster entries."""
+@dataclass(frozen=True, slots=True)
+class AgentSessionShellFacts:
+    """Per-shell display facts shared by the JUMP roster and card blocks."""
+
+    member: Agent
+    label: str
+    kind: str
+    glyph: str
+    accent: str
+    status_bucket: str
+
+
+def agent_session_shell_facts(agent: Agent) -> tuple[AgentSessionShellFacts, ...]:
+    """Return one facts row per concrete shell, in chronological shell order.
+
+    The JUMP roster numbers shells by chronological index, so card blocks
+    built from these facts match the roster by construction.
+    """
     agent_session_name = agent.presented_agent_name or ""
     shells = agent_session_shell_rows(agent)
     agent_shells = tuple(
@@ -149,8 +163,54 @@ def agent_session_roster_entries(
             strict=True,
         )
     }
-    entries: list[MemberRosterEntry] = []
+    facts: list[AgentSessionShellFacts] = []
     for member in shells:
+        if member.is_monitor:
+            facts.append(
+                AgentSessionShellFacts(
+                    member=member,
+                    label=agent_session_member_label(member, agent_session_name),
+                    kind="monitor",
+                    glyph=MONITOR_GLYPH,
+                    accent=MONITOR_GLYPH_COLOR,
+                    status_bucket=_monitor_roster_bucket(member),
+                )
+            )
+        elif member.is_gate:
+            facts.append(
+                AgentSessionShellFacts(
+                    member=member,
+                    label=agent_session_member_label(member, agent_session_name),
+                    kind="gate",
+                    glyph=GATE_GLYPH,
+                    accent=member.gate_accent or "#0BCDEC",
+                    status_bucket=_gate_roster_bucket(member),
+                )
+            )
+        else:
+            facts.append(
+                AgentSessionShellFacts(
+                    member=member,
+                    label=agent_session_member_label(member, agent_session_name),
+                    kind="agent",
+                    glyph="",
+                    accent=PHASE_DIVIDER_ACCENT,
+                    status_bucket=agent_buckets[member.identity],
+                )
+            )
+    return tuple(facts)
+
+
+def agent_session_roster_entries(
+    agent: Agent,
+    *,
+    now: datetime | None = None,
+    exclude: Agent | None = None,
+) -> tuple[MemberRosterEntry, ...]:
+    """Adapt an agent-session chain into shared numbered roster entries."""
+    entries: list[MemberRosterEntry] = []
+    for facts in agent_session_shell_facts(agent):
+        member = facts.member
         if exclude is not None and (
             member is exclude or member.identity == exclude.identity
         ):
@@ -158,16 +218,16 @@ def agent_session_roster_entries(
         if member.is_monitor:
             kind = f"{MONITOR_GLYPH} {MONITOR_PHASE_LABEL}"
             model = _monitor_roster_descriptor(member)
-            bucket = _monitor_roster_bucket(member)
+            bucket = facts.status_bucket
         elif member.is_gate:
             kind = f"{GATE_GLYPH} {GATE_PHASE_LABEL}"
             model = _gate_roster_descriptor(member)
-            bucket = _gate_roster_bucket(member)
+            bucket = facts.status_bucket
         else:
             phase_label = get_phase_label(member)
             kind = "agent" if phase_label == "AGENT" else phase_label
             model = member.model or "default"
-            bucket = agent_buckets[member.identity]
+            bucket = facts.status_bucket
         entries.append(
             MemberRosterEntry(
                 identity=member.identity,
@@ -177,7 +237,7 @@ def agent_session_roster_entries(
                     or member.role_suffix
                     or member.display_name
                 ),
-                label=agent_session_member_label(member, agent_session_name),
+                label=facts.label,
                 kind=kind,
                 status=member.display_status,
                 effective_bucket=bucket,
@@ -246,11 +306,13 @@ def agent_session_member_label(member: Agent, agent_session_name: str) -> str:
 
 __all__ = [
     "SESSION_IDENTITY_COLOR",
+    "AgentSessionShellFacts",
     "append_agent_session_fold_heading",
     "append_agent_session_member_roster",
     "effective_agent_session_fold_level",
     "agent_session_member_label",
     "agent_session_roster_entries",
     "agent_session_roster_heading_suffix",
+    "agent_session_shell_facts",
     "agent_session_shell_rows",
 ]

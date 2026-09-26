@@ -270,9 +270,6 @@ def build_gate_output(
     output = agent.get_live_reply_content()
     if heading:
         header = Text()
-        header.append("\n")
-        header.append("─" * 50 + "\n", style="dim")
-        header.append("\n")
         append_section_heading(header, "OUTPUT")
         if not output:
             header.append("No output yet.\n", style="dim italic")

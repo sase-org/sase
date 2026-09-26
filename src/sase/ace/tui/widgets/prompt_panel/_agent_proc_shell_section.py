@@ -218,9 +218,6 @@ def build_proc_shell_output(
 ) -> list[object]:
     """Return the bounded combined-log tail for one proc shell."""
     header = Text()
-    header.append("\n")
-    header.append("─" * 50 + "\n", style="dim")
-    header.append("\n")
     append_section_heading(header, "LOG TAIL")
     output = agent.proc_log_tail
     if not output:

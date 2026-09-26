@@ -134,9 +134,6 @@ class AgentAttemptDisplayMixin:
             context_parts.append(Text("No prompt file found.\n", style="dim italic"))
 
         reply_header = Text()
-        reply_header.append("\n")
-        reply_header.append("─" * 50 + "\n", style="dim")
-        reply_header.append("\n")
         append_section_heading(
             reply_header,
             f"ATTEMPT {record.attempt_number} REPLY",

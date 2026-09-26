@@ -115,9 +115,6 @@ def render_agent_prompt_hint_body(
 
         # Consolidated AGENT REPLY for agents with follow-ups (with hints)
         if agent.followup_agents:
-            reply_text.append("\n")
-            reply_text.append("─" * 50 + "\n", style="dim")
-            reply_text.append("\n")
             append_section_heading(reply_text, "AGENT REPLY")
 
             # Main agent's phase
@@ -177,9 +174,6 @@ def render_agent_prompt_hint_body(
             ):
                 response_content = format_output(step_output)
 
-            reply_text.append("\n")
-            reply_text.append("─" * 50 + "\n", style="dim")
-            reply_text.append("\n")
             append_section_heading(reply_text, "AGENT CHAT")
 
             chunks = agent.get_timestamped_reply_chunks()
@@ -210,9 +204,6 @@ def render_agent_prompt_hint_body(
                 reply_text.append("No response file found.\n", style="dim italic")
         else:
             # AGENT REPLY section for running agents (with hints)
-            reply_text.append("\n")
-            reply_text.append("─" * 50 + "\n", style="dim")
-            reply_text.append("\n")
             append_section_heading(reply_text, "AGENT REPLY")
 
             live_reply = agent.get_live_reply_content()
