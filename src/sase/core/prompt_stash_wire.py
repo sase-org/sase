@@ -9,6 +9,11 @@ from sase.core.wire import known_field_kwargs
 
 PROMPT_STASH_WIRE_SCHEMA_VERSION = 1
 
+#: Wire schema version for the trash lifecycle endpoints. Versioned
+#: separately from :data:`PROMPT_STASH_WIRE_SCHEMA_VERSION` so the existing
+#: v1 bindings keep their shape while lifecycle results evolve independently.
+PROMPT_STASH_LIFECYCLE_WIRE_SCHEMA_VERSION = 1
+
 
 @dataclass(frozen=True)
 class PromptStashCursorWire:
@@ -54,6 +59,48 @@ class PromptStashSnapshotWire:
     entries: list[PromptStashEntryWire] = field(default_factory=list)
     stats: _PromptStashStoreStatsWire = field(
         default_factory=_PromptStashStoreStatsWire
+    )
+
+
+@dataclass(frozen=True)
+class PromptStashTrashRecordWire:
+    """One trashed stash row: the complete entry plus its UTC deletion time."""
+
+    trashed_at: str
+    entry: PromptStashEntryWire
+
+
+@dataclass(frozen=True)
+class PromptStashLifecycleSnapshotWire:
+    """Authoritative view of both stash collections.
+
+    ``active`` preserves on-disk order. ``trash`` is newest-deleted-first.
+    """
+
+    schema_version: int
+    active: list[PromptStashEntryWire] = field(default_factory=list)
+    trash: list[PromptStashTrashRecordWire] = field(default_factory=list)
+    stats: _PromptStashStoreStatsWire = field(
+        default_factory=_PromptStashStoreStatsWire
+    )
+
+
+@dataclass(frozen=True)
+class PromptStashLifecycleOutcomeWire:
+    """Result of a trash lifecycle mutation.
+
+    ``changed`` holds ids that moved collections and remain there, in caller
+    input order. ``evicted`` holds ids permanently deleted by trash-limit
+    enforcement in the same transaction, oldest first.
+    """
+
+    schema_version: int
+    changed: list[str] = field(default_factory=list)
+    evicted: list[str] = field(default_factory=list)
+    snapshot: PromptStashLifecycleSnapshotWire = field(
+        default_factory=lambda: PromptStashLifecycleSnapshotWire(
+            schema_version=PROMPT_STASH_LIFECYCLE_WIRE_SCHEMA_VERSION
+        )
     )
 
 
@@ -144,15 +191,76 @@ def prompt_stash_pop_outcome_from_dict(
     )
 
 
+def _require_lifecycle_schema(schema: int) -> None:
+    if schema != PROMPT_STASH_LIFECYCLE_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            "prompt stash lifecycle wire schema mismatch: got "
+            f"{schema}, expected {PROMPT_STASH_LIFECYCLE_WIRE_SCHEMA_VERSION}"
+        )
+
+
+def _prompt_stash_trash_record_from_dict(
+    data: dict[str, Any],
+) -> PromptStashTrashRecordWire:
+    if not isinstance(data, dict):
+        raise ValueError(
+            f"prompt stash trash record must be a dict, got {type(data).__name__}"
+        )
+    return PromptStashTrashRecordWire(
+        trashed_at=str(data["trashed_at"]),
+        entry=_prompt_stash_entry_from_dict(data["entry"]),
+    )
+
+
+def prompt_stash_lifecycle_snapshot_from_dict(
+    data: dict[str, Any],
+) -> PromptStashLifecycleSnapshotWire:
+    schema = int(data["schema_version"])
+    _require_lifecycle_schema(schema)
+    return PromptStashLifecycleSnapshotWire(
+        schema_version=schema,
+        active=[
+            _prompt_stash_entry_from_dict(item) for item in data.get("active") or []
+        ],
+        trash=[
+            _prompt_stash_trash_record_from_dict(item)
+            for item in data.get("trash") or []
+        ],
+        stats=_PromptStashStoreStatsWire(
+            **known_field_kwargs(_PromptStashStoreStatsWire, data.get("stats") or {})
+        ),
+    )
+
+
+def prompt_stash_lifecycle_outcome_from_dict(
+    data: dict[str, Any],
+) -> PromptStashLifecycleOutcomeWire:
+    schema = int(data["schema_version"])
+    _require_lifecycle_schema(schema)
+    return PromptStashLifecycleOutcomeWire(
+        schema_version=schema,
+        changed=[str(item) for item in data.get("changed") or []],
+        evicted=[str(item) for item in data.get("evicted") or []],
+        snapshot=prompt_stash_lifecycle_snapshot_from_dict(data["snapshot"]),
+    )
+
+
 __all__ = [
+    "PROMPT_STASH_LIFECYCLE_WIRE_SCHEMA_VERSION",
     "PROMPT_STASH_WIRE_SCHEMA_VERSION",
     "PromptStashCursorWire",
     "PromptStashEntryWire",
+    "PromptStashLifecycleOutcomeWire",
+    "PromptStashLifecycleSnapshotWire",
     "PromptStashPopOutcomeWire",
     "PromptStashSnapshotWire",
+    "PromptStashTrashRecordWire",
     "_PromptStashStoreStatsWire",
     "_prompt_stash_cursor_from_dict",
     "_prompt_stash_entry_from_dict",
+    "_prompt_stash_trash_record_from_dict",
+    "prompt_stash_lifecycle_outcome_from_dict",
+    "prompt_stash_lifecycle_snapshot_from_dict",
     "prompt_stash_pop_outcome_from_dict",
     "prompt_stash_snapshot_from_dict",
     "prompt_stash_wire_to_json_dict",

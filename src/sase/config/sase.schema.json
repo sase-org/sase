@@ -1680,6 +1680,19 @@
             }
           }
         },
+        "prompt_stash": {
+          "type": "object",
+          "description": "Settings for the prompt stash Trash lifecycle.",
+          "additionalProperties": false,
+          "properties": {
+            "trash_limit": {
+              "type": "integer",
+              "description": "Maximum Trash rows kept for discarded stash drafts. This is an entry-count limit, not a byte quota. Zero disables recovery: rows marked for Trash are permanently discarded instead. The limit is enforced inside the Rust stash transaction.",
+              "minimum": 0,
+              "default": 20
+            }
+          }
+        },
         "current_project": {
           "type": "object",
           "description": "Current-project indicator and session seed settings. The current project is derived from the VCS xprompt MRU store; launching an agent is what moves it.",

@@ -127,6 +127,12 @@ REQUIRED_BINDINGS = (
     "agent_name_template_tokens_after",
     "set_prompt_stash_pinned",
     "rewrite_prompt_stash",
+    "prompt_stash_lifecycle_wire_schema_version",
+    "read_prompt_stash_lifecycle",
+    "trash_prompt_stash",
+    "restore_prompt_stash",
+    "purge_prompt_stash",
+    "reconcile_prompt_stash_trash",
     "plan_validate",
     "plan_frontmatter_schema",
     "plan_reference_parse",
@@ -1409,6 +1415,132 @@ def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
         )
         return False
     return True
+
+
+def _validate_prompt_stash_lifecycle_schema(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.prompt_stash_lifecycle_wire_schema_version())
+    except Exception as exc:
+        _error(f"prompt_stash_lifecycle_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != 1:
+        _error(
+            "prompt_stash_lifecycle_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected 1"
+        )
+        return False
+    return True
+
+
+def _validate_prompt_stash_lifecycle_contract(module: ModuleType) -> bool:
+    """Exercise the trash lifecycle read/mutation round trip.
+
+    Version metadata cannot distinguish an installed wheel that exports the
+    new names but still skips tagged Trash rows or enforces the limit
+    outside the transaction. This probe exercises the smallest
+    trash/restore/purge/reconcile cycle the sase checkout relies on.
+    """
+
+    trashed_at = "2026-09-26T14:00:00+00:00"
+
+    def entry(entry_id: str) -> dict[str, object]:
+        return {
+            "id": entry_id,
+            "created_at": "2026-09-26T13:00:00+00:00",
+            "text": f"draft {entry_id}",
+        }
+
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-stash-probe-") as tmp:
+        path = str(Path(tmp) / "prompt_stash.jsonl")
+        zero_path = str(Path(tmp) / "prompt_stash_zero.jsonl")
+        try:
+            module.append_prompt_stash(path, entry("a"))
+            module.append_prompt_stash(path, entry("b"))
+            lifecycle = module.read_prompt_stash_lifecycle(path)
+            trashed = module.trash_prompt_stash(path, ["a"], 20, trashed_at)
+            restored = module.restore_prompt_stash(path, ["a"])
+            module.trash_prompt_stash(path, ["a"], 20, trashed_at)
+            purged = module.purge_prompt_stash(path, ["a"])
+            module.append_prompt_stash(path, entry("c"))
+            module.trash_prompt_stash(path, ["b", "c"], 20, trashed_at)
+            reconciled = module.reconcile_prompt_stash_trash(path, 1)
+            module.append_prompt_stash(zero_path, entry("x"))
+            zeroed = module.trash_prompt_stash(zero_path, ["x"], 0, trashed_at)
+        except Exception as exc:
+            _error(f"prompt stash lifecycle probe failed: {exc}")
+            return False
+
+    valid = True
+    if (
+        not isinstance(lifecycle, dict)
+        or lifecycle.get("schema_version") != 1
+        or [row.get("id") for row in lifecycle.get("active", [])] != ["a", "b"]
+        or lifecycle.get("trash") != []
+    ):
+        _error(f"prompt stash lifecycle read probe returned {lifecycle!r}")
+        valid = False
+    trash_rows = (
+        trashed.get("snapshot", {}).get("trash", [])
+        if isinstance(trashed, dict)
+        else None
+    )
+    first_row = trash_rows[0] if isinstance(trash_rows, list) and trash_rows else None
+    if (
+        not isinstance(trashed, dict)
+        or trashed.get("changed") != ["a"]
+        or trashed.get("evicted") != []
+        or not isinstance(first_row, dict)
+        or first_row.get("trashed_at") != trashed_at
+        or (first_row.get("entry", {}) or {}).get("id") != "a"
+        or (first_row.get("entry", {}) or {}).get("text") != "draft a"
+    ):
+        _error(f"prompt stash trash probe returned {trashed!r}")
+        valid = False
+    if (
+        not isinstance(restored, dict)
+        or restored.get("changed") != ["a"]
+        or [row.get("id") for row in restored.get("snapshot", {}).get("active", [])]
+        != ["b", "a"]
+    ):
+        _error(f"prompt stash restore probe returned {restored!r}")
+        valid = False
+    if (
+        not isinstance(purged, dict)
+        or purged.get("changed") != ["a"]
+        or purged.get("snapshot", {}).get("trash") != []
+    ):
+        _error(f"prompt stash purge probe returned {purged!r}")
+        valid = False
+    reconciled_trash = (
+        reconciled.get("snapshot", {}).get("trash", [])
+        if isinstance(reconciled, dict)
+        else None
+    )
+    reconciled_ids = (
+        [
+            row.get("entry", {}).get("id") if isinstance(row, dict) else None
+            for row in reconciled_trash
+        ]
+        if isinstance(reconciled_trash, list)
+        else None
+    )
+    if (
+        not isinstance(reconciled, dict)
+        or reconciled.get("changed") != []
+        or reconciled.get("evicted") != ["b"]
+        or reconciled_ids != ["c"]
+    ):
+        _error(f"prompt stash reconcile probe returned {reconciled!r}")
+        valid = False
+    if (
+        not isinstance(zeroed, dict)
+        or zeroed.get("changed") != []
+        or zeroed.get("evicted") != ["x"]
+        or zeroed.get("snapshot", {}).get("trash") != []
+    ):
+        _error(f"prompt stash zero-limit trash probe returned {zeroed!r}")
+        valid = False
+    return valid
 
 
 def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
@@ -2959,6 +3091,10 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_agent_stats_work_schema(module):
         return 1
     if not _validate_saved_group_wire_fields(module):
+        return 1
+    if not _validate_prompt_stash_lifecycle_schema(module):
+        return 1
+    if not _validate_prompt_stash_lifecycle_contract(module):
         return 1
     if not _validate_project_lifecycle_contract(module):
         return 1
