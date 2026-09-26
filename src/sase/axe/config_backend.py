@@ -8,8 +8,8 @@ core owns exact-key composition, inventory, provenance, and mutation logic.
 from __future__ import annotations
 
 from dataclasses import dataclass, field as dataclass_field
-from typing import Any
-from collections.abc import Sequence
+from typing import Any, Literal
+from collections.abc import Mapping, Sequence
 
 from sase.config._edit_plan import apply_config_edit, build_edit_plan_result
 from sase.config._edit_types import AppliedResult, EditPlanResult
@@ -122,6 +122,62 @@ class AxeRawContribution:
         )
 
 
+AxeDeclaringSource = Literal["builtin", "plugin", "user"]
+"""Declaring source of one AXE inventory entry.
+
+Mirrors the Rust core's ``classify_source`` so Python never invents a
+second set of origin rules: ``builtin`` and ``plugin`` layers keep their
+kind, while ``user``, ``overlay``, and project-``local`` layers are all
+``user``. Source is the first config layer that declared the entity, not
+the layer that last changed one of its fields.
+"""
+
+AXE_DECLARING_SOURCES: tuple[str, ...] = ("builtin", "plugin", "user")
+"""Closed set of valid :data:`AxeDeclaringSource` values, in wire order."""
+
+
+@dataclass(frozen=True)
+class AxeEntityOrigin:
+    """Declaring source of one routine or job inventory entry."""
+
+    source: AxeDeclaringSource
+    declared_by: str
+
+
+def _parse_entry_origin(payload: Mapping[str, Any], *, path: str) -> AxeEntityOrigin:
+    """Parse the required origin of one inventory entry wire payload.
+
+    Both fields are required: the core never silently defaults an
+    origin, so Python must not either. Raises a :class:`ValueError`
+    naming the entry and the offending value when either field is
+    missing or malformed.
+    """
+    source = payload.get("source")
+    if source not in AXE_DECLARING_SOURCES:
+        expected = "|".join(AXE_DECLARING_SOURCES)
+        if "source" not in payload and "declared_by" not in payload:
+            raise ValueError(
+                f"invalid axe inventory origin for `{path}`: "
+                f"entry has no `source`/`declared_by` fields; the "
+                f"installed sase_core_rs binding predates the "
+                f"declaring-source contract — rebuild it from a "
+                f"sase-core checkout past sase-core-revision.txt"
+            )
+        raise ValueError(
+            f"invalid axe inventory origin for `{path}`: "
+            f"expected `source` to be one of ({expected}), "
+            f"got {source!r}"
+        )
+    declared_by = payload.get("declared_by")
+    if not isinstance(declared_by, str) or not declared_by:
+        raise ValueError(
+            f"invalid axe inventory origin for `{path}`: "
+            f"expected non-empty `declared_by` layer label, "
+            f"got {declared_by!r}"
+        )
+    return AxeEntityOrigin(source=source, declared_by=declared_by)
+
+
 @dataclass(frozen=True)
 class AxeInventoryEntry:
     """Effective lumberjack, base chop, or generated chop instance."""
@@ -133,14 +189,23 @@ class AxeInventoryEntry:
     enabled: bool
     mutable: bool
     generated: bool
+    source: AxeDeclaringSource
+    declared_by: str
     base_selector: AxeEntrySelector | None
     target_key: str | None
     field_provenance: tuple[AxeFieldProvenance, ...]
     contributions: tuple[AxeRawContribution, ...]
 
+    @property
+    def origin(self) -> AxeEntityOrigin:
+        """Return this entry's declaring source as a typed projection."""
+        return AxeEntityOrigin(source=self.source, declared_by=self.declared_by)
+
     @classmethod
     def from_wire(cls, payload: dict[str, Any]) -> AxeInventoryEntry:
         raw_base = payload.get("base_selector")
+        path = str(payload.get("path", "<unknown>"))
+        origin = _parse_entry_origin(payload, path=path)
         return cls(
             selector=AxeEntrySelector.from_wire(payload["selector"]),
             key_path=tuple(str(item) for item in payload["key_path"]),
@@ -149,6 +214,8 @@ class AxeInventoryEntry:
             enabled=bool(payload["enabled"]),
             mutable=bool(payload["mutable"]),
             generated=bool(payload["generated"]),
+            source=origin.source,
+            declared_by=origin.declared_by,
             base_selector=(
                 AxeEntrySelector.from_wire(raw_base)
                 if isinstance(raw_base, dict)
@@ -223,6 +290,32 @@ class AxeConfigComposition:
             (item for item in self.entries if item.selector == selector),
             None,
         )
+
+    def routine_origins(self) -> dict[str, AxeEntityOrigin]:
+        """Map every effective routine name to its declaring origin.
+
+        Built from the same inventory entries the core composed, so the
+        map and the effective config can never disagree about which
+        routines exist.
+        """
+        return {
+            item.selector.lumberjack: item.origin
+            for item in self.entries
+            if item.selector.kind == "lumberjack"
+        }
+
+    def chop_origins(self) -> dict[tuple[str, str], AxeEntityOrigin]:
+        """Map every effective ``(routine, job)`` pair to its origin.
+
+        Generated job instances carry their own entries inheriting the
+        base job's origin, so generated runtime jobs resolve here under
+        their instance name without any caller-side fallback.
+        """
+        return {
+            (item.selector.lumberjack, item.selector.chop): item.origin
+            for item in self.entries
+            if item.selector.kind == "chop" and item.selector.chop is not None
+        }
 
     def chop_provenance(self, lumberjack: str, chop: str) -> dict[str, str]:
         """Project exact provenance to the runtime's per-chop field view."""
@@ -432,7 +525,10 @@ def apply_axe_entry_edit(plan: AxeMutationPlan) -> AppliedResult:
 
 
 __all__ = [
+    "AXE_DECLARING_SOURCES",
     "AxeConfigComposition",
+    "AxeDeclaringSource",
+    "AxeEntityOrigin",
     "AxeEntryPreview",
     "AxeEntrySelector",
     "AxeFieldOperation",

@@ -29,7 +29,13 @@ _LAZY_EXPORTS = {
     ),
     # Config
     "AxeConfig": ("sase.axe.config", "AxeConfig"),
+    "AXE_DECLARING_SOURCES": (
+        "sase.axe.config_backend",
+        "AXE_DECLARING_SOURCES",
+    ),
     "AxeConfigComposition": ("sase.axe.config_backend", "AxeConfigComposition"),
+    "AxeDeclaringSource": ("sase.axe.config_backend", "AxeDeclaringSource"),
+    "AxeEntityOrigin": ("sase.axe.config_backend", "AxeEntityOrigin"),
     "AxeEntryPreview": ("sase.axe.config_backend", "AxeEntryPreview"),
     "AxeEntrySelector": ("sase.axe.config_backend", "AxeEntrySelector"),
     "AxeFieldOperation": ("sase.axe.config_backend", "AxeFieldOperation"),
@@ -133,8 +139,11 @@ __all__ = [
     "Lumberjack",
     "Orchestrator",
     # Config
+    "AXE_DECLARING_SOURCES",
     "AxeConfig",
     "AxeConfigComposition",
+    "AxeDeclaringSource",
+    "AxeEntityOrigin",
     "AxeEntryPreview",
     "AxeEntrySelector",
     "AxeFieldOperation",
@@ -223,7 +232,10 @@ if TYPE_CHECKING:
     )
     from sase.axe.config import AxeConfig, LumberjackConfig, load_axe_config
     from sase.axe.config_backend import (
+        AXE_DECLARING_SOURCES,
         AxeConfigComposition,
+        AxeDeclaringSource,
+        AxeEntityOrigin,
         AxeEntryPreview,
         AxeEntrySelector,
         AxeFieldOperation,

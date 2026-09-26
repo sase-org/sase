@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 import threading
 import time
@@ -26,6 +26,7 @@ from ._config_types import (
     LumberjackConfig,
 )
 from .chop_env import ChopEnvValue
+from .config_backend import AxeEntityOrigin
 
 _PROJECT_TARGET_CACHE_SECONDS = 30.0
 _project_target_cache_lock = threading.RLock()
@@ -255,6 +256,30 @@ def _render_target_project(value: object, target: dict[str, Any]) -> object:
         ) from exc
 
 
+def _resolve_chop_origin(
+    *,
+    lumberjack_name: str,
+    base_name: str,
+    instance_id: str,
+    routine_origin: AxeEntityOrigin | None,
+    chop_origins: Mapping[tuple[str, str], AxeEntityOrigin] | None,
+) -> AxeEntityOrigin | None:
+    """Resolve one job instance's declaring origin from the inventory maps.
+
+    Generated target instances carry their own inventory entries
+    inheriting the base job's origin, so the instance name resolves
+    directly; the base name and then the parent routine's origin are
+    fallbacks for maps built from a partial projection.
+    """
+    if chop_origins:
+        hit = chop_origins.get((lumberjack_name, instance_id))
+        if hit is None and instance_id != base_name:
+            hit = chop_origins.get((lumberjack_name, base_name))
+        if hit is not None:
+            return hit
+    return routine_origin
+
+
 def _chop_from_raw(
     *,
     lumberjack_name: str,
@@ -263,6 +288,7 @@ def _chop_from_raw(
     base_config: dict[str, Any],
     lumberjack_env: dict[str, ChopEnvValue],
     provenance: dict[str, str],
+    origin: AxeEntityOrigin | None = None,
 ) -> ChopConfig:
     overrides = dict(instance.get("overrides") or {})
     prohibited_overrides = sorted({"name", "for_each"}.intersection(overrides))
@@ -340,6 +366,8 @@ def _chop_from_raw(
         target=target,
         vars=deepcopy(raw_vars) if isinstance(raw_vars, dict) else {},
         provenance=instance_provenance,
+        source=origin.source if origin is not None else "user",
+        declared_by=origin.declared_by if origin is not None else "",
     )
 
 
@@ -349,14 +377,23 @@ def parse_lumberjacks(
     provenance: dict[str, str] | None = None,
     exact_chop_provenance: dict[tuple[str, str], dict[str, str]] | None = None,
     project_target_rows: ProjectTargetRowsLoader = project_target_rows,
+    routine_origins: Mapping[str, AxeEntityOrigin] | None = None,
+    chop_origins: Mapping[tuple[str, str], AxeEntityOrigin] | None = None,
 ) -> dict[str, LumberjackConfig]:
-    """Turn a core-validated ``lumberjacks:`` mapping into dataclasses."""
+    """Turn a core-validated ``lumberjacks:`` mapping into dataclasses.
+
+    Origin maps come from the same cached composition that produced
+    *raw*; entries are never re-derived from names or field provenance
+    here. Generated target instances resolve their base job's inherited
+    origin through *chop_origins* under their instance name.
+    """
     provenance = provenance or {}
     exact_chop_provenance = exact_chop_provenance or {}
     result: dict[str, LumberjackConfig] = {}
     for name, cfg in raw.items():
         if not isinstance(cfg, dict):
             continue
+        routine_origin = (routine_origins or {}).get(name)
         raw_chops = cfg.get("chops", [])
         chops: list[ChopConfig] = []
         lumberjack_env = _normalize_env(cfg.get("env"))
@@ -410,6 +447,13 @@ def parse_lumberjacks(
                         base_config=entry,
                         lumberjack_env=lumberjack_env,
                         provenance=entry_provenance,
+                        origin=_resolve_chop_origin(
+                            lumberjack_name=name,
+                            base_name=chop_name,
+                            instance_id=chop_name,
+                            routine_origin=routine_origin,
+                            chop_origins=chop_origins,
+                        ),
                     )
                 )
                 continue
@@ -464,6 +508,7 @@ def parse_lumberjacks(
             for instance in expansion.get("instances", []):
                 if not isinstance(instance, dict):
                     continue
+                instance_id = str(instance.get("instance_id") or chop_name)
                 chops.append(
                     _chop_from_raw(
                         lumberjack_name=name,
@@ -472,6 +517,13 @@ def parse_lumberjacks(
                         base_config=entry,
                         lumberjack_env=lumberjack_env,
                         provenance=entry_provenance,
+                        origin=_resolve_chop_origin(
+                            lumberjack_name=name,
+                            base_name=chop_name,
+                            instance_id=instance_id,
+                            routine_origin=routine_origin,
+                            chop_origins=chop_origins,
+                        ),
                     )
                 )
         chop_timeout = parse_duration(cfg.get("chop_timeout"))
@@ -489,5 +541,9 @@ def parse_lumberjacks(
             wait_runners=wait_runners,
             env=lumberjack_env,
             chops=chops,
+            source=routine_origin.source if routine_origin is not None else "user",
+            declared_by=routine_origin.declared_by
+            if routine_origin is not None
+            else "",
         )
     return result

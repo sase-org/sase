@@ -88,6 +88,8 @@ class AxeRefreshTargetedMixin(AxeRefreshFullMixin):
                     target_key=existing.target_key,
                     interval_seconds=existing.interval_seconds,
                     interval_source=existing.interval_source,
+                    source=existing.source,
+                    declared_by=existing.declared_by,
                     cache=cache,
                     tail_run_logs=True,
                 )

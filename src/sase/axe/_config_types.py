@@ -9,6 +9,7 @@ from functools import lru_cache
 from typing import Any
 
 from .chop_env import ChopEnvValue
+from .config_backend import AxeDeclaringSource
 
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
 DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
@@ -181,6 +182,13 @@ class ChopConfig:
     provenance: dict[str, str] = field(default_factory=dict)
     description_summary: str = ""
     description_body: str = ""
+    # Declaring source from the cached AXE inventory (``builtin`` |
+    # ``plugin`` | ``user``) and the ``name:path`` label of the first
+    # layer that declared this job. Generated target instances inherit
+    # their base job's origin. Defaults cover synthetic configs built
+    # without a composition; the real load path always fills these in.
+    source: AxeDeclaringSource = "user"
+    declared_by: str = ""
 
     @property
     def script_name(self) -> str:
@@ -208,6 +216,12 @@ class LumberjackConfig:
     chops: list[ChopConfig] = field(default_factory=list)
     description_summary: str = ""
     description_body: str = ""
+    # Declaring source from the cached AXE inventory (``builtin`` |
+    # ``plugin`` | ``user``) and the ``name:path`` label of the first
+    # layer that declared this routine. Defaults cover synthetic configs
+    # built without a composition; the real load path always fills these.
+    source: AxeDeclaringSource = "user"
+    declared_by: str = ""
 
     @property
     def chop_names(self) -> list[str]:

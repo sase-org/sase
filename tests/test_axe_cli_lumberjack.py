@@ -29,8 +29,8 @@ def test_handle_axe_lumberjack_list_prints_lumberjacks(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    # 4 routines × (name + description + interval + "jobs:" + 1 job).
-    assert len(lines) == 20
+    # 4 routines × (name + description + interval + source + "jobs:" + 1 job).
+    assert len(lines) == 24
     assert "hooks" in output
     assert "checks" in output
     assert "comments" in output

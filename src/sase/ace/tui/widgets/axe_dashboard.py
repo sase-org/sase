@@ -14,6 +14,7 @@ from ..util.trace import tui_trace
 from ._axe_dashboard_output import (
     AxeOutputSection,
     LumberjackSummary,
+    render_origin_detail_line,
 )
 from ._axe_dashboard_render import (
     chop_status_label as _chop_status_label,
@@ -382,10 +383,18 @@ class AxeDashboard(Static):
             )
 
             if run is None:
-                # Empty state: configured job with no recorded runs.
-                output_section.update(
-                    Text("No runs recorded for this job yet.", style="dim italic")
+                # Empty state: configured job with no recorded runs. The
+                # declaring origin still shows: the job is configured even
+                # though it never ran.
+                empty = Text()
+                origin_line = render_origin_detail_line(
+                    snapshot.source, snapshot.declared_by
                 )
+                if origin_line is not None:
+                    empty.append_text(origin_line)
+                    empty.append("\n\n")
+                empty.append("No runs recorded for this job yet.", style="dim italic")
+                output_section.update(empty)
                 return
 
             output_section.update_chop_run(
@@ -394,6 +403,8 @@ class AxeDashboard(Static):
                 run.entry,
                 run.output_tail,
                 width=_section_width(output_section),
+                source=snapshot.source,
+                declared_by=snapshot.declared_by,
             )
 
     def update_countdown(self, countdown: int) -> None:

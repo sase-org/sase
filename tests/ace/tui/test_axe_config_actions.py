@@ -63,6 +63,8 @@ def _composition(path: Path) -> AxeConfigComposition:
         enabled=False,
         mutable=True,
         generated=False,
+        source="user",
+        declared_by="user",
         base_selector=None,
         target_key=None,
         field_provenance=(

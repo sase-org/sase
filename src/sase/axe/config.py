@@ -34,7 +34,7 @@ from ._config_types import (
     ChopConfig,
     LumberjackConfig,
 )
-from .config_backend import AxeConfigComposition
+from .config_backend import AxeConfigComposition, AxeEntityOrigin
 
 _keyed_config_cache_lock = threading.RLock()
 _keyed_config_cache_token: tuple[Any, ...] | None = None
@@ -46,6 +46,8 @@ def _parse_lumberjacks(
     *,
     provenance: dict[str, str] | None = None,
     exact_chop_provenance: dict[tuple[str, str], dict[str, str]] | None = None,
+    routine_origins: dict[str, AxeEntityOrigin] | None = None,
+    chop_origins: dict[tuple[str, str], AxeEntityOrigin] | None = None,
 ) -> dict[str, LumberjackConfig]:
     """Parse lumberjacks while retaining the patchable project-row hook."""
     return parse_lumberjacks(
@@ -53,6 +55,8 @@ def _parse_lumberjacks(
         provenance=provenance,
         exact_chop_provenance=exact_chop_provenance,
         project_target_rows=_project_target_rows,
+        routine_origins=routine_origins,
+        chop_origins=chop_origins,
     )
 
 
@@ -62,13 +66,15 @@ def _effective_axe_composition(data: dict[str, Any]) -> AxeConfigComposition:
 
     # `load_merged_config` is an established test/injection patch surface.
     # When replaced, treat its supplied document as a synthetic layer while
-    # still routing composition through Rust.
+    # still routing composition through Rust. The synthetic layer is named
+    # `user`: the core contract rejects unknown layer kinds, and an
+    # injected merged document represents operator-supplied declarations.
     if getattr(load_config_layers, "__module__", "") != "sase.config.core":
         layers = load_config_layers()
     elif getattr(load_merged_config, "__module__", "") != "sase.config.core":
         layers = [
             ConfigLayer(
-                name="merged",
+                name="user",
                 path=None,
                 exists=True,
                 list_strategy="replace",
@@ -92,7 +98,23 @@ def _effective_axe_composition(data: dict[str, Any]) -> AxeConfigComposition:
 
 def load_axe_config() -> AxeConfig:
     """Load and fail-closed validate the effective axe configuration."""
-    composition = _effective_axe_composition(load_merged_config())
+    try:
+        composition = _effective_axe_composition(load_merged_config())
+    except ValueError as exc:
+        # Malformed inventory wire (for example a stale core binding that
+        # predates the required origin fields) degrades like any other
+        # invalid composition instead of crashing the caller or silently
+        # assigning a panel.
+        raise AxeConfigError(
+            [
+                _AxeConfigDiagnostic(
+                    code="axe_config_origin_invalid",
+                    message=str(exc),
+                    path="axe",
+                    severity="error",
+                )
+            ]
+        ) from exc
     if composition.diagnostics:
         raise AxeConfigError(
             [
@@ -129,6 +151,8 @@ def load_axe_config() -> AxeConfig:
             raw_lumberjacks,
             provenance=provenance,
             exact_chop_provenance=exact_chop_provenance,
+            routine_origins=composition.routine_origins(),
+            chop_origins=composition.chop_origins(),
         )
         if isinstance(raw_lumberjacks, dict)
         else {}

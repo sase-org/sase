@@ -266,6 +266,9 @@ def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
         console.print(f"  [dim]interval:[/dim] {lumberjack.interval}s")
         if lumberjack.wait_runners is not None:
             console.print(f"  [dim]wait_runners:[/dim] {lumberjack.wait_runners}")
+        console.print(
+            f"  [dim]source:[/dim] {lumberjack.source} ({lumberjack.declared_by})"
+        )
         enabled_chops = [chop for chop in lumberjack.chops if chop.enabled]
         if enabled_chops:
             console.print("  [dim]jobs:[/dim]")

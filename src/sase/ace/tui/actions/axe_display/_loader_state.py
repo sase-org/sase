@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ...util.debounce import DetailPanelDebouncer
     from ...widgets.bgcmd_list import AxeItem
     from ._panels import ServicesPanelIndex
+    from sase.axe.config_backend import AxeEntityOrigin
     from ._data import (
         AxeStatusDegradation,
         AxeViewType,
@@ -62,6 +63,12 @@ class AxeLoaderState:
     _bgcmd_focus_slot: int | None
     _axe_lumberjack_names: list[str]
     _axe_lumberjack_idx: int | None
+    # Declaring origins applied atomically with ``_axe_lumberjack_names``
+    # by the collector apply path. Keyed by routine name and by
+    # ``(routine, job)`` respectively; rebuilt on every collect (full or
+    # header-only) and untouched by targeted refreshes.
+    _axe_routine_origins: dict[str, AxeEntityOrigin]
+    _axe_chop_origins: dict[tuple[str, str], AxeEntityOrigin]
     _axe_items: list[AxeItem]
     _axe_last_idx: int
     _axe_last_item_key: AxeItemKey | None

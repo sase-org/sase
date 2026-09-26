@@ -45,6 +45,25 @@ _OVERVIEW_LOG_TAIL_LINES = 6
 _OverviewLayout = Literal["wide", "compact"]
 
 
+def render_origin_detail_line(source: str, declared_by: str) -> Text | None:
+    """Return the ``Source: <source> (<declared_by>)`` detail line, if known.
+
+    Shared by the routine overview and job detail bodies so both use the
+    service-proc wording. This is configuration origin (first declaring
+    layer), never execution source (``scheduled``/``manual``/``oneshot``).
+    Returns None when the snapshot carries no origin (synthetic snapshots
+    built without a config), in which case callers render no line rather
+    than an arbitrary panel claim.
+    """
+    if not source:
+        return None
+    line = Text()
+    line.append("  ")
+    line.append("Source: ", style="bold #87D7FF")
+    line.append(f"{source} ({declared_by})", style="dim")
+    return line
+
+
 def _overview_layout(width: int | None) -> _OverviewLayout:
     return (
         "compact"
@@ -250,14 +269,29 @@ class AxeOutputSection(Static):
         output: str,
         *,
         width: int | None = None,
+        source: str = "",
+        declared_by: str = "",
     ) -> None:
-        """Render a cached RESULT card, optional REPORT, and ANSI OUTPUT."""
+        """Render a cached RESULT card, optional REPORT, and ANSI OUTPUT.
+
+        The ``source``/``declared_by`` pair is the job's configuration
+        origin and is rendered ahead of the run-scoped card so it never
+        mixes with the run's execution source. It stays outside the
+        card cache, which is keyed on run identity alone.
+        """
         AxeOutputSection._clear_cached_lumberjack_overview(self)
-        text = render_cached_chop_card_and_report(
-            lumberjack_name,
-            chop_name,
-            entry,
-            width=width,
+        text = Text()
+        origin_line = render_origin_detail_line(source, declared_by)
+        if origin_line is not None:
+            text.append_text(origin_line)
+            text.append("\n\n")
+        text.append_text(
+            render_cached_chop_card_and_report(
+                lumberjack_name,
+                chop_name,
+                entry,
+                width=width,
+            )
         )
         line_count = len(output.splitlines()) if output else 0
         text.append("\n\n")
@@ -518,6 +552,14 @@ class AxeOutputSection(Static):
             text.append(sep)
             text.append("Skipped: ", style="bold #87D7FF")
             text.append(str(metrics.skipped_total()), style="#00D7AF")
+
+        # Declaring origin in the service-proc wording. Omitted (not
+        # defaulted) when the snapshot carries no origin so a synthetic
+        # snapshot never claims a panel.
+        if snapshot.source:
+            text.append(sep)
+            text.append("Source: ", style="bold #87D7FF")
+            text.append(f"{snapshot.source} ({snapshot.declared_by})", style="dim")
 
         text.append("\n\n")
 

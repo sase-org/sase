@@ -101,6 +101,8 @@ def init_late_startup_state(
     # Lumberjack cycling state (new axe architecture)
     self._axe_lumberjack_names = []
     self._axe_lumberjack_idx = None
+    self._axe_routine_origins = {}
+    self._axe_chop_origins = {}
 
     self._axe_items = []
     self._axe_last_idx = 0

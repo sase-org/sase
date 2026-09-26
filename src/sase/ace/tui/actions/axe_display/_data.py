@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 from sase.axe import config as axe_config
 from sase.axe.chop_overrun import ChopOverrun, classify_chop_overrun
 from sase.axe.chop_script_runner import discover_chop_script
+from sase.axe.config_backend import AxeEntityOrigin
 from sase.axe.state import (
     ChopRunEntry,
     LumberjackMetrics,
@@ -99,6 +100,11 @@ class ChopSnapshot:
     interval_seconds: int | None = None
     interval_source: Literal["runtime", "config"] | None = None
     overrun: ChopOverrun | None = None
+    # Declaring origin of this job (``builtin`` | ``plugin`` | ``user``)
+    # plus the ``name:path`` label of its first declaring layer. This is
+    # configuration origin, not execution source (`scheduled`/`manual`).
+    source: str = ""
+    declared_by: str = ""
 
     @property
     def base_identity(self) -> tuple[str, str]:
@@ -125,6 +131,11 @@ class LumberjackSnapshot:
     description_body: str = ""
     overrun_chop_count: int = 0
     intermittent_chop_count: int = 0
+    # Declaring origin of this routine (``builtin`` | ``plugin`` |
+    # ``user``) plus the ``name:path`` label of its first declaring
+    # layer. Copied from the cached axe config, never inferred here.
+    source: str = ""
+    declared_by: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -170,6 +181,17 @@ class AxeCollectedData:
     service_log_tails: dict[str, str] = dataclasses.field(default_factory=dict)
     tailed_service_names: frozenset[str] = dataclasses.field(default_factory=frozenset)
     stats: AxeCollectorStats = dataclasses.field(default_factory=AxeCollectorStats)
+    # Declaring origin per routine name and per (routine, job) pair,
+    # built from the same cached axe config as ``lumberjack_names`` so
+    # names and origins update atomically. Header-only payloads carry
+    # the full maps too (the config load is not skipped), so applying
+    # them never drops origins the rows still reference.
+    routine_origins: dict[str, AxeEntityOrigin] = dataclasses.field(
+        default_factory=dict
+    )
+    chop_origins: dict[tuple[str, str], AxeEntityOrigin] = dataclasses.field(
+        default_factory=dict
+    )
 
 
 def _invalid_config_status(
@@ -200,6 +222,8 @@ def collect_chop_snapshot(
     target_key: str | None = None,
     interval_seconds: int | None = None,
     interval_source: Literal["runtime", "config"] | None = None,
+    source: str = "",
+    declared_by: str = "",
     cache: AxeStatusReadCache | None = None,
     tail_run_logs: bool = True,
 ) -> ChopSnapshot:
@@ -272,6 +296,8 @@ def collect_chop_snapshot(
         interval_seconds=interval_seconds,
         interval_source=interval_source,
         overrun=overrun,
+        source=source,
+        declared_by=declared_by,
     )
 
 
@@ -407,6 +433,20 @@ def _collect_axe_status_data_impl(
     else:
         config = axe_config.AxeConfig()
     lumberjack_names = sorted(config.lumberjacks.keys())
+    # Declaring origins come from the same token-cached config load as
+    # the names above, so a config-token change invalidates names and
+    # origins together and a degraded (empty) config clears both.
+    routine_origins = {
+        name: AxeEntityOrigin(source=jack.source, declared_by=jack.declared_by)
+        for name, jack in config.lumberjacks.items()
+    }
+    chop_origins = {
+        (name, chop.name): AxeEntityOrigin(
+            source=chop.source, declared_by=chop.declared_by
+        )
+        for name, jack in config.lumberjacks.items()
+        for chop in jack.chops
+    }
 
     # Load per-lumberjack status/metrics/log-tail off the event loop so
     # navigation can paint from the cache instead of hitting disk per keypress.
@@ -476,6 +516,8 @@ def _collect_axe_status_data_impl(
                 target_key=chop_cfg.target_key or None,
                 interval_seconds=interval_seconds,
                 interval_source=interval_source,
+                source=chop_cfg.source,
+                declared_by=chop_cfg.declared_by,
                 cache=read_cache,
                 tail_run_logs=(
                     True if tail_chop_keys is None else chop_key in tail_chop_keys
@@ -505,6 +547,8 @@ def _collect_axe_status_data_impl(
             chops=chops_for_jack,
             overrun_chop_count=overrun_chop_count,
             intermittent_chop_count=intermittent_chop_count,
+            source=config.lumberjacks[name].source,
+            declared_by=config.lumberjacks[name].declared_by,
         )
 
     if include_full_snapshots:
@@ -549,6 +593,8 @@ def _collect_axe_status_data_impl(
         lumberjack_log_tails=lumberjack_log_tails,
         bgcmd_details=bgcmd_details,
         lumberjack_chop_names=lumberjack_chop_names,
+        routine_origins=routine_origins,
+        chop_origins=chop_origins,
         chop_snapshots=chop_snapshots,
         lumberjack_snapshots=lumberjack_snapshots,
         degraded_status=degraded_status,

@@ -117,8 +117,14 @@ class AxeRefreshCollectMixin(AxeDisplayItemsMixin):
         self._service_status = data.service_status
         self._service_status_error = data.service_status_error
 
-        # Apply lumberjack names
+        # Apply lumberjack names and their declaring origins atomically:
+        # rows rebuilt below always resolve an origin for a visible name,
+        # a config-token change refreshes both together, and header-only
+        # payloads carry full maps so they never drop origins either.
+        # Targeted refreshes never touch this pair, preserving the map.
         self._axe_lumberjack_names = data.lumberjack_names
+        self._axe_routine_origins = dict(data.routine_origins)
+        self._axe_chop_origins = dict(data.chop_origins)
         if self._axe_lumberjack_idx is not None and self._axe_lumberjack_idx >= len(
             self._axe_lumberjack_names
         ):

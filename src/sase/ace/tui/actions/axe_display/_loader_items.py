@@ -46,11 +46,23 @@ class AxeDisplayItemsMixin(AxeLoaderState):
     """Mixin providing AXE sidebar loading, construction, and selection."""
 
     def _load_lumberjack_names(self) -> None:
-        """Load lumberjack names from axe config."""
+        """Load lumberjack names and declaring origins from axe config."""
         from sase.axe.config import load_axe_config as load_new_axe_config
+        from sase.axe.config_backend import AxeEntityOrigin
 
         config = load_new_axe_config()
         self._axe_lumberjack_names = sorted(config.lumberjacks.keys())
+        self._axe_routine_origins = {
+            name: AxeEntityOrigin(source=jack.source, declared_by=jack.declared_by)
+            for name, jack in config.lumberjacks.items()
+        }
+        self._axe_chop_origins = {
+            (name, chop.name): AxeEntityOrigin(
+                source=chop.source, declared_by=chop.declared_by
+            )
+            for name, jack in config.lumberjacks.items()
+            for chop in jack.chops
+        }
 
         # Reset index if it's now out of bounds
         if self._axe_lumberjack_idx is not None and self._axe_lumberjack_idx >= len(
