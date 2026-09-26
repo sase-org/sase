@@ -116,8 +116,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
-- Lines: 87
-- Approx. tokens: 1248
+- Lines: 95
+- Approx. tokens: 1395
 
 ### `sase/memory/glossary.md`
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1398
-- Total approx. tokens: 18840
+- Total lines: 1406
+- Total approx. tokens: 18987
 
 ## Commands
 
