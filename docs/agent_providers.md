@@ -117,10 +117,11 @@ Canonical docs: <https://github.com/QwenLM/qwen-code>
 
 Meta's Muse Code CLI (`muse`). SASE never auto-detects it, because `muse` is a generic
 executable name. Select it with `llm_provider.provider: muse`, `%model:muse/<model>`, or
-`SASE_MUSE_PATH`. Model-alias routing is separate: the shipped `@xsmall`, `@small`, and
-`@medium` pools include `muse-spark-1.3-contributor`, which trains on its inputs and
-outputs, so they can select it whenever a `muse` executable is available. See
-[Muse Code Integration](llms.md#muse-code-integration) for how to opt out.
+`SASE_MUSE_PATH`. Model-alias routing is separate: whichever shipped size aliases
+currently include a Contributor member can select it whenever a `muse` executable is
+available — and the Contributor model trains on its inputs and outputs. See
+[Muse Code Integration](llms.md#muse-code-integration) and the generated
+[shipped size-alias defaults](llms.md#implicit-role-aliases) for how to opt out.
 
 ### Install
 
@@ -180,11 +181,12 @@ Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-co
 xAI's Grok Build CLI (`grok`). Default provider autodetection never selects it, because
 the executable name collides with `grok-dev` (a stale community CLI that also uses
 `~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool. Select the
-provider explicitly with `llm_provider.provider: grok` or `%model:grok/grok-4.7`; use
-`SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
-separate: whenever a `grok` executable is available, the shipped
-`@small`/`@medium`/`@large` round-robin pools can select it, while `@xlarge` falls back
-to Grok only when Claude and Codex are unavailable.
+provider explicitly with `llm_provider.provider: grok` or `%model:grok/<model>` (see the
+generated [Built-in Model Catalog](llms.md#built-in-model-catalog) for current names);
+use `SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
+separate: whenever a `grok` executable is available, whichever shipped size aliases
+currently target Grok can select it (see the generated
+[shipped size-alias defaults](llms.md#implicit-role-aliases)).
 
 Routing availability checks only whether the executable exists; it does not verify that
 the binary is Grok Build. Run `sase doctor` before launching. Its bounded
@@ -223,14 +225,14 @@ per-action approval prompts.
 
 ### Effort ceiling
 
-Both published Grok models, `grok-4.7` and `grok-4.6`, accept only `low`, `medium`,
-`high`, and `xhigh` for `--effort`. `%effort:none`, `%effort:minimal`, and `%effort:max`
-raise a clean SASE error rather than a Grok process crash. The shipped Grok `@xlarge`
-fallback candidate is `grok/grok-4.7@xhigh`, so an xlarge launch that reaches Grok
-passes `--effort xhigh`. The shipped Codex `@xlarge` fallback is
-`codex/gpt-6-sol@xhigh`, so no shipped alias asks Codex for `max`. A user-configured
-Codex target that pairs an alias-borne `@max` is best-effort: `max` is logged and
-skipped and the CLI runs at its own default effort instead of erroring.
+Grok models accept only `low`, `medium`, `high`, and `xhigh` for `--effort` (see the
+generated [Built-in Model Catalog](llms.md#built-in-model-catalog) for the current model
+names). `%effort:none`, `%effort:minimal`, and `%effort:max` raise a clean SASE error
+rather than a Grok process crash. The generated
+[shipped size-alias defaults](llms.md#implicit-role-aliases) show the effort each alias
+target carries. A user-configured Codex target that pairs an alias-borne `@max` is
+best-effort: `max` is logged and skipped and the CLI runs at its own default effort
+instead of erroring.
 
 ### Usage is best-effort
 

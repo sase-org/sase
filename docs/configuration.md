@@ -5241,12 +5241,13 @@ mid-run; update Muse with `sase agent-cli update muse` instead. Muse's sandbox m
 disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
 `--sandbox-network enabled` at the documented cost of in-run commits failing.
 
-Muse's `muse-spark-1.3-contributor` and `muse-spark-1.2-contributor` models carry a
-**model advisory**: Meta uses their inputs and outputs to train and improve Meta's AI
-models. SASE keeps them fully reachable by name and never points a provider tier map at
-either. The shipped `@xsmall`, `@small`, and `@medium` size-alias pools do include
-`muse-spark-1.3-contributor`, so an agent launched at those sizes can be routed to it
-automatically whenever a `muse` executable is available; override
+Muse's Contributor models carry a **model advisory**: Meta uses their inputs and outputs
+to train and improve Meta's AI models (see the generated
+[Built-in Model Catalog](llms.md#built-in-model-catalog) for the current names). SASE
+keeps them fully reachable by name and never points a provider tier map at either.
+Whichever shipped size aliases currently include a Contributor member route there
+automatically whenever a `muse` executable is available (see the generated
+[shipped size-alias defaults](llms.md#implicit-role-aliases)); override
 `llm_provider.model_aliases.builtin.<size>` to opt out. The advisory renders in sase's
 TUI model picker, in `%model` completion detail, and in the resolved model label, and
 `sase doctor -C llm.model_advisory` warns when a configured default or model alias
@@ -5259,12 +5260,12 @@ and expects users to authenticate with `grok login` or `XAI_API_KEY`. `grok` is 
 generic executable name shared with a stale community CLI (`grok-dev`) and Homebrew's
 deprecated regex tool. Like Muse, Grok never participates in default-provider
 autodetection. It is reached by explicit selection (see
-[llm_provider.provider](#llm_provider) above) or by the separate model-alias router: the
-shipped `@xsmall`, `@small`, `@medium`, and `@large` round-robin pools can select it
-whenever a `grok` executable is available; `@xlarge` reaches it only after Claude and
-Codex are unavailable. Routing checks executable presence, while `sase doctor` performs
-the Grok Build identity probe. Both Grok models, `grok-4.7` and `grok-4.6`, accept only
-`low`/`medium`/`high`/`xhigh` for `--effort`; see
+[llm_provider.provider](#llm_provider) above) or by the separate model-alias router:
+whichever shipped size aliases currently target Grok can select it whenever a `grok`
+executable is available (see the generated
+[shipped size-alias defaults](llms.md#implicit-role-aliases)). Routing checks executable
+presence, while `sase doctor` performs the Grok Build identity probe. Grok models accept
+only `low`/`medium`/`high`/`xhigh` for `--effort`; see
 [LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider

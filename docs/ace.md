@@ -4397,10 +4397,10 @@ Overrides are per-alias and per-launch-setting, and independent:
 - An override on **any built-in size alias or custom alias** takes effect wherever that
   alias is resolved. A size-specific phase or task override affects only that alias. An
   override on a selector-valued alias — a `|` load-balanced pool, `||` ordered fallback,
-  or parenthesized `(A | B) || C` last-resort, such as the shipped `@xsmall`, `@small`,
-  `@medium`, and `@large` pools or the `@xlarge` fallback — suspends that alias's own
-  rotation/fallback for a single concrete target until the override expires or is
-  cleared.
+  or parenthesized `(A | B) || C` last-resort, such as the shipped size-alias selectors
+  (see the generated [shipped size-alias defaults](llms.md#implicit-role-aliases)) —
+  suspends that alias's own rotation/fallback for a single concrete target until the
+  override expires or is cleared.
 - An override on **`epic lander`** or **`big epic lander`** affects only epic land
   agents below, or at/above, `bead.big_epic_phase_threshold`, independently of
   `default model` and of each other.
@@ -4431,13 +4431,13 @@ since an alias may be a rotating pool rather than one concrete model. The option
 `@<effort>` suffix is the launch-effective default a no-`%model` / no-`%effort` prompt
 will actually receive (alias-borne effort, a temporary default-effort override, or
 `llm_provider.default_effort`); it is omitted when that value is unset. If
-`llm_provider.default_model` (directly or through a referenced alias, such as the
-shipped `@large`) is a load-balanced `|` pool, the pill follows the pool's round-robin
-cursor as it advances: a launch consumes one member, and within a few seconds the pill
-flips to name whichever member runs next. For a cross-provider `|` pool the pill's hue
-flips with it, so the color tells you which provider the _next_ launch will actually
-hit. It never resolves on the UI thread and never advances the cursor itself — it only
-reflects state that a real launch already changed. Hover the pill for a
+`llm_provider.default_model` (directly or through a referenced alias, such as a shipped
+size-alias pool) resolves to a load-balanced `|` pool, the pill follows the pool's
+round-robin cursor as it advances: a launch consumes one member, and within a few
+seconds the pill flips to name whichever member runs next. For a cross-provider `|` pool
+the pill's hue flips with it, so the color tells you which provider the _next_ launch
+will actually hit. It never resolves on the UI thread and never advances the cursor
+itself — it only reflects state that a real launch already changed. Hover the pill for a
 `<alias> rotates across N models; PROVIDER(model) is next` line whenever the default
 routes through such a pool. The tooltip deliberately keeps the provider-qualified
 `PROVIDER(model)` form: the pill is the width-constrained surface and stays compact, and
@@ -4472,9 +4472,10 @@ above it. Because `epic lander` and `big epic lander` are configured as raw alia
 references, a temporary override on the alias they reference (`@large` and `@xlarge` by
 default) cascades into their effective resolution; overriding `epic lander` or
 `big epic lander` directly takes precedence over that nested reference. A temporary
-override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`,
-`@medium`, and `@large` pools or the `@xlarge` fallback — suspends only that alias's own
-rotation/fallback and does not cascade to any other alias or launch setting.
+override on a selector-valued built-in size alias — any shipped size-alias pool or
+fallback (see the generated
+[shipped size-alias defaults](llms.md#implicit-role-aliases)) — suspends only that
+alias's own rotation/fallback and does not cascade to any other alias or launch setting.
 
 ### Persistent edits
 
