@@ -5406,11 +5406,6 @@
           "default": true,
           "deprecated": true
         },
-        "tool_receipts": {
-          "type": "boolean",
-          "description": "Gate E4 verified-completion receipt behavior (epic sase-1ah).",
-          "default": false
-        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",

@@ -10,7 +10,6 @@ import pytest
 import yaml
 
 from sase.config.core import clear_config_cache
-from sase.feature_flags import override_flags
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 from sase.tool.receipt_report import ToolReceiptsCliRequest, handle_receipts
 
@@ -135,13 +134,12 @@ def test_identical_repeats_group_together(
     """Two runs on the same tree form one group with one repeat."""
 
     _report_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run("tiny") == 0
-        assert _run("tiny") == 0
-        capsys.readouterr()
-        assert handle_receipts(ToolReceiptsCliRequest(days=7, json=False)) == 0
-        human = capsys.readouterr().out
-        envelope = _report_json(capsys)
+    assert _run("tiny") == 0
+    assert _run("tiny") == 0
+    capsys.readouterr()
+    assert handle_receipts(ToolReceiptsCliRequest(days=7, json=False)) == 0
+    human = capsys.readouterr().out
+    envelope = _report_json(capsys)
     assert "1 groups" in human
     assert "1 repeat runs" in human
     assert envelope["schema_version"] == 1
@@ -173,14 +171,13 @@ def test_dirty_tree_committed_counts_as_opportunity(
     """A dirty run committed and rechecked at a new HEAD is equivalent."""
 
     repo = _report_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        (repo / "tracked.txt").write_text("v2\n", encoding="utf-8")
-        assert _run("tiny") == 0
-        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-        subprocess.run(["git", "commit", "-qm", "v2"], cwd=repo, check=True)
-        assert _run("tiny") == 0
-        capsys.readouterr()
-        envelope = _report_json(capsys)
+    (repo / "tracked.txt").write_text("v2\n", encoding="utf-8")
+    assert _run("tiny") == 0
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "v2"], cwd=repo, check=True)
+    assert _run("tiny") == 0
+    capsys.readouterr()
+    envelope = _report_json(capsys)
     opportunities = envelope["opportunities"]
     assert isinstance(opportunities, dict)
     assert opportunities["group_count"] == 1
@@ -198,10 +195,9 @@ def test_incomplete_fingerprint_is_uncomparable(
     """A run with a failed toolchain probe is reported, never guessed."""
 
     _report_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run("brokentc") == 0
-        capsys.readouterr()
-        envelope = _report_json(capsys)
+    assert _run("brokentc") == 0
+    capsys.readouterr()
+    envelope = _report_json(capsys)
     uncomparable = envelope["uncomparable"]
     assert isinstance(uncomparable, dict) and uncomparable["count"] == 1
     runs = uncomparable["runs"]

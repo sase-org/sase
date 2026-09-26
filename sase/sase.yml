@@ -183,12 +183,11 @@ tools:
             "from importlib.metadata import version; print(version('symvision'))",
           ]
         prettier: [node_modules/.bin/prettier, --version]
-    # Opt-in verdict-receipt policy (E4 core-pin-catalog): validated by the
-    # Rust core but excluded from the definition digest, so editing it never
-    # moves historical duration or corpus identity. The loader exposes it
-    # only while the beta `tool_receipts` flag is on; with the flag off the
-    # loaded catalog omits it. `check-full`, `install`, and ad-hoc runs stay
-    # receipt-less. Requires a receipt-capable core past
+    # Opt-in verdict-receipt policy (E4 core-pin-catalog, flag removed at
+    # E4 landing): validated by the Rust core but excluded from the definition
+    # digest, so editing it never moves historical duration or corpus
+    # identity. The loader always exposes it. `check-full`, `install`, and
+    # ad-hoc runs stay receipt-less. Requires a receipt-capable core past
     # sase-core-revision.txt 9f86897 (an older core rejects `receipt:` as an
     # unknown field); see docs/tool.md rollout notes.
     receipt:

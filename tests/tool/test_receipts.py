@@ -11,7 +11,6 @@ import yaml
 
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import tool_run_list, tool_run_receipt_settle
-from sase.feature_flags import override_flags
 from sase.tool.adopt import execute_adopted_run
 from sase.tool.argv import resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -93,11 +92,10 @@ def test_foreground_pass_mints_and_query_covers(
     """A passing foreground run mints; the query exits 0 with proof fields."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
-        captured = capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
+    captured = capsys.readouterr()
     assert "covered: tiny" in captured.out
     assert "receipt:" in captured.out
     assert "run:" in captured.out
@@ -113,11 +111,10 @@ def test_query_json_is_versioned(
     """Covered JSON carries schema_version 1 and the receipt proof."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny", json=True)) == 0
-        captured = capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny", json=True)) == 0
+    captured = capsys.readouterr()
     envelope = json.loads(captured.out)
     assert envelope["schema_version"] == 1
     assert envelope["outcome"] == "covered"
@@ -135,11 +132,10 @@ def test_no_new_accept_still_covers_pass_receipt(
     """`-a no-new` accepts the pass receipt (pass is always acceptable)."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny", accept="no-new")) == 0
-        capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny", accept="no-new")) == 0
+    capsys.readouterr()
 
 
 def test_tree_drift_refuses_with_changed_path(
@@ -150,12 +146,11 @@ def test_tree_drift_refuses_with_changed_path(
     """Touching a tracked tree refuses with `fingerprint_changed: <path>`."""
 
     repo = _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        (repo / "drift.txt").write_text("drift", encoding="utf-8")
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 1
-        captured = capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    (repo / "drift.txt").write_text("drift", encoding="utf-8")
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 1
+    captured = capsys.readouterr()
     assert "fingerprint_changed" in captured.out
     assert "drift.txt" in captured.out
 
@@ -168,12 +163,11 @@ def test_query_json_refusal_is_versioned(
     """Refusal JSON carries schema_version 1 and the typed refusal."""
 
     repo = _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        (repo / "drift.txt").write_text("drift", encoding="utf-8")
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny", json=True)) == 1
-        captured = capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    (repo / "drift.txt").write_text("drift", encoding="utf-8")
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny", json=True)) == 1
+    captured = capsys.readouterr()
     envelope = json.loads(captured.out)
     assert envelope["schema_version"] == 1
     assert envelope["outcome"] == "refused"
@@ -189,22 +183,19 @@ def test_handoff_worker_mints_like_foreground(
     """The claimed hand-off worker settles the same receipt as foreground."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
-        capsys.readouterr()
-        resolved = resolve_run_argv(["tiny"])
-        reservation = reserve_handoff_run(
-            resolved, owner_kind="proc", owner_id="proc-1"
-        )
-        assert reservation.reserved, reservation.error
-        monkeypatch.setenv("SASE_PROC_ID", "proc-1")
-        monkeypatch.setenv("SASE_PROC_LOG_PATH", str(tmp_path / "owner.log"))
-        assert execute_adopted_run(reservation.run_id) == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
-        captured = capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
+    capsys.readouterr()
+    resolved = resolve_run_argv(["tiny"])
+    reservation = reserve_handoff_run(resolved, owner_kind="proc", owner_id="proc-1")
+    assert reservation.reserved, reservation.error
+    monkeypatch.setenv("SASE_PROC_ID", "proc-1")
+    monkeypatch.setenv("SASE_PROC_LOG_PATH", str(tmp_path / "owner.log"))
+    assert execute_adopted_run(reservation.run_id) == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
+    captured = capsys.readouterr()
     assert "covered: tiny" in captured.out
 
 
@@ -238,12 +229,11 @@ def test_every_run_still_spawns_despite_covering_receipt(
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "marker tool"], cwd=repo, check=True)
     clear_config_cache()
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
-        capsys.readouterr()
-        assert _run_tiny() == 0
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
+    capsys.readouterr()
+    assert _run_tiny() == 0
     assert marker.read_text(encoding="utf-8").count("ran") == 2
 
 
@@ -253,31 +243,30 @@ def test_adhoc_run_mints_no_receipt(
     """Ad-hoc runs leave no receipt row behind."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        adhoc_code = execute_tool_run(
-            ToolRunCliRequest(
-                quiet=True,
-                verbose=False,
-                tail_lines=200,
-                words=("--", "true"),
-            )
+    adhoc_code = execute_tool_run(
+        ToolRunCliRequest(
+            quiet=True,
+            verbose=False,
+            tail_lines=200,
+            words=("--", "true"),
         )
-        assert adhoc_code == 0
-        resolved = resolve_run_argv(["--", "true"])
-        assert resolved.adhoc is True
-        newest = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
-        result = settle_receipt_for_run(newest["run_id"], resolved)
-        direct = tool_run_receipt_settle(
-            {
-                "run_id": newest["run_id"],
-                "policy": {
-                    "schema_version": 1,
-                    "accept": ["pass"],
-                    "ttl": "2h",
-                },
-                "bypassed": False,
-            }
-        )
+    )
+    assert adhoc_code == 0
+    resolved = resolve_run_argv(["--", "true"])
+    assert resolved.adhoc is True
+    newest = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
+    result = settle_receipt_for_run(newest["run_id"], resolved)
+    direct = tool_run_receipt_settle(
+        {
+            "run_id": newest["run_id"],
+            "policy": {
+                "schema_version": 1,
+                "accept": ["pass"],
+                "ttl": "2h",
+            },
+            "bypassed": False,
+        }
+    )
     assert result is not None
     assert result["minted"] is False
     assert direct["minted"] is False
@@ -293,27 +282,10 @@ def test_bypassed_run_mints_no_receipt(
 
     _receipt_project(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_TOOL_BYPASS", "manual bypass probe")
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 1
-        captured = capsys.readouterr()
-    assert "no_receipt" in captured.out
-
-
-def test_flag_off_mints_no_receipt(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """With the beta flag off the catalog hides the policy, so nothing mints."""
-
-    _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=False):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 1
-        captured = capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 1
+    captured = capsys.readouterr()
     assert "no_receipt" in captured.out
 
 
@@ -323,12 +295,11 @@ def test_partial_ledger_write_fails_open(
     """An unwritable store never raises out of receipt settlement."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        resolved = resolve_run_argv(["tiny"])
-        assert (
-            settle_receipt_for_run("missing-run", resolved, store_path=str(tmp_path))
-            is None
-        )
+    resolved = resolve_run_argv(["tiny"])
+    assert (
+        settle_receipt_for_run("missing-run", resolved, store_path=str(tmp_path))
+        is None
+    )
 
 
 def test_missing_binding_fails_open(
@@ -337,14 +308,13 @@ def test_missing_binding_fails_open(
     """A stale wheel without the receipt binding never breaks execution."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        resolved = resolve_run_argv(["tiny"])
+    resolved = resolve_run_argv(["tiny"])
 
-        def _stale(*args: object, **kwargs: object) -> object:
-            raise AttributeError("no binding tool_run_receipt_settle")
+    def _stale(*args: object, **kwargs: object) -> object:
+        raise AttributeError("no binding tool_run_receipt_settle")
 
-        monkeypatch.setattr("sase.tool.receipts.tool_run_receipt_settle", _stale)
-        assert settle_receipt_for_run("any-run", resolved) is None
+    monkeypatch.setattr("sase.tool.receipts.tool_run_receipt_settle", _stale)
+    assert settle_receipt_for_run("any-run", resolved) is None
 
 
 def test_query_unknown_tool_exits_2(
@@ -355,9 +325,8 @@ def test_query_unknown_tool_exits_2(
     """An unknown tool name is a usage error, not a refusal."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert handle_receipt(ToolReceiptCliRequest(tool="nope")) == 2
-        capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="nope")) == 2
+    capsys.readouterr()
 
 
 def test_query_names_no_landing_gate(
@@ -368,13 +337,12 @@ def test_query_names_no_landing_gate(
     """The query never claims the landing gate is satisfied."""
 
     _receipt_project(monkeypatch, tmp_path)
-    with override_flags(tool_receipts=True):
-        assert _run_tiny() == 0
-        capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
-        covered = capsys.readouterr()
-        assert handle_receipt(ToolReceiptCliRequest(tool="tiny", json=True)) == 0
-        covered_json = capsys.readouterr()
+    assert _run_tiny() == 0
+    capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny")) == 0
+    covered = capsys.readouterr()
+    assert handle_receipt(ToolReceiptCliRequest(tool="tiny", json=True)) == 0
+    covered_json = capsys.readouterr()
     blob = covered.out + covered_json.out
     assert "landing" not in blob.lower()
     assert "satisf" not in blob.lower()

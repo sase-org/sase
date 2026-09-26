@@ -41,27 +41,6 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert typed_launch.bead == "sase-s7"
 
 
-def test_tool_receipts_beta_flag_defaults_off_and_enables() -> None:
-    """E4 core-pin-catalog: the `tool_receipts` beta flag stays off until a
-    later phase gates receipt behavior on it; both states must resolve."""
-
-    definitions = feature_flag_definitions()
-    flag = definitions[FeatureFlag.tool_receipts]
-    assert flag.kind == "beta"
-    assert flag.default is False
-    assert flag.bead == "sase-1am"
-
-    default = resolve_feature_flags(definitions=definitions, layers=[])
-    assert default.enabled(FeatureFlag.tool_receipts) is False
-
-    enabled = resolve_feature_flags(
-        definitions=definitions,
-        layers=[layer("user", {"tool_receipts": True}, detail="user.yml")],
-    )
-    assert enabled.enabled(FeatureFlag.tool_receipts) is True
-    assert enabled.decision(FeatureFlag.tool_receipts).source == "user"
-
-
 def test_consumer_flags_resolve_from_every_layer() -> None:
     definitions = feature_flag_definitions()
 

@@ -158,10 +158,9 @@ Only `check` declares an opt-in `receipt:` policy (`accept: [pass, no_new_failur
 `ttl: 2h`); `check-full`, `install`, and ad-hoc runs stay receipt-less. The policy is
 normalized by the Rust core but excluded from the definition digest, so editing it never
 moves historical duration or corpus identity, while adding toolchain probes or
-fingerprint inputs still moves the digest once, as intended. Receipt behavior itself
-stays behind the beta `tool_receipts` flag (default off): with the flag off the loaded
-catalog omits the policy, so verification and completion behave exactly as today; with
-the flag on the policy is exposed for the upcoming mint and query paths.
+fingerprint inputs still moves the digest once, as intended. The beta `tool_receipts`
+flag was removed at E4 landing: the policy is now always exposed on the loaded
+definition and the flag-off branch is deleted.
 
 Mixed installed cores fail closed with a clear diagnostic, never with a stale identity.
 The pinned source revision (`sase-core-revision.txt`) is the receipt-capable core, and
@@ -172,6 +171,44 @@ calling the receipt bindings fails the "Check pinned core bindings" lint step in
 crashing with `AttributeError` at runtime. Apollo and unconfigured-mac machines stay on
 the pass-only path until their ledgers grow enough for an independent KNOWN precision
 gate; no receipt is shared across machines.
+
+## Verdict receipts: mint, query, and no-skip (E4 receipt-execution-cli)
+
+After wrapper settlement and E3 triage settlement, both the foreground and the claimed
+hand-off worker paths settle a verdict receipt through the same Rust mint API: mint only
+for a named, non-bypassed run whose before/after fingerprints are complete and equal,
+with `mutated_input = false`, `settled_by = wrapper`, and a verdict in that tool's
+`receipt.accept` set. Ad-hoc, bypassed, mutated, incomplete, non-wrapper-settled,
+control, infrastructure, environment, NEW, undetermined, and unaccepted no-new runs
+leave no receipt row. A later same-identity, same-fingerprint non-success supersedes an
+earlier receipt until a later eligible success. The settle adapter is fail open for tool
+execution (it records a diagnostic and never changes the child's result); receipt lookup
+stays fail closed.
+
+`sase tool receipt TOOL [-a/--accept {pass,no-new}] [-j/--json]` reports the covering
+receipt for one named tool at the current fingerprint: exit 0 for covered (receipt id,
+source run id, verdict, age), 1 for exactly one typed refusal (`no_receipt`,
+`fingerprint_changed: <path>` with bounded changed paths, `expired`,
+`incomplete_fingerprint`, `verdict_insufficient`, `definition_changed`, or
+`invalidated_by_later_run`), and 2 for an unknown tool or usage error. `-j` emits a
+versioned (`schema_version: 1`) machine-readable envelope. The query states what the
+ledger holds and never claims any completion policy is met.
+
+Every `sase tool run` invokes its child despite an existing receipt. A covering receipt
+is proof for host completion to consult; it never skips, reuses, or redirects execution.
+
+## Receipt opportunity report (E4 opportunity-report)
+
+`sase tool receipts [-d/--days N] [-j/--json]` lists retained receipts and reports
+content-equivalent verification repeats: counts, summed duration and hours, top tools,
+and the observation window, all versioned (`schema_version: 1`). The comparison is
+content-addressed — path content at each HEAD plus dirty/untracked hashes, with
+toolchain, environment, extra arguments, and catalog identity kept in the key, comparing
+Git blobs by content rather than by HEAD alone — so a verified dirty tree later
+committed and rechecked at a new HEAD counts as a repeat opportunity. Missing Git
+objects and incomplete fingerprints are reported as uncomparable, never guessed. The
+report informs a later reuse decision; it never changes what `run` executes and never
+claims the current tree is covered.
 
 ## Failure semantics
 

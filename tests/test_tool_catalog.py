@@ -201,36 +201,17 @@ def _minimal_definition(**overrides: object) -> dict[str, object]:
 
 
 def test_check_declares_normalized_receipt_policy() -> None:
-    """E4 core-pin-catalog: only `check` carries an opt-in receipt policy,
-    normalized to sorted accept verbs and the 2h TTL literal."""
+    """E4 landing-proof: only `check` carries an opt-in receipt policy,
+    normalized to sorted accept verbs and the 2h TTL literal. The beta flag
+    is removed, so the policy is always exposed on the loaded definition."""
 
-    from sase.feature_flags import override_flags
-
-    with override_flags(tool_receipts=True):
-        catalog = load_project_tool_catalog()
+    catalog = load_project_tool_catalog()
     by_name = {entry.name: entry for entry in catalog.entries}
     policy = by_name["check"].definition["receipt"]
     assert policy["accept"] == ["no_new_failures", "pass"]
     assert policy["ttl"] == "2h"
     for tool in ("check-full", "install", "test", "test-visual"):
         assert "receipt" not in by_name[tool].definition
-
-
-def test_check_receipt_policy_hidden_when_flag_off() -> None:
-    """E4 core-pin-catalog: with the beta flag off the loaded catalog keeps
-    today's shape (no `receipt` key) while the definition digest still
-    matches the flag-on load, so Off preserves current behavior."""
-
-    from sase.feature_flags import override_flags
-
-    with override_flags(tool_receipts=False):
-        off_catalog = load_project_tool_catalog()
-    with override_flags(tool_receipts=True):
-        on_catalog = load_project_tool_catalog()
-    off_by_name = {entry.name: entry for entry in off_catalog.entries}
-    on_by_name = {entry.name: entry for entry in on_catalog.entries}
-    assert "receipt" not in off_by_name["check"].definition
-    assert off_by_name["check"].digest == on_by_name["check"].digest
 
 
 def test_receipt_policy_only_edit_preserves_definition_digest() -> None:

@@ -36,7 +36,6 @@ class FeatureFlag(StrEnum):
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
-    tool_receipts = "tool_receipts"
     typed_launch_units = "typed_launch_units"
 
 
@@ -194,12 +193,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "caps with lenient old-reader skip for the omitted-files shape."
         ),
         bead="sase-11p",
-    ),
-    FeatureFlag.tool_receipts: FeatureFlagDefinition(
-        key=FeatureFlag.tool_receipts,
-        kind="beta",
-        description="Gate E4 verified-completion receipt behavior (epic sase-1ah).",
-        bead="sase-1am",
     ),
     FeatureFlag.typed_launch_units: FeatureFlagDefinition(
         key=FeatureFlag.typed_launch_units,

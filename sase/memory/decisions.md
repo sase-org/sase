@@ -77,17 +77,21 @@ costs, and the condition that would reopen it.
 16. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`)
     - SASE does not build memory retrieval or linking machinery ahead of a corpus that
       demonstrably needs it.
-17. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
+17. **Receipts Prove Before They Skip** (`receipts-prove-before-they-skip`)
+    - Verdict receipts are proof for host completion, never execution skip or reuse;
+      reuse waits for measured content-equivalent repeat opportunity plus a hermeticity
+      proof.
+18. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
     - Built-in size aliases run a model at xhigh on its first appearance from @xlarge
       down and one rung lower on each reappearance; every alias should span more than
       one provider.
-18. **The Rust Core Is Required** (`rust-core-required`)
+19. **The Rust Core Is Required** (`rust-core-required`)
     - Shared backend behavior lives in sase-core with no Python fallback and no env-var
       backend switch.
-19. **Triage Annotates; It Never Changes an Exit Code**
+20. **Triage Annotates; It Never Changes an Exit Code**
     (`triage-annotates-does-not-change-exit-codes`) - KNOWN needs an independent
     witness; triage classifies failure evidence without changing command outcomes.
-20. **Verification Is Two-Speed** (`two-speed-verification`)
+21. **Verification Is Two-Speed** (`two-speed-verification`)
     - _[superseded by `check-full-is-explicit`]_ just check is the agent default and
       just check-full gates landing, because host capacity is the constraint, not test
       speed.
