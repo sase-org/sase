@@ -25,6 +25,7 @@ class CapacityValidation:
     value: int | None
     message: str
     css_class: str
+    multiplier: float | None = None
 
 
 @dataclass(frozen=True)
@@ -143,10 +144,23 @@ def validate_time_token(token: str) -> TimeValidation:
     )
 
 
+def prefill_capacity_token(
+    capacity: int | None,
+    multiplier: float | None = None,
+) -> str:
+    """Return a modal capacity-field prefill preserving the authored form."""
+    if multiplier is not None:
+        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+        formatted = format_queue_capacity_multiplier(multiplier)
+        return formatted if formatted is not None else ""
+    if capacity is not None:
+        return str(capacity)
+    return ""
+
+
 def validate_capacity_token(token: str) -> CapacityValidation:
     """Validate a runner-capacity budget for live preview."""
-    from sase.xprompt.queue_directive import validate_queue_capacity
-
     token = token.strip()
     if not token:
         return CapacityValidation(
@@ -155,8 +169,10 @@ def validate_capacity_token(token: str) -> CapacityValidation:
             message="uses the global max_running_agents budget",
             css_class="wait-time-neutral",
         )
+    from sase.xprompt.queue_directive import parse_queue_capacity_value
+
     try:
-        value = validate_queue_capacity(token)
+        parsed = parse_queue_capacity_value(token)
     except ValueError as exc:
         return CapacityValidation(
             valid=False,
@@ -164,12 +180,79 @@ def validate_capacity_token(token: str) -> CapacityValidation:
             message=str(exc),
             css_class="wait-time-error",
         )
-    message = f"uses a per-launch capacity budget of {value}"
-    if value == 1:
+    if not isinstance(parsed, dict):
+        return CapacityValidation(
+            valid=False,
+            value=None,
+            message="capacity must be a positive integer or <M>x multiplier",
+            css_class="wait-time-error",
+        )
+    multiplier = parsed.get("queue_capacity_multiplier")
+    if multiplier is not None:
+        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+        try:
+            numeric = float(str(multiplier))
+        except (TypeError, ValueError):
+            return CapacityValidation(
+                valid=False,
+                value=None,
+                message="capacity must be a positive integer or <M>x multiplier",
+                css_class="wait-time-error",
+            )
+        formatted = format_queue_capacity_multiplier(numeric)
+        if formatted is None:
+            return CapacityValidation(
+                valid=False,
+                value=None,
+                message="capacity must be a positive integer or <M>x multiplier",
+                css_class="wait-time-error",
+            )
+        return CapacityValidation(
+            valid=True,
+            value=None,
+            message=f"uses a per-launch capacity budget of {formatted}",
+            css_class="wait-time-valid",
+            multiplier=numeric,
+        )
+    value = parsed.get("queue_capacity", parsed.get("capacity"))
+    if value is None:
+        return CapacityValidation(
+            valid=False,
+            value=None,
+            message="capacity must be a positive integer or <M>x multiplier",
+            css_class="wait-time-error",
+        )
+    try:
+        capacity = int(value)
+    except (TypeError, ValueError):
+        return CapacityValidation(
+            valid=False,
+            value=None,
+            message="capacity must be a positive integer or <M>x multiplier",
+            css_class="wait-time-error",
+        )
+    if capacity < 1:
+        from sase.xprompt.queue_directive import validate_queue_capacity
+
+        try:
+            validate_queue_capacity(token)
+        except ValueError as exc:
+            message = str(exc)
+        else:
+            message = "capacity must be at least 1"
+        return CapacityValidation(
+            valid=False,
+            value=None,
+            message=message,
+            css_class="wait-time-error",
+        )
+    message = f"uses a per-launch capacity budget of {capacity}"
+    if capacity == 1:
         message = "run alone: starts when one capacity unit is available"
     return CapacityValidation(
         valid=True,
-        value=value,
+        value=capacity,
         message=message,
         css_class="wait-time-valid",
     )

@@ -28,12 +28,14 @@ class PromptWaitDirective:
     weight: float | None = None
     beads: tuple[str, ...] = ()
     hoods: tuple[str, ...] = ()
+    capacity_multiplier: float | None = None
 
     def __bool__(self) -> bool:
         return bool(
             self.agents
             or self.time_token
             or self.capacity is not None
+            or self.capacity_multiplier is not None
             or self.priority is not None
             or self.weight is not None
             or self.beads
@@ -77,8 +79,17 @@ def set_prompt_wait_and_queue(
         if wait_spec is not None and wait_spec.weight is not None
         else _existing_queue_weight(prompt)
     )
+    if wait_spec is None:
+        capacity: int | None = None
+        capacity_multiplier: float | None = None
+    elif wait_spec.capacity is not None or wait_spec.capacity_multiplier is not None:
+        capacity = wait_spec.capacity
+        capacity_multiplier = wait_spec.capacity_multiplier
+    else:
+        capacity, capacity_multiplier = _existing_queue_capacity(prompt)
     queue_replacement = format_queue_directive(
-        capacity=wait_spec.capacity if wait_spec else None,
+        capacity=capacity,
+        capacity_multiplier=capacity_multiplier,
         priority=wait_spec.priority if wait_spec else None,
         weight=weight,
     )
@@ -101,14 +112,20 @@ def set_prompt_queue(
     capacity: int | None,
     priority: int | None,
     weight: float | None = None,
+    capacity_multiplier: float | None = None,
 ) -> str:
     """Return *prompt* with only the runner-slot queue directive rewritten."""
     resolved_weight = weight if weight is not None else _existing_queue_weight(prompt)
+    resolved_capacity = capacity
+    resolved_multiplier = capacity_multiplier
+    if resolved_capacity is None and resolved_multiplier is None:
+        resolved_capacity, resolved_multiplier = _existing_queue_capacity(prompt)
     return set_prompt_directive(
         prompt,
         {"queue"},
         format_queue_directive(
-            capacity=capacity,
+            capacity=resolved_capacity,
+            capacity_multiplier=resolved_multiplier,
             priority=priority,
             weight=resolved_weight,
         ),
@@ -133,6 +150,34 @@ def _format_wait_directive(
         f"%wait(hood={format_directive_arg(hood)})" for hood in wait_spec.hoods
     )
     return "\n".join(directives)
+
+
+def _existing_queue_capacity(prompt: str) -> tuple[int | None, float | None]:
+    """Return the authored integer/multiplier capacity already in *prompt*."""
+    protected, _restore = protect_ignored_regions(prompt)
+    occurrences = collect_queue_directive_occurrences(protected)
+    if not occurrences:
+        return None, None
+
+    from .queue_directive import collect_queue_fields
+
+    payload = collect_queue_fields(occurrences)
+    errors = payload.get("errors")
+    if isinstance(errors, list) and errors:
+        return None, None
+    fields = payload.get("fields")
+    if not isinstance(fields, dict):
+        return None, None
+    raw_capacity = fields.get(
+        "capacity",
+        fields.get("queue_capacity", fields.get("runners")),
+    )
+    capacity = int(raw_capacity) if raw_capacity is not None else None
+    raw_multiplier = fields.get("queue_capacity_multiplier")
+    multiplier = float(raw_multiplier) if raw_multiplier is not None else None
+    if capacity is not None and multiplier is not None:
+        return capacity, None
+    return capacity, multiplier
 
 
 def _existing_queue_weight(prompt: str) -> float | None:

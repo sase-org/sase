@@ -35,6 +35,19 @@ if TYPE_CHECKING:
     from ...modals import WaitModalResult
 
 
+def _capacity_wait_label(result: WaitModalResult) -> str:
+    """Return the live-runner notification capacity fragment."""
+    if result.capacity is not None:
+        return f"capacity budget {result.capacity}"
+    if result.capacity_multiplier is not None:
+        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+        formatted = format_queue_capacity_multiplier(result.capacity_multiplier)
+        label = formatted if formatted is not None else str(result.capacity_multiplier)
+        return f"capacity budget {label}"
+    return "global runner cap"
+
+
 def _prepare_wait_relaunch_prompt(
     agent: Agent,
     agents: Sequence[Agent],
@@ -138,10 +151,15 @@ class AgentWaitActionsMixin:
                 current_wait_duration=agent.wait_duration,
                 current_wait_until=agent.wait_until,
                 current_wait_runners=(
-                    agent.queue_capacity
-                    if agent.queue_capacity_explicit or agent.wait_runners_explicit
-                    else None
+                    None
+                    if agent.queue_capacity_multiplier is not None
+                    else (
+                        agent.queue_capacity
+                        if agent.queue_capacity_explicit or agent.wait_runners_explicit
+                        else None
+                    )
                 ),
+                current_wait_capacity_multiplier=agent.queue_capacity_multiplier,
                 current_wait_priority=(
                     agent.wait_priority if agent.wait_priority_explicit else None
                 ),
@@ -201,7 +219,10 @@ class AgentWaitActionsMixin:
             self._apply_live_runner_wait(artifacts_dir, agent, result)
             return
         if not result.run_now and (
-            result.time_token or result.capacity is not None or agent.slot_requested_at
+            result.time_token
+            or result.capacity is not None
+            or result.capacity_multiplier is not None
+            or agent.slot_requested_at
         ):
             self._apply_wait_relaunch(agent, result)
             return
@@ -386,6 +407,7 @@ class AgentWaitActionsMixin:
             wait_spec = replace(wait_spec, priority=effective_priority)
         prior_runners = agent.queue_capacity
         prior_explicit = agent.queue_capacity_explicit
+        prior_multiplier = agent.queue_capacity_multiplier
         prior_waiting_for = list(agent.waiting_for)
         prior_waiting_for_beads = list(agent.waiting_for_beads)
         prior_waiting_for_hoods = list(agent.waiting_for_hoods)
@@ -404,7 +426,12 @@ class AgentWaitActionsMixin:
                 return
             if getattr(agent, "_directive_generation", None) is not generation:
                 return
-            agent.set_queue_capacity(prior_runners, explicit=prior_explicit)
+            if prior_multiplier is not None and prior_runners is None:
+                agent.set_queue_capacity(
+                    None, explicit=prior_explicit, multiplier=prior_multiplier
+                )
+            else:
+                agent.set_queue_capacity(prior_runners, explicit=prior_explicit)
             agent.waiting_for = prior_waiting_for
             agent.waiting_for_beads = prior_waiting_for_beads
             agent.waiting_for_hoods = prior_waiting_for_hoods
@@ -428,6 +455,7 @@ class AgentWaitActionsMixin:
                 "hoods": list(wait_spec.hoods),
                 "priority": wait_spec.priority,
                 "capacity": wait_spec.capacity,
+                "capacity_multiplier": wait_spec.capacity_multiplier,
                 "time_token": wait_spec.time_token,
             }
         submitted = submit_agent_directive(
@@ -443,6 +471,7 @@ class AgentWaitActionsMixin:
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
                     "wait_runners": result.capacity,
+                    "queue_capacity_multiplier": result.capacity_multiplier,
                 },
                 "waiting": {
                     "beads": list(result.beads),
@@ -452,6 +481,7 @@ class AgentWaitActionsMixin:
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
                     "wait_runners": result.capacity,
+                    "queue_capacity_multiplier": result.capacity_multiplier,
                 },
             },
             cl_name=agent.cl_name or agent.display_name or "agent",
@@ -465,7 +495,16 @@ class AgentWaitActionsMixin:
         agent.waiting_for_hoods = list(result.hoods)
         agent.wait_duration = None
         agent.wait_until = None
-        agent.set_queue_capacity(result.capacity, explicit=result.capacity is not None)
+        if result.capacity_multiplier is not None and result.capacity is None:
+            agent.set_queue_capacity(
+                None,
+                explicit=True,
+                multiplier=result.capacity_multiplier,
+            )
+        else:
+            agent.set_queue_capacity(
+                result.capacity, explicit=result.capacity is not None
+            )
         if update_wait_priority:
             agent.wait_priority = result.priority
             agent.wait_priority_explicit = result.priority is not None
@@ -473,11 +512,7 @@ class AgentWaitActionsMixin:
             agent.status,
             slot_queued=True,
         )
-        label = (
-            f"capacity budget {result.capacity}"
-            if result.capacity is not None
-            else "global runner cap"
-        )
+        label = _capacity_wait_label(result)
         if result.priority is not None:
             label = f"{label}, priority {result.priority}"
         self.notify(f"Capacity wait: {label}")  # type: ignore[attr-defined]

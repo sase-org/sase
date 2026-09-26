@@ -31,6 +31,7 @@ from .wait_modal_types import WaitAgentCandidate, WaitModalResult
 from .wait_modal_values import (
     active_fragment,
     parse_beads_value,
+    prefill_capacity_token,
     prefill_time_token,
     replace_active_fragment,
 )
@@ -56,6 +57,7 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
         current_wait_duration: float | None = None,
         current_wait_until: str | None = None,
         current_wait_runners: int | None = None,
+        current_wait_capacity_multiplier: float | None = None,
         current_wait_priority: int | None = None,
         candidates: list[WaitAgentCandidate] | None = None,
         is_running: bool = False,
@@ -73,8 +75,9 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
             current_wait_duration,
             current_wait_until,
         )
-        self._capacity_prefill = (
-            str(current_wait_runners) if current_wait_runners is not None else ""
+        self._capacity_prefill = prefill_capacity_token(
+            current_wait_runners,
+            current_wait_capacity_multiplier,
         )
         self._priority_prefill = (
             str(current_wait_priority) if current_wait_priority is not None else ""

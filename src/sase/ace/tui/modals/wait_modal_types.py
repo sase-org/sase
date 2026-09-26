@@ -40,6 +40,7 @@ class WaitModalResult:
     beads: list[str] = field(default_factory=list)
     hoods: list[str] = field(default_factory=list)
     run_now: bool = False
+    capacity_multiplier: float | None = None
 
 
 __all__ = ["WaitAgentCandidate", "WaitModalResult"]

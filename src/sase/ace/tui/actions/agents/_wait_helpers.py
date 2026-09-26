@@ -52,6 +52,18 @@ def action_agent_prompt_name(agent: Agent) -> str | None:
     return agent_prompt_name(agent)
 
 
+def _capacity_label(result: WaitModalResult) -> str | None:
+    """Return the user-facing capacity budget label for a wait result."""
+    if result.capacity is not None:
+        return str(result.capacity)
+    if result.capacity_multiplier is not None:
+        from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+        formatted = format_queue_capacity_multiplier(result.capacity_multiplier)
+        return formatted if formatted is not None else str(result.capacity_multiplier)
+    return None
+
+
 def wait_spec_label(result: WaitModalResult) -> str:
     """Build a user-facing label for a wait spec."""
     dependency_parts: list[str] = []
@@ -61,28 +73,29 @@ def wait_spec_label(result: WaitModalResult) -> str:
         dependency_parts.append("beads " + ", ".join(result.beads))
     if result.hoods:
         dependency_parts.append("hoods " + ", ".join(result.hoods))
+    capacity_label = _capacity_label(result)
     if dependency_parts:
         label = f"waiting for {' and '.join(dependency_parts)}"
         if result.time_token:
             label = f"{label}, then {result.time_token}"
     elif result.time_token:
         label = f"waiting until {result.time_token}"
-    elif result.capacity is not None:
-        label = f"waiting with capacity budget {result.capacity}"
+    elif capacity_label is not None:
+        label = f"waiting with capacity budget {capacity_label}"
     elif result.priority is not None:
         label = f"waiting with priority {result.priority}"
     else:
         return "running now"
-    if result.capacity is not None and (
+    if capacity_label is not None and (
         result.agents or result.beads or result.hoods or result.time_token
     ):
-        label = f"{label}, with capacity budget {result.capacity}"
+        label = f"{label}, with capacity budget {capacity_label}"
     if result.priority is not None and (
         result.agents
         or result.beads
         or result.hoods
         or result.time_token
-        or result.capacity is not None
+        or capacity_label is not None
     ):
         label = f"{label}, priority {result.priority}"
     return label
@@ -95,6 +108,7 @@ def result_has_wait_spec(result: WaitModalResult) -> bool:
         or result.beads
         or result.time_token
         or result.capacity is not None
+        or result.capacity_multiplier is not None
         or result.priority is not None
     )
 
@@ -110,6 +124,7 @@ def prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
         priority=result.priority,
         beads=tuple(result.beads),
         hoods=tuple(result.hoods),
+        capacity_multiplier=result.capacity_multiplier,
     )
 
 

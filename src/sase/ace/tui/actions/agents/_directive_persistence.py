@@ -47,6 +47,7 @@ class _WaitingMarkerPatch:
     wait_until: str | None = None
     update_wait_runners: bool = False
     wait_runners: int | None = None
+    queue_capacity_multiplier: float | None = None
     update_wait_priority: bool = False
     wait_priority: int | None = None
     update_queue_weight: bool = False
@@ -143,6 +144,7 @@ def wait_meta_patch_for_token(
     time_token: str | None = None,
     update_wait_runners: bool = False,
     wait_runners: int | None = None,
+    queue_capacity_multiplier: float | None = None,
     update_wait_priority: bool = False,
     wait_priority: int | None = None,
     update_queue_weight: bool = False,
@@ -179,11 +181,14 @@ def wait_meta_patch_for_token(
                 "wait_runners_explicit",
                 "queue_capacity",
                 "queue_capacity_explicit",
+                "queue_capacity_multiplier",
             )
         )
         if wait_runners is not None:
             set_values["queue_capacity"] = wait_runners
             set_values["queue_capacity_explicit"] = True
+        elif queue_capacity_multiplier is not None:
+            set_values["queue_capacity_multiplier"] = queue_capacity_multiplier
     if update_wait_priority:
         remove_keys.append("wait_priority")
         if wait_priority is not None:
@@ -204,6 +209,7 @@ def waiting_marker_patch_for_token(
     time_token: str | None = None,
     update_wait_runners: bool = False,
     wait_runners: int | None = None,
+    queue_capacity_multiplier: float | None = None,
     update_wait_priority: bool = False,
     wait_priority: int | None = None,
     update_queue_weight: bool = False,
@@ -225,6 +231,7 @@ def waiting_marker_patch_for_token(
         wait_until=wait_until,
         update_wait_runners=update_wait_runners,
         wait_runners=wait_runners,
+        queue_capacity_multiplier=queue_capacity_multiplier,
         update_wait_priority=update_wait_priority,
         wait_priority=wait_priority,
         update_queue_weight=update_queue_weight,
@@ -342,12 +349,14 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
 
             existing.pop("queue_capacity", None)
             existing.pop("queue_capacity_explicit", None)
+            existing.pop("queue_capacity_multiplier", None)
             existing.pop("wait_runners", None)
             existing.pop("wait_runners_explicit", None)
             existing.update(
                 queue_capacity_marker_fields(
                     patch.wait_runners,
                     explicit=patch.wait_runners is not None,
+                    queue_capacity_multiplier=patch.queue_capacity_multiplier,
                 )
             )
         if patch.update_wait_priority:

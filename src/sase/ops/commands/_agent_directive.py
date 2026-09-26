@@ -120,6 +120,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         )
     if payload.get("wait") and meta_patch is None:
         wait = payload["wait"] if isinstance(payload.get("wait"), dict) else {}
+        wait_capacity, wait_multiplier = _capacity_pair_from_payload(wait)
         meta_patch = wait_meta_patch_for_token(
             wait_names=tuple(wait.get("names") or ()),
             wait_beads=tuple(wait.get("beads") or ()),
@@ -132,13 +133,17 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
                     "update_queue_capacity", wait.get("update_wait_runners", False)
                 )
             ),
-            wait_runners=wait.get("queue_capacity", wait.get("wait_runners")),
+            wait_runners=wait_capacity,
+            queue_capacity_multiplier=wait_multiplier,
             update_wait_priority=bool(wait.get("update_wait_priority", False)),
             wait_priority=wait.get("wait_priority"),
         )
     waiting = None
     if isinstance(payload.get("waiting"), dict):
         waiting_payload = payload["waiting"]
+        waiting_capacity, waiting_multiplier = _capacity_pair_from_payload(
+            waiting_payload
+        )
         waiting = waiting_marker_patch_for_token(
             wait_names=tuple(waiting_payload.get("names") or ()),
             wait_beads=tuple(waiting_payload.get("beads") or ()),
@@ -152,9 +157,8 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
                     waiting_payload.get("update_wait_runners", False),
                 )
             ),
-            wait_runners=waiting_payload.get(
-                "queue_capacity", waiting_payload.get("wait_runners")
-            ),
+            wait_runners=waiting_capacity,
+            queue_capacity_multiplier=waiting_multiplier,
             update_wait_priority=bool(
                 waiting_payload.get("update_wait_priority", False)
             ),
@@ -431,13 +435,79 @@ def _coerce_agent_tribe_identity(raw_identity: object) -> tuple[Any, str, str | 
 
 def _capacity_from_payload(payload: Mapping[str, Any]) -> int | None:
     """Read canonical `capacity` or persisted `runners` from a mutator spec."""
-    from sase.xprompt.queue_directive import validate_queue_capacity
+    capacity, _multiplier = _capacity_pair_from_payload(payload)
+    return capacity
 
-    if payload.get("capacity") is not None:
-        return validate_queue_capacity(payload["capacity"])
-    if payload.get("runners") is not None:
-        return validate_queue_capacity(payload["runners"])
-    return None
+
+def _capacity_multiplier_from_payload(payload: Mapping[str, Any]) -> float | None:
+    """Read the authored `<M>x` multiplier from a mutator spec."""
+    _capacity, multiplier = _capacity_pair_from_payload(payload)
+    return multiplier
+
+
+def _capacity_pair_from_payload(
+    payload: Mapping[str, Any],
+) -> tuple[int | None, float | None]:
+    """Return the mutually exclusive integer/multiplier capacity in *payload*."""
+    from sase.xprompt.queue_directive import (
+        format_queue_capacity_multiplier,
+        parse_queue_capacity_value,
+        validate_queue_capacity,
+    )
+
+    for key in (
+        "queue_capacity_multiplier",
+        "capacity_multiplier",
+        "multiplier",
+    ):
+        raw = payload.get(key)
+        if raw is not None:
+            if isinstance(raw, bool):
+                raise ValueError(
+                    "%queue(capacity=...) requires a positive integer or <M>x."
+                )
+            try:
+                numeric = float(
+                    str(raw).strip().rstrip("x").strip()
+                    if isinstance(raw, str) and raw.strip().endswith("x")
+                    else str(raw)
+                )
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "%queue(capacity=...) requires a positive integer or <M>x."
+                ) from None
+            if format_queue_capacity_multiplier(numeric) is None:
+                try:
+                    parsed = parse_queue_capacity_value(str(raw))
+                except ValueError as exc:
+                    raise ValueError(str(exc)) from None
+                multiplier_value = parsed.get("queue_capacity_multiplier")
+                if multiplier_value is None:
+                    raise ValueError(
+                        "%queue(capacity=...) requires a positive integer or <M>x."
+                    )
+                numeric = float(str(multiplier_value))
+            return None, numeric
+    for key in ("capacity", "runners", "queue_capacity", "wait_runners"):
+        raw = payload.get(key)
+        if raw is None:
+            continue
+        if isinstance(raw, str) and raw.strip().lower().endswith("x"):
+            try:
+                parsed = parse_queue_capacity_value(raw)
+            except ValueError as exc:
+                raise ValueError(str(exc)) from None
+            multiplier_value = parsed.get("queue_capacity_multiplier")
+            integer_value = parsed.get("queue_capacity", parsed.get("capacity"))
+            if multiplier_value is not None:
+                return None, float(str(multiplier_value))
+            if integer_value is not None:
+                return int(integer_value), None
+            raise ValueError(
+                "%queue(capacity=...) requires a positive integer or <M>x."
+            )
+        return validate_queue_capacity(raw), None
+    return None, None
 
 
 def _prompt_mutator_from_spec(spec: object) -> Any:
@@ -471,6 +541,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             weight=wait.get("weight"),
             beads=tuple(wait.get("beads") or ()),
             hoods=tuple(wait.get("hoods") or ()),
+            capacity_multiplier=_capacity_multiplier_from_payload(wait),
         )
         return lambda prompt: set_prompt_wait_and_queue(prompt, directive)
     if kind == "set_queue":
@@ -481,6 +552,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             capacity=_capacity_from_payload(spec),
             priority=spec.get("priority"),
             weight=spec.get("weight"),
+            capacity_multiplier=_capacity_multiplier_from_payload(spec),
         )
     if kind == "set_tribe":
         from sase.xprompt.directive_edit import set_prompt_tribe

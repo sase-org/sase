@@ -361,6 +361,7 @@ class WaitModal(WaitModalCompletionScreen):
             and not hoods
             and validation.token is None
             and capacity_validation.value is None
+            and capacity_validation.multiplier is None
             and priority_validation.value is None
         )
         self.dismiss(
@@ -375,6 +376,7 @@ class WaitModal(WaitModalCompletionScreen):
                 beads=beads,
                 hoods=hoods,
                 run_now=run_now,
+                capacity_multiplier=capacity_validation.multiplier,
             )
         )
 

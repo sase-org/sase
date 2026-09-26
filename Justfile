@@ -380,7 +380,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-19f(parse_queue_capacity_value)' \
         --epic-symbol 'sase-19x.4(phase_card_block)' \
         --epic-symbol 'sase-19x.4(block_meta_for_session_shell)' \
         --epic-symbol 'sase-19x.4(session_reply_heading)' \
