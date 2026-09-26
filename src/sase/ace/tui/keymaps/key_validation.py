@@ -25,6 +25,7 @@ _KEY_DISPLAY: dict[str, str] = {
     "minus": "-",
     "question_mark": "?",
     "apostrophe": "'",
+    "quotation_mark": '"',
     "grave_accent": "`",
     "slash": "/",
     "backslash": "\\",
@@ -73,6 +74,8 @@ _KEY_ALIASES: dict[str, str] = {
     "-": "minus",
     # Textual normalizes the printable ``$`` key to the name ``dollar_sign``.
     "$": "dollar_sign",
+    # Textual normalizes the printable ``"`` key to ``quotation_mark``.
+    '"': "quotation_mark",
     # Textual normalizes the printable ``_`` key to the name ``underscore``.
     "_": "underscore",
     # Textual normalizes the printable ``\`` and ``|`` split keys to names;

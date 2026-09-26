@@ -545,3 +545,17 @@ def test_curly_bracket_keys_validate_and_display() -> None:
     assert is_valid_key("right_curly_bracket")
     assert key_display_name("left_curly_bracket") == "{"
     assert key_display_name("right_curly_bracket") == "}"
+
+
+def test_quotation_mark_key_validates_and_displays() -> None:
+    """The Node Finder key validates by name and raw glyph, and shows as ``"``."""
+    assert is_valid_key("quotation_mark")
+    assert is_valid_key('"')
+    assert key_display_name("quotation_mark") == '"'
+    assert footer_key_display("quotation_mark") == '"'
+
+
+def test_quotation_mark_glyph_canonicalizes_to_key_name() -> None:
+    """The raw ``"`` spelling normalizes to Textual's key name."""
+    assert canonicalize_key_binding('"') == "quotation_mark"
+    assert canonicalize_key_binding("quotation_mark") == "quotation_mark"

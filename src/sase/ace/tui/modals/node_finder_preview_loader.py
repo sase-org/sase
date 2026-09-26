@@ -70,7 +70,7 @@ class NodeFinderPreviewCache:
     def is_fresh(self, payload: NodeFinderPreviewPayload, agent: Agent) -> bool:
         """Return whether the worker-visible source token still matches."""
 
-        return payload.token == node_finder_preview_token(agent)
+        return payload.token == _node_finder_preview_token(agent)
 
 
 def tier1_source(row: NodeFinderRow, snapshot: NodeFinderSnapshot) -> Agent | None:
@@ -120,11 +120,11 @@ def load_node_finder_preview(agent: Agent) -> NodeFinderPreviewPayload:
         reply=reply_tail.text,
         reply_omitted_lines=reply_tail.omitted_lines,
         reply_omitted_chars=reply_tail.omitted_chars,
-        token=node_finder_preview_token(source),
+        token=_node_finder_preview_token(source),
     )
 
 
-def node_finder_preview_token(agent: Agent) -> PreviewToken:
+def _node_finder_preview_token(agent: Agent) -> PreviewToken:
     """Return worker-side mtime/size facts for relevant artifact sources."""
 
     return tuple(_path_token(path) for path in _source_paths(agent))
@@ -242,7 +242,6 @@ __all__ = [
     "NodeFinderPreviewPayload",
     "PreviewToken",
     "load_node_finder_preview",
-    "node_finder_preview_token",
     "render_tier1",
     "tier1_source",
 ]

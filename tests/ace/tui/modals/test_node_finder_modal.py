@@ -110,6 +110,39 @@ def test_mount_handler_is_synchronous() -> None:
 
 
 @pytest.mark.asyncio
+async def test_rapid_keystrokes_coalesce_to_final_query() -> None:
+    """Back-to-back refilter schedules rebuild once, for the final query."""
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    rebuilds = 0
+    real_rebuild = modal._rebuild_options
+
+    def counting_rebuild(*, highlight: int | None) -> None:
+        nonlocal rebuilds
+        rebuilds += 1
+        real_rebuild(highlight=highlight)
+
+    modal._rebuild_options = counting_rebuild  # type: ignore[method-assign]
+    async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+        await wait_for(pilot, lambda: modal._view.query == "")
+        rebuilds = 0
+        modal._schedule_refilter("al")
+        modal._schedule_refilter("alp")
+        await wait_for(pilot, lambda: modal._view.query == "alp")
+        assert rebuilds == 1
+
+
+@pytest.mark.asyncio
+async def test_tab_flushes_pending_refilter_before_hints() -> None:
+    """Tab runs a still-queued refilter synchronously before HINTS accepts."""
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    async with _ModalHost(modal).run_test(size=(160, 40)):
+        modal._schedule_refilter("alp")
+        modal._enter_hints()
+        assert modal._view.query == "alp"
+        assert modal._pending_refilter_query is None
+
+
+@pytest.mark.asyncio
 async def test_opens_with_list_focus_and_here_row_highlighted() -> None:
     modal = _modal(_node("alpha"), _node("beta"), _node("gamma"), here=1)
     async with _ModalHost(modal).run_test(size=(160, 40)):

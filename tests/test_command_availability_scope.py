@@ -228,6 +228,14 @@ def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
         assert not is_command_available(spec, axe)
 
 
+def test_jump_to_node_palette_command_is_agents_only() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.jump_to_node"]
+    assert is_command_available(spec, CommandContext(tab="agents"))
+    assert not is_command_available(spec, CommandContext(tab="artifacts"))
+    assert not is_command_available(spec, CommandContext(tab="services"))
+
+
 def test_bead_issue_palette_commands_are_scoped_to_beads_subtab() -> None:
     catalog = _catalog_by_id()
     command = catalog["bead_issue.view"]

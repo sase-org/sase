@@ -120,6 +120,7 @@ class AppKeymaps:
     jump_to_entry_fast: str
     jump_to_entry_forward: str
     jump_to_all_entries: str
+    jump_to_node: str
     edit_spec: str
     add_axe_item: str
     toggle_axe_description: str

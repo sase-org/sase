@@ -387,3 +387,18 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     assert fallback_by_action["collapse_panel_folds"].description == sweep
     assert runtime_by_action["collapse_all_panel_folds"].description == sweep_all
     assert fallback_by_action["collapse_all_panel_folds"].description == sweep_all
+
+
+def test_jump_to_node_binding_uses_quotation_mark() -> None:
+    """The registry, metadata, and fallback agree on the Node Finder binding."""
+    bindings = build_app_bindings(default_app_keymaps())
+    by_action = {binding.action: binding for binding in bindings}
+    assert by_action["jump_to_node"].key == "quotation_mark"
+
+    fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
+    assert fallback_by_action["jump_to_node"].key == "quotation_mark"
+    assert fallback_by_action["jump_to_node"].description == "Jump to Node"
+
+    km = default_app_keymaps(jump_to_node="unbound")
+    rebound = {b.action: b for b in build_app_bindings(km)}
+    assert "jump_to_node" not in rebound

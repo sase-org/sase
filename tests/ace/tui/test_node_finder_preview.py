@@ -184,7 +184,7 @@ def test_loader_bounds_content_hydrates_only_copy_and_uses_reply_precedence(
         agent, "get_timestamped_reply_chunks", lambda: [("t", "first"), ("u", "second")]
     )
     monkeypatch.setattr(agent, "get_live_reply_content", lambda: "live should lose")
-    monkeypatch.setattr(loader, "node_finder_preview_token", lambda _: ())
+    monkeypatch.setattr(loader, "_node_finder_preview_token", lambda _: ())
 
     payload = loader.load_node_finder_preview(agent)
 

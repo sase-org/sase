@@ -141,6 +141,18 @@ def empty_match_label(query: str) -> Text:
     return Text(f"No nodes match ‹{query}›", style="dim")
 
 
+def last_child_indices(rows: Sequence[NodeFinderRow]) -> set[int]:
+    """Return the displayed indices that close their sibling group.
+
+    Computing this once per list rebuild keeps per-row tree guides O(depth)
+    instead of O(rows); pass the result to :func:`render_row_prompt`.
+    """
+    children: dict[int | None, list[int]] = {}
+    for index, row in enumerate(rows):
+        children.setdefault(row.parent_row, []).append(index)
+    return {sibs[-1] for sibs in children.values() if sibs}
+
+
 def render_row_prompt(
     view: NodeFinderView,
     index: int,
@@ -149,10 +161,11 @@ def render_row_prompt(
     pending: str,
     show_status: bool,
     hint_width: int,
+    last_child: set[int] | None = None,
 ) -> Text:
     """Compose one OptionList prompt: hint gutter plus cached body."""
     row = view.rows[index]
-    body = _render_row_body(view, index, show_status=show_status)
+    body = _render_row_body(view, index, show_status=show_status, last_child=last_child)
     hint = view.identity_to_hint.get(row.identity) if row.identity is not None else None
     gutter = _render_hint_gutter(
         hint,
@@ -194,6 +207,7 @@ def _render_row_body(
     index: int,
     *,
     show_status: bool,
+    last_child: set[int] | None = None,
 ) -> Text:
     """Render everything after the hint gutter for one displayed row."""
     row = view.rows[index]
@@ -201,7 +215,9 @@ def _render_row_body(
         return _render_panel_header(row)
     if row.role is NodeFinderRole.GROUP:
         return _render_group_header(row)
-    return _render_node_body(view, index, show_status=show_status)
+    return _render_node_body(
+        view, index, show_status=show_status, last_child=last_child
+    )
 
 
 def _render_panel_header(row: NodeFinderRow) -> Text:
@@ -230,6 +246,7 @@ def _render_node_body(
     index: int,
     *,
     show_status: bool,
+    last_child: set[int] | None = None,
 ) -> Text:
     row = view.rows[index]
     hidden = bool(row.reasons) and not row.is_here
@@ -242,7 +259,7 @@ def _render_node_body(
     else:
         text.append("  ")
     text.append(_type_glyph(row.agent), style=name_style)
-    text.append(_tree_prefix(view.rows, index))
+    text.append(_tree_prefix(view.rows, index, last_child))
     runs = _name_match_runs(row.name, view.tokens)
     append_highlighted(
         text,
@@ -275,11 +292,16 @@ def _type_glyph(agent: Agent | None) -> str:
     return ""
 
 
-def _tree_prefix(rows: Sequence[NodeFinderRow], index: int) -> Text:
+def _tree_prefix(
+    rows: Sequence[NodeFinderRow],
+    index: int,
+    last_child: set[int] | None = None,
+) -> Text:
     row = rows[index]
     if row.role is not NodeFinderRole.NODE:
         return Text("")
-    last_child = _last_child_indices(rows)
+    if last_child is None:
+        last_child = last_child_indices(rows)
     ancestors: list[int] = []
     current = row.parent_row
     seen: set[int] = set()
@@ -301,13 +323,6 @@ def _tree_prefix(rows: Sequence[NodeFinderRow], index: int) -> Text:
     color = _depth_color(row.depth)
     text.append("└ " if index in last_child else "├ ", style=color)
     return text
-
-
-def _last_child_indices(rows: Sequence[NodeFinderRow]) -> set[int]:
-    children: dict[int | None, list[int]] = {}
-    for index, row in enumerate(rows):
-        children.setdefault(row.parent_row, []).append(index)
-    return {sibs[-1] for sibs in children.values() if sibs}
 
 
 def _depth_color(depth: int) -> str:
@@ -358,6 +373,7 @@ __all__ = [
     "EMPTY_PREVIEW",
     "empty_match_label",
     "hint_column_width",
+    "last_child_indices",
     "layout_class_for_width",
     "render_flash_slot",
     "render_legend",

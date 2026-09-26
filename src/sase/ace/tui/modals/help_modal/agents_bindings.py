@@ -86,6 +86,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Jump stack back / forward",
                 ),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
+                (d(a.jump_to_node), 'Find any node, even hidden ("" back)'),
                 ("0-9", "Jump numbered member/neighbor"),
                 ("Esc", "Enter selected panel / cancel member jump"),
                 (

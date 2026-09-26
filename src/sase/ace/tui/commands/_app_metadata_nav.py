@@ -119,6 +119,13 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     ("jump_to_all_entries", "Jump to any entry", "Navigation", ALL_TABS, ("hint",)),
     (
+        "jump_to_node",
+        "Find and jump to any node (even hidden)",
+        "Navigation",
+        AGENTS_ONLY,
+        ("node", "finder", "find", "hidden", '"'),
+    ),
+    (
         "follow_artifact_link",
         "Follow artifact link",
         "Navigation",

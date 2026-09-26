@@ -97,6 +97,21 @@ def test_jump_commands_use_back_and_forward_defaults_on_every_tab() -> None:
     assert "app.next_patch_history" not in by_id
 
 
+def test_jump_to_node_command_is_agents_only_with_finder_aliases() -> None:
+    """The Node Finder palette entry is Agents-only and searchable."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.jump_to_node"]
+    assert spec.label == "Find and jump to any node (even hidden)"
+    assert spec.category == "Navigation"
+    assert spec.tabs == ("agents",)
+    assert spec.key_sequence == ("quotation_mark",)
+    assert spec.key_display == '"'
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "jump_to_node"
+    for alias in ("node", "finder", "find", "hidden", '"'):
+        assert alias in spec.aliases
+
+
 def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
     """The Ctrl+G MRU editor action is discoverable on every tab."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}

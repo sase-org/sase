@@ -18,6 +18,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("jump_to_entry_fast", "Fast Jump", False),
     ("jump_to_entry_forward", "Forward Jump", False),
     ("jump_to_all_entries", "Jump All", False),
+    ("jump_to_node", "Jump to Node", False),
     ("hooks_or_collapse", "Parent / Collapse or Jump Panel/Fold", False),
     (
         "hooks_or_collapse_all",

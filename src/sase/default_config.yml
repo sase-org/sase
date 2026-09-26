@@ -754,6 +754,8 @@ ace:
       jump_to_entry_fast: "ctrl+o"
       jump_to_entry_forward: "ctrl+shift+o"
       jump_to_all_entries: "grave_accent"
+      # Agents only: Node Finder — jump to any node, including hidden ones
+      jump_to_node: "quotation_mark"
       edit_spec: "e"
       add_axe_item: "a"
       # Services-tab only.

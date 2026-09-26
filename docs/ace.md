@@ -1299,6 +1299,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
 | `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                          |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
+| `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                               |
 | `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
 | `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                          |
 | `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                    |
@@ -4819,6 +4820,37 @@ Both jump modals support a jump-back feature for toggling between two entries:
 
 The single-tab variant (`'` apostrophe) shows entries only from the current tab with the
 same hint-character navigation.
+
+## Node Finder
+
+Press `"` (quotation mark) on the Agents tab to open the Node Finder modal. It lists
+every reachable sase node as a tree — clans, agent nodes, session shells (including
+monitors and gates), workflow roots, workflow `agent` steps, and stand-alone proc shells
+— including rows hidden by collapsed folds, collapsed grouping banners, collapsed or
+isolated tribe panels, and the Agents query. Every jumpable row carries a jump hint.
+
+| Key                          | HINTS mode (default)                              | SEARCH mode (query focused)   |
+| ---------------------------- | ------------------------------------------------- | ----------------------------- |
+| `0-9a-zA-Z`                  | Complete a hint and jump, or set a pending prefix | Edit the query; live refilter |
+| `Tab` / `Shift+Tab`          | Focus the query                                   | Back to HINTS, query kept     |
+| `/`                          | Focus the query                                   | Types `/`                     |
+| `Enter`                      | Jump to the highlighted node                      | Jump to the highlighted node  |
+| `Ctrl+N` / `Ctrl+P`, `↓`/`↑` | Next / previous jumpable row (wraps)              | Same                          |
+| `"`                          | Jump back (same as `Ctrl+O`)                      | Types `"`                     |
+| `Backspace`                  | Cancel a pending prefix; otherwise swallow        | Delete a character            |
+| `Esc`                        | Cancel a pending prefix; otherwise close          | Back to HINTS, query kept     |
+| Any other key                | Swallow; the footer flashes `no hint ‹x›`         | Types                         |
+
+The why-hidden glyph legend: blank means visible, `◆` you are here, `⊘` hidden by the
+Agents query, `◌` hidden by `I` (until listed, shown as an `I hides K` chip), `▭` inside
+a collapsed or isolated-away tribe panel, `≡` inside a collapsed grouping banner, `▸`
+inside a collapsed fold.
+
+"Hidden" covers folds, banners, panels, and rows the Agents query hides. Jumping to a
+query-hidden node clears the Agents query (recorded in query history, announced with a
+toast); restore it with the query-history keys. The one-line jobs of the sibling
+surfaces: `'` jumps by hint on the current tab, `` ` `` jumps across all tabs, digits
+jump roster members, and `"` in the finder jumps back.
 
 ## Mentor Comment Stats in PR List
 

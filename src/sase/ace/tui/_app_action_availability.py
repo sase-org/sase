@@ -304,6 +304,19 @@ def check_app_action(
             return False
     if action == "toggle_hide_non_run_agents" and app.current_tab != "agents":
         return False
+    if action == "jump_to_node":
+        if app.current_tab != "agents":
+            return False
+        if _prompt_input_owns_keys(app):
+            return False
+        from textual.screen import ModalScreen
+
+        if isinstance(getattr(app, "screen", None), ModalScreen):
+            return False
+        if not bool(getattr(app, "_agents_first_load_done", False)):
+            return False
+        if bool(getattr(app, "_agents_filter_session_open", False)):
+            return False
     if (
         action in {"focus_next_agent_panel", "focus_prev_agent_panel"}
         and app.current_tab != "agents"

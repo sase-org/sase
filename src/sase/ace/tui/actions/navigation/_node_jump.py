@@ -9,6 +9,45 @@ from ._types import NavigationMixinBase
 class NodeJumpNavigationMixin(NavigationMixinBase):
     """Reveal a node, clearing a hiding Agents query only when needed."""
 
+    def action_jump_to_node(self) -> None:
+        """Open the Agents-tab Node Finder modal on the ``"`` key."""
+        exit_jump = getattr(self, "_exit_entry_jump_mode", None)
+        if callable(exit_jump):
+            exit_jump()
+        cancel_member = getattr(self, "_cancel_member_jump_pending", None)
+        if callable(cancel_member):
+            cancel_member()
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
+        if callable(guard) and guard():
+            return
+        from ..agents._node_finder_snapshot import build_node_finder_snapshot
+
+        snapshot = build_node_finder_snapshot(self)
+        if not any(row.jumpable for row in snapshot.rows):
+            self.notify("No nodes to jump to")  # type: ignore[attr-defined]
+            return
+        from ...modals import NodeFinderModal, NodeFinderResult
+
+        has_back_fn = getattr(self, "_entry_jump_footer_has_back", None)
+        has_back = bool(has_back_fn()) if callable(has_back_fn) else False
+        has_back = has_back or bool(getattr(self, "_link_trail", []))
+
+        def _on_dismiss(result: NodeFinderResult | None) -> None:
+            if result is None:
+                return
+            if result.back:
+                fast = getattr(self, "action_jump_to_entry_fast", None)
+                if callable(fast):
+                    fast()
+                return
+            if result.identity is not None:
+                self._jump_to_node_identity(result.identity, name=result.name)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            NodeFinderModal(snapshot, has_back=has_back),
+            _on_dismiss,
+        )
+
     def _clear_agents_query_for_navigation(self) -> str | None:
         """Clear an active Agents query and record its reversible transition."""
         query = getattr(self, "_agent_search_query", "") or ""

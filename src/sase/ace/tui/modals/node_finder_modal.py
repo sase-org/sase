@@ -44,6 +44,7 @@ from .node_finder_rendering import (
     EMPTY_PREVIEW,
     empty_match_label,
     hint_column_width,
+    last_child_indices,
     layout_class_for_width,
     render_flash_slot,
     render_legend,
@@ -101,6 +102,8 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self._pending = ""
         self._flash = ""
         self._flash_timer: Timer | None = None
+        self._refilter_generation = 0
+        self._pending_refilter_query: str | None = None
         self._layout_class = ""
         self._highlighting = False
         self._preview_generation = 0
@@ -145,6 +148,9 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
             self._debouncer.cancel()
         if self._flash_timer is not None:
             self._flash_timer.stop()
+        # Invalidate any coalesced refilter still queued behind this screen.
+        self._refilter_generation += 1
+        self._pending_refilter_query = None
         cancel_pump_free_tasks(self)
 
     def on_resize(self, event: Resize) -> None:
@@ -222,14 +228,51 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "node-finder-query":
             return
+        self._schedule_refilter(event.value)
+
+    def _schedule_refilter(self, value: str) -> None:
+        """Arm a latest-wins refilter; the keystroke callback stays thin.
+
+        Rapid keystrokes supersede one another via the generation guard, so a
+        burst collapses to a single list rebuild for the final query. Tab and
+        Enter flush through :meth:`_flush_pending_refilter` first. The worker
+        runs on the next message tick (no added delay); staleness is decided
+        by generation, so no timer handle needs cancelling.
+        """
+        self._refilter_generation += 1
+        generation = self._refilter_generation
+        self._pending_refilter_query = value
+        self.call_next(self._fire_scheduled_refilter, value, generation)
+
+    def _fire_scheduled_refilter(self, query: str, generation: int) -> None:
+        if self._pending_refilter_query == query:
+            self._pending_refilter_query = None
+        self._apply_refilter(query, generation)
+
+    def _apply_refilter(self, query: str, generation: int) -> None:
+        if generation != self._refilter_generation:
+            return  # Superseded by a newer keystroke; latest wins.
+        if not self.is_mounted:
+            return
         with tui_trace("node_finder.filter"):
-            self._view = filter_node_finder(
-                self._snapshot, event.value, previous=self._view
-            )
+            self._view = filter_node_finder(self._snapshot, query, previous=self._view)
             self._pending = ""
             self._rebuild_options(highlight=self._view.best_index)
             self._paint_chrome()
             self._paint_preview()
+
+    def _flush_pending_refilter(self) -> None:
+        """Run any coalesced refilter now so Tab/Enter see the latest list.
+
+        Bumping the generation first drops the still-queued scheduled worker
+        when it fires.
+        """
+        if self._pending_refilter_query is None:
+            return
+        query = self._pending_refilter_query
+        self._pending_refilter_query = None
+        self._refilter_generation += 1
+        self._apply_refilter(query, self._refilter_generation)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "node-finder-query":
@@ -256,6 +299,7 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self.query_one("#node-finder-query", FilterInput).focus()
 
     def _enter_hints(self) -> None:
+        self._flush_pending_refilter()
         self._search_mode = False
         self._pending = ""
         self._paint_chrome()
@@ -292,6 +336,7 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self._set_flash("no jump history")
 
     def _jump_highlighted(self) -> None:
+        self._flush_pending_refilter()
         highlighted = self._list().highlighted
         if highlighted is None:
             self._set_flash("No matching node")
@@ -319,6 +364,9 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         option_list = self._list()
         hint_width = hint_column_width(self._view)
         status = show_status_column(self._layout_class)
+        # One sibling-closure pass shared by every row's tree guides; computing
+        # it per row would make a rebuild O(rows^2).
+        guide_ends = last_child_indices(self._view.rows)
         options: list[Option] = []
         if not self._view.rows:
             options.append(
@@ -344,6 +392,7 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
                             pending=self._pending,
                             show_status=status,
                             hint_width=hint_width,
+                            last_child=guide_ends,
                         ),
                         id=f"nf-{index}",
                         disabled=disabled,

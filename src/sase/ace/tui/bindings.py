@@ -22,6 +22,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+o", "jump_to_entry_fast", "Fast Jump", show=False),
     Binding("ctrl+shift+o", "jump_to_entry_forward", "Forward Jump", show=False),
     Binding("grave_accent", "jump_to_all_entries", "Jump All", show=False),
+    Binding("quotation_mark", "jump_to_node", "Jump to Node", show=False),
     Binding(
         "h",
         "hooks_or_collapse",
