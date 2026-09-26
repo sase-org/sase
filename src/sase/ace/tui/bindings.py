@@ -103,6 +103,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     ),
     Binding("right_curly_bracket", "grow_deck_panel", "Grow Deck Panel", show=False),
     Binding("left_curly_bracket", "shrink_deck_panel", "Shrink Deck Panel", show=False),
+    Binding("right_square_bracket", "next_card_block", "Newer Card Block", show=False),
+    Binding("left_square_bracket", "prev_card_block", "Older Card Block", show=False),
     Binding(
         "D",
         "cycle_artifacts_description",

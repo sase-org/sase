@@ -243,6 +243,7 @@ class CommandContext:
     has_artifact_files: bool = False
     agents_metadata_search_active: bool = False
     agent_deck_split: bool = False
+    card_blocks_navigable: bool = False
     fleet_enabled: bool = False
     selected_agent_remote: bool = False
     # Axe tab state

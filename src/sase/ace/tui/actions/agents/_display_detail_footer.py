@@ -310,6 +310,7 @@ class AgentFooterDisplayMixin:
             )
             deck_split = False
             deck_card_count = 0
+            card_blocks_navigable = False
             try:
                 from ...widgets.decks.model import DeckId as _DeckId
                 from ...widgets.decks.model import DeckLayout as _DeckLayout
@@ -318,6 +319,10 @@ class AgentFooterDisplayMixin:
                 deck_split = layout is not _DeckLayout.SINGLE
                 try:
                     focused = agent_detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+                    try:
+                        card_blocks_navigable = bool(focused.card_blocks_navigable)
+                    except Exception:
+                        card_blocks_navigable = False
                     if focused.deck is _DeckId.MAIN:
                         try:
                             deck_card_count = len(
@@ -339,6 +344,7 @@ class AgentFooterDisplayMixin:
             except Exception:
                 deck_split = False
                 deck_card_count = 0
+                card_blocks_navigable = False
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -383,6 +389,7 @@ class AgentFooterDisplayMixin:
                 llm_calls_detail_level=int(agent_detail.llm_calls_detail_level),
                 deck_split=deck_split,
                 deck_card_count=deck_card_count,
+                card_blocks_navigable=card_blocks_navigable,
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:

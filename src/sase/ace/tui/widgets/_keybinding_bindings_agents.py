@@ -64,6 +64,7 @@ class AgentBindingsMixin:
         llm_calls_detail_level: int = 0,
         deck_split: bool = False,
         deck_card_count: int = 0,
+        card_blocks_navigable: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -453,6 +454,13 @@ class AgentBindingsMixin:
                 (
                     f"{self._kd('next_deck_card')}/{self._kd('prev_deck_card')}",
                     "cards",
+                )
+            )
+        if card_blocks_navigable:
+            bindings.append(
+                (
+                    f"{self._kd('prev_card_block')}/{self._kd('next_card_block')}",
+                    "blocks",
                 )
             )
         if deck_split:

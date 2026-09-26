@@ -146,6 +146,9 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # Tab-disjoint: Agents deck ratio vs Artifacts split cycling.
         frozenset({"grow_deck_panel", "cycle_artifacts_split"}),
         frozenset({"shrink_deck_panel", "cycle_artifacts_split_reverse"}),
+        # Tab-disjoint: Agents card-block stepping vs Artifacts sub-tab cycling.
+        frozenset({"next_card_block", "cycle_artifacts_subtab"}),
+        frozenset({"prev_card_block", "cycle_artifacts_subtab_reverse"}),
     }
 )
 

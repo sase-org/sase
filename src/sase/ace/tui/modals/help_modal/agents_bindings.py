@@ -94,6 +94,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle deck card (decks)",
                 ),
                 (
+                    f"{d(a.prev_card_block)} / {d(a.next_card_block)}",
+                    "Older / newer card block",
+                ),
+                (
                     d(a.pick_deck),
                     "Pick deck for focused panel (decks)",
                 ),

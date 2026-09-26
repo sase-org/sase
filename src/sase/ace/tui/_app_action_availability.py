@@ -97,6 +97,24 @@ _DECK_SPLIT_ONLY_ACTIONS = frozenset(
         "shrink_deck_panel",
     }
 )
+_CARD_BLOCK_ACTIONS = frozenset(
+    {
+        "prev_card_block",
+        "next_card_block",
+    }
+)
+
+
+def _focused_card_blocks_navigable(app: Any) -> bool:
+    """Return the focused deck panel's cached card-block predicate."""
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+        return bool(panel.card_blocks_navigable)
+    except Exception:
+        return False
 
 
 def _deck_split_active(app: Any) -> bool:
@@ -133,12 +151,17 @@ def check_app_action(
         or action in _LOCAL_AGENT_ROW_ACTIONS
         or action in _DECK_NAV_ACTIONS
         or action in _DECK_LAYOUT_ACTIONS
+        or action in _CARD_BLOCK_ACTIONS
         or action == "act_on_agent"
     ):
         return False
     if action in _DECK_NAV_ACTIONS:
         if app.current_tab != "agents":
             return False
+    if action in _CARD_BLOCK_ACTIONS:
+        if app.current_tab != "agents":
+            return False
+        return bool(_focused_card_blocks_navigable(app))
     if action in _DECK_LAYOUT_ACTIONS:
         if app.current_tab != "agents":
             return False

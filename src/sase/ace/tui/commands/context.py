@@ -202,6 +202,19 @@ def _jump_panel_toggle_available(app: AceApp) -> bool:  # type: ignore[no-untype
         return False
 
 
+def _card_blocks_navigable(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
+    if app.current_tab != "agents":
+        return False
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.focused_panel()  # type: ignore[attr-defined]
+        return bool(panel.card_blocks_navigable)
+    except Exception:
+        return False
+
+
 def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
     return sum(1 for a in agents if is_unread_completed_status(a.status))
@@ -392,6 +405,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         has_artifact_files=has_artifact_files,
         agents_metadata_search_active=metadata_search_active,
         agent_deck_split=deck_split,
+        card_blocks_navigable=_card_blocks_navigable(app),
         fleet_enabled=bool(fleet_available()) if callable(fleet_available) else False,
         selected_agent_remote=selected_remote,
         link_edges_present=link_edges_present,

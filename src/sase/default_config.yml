@@ -654,6 +654,9 @@ ace:
       prev_chop_run: "ctrl+p"
       next_deck_card: "ctrl+j"
       prev_deck_card: "ctrl+k"
+      # Card-block stepping shares [ / ] with cycle_artifacts_subtab (Artifacts); disambiguated by tab availability.
+      next_card_block: "right_square_bracket"
+      prev_card_block: "left_square_bracket"
       next_deck: "ctrl+n"
       prev_deck: "ctrl+p"
       # Agents-only deck picker. Shares p with pick_artifacts_project (Artifacts); disambiguated by tab availability.

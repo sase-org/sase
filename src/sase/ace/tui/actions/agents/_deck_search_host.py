@@ -35,6 +35,8 @@ def deck_structural_exit_keys(app: Any) -> tuple[str, ...]:
             "pick_deck",
             "next_deck_card",
             "prev_deck_card",
+            "next_card_block",
+            "prev_card_block",
             "toggle_deck_split_below",
             "toggle_deck_split_right",
             "toggle_deck_focus",

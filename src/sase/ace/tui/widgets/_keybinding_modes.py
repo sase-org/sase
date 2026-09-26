@@ -73,6 +73,7 @@ class KeybindingModesMixin:
             llm_calls_detail_level: int = 0,
             deck_split: bool = False,
             deck_card_count: int = 0,
+            card_blocks_navigable: bool = False,
         ) -> list[tuple[str, str]]: ...
 
         def _compute_axe_bindings(
@@ -162,6 +163,7 @@ class KeybindingModesMixin:
         llm_calls_detail_level: int = 0,
         deck_split: bool = False,
         deck_card_count: int = 0,
+        card_blocks_navigable: bool = False,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -198,6 +200,7 @@ class KeybindingModesMixin:
             llm_calls_detail_level=llm_calls_detail_level,
             deck_split=deck_split,
             deck_card_count=deck_card_count,
+            card_blocks_navigable=card_blocks_navigable,
         )
         self._update_display(bindings)
 

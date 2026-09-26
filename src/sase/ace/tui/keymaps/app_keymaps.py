@@ -27,6 +27,8 @@ class AppKeymaps:
     prev_chop_run: str
     next_deck_card: str
     prev_deck_card: str
+    next_card_block: str
+    prev_card_block: str
     next_deck: str
     prev_deck: str
     pick_deck: str

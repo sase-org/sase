@@ -152,6 +152,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("prev_chop_run", "Previous Job Run", False),
     ("next_deck_card", "Next Deck Card", False),
     ("prev_deck_card", "Previous Deck Card", False),
+    ("next_card_block", "Newer Card Block", False),
+    ("prev_card_block", "Older Card Block", False),
     ("next_deck", "Next Deck", False),
     ("prev_deck", "Previous Deck", False),
     ("pick_deck", "Pick Deck", False),

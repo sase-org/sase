@@ -185,6 +185,11 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     }:
         return bool(ctx.agent_deck_split)
     if spec.id in {
+        "app.prev_card_block",
+        "app.next_card_block",
+    }:
+        return bool(ctx.card_blocks_navigable)
+    if spec.id in {
         "app.scroll_prompt_down",
         "app.scroll_prompt_up",
     }:

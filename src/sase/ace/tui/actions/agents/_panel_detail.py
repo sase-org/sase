@@ -165,6 +165,24 @@ class AgentPanelDetailMixin:
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         agent_detail.cycle_focused_deck_card(-1)
 
+    def action_next_card_block(self) -> None:
+        """Cycle to the newer card block in the focused deck panel (wraps)."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_focused_card_block(1)
+
+    def action_prev_card_block(self) -> None:
+        """Cycle to the older card block in the focused deck panel (wraps)."""
+        if self.current_tab != "agents":
+            return
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        agent_detail.cycle_focused_card_block(-1)
+
     def action_next_deck(self) -> None:
         """Cycle the focused deck panel to the next deck (wraps)."""
         if self.current_tab != "agents":
