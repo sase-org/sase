@@ -36,6 +36,23 @@ from ._meta_enrichment_status import (
 from ..agent import Agent
 
 
+def _valid_wire_multiplier(value: object) -> float | None:
+    """Return *value* when it is a valid persisted multiplier, else None."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        numeric = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+    try:
+        formatted = format_queue_capacity_multiplier(numeric)
+    except Exception:
+        return None
+    return numeric if formatted is not None else None
+
+
 def enrich_agent_from_meta_wire(
     agent: Agent,
     meta: AgentMetaWire | None,
@@ -234,12 +251,29 @@ def enrich_agent_from_meta_wire(
             agent.wait_duration = waiting.wait_duration
         if waiting.wait_until:
             agent.wait_until = waiting.wait_until
-        agent.set_queue_capacity(
+        waiting_capacity = (
             waiting.queue_capacity
             if waiting.queue_capacity is not None
-            else waiting.wait_runners,
-            explicit=waiting.queue_capacity_explicit or waiting.wait_runners_explicit,
+            else waiting.wait_runners
         )
+        if waiting_capacity is not None:
+            agent.set_queue_capacity(
+                waiting_capacity,
+                explicit=waiting.queue_capacity_explicit
+                or waiting.wait_runners_explicit,
+            )
+        else:
+            waiting_multiplier = _valid_wire_multiplier(
+                waiting.queue_capacity_multiplier
+            )
+            if waiting_multiplier is not None:
+                agent.set_queue_capacity(None, multiplier=waiting_multiplier)
+            else:
+                agent.set_queue_capacity(
+                    None,
+                    explicit=waiting.queue_capacity_explicit
+                    or waiting.wait_runners_explicit,
+                )
         agent.wait_priority = waiting.wait_priority
         agent.wait_priority_explicit = (
             waiting.wait_priority_explicit
@@ -265,11 +299,20 @@ def enrich_agent_from_meta_wire(
     raw_capacity = (
         meta.queue_capacity if meta.queue_capacity is not None else meta.wait_runners
     )
-    if agent.queue_capacity is None and type(raw_capacity) is int and raw_capacity >= 0:
+    if (
+        agent.queue_capacity is None
+        and agent.queue_capacity_multiplier is None
+        and type(raw_capacity) is int
+        and raw_capacity >= 0
+    ):
         agent.set_queue_capacity(
             raw_capacity,
             explicit=meta.queue_capacity_explicit or meta.wait_runners_explicit,
         )
+    elif agent.queue_capacity is None and agent.queue_capacity_multiplier is None:
+        meta_multiplier = _valid_wire_multiplier(meta.queue_capacity_multiplier)
+        if meta_multiplier is not None:
+            agent.set_queue_capacity(None, multiplier=meta_multiplier)
     if (
         agent.wait_priority is None
         and type(meta.wait_priority) is int

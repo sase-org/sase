@@ -428,10 +428,19 @@ def _agent_from_summary(
     )
     if owner_resolved:
         _apply_gate_member_status(agent, shipped_gate_id=optional_str(fact("gate_id")))
-    agent.set_queue_capacity(
-        int_or_none(summary.get("queue_capacity")),
-        explicit=summary.get("queue_capacity_explicit") is True,
+    fleet_capacity = int_or_none(summary.get("queue_capacity"))
+    fleet_multiplier = (
+        _valid_fleet_multiplier(summary.get("queue_capacity_multiplier"))
+        if fleet_capacity is None
+        else None
     )
+    if fleet_multiplier is not None:
+        agent.set_queue_capacity(None, multiplier=fleet_multiplier)
+    else:
+        agent.set_queue_capacity(
+            fleet_capacity,
+            explicit=summary.get("queue_capacity_explicit") is True,
+        )
     return agent
 
 
@@ -467,6 +476,23 @@ def _shell_status(
 
 def _optional_bool(value: object) -> bool | None:
     return value if isinstance(value, bool) else None
+
+
+def _valid_fleet_multiplier(value: object) -> float | None:
+    """Return *value* when it is a valid persisted multiplier, else None."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        numeric = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+    try:
+        formatted = format_queue_capacity_multiplier(numeric)
+    except Exception:
+        return None
+    return numeric if formatted is not None else None
 
 
 def _local_time(value: object) -> datetime | None:

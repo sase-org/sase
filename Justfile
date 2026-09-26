@@ -377,7 +377,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-19f(parse_queue_capacity_value)' \
-        --epic-symbol 'sase-19f(format_queue_capacity_multiplier)' \
         --epic-symbol 'sase-19f(resolve_queue_capacity_multiplier)' \
         --epic-symbol 'sase-19x.4(phase_card_block)' \
         --epic-symbol 'sase-19x.4(block_meta_for_session_shell)' \

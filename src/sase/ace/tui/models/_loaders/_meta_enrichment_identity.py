@@ -104,6 +104,7 @@ def meta_has_wait_directive(data: dict[str, object]) -> bool:
         or data.get("wait_duration") is not None
         or bool(data.get("wait_until"))
         or data.get("queue_capacity") is not None
+        or data.get("queue_capacity_multiplier") is not None
         or data.get("wait_runners") is not None
         or data.get("wait_priority") is not None
         or data.get("queue_weight_explicit") is True
@@ -118,6 +119,7 @@ def wire_meta_has_wait_directive(meta: AgentMetaWire) -> bool:
         or meta.wait_duration is not None
         or bool(meta.wait_until)
         or meta.queue_capacity is not None
+        or meta.queue_capacity_multiplier is not None
         or meta.wait_runners is not None
         or meta.wait_priority is not None
         or meta.queue_weight_explicit

@@ -336,8 +336,10 @@ class AgentState:
     # ``queue_capacity`` is the canonical authored budget; ``wait_runners`` is
     # the display alias kept in sync by :meth:`set_queue_capacity`. Occupied
     # capacity units and per-waiter admission limits are projected separately
-    # from the snapshot below.
+    # from the snapshot below. ``queue_capacity_multiplier`` is the mutually
+    # exclusive ``<M>x`` form; its presence means explicit.
     queue_capacity: int | None = None
+    queue_capacity_multiplier: float | None = None
     queue_capacity_explicit: bool = False
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
@@ -658,10 +660,29 @@ class AgentState:
     # bundle loader so the revive audit log can record which file was deleted.
     _dismissed_bundle_path: str | None = field(default=None, compare=False, repr=False)
 
-    def set_queue_capacity(self, value: int | None, *, explicit: bool = False) -> None:
-        """Set canonical capacity and keep the wait_runners display alias in sync."""
+    def set_queue_capacity(
+        self,
+        value: int | None,
+        *,
+        explicit: bool = False,
+        multiplier: float | None = None,
+    ) -> None:
+        """Set canonical capacity and keep the wait_runners display alias in sync.
+
+        Integer and multiplier forms are mutually exclusive: setting one
+        clears the other. When both are supplied the integer wins, matching
+        persisted compatibility reads.
+        """
+        if multiplier is not None and value is None:
+            self.queue_capacity = None
+            self.queue_capacity_explicit = explicit
+            self.queue_capacity_multiplier = multiplier
+            self.wait_runners = None
+            self.wait_runners_explicit = False
+            return
         self.queue_capacity = value
         self.queue_capacity_explicit = explicit
+        self.queue_capacity_multiplier = None
         self.wait_runners = value
         self.wait_runners_explicit = explicit
 

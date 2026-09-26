@@ -53,6 +53,20 @@ def _coerce_queue_weight(value: object, *, explicit: bool) -> float | None:
     return valid_queue_weight(value, explicit=explicit)
 
 
+def _resolve_capacity_multiplier(data: dict[str, object]) -> float | None:
+    """Return the valid ``queue_capacity_multiplier`` unless an integer wins.
+
+    Delegates validity (finite, positive, at most two decimals) to the shared
+    queue adapter so filesystem and wire loaders agree with admission.
+    """
+    from sase.xprompt.queue_directive import resolve_authored_queue_capacity_multiplier
+
+    try:
+        return resolve_authored_queue_capacity_multiplier(data)
+    except Exception:
+        return None
+
+
 def _apply_queue_weight_fields(agent: Agent, data: dict[str, object]) -> None:
     has_weight = "queue_weight" in data
     if has_weight:
@@ -369,13 +383,20 @@ def enrich_agent_from_meta(
                         ),
                     )
                 else:
-                    agent.set_queue_capacity(
-                        None,
-                        explicit=(
-                            waiting_data.get("queue_capacity_explicit") is True
-                            or waiting_data.get("wait_runners_explicit") is True
-                        ),
-                    )
+                    waiting_multiplier = _resolve_capacity_multiplier(waiting_data)
+                    if waiting_multiplier is not None:
+                        agent.set_queue_capacity(
+                            None,
+                            multiplier=waiting_multiplier,
+                        )
+                    else:
+                        agent.set_queue_capacity(
+                            None,
+                            explicit=(
+                                waiting_data.get("queue_capacity_explicit") is True
+                                or waiting_data.get("wait_runners_explicit") is True
+                            ),
+                        )
                 raw_priority = waiting_data.get("wait_priority")
                 if type(raw_priority) is int and raw_priority >= 0:
                     agent.wait_priority = raw_priority
@@ -422,7 +443,7 @@ def enrich_agent_from_meta(
 
     # Fallback: an authored runner-slot priority remains useful after the
     # live waiting marker has been removed or before it has been published.
-    if agent.queue_capacity is None:
+    if agent.queue_capacity is None and agent.queue_capacity_multiplier is None:
         raw_runners = data.get("queue_capacity", data.get("wait_runners"))
         if type(raw_runners) is int and raw_runners >= 0:
             agent.set_queue_capacity(
@@ -434,6 +455,10 @@ def enrich_agent_from_meta(
                     or "wait_runners" in data
                 ),
             )
+        else:
+            meta_multiplier = _resolve_capacity_multiplier(data)
+            if meta_multiplier is not None:
+                agent.set_queue_capacity(None, multiplier=meta_multiplier)
     if agent.wait_priority is None:
         raw_priority = data.get("wait_priority")
         if type(raw_priority) is int and raw_priority >= 0:
