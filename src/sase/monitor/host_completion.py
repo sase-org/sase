@@ -53,6 +53,12 @@ from sase.monitor.host_completion_state import (
     snapshot_execution_context,
     workspace_identity,
 )
+from sase.monitor.no_new_receipt import (
+    NoNewEvidence,
+    evidence_provenance,
+    is_no_new_intent,
+    verify_no_new_receipt,
+)
 from sase.monitor.output import OutputCapture
 from sase.shells.followup import FollowupLaunchResult
 
@@ -70,6 +76,7 @@ _evaluate_intent = evaluate_intent
 _executor_capabilities = executor_capabilities
 _install_prepared_declaration = install_prepared_declaration
 _snapshot_execution_context = snapshot_execution_context
+_verify_no_new_receipt = verify_no_new_receipt
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +128,9 @@ def settle_host_completion(
                 "profile": meta.get("monitor_profile") or None,
                 "shared_next": meta.get("monitor_next_action") or None,
                 "prepared_completion_ref": completion_ref,
+                "prepared_completion_accept": _sealed_accept_for_resolve(
+                    artifacts_dir, meta, completion_ref, project_name
+                ),
             }
         )
         if policy.get("action") != "complete":
@@ -150,6 +160,31 @@ def _policy_outcome_name(monitor_state: str) -> str:
     from sase.monitor.host_completion_state import policy_outcome
 
     return policy_outcome(monitor_state)
+
+
+def _sealed_accept_for_resolve(
+    artifacts_dir: str,
+    meta: Mapping[str, Any],
+    completion_ref: str,
+    project_name: str | None,
+) -> str | None:
+    """Return the sealed accept policy for a fallback policy resolution.
+
+    Best effort: when the prepared intent cannot be read, return ``None``
+    and resolution falls back to the default pass behavior.
+    """
+
+    try:
+        intent = load_prepared_completion(
+            completion_ref,
+            artifacts_dir=intent_artifacts_dir(artifacts_dir, meta, project_name),
+        )
+    except Exception:  # noqa: BLE001 - resolution must fail open to pass.
+        return None
+    accept = intent.get("accept", "pass")
+    if accept not in ("pass", "no_new_failures"):
+        return None
+    return str(accept)
 
 
 def _run_host_completion(
@@ -268,6 +303,7 @@ def _run_host_completion(
         resuming = should_resume_outstanding(
             receipt, intent, snapshot.plan, artifacts_dir
         )
+        no_new = is_no_new_intent(intent)
         if not resuming:
             decision = _evaluate_intent(
                 artifacts_dir,
@@ -298,6 +334,60 @@ def _run_host_completion(
         else:
             rendered = str(intent.get("success_message") or "")
             decision = {"rendered_message": rendered}
+        evidence: NoNewEvidence | None = None
+        if no_new:
+            # At monitor settlement, retrieve the settled ToolRun from the
+            # monitor/owner link and require a covering no_new_failures
+            # receipt from that exact run. Resumed host completion re-runs
+            # the same gate instead of trusting a persisted prior success.
+            expected = _expected_no_new_ids(receipt if resuming else None)
+            if resuming:
+                decision = _evaluate_intent(
+                    artifacts_dir,
+                    meta,
+                    intent=intent,
+                    snapshot=snapshot,
+                    monitor_state=monitor_state,
+                    exit_code=exit_code,
+                    elapsed_seconds=elapsed_seconds,
+                )
+                if not decision.get("eligible"):
+                    reason = str(decision.get("reason") or "ineligible_completion")
+                    return _recover(
+                        artifacts_dir,
+                        meta,
+                        intent_root=intent_root,
+                        completion_ref=completion_ref,
+                        reason=reason,
+                        launch_recovery=launch_recovery,
+                        release_claim=release_claim,
+                        project_name=project_name,
+                        record=record,
+                        **recover_kw,
+                    )
+                rendered = str(
+                    decision.get("rendered_message") or intent["success_message"]
+                )
+            evidence, no_new_reason = _verify_no_new_receipt(
+                intent=intent,
+                meta=meta,
+                monitor_state=monitor_state,
+                expected_receipt_id=expected[0],
+                expected_run_id=expected[1],
+            )
+            if evidence is None or no_new_reason is not None:
+                return _recover(
+                    artifacts_dir,
+                    meta,
+                    intent_root=intent_root,
+                    completion_ref=completion_ref,
+                    reason=str(no_new_reason or "no_new_receipt_refused"),
+                    launch_recovery=launch_recovery,
+                    release_claim=release_claim,
+                    project_name=project_name,
+                    record=record,
+                    **recover_kw,
+                )
     except (
         FinalizerDeclarationError,
         FinalizerControllerError,
@@ -327,12 +417,38 @@ def _run_host_completion(
             "required_instance_ids": [
                 entry.instance_id for entry in snapshot.plan.entries
             ],
+            **_verdict_receipt_record(evidence),
         },
     )
 
     if can_finish_without_rerun(intent, snapshot.plan, artifacts_dir) and not (
         new_obligation_ids(intent, snapshot.obligation_ids)
     ):
+        if no_new:
+            # The shortcut must never bypass the precommit gate: re-observe
+            # every obligated repository and repeat the receipt lookup for
+            # the same receipt and source run before finishing.
+            gate, gate_reason = _verify_no_new_receipt(
+                intent=intent,
+                meta=meta,
+                monitor_state=monitor_state,
+                expected_receipt_id=evidence.receipt_id if evidence else None,
+                expected_run_id=evidence.run_id if evidence else None,
+            )
+            if gate is None or gate_reason is not None:
+                return _recover(
+                    artifacts_dir,
+                    meta,
+                    intent_root=intent_root,
+                    completion_ref=completion_ref,
+                    reason=str(gate_reason or "no_new_receipt_refused"),
+                    launch_recovery=launch_recovery,
+                    release_claim=release_claim,
+                    project_name=project_name,
+                    record=record,
+                    **recover_kw,
+                )
+            evidence = gate
         return _finish_successful_completion(
             artifacts_dir,
             meta,
@@ -343,6 +459,7 @@ def _run_host_completion(
             record=record,
             release_claim=release_claim,
             project_name=project_name,
+            evidence=evidence,
         )
 
     try:
@@ -375,6 +492,33 @@ def _run_host_completion(
                 record=record,
                 **recover_kw,
             )
+        if no_new:
+            # Host-owned precommit gate: re-observe all obligated
+            # repositories immediately before the first mutating commit
+            # action and repeat the Rust lookup for the same receipt and
+            # source run. Refuse the whole completion before any commit
+            # when the tree drifted or the receipt no longer covers it.
+            gate, gate_reason = _verify_no_new_receipt(
+                intent=intent,
+                meta=meta,
+                monitor_state=monitor_state,
+                expected_receipt_id=evidence.receipt_id if evidence else None,
+                expected_run_id=evidence.run_id if evidence else None,
+            )
+            if gate is None or gate_reason is not None:
+                return _recover(
+                    artifacts_dir,
+                    meta,
+                    intent_root=intent_root,
+                    completion_ref=completion_ref,
+                    reason=str(gate_reason or "no_new_receipt_refused"),
+                    launch_recovery=launch_recovery,
+                    release_claim=release_claim,
+                    project_name=project_name,
+                    record=record,
+                    **recover_kw,
+                )
+            evidence = gate
         _install_prepared_declaration(intent, artifacts_dir, pre_exec.publication)
         run_finalizers(
             provider=_NoModelProvider(),
@@ -463,7 +607,39 @@ def _run_host_completion(
         record=record,
         release_claim=release_claim,
         project_name=project_name,
+        evidence=evidence,
     )
+
+
+def _expected_no_new_ids(
+    receipt: Mapping[str, Any] | None,
+) -> tuple[str | None, str | None]:
+    """Return the persisted verdict receipt/run ids a resumed gate must repeat.
+
+    Resumed host completion re-runs the receipt lookup instead of trusting a
+    persisted prior success; pinning the same receipt and source run closes
+    the TOCTOU window between settlement and the precommit gate.
+    """
+
+    if not isinstance(receipt, Mapping):
+        return None, None
+    verdict = receipt.get("verdict_receipt")
+    if not isinstance(verdict, Mapping):
+        return None, None
+    receipt_id = verdict.get("receipt_id")
+    run_id = verdict.get("run_id")
+    return (
+        str(receipt_id) if isinstance(receipt_id, str) and receipt_id else None,
+        str(run_id) if isinstance(run_id, str) and run_id else None,
+    )
+
+
+def _verdict_receipt_record(evidence: NoNewEvidence | None) -> dict[str, Any]:
+    """Render the verdict-receipt block for host completion receipts."""
+
+    if evidence is None:
+        return {}
+    return {"verdict_receipt": evidence_provenance(evidence)}
 
 
 def _finish_successful_completion(
@@ -477,6 +653,7 @@ def _finish_successful_completion(
     record: Mapping[str, Any],
     release_claim: Callable[[dict[str, Any], str | None], str | None],
     project_name: str | None,
+    evidence: NoNewEvidence | None = None,
 ) -> _HostCompletionSettlement:
     consumed = consume_conditional_completion(
         {
@@ -500,6 +677,7 @@ def _finish_successful_completion(
             "intent_ref": completion_ref,
             "published_message": message,
             "commit_receipts": load_commit_results(artifact_root(artifacts_dir)),
+            **_verdict_receipt_record(evidence),
         },
     )
     meta["monitor_host_completion_message"] = message

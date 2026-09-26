@@ -113,7 +113,10 @@ def register_final_parser(subparsers: argparse._SubParsersAction) -> None:
             "host-issued finalizer context, observe opened repositories, and "
             "store a host-sealed single-use intent. Prints the immutable "
             "reference and a readable preview. Does not submit, commit, "
-            "publish, or end the turn."
+            "publish, or end the turn. The wrapper accepts an optional "
+            "`accept: pass|no-new` policy (default `pass`); `no-new` is an "
+            "explicit opt-in that completes a failed verification only with "
+            "a covering verdict receipt."
         ),
         epilog=(
             "examples:\n"

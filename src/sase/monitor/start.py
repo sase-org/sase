@@ -99,6 +99,32 @@ from .transaction import (
 )
 
 
+def _prepared_completion_accept(
+    request: StartMonitorRequest, starter_artifacts_dir: str | None
+) -> str | None:
+    """Return the sealed accept policy for the bound prepared intent, if any.
+
+    Best effort: when the intent cannot be read (or carries no explicit
+    policy), return ``None`` and the frozen policy keeps the default
+    pass-only branches.
+    """
+
+    if not request.completion_ref or not starter_artifacts_dir:
+        return None
+    try:
+        from sase.finalizers.prepare import load_prepared_completion
+
+        intent = load_prepared_completion(
+            request.completion_ref, artifacts_dir=starter_artifacts_dir
+        )
+    except Exception:  # noqa: BLE001 - freeze must stay pass-only then.
+        return None
+    accept = intent.get("accept", "pass")
+    if accept not in ("pass", "no_new_failures"):
+        return None
+    return str(accept)
+
+
 def _tool_run_agent_overlay(starter_agent: str | None) -> dict[str, str]:
     """Return the attribution overlay carrying a monitor's starter agent.
 
@@ -166,6 +192,9 @@ def _start_monitor_locked(
                 request,
                 inherited_model=inherited_model,
                 inherited_effort=inherited_effort,
+                prepared_completion_accept=_prepared_completion_accept(
+                    request, starter_artifacts_dir
+                ),
             )
         except (TypeError, ValueError, AttributeError) as exc:
             raise MonitorError(str(exc)) from exc

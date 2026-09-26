@@ -77,6 +77,7 @@ ConditionalCompletionStatus = Literal[
 ]
 VerificationLevel = Literal["check", "check_full"]
 ObservedPathKind = Literal["file", "symlink", "deleted", "untracked", "other"]
+CompletionAcceptPolicy = Literal["pass", "no_new_failures"]
 
 
 class ContinuationExecutionIdentityWire(TypedDict):
@@ -232,6 +233,7 @@ class ContinuationPolicyResolutionRequestWire(TypedDict):
     inherited_model: NotRequired[str | None]
     inherited_effort: NotRequired[str | None]
     prepared_completion_ref: NotRequired[str | None]
+    prepared_completion_accept: NotRequired[CompletionAcceptPolicy | None]
 
 
 class ContinuationPolicyFreezeRequestWire(TypedDict):
@@ -247,6 +249,7 @@ class ContinuationPolicyFreezeRequestWire(TypedDict):
     inherited_model: NotRequired[str | None]
     inherited_effort: NotRequired[str | None]
     prepared_completion_ref: NotRequired[str | None]
+    prepared_completion_accept: NotRequired[CompletionAcceptPolicy | None]
 
 
 class ContinuationBudgetRequestWire(TypedDict):
@@ -322,6 +325,7 @@ class _ConditionalCompletionSealWire(TypedDict):
     context_digest: str
     worktree_fingerprint: str
     declaration_digest: str
+    policy_version: NotRequired[int]
 
 
 class ConditionalCompletionIntentWire(TypedDict):
@@ -336,6 +340,7 @@ class ConditionalCompletionIntentWire(TypedDict):
     seal: _ConditionalCompletionSealWire
     repository_decisions: NotRequired[list[_RepositoryDecisionWire]]
     binding: NotRequired[_ConditionalCompletionBindingWire]
+    accept: NotRequired[CompletionAcceptPolicy]
 
 
 class ConditionalCompletionPrepareRequestWire(TypedDict):
@@ -347,6 +352,7 @@ class ConditionalCompletionPrepareRequestWire(TypedDict):
     declaration: JsonObject
     observations: list[_RepositoryObservationWire]
     executors: NotRequired[list[_ExecutorCapabilityWire]]
+    accept: NotRequired[CompletionAcceptPolicy]
 
 
 class ConditionalCompletionBindRequestWire(TypedDict):
@@ -409,6 +415,7 @@ __all__ = [
     "ConditionalCompletionPrepareRequestWire",
     "ConditionalCompletionRollbackRequestWire",
     "ConditionalCompletionStatus",
+    "CompletionAcceptPolicy",
     "ContinuationAction",
     "ContinuationBudgetDecisionKind",
     "ContinuationBudgetReductionKind",

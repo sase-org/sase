@@ -61,6 +61,10 @@ COMPLETION_LOCK_FILENAME = "completion_intents.lock"
 _GIT_TIMEOUT_SECONDS = 5
 _MAX_PREPARE_BYTES = 256 * 1024
 
+#: Manifest spelling for the sealed completion acceptance policy.
+PREPARE_ACCEPT_ALIASES = {"pass": "pass", "no-new": "no_new_failures"}
+PREPARE_ACCEPT_DEFAULT = "pass"
+
 
 @dataclass(frozen=True)
 class _PreparedCompletion:
@@ -85,6 +89,7 @@ def prepare_conditional_completion(
 
     root = require_artifacts_dir(artifacts_dir, "sase final prepare")
     success_message, verification_command, declaration = _parse_wrapper(wrapper)
+    accept = _parse_accept(wrapper)
     reject_placeholder_commit_messages(declaration)
     publication = publish_final_context(artifacts_dir=str(root))
     context = publication.context
@@ -123,6 +128,7 @@ def prepare_conditional_completion(
         "declaration": declaration,
         "observations": observations,
         "executors": _executor_capabilities(plan),
+        "accept": accept,
     }
     try:
         intent = seal_conditional_completion(request)
@@ -133,6 +139,7 @@ def prepare_conditional_completion(
             "wrapper as-is; do not rebuild the manifest from manifest_template)",
             code="conditional_completion_invalid",
         ) from exc
+    _require_sealed_accept(intent, accept)
     stored = persist_prepared_completion(intent, artifacts_dir=root)
     preview = preview_conditional_completion(stored.intent)
     return _PreparedCompletion(
@@ -302,6 +309,8 @@ def format_prepare_preview(
             "intent_ref": prepared.intent_ref,
             "preview": prepared.preview,
         }
+        if str(prepared.intent.get("accept", "pass")) != "pass":
+            payload["accept"] = prepared.intent.get("accept")
         return json.dumps(payload, indent=2, sort_keys=True)
     preview = prepared.preview
     checks = preview.get("required_checks") or {}
@@ -314,6 +323,8 @@ def format_prepare_preview(
         f"  message       {preview.get('prepared_message')}",
         f"  on failure    {preview.get('failure_timeout_routing')}",
     ]
+    if str(prepared.intent.get("accept", "pass")) != "pass":
+        lines.insert(4, f"  accept        {prepared.intent.get('accept')}")
     for decision in preview.get("repository_decisions") or ():
         lines.append(
             f"  repository    {decision.get('repo_id')} {decision.get('action')} "
@@ -361,6 +372,49 @@ def read_prepare_manifest(path: str) -> dict[str, Any]:
     return payload
 
 
+def _parse_accept(wrapper: Mapping[str, Any]) -> str:
+    """Return the sealed acceptance policy wire value for a prepare wrapper.
+
+    The manifest spells it ``accept: pass|no-new`` and omits it for the
+    default ``pass`` path. Anything else is malformed and rejected before
+    any intent is sealed.
+    """
+
+    raw = wrapper.get("accept", PREPARE_ACCEPT_DEFAULT)
+    if not isinstance(raw, str):
+        raise FinalizerDeclarationError(
+            "prepare manifest `accept` must be 'pass' or 'no-new'",
+            code="invalid_completion_accept",
+        )
+    token = raw.strip().lower()
+    try:
+        return PREPARE_ACCEPT_ALIASES[token]
+    except KeyError:
+        raise FinalizerDeclarationError(
+            f"prepare manifest `accept` {raw!r} must be 'pass' or 'no-new'",
+            code="invalid_completion_accept",
+        ) from None
+
+
+def _require_sealed_accept(intent: Mapping[str, Any], accept: str) -> None:
+    """Fail closed when the sealed intent did not keep the requested policy.
+
+    An older core without the accept wire silently seals every intent as
+    ``pass``; a requested ``no-new`` must never proceed on such a seal.
+    """
+
+    sealed = str(intent.get("accept", PREPARE_ACCEPT_DEFAULT) or "")
+    if sealed != accept:
+        raise FinalizerDeclarationError(
+            "the installed core sealed this intent "
+            f"as {sealed or 'pass'!r} instead of the requested "
+            f"{accept!r}; reinstall with `just install` (or "
+            "`just rust-install` for an editable build) so the "
+            "receipt-capable core is active before preparing `no-new`",
+            code="completion_accept_not_sealed",
+        )
+
+
 def _parse_wrapper(
     wrapper: Mapping[str, Any],
 ) -> tuple[str, list[str], dict[str, Any]]:
@@ -390,6 +444,7 @@ def _parse_wrapper(
                     "verification",
                     "verification_command",
                     "kind",
+                    "accept",
                 }
             }
         else:

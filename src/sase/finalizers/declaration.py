@@ -117,6 +117,20 @@ def _declaration_sync_hook(_point: str) -> None:
     """Deterministic interleaving seam; production is a no-op."""
 
 
+def _verdict_provenance(envelope: Mapping[str, Any]) -> Any:
+    """Record receipt provenance for an accepted declaration, nonblocking.
+
+    Host completion threads eligibility evidence through its own receipt;
+    ordinary ``sase final submit`` carries no covering receipt and records
+    ``unverified`` instead of refusing the submission.
+    """
+
+    evidence = envelope.get("verdict_receipt")
+    if isinstance(evidence, Mapping) and evidence.get("receipt_id"):
+        return dict(evidence)
+    return "unverified"
+
+
 @contextmanager
 def hold_finalizer_declaration_lock(root: Path) -> Iterator[None]:
     """Hold the documented declaration lock order for *root*."""
@@ -275,6 +289,7 @@ def submit_final_manifest(
             "submission": envelope,
             "validation": finalizer_wire_to_json_dict(validation),
             "accepted_deferrals": [item.to_json() for item in accepted_deferrals],
+            "verdict_provenance": _verdict_provenance(envelope),
         }
         _append_attempt_record_locked(
             root,

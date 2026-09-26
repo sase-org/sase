@@ -70,6 +70,7 @@ def freeze_start_outcome_policy(
     *,
     inherited_model: str | None = None,
     inherited_effort: str | None = None,
+    prepared_completion_accept: str | None = None,
 ) -> JsonObject | None:
     """Freeze every outcome branch for *request* before claim changes.
 
@@ -90,6 +91,7 @@ def freeze_start_outcome_policy(
         "inherited_model": inherited_model,
         "inherited_effort": inherited_effort,
         "prepared_completion_ref": request.completion_ref,
+        "prepared_completion_accept": prepared_completion_accept,
     }
     return freeze_continuation_policy(freeze_request)
 
