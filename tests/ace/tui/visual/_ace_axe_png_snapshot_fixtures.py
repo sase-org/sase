@@ -24,6 +24,8 @@ from tests.ace.tui.visual._ace_axe_png_snapshot_tree_fixtures import (
     axe_disabled_chop_data,
     axe_long_label_data,
     axe_lumberjack_tree_data,
+    services_panels_all_sources_data,
+    services_panels_builtin_only_data,
     services_panels_data,
     services_panels_empty_routines_data,
 )
@@ -43,6 +45,8 @@ __all__ = [
     "axe_running_chop_data",
     "make_chop_run",
     "make_lumberjack_status",
+    "services_panels_all_sources_data",
+    "services_panels_builtin_only_data",
     "services_panels_data",
     "services_panels_empty_routines_data",
 ]

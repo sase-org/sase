@@ -10,6 +10,7 @@ from sase.ace.tui.actions.axe_display._data import (
     ChopSnapshot,
     LumberjackSnapshot,
 )
+from sase.axe.config_backend import AxeEntityOrigin
 from sase.service.status import (
     ServiceEnablement,
     ServiceStatusHost,
@@ -246,13 +247,93 @@ def _services_panels_status(
     )
 
 
+_VISUAL_USER_DECLARED_BY = "user:visual/sase.yml"
+_VISUAL_PLUGIN_DECLARED_BY = "plugin:visual-acme"
+_VISUAL_BUILTIN_DECLARED_BY = "default"
+
+
+def _services_origin(source: str) -> AxeEntityOrigin:
+    """Return the deterministic declaring origin for a Services ``source``."""
+    if source == "user":
+        return AxeEntityOrigin(source="user", declared_by=_VISUAL_USER_DECLARED_BY)
+    if source == "plugin":
+        return AxeEntityOrigin(source="plugin", declared_by=_VISUAL_PLUGIN_DECLARED_BY)
+    if source == "builtin":
+        return AxeEntityOrigin(
+            source="builtin", declared_by=_VISUAL_BUILTIN_DECLARED_BY
+        )
+    raise ValueError(f"Unknown Services visual source {source!r}")
+
+
+def _stamp_services_origins(
+    base: AxeCollectedData, sources: dict[str, str]
+) -> AxeCollectedData:
+    """Stamp declaring origins onto routine/job snapshots and origin maps.
+
+    ``sources`` maps routine name to ``user`` | ``plugin`` | ``builtin``.
+    Snapshot ``source``/``declared_by`` fields and the ``routine_origins`` /
+    ``chop_origins`` maps are set from the same values so the sidebar
+    panels, titles, fold state, and health badges all agree.
+    """
+    chop_snapshots = dict(base.chop_snapshots)
+    lumberjack_snapshots = dict(base.lumberjack_snapshots)
+    routine_origins = dict(base.routine_origins)
+    chop_origins = dict(base.chop_origins)
+    for routine_name, source in sources.items():
+        origin = _services_origin(source)
+        routine_origins[routine_name] = origin
+        snapshot = lumberjack_snapshots.get(routine_name)
+        if snapshot is not None:
+            lumberjack_snapshots[routine_name] = dataclasses.replace(
+                snapshot, source=source, declared_by=origin.declared_by
+            )
+        for chop_name in base.lumberjack_chop_names.get(routine_name, []):
+            key = (routine_name, chop_name)
+            chop_origins[key] = origin
+            chop = chop_snapshots.get(key)
+            if chop is not None:
+                chop_snapshots[key] = dataclasses.replace(
+                    chop, source=source, declared_by=origin.declared_by
+                )
+    return dataclasses.replace(
+        base,
+        chop_snapshots=chop_snapshots,
+        lumberjack_snapshots=lumberjack_snapshots,
+        routine_origins=routine_origins,
+        chop_origins=chop_origins,
+    )
+
+
+def _services_builtin_smoke_failure() -> ChopSnapshot:
+    """Return the builtin ``checks/smoke`` chop with a failed newest run.
+
+    The failure run drives the ``!1`` health badge on the collapsed
+    builtin parent row.
+    """
+    return ChopSnapshot(
+        lumberjack_name="checks",
+        chop_name="smoke",
+        description="Run a quick smoke test before slower checks",
+        runs=[
+            make_chop_run(
+                "checks",
+                "smoke",
+                run_id="20260509T100200_000000",
+                status="failure",
+            ),
+        ],
+    )
+
+
 def services_panels_data() -> AxeCollectedData:
-    """Services sidebar fixture: realistic service status plus routines/jobs.
+    """Services sidebar fixture: Builtin+User source groups plus jobs.
 
     The host is running. The procs are scheduler running, telegram running,
     agents_sync ``crash_loop`` with 3 restarts, and a disabled proc. Two
-    oneshots (one running, one exit 0) sit below the daemons, and the
-    routine/job tree matches :func:`axe_lumberjack_tree_data`.
+    oneshots (one running, one exit 0) sit below the daemons. Routine
+    ``hooks`` is user-declared (two jobs, one failed); routine ``checks``
+    is builtin-declared with a failed ``smoke`` job so the folded builtin
+    parent renders its ``!1`` health badge.
     """
     base = axe_lumberjack_tree_data()
     running_info = BackgroundCommandInfo(
@@ -277,7 +358,9 @@ def services_panels_data() -> AxeCollectedData:
         status="success",
         exit_code=0,
     )
-    return dataclasses.replace(
+    chop_snapshots = dict(base.chop_snapshots)
+    chop_snapshots[("checks", "smoke")] = _services_builtin_smoke_failure()
+    base = dataclasses.replace(
         base,
         bgcmd_slots=[(1, running_info), (2, done_info)],
         bgcmd_details={
@@ -286,7 +369,113 @@ def services_panels_data() -> AxeCollectedData:
             ),
             2: BgCmdSnapshot(info=done_info, running=False, output_tail="docs built"),
         },
+        chop_snapshots=chop_snapshots,
         service_status=_services_panels_status(),
+    )
+    return _stamp_services_origins(base, {"hooks": "user", "checks": "builtin"})
+
+
+def services_panels_all_sources_data() -> AxeCollectedData:
+    """Services sidebar fixture: User+Plugin+Builtin source groups.
+
+    Extends :func:`services_panels_data` with the plugin-declared
+    ``sentinels`` routine (one successful ``watch`` job) so all three
+    routine panels render.
+    """
+    base = services_panels_data()
+    watch = ChopSnapshot(
+        lumberjack_name="sentinels",
+        chop_name="watch",
+        description="Watch the visual project for drift",
+        runs=[
+            make_chop_run(
+                "sentinels",
+                "watch",
+                run_id="20260509T100300_000000",
+                status="success",
+            ),
+        ],
+    )
+    status = make_lumberjack_status("sentinels", chops=["watch"])
+    metrics = LumberjackMetrics(
+        cycles_run=12, chops_executed=24, total_updates=12, errors_encountered=0
+    )
+    base = dataclasses.replace(
+        base,
+        lumberjack_names=["hooks", "sentinels", "checks"],
+        lumberjack_statuses={**base.lumberjack_statuses, "sentinels": status},
+        lumberjack_metrics={**base.lumberjack_metrics, "sentinels": metrics},
+        lumberjack_log_tails={**base.lumberjack_log_tails, "sentinels": ""},
+        lumberjack_chop_names={
+            **base.lumberjack_chop_names,
+            "sentinels": ["watch"],
+        },
+        chop_snapshots={**base.chop_snapshots, ("sentinels", "watch"): watch},
+        lumberjack_snapshots={
+            **base.lumberjack_snapshots,
+            "sentinels": LumberjackSnapshot(
+                name="sentinels",
+                description="Watch the visual project for drift",
+                description_summary="Watch the visual project for drift",
+                description_body="",
+                status=status,
+                metrics=metrics,
+                log_tail="",
+                chops=[watch],
+            ),
+        },
+    )
+    return _stamp_services_origins(base, {"sentinels": "plugin"})
+
+
+def services_panels_builtin_only_data() -> AxeCollectedData:
+    """Services sidebar fixture: only the builtin ``checks`` routine.
+
+    Keeps the failed ``smoke`` job so the folded builtin parent still
+    renders its ``!1`` health badge with no user or plugin panels.
+    """
+    base = services_panels_data()
+    return dataclasses.replace(
+        base,
+        lumberjack_names=["checks"],
+        lumberjack_statuses={
+            name: status
+            for name, status in base.lumberjack_statuses.items()
+            if name == "checks"
+        },
+        lumberjack_metrics={
+            name: metrics
+            for name, metrics in base.lumberjack_metrics.items()
+            if name == "checks"
+        },
+        lumberjack_log_tails={
+            name: tail
+            for name, tail in base.lumberjack_log_tails.items()
+            if name == "checks"
+        },
+        lumberjack_chop_names={
+            name: chops
+            for name, chops in base.lumberjack_chop_names.items()
+            if name == "checks"
+        },
+        chop_snapshots={
+            key: snap for key, snap in base.chop_snapshots.items() if key[0] == "checks"
+        },
+        lumberjack_snapshots={
+            name: snap
+            for name, snap in base.lumberjack_snapshots.items()
+            if name == "checks"
+        },
+        routine_origins={
+            name: origin
+            for name, origin in base.routine_origins.items()
+            if name == "checks"
+        },
+        chop_origins={
+            key: origin
+            for key, origin in base.chop_origins.items()
+            if key[0] == "checks"
+        },
     )
 
 
@@ -302,6 +491,8 @@ def services_panels_empty_routines_data() -> AxeCollectedData:
         lumberjack_chop_names={},
         chop_snapshots={},
         lumberjack_snapshots={},
+        routine_origins={},
+        chop_origins={},
         service_status=_services_panels_status(scheduler_state="stopped"),
     )
 
