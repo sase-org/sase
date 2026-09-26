@@ -180,6 +180,21 @@ async def _goto_agents(page: AcePage, count: int) -> None:
     await wait_for_visual_idle(page)
 
 
+def _left_scrollbar_in_sync(page: AcePage, detail: AgentDetail) -> bool:
+    """Return whether the left panel's scrollbar tracks its scroller."""
+    from textual.containers import VerticalScroll
+
+    try:
+        panel = detail.deck_area.panel(0)
+        scroller = panel.query_one(
+            f"#agent-deck-panel-{panel._panel_index}-main-scroll",
+            VerticalScroll,
+        )
+        return bool(scroller.vertical_scrollbar.position == scroller.scroll_y)
+    except Exception:
+        return False
+
+
 async def _show_reply(page: AcePage) -> AgentDetail:
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
     await wait_for_state(
@@ -501,23 +516,14 @@ async def test_agents_deck_blocks_micro_png_snapshot(
         # deterministically.
         await page.press("ctrl+f")
         await wait_for_visual_idle(page)
-        # Re-sync the left panel's scrollbar: the block-spread to
-        # block-paged switch can leave its position stale, which flips the
-        # thumb between captures. An explicit down-and-back scroll forces
-        # the widget to converge with the scroller.
-        widget, _region = page.app.screen.get_widget_at(90, 20)
-        scroller = widget.parent
-        scroller.scroll_to(y=scroller.max_scroll_y, animate=False)
+        # The block-spread to block-paged switch now pins ScrollBar.position
+        # to the scroller in the first settled frame (see
+        # test_block_spread_to_paged_keeps_scrollbar_in_sync), so no
+        # synthetic down-and-back scroll is needed before capture.
         await wait_for_state(
             page,
-            lambda: widget.position == scroller.scroll_y,
-            description="scrollbar follows the scroller to the bottom",
-        )
-        scroller.scroll_to(y=0, animate=False)
-        await wait_for_state(
-            page,
-            lambda: widget.position == scroller.scroll_y == 0,
-            description="scrollbar follows the scroller back to the top",
+            lambda: _left_scrollbar_in_sync(page, detail),
+            description="left scrollbar tracks its scroller",
         )
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(

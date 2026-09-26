@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.agent_decks_settings import AgentDecksSettings
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.card_block import BlockMeta, CardBlock
@@ -347,3 +348,76 @@ async def test_cycle_focused_card_block_sets_preferred() -> None:
         )
         assert detail.select_focused_card_block("b0") is True
         assert panel.main_view.active_block_id("reply") == "b0"
+
+
+async def test_block_spread_to_paged_keeps_scrollbar_in_sync() -> None:
+    """A block-spread to block-paged flip must not strand the scrollbar.
+
+    Textual only pushes ``scroll_y`` to ``ScrollBar.position`` while the bar
+    is shown, and the layout shrink that hides the bar clamps ``scroll_y``
+    first -- so without an explicit sync the thumb keeps the old spread
+    offset while the scroller sits at 0, until the next explicit scroll.
+    """
+    from textual.containers import VerticalScroll
+
+    def _scroller(panel: Any) -> VerticalScroll:
+        return panel.query_one(
+            f"#agent-deck-panel-{panel._panel_index}-main-scroll",
+            VerticalScroll,
+        )
+
+    app = _DetailApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        left = detail.deck_area.panel(0)
+        right = detail.deck_area.panel(1)
+        tall = _reply_card(12, lines_per_block=10)
+        _pin(app, blocks=1000)
+        left.show_main_document(_document("s1", tall, digest="d1"), "reply")
+        right.show_main_document(_document("s1", tall, digest="d1"), "reply")
+        await pilot.pause(delay=0.3)
+        await pilot.pause()
+        assert left.block_mode_for_active_card() is RenderMode.SPREAD
+        # Park the narrow split's left panel at the bottom of the tall
+        # spread content, arming the stale-thumb condition.
+        parked = _scroller(left)
+        assert parked.max_scroll_y > 0
+        parked.scroll_to(y=parked.max_scroll_y, animate=False, immediate=True)
+        await pilot.pause(delay=0.2)
+        await pilot.pause()
+        parked = _scroller(left)
+        assert parked.scroll_y == parked.max_scroll_y
+        assert parked.vertical_scrollbar.position == parked.scroll_y
+        # Flip both panels to block-paged through the same redecision path
+        # a measured first paint takes after an unmeasured spread landing.
+        _pin(app, blocks=0)
+        left._refresh_main_mode_for_shown()
+        right._refresh_main_mode_for_shown()
+
+        def _paged_and_synced() -> bool:
+            if not (
+                left.block_mode_for_active_card() is RenderMode.PAGED
+                and right.block_mode_for_active_card() is RenderMode.PAGED
+            ):
+                return False
+            return all(
+                float(_scroller(panel).vertical_scrollbar.position)
+                == float(_scroller(panel).scroll_y)
+                for panel in (left, right)
+            )
+
+        await wait_for(pilot, _paged_and_synced)
+        for panel in (left, right):
+            scroller = _scroller(panel)
+            assert panel.block_mode_for_active_card() is RenderMode.PAGED
+            assert scroller.scroll_y == 0
+            assert scroller.vertical_scrollbar.position == scroller.scroll_y
+        # The reading anchor and [ / ] navigation survive the flip, and the
+        # split keeps independent cursors.
+        assert left.main_view.active_block_id("reply") == "b11"
+        assert left.cycle_block(-1) is True
+        assert left.main_view.active_block_id("reply") == "b10"
+        assert right.main_view.active_block_id("reply") == "b11"
+        assert left.cycle_block(1) is True
+        assert left.main_view.active_block_id("reply") == "b11"

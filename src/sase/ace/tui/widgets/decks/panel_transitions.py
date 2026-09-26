@@ -16,6 +16,7 @@ from typing import Any
 from textual.containers import VerticalScroll
 
 from .block_model import derive_spread_block
+from .main_view_blocks import _sync_scrollbar_position
 from .model import DeckId, RenderMode
 
 __all__ = [
@@ -254,6 +255,26 @@ def _capture_panel_anchor(
     )
 
 
+def _synced_block_scroll_to(panel: Any, target: int) -> None:
+    """Scroll ``panel``'s Main scroller and pin its scrollbar thumb.
+
+    The scroll is immediate so ``ScrollBar.position`` tracks the scroller
+    while the bar is still shown; the deferred sync covers the layout shrink
+    that hides the bar before clamping ``scroll_y`` (the block-spread to
+    block-paged stale-thumb race).
+    """
+    try:
+        scroll = _main_scroll(panel)
+        if scroll is not None:
+            scroll.scroll_to(y=target, animate=False, immediate=True)
+            try:
+                panel.call_after_refresh(lambda: _sync_scrollbar_position(scroll))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def _restore_block_offset(
     panel: Any, anchor: _ReadingAnchor, *, fallback_target: int = 0
 ) -> None:
@@ -267,12 +288,7 @@ def _restore_block_offset(
             if attempt >= 3:
                 # The block anchor never published: fall back to the
                 # card top so the reader is not left at an unrelated offset.
-                try:
-                    scroll = _main_scroll(panel)
-                    if scroll is not None:
-                        scroll.scroll_to(y=max(0, fallback_target), animate=False)
-                except Exception:
-                    pass
+                _synced_block_scroll_to(panel, max(0, fallback_target))
                 return
             try:
                 panel.call_after_refresh(lambda: _apply(attempt + 1))
@@ -280,12 +296,7 @@ def _restore_block_offset(
                 pass
             return
         target = max(0, int(row) + max(0, int(anchor.offset_rows)))
-        try:
-            scroll = _main_scroll(panel)
-            if scroll is not None:
-                scroll.scroll_to(y=target, animate=False)
-        except Exception:
-            pass
+        _synced_block_scroll_to(panel, target)
 
     try:
         # Same-cycle fast path: anchors already cached, no flash of the
@@ -295,13 +306,8 @@ def _restore_block_offset(
         )
         if row is not None:
             target = max(0, int(row) + max(0, int(anchor.offset_rows)))
-            try:
-                scroll = _main_scroll(panel)
-                if scroll is not None:
-                    scroll.scroll_to(y=target, animate=False)
-                return
-            except Exception:
-                pass
+            _synced_block_scroll_to(panel, target)
+            return
         panel.call_after_refresh(lambda: _apply(0))
     except Exception:
         pass

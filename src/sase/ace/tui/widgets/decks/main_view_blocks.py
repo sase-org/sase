@@ -27,6 +27,31 @@ from .block_model import (
 from .model import RenderMode
 
 
+def _sync_scrollbar_position(scroll: VerticalScroll) -> None:
+    """Pin ``scroll``'s thumb to its scroller, even while the bar is hidden.
+
+    Textual only pushes ``scroll_y`` to ``ScrollBar.position`` while the bar
+    is shown, and the layout shrink that hides the bar clamps ``scroll_y``
+    first -- so a tall-to-short swap (block-spread to block-paged) can leave
+    ``position`` stale at the old offset while the scroller sits at 0. The
+    thumb then misrenders when the bar reappears, until the next explicit
+    scroll. Syncing explicitly keeps the first settled frame converged
+    without a synthetic scroll.
+    """
+    try:
+        bar = scroll.vertical_scrollbar
+    except Exception:
+        return
+    try:
+        bar.position = float(scroll.scroll_y)
+    except Exception:
+        pass
+    try:
+        bar.refresh()
+    except Exception:
+        pass
+
+
 class MainDeckViewBlocksMixin:
     """Per-card block cursors and block-page projection for Main views."""
 
@@ -221,7 +246,16 @@ class MainDeckViewBlocksMixin:
         try:
             parent = self.parent  # type: ignore[attr-defined]
             if isinstance(parent, VerticalScroll):
-                parent.scroll_to(y=0, animate=False)
+                # Immediate so the watcher pushes position while the bar is
+                # still shown; the deferred sync covers the layout shrink
+                # that hides the bar before clamping scroll_y.
+                parent.scroll_to(y=0, animate=False, immediate=True)
+                try:
+                    self.call_after_refresh(  # type: ignore[attr-defined]
+                        lambda: _sync_scrollbar_position(parent)
+                    )
+                except Exception:
+                    pass
         except Exception:
             pass
 
