@@ -331,6 +331,10 @@ def gate_phase_text(
                 f"got {type(part).__name__}"
             )
         result.append_text(part)
+    if not result.plain.endswith("\n"):
+        # Multi-part rendering separates phases per renderable; the flattened
+        # single Text must carry its own trailing boundary instead.
+        result.append("\n")
     return result
 
 

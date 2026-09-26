@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 
-from rich.console import Group
+from rich.console import Console, Group
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -205,6 +206,29 @@ def test_legacy_reply_hint_mode_renders_gate_phase(tmp_path: Path) -> None:
     numbers = [int(match) for match in re.findall(r"\[(\d+)\]", plain)]
     assert numbers == sorted(numbers)
     assert len(set(numbers)) == len(numbers)
+
+
+def _spread_screen_text(renderable: object, width: int = 120) -> str:
+    """Render like ``MainDeckView`` does in spread mode: one Group."""
+    console = Console(record=True, width=width, color_system=None, file=StringIO())
+    console.print(renderable, end="")
+    return console.export_text(clear=True)
+
+
+def test_legacy_reply_hint_mode_keeps_monitor_gate_boundary(
+    tmp_path: Path,
+) -> None:
+    root = _legacy_root(tmp_path)
+
+    panel = FakePromptPanel()
+    panel.update_display_with_hints(root)
+    reply = _reply_card(panel.captured[-1])
+
+    text = _spread_screen_text(Group(*reply.renderables))
+    monitor_line = next(
+        line for line in text.splitlines() if "monitor output line" in line
+    )
+    assert "GATE" not in monitor_line
 
 
 def test_legacy_reply_block_page_hides_heading(tmp_path: Path) -> None:
