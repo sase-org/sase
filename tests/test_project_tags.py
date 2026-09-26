@@ -622,7 +622,7 @@ def test_find_project_tag_trigger_rejects_non_triggers(text: str, cursor: int) -
     assert find_project_tag_trigger(text, cursor) is None
 
 
-# --- Core in-place accept ----------------------------------------------------
+# --- Core target-position accept ----------------------------------------------
 
 
 def _patched_workflows() -> object:
@@ -631,32 +631,50 @@ def _patched_workflows() -> object:
     )
 
 
-def test_apply_selection_inserts_tag_in_place() -> None:
+def test_apply_selection_inserts_tag_at_leading_position() -> None:
     with _patched_workflows():
         text, cursor = apply_project_tag_selection("+", (0, 1), "+sase ")
     assert (text, cursor) == ("+sase ", len("+sase "))
 
 
-def test_apply_selection_keeps_surrounding_body() -> None:
+def test_apply_selection_uses_leading_position_without_target() -> None:
     with _patched_workflows():
         text, cursor = apply_project_tag_selection(
             "Describe this repo. +", (20, 21), "+sase "
         )
-    assert text == "Describe this repo. +sase "
-    assert cursor == len(text)
+    assert text == "+sase Describe this repo. "
+    assert cursor == len("+sase ")
 
 
-def test_apply_selection_removes_other_target_in_segment() -> None:
+def test_apply_selection_replaces_existing_target_in_segment() -> None:
     with _patched_workflows():
-        text, _ = apply_project_tag_selection("#git:foo Fix bug +", (17, 18), "+sase ")
-    assert text == "Fix bug +sase "
+        text, cursor = apply_project_tag_selection(
+            "#git:foo Fix bug +", (17, 18), "+sase "
+        )
+    assert text == "+sase Fix bug "
+    assert cursor == len("+sase ")
+
+
+def test_apply_selection_replaces_mid_line_target_and_drops_extra() -> None:
+    with _patched_workflows():
+        text, cursor = apply_project_tag_selection(
+            "#git:foo #git:baz +", (18, 19), "+sase "
+        )
+    assert text == "+sase "
+    assert cursor == len("+sase ")
+    with _patched_workflows():
+        text, cursor = apply_project_tag_selection(
+            "Fix #git:foo bug +", (17, 18), "+sase "
+        )
+    assert text == "Fix +sase bug "
+    assert cursor == len("Fix +sase ")
 
 
 def test_apply_selection_switches_projects() -> None:
     with _patched_workflows():
         text, cursor = apply_project_tag_selection("+sase do it +bo", (12, 15), "+bob ")
-    assert text == "do it +bob "
-    assert cursor == len(text)
+    assert text == "+bob do it "
+    assert cursor == len("+bob ")
 
 
 def test_apply_selection_keeps_other_segments() -> None:
@@ -665,14 +683,14 @@ def test_apply_selection_keeps_other_segments() -> None:
         text, _ = apply_project_tag_selection(
             prompt, (len(prompt) - 1, len(prompt)), "+sase "
         )
-    assert text == "#git:foo first\n---\nsecond +sase "
+    assert text == "#git:foo first\n---\n+sase second "
 
 
 def test_apply_selection_accepts_pr_ref_spelling() -> None:
     with _patched_workflows():
         text, cursor = apply_project_tag_selection("Review +sh", (7, 10), "#gh:ship ")
-    assert text == "Review #gh:ship "
-    assert cursor == len(text)
+    assert text == "#gh:ship Review "
+    assert cursor == len("#gh:ship ")
 
 
 # --- Warm-catalog validation -------------------------------------------------

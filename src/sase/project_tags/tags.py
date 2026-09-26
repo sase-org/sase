@@ -436,11 +436,13 @@ def apply_project_tag_selection(
 
     *insertion* is the row's text verbatim — a project row passes
     ``+<name> `` (or ``#<workflow>:<name> `` when the name is not in the
-    tag grammar) and a PR row passes ``#<workflow>:<patch> ``. The trigger
-    token is replaced in place and every other workspace target in the
-    trigger's ``---`` segment is removed, so picking a project always
-    leaves exactly one. Returns ``(new_text, cursor)`` with a Python
-    code-point cursor just past the insertion.
+    tag grammar) and a PR row passes ``#<workflow>:<patch> ``. The typed
+    trigger is removed and the row lands at the earliest existing
+    workspace target in the trigger's ``---`` segment, or at that
+    segment's leading project-tag position when it has no target; every
+    other workspace target in the segment is removed, so picking a
+    project always leaves exactly one. Returns ``(new_text, cursor)``
+    with a Python code-point cursor just past the insertion.
     """
 
     from sase.project_tags.catalog import load_project_tag_catalog

@@ -6749,11 +6749,11 @@ token under the cursor:
   project's accent color with a `provider · #<workflow>:<name>` detail (the current
   project's row adds a `current` badge), ordered current project first, then most
   recently launched, then by name; Patch rows keep their `[PR]` badge. Accepting a
-  project row inserts its `+<project>` tag in place (or `#<workflow>:<name>` for names
-  outside tag syntax), and a Patch row inserts `#<workflow>:<patch>`. Either way, the
-  other workspace targets in that `---` segment — line-start VCS tags and `+<project>`
-  tags naming a known project — are removed. See
-  [Project Tags](xprompt.md#project-tags).
+  project row places its `+<project>` tag (or `#<workflow>:<name>` for names outside tag
+  syntax) at the earliest existing workspace target in that `---` segment, or at the
+  segment's leading tag position when it has none — and a Patch row places
+  `#<workflow>:<patch>` the same way. Either way, the other workspace targets in that
+  segment are removed. See [Project Tags](xprompt.md#project-tags).
 - **VCS ref completion**: When the cursor is inside the root segment of a registered VCS
   workflow ref, such as `#gh:`, `#gh:sa`, or `#git(`, completion lists that provider's
   projects and active PR-sized Patches. Providers can add namespace rows, such as GitHub

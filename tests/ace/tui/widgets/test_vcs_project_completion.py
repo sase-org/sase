@@ -1,7 +1,7 @@
 """Tests for the ``+`` VCS-project completion menu in the prompt widget.
 
 Covers trigger auto-open, query filtering, ``ctrl+n/p`` navigation, core
-in-place acceptance (representative vectors), project switching, the
+target-position acceptance (representative vectors), project switching, the
 empty-catalog placeholder, and dismissal. The full golden-vector table for
 the core trigger/accept pair lives in the core's ``project_tag/tests.rs``.
 """
@@ -314,7 +314,7 @@ async def test_ctrl_n_p_cycle_highlight() -> None:
             assert ta._file_completion_index == 2  # wraps to the end
 
 
-# --- Accept (core in-place insertion, representative vectors) --------------
+# --- Accept (core target-position insertion, representative vectors) --------
 
 
 def _select(ta: PromptTextArea, name: str) -> None:
@@ -330,21 +330,26 @@ def _select(ta: PromptTextArea, name: str) -> None:
     [
         ("+", "+sase "),
         ("+sa", "+sase "),
-        ("Describe this repo. +", "Describe this repo. +sase "),
-        # Accepting a project removes the other workspace target in the
-        # same segment (uses `#git:foo` since `git` is a registered
-        # workflow name in the test environment).
-        ("#git:foo Fix bug +", "Fix bug +sase "),
+        # With no existing target the tag lands at the segment's leading
+        # position.
+        ("Describe this repo. +", "+sase Describe this repo. "),
+        # Accepting a project puts it at the earliest workspace target in
+        # the same segment and removes the rest (uses `#git:foo` since
+        # `git` is a registered workflow name in the test environment).
+        ("#git:foo Fix bug +", "+sase Fix bug "),
+        ("Fix #git:foo bug +", "Fix +sase bug "),
         ("#git:foo +", "+sase "),
-        ("Line one\n +", "Line one\n +sase "),
+        ("Line one\n +", "+sase Line one\n "),
         (
             "---\nname: x\n---\nBody +",
-            "---\nname: x\n---\nBody +sase ",
+            "---\nname: x\n---\n+sase Body ",
         ),
-        ("%model:opus Body +", "%model:opus Body +sase "),
+        ("%model:opus Body +", "%model:opus +sase Body "),
     ],
 )
-async def test_accept_applies_in_place_insertion(text: str, expected: str) -> None:
+async def test_accept_applies_target_position_insertion(
+    text: str, expected: str
+) -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -360,7 +365,7 @@ async def test_accept_applies_in_place_insertion(text: str, expected: str) -> No
 
 
 async def test_bof_plus_accept_inserts_tag() -> None:
-    """Accepting a BOF ``+`` selection inserts the project's tag in place."""
+    """Accepting a BOF ``+`` selection inserts the project's tag at the leading position."""
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -420,7 +425,7 @@ async def test_accept_places_cursor_after_inserted_tag() -> None:
 
 
 async def test_accept_switches_project_within_one_segment() -> None:
-    """Accepting a second project removes the first target in its segment."""
+    """Accepting a second project takes the first target's position in its segment."""
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -431,8 +436,9 @@ async def test_accept_switches_project_within_one_segment() -> None:
         _select(ta, "sase")
         await pilot.press("ctrl+l")
 
-        # Only the trigger's own segment loses its other target.
-        assert ta.text == "#git:foo first\n---\nsecond +sase "
+        # Only the trigger's own segment loses its other target, and the
+        # accepted tag lands at that target's position.
+        assert ta.text == "#git:foo first\n---\n+sase second "
         assert ta._file_completion_active is False
 
 

@@ -43,7 +43,7 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
 
     def _accept_vcs_project_completion(self, selected: CompletionCandidate) -> bool:
-        """Apply the core in-place accept for the selected project candidate."""
+        """Apply the core target-position accept for the selected project candidate."""
         entry = selected.metadata
         if not isinstance(entry, VcsProjectEntry):
             # The empty project/PR placeholder is not selectable.

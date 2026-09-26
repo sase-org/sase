@@ -633,16 +633,17 @@ tab), `{`, or `|`, while `a+b`, `c++`, and `#+query` are not triggers. Project r
 `+name` in the project's accent color, with the provider and the `#<workflow>:<name>`
 reference as detail. sase's TUI also marks the current project. Rows are ordered current
 project first, then most recently launched, then by name, with Patch rows last.
-Accepting a project row replaces the `+query` token in place with the project's tag (for
-example `+sase `), or with `#<workflow>:<name> ` when the name does not fit tag syntax.
-Accepting a Patch row inserts a reference such as `#gh:my_change `. Either way, the
-other project tags in the same `---` segment are removed, along with any `#` workspace
-ref that starts a line there (after optional `%directive` tokens). A `#` ref in the
-middle of a line is left alone, and launch then rejects the segment for having two
-targets. The helper filters by `PROJECT_NAME`, directory-key project name, project
-alias, or Patch name prefix. It omits the system-managed `home` project, disabled
-projects, sibling records, non-launchable projects, and projects with no detected VCS
-provider, even though `+home` and disabled-project tags still resolve when typed.
+Accepting a project row removes the `+query` token and places the project's tag (for
+example `+sase `), or `#<workflow>:<name> ` when the name does not fit tag syntax, at
+the earliest existing workspace target in the same `---` segment — or at that segment's
+leading tag position (after frontmatter and `%directive` tokens) when the segment has no
+target yet. Accepting a Patch row places a reference such as `#gh:my_change ` the same
+way. Either way, the other workspace targets in the segment are removed, so the accepted
+prompt keeps exactly one. The helper filters by `PROJECT_NAME`, directory-key project
+name, project alias, or Patch name prefix. It omits the system-managed `home` project,
+disabled projects, sibling records, non-launchable projects, and projects with no
+detected VCS provider, even though `+home` and disabled-project tags still resolve when
+typed.
 
 The xprompt LSP also checks tags as you type. Hovering a tag shows its project. An
 anchored unknown tag gets a warning with `Use +<suggestion>` quick fixes, an ambiguous

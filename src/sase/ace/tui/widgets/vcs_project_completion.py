@@ -4,7 +4,7 @@ This is the thin TUI bridge between the headless catalog in
 :mod:`sase.xprompt.vcs_project_completion` and the prompt input bar's
 :class:`~sase.ace.tui.widgets.file_completion.CompletionCandidate` machinery.
 
-The accept path applies the core in-place binding
+The accept path applies the core target-position binding
 (:func:`sase.project_tags.apply_project_tag_selection`), so a candidate's
 ``insertion`` is the row's verbatim text: ``+<name> `` for project rows (or
 ``#<workflow>:<name> `` when the name is not in the tag grammar) and
@@ -49,7 +49,7 @@ def _candidate(entry: VcsProjectEntry) -> CompletionCandidate:
     Project rows insert the ``+<name>`` tag (or the ``#<workflow>:<name>``
     ref when the name is not in the tag grammar); PR rows insert their
     ``#<workflow>:<patch>`` ref. The trailing space is the row's own
-    separator for the core in-place accept.
+    separator for the core target-position accept.
     """
     if entry.kind == "project" and entry.tag:
         insertion = f"{entry.tag} "

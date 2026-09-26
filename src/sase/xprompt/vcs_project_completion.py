@@ -12,7 +12,7 @@ The public helpers are:
 * :class:`VcsProjectTrigger` -- the trigger value type shared with the
   core-backed :func:`sase.project_tags.find_project_tag_trigger`.
 
-Trigger detection and the in-place accept algorithm live in the Rust core
+Trigger detection and the target-position accept algorithm live in the Rust core
 (``project_tag_trigger`` / ``project_tag_apply_selection``); the Python
 mirrors were deleted once the core owned them (project tags epic,
 tui-editor phase). The golden vectors live in the core's
