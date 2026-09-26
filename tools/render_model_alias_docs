@@ -14,7 +14,7 @@ import yaml  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_PATH = REPO_ROOT / "docs" / "llms.md"
-DEFAULTS_PATH = REPO_ROOT / "src" / "sase" / "llm_provider" / "model_alias_defaults.yml"
+DEFAULTS_PATH = REPO_ROOT / "src" / "sase" / "llm_provider" / "models.yml"
 BEGIN_MARKER = "<!-- BEGIN GENERATED: model-alias-defaults -->"
 END_MARKER = "<!-- END GENERATED: model-alias-defaults -->"
 

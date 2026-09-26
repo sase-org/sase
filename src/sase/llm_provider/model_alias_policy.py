@@ -1,10 +1,10 @@
 """Names, defaults, and descriptions for built-in model aliases.
 
-Shipped defaults (targets and descriptions) live in the bundled
-``model_alias_defaults.yml`` sibling file, not in this module. Editing that
-YAML is the single change needed to alter what a built-in size alias resolves
-to out of the box; this module only owns the alias *name* constants and the
-loader that turns the YAML into cached accessor mappings.
+Shipped defaults (targets and descriptions) live in the ``aliases`` section of
+the bundled ``models.yml`` manifest, not in this module. Editing that YAML is
+the single change needed to alter what a built-in size alias resolves to out
+of the box; this module only owns the alias *name* constants and the cached
+accessor mappings projected from the manifest loader.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 import functools
-from importlib.resources import files
 from types import MappingProxyType
 
 import yaml  # type: ignore[import-untyped]
@@ -21,13 +20,14 @@ from sase._yaml_safe import yaml_safe_load
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED, split_model_effort
 
 from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
+from .model_manifest import get_model_manifest
 
 # Builtin overrides are configured under ``llm_provider.model_aliases.builtin``;
 # user-created aliases live under ``llm_provider.model_aliases.custom`` so they
 # can carry required descriptions. SASE ships exactly five implicit built-in
 # aliases that always resolve, even when the user has not defined them:
 # ``xsmall``, ``small``, ``medium``, ``large``, and ``xlarge``.
-# See ``model_alias_defaults.yml`` for the current value of every default.
+# See ``models.yml`` for the current value of every default.
 
 #: Retired public alias name retained only for compatibility wrappers and
 #: migration diagnostics. No-``%model`` launches now use
@@ -64,8 +64,6 @@ BUILTIN_MODEL_ALIAS_NAMES: tuple[str, ...] = (
     LARGE_MODEL_ALIAS_NAME,
     XLARGE_MODEL_ALIAS_NAME,
 )
-
-_DEFAULTS_RESOURCE_NAME = "model_alias_defaults.yml"
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,7 +172,7 @@ def _validate_fallback_graph(
             current = referenced
 
 
-def _parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefaults:
+def parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefaults:
     """Parse and validate model-alias defaults YAML from *text*."""
     try:
         data = yaml_safe_load(text)
@@ -262,21 +260,19 @@ def _parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefa
 
 @functools.cache
 def _load_model_alias_defaults() -> _ModelAliasDefaults:
-    """Load and validate the bundled model-alias defaults YAML.
+    """Load the bundled size-alias defaults from the model manifest.
 
-    A missing or malformed file ships with the package, so it is an
-    installation defect rather than user error: raise loudly instead of
-    silently degrading to an empty mapping, which would reroute every implicit
-    role alias.
+    The manifest loader already validated the YAML strictly; this projects its
+    alias views into the long-standing ``_ModelAliasDefaults`` shape so the
+    parser entry point above (and the tests that exercise it directly) keeps
+    working on standalone alias YAML.
     """
-    resource = files("sase.llm_provider").joinpath(_DEFAULTS_RESOURCE_NAME)
-
-    try:
-        text = resource.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise _defaults_error(resource, f"could not be read: {exc}") from exc
-
-    return _parse_model_alias_defaults(text, source=resource)
+    manifest = get_model_manifest()
+    return _ModelAliasDefaults(
+        role_alias_fallbacks=manifest.alias_fallbacks,
+        implicit_alias_targets=manifest.alias_targets,
+        role_alias_descriptions=manifest.alias_descriptions,
+    )
 
 
 def role_alias_fallbacks() -> Mapping[str, str]:

@@ -93,7 +93,7 @@ def _freeze_model_alias_defaults(
 
 @pytest.fixture
 def real_model_alias_defaults() -> Iterator[None]:
-    """Exercise the packaged ``model_alias_defaults.yml`` instead of the fixture."""
+    """Exercise the packaged ``models.yml`` manifest instead of the fixture."""
     from sase.llm_provider import model_alias_policy
 
     model_alias_policy._load_model_alias_defaults.cache_clear()

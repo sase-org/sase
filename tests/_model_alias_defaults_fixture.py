@@ -1,6 +1,6 @@
 """Frozen model-alias defaults for tests that assert resolution behavior.
 
-Shipped-value changes in ``model_alias_defaults.yml`` need no change here.
+Shipped-value changes in the ``aliases`` section of ``models.yml`` need no change here.
 Shipped graph-shape changes are code changes: if an alias switches between
 target, fallback, or neither, or a fallback points to a different alias, update
 this map to match. Keeping the frozen values distinct from the shipped file
@@ -154,7 +154,7 @@ def frozen_alias_defaults_yaml(
 
 @functools.cache
 def _frozen_model_alias_defaults() -> _ModelAliasDefaults:
-    return model_alias_policy._parse_model_alias_defaults(
+    return model_alias_policy.parse_model_alias_defaults(
         frozen_alias_defaults_yaml(),
         source="tests._model_alias_defaults_fixture",
     )

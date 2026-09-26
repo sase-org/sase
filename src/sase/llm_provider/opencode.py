@@ -20,15 +20,18 @@ from ._subprocess import (
     stream_and_parse_opencode_json_output,
 )
 from .base import LLMProvider
+from .model_manifest import (
+    provider_model_names,
+    provider_short_aliases,
+    provider_tier_model,
+)
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .usage_limit_config import ProviderUsageLimitConfig
 
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "anthropic/claude-sonnet-4-5",
-    "small": "openai/gpt-5-mini",
-}
+# Nested OpenCode IDs are opaque model strings; the full catalog lives in the
+# bundled ``models.yml`` manifest (see ``model_manifest.py``).
 _OPENCODE_PATH_ENV = "SASE_OPENCODE_PATH"
 
 # OpenCode forwards reasoning effort via ``--variant <level>`` ("Model variant
@@ -80,7 +83,7 @@ class OpenCodeProvider(LLMProvider):
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the OpenCode model name for the given tier."""
-        return _TIER_TO_MODEL[model_tier]
+        return provider_tier_model("opencode", model_tier)
 
     @hookimpl
     def llm_provider_name(self) -> str:
@@ -96,25 +99,12 @@ class OpenCodeProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return [
-            "anthropic/claude-sonnet-4-5",
-            "anthropic/claude-opus-4-5",
-            "openai/gpt-5",
-            "openai/gpt-5-mini",
-            "google/gemini-3-flash-preview",
-            "qwen/qwen3-coder-plus",
-        ]
+        # Nested OpenCode IDs are opaque model strings.
+        return list(provider_model_names("opencode"))
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        return {
-            "anthropic/claude-sonnet-4-5": "sonnet45",
-            "anthropic/claude-opus-4-5": "opus45",
-            "openai/gpt-5": "gpt5",
-            "openai/gpt-5-mini": "gpt5m",
-            "google/gemini-3-flash-preview": "flash3",
-            "qwen/qwen3-coder-plus": "qwen3cp",
-        }
+        return provider_short_aliases("opencode")
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
@@ -230,7 +220,9 @@ class OpenCodeProvider(LLMProvider):
         options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
         """Invoke OpenCode with the given prompt."""
-        model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        model = (
+            model_override if model_override else self.resolve_model_name(model_tier)
+        )
 
         base_args = [
             _opencode_bin(),

@@ -37,6 +37,11 @@ from ._subprocess_agy import (
     prepare_agy_tool_call_extraction,
 )
 from .base import LLMProvider
+from .model_manifest import (
+    provider_model_names,
+    provider_short_aliases,
+    provider_tier_model,
+)
 from .types import (
     InvokeResult,
     LLMInvocationError,
@@ -49,10 +54,8 @@ if TYPE_CHECKING:
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "gemini-3.7-flash-high",
-    "small": "gemini-3.7-flash-low",
-}
+# (Model catalog, short aliases, and tier defaults live in the bundled
+# ``models.yml`` manifest; see ``model_manifest.py``.)
 _AGY_PATH_ENV = "SASE_AGY_PATH"
 _AGY_PRINT_TIMEOUT_ENV = "SASE_AGY_PRINT_TIMEOUT"
 _AGY_MAX_NO_PROGRESS_CONTINUATIONS_ENV = "SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS"
@@ -262,7 +265,7 @@ class AgyProvider(LLMProvider):
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Antigravity model name for the given tier."""
-        return _TIER_TO_MODEL[model_tier]
+        return provider_tier_model("agy", model_tier)
 
     @hookimpl
     def llm_provider_name(self) -> str:
@@ -279,48 +282,12 @@ class AgyProvider(LLMProvider):
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
         # Exact stable slugs reported by `agy models`; keep CLI ordering.
-        return [
-            "gemini-3.8-flash-high",
-            "gemini-3.8-flash-medium",
-            "gemini-3.8-flash-low",
-            "gemini-3.7-flash-high",
-            "gemini-3.7-flash-medium",
-            "gemini-3.7-flash-low",
-            "gemini-3.6-flash-high",
-            "gemini-3.6-flash-medium",
-            "gemini-3.6-flash-low",
-            "gemini-3.5-flash-high",
-            "gemini-3.5-flash-medium",
-            "gemini-3.5-flash-low",
-            "gemini-3.1-pro-high",
-            "gemini-3.1-pro-low",
-            "claude-sonnet-4-6",
-            "claude-opus-4-6-thinking",
-            "gpt-oss-120b-medium",
-        ]
+        return list(provider_model_names("agy"))
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
         # Compact aliases for model picker labels and same-provider fan-out ids.
-        return {
-            "gemini-3.8-flash-high": "flash38h",
-            "gemini-3.8-flash-medium": "flash38m",
-            "gemini-3.8-flash-low": "flash38l",
-            "gemini-3.7-flash-high": "flash37h",
-            "gemini-3.7-flash-medium": "flash37m",
-            "gemini-3.7-flash-low": "flash37l",
-            "gemini-3.6-flash-high": "flash36h",
-            "gemini-3.6-flash-medium": "flash36m",
-            "gemini-3.6-flash-low": "flash36l",
-            "gemini-3.5-flash-high": "flash35h",
-            "gemini-3.5-flash-medium": "flash35m",
-            "gemini-3.5-flash-low": "flash35l",
-            "gemini-3.1-pro-high": "pro31h",
-            "gemini-3.1-pro-low": "pro31l",
-            "claude-sonnet-4-6": "sonnet46",
-            "claude-opus-4-6-thinking": "opus46t",
-            "gpt-oss-120b-medium": "gptoss120m",
-        }
+        return provider_short_aliases("agy")
 
     @hookimpl
     def llm_usage_capabilities(self) -> dict[str, object]:
@@ -502,7 +469,9 @@ class AgyProvider(LLMProvider):
                 (Antigravity cannot honor any effort level).
         """
         agy_bin = _agy_bin()
-        model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        model = (
+            model_override if model_override else self.resolve_model_name(model_tier)
+        )
         workspace_dir = _resolve_agy_workspace_dir()
 
         base_args = [

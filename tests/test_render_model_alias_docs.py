@@ -103,7 +103,7 @@ def test_check_reports_stale_block_without_writing(
 
 def test_renderer_rejects_malformed_alias_input(tmp_path: Path) -> None:
     renderer = _load_renderer("render_model_alias_docs_malformed")
-    defaults = tmp_path / "model_alias_defaults.yml"
+    defaults = tmp_path / "models.yml"
     defaults.write_text(
         "aliases:\n  small:\n    description: Small alias.\n    target: 12\n",
         encoding="utf-8",

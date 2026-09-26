@@ -21,6 +21,7 @@ from ._subprocess import (
 )
 from ._tool_calls import append_grok_tool_call_event
 from .base import LLMProvider
+from .model_manifest import provider_model_names, provider_tier_model
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
@@ -28,12 +29,8 @@ if TYPE_CHECKING:
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
-# Grok Build's large tier follows its current default model; the small tier stays on
-# the previous flagship used by the @medium and @small shipped aliases.
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "grok-4.7",
-    "small": "grok-4.6",
-}
+# (Model catalog and tier defaults live in the bundled ``models.yml``
+# manifest; see ``model_manifest.py``.)
 
 _EFFORT_CLI_ARGS: dict[str, list[str]] = {
     level: ["--effort", level] for level in ("low", "medium", "high", "xhigh")
@@ -93,7 +90,7 @@ class GrokProvider(LLMProvider):
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Grok model name for the given tier."""
-        return _TIER_TO_MODEL[model_tier]
+        return provider_tier_model("grok", model_tier)
 
     @hookimpl
     def llm_provider_name(self) -> str:
@@ -109,7 +106,7 @@ class GrokProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return ["grok-4.7", "grok-4.6"]
+        return list(provider_model_names("grok"))
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
@@ -284,7 +281,9 @@ class GrokProvider(LLMProvider):
         options: LLMInvocationOptions | None = None,
     ) -> InvokeResult:
         """Invoke Grok Build with the given prompt."""
-        model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        model = (
+            model_override if model_override else self.resolve_model_name(model_tier)
+        )
         effort_args = self.invocation_option_args(options)
 
         if model_tier == "large":

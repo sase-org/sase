@@ -393,6 +393,10 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19x(reconcile_cursor)' \
         --epic-symbol 'sase-19x(select_cursor)' \
         --epic-symbol 'sase-19x(step_cursor)' \
+        --epic-symbol 'sase-1aa.3(ModelManifest)' \
+        --epic-symbol 'sase-1aa.3(ProviderRecord)' \
+        --epic-symbol 'sase-1aa.3(manifest_provider_names)' \
+        --epic-symbol 'sase-1aa.3(provider_model_supersedes)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

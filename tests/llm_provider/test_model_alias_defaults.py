@@ -1,4 +1,4 @@
-"""Tests for the bundled ``model_alias_defaults.yml`` and its parser."""
+"""Tests for the bundled ``models.yml`` size aliases and their parser."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from sase.llm_provider.model_alias_policy import (
     SMALL_MODEL_ALIAS_NAME,
     XLARGE_MODEL_ALIAS_NAME,
     XSMALL_MODEL_ALIAS_NAME,
-    _parse_model_alias_defaults,
     implicit_alias_targets,
+    parse_model_alias_defaults,
     role_alias_descriptions,
     role_alias_fallbacks,
 )
@@ -90,7 +90,7 @@ def _fixture_aliases() -> dict[str, dict[str, str]]:
 
 
 def _parse_fixture_aliases(aliases: Mapping[str, Mapping[str, str]]) -> None:
-    _parse_model_alias_defaults(
+    parse_model_alias_defaults(
         yaml.safe_dump(
             {"schema_version": 1, "aliases": aliases},
             sort_keys=False,

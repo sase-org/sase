@@ -13,7 +13,8 @@ import pytest
 
 from sase.llm_provider._registry_metadata import provider_metadata
 from sase.llm_provider.model_label import model_value_text
-from sase.llm_provider.muse import _TIER_TO_MODEL, MuseProvider
+from sase.llm_provider.model_manifest import provider_tier_model
+from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.registry import model_advisory_for, model_advisory_map
 
 _CONTRIBUTORS = ("muse-spark-1.3-contributor", "muse-spark-1.2-contributor")
@@ -128,7 +129,9 @@ def test_tier_mapping_never_routes_to_an_advisory_model() -> None:
     advisory_models = set(MuseProvider().llm_model_advisories())
 
     assert advisory_models
-    assert not advisory_models & set(_TIER_TO_MODEL.values())
+    assert not advisory_models & {
+        provider_tier_model("muse", tier) for tier in ("large", "small")
+    }
 
 
 # --- Render sites ----------------------------------------------------------

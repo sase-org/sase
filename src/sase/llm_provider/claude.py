@@ -21,6 +21,11 @@ from ._subprocess import (
 )
 from ._subprocess_claude import ClaudeTurnWaitState
 from .base import LLMProvider
+from .model_manifest import (
+    provider_model_names,
+    provider_short_aliases,
+    provider_tier_model,
+)
 from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
@@ -30,13 +35,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Map model tiers to Claude CLI aliases
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "opus",
-    "small": "sonnet",
-}
-
 # Reasoning-effort levels Claude Code honors via ``--effort <level>``. Claude
+# (Model catalog, short aliases, and tier defaults live in the bundled
+# ``models.yml`` manifest; see ``model_manifest.py``.)
 # rejects ``none``/``minimal`` (epic sase-55 provider support matrix).
 _EFFORT_CLI_ARGS: dict[str, list[str]] = {
     level: ["--effort", level] for level in ("low", "medium", "high", "xhigh", "max")
@@ -123,7 +124,7 @@ class ClaudeCodeProvider(LLMProvider):
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Claude model alias for the given tier."""
-        return _TIER_TO_MODEL[model_tier]
+        return provider_tier_model("claude", model_tier)
 
     @hookimpl
     def llm_provider_name(self) -> str:
@@ -139,20 +140,11 @@ class ClaudeCodeProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return [
-            "opus",
-            "sonnet",
-            "haiku",
-            "claude-haiku-4-5",
-            "claude-fable-5",
-        ]
+        return list(provider_model_names("claude"))
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        return {
-            "claude-haiku-4-5": "haiku45",
-            "claude-fable-5": "fable",
-        }
+        return provider_short_aliases("claude")
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
@@ -343,7 +335,9 @@ class ClaudeCodeProvider(LLMProvider):
         Raises:
             subprocess.CalledProcessError: If the Claude CLI process fails.
         """
-        model_alias = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        model_alias = (
+            model_override if model_override else self.resolve_model_name(model_tier)
+        )
         effort_args = self.invocation_option_args(options)
 
         # Parse additional args from environment variable based on tier

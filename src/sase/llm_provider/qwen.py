@@ -18,15 +18,18 @@ from ._subprocess import (
     stream_and_parse_qwen_json_output,
 )
 from .base import LLMProvider
+from .model_manifest import (
+    provider_model_names,
+    provider_short_aliases,
+    provider_tier_model,
+)
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .usage_limit_config import ProviderUsageLimitConfig
 
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "qwen3.6-plus",
-    "small": "qwen3-coder-flash",
-}
+# (Model catalog, short aliases, and tier defaults live in the bundled
+# ``models.yml`` manifest; see ``model_manifest.py``.)
 _QWEN_PATH_ENV = "SASE_QWEN_PATH"
 
 
@@ -70,7 +73,7 @@ class QwenProvider(LLMProvider):
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Qwen model name for the given tier."""
-        return _TIER_TO_MODEL[model_tier]
+        return provider_tier_model("qwen", model_tier)
 
     @hookimpl
     def llm_provider_name(self) -> str:
@@ -86,22 +89,11 @@ class QwenProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return [
-            "qwen3.6-plus",
-            "qwen3-coder-plus",
-            "qwen3-coder-flash",
-            "qwen3-max",
-            "qwen-plus",
-            "qwen-max",
-        ]
+        return list(provider_model_names("qwen"))
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        return {
-            "qwen3.6-plus": "qwen36p",
-            "qwen3-coder-plus": "qwen3cp",
-            "qwen3-coder-flash": "qwen3cf",
-        }
+        return provider_short_aliases("qwen")
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
@@ -225,7 +217,9 @@ class QwenProvider(LLMProvider):
         so an explicit effort raises here before launch and a config-default
         effort is skipped.
         """
-        model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        model = (
+            model_override if model_override else self.resolve_model_name(model_tier)
+        )
 
         base_args = [
             _qwen_bin(),

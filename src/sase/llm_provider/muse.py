@@ -32,30 +32,23 @@ from ._subprocess import (
 from ._wait_guard import log_wait_guard as _log_wait_guard
 from ._wait_signals import ends_with_wait_claim
 from .base import LLMProvider
+from .model_manifest import (
+    provider_model_advisories,
+    provider_model_names,
+    provider_short_aliases,
+    provider_tier_model,
+)
 from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
-# Both tiers map to the full-price model on purpose. Contributor models are
-# trained on their inputs and outputs, and a tier mapping is SASE's own default
+# (Model catalog, short aliases, advisories, and tier defaults live in the
+# bundled ``models.yml`` manifest; see ``model_manifest.py``. Both tiers map
+# to the full-price model on purpose — a tier mapping is SASE's own default
 # choice of model, so it must never send a user's proprietary source into
-# Meta's training corpus on the user's behalf. The shipped @xsmall, @small, and
-# @medium alias pools do include ``muse-spark-1.3-contributor``, so an agent
-# launched at those sizes can reach it automatically when ``muse`` is on PATH;
-# that is a different route, a configured shipped default the user can drop by
-# overriding ``llm_provider.model_aliases.builtin.<size>``. The Contributor
-# model is also fully reachable by name.
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "muse-spark-1.3",
-    "small": "muse-spark-1.3",
-}
-
-_CONTRIBUTOR_MODELS = (
-    "muse-spark-1.3-contributor",
-    "muse-spark-1.2-contributor",
-)
+# Meta's training corpus on the user's behalf.)
 
 # Muse accepts every canonical level. Meta documents ``max`` reasoning for the
 # standard Spark 1.3 model only; explicit requests for other model versions are
@@ -273,7 +266,7 @@ class MuseProvider(LLMProvider):
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Muse model name for the given tier."""
-        return _TIER_TO_MODEL[model_tier]
+        return provider_tier_model("muse", model_tier)
 
     @hookimpl
     def llm_provider_name(self) -> str:
@@ -289,42 +282,18 @@ class MuseProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return [
-            "muse-spark-1.3",
-            "muse-spark-1.3-contributor",
-            "muse-spark-1.2",
-            "muse-spark-1.2-contributor",
-            "muse-spark-1.1",
-        ]
+        return list(provider_model_names("muse"))
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        return {
-            "muse-spark-1.3": "spark13",
-            "muse-spark-1.3-contributor": "spark13c",
-            "muse-spark-1.2": "spark12",
-            "muse-spark-1.2-contributor": "spark12c",
-            "muse-spark-1.1": "spark11",
-        }
+        return provider_short_aliases("muse")
 
     @hookimpl
     def llm_model_advisories(self) -> dict[str, dict[str, str]]:
         # The Contributor model is a real feature and a real hazard. It stays
         # fully reachable by name; this makes the trade visible everywhere the
         # model is, so nobody agrees to it without seeing it.
-        return {
-            contributor_model: {
-                "severity": "warn",
-                "label": "trains on your data",
-                "detail": (
-                    "Meta uses this model's inputs and outputs to train and "
-                    f"improve its AI models. Same capabilities as "
-                    f"{contributor_model.removesuffix('-contributor')} at roughly "
-                    "95% lower cost. Rate limited; available in select countries."
-                ),
-            }
-            for contributor_model in _CONTRIBUTOR_MODELS
-        }
+        return provider_model_advisories("muse")
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
@@ -488,7 +457,9 @@ class MuseProvider(LLMProvider):
                 code 2 is a CLI usage error rather than a model failure and is
                 labeled as such in the raised diagnostics.
         """
-        model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        model = (
+            model_override if model_override else self.resolve_model_name(model_tier)
+        )
         # Wrap once, at the top, so the interrupt path's reconstructed context
         # and the next phase's guard also carry the directive.
         synchronous_shell = _muse_synchronous_shell_enabled()

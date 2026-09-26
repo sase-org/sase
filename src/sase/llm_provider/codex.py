@@ -26,6 +26,11 @@ from ._subprocess import (
 from ._subprocess_codex import CodexStreamResult, CodexStrandedCommand
 from ._wait_guard import log_wait_guard as _log_wait_guard
 from .base import LLMProvider
+from .model_manifest import (
+    provider_model_names,
+    provider_short_aliases,
+    provider_tier_model,
+)
 from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
@@ -33,11 +38,8 @@ if TYPE_CHECKING:
     from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
-# Map model tiers to Codex model names
-_TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "gpt-6-sol",
-    "small": "codex-mini-latest",
-}
+# (Model catalog, short aliases, and tier defaults live in the bundled
+# ``models.yml`` manifest; see ``model_manifest.py``.)
 
 # Reasoning-effort levels Codex honors via ``-c model_reasoning_effort=...``.
 # Codex rejects ``none``/``max`` (epic sase-55 provider support matrix). The
@@ -269,7 +271,7 @@ class CodexProvider(LLMProvider):
 
     def resolve_model_name(self, model_tier: ModelTier = "large") -> str:
         """Return the Codex model name for the given tier."""
-        return _TIER_TO_MODEL[model_tier]
+        return provider_tier_model("codex", model_tier)
 
     @hookimpl
     def llm_provider_name(self) -> str:
@@ -285,44 +287,11 @@ class CodexProvider(LLMProvider):
 
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
-        return [
-            "gpt-6-astra",
-            "gpt-6-sol",
-            "gpt-6-luna",
-            "gpt-5.6-sol",
-            "gpt-5.6-terra",
-            "gpt-5.6-luna",
-            "gpt-5.5",
-            "gpt-5.3-codex",
-            "gpt-5.3-codex-spark",
-            "codex-mini-latest",
-            "o3",
-            "o4-mini",
-            "gpt-5.4",
-            "gpt-4.1",
-            "gpt-4.1-mini",
-            "gpt-4o",
-            "gpt-4o-mini",
-        ]
+        return list(provider_model_names("codex"))
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
-        return {
-            "gpt-6-astra": "astra",
-            "gpt-6-sol": "gpt6sol",
-            "gpt-6-luna": "gpt6luna",
-            "codex-mini-latest": "mini",
-            "gpt-5.6-sol": "gpt56sol",
-            "gpt-5.6-terra": "gpt56terra",
-            "gpt-5.6-luna": "gpt56luna",
-            "gpt-5.5": "gpt55",
-            "gpt-5.4": "gpt54",
-            "gpt-5.3-codex-spark": "gpt53spark",
-            "gpt-5.3-codex": "gpt53",
-            "gpt-4.1": "gpt41",
-            "gpt-4.1-mini": "gpt41m",
-            "gpt-4o-mini": "gpt4om",
-        }
+        return provider_short_aliases("codex")
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:
@@ -483,7 +452,9 @@ class CodexProvider(LLMProvider):
                 built-in ``llm_default_retry_config`` so the workflow retry
                 subsystem can recover instead of terminating.
         """
-        model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        model = (
+            model_override if model_override else self.resolve_model_name(model_tier)
+        )
 
         base_args = [
             resolve_codex_executable(),

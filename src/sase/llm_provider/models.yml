@@ -1,0 +1,220 @@
+# Bundled manifest for SASE's built-in provider model catalogs, tier
+# defaults, and size-alias pools. This file is the single edit point for
+# routine built-in model maintenance: adding a model, changing a tier
+# default, or retuning a size-alias pool should require no edits to Python
+# source, tests, examples, or prose (run `just fix` to regenerate
+# `docs/llms.md`, then `just check`).
+#
+# Layout:
+# - `schema_version`: manifest schema; loaders reject anything else.
+# - `providers`: ordered map of built-in provider name to its catalog. Each
+#   provider records `models` (ordered model IDs), optional `short_aliases`
+#   (long model ID to compact alias), `tiers` (`large`/`small` invocation
+#   defaults, each naming one of `models`), optional `supersedes`
+#   (successor model ID to predecessor model ID, continuing its effort
+#   descent), and optional `advisories` (model ID to
+#   `severity`/`label`/`detail`). Nested OpenCode IDs are opaque model
+#   strings; keep Antigravity's CLI order. `fakey` stays a separate hidden
+#   test provider in code, not in this manifest.
+# - `aliases`: the five shipped size aliases (`xsmall`, `small`, `medium`,
+#   `large`, `xlarge`), each a `target` selector plus `description`. User
+#   config (`llm_provider.model_aliases.builtin`) can override only these
+#   built-in names.
+schema_version: 1
+providers:
+  agy:
+    # Exact stable slugs reported by `agy models`; keep CLI ordering.
+    models:
+      - gemini-3.8-flash-high
+      - gemini-3.8-flash-medium
+      - gemini-3.8-flash-low
+      - gemini-3.7-flash-high
+      - gemini-3.7-flash-medium
+      - gemini-3.7-flash-low
+      - gemini-3.6-flash-high
+      - gemini-3.6-flash-medium
+      - gemini-3.6-flash-low
+      - gemini-3.5-flash-high
+      - gemini-3.5-flash-medium
+      - gemini-3.5-flash-low
+      - gemini-3.1-pro-high
+      - gemini-3.1-pro-low
+      - claude-sonnet-4-6
+      - claude-opus-4-6-thinking
+      - gpt-oss-120b-medium
+    short_aliases:
+      gemini-3.8-flash-high: flash38h
+      gemini-3.8-flash-medium: flash38m
+      gemini-3.8-flash-low: flash38l
+      gemini-3.7-flash-high: flash37h
+      gemini-3.7-flash-medium: flash37m
+      gemini-3.7-flash-low: flash37l
+      gemini-3.6-flash-high: flash36h
+      gemini-3.6-flash-medium: flash36m
+      gemini-3.6-flash-low: flash36l
+      gemini-3.5-flash-high: flash35h
+      gemini-3.5-flash-medium: flash35m
+      gemini-3.5-flash-low: flash35l
+      gemini-3.1-pro-high: pro31h
+      gemini-3.1-pro-low: pro31l
+      claude-sonnet-4-6: sonnet46
+      claude-opus-4-6-thinking: opus46t
+      gpt-oss-120b-medium: gptoss120m
+    tiers:
+      large: gemini-3.7-flash-high
+      small: gemini-3.7-flash-low
+  claude:
+    models:
+      - opus
+      - sonnet
+      - haiku
+      - claude-haiku-4-5
+      - claude-fable-5
+    short_aliases:
+      claude-haiku-4-5: haiku45
+      claude-fable-5: fable
+    tiers:
+      large: opus
+      small: sonnet
+  codex:
+    models:
+      - gpt-6-astra
+      - gpt-6-sol
+      - gpt-6-luna
+      - gpt-5.6-sol
+      - gpt-5.6-terra
+      - gpt-5.6-luna
+      - gpt-5.5
+      - gpt-5.3-codex
+      - gpt-5.3-codex-spark
+      - codex-mini-latest
+      - o3
+      - o4-mini
+      - gpt-5.4
+      - gpt-4.1
+      - gpt-4.1-mini
+      - gpt-4o
+      - gpt-4o-mini
+    short_aliases:
+      gpt-6-astra: astra
+      gpt-6-sol: gpt6sol
+      gpt-6-luna: gpt6luna
+      codex-mini-latest: mini
+      gpt-5.6-sol: gpt56sol
+      gpt-5.6-terra: gpt56terra
+      gpt-5.6-luna: gpt56luna
+      gpt-5.5: gpt55
+      gpt-5.4: gpt54
+      gpt-5.3-codex-spark: gpt53spark
+      gpt-5.3-codex: gpt53
+      gpt-4.1: gpt41
+      gpt-4.1-mini: gpt41m
+      gpt-4o-mini: gpt4om
+    tiers:
+      large: gpt-6-sol
+      small: codex-mini-latest
+  grok:
+    models:
+      - grok-4.7
+      - grok-4.6
+    # Large follows the current default model; small stays on the previous
+    # flagship used by the @medium and @small shipped aliases.
+    tiers:
+      large: grok-4.7
+      small: grok-4.6
+  muse:
+    # Both tiers map to the full-price model on purpose. Contributor models are
+    # trained on their inputs and outputs, and a tier mapping is SASE's own
+    # default choice of model, so it must never send a user's proprietary source
+    # into Meta's training corpus on the user's behalf. The shipped @xsmall,
+    # @small, and @medium alias pools do include muse-spark-1.3-contributor, so
+    # an agent launched at those sizes can reach it automatically when `muse` is
+    # on PATH; that is a different route, a configured shipped default the user
+    # can drop by overriding llm_provider.model_aliases.builtin.<size>. The
+    # Contributor model is also fully reachable by name.
+    models:
+      - muse-spark-1.3
+      - muse-spark-1.3-contributor
+      - muse-spark-1.2
+      - muse-spark-1.2-contributor
+      - muse-spark-1.1
+    short_aliases:
+      muse-spark-1.3: spark13
+      muse-spark-1.3-contributor: spark13c
+      muse-spark-1.2: spark12
+      muse-spark-1.2-contributor: spark12c
+      muse-spark-1.1: spark11
+    tiers:
+      large: muse-spark-1.3
+      small: muse-spark-1.3
+    advisories:
+      muse-spark-1.3-contributor:
+        severity: warn
+        label: trains on your data
+        detail: Meta uses this model's inputs and outputs to train and improve
+          its AI models. Same capabilities as muse-spark-1.3 at roughly 95%
+          lower cost. Rate limited; available in select countries.
+      muse-spark-1.2-contributor:
+        severity: warn
+        label: trains on your data
+        detail: Meta uses this model's inputs and outputs to train and improve
+          its AI models. Same capabilities as muse-spark-1.2 at roughly 95%
+          lower cost. Rate limited; available in select countries.
+  opencode:
+    # Nested OpenCode IDs are opaque model strings.
+    models:
+      - anthropic/claude-sonnet-4-5
+      - anthropic/claude-opus-4-5
+      - openai/gpt-5
+      - openai/gpt-5-mini
+      - google/gemini-3-flash-preview
+      - qwen/qwen3-coder-plus
+    short_aliases:
+      anthropic/claude-sonnet-4-5: sonnet45
+      anthropic/claude-opus-4-5: opus45
+      openai/gpt-5: gpt5
+      openai/gpt-5-mini: gpt5m
+      google/gemini-3-flash-preview: flash3
+      qwen/qwen3-coder-plus: qwen3cp
+    tiers:
+      large: anthropic/claude-sonnet-4-5
+      small: openai/gpt-5-mini
+  qwen:
+    models:
+      - qwen3.6-plus
+      - qwen3-coder-plus
+      - qwen3-coder-flash
+      - qwen3-max
+      - qwen-plus
+      - qwen-max
+    short_aliases:
+      qwen3.6-plus: qwen36p
+      qwen3-coder-plus: qwen3cp
+      qwen3-coder-flash: qwen3cf
+    tiers:
+      large: qwen3.6-plus
+      small: qwen3-coder-flash
+aliases:
+  xsmall:
+    target:
+      "claude/claude-haiku-4-5@xhigh | codex/gpt-6-luna@medium |
+      agy/gemini-3.8-flash-high | muse/muse-spark-1.3-contributor@medium"
+    description: >-
+      Extra-small launch alias for lookup, formatting, and tiny edits with obvious
+      checks.
+  small:
+    target:
+      "claude/sonnet@high | codex/gpt-6-luna@high | grok/grok-4.6@medium |
+      muse/muse-spark-1.3-contributor@high"
+    description: "Small launch alias for straightforward task and phase work."
+  medium:
+    target:
+      "claude/sonnet@xhigh | codex/gpt-6-luna@xhigh | grok/grok-4.6@high |
+      muse/muse-spark-1.3-contributor@xhigh"
+    description: "Medium launch alias for ordinary implementation work."
+  large:
+    target: "claude/opus@high | codex/gpt-6-sol@xhigh | grok/grok-4.7@xhigh"
+    description: "Large launch alias for planning-heavy work and default launches."
+  xlarge:
+    target: "claude/opus@xhigh || codex/gpt-6-sol@xhigh || grok/grok-4.7@xhigh"
+    description: "Extra-large launch alias for maximum-effort work."
