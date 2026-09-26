@@ -1338,21 +1338,22 @@ or grouping folds before focus moves.
 When a clan or a sase agent is selected, its jump panel assigns a fixed number to each
 numbered row, up to 100 targets. A sase agent is a multi-member session container or a
 single agent; sase-agent panels number their `SESSION TURNS` roster (when present) and
-then their `NEIGHBORS` section from one continuous ladder. A selected session **turn**
-row numbers its enclosing session's `SESSION TURNS` roster the same way, listing every
-sibling except itself from the same ladder; a turn row owns no sase agent, so it has no
-`NEIGHBORS` rows to follow the roster. Documents with at most ten numbered rows use
-`0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and
-show any remaining entries as an unnumbered count. Every live numbered target lives in
-the sticky jump panel below the deck panels, so the digit answers stay on screen while
-the deck body scrolls. The deck body no longer contains these roster sections. After the
-first digit of a two-key jump, the panel narrows to the matching candidates; press `Esc`
-to cancel or any non-digit key to cancel and continue with that key's normal action. A
-successful jump expands only the target's ancestor chain, switches tribe panels when
-needed, and participates in the normal `Ctrl+O` jump-back history. A digit on a
-dismissed neighbor revives that agent instead of jumping. If the roster or the neighbor
-relationship changed since the panel was drawn, the jump is cancelled with a warning
-rather than landing somewhere stale.
+then their `NEIGHBORS` section from one continuous ladder. Clan panels number their
+`CLAN MEMBERS` roster and then their `CLAN NEIGHBORS` section from one continuous
+ladder. A selected session **turn** row numbers its enclosing session's `SESSION TURNS`
+roster the same way, listing every sibling except itself from the same ladder; a turn
+row owns no sase agent, so it has no `NEIGHBORS` rows to follow the roster. Documents
+with at most ten numbered rows use `0`–`9`; larger documents number the first 100 rows
+with two-key values `00`–`99` and show any remaining entries as an unnumbered count.
+Every live numbered target lives in the sticky jump panel below the deck panels, so the
+digit answers stay on screen while the deck body scrolls. The deck body no longer
+contains these roster sections. After the first digit of a two-key jump, the panel
+narrows to the matching candidates; press `Esc` to cancel or any non-digit key to cancel
+and continue with that key's normal action. A successful jump expands only the target's
+ancestor chain, switches tribe panels when needed, and participates in the normal
+`Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent instead
+of jumping. If the roster or the neighbor relationship changed since the panel was
+drawn, the jump is cancelled with a warning rather than landing somewhere stale.
 
 ### Agent Actions
 
@@ -1776,10 +1777,25 @@ in place after the editor exits.
 
 Every sase agent panel carries a numbered `NEIGHBORS` roster in the jump panel. The
 section appears on session container panels after their `SESSION TURNS` roster when both
-exist, and on ordinary agent panels. Clan containers, tribe panel summaries, session
-member child rows, and workflow aggregate rows have no `NEIGHBORS` section. A selected
-session turn row owns no sase agent, so its panel carries only the `SESSION TURNS`
-roster (siblings, minus itself) and never a `NEIGHBORS` section.
+exist, and on ordinary agent panels. Tribe panel summaries, session member child rows,
+and workflow aggregate rows have no `NEIGHBORS` section. Clan containers carry a
+distinct `CLAN NEIGHBORS` roster instead (see below). A selected session turn row owns
+no sase agent, so its panel carries only the `SESSION TURNS` roster (siblings, minus
+itself) and never a `NEIGHBORS` section.
+
+A selected clan container shows `CLAN NEIGHBORS` after its `CLAN MEMBERS` roster when
+another clan shares its dotted hood. Two clans are neighbors when their presented clan
+names share the same root hood: `foo`, `foo.bar`, `foo.baz`, and `foo.bar.deep` all
+share the `foo` hood. Names compare case-insensitively at dot boundaries; the selected
+clan itself, ordinary agent rows, malformed names, and unrelated prefixes such as
+`foobar` are excluded. Each target keeps its full stable clan identity including its
+generation, and rows render under their full clan names. The section appears only when
+another eligible clan is visible under the current query and fold state. Numbering draws
+from one continuous ladder shared with `CLAN MEMBERS`, so eleven combined entries use
+two digits and entries beyond the shared 100 slots appear as an unnumbered
+`… +N more clan neighbors (not numbered)` count. A digit jump reveals the target clan
+through folds and tribe panels and participates in `Ctrl+O` jump-back history; a stale
+relation or missing target cancels without moving selection.
 
 The rows for that sase agent are ancestors, descendants including same-session dismissed
 descendants, then hood neighbors grouped by hood, nearest hood first — under dim

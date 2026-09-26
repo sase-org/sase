@@ -53,6 +53,24 @@ def agent_owns_sase_agent(agent: Agent) -> bool:
     return agent_name_key(agent) is not None
 
 
+def clan_name_key(agent: Agent) -> str | None:
+    """Return a case-folded valid dotted clan name key for clan containers."""
+    if not agent.is_clan_container:
+        return None
+    name = agent.presented_agent_name or agent.agent_clan
+    if not name:
+        return None
+    parts = name.split(".")
+    if any(not part for part in parts):
+        return None
+    return name.casefold()
+
+
+def _clan_hood_root(name_key: str) -> str:
+    """Return the root dotted hood for a normalized clan name key."""
+    return name_key.split(".", 1)[0]
+
+
 def _suppressed_agent_session_root_member_key(agent: Agent) -> str | None:
     """Return the concrete member name hidden behind a session root."""
     if not agent.is_agent_session_root_entry:
@@ -129,6 +147,9 @@ class AgentNeighborIndex:
         default_factory=dict
     )
     _descendant_count_by_row: dict[int, int] = field(default_factory=dict)
+    _clan_neighbors_by_row: dict[int, tuple[AgentNeighborRow, ...]] = field(
+        default_factory=dict
+    )
     _row_by_key: dict[int, AgentNeighborRow] = field(default_factory=dict)
     _keys_by_identity: dict[AgentIdentity, tuple[int, ...]] = field(
         default_factory=dict
@@ -272,12 +293,46 @@ class AgentNeighborIndex:
                 row for _hood, members in grouped for row in members
             )
 
+        clan_name_by_key: dict[int, str] = {}
+        keys_by_clan_hood: dict[str, list[int]] = {}
+        for row_key, row in row_by_key.items():
+            if not row.agent.is_clan_container:
+                continue
+            clan_key = clan_name_key(row.agent)
+            if clan_key is None:
+                continue
+            clan_name_by_key[row_key] = clan_key
+            hood = _clan_hood_root(clan_key)
+            if not hood:
+                continue
+            keys_by_clan_hood.setdefault(hood, []).append(row_key)
+        clan_neighbors_by_row: dict[int, tuple[AgentNeighborRow, ...]] = {}
+        for row_key, clan_key in clan_name_by_key.items():
+            hood = _clan_hood_root(clan_key)
+            clan_member_keys = keys_by_clan_hood.get(hood, [])
+            lane_identity = row_by_key[row_key].identity
+            targets = tuple(
+                row_by_key[target_key]
+                for target_key in sorted(
+                    clan_member_keys,
+                    key=lambda key: (
+                        row_by_key[key].display_order,
+                        key,
+                    ),
+                )
+                if target_key != row_key
+                and row_by_key[target_key].identity != lane_identity
+            )
+            if targets:
+                clan_neighbors_by_row[row_key] = targets
+
         return cls(
             _neighbors_by_row=neighbors_by_row,
             _hood_neighbor_groups_by_row=hood_groups_by_row,
             _ancestors_by_row=ancestors_by_row,
             _descendants_by_row=descendants_by_row,
             _descendant_count_by_row=descendant_count_by_row,
+            _clan_neighbors_by_row=clan_neighbors_by_row,
             _row_by_key=row_by_key,
             _keys_by_identity={
                 identity: tuple(keys)
@@ -328,6 +383,23 @@ class AgentNeighborIndex:
         row_key = self._unique_key_for_identity(identity)
         return self._descendants_by_row.get(row_key, ()) if row_key is not None else ()
 
+    def clan_neighbor_targets_for(
+        self, identity: AgentIdentity
+    ) -> tuple[AgentNeighborRow, ...]:
+        """Return render-order clan neighbors sharing the selected root hood."""
+        row_key = self._unique_key_for_identity(identity)
+        return (
+            self._clan_neighbors_by_row.get(row_key, ()) if row_key is not None else ()
+        )
+
+    def clan_neighbor_identities_for(
+        self, identity: AgentIdentity
+    ) -> frozenset[AgentIdentity]:
+        """Return stable identities of current clan neighbors."""
+        return frozenset(
+            row.identity for row in self.clan_neighbor_targets_for(identity)
+        )
+
     def related_target_identities_for(
         self, identity: AgentIdentity
     ) -> frozenset[AgentIdentity]:
@@ -377,11 +449,23 @@ class AgentNeighborIndex:
             return ()
         return self._visible_indices(self._descendants_by_row.get(row_key, ()))
 
+    def clan_neighbors_for(self, global_idx: int) -> tuple[int, ...]:
+        row_key = self._key_by_global_idx.get(global_idx)
+        if row_key is None:
+            return ()
+        return self._visible_indices(self._clan_neighbors_by_row.get(row_key, ()))
+
     def neighbor_count(self, global_idx: int) -> int:
         row_key = self._key_by_global_idx.get(global_idx)
         if row_key is None:
             return 0
         return len(self._neighbors_by_row.get(row_key, ()))
+
+    def clan_neighbor_count(self, global_idx: int) -> int:
+        row_key = self._key_by_global_idx.get(global_idx)
+        if row_key is None:
+            return 0
+        return len(self._clan_neighbors_by_row.get(row_key, ()))
 
     def ancestor_count(self, global_idx: int) -> int:
         row_key = self._key_by_global_idx.get(global_idx)

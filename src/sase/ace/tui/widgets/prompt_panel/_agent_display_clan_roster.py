@@ -20,6 +20,10 @@ from ...models.agent_session_members import (
 )
 from ._member_roster import MemberRosterChild, MemberRosterEntry
 
+CLAN_NEIGHBORS_SECTION_ID = "clan-neighbors"
+CLAN_NEIGHBORS_ROSTER_TITLE = "CLAN NEIGHBORS"
+CLAN_NEIGHBORS_IDENTITY_COLOR = "#00D7AF"
+
 
 def ordered_clan_members(agent: Agent) -> tuple[Agent, ...]:
     """Return direct clan members in deterministic launch order."""
@@ -235,6 +239,36 @@ def clan_roster_entries(
                 duration=_agent_session_duration_label(member, rows, now=now),
                 digest=digest_by_identity.get(member.identity),
                 children=roster_children,
+            )
+        )
+    return tuple(entries)
+
+
+def clan_neighbor_roster_entries(
+    targets: tuple[Agent, ...],
+    *,
+    now: datetime | None,
+) -> tuple[MemberRosterEntry, ...]:
+    """Adapt clan neighbor containers into shared roster entries."""
+    entries: list[MemberRosterEntry] = []
+    for target in targets:
+        full_name = (
+            target.presented_agent_name or target.agent_clan or _row_name(target)
+        )
+        model = target.model or _model_label(
+            tuple(child for child in target.runtime_children if child.model)
+        )
+        entries.append(
+            MemberRosterEntry(
+                identity=target.identity,
+                presented_name=full_name,
+                label=full_name,
+                kind="clan",
+                status=target.display_status,
+                effective_bucket=agent_status_bucket(target),
+                model=model,
+                duration=duration_label(target, now=now),
+                target_role="clan_neighbor",
             )
         )
     return tuple(entries)

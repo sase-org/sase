@@ -97,6 +97,7 @@ def build_header_text(
     clan_snapshot: ClanSectionSnapshot | None = None,
     clan_fold_level: FoldLevel = FoldLevel.COLLAPSED,
     clan_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    clan_neighbor_agents: tuple[Agent, ...] | None = None,
     lane_fold_level: FoldLevel | None = None,
     lane_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     lane_neighbors: SaseAgentNeighborProjection | None = None,
@@ -124,6 +125,7 @@ def build_header_text(
                 section_fold_overrides=clan_section_fold_overrides,
                 member_jump_map_publisher=member_jump_map_publisher,
                 detach_identity=detach_identity,
+                clan_neighbor_agents=clan_neighbor_agents,
             ),
             None,
         )

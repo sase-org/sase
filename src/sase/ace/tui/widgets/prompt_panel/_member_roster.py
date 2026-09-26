@@ -32,7 +32,7 @@ from ._helpers import append_fold_anchor, append_section_heading
 
 type MemberIdentity = tuple[AgentType, str, str | None]
 type MemberJumpContainerIdentity = MemberIdentity | tuple[Literal["panel"], PanelKey]
-type MemberJumpRole = Literal["member", "neighbor", "dismissed"]
+type MemberJumpRole = Literal["member", "neighbor", "dismissed", "clan_neighbor"]
 
 MEMBER_ROSTER_SECTION_ID = "members"
 MEMBER_ROSTER_LIMIT = 100

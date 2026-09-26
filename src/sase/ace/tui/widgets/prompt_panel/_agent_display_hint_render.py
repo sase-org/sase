@@ -301,6 +301,14 @@ class AgentHintRenderMixin:
             workspace_dir=None,
             tool_call_reports=tool_call_reports,
         )
+        clan_neighbor_agents = None
+        clan_resolver = getattr(app, "clan_neighbor_projection_for", None)
+        if callable(clan_resolver):
+            try:
+                clan_rows = clan_resolver(agent)
+                clan_neighbor_agents = tuple(row.agent for row in clan_rows)
+            except Exception:
+                clan_neighbor_agents = None
         clan_text, _error_tb_syntax = build_header_text(
             agent,
             hint_state=hint_state,
@@ -309,6 +317,7 @@ class AgentHintRenderMixin:
             clan_snapshot=snapshot,
             clan_fold_level=fold_level,
             clan_section_fold_overrides=fold_overrides,
+            clan_neighbor_agents=clan_neighbor_agents,
             member_jump_map_publisher=member_jump_map_publisher_for(app),
         )
         clan_document = card_document(

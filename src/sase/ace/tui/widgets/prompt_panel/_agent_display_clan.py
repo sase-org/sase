@@ -24,6 +24,10 @@ from ._agent_display_clan_identity import (
     build_clan_compact_lines,
 )
 from ._agent_display_clan_roster import (
+    CLAN_NEIGHBORS_IDENTITY_COLOR,
+    CLAN_NEIGHBORS_ROSTER_TITLE,
+    CLAN_NEIGHBORS_SECTION_ID,
+    clan_neighbor_roster_entries,
     clan_roster_entries,
     agent_session_children,
     agent_session_rows,
@@ -50,7 +54,12 @@ from ._helpers import append_kind_header
 from ._hint_caps import HintContentBudget
 from ._identity_header import IdentityHeader, strip_leading_document_chrome
 from ._agent_display_header_renderable import AgentHeaderRenderable
-from ._member_roster import MemberJumpMap, append_member_roster
+from ._member_roster import (
+    MemberJumpMap,
+    MemberJumpNumbering,
+    append_member_roster,
+    merged_member_jump_map,
+)
 
 _DISK_SECTION_IDS: dict[str, ClanDiskSection] = {
     "replies": "replies",
@@ -118,6 +127,7 @@ def build_clan_detail_text(
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
     detach_identity: bool = False,
+    clan_neighbor_agents: tuple[Agent, ...] | None = None,
 ) -> Text | AgentHeaderRenderable:
     """Build a fold-aware clan detail document without filesystem access."""
     fold_level = effective_fold_level(fold_level, CLAN_FOLD_SCALE)
@@ -192,9 +202,18 @@ def build_clan_detail_text(
         now=now,
         digests=snapshot.in_memory.members,
     )
+    neighbor_agents = clan_neighbor_agents or ()
+    neighbor_entries = (
+        clan_neighbor_roster_entries(neighbor_agents, now=now)
+        if neighbor_agents
+        else ()
+    )
     roster_text: Text | None = Text() if detach_identity else None
     roster_dest = roster_text if roster_text is not None else body
-    jump_map = append_member_roster(
+    document_numbering = MemberJumpNumbering(
+        total=len(roster_entries) + len(neighbor_entries)
+    )
+    members_map = append_member_roster(
         roster_dest,
         container_identity=agent.identity,
         entries=roster_entries,
@@ -203,7 +222,26 @@ def build_clan_detail_text(
         panel_level=fold_level,
         section_fold_overrides=overrides,
         fold_scale=CLAN_FOLD_SCALE,
+        numbering=document_numbering,
     )
+    neighbors_map = None
+    if neighbor_entries:
+        neighbors_map = append_member_roster(
+            roster_dest,
+            container_identity=agent.identity,
+            entries=neighbor_entries,
+            title=CLAN_NEIGHBORS_ROSTER_TITLE,
+            accent=CLAN_NEIGHBORS_IDENTITY_COLOR,
+            panel_level=fold_level,
+            section_fold_overrides=overrides,
+            fold_scale=CLAN_FOLD_SCALE,
+            section_id=CLAN_NEIGHBORS_SECTION_ID,
+            member_anchor_prefix="clan-neighbor:",
+            numbering=document_numbering,
+            hidden_tail_label="clan neighbors",
+            target_role="clan_neighbor",
+        )
+    jump_map = merged_member_jump_map(agent.identity, members_map, neighbors_map)
     if member_jump_map_publisher is not None:
         member_jump_map_publisher(jump_map)
 

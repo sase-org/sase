@@ -40,7 +40,9 @@ class _MemberJumpTargetLike(Protocol):
     def member_identity(self) -> MemberIdentity: ...
 
     @property
-    def role(self) -> Literal["member", "neighbor", "dismissed"]: ...
+    def role(
+        self,
+    ) -> Literal["member", "neighbor", "dismissed", "clan_neighbor"]: ...
 
 
 class MemberJumpNavigationMixin(NavigationMixinBase):
@@ -180,6 +182,19 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             return target_identity in index_resolver().related_target_identities_for(
                 container.identity
             )
+        if target.role == "clan_neighbor":
+            if not isinstance(container, Agent):
+                return False
+            if not container.is_clan_container:
+                return False
+            index_resolver = getattr(self, "_agent_neighbor_index", None)
+            if not callable(index_resolver):
+                return False
+            index = index_resolver()
+            lookup = getattr(index, "clan_neighbor_identities_for", None)
+            if not callable(lookup):
+                return False
+            return target_identity in lookup(container.identity)
         if target.role == "dismissed":
             if not isinstance(container, Agent):
                 return False
@@ -240,6 +255,8 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if not self._current_member_target_is_valid(container, target):
             if target.role == "neighbor":
                 subject = "Neighbor list"
+            elif target.role == "clan_neighbor":
+                subject = "Clan neighbor list"
             else:
                 subject = self._roster_jump_label(container)
             self._notify_member_jump(f"{subject} changed; jump cancelled")
@@ -256,6 +273,8 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if target.role != "dismissed":
             if target.role == "neighbor":
                 subject = "Neighbor"
+            elif target.role == "clan_neighbor":
+                subject = "Clan neighbor"
             self._reveal_agent_row(target.member_identity, subject=subject)
             return
 

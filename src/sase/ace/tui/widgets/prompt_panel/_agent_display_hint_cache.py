@@ -152,6 +152,17 @@ def _hint_context_digest(
         if lane_owner and callable(projection_resolver)
         else None
     )
+    clan_neighbor_identities: tuple[object, ...] | None = None
+    if agent.is_clan_container:
+        clan_resolver = getattr(app, "clan_neighbor_projection_for", None)
+        if callable(clan_resolver):
+            try:
+                clan_rows = clan_resolver(agent)
+                clan_neighbor_identities = tuple(
+                    (row.identity, row.display_order) for row in clan_rows
+                )
+            except Exception:
+                clan_neighbor_identities = ()
     highlight_fingerprint: tuple[object, ...] = ()
     if raw_xprompt is not None or not agent.is_clan_container:
         highlight_fingerprint = agent_prompt_highlight_context(
@@ -166,6 +177,7 @@ def _hint_context_digest(
         runner_capacity_for_app(app),
         wait_status_maps,
         lane_neighbors,
+        clan_neighbor_identities,
         slow_tool_call_threshold_ms_from_widget(widget),
         project_display_name_map_signature(),
         highlight_fingerprint,

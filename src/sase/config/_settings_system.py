@@ -247,14 +247,14 @@ def get_gate_turn_reclaim_grace_seconds() -> int:
         # legacy sase-shell spelling: gate.shell.reclaim_grace_seconds reads
         # only while the sunset flag accepts retired syntax.
         from sase.agent.legacy_sase_shell_syntax import (
-            _legacy_sase_shell_syntax_enabled,
+            legacy_sase_shell_syntax_enabled,
         )
 
         shell = gate.get("shell", {})
         if (
             isinstance(shell, dict)
             and "reclaim_grace_seconds" in shell
-            and _legacy_sase_shell_syntax_enabled()
+            and legacy_sase_shell_syntax_enabled()
         ):
             value = shell.get(
                 "reclaim_grace_seconds", DEFAULT_GATE_TURN_RECLAIM_GRACE_SECONDS

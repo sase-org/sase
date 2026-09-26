@@ -288,12 +288,21 @@ class AgentDisplayRenderMixin(
                         fold_overrides,
                     )
                 )
+            clan_neighbor_agents = None
+            clan_resolver = getattr(app, "clan_neighbor_projection_for", None)
+            if callable(clan_resolver):
+                try:
+                    clan_rows = clan_resolver(agent)
+                    clan_neighbor_agents = tuple(row.agent for row in clan_rows)
+                except Exception:
+                    clan_neighbor_agents = None
             header_text, _error_tb_syntax = build_header_text(
                 agent,
                 unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
                 clan_fold_level=fold_level,
                 clan_section_fold_overrides=fold_overrides,
+                clan_neighbor_agents=clan_neighbor_agents,
                 member_jump_map_publisher=member_jump_map_publisher_for(app),
                 detach_identity=getattr(self, "detaches_identity_header", False),
             )

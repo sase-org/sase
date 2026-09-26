@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
-def _legacy_sase_shell_syntax_enabled() -> bool:
+def legacy_sase_shell_syntax_enabled() -> bool:
     """Return whether retired sase-shell syntax is accepted."""
     from sase.feature_flags import FeatureFlag, current_flags
 
@@ -35,7 +35,7 @@ def normalize_gate_fork(value: object, *, persisted: bool = False) -> object:
     """Normalize a gate fork value, preserving old durable records unconditionally."""
     if value != _LEGACY_FORK:
         return value
-    if persisted or _legacy_sase_shell_syntax_enabled():
+    if persisted or legacy_sase_shell_syntax_enabled():
         return _CANONICAL_FORK
     raise ValueError(
         _retired_sase_shell_syntax_message('"fork": "shell"', '"fork": "turn"')
@@ -60,7 +60,7 @@ def normalize_gate_spec_block(spec: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("shell and turn blocks cannot be combined; use only turn.")
     if not has_legacy:
         return data
-    if not _legacy_sase_shell_syntax_enabled():
+    if not legacy_sase_shell_syntax_enabled():
         raise ValueError(
             _retired_sase_shell_syntax_message('a gate spec\'s "shell" block', '"turn"')
         )
@@ -80,7 +80,7 @@ def normalize_continuation_mode(value: object, *, persisted: bool = False) -> ob
     """Normalize a gate continuation mode, preserving old durable records."""
     if value != _LEGACY_CONTINUATION:
         return value
-    if persisted or _legacy_sase_shell_syntax_enabled():
+    if persisted or legacy_sase_shell_syntax_enabled():
         return _CANONICAL_CONTINUATION
     raise ValueError(
         _retired_sase_shell_syntax_message(
@@ -105,7 +105,7 @@ def normalize_proc_name_args(
         raise ValueError("--shell and --name cannot be combined; use only --name.")
     if not has_legacy:
         return data
-    if not (persisted or _legacy_sase_shell_syntax_enabled()):
+    if not (persisted or legacy_sase_shell_syntax_enabled()):
         raise ValueError(_retired_sase_shell_syntax_message("--shell", "--name"))
     data["name"] = data.pop("shell")
     return data
@@ -132,7 +132,7 @@ def normalize_gate_shell_bool_args(args: Mapping[str, Any]) -> dict[str, Any]:
                 + "; use only the turn spelling"
             )
         if has_legacy:
-            if not _legacy_sase_shell_syntax_enabled():
+            if not legacy_sase_shell_syntax_enabled():
                 raise ValueError(
                     _retired_sase_shell_syntax_message(
                         f"--{legacy.replace('_', '-')}",
@@ -158,7 +158,7 @@ def normalize_reclaim_config(data: Mapping[str, Any]) -> dict[str, Any]:
                 "gate.shell and gate.turn cannot both set reclaim_grace_seconds; "
                 "use only gate.turn"
             )
-        if not _legacy_sase_shell_syntax_enabled():
+        if not legacy_sase_shell_syntax_enabled():
             raise ValueError(
                 _retired_sase_shell_syntax_message(
                     "gate.shell.reclaim_grace_seconds",
@@ -173,6 +173,7 @@ def normalize_reclaim_config(data: Mapping[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
+    "legacy_sase_shell_syntax_enabled",
     "normalize_continuation_mode",
     "normalize_gate_fork",
     "normalize_gate_shell_bool_args",

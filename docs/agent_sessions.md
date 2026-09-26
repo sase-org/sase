@@ -248,24 +248,32 @@ shows to the right of its suffix.
 
 Clan summaries collect member errors, output and workflow variables, replies, SASE
 context, slow tool calls, and prompts below the saved clan summary in the metadata body;
-the numbered `CLAN MEMBERS` roster lives in the jump panel. Known-empty section kinds
-are omitted. If required disk-backed content is not known yet, the document ends with
-one dim `⋯ scanning member data…` tail instead of showing a placeholder for each
-section. Up to 100 direct members receive fixed jump numbers: `0`–`9` for rosters with
-at most ten entries, or `00`–`99` for the first 100 entries in a larger roster.
-Additional members appear only in an unnumbered remainder count. Press a number while
-the clan is selected to expand only that member's ancestor chain and jump to its row;
-`Esc` cancels a pending first digit. Use `Ctrl+J` and `Ctrl+K` to move between the
-visible section headings; numbered roster rows live in the jump panel, so they are
-neither `Ctrl+J`/`Ctrl+K` stops nor `za`/`zA` targets.
+the numbered `CLAN MEMBERS` roster lives in the jump panel, followed by `CLAN NEIGHBORS`
+when another clan shares its dotted hood. Two clans are neighbors when their presented
+names share the same root hood (`foo`, `foo.bar`, `foo.baz`, and `foo.bar.deep` share
+`foo`), compared case-insensitively at dot boundaries and excluding the selected clan,
+ordinary rows, malformed names, and unrelated prefixes such as `foobar`. Neighbor rows
+show full clan names and keep each target's stable identity including its generation.
+Known-empty section kinds are omitted. If required disk-backed content is not known yet,
+the document ends with one dim `⋯ scanning member data…` tail instead of showing a
+placeholder for each section. Members and neighbors share one continuous number ladder
+up to 100 targets: `0`–`9` for documents with at most ten entries, or `00`–`99` for the
+first 100 entries in a larger document. Additional entries appear only in an unnumbered
+remainder count. Press a number while the clan is selected to expand only that member's
+ancestor chain and jump to its row, or to reveal a neighboring clan through folds and
+panels; with `sase-1ao.3` selected the neighbor digit lands on `sase-1ao` and back
+again, and `Ctrl+O` returns to the previous selection. `Esc` cancels a pending first
+digit. Use `Ctrl+J` and `Ctrl+K` to move between the visible section headings; numbered
+roster rows live in the jump panel, so they are neither `Ctrl+J`/`Ctrl+K` stops nor
+`za`/`zA` targets.
 
 The summary has three session-only fold levels:
 
-| Level | Clan summary content                                                                                           |
-| ----- | -------------------------------------------------------------------------------------------------------------- |
-| 1     | Up to 100 numbered member rows (in the jump panel) plus a heading and count for each represented section       |
-| 2     | Bounded triage digests, such as one-line error and reply previews, variable values, and context-lane summaries |
-| 3     | Full section bodies grouped by member for detailed investigation                                               |
+| Level | Clan summary content                                                                                                  |
+| ----- | --------------------------------------------------------------------------------------------------------------------- |
+| 1     | Up to 100 numbered member and neighbor rows (in the jump panel) plus a heading and count for each represented section |
+| 2     | Bounded triage digests, such as one-line error and reply previews, variable values, and context-lane summaries        |
+| 3     | Full section bodies grouped by member for detailed investigation                                                      |
 
 Press `zz` to cycle levels 1 → 2 → 3 → 1. Press `zZ` below level 3 to open every fold to
 level 3, or press it at level 3 to close every fold to level 1. Use `z1`-`z3` to select

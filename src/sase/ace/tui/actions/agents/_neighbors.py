@@ -56,6 +56,8 @@ class AgentNeighborMixin:
             if fold_manager is not None
             else ()
         )
+        from ...models.agent_hoods import clan_name_key
+
         roster_signature = tuple(
             (
                 agent.identity,
@@ -67,6 +69,10 @@ class AgentNeighborMixin:
                 agent.is_hidden_step,
                 agent.is_clan_container,
                 tuple(child.identity for child in agent.runtime_children),
+                clan_name_key(agent),
+                agent.presented_agent_name,
+                agent.agent_clan,
+                agent.agent_clan_generation,
             )
             for agent in complete
         )
@@ -262,6 +268,19 @@ class AgentNeighborMixin:
             suppressed_identities=suppressed_identities,
             hood_labels=self._agent_neighbor_display_hoods(agent),
         )
+
+    def clan_neighbor_projection_for(
+        self,
+        agent: Agent,
+    ) -> tuple[AgentNeighborRow, ...]:
+        """Return render-order clan neighbors sharing the selected root hood."""
+        from ...models.agent_hoods import clan_name_key
+
+        if not agent.is_clan_container:
+            return ()
+        if clan_name_key(agent) is None:
+            return ()
+        return self._agent_neighbor_index().clan_neighbor_targets_for(agent.identity)
 
     def _dismissed_descendant_agents(self, selected: Agent) -> tuple[Agent, ...]:
         """Return active dismissed descendants of ``selected`` sorted by name."""

@@ -248,6 +248,18 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 if lane_owner and callable(projection_resolver)
                 else None
             )
+            clan_neighbor_resolver = getattr(
+                app,
+                "clan_neighbor_projection_for",
+                None,
+            )
+            clan_neighbor_agents = None
+            if agent.is_clan_container and callable(clan_neighbor_resolver):
+                try:
+                    clan_rows = clan_neighbor_resolver(agent)
+                    clan_neighbor_agents = tuple(row.agent for row in clan_rows)
+                except Exception:
+                    clan_neighbor_agents = None
             if agent.is_clan_container and app is not None:
                 self.set_clan_disk_sections_required(
                     clan_disk_sections_for_fold_state(
@@ -271,6 +283,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
                 clan_fold_level=clan_fold_level,
                 clan_section_fold_overrides=clan_fold_overrides,
+                clan_neighbor_agents=clan_neighbor_agents,
                 lane_fold_level=clan_fold_level,
                 lane_section_fold_overrides=clan_fold_overrides,
                 lane_neighbors=lane_neighbors,
