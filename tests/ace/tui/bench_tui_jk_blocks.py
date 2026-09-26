@@ -1,4 +1,4 @@
-"""Sticky-Reply landing and block-cycle benchmark cases (card_blocks flag)."""
+"""Sticky-Reply landing and block-cycle benchmark cases."""
 
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.util.perf import ENV_PATH
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckLayout
-from sase.feature_flags import override_flags
 from tests.ace.tui._bench_tui_jk_helpers import (
     _KEYS_PER_SCENARIO,
     _print_table,
@@ -110,10 +109,9 @@ async def _run_sticky_arm(
     tmp_path: Path,
     log_path: Path,
     *,
-    flag_on: bool,
     layout: DeckLayout,
 ) -> dict[str, dict[str, float]]:
-    arm = f"sticky-Reply-blocks-{'on' if flag_on else 'off'}"
+    arm = "sticky-Reply-blocks"
     arm_log = log_path.parent / f"{arm}-{_sticky_layout_name(layout)}.jsonl"
     if arm_log.exists():
         arm_log.unlink()
@@ -121,34 +119,33 @@ async def _run_sticky_arm(
     os.environ[ENV_PATH] = str(arm_log)
     try:
         app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
-        with override_flags(card_blocks=flag_on):
-            async with app.run_test() as pilot:
-                await _wait_for_startup(app, pilot)
-                await pilot.press("ctrl+l")
+        async with app.run_test() as pilot:
+            await _wait_for_startup(app, pilot)
+            await pilot.press("ctrl+l")
+            await pilot.pause()
+            _install_block_sessions_fixture(app, tmp_path)
+            app._refresh_agents_display(list_changed=True, defer_detail=True)
+            await pilot.pause()
+            detail = app.query_one("#agent-detail-panel", AgentDetail)
+            if layout is DeckLayout.LEFT_RIGHT:
+                detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
                 await pilot.pause()
-                _install_block_sessions_fixture(app, tmp_path)
-                app._refresh_agents_display(list_changed=True, defer_detail=True)
-                await pilot.pause()
-                detail = app.query_one("#agent-detail-panel", AgentDetail)
-                if layout is DeckLayout.LEFT_RIGHT:
-                    detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
-                    await pilot.pause()
-                # Stick both panels' preferred card to Reply so j/k lands
-                # on the block-paged card on every new subject.
-                detail.set_deck_preferred_card(0, "reply")
-                detail.set_deck_preferred_card(1, "reply")
-                app._refresh_agents_display(list_changed=True, defer_detail=True)
-                await pilot.pause()
-                # Warm-up round settles debounce and measure caches.
-                for _ in range(_KEYS_PER_SCENARIO):
-                    await pilot.press("j")
-                    await pilot.pause(0.01)
-                for _ in range(_KEYS_PER_SCENARIO):
-                    await pilot.press("j")
-                    await pilot.pause(0.01)
-                for _ in range(_KEYS_PER_SCENARIO):
-                    await pilot.press("k")
-                    await pilot.pause(0.01)
+            # Stick both panels' preferred card to Reply so j/k lands
+            # on the block-paged card on every new subject.
+            detail.set_deck_preferred_card(0, "reply")
+            detail.set_deck_preferred_card(1, "reply")
+            app._refresh_agents_display(list_changed=True, defer_detail=True)
+            await pilot.pause()
+            # Warm-up round settles debounce and measure caches.
+            for _ in range(_KEYS_PER_SCENARIO):
+                await pilot.press("j")
+                await pilot.pause(0.01)
+            for _ in range(_KEYS_PER_SCENARIO):
+                await pilot.press("j")
+                await pilot.pause(0.01)
+            for _ in range(_KEYS_PER_SCENARIO):
+                await pilot.press("k")
+                await pilot.pause(0.01)
     finally:
         if previous is None:
             os.environ.pop(ENV_PATH, None)
@@ -164,20 +161,17 @@ async def _run_sticky_arm(
     return summary
 
 
-async def test_bench_sticky_reply_flag_off_vs_on(
+async def test_bench_sticky_reply_heavy_sessions(
     tmp_path: Path, _perf_jsonl: Path
 ) -> None:
-    """Compare sticky-Reply j/k across heavy sessions, flag off vs on."""
+    """Time sticky-Reply j/k across heavy sessions."""
     for layout in (DeckLayout.SINGLE, DeckLayout.LEFT_RIGHT):
-        off = await _run_sticky_arm(tmp_path, _perf_jsonl, flag_on=False, layout=layout)
-        on = await _run_sticky_arm(tmp_path, _perf_jsonl, flag_on=True, layout=layout)
+        summary = await _run_sticky_arm(tmp_path, _perf_jsonl, layout=layout)
         name = _sticky_layout_name(layout)
-        assert off, f"no j/k samples captured with flag off ({name})"
-        assert on, f"no j/k samples captured with flag on ({name})"
-        for arm_name, summary in (("off", off), ("on", on)):
-            assert all(
-                stats["p95"] < _BLOCK_BENCH_P95_BUDGET_MS for stats in summary.values()
-            ), f"sticky-Reply {arm_name} ({name}) exceeded budget: {summary}"
+        assert summary, f"no j/k samples captured ({name})"
+        assert all(
+            stats["p95"] < _BLOCK_BENCH_P95_BUDGET_MS for stats in summary.values()
+        ), f"sticky-Reply ({name}) exceeded budget: {summary}"
 
 
 async def test_bench_block_cycle_paged(tmp_path: Path, _perf_jsonl: Path) -> None:
@@ -185,51 +179,55 @@ async def test_bench_block_cycle_paged(tmp_path: Path, _perf_jsonl: Path) -> Non
     from sase.ace.tui.agent_decks_settings import AgentDecksSettings
 
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)
-    with override_flags(card_blocks=True):
-        async with app.run_test() as pilot:
-            await _wait_for_startup(app, pilot)
-            await pilot.press("ctrl+l")
-            await pilot.pause()
-            _install_block_sessions_fixture(app, tmp_path, count=1)
-            app._agent_decks_settings = AgentDecksSettings(
-                spread_max_screens=0, block_spread_max_screens=0
-            )
-            app._refresh_agents_display(list_changed=True, defer_detail=True)
-            await pilot.pause()
-            await pilot.pause()
-            detail = app.query_one("#agent-detail-panel", AgentDetail)
-            panel = detail.deck_area.panel(0)
-            await wait_for(
-                pilot,
-                lambda: any(
-                    bool(card.has_block_navigation)
-                    for card in panel._main_document.cards
-                ),
-            )
-            panel.show_main_document(panel._main_document, "reply")
-            await pilot.pause()
-            document = panel._main_document
-            assert any(bool(card.has_block_navigation) for card in document.cards), (
-                "bench session has no navigable Reply blocks"
-            )
-            # Warm up CSS/layout caches: the first swaps pay full
-            # preferred-set re-show costs shared with Ctrl+J/K.
-            for _ in range(10):
-                assert detail.cycle_focused_card_block(-1) is True
-                await pilot.pause(0.01)
-            for index in range(_KEYS_PER_SCENARIO):
-                direction = -1 if index % 2 == 0 else 1
-                app._jk_perf_begin("cycle_block")
-                assert detail.cycle_focused_card_block(direction) is True
-                jk_perf = app._jk_perf
-                if jk_perf is not None:
-                    app.call_after_refresh(jk_perf.mark_painted)
-                await pilot.pause(0.01)
+    async with app.run_test() as pilot:
+        await _wait_for_startup(app, pilot)
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        _install_block_sessions_fixture(app, tmp_path, count=1)
+        app._agent_decks_settings = AgentDecksSettings(
+            spread_max_screens=0, block_spread_max_screens=0
+        )
+        app._refresh_agents_display(list_changed=True, defer_detail=True)
+        await pilot.pause()
+        await pilot.pause()
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        # Stick the preferred card to Reply so the paged block card survives
+        # deferred refreshes, exactly as the sticky-Reply bench arm does.
+        detail.set_deck_preferred_card(0, "reply")
+        detail.set_deck_preferred_card(1, "reply")
+        app._refresh_agents_display(list_changed=True, defer_detail=True)
+        await pilot.pause()
+        panel = detail.deck_area.panel(0)
+        await wait_for(
+            pilot,
+            lambda: any(
+                bool(card.has_block_navigation) for card in panel._main_document.cards
+            ),
+        )
+        panel.show_main_document(panel._main_document, "reply")
+        await pilot.pause()
+        document = panel._main_document
+        assert any(bool(card.has_block_navigation) for card in document.cards), (
+            "bench session has no navigable Reply blocks"
+        )
+        # Warm up CSS/layout caches: the first swaps pay full
+        # preferred-set re-show costs shared with Ctrl+J/K.
+        for _ in range(10):
+            assert detail.cycle_focused_card_block(-1) is True
+            await pilot.pause(0.01)
+        for index in range(_KEYS_PER_SCENARIO):
+            direction = -1 if index % 2 == 0 else 1
+            app._jk_perf_begin("cycle_block")
+            assert detail.cycle_focused_card_block(direction) is True
+            jk_perf = app._jk_perf
+            if jk_perf is not None:
+                app.call_after_refresh(jk_perf.mark_painted)
+            await pilot.pause(0.01)
     samples = [
         s for s in _read_samples(_perf_jsonl) if str(s.get("action")) == "cycle_block"
     ]
     summary = _summarize(samples)
-    _print_table("Block-cycle (paged, flag on):", summary)
+    _print_table("Block-cycle (paged):", summary)
     assert summary, "no cycle_block samples captured"
     # Median, not p95: the host's scheduler stalls land in the tail (the
     # link-rail bench documents the same noise), while the median catches

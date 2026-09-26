@@ -156,14 +156,8 @@ class MainDeckView(MainDeckViewBlocksMixin, SectionViewMixin, Static):
             return None
         if self._render_mode is RenderMode.SPREAD:
             return self.scroll_to_card(card_id)
-        from .flag import card_blocks_enabled
-
         try:
-            blocks_enabled = (
-                block_mode is not None
-                and card_blocks_enabled()
-                and not document.partial
-            )
+            blocks_enabled = block_mode is not None and not document.partial
         except Exception:
             blocks_enabled = False
         if blocks_enabled:
@@ -268,14 +262,8 @@ class MainDeckView(MainDeckViewBlocksMixin, SectionViewMixin, Static):
         """Show ``document`` with ``preferred_card`` and ``mode``."""
         if mode is RenderMode.SPREAD:
             return self._show_document_spread(document)
-        from .flag import card_blocks_enabled
-
         try:
-            blocks_enabled = (
-                block_mode is not None
-                and card_blocks_enabled()
-                and not document.partial
-            )
+            blocks_enabled = block_mode is not None and not document.partial
         except Exception:
             blocks_enabled = False
         active = resolve_active_card(
@@ -448,9 +436,7 @@ class MainDeckView(MainDeckViewBlocksMixin, SectionViewMixin, Static):
             self._previous_subject = document.subject
             self._subject_seen = True
         try:
-            from .flag import card_blocks_enabled
-
-            if card_blocks_enabled() and not document.partial:
+            if not document.partial:
                 self._reconcile_block_cursors(
                     document, new_subject=is_new_subject, enabled=True
                 )

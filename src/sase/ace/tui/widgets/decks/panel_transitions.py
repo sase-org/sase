@@ -1,6 +1,6 @@
 """Hierarchical reading anchors for deck and block mode transitions.
 
-One :class:`ReadingAnchor` captures ``(card_id, block_id, offset_rows,
+One :class:`_ReadingAnchor` captures ``(card_id, block_id, offset_rows,
 pinned)`` before a spread/paged recomposition and restores the most
 specific target that survives: same block + offset (clamped >= 0), then
 card top, then card default, then document default. With
@@ -19,15 +19,12 @@ from .block_model import derive_spread_block
 from .model import DeckId, RenderMode
 
 __all__ = [
-    "ReadingAnchor",
     "DeckPanelTransitionsMixin",
-    "capture_reading_anchor",
-    "restore_block_offset",
 ]
 
 
 @dataclass(frozen=True, slots=True)
-class ReadingAnchor:
+class _ReadingAnchor:
     """Hierarchical reading position across deck/block transitions."""
 
     card_id: str | None
@@ -64,13 +61,6 @@ def _is_pinned(panel: Any) -> bool:
 
 
 def _blocks_enabled(panel: Any, document: Any) -> bool:
-    try:
-        from .flag import card_blocks_enabled
-
-        if not card_blocks_enabled():
-            return False
-    except Exception:
-        return False
     try:
         if getattr(document, "partial", False):
             return False
@@ -129,9 +119,9 @@ def _at_real_bottom(panel: Any) -> bool:
         return False
 
 
-def capture_reading_anchor(
+def _capture_panel_anchor(
     panel: Any, document: Any, *, old_mode: RenderMode
-) -> ReadingAnchor:
+) -> _ReadingAnchor:
     """Capture the hierarchical reading position before recomposition."""
     scroll_y = _scroll_y(panel)
     pinned = _is_pinned(panel)
@@ -185,7 +175,7 @@ def capture_reading_anchor(
                     offset = max(0, scroll_y - row)
                 else:
                     offset = 0
-                return ReadingAnchor(
+                return _ReadingAnchor(
                     card_id=card_id,
                     block_id=block_id,
                     offset_rows=max(0, int(offset)),
@@ -202,7 +192,7 @@ def capture_reading_anchor(
             # Paged-origin offsets keep the raw scroll_y; spread-origin
             # offsets without a body start collapse to the card top.
             offset = 0 if old_mode is RenderMode.SPREAD else int(scroll_y)
-        return ReadingAnchor(
+        return _ReadingAnchor(
             card_id=card_id,
             block_id=None,
             offset_rows=max(0, int(offset)),
@@ -250,7 +240,7 @@ def capture_reading_anchor(
                     # Block-paged pages start at the top; the intra-page
                     # offset is the scroll position itself.
                     offset = max(0, int(scroll_y))
-                return ReadingAnchor(
+                return _ReadingAnchor(
                     card_id=card_id,
                     block_id=block_id,
                     offset_rows=max(0, int(offset)),
@@ -259,13 +249,13 @@ def capture_reading_anchor(
     # Today's paged math: the PAGED->SPREAD offset is the raw scroll_y and
     # is restored against the spread body start by the caller.
     offset = max(0, int(scroll_y))
-    return ReadingAnchor(
+    return _ReadingAnchor(
         card_id=card_id, block_id=None, offset_rows=offset, pinned=pinned
     )
 
 
-def restore_block_offset(
-    panel: Any, anchor: ReadingAnchor, *, fallback_target: int = 0
+def _restore_block_offset(
+    panel: Any, anchor: _ReadingAnchor, *, fallback_target: int = 0
 ) -> None:
     """Scroll to ``block row + offset`` with a bounded post-layout retry."""
 
@@ -325,8 +315,8 @@ class DeckPanelTransitionsMixin:
 
     def _capture_reading_anchor(
         self, document: Any, *, old_mode: RenderMode
-    ) -> ReadingAnchor:
-        return capture_reading_anchor(self, document, old_mode=old_mode)
+    ) -> _ReadingAnchor:
+        return _capture_panel_anchor(self, document, old_mode=old_mode)
 
     def _preferred_card_from_area(self) -> str | None:
         preferred: str | None = None
@@ -413,7 +403,7 @@ class DeckPanelTransitionsMixin:
                 self._main_active_card = self.main_view.active_card_id  # type: ignore[attr-defined]
             else:
                 spread_active = self._main_spread_active() or self._main_active_card  # type: ignore[attr-defined,operator]
-                transition_anchor: ReadingAnchor | None = None
+                transition_anchor: _ReadingAnchor | None = None
                 try:
                     transition_anchor = self._capture_reading_anchor(
                         document, old_mode=old_mode
@@ -444,7 +434,7 @@ class DeckPanelTransitionsMixin:
             pass
 
     def _restore_block_transition(
-        self, anchor: ReadingAnchor, active: str | None
+        self, anchor: _ReadingAnchor, active: str | None
     ) -> None:
         """Restore a block-anchored position after a mode recomposition."""
         if anchor.pinned:
@@ -466,7 +456,7 @@ class DeckPanelTransitionsMixin:
             return
         # Offsets clamp at 0, so a bottom-landed newest block becomes the
         # newest page's top.
-        restore_block_offset(self, anchor, fallback_target=0)
+        _restore_block_offset(self, anchor, fallback_target=0)
 
     def _apply_main_transition(
         self,
@@ -495,7 +485,7 @@ class DeckPanelTransitionsMixin:
             pinned = False
         anchor_card: str | None = None
         offset = 0
-        anchor: ReadingAnchor | None = None
+        anchor: _ReadingAnchor | None = None
         try:
             anchor = self._capture_reading_anchor(document, old_mode=old_mode)
         except Exception:

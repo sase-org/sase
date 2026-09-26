@@ -17,14 +17,13 @@ from sase.ace.tui.widgets.decks.block_rail import (
     RAIL_HORIZONTAL_PADDING,
     BlockRail,
     BlockRailEntry,
-    block_rail_text,
-    render_block_rail,
+    _block_rail_text,
+    _render_block_rail,
 )
 from sase.ace.tui.widgets.decks.card_block import BlockMeta, CardBlock
 from sase.ace.tui.widgets.decks.card_part import context_card, reply_card
 from sase.ace.tui.widgets.decks.main_document import MainDeckDocument
 from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
-from sase.feature_flags import override_flags
 
 _ROOT = Path(__file__).resolve().parents[5]
 _ACCENT = "#B48EAD"
@@ -68,7 +67,7 @@ def test_tier_ladder_from_20_to_200() -> None:
     entries = _entries(12)
     seen: list[str] = []
     for width in range(20, 201, 5):
-        text, ranges, tier = render_block_rail(
+        text, ranges, tier = _render_block_rail(
             entries,
             active_id="b10",
             arrived_ids=(),
@@ -82,7 +81,7 @@ def test_tier_ladder_from_20_to_200() -> None:
         seen.append(tier)
     assert seen[0] in ("compact", "micro")
     assert seen[-1] in ("full", "full-hint")
-    wide, _, wide_tier = render_block_rail(
+    wide, _, wide_tier = _render_block_rail(
         entries,
         active_id="b10",
         arrived_ids=(),
@@ -108,7 +107,7 @@ def test_never_overflows_small_widths() -> None:
     ]
     for entries, active_id, arrived in scenarios:
         for width in range(1, 201):
-            text = block_rail_text(
+            text = _block_rail_text(
                 entries,
                 active_id=active_id,
                 arrived_ids=arrived,
@@ -124,7 +123,7 @@ def test_active_pill_at_first_middle_and_last() -> None:
     """The pill caps wrap the active entry wherever it sits."""
     entries = _entries(3)
     for active_id in ("b0", "b1", "b2"):
-        text, ranges, tier = render_block_rail(
+        text, ranges, tier = _render_block_rail(
             entries,
             active_id=active_id,
             arrived_ids=(),
@@ -145,7 +144,7 @@ def test_active_pill_at_first_middle_and_last() -> None:
 def test_arrival_dot_inline_and_on_overflow() -> None:
     """Arrivals show inline when visible and ride the indicator when cut."""
     entries = _entries(12)
-    wide, _, _ = render_block_rail(
+    wide, _, _ = _render_block_rail(
         entries,
         active_id="b5",
         arrived_ids=("b11",),
@@ -155,7 +154,7 @@ def test_arrival_dot_inline_and_on_overflow() -> None:
         key_hint=None,
     )
     assert "●11" in wide.plain
-    narrow, narrow_ranges, tier = render_block_rail(
+    narrow, narrow_ranges, tier = _render_block_rail(
         entries,
         active_id="b0",
         arrived_ids=("b11",),
@@ -172,7 +171,7 @@ def test_arrival_dot_inline_and_on_overflow() -> None:
 def test_unfocused_rail_dims_pill() -> None:
     """An unfocused panel renders the pill reverse-dim, never bold."""
     entries = _entries(3)
-    focused_text, _, _ = render_block_rail(
+    focused_text, _, _ = _render_block_rail(
         entries,
         active_id="b1",
         arrived_ids=(),
@@ -182,7 +181,7 @@ def test_unfocused_rail_dims_pill() -> None:
         key_hint=None,
     )
     assert f"reverse bold {_ACCENT}" in _span_styles(focused_text)
-    dimmed_text, _, _ = render_block_rail(
+    dimmed_text, _, _ = _render_block_rail(
         entries,
         active_id="b1",
         arrived_ids=(),
@@ -199,7 +198,7 @@ def test_unfocused_rail_dims_pill() -> None:
 def test_key_hint_only_at_widest_tier() -> None:
     """The live-named hint shows with full-hint and nowhere narrower."""
     entries = _entries(3)
-    hint_text, _, hint_tier = render_block_rail(
+    hint_text, _, hint_tier = _render_block_rail(
         entries,
         active_id="b2",
         arrived_ids=(),
@@ -210,7 +209,7 @@ def test_key_hint_only_at_widest_tier() -> None:
     )
     assert hint_tier == "full-hint"
     assert "[ older · newer ]" in hint_text.plain
-    plain_text, _, plain_tier = render_block_rail(
+    plain_text, _, plain_tier = _render_block_rail(
         entries,
         active_id="b2",
         arrived_ids=(),
@@ -226,7 +225,7 @@ def test_key_hint_only_at_widest_tier() -> None:
 def test_micro_ellipsizes_label_as_last_resort() -> None:
     """A narrow rail keeps the pill plus counts, truncating the label."""
     entries = _entries(12)
-    text, _, tier = render_block_rail(
+    text, _, tier = _render_block_rail(
         entries,
         active_id="b10",
         arrived_ids=(),
@@ -239,7 +238,7 @@ def test_micro_ellipsizes_label_as_last_resort() -> None:
     assert "‹" in text.plain and "›" in text.plain
     assert "▐" in text.plain and "▌" in text.plain
     assert cell_len(text.plain) <= 24
-    tighter, _, _ = render_block_rail(
+    tighter, _, _ = _render_block_rail(
         entries,
         active_id="b10",
         arrived_ids=(),
@@ -321,66 +320,54 @@ async def test_rail_visible_in_paged_deck_and_follows_cycle() -> None:
         await pilot.pause()
         _pin(app)
         panel = await _panel(app)
-        with override_flags(card_blocks=True):
-            panel.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-1"), "reply"
-            )
-            rail = _rail(panel)
-            await wait_for(pilot, lambda: bool(rail._ranges))
-            assert rail.has_class("-shown")
-            assert set(rail._ranges) == {"b0", "b1", "b2"}
-            assert panel.main_view.active_block_id("reply") == "b2"
-            # Click ranges resolve back to their blocks.
-            for block_id, (start, end) in rail._ranges.items():
-                assert rail.block_id_at(RAIL_HORIZONTAL_PADDING + start) == block_id
-                assert rail.block_id_at(RAIL_HORIZONTAL_PADDING + end - 1) == block_id
-            assert panel.cycle_block(-1) is True
-            await wait_for(
-                pilot, lambda: panel.main_view.active_block_id("reply") == "b1"
-            )
-            start, end = rail._ranges["b1"]
-            pill = rail.render()
-            assert pill is not None
-            assert rail.block_id_at(RAIL_HORIZONTAL_PADDING + start) == "b1"
-            assert end > start
+        panel.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-1"), "reply"
+        )
+        rail = _rail(panel)
+        await wait_for(pilot, lambda: bool(rail._ranges))
+        assert rail.has_class("-shown")
+        assert set(rail._ranges) == {"b0", "b1", "b2"}
+        assert panel.main_view.active_block_id("reply") == "b2"
+        # Click ranges resolve back to their blocks.
+        for block_id, (start, end) in rail._ranges.items():
+            assert rail.block_id_at(RAIL_HORIZONTAL_PADDING + start) == block_id
+            assert rail.block_id_at(RAIL_HORIZONTAL_PADDING + end - 1) == block_id
+        assert panel.cycle_block(-1) is True
+        await wait_for(pilot, lambda: panel.main_view.active_block_id("reply") == "b1")
+        start, end = rail._ranges["b1"]
+        pill = rail.render()
+        assert pill is not None
+        assert rail.block_id_at(RAIL_HORIZONTAL_PADDING + start) == "b1"
+        assert end > start
 
 
-async def test_rail_hidden_flag_off_spread_partial_and_subject_change() -> None:
-    """The rail hides off-flag, in spread decks, on partials, on resubject."""
+async def test_rail_hidden_spread_partial_and_subject_change() -> None:
+    """The rail clears on partial paints and redraws on resubject."""
     app = _DetailApp()
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         _pin(app)
         panel = await _panel(app)
-        # Flag off: a block card renders undivided with no rail.
-        with override_flags(card_blocks=False):
-            panel.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-off"), "reply"
-            )
-            await pilot.pause()
-            rail = _rail(panel)
-            assert not rail.has_class("-shown")
-        with override_flags(card_blocks=True):
-            panel.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-on"), "reply"
-            )
-            await wait_for(pilot, lambda: bool(_rail(panel)._ranges))
-            assert _rail(panel).has_class("-shown")
-            # Partial paint clears the rail so it never shows stale shells.
-            panel.show_main_document(
-                _document("s2", _reply_card(3), digest="rail-partial", partial=True),
-                "reply",
-            )
-            await pilot.pause()
-            cleared = _rail(panel)
-            assert not cleared.has_class("-shown")
-            assert cleared._ranges == {}
-            # A new subject redraws the rail from its own full document.
-            panel.show_main_document(
-                _document("s2", _reply_card(3), digest="rail-s2"), "reply"
-            )
-            await wait_for(pilot, lambda: bool(_rail(panel)._ranges))
-            assert _rail(panel).has_class("-shown")
+        panel.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-on"), "reply"
+        )
+        await wait_for(pilot, lambda: bool(_rail(panel)._ranges))
+        assert _rail(panel).has_class("-shown")
+        # Partial paint clears the rail so it never shows stale shells.
+        panel.show_main_document(
+            _document("s2", _reply_card(3), digest="rail-partial", partial=True),
+            "reply",
+        )
+        await pilot.pause()
+        cleared = _rail(panel)
+        assert not cleared.has_class("-shown")
+        assert cleared._ranges == {}
+        # A new subject redraws the rail from its own full document.
+        panel.show_main_document(
+            _document("s2", _reply_card(3), digest="rail-s2"), "reply"
+        )
+        await wait_for(pilot, lambda: bool(_rail(panel)._ranges))
+        assert _rail(panel).has_class("-shown")
 
 
 async def test_rail_hidden_in_spread_deck_but_shown_in_block_spread() -> None:
@@ -390,28 +377,26 @@ async def test_rail_hidden_in_spread_deck_but_shown_in_block_spread() -> None:
         await pilot.pause()
         _pin(app)
         panel = await _panel(app)
-        with override_flags(card_blocks=True):
-            _pin(app, deck=1000)
-            panel.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-spread"), "reply"
-            )
-            await pilot.pause()
-            assert not _rail(panel).has_class("-shown")
+        _pin(app, deck=1000)
+        panel.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-spread"), "reply"
+        )
+        await pilot.pause()
+        assert not _rail(panel).has_class("-shown")
     spread_app = _DetailApp()
     async with spread_app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         _pin(spread_app, deck=0, blocks=1000)
         panel = await _panel(spread_app)
-        with override_flags(card_blocks=True):
-            panel.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-bspread"), "reply"
-            )
-            await wait_for(
-                pilot,
-                lambda: panel.block_mode_for_active_card() is RenderMode.SPREAD,
-            )
-            await wait_for(pilot, lambda: bool(_rail(panel)._ranges))
-            assert _rail(panel).has_class("-shown")
+        panel.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-bspread"), "reply"
+        )
+        await wait_for(
+            pilot,
+            lambda: panel.block_mode_for_active_card() is RenderMode.SPREAD,
+        )
+        await wait_for(pilot, lambda: bool(_rail(panel)._ranges))
+        assert _rail(panel).has_class("-shown")
 
 
 async def test_rail_click_selects_block() -> None:
@@ -421,20 +406,17 @@ async def test_rail_click_selects_block() -> None:
         await pilot.pause()
         _pin(app)
         panel = await _panel(app)
-        with override_flags(card_blocks=True):
-            panel.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-click"), "reply"
-            )
-            rail = _rail(panel)
-            await wait_for(pilot, lambda: bool(rail._ranges))
-            # Clicks need a laid-out rail: wait until it has a real region.
-            await wait_for(pilot, lambda: rail.region.width > 0)
-            assert panel.main_view.active_block_id("reply") == "b2"
-            start, _end = rail._ranges["b0"]
-            await pilot.click(BlockRail, offset=(RAIL_HORIZONTAL_PADDING + start, 0))
-            await wait_for(
-                pilot, lambda: panel.main_view.active_block_id("reply") == "b0"
-            )
+        panel.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-click"), "reply"
+        )
+        rail = _rail(panel)
+        await wait_for(pilot, lambda: bool(rail._ranges))
+        # Clicks need a laid-out rail: wait until it has a real region.
+        await wait_for(pilot, lambda: rail.region.width > 0)
+        assert panel.main_view.active_block_id("reply") == "b2"
+        start, _end = rail._ranges["b0"]
+        await pilot.click(BlockRail, offset=(RAIL_HORIZONTAL_PADDING + start, 0))
+        await wait_for(pilot, lambda: panel.main_view.active_block_id("reply") == "b0")
 
 
 async def test_dual_panel_independent_pills() -> None:
@@ -447,24 +429,21 @@ async def test_dual_panel_independent_pills() -> None:
         _pin(app)
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         panel0 = detail.deck_area.panel(0)
-        with override_flags(card_blocks=True):
-            panel0.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-split"), "reply"
-            )
-            rail0 = panel0.query_one(BlockRail)
-            await wait_for(pilot, lambda: bool(rail0._ranges))
-            detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
-            await pilot.pause()
-            panel1 = detail.deck_area.panel(1)
-            panel1.set_deck(DeckId.MAIN)
-            panel1.show_main_document(
-                _document("s1", _reply_card(3), digest="rail-split"), "reply"
-            )
-            await wait_for(pilot, lambda: bool(panel1.query_one(BlockRail)._ranges))
-            assert panel1.cycle_block(-1) is True
-            await wait_for(
-                pilot, lambda: panel1.main_view.active_block_id("reply") == "b1"
-            )
-            assert panel0.main_view.active_block_id("reply") == "b2"
-            assert set(rail0._ranges) == {"b0", "b1", "b2"}
-            assert set(panel1.query_one(BlockRail)._ranges) == {"b0", "b1", "b2"}
+        panel0.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-split"), "reply"
+        )
+        rail0 = panel0.query_one(BlockRail)
+        await wait_for(pilot, lambda: bool(rail0._ranges))
+        detail.toggle_deck_split(DeckLayout.LEFT_RIGHT)
+        await pilot.pause()
+        panel1 = detail.deck_area.panel(1)
+        panel1.set_deck(DeckId.MAIN)
+        panel1.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-split"), "reply"
+        )
+        await wait_for(pilot, lambda: bool(panel1.query_one(BlockRail)._ranges))
+        assert panel1.cycle_block(-1) is True
+        await wait_for(pilot, lambda: panel1.main_view.active_block_id("reply") == "b1")
+        assert panel0.main_view.active_block_id("reply") == "b2"
+        assert set(rail0._ranges) == {"b0", "b1", "b2"}
+        assert set(panel1.query_one(BlockRail)._ranges) == {"b0", "b1", "b2"}

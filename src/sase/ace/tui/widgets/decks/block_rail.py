@@ -1,6 +1,6 @@
 """One-row block rail timeline for cards with navigable blocks.
 
-The rail is a pure tiered renderer (:func:`block_rail_text`) plus a
+The rail is a pure tiered renderer (:func:`_block_rail_text`) plus a
 pre-composed :class:`BlockRail` widget docked under the Main deck panel's
 top border. Entries run chronologically left to right from each block's
 :class:`BlockMeta` (roster number, glyph, label, status), the active entry
@@ -274,7 +274,7 @@ def _windowed_entries(
         )
 
 
-def render_block_rail(
+def _render_block_rail(
     entries: Sequence[BlockRailEntry],
     *,
     active_id: str | None,
@@ -424,7 +424,7 @@ def render_block_rail(
     return fallback, {}, "micro"
 
 
-def block_rail_text(
+def _block_rail_text(
     entries: Sequence[BlockRailEntry],
     *,
     active_id: str | None,
@@ -440,7 +440,7 @@ def block_rail_text(
     entries, windowed neighbors with overflow counts, compact neighbors
     with bare counts, then the micro pill with an ellipsized label.
     """
-    text, _, _ = render_block_rail(
+    text, _, _ = _render_block_rail(
         entries,
         active_id=active_id,
         arrived_ids=arrived_ids,
@@ -542,7 +542,7 @@ class BlockRail(Static):
         if not self._entries or self._width <= 0:
             return
         try:
-            text, ranges, _tier = render_block_rail(
+            text, ranges, _tier = _render_block_rail(
                 self._entries,
                 active_id=self._active_id,
                 arrived_ids=self._arrived_ids,
@@ -590,6 +590,4 @@ __all__ = [
     "BlockRail",
     "BlockRailEntry",
     "BlockRailTier",
-    "block_rail_text",
-    "render_block_rail",
 ]

@@ -85,13 +85,6 @@ class DeckPanelInteractionMixin:
     def _sync_spread_block_cursor_from_scroll(self) -> None:
         """Recompute the spread block cursor from the scroll position."""
         try:
-            from .flag import card_blocks_enabled
-
-            if not card_blocks_enabled():
-                return
-        except Exception:
-            return
-        try:
             document = self._main_document
             if getattr(document, "partial", False):
                 return

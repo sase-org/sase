@@ -1,7 +1,6 @@
 """Block-mode decision and paged block navigation for ``DeckPanel``.
 
-When the ``card_blocks`` beta flag is on and the Main deck is paged on a
-card with two or more blocks, the panel decides a block mode
+When the Main deck is paged on a card with two or more blocks, the panel decides a block mode
 (block-spread versus block-paged) with the deck's hysteresis band and
 drives one-block-per-page projection through its ``MainDeckView``.
 ``card_blocks_navigable`` is a cached O(1) predicate for key gating.
@@ -14,7 +13,6 @@ from typing import Any
 from ...agent_decks_settings import agent_decks_settings_for
 from .block_model import decide_block_mode
 from .block_rail import BlockRail, BlockRailEntry
-from .flag import card_blocks_enabled
 from .model import DeckId, RenderMode, resolve_active_card
 from .render_mode import measure_main_rows, spread_budget_rows
 
@@ -85,8 +83,6 @@ class DeckPanelBlocksMixin:
     def _schedule_block_redecision(self) -> None:
         """Retry one unmeasured block decision after layout settles."""
         try:
-            if not card_blocks_enabled():
-                return
             if bool(self._block_mode_measured):
                 return
             document = self._main_document  # type: ignore[attr-defined]
@@ -104,8 +100,6 @@ class DeckPanelBlocksMixin:
     ) -> RenderMode | None:
         """Return the decided block mode, or None for the legacy render."""
         try:
-            if not card_blocks_enabled():
-                return None
             if document.partial:
                 return None
             if card_id is None:
@@ -166,8 +160,6 @@ class DeckPanelBlocksMixin:
     def _land_deck_spread_on_blocks(self, document: Any, preferred: str | None) -> bool:
         """Sticky-Reply chat-log landing for a deck-spread document."""
         try:
-            if not card_blocks_enabled():
-                return False
             if getattr(document, "partial", False):
                 return False
             card = self._spread_block_card(document, preferred)
@@ -195,8 +187,6 @@ class DeckPanelBlocksMixin:
     def _cycle_spread_block(self, direction: int) -> bool:
         """Anchor-motion step for spread decks and block-spread cards."""
         try:
-            if not card_blocks_enabled():
-                return False
             document = self._main_document  # type: ignore[attr-defined]
             if document.partial:
                 return False
@@ -310,8 +300,6 @@ class DeckPanelBlocksMixin:
     def _select_spread_block(self, block_id: str | None) -> bool:
         """Direct selection for spread decks and block-spread cards."""
         try:
-            if not card_blocks_enabled():
-                return False
             if block_id is None:
                 return False
             document = self._main_document  # type: ignore[attr-defined]
@@ -377,8 +365,6 @@ class DeckPanelBlocksMixin:
         try:
             if self._deck is not DeckId.MAIN:
                 return False
-            if not card_blocks_enabled():
-                return False
             document = self._main_document  # type: ignore[attr-defined]
             if document.partial:
                 return False
@@ -421,8 +407,6 @@ class DeckPanelBlocksMixin:
         """Select ``block_id`` on the active card; False when a no-op."""
         try:
             if self._deck is not DeckId.MAIN:
-                return False
-            if not card_blocks_enabled():
                 return False
             document = self._main_document  # type: ignore[attr-defined]
             if document.partial:
@@ -494,8 +478,6 @@ class DeckPanelBlocksMixin:
     def _needs_block_refresh(self) -> bool:
         """Return whether a stable paged deck should re-decide block mode."""
         try:
-            if not card_blocks_enabled():
-                return False
             if self._deck is not DeckId.MAIN:  # type: ignore[attr-defined]
                 return False
             document = self._main_document  # type: ignore[attr-defined]
@@ -516,8 +498,6 @@ class DeckPanelBlocksMixin:
 
     def _compute_block_navigable(self) -> bool:
         """Recompute whether card-block navigation is available."""
-        if not card_blocks_enabled():
-            return False
         if self._deck is not DeckId.MAIN:
             return False
         document = self._main_document  # type: ignore[attr-defined]
@@ -574,14 +554,12 @@ class DeckPanelBlocksMixin:
     def _block_rail_card(self) -> Any | None:
         """Return the rail's card, or None when the rail must be hidden.
 
-        The rail shows only when the flag is on, the deck is MAIN and
+        The rail shows only when the deck is MAIN and
         paged, the active card has two or more blocks, the document is a
         full paint of the current subject, and neither the search overlay
         nor the empty state is shown.
         """
         try:
-            if not card_blocks_enabled():
-                return None
             if self._deck is not DeckId.MAIN:  # type: ignore[attr-defined]
                 return None
             document = self._main_document  # type: ignore[attr-defined]

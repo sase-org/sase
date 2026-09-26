@@ -27,7 +27,6 @@ class FeatureFlag(StrEnum):
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
-    card_blocks = "card_blocks"
     legacy_agent_family_syntax = "legacy_agent_family_syntax"
     legacy_sase_shell_syntax = "legacy_sase_shell_syntax"
     monitor_continuation_records = "monitor_continuation_records"
@@ -120,16 +119,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Services tab oneshot section."
         ),
         bead="sase-13w",
-    ),
-    FeatureFlag.card_blocks: FeatureFlagDefinition(
-        key=FeatureFlag.card_blocks,
-        kind="beta",
-        description=(
-            "Block-paged Reply cards: a card shown alone pages one shell "
-            "block per page, every node lands on its newest block, the block "
-            "rail shows the session timeline, and [ / ] step between blocks."
-        ),
-        bead="sase-1ad",
     ),
     FeatureFlag.monitor_continuation_records: FeatureFlagDefinition(
         key=FeatureFlag.monitor_continuation_records,

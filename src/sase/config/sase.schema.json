@@ -5354,11 +5354,6 @@
           "default": true,
           "deprecated": true
         },
-        "card_blocks": {
-          "type": "boolean",
-          "description": "Block-paged Reply cards: a card shown alone pages one shell block per page, every node lands on its newest block, the block rail shows the session timeline, and [ / ] step between blocks.",
-          "default": false
-        },
         "legacy_agent_family_syntax": {
           "type": "boolean",
           "description": "SASE silently accepts the retired agent-family spellings as aliases of their agent-session replacements: %id(..., family=...), the family:/kind:family agent queries, --next-fork family, gate \"fork\": \"family\", and SASE_AGENT_FAMILY_ATTACH. Removing this flag also removes sase-core's hidden `family` %id keyword alias.",
