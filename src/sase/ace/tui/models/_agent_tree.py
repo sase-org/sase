@@ -35,9 +35,10 @@ def agent_parent_fold_key(agent: Agent) -> str | None:
     """Return the fold key controlling *agent* as an immediate child row."""
     if agent.tree_parent_key:
         return agent.tree_parent_key
-    if agent.is_child_row and agent.parent_timestamp:
-        return agent.parent_timestamp
-    return None
+    # ``is_child_row`` is exactly ``parent_workflow/parent_timestamp is not
+    # None`` (see :meth:`child_linkage`), so a set timestamp already implies
+    # the child row and no linkage call is needed on this hot path.
+    return agent.parent_timestamp or None
 
 
 def agent_gating_fold_key(
@@ -143,6 +144,13 @@ def _tree_parent(agent: Agent, lookup: dict[str, Agent]) -> Agent | None:
     if agent.is_child_row and agent.parent_timestamp:
         return lookup.get(agent.parent_timestamp)
     return None
+
+
+#: Shared per-roster tree index: ``(parent_lookup, anchors)`` as built by
+#: :func:`tree_parent_lookup` plus :func:`presentation_anchor_lookup` over
+#: the same roster. Callers that filter or group one roster several times
+#: build it once and pass it down instead of re-walking the tree.
+TreeIndex = tuple[dict[str, Agent], dict[int, Agent]]
 
 
 def presentation_anchor_lookup(

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,17 @@ __all__ = [
     "wait_until_target_and_reference",
     "load_attempt_history",
 ]
+
+
+@lru_cache(maxsize=1024)
+def project_file_parent_name(project_file: str) -> str:
+    """Return ``Path(project_file).parent.name`` without rebuilding paths.
+
+    Project files repeat across the agents of one project, so memoizing
+    this pure string projection keeps per-agent classification (and every
+    grouped tree build over the same roster) off ``pathlib``.
+    """
+    return Path(project_file).parent.name
 
 
 @dataclass
@@ -511,8 +523,7 @@ class Agent(AgentState):
             return False
         if not self.project_file:
             return False
-        project_name = Path(self.project_file).parent.name
-        return self.cl_name == project_name
+        return self.cl_name == project_file_parent_name(self.project_file)
 
     # --- Delegated to agent_artifacts module ---
 

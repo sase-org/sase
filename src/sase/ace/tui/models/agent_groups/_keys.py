@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 
 from sase.core.time import local_now
 from sase.plan_chain import agent_session_base, canonical_plan_chain_suffix
 
-from ..agent import Agent
+from ..agent import Agent, project_file_parent_name
 from .._agent_tree import (
     agent_tree_depth,
     presentation_anchor,
@@ -81,7 +80,7 @@ def _project_name(agent: Agent) -> str:
         if agent.is_proc_shell and agent.project_display_name:
             return agent.project_display_name
         return NO_PROJECT
-    return agent.project_display_name or Path(agent.project_file).parent.name
+    return agent.project_display_name or project_file_parent_name(agent.project_file)
 
 
 def _name_root(agent: Agent) -> str:

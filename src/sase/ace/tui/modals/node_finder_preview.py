@@ -15,7 +15,10 @@ from rich.text import Text
 from sase.procs.text_bounding import tail_text_by_lines_and_chars
 
 from ..models._agent_clan import ClanStatusCounts
-from ..models._agent_clan_sections import aggregate_clan_in_memory
+from ..models._agent_clan_sections import (
+    ClanInMemorySnapshot,
+    aggregate_clan_in_memory,
+)
 from ..models.agent import AgentType
 from ..models.fold_state import FoldLevel
 from ..models.node_finder import (
@@ -61,10 +64,11 @@ def render_node_finder_preview(
     agent = row.agent
     text = Text()
     _append_kind_chip(text, row)
-    _append_identity(text, agent)
+    in_memory = aggregate_clan_in_memory(agent) if agent.is_clan_container else None
+    _append_identity(text, agent, in_memory=in_memory)
     _append_breadcrumb(text, row, snapshot)
     _append_navigation_status(text, row, query)
-    _append_kind_section(text, row, snapshot)
+    _append_kind_section(text, row, snapshot, in_memory=in_memory)
     if _has_tier1_source(row):
         _append_tier1_skeleton(text)
     return text
@@ -77,17 +81,23 @@ def _append_kind_chip(text: Text, row: NodeFinderRow) -> None:
     text.append("\n")
 
 
-def _append_identity(text: Text, agent: Agent) -> None:
+def _append_identity(
+    text: Text,
+    agent: Agent,
+    in_memory: ClanInMemorySnapshot | None = None,
+) -> None:
     if agent.is_clan_container:
-        in_memory = aggregate_clan_in_memory(agent)
-        counts = Counter(member.status for member in in_memory.members)
+        if in_memory is None:
+            in_memory = aggregate_clan_in_memory(agent)
+        clan_view = in_memory
+        counts = Counter(member.status for member in clan_view.members)
         text.append_text(
             build_clan_compact_lines(
                 agent=agent,
                 counts=_clan_counts(counts),
-                agent_count=len(in_memory.members),
+                agent_count=len(clan_view.members),
                 agent_session_count=sum(
-                    1 for member in in_memory.members if member.agent_session_name
+                    1 for member in clan_view.members if member.agent_session_name
                 ),
                 # The preview describes current data, not an interactive fold.
                 fold_level=_collapsed_fold_level(),
@@ -121,23 +131,42 @@ def _collapsed_fold_level() -> FoldLevel:
     return FoldLevel.COLLAPSED
 
 
+def _snapshot_position(snapshot: NodeFinderSnapshot, row: NodeFinderRow) -> int | None:
+    """Return *row*'s position in the snapshot rows by identity.
+
+    Filtered views carry display-coordinate parents (remapped to the
+    visible list), so ancestor and child lookups must resolve through the
+    snapshot's own coordinates. Identities are unique per snapshot and
+    survive view copies, which value equality does not.
+    """
+    identity = row.identity
+    if row.role is not NodeFinderRole.NODE or identity is None:
+        return None
+    for pos, candidate in enumerate(snapshot.rows):
+        if candidate.identity == identity and candidate.role is NodeFinderRole.NODE:
+            return pos
+    return None
+
+
 def _append_breadcrumb(
     text: Text,
     row: NodeFinderRow,
     snapshot: NodeFinderSnapshot,
 ) -> None:
     path: list[NodeFinderRow] = []
-    current = row
-    seen: set[int] = set()
-    while current.parent_row is not None and current.parent_row not in seen:
-        parent_index = current.parent_row
-        seen.add(parent_index)
-        if not 0 <= parent_index < len(snapshot.rows):
-            break
-        current = snapshot.rows[parent_index]
-        if current.role is NodeFinderRole.NODE:
-            path.append(current)
-    path.reverse()
+    start = _snapshot_position(snapshot, row)
+    if start is not None:
+        current = snapshot.rows[start]
+        seen: set[int] = {start}
+        while current.parent_row is not None and current.parent_row not in seen:
+            parent_index = current.parent_row
+            seen.add(parent_index)
+            if not 0 <= parent_index < len(snapshot.rows):
+                break
+            current = snapshot.rows[parent_index]
+            if current.role is NodeFinderRole.NODE:
+                path.append(current)
+        path.reverse()
 
     text.append(
         "@" + (row.panel_key or "default"), style=tribe_identity_style(row.panel_key)
@@ -165,13 +194,16 @@ def _append_kind_section(
     text: Text,
     row: NodeFinderRow,
     snapshot: NodeFinderSnapshot,
+    in_memory: ClanInMemorySnapshot | None = None,
 ) -> None:
     agent = row.agent
     assert agent is not None
     if agent.is_agent_session_container_row:
         _append_session_shells(text, row, snapshot)
     elif agent.is_clan_container:
-        _append_clan_members(text, agent)
+        if in_memory is None:
+            in_memory = aggregate_clan_in_memory(agent)
+        _append_clan_members(text, agent, in_memory=in_memory)
     elif agent.is_monitor or agent.is_proc_shell:
         _append_proc_details(text, agent)
     elif agent.is_gate:
@@ -213,8 +245,13 @@ def _append_session_shells(
         text.append("\n")
 
 
-def _append_clan_members(text: Text, agent: Agent) -> None:
-    in_memory = aggregate_clan_in_memory(agent)
+def _append_clan_members(
+    text: Text,
+    agent: Agent,
+    in_memory: ClanInMemorySnapshot | None = None,
+) -> None:
+    if in_memory is None:
+        in_memory = aggregate_clan_in_memory(agent)
     _append_section_header(text, "MEMBERS", "#D75FFF")
     counts = Counter(member.status for member in in_memory.members)
     if counts:
@@ -300,9 +337,8 @@ def _append_workflow_steps(
 def _child_rows(
     snapshot: NodeFinderSnapshot, row: NodeFinderRow
 ) -> tuple[NodeFinderRow, ...]:
-    try:
-        parent = snapshot.rows.index(row)
-    except ValueError:
+    parent = _snapshot_position(snapshot, row)
+    if parent is None:
         return ()
     return tuple(
         candidate

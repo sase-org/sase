@@ -10,15 +10,15 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from sase.core.fuzzy_facade import fuzzy_match
+from sase.core.fuzzy_facade import fuzzy_tier_score
 from sase.project_display_names import humanize_cl_name
 
 from ._agent_tree import agent_tree_title
+from .agent import Agent, AgentType
 from .agent_panels import agent_panel_label
+from .agent_proc_shells import proc_shell_command_title
 
 if TYPE_CHECKING:
-    from .agent import Agent, AgentType
-
     AgentIdentity = tuple[AgentType, str, str | None]
 
 
@@ -151,15 +151,164 @@ def node_finder_title(agent: Agent) -> str | None:
     return title
 
 
+#: Cached :func:`identity_kind_for_agent` without importing the Textual
+#: widget chain at module load (this model stays Textual-free by design).
+_IDENTITY_KIND_FN: Any = None
+
+#: Cached kind style constants, bound lazily for the same reason. The
+#: batch descriptor below reuses these instead of duplicating values.
+_KIND_STYLES: dict[str, Any] | None = None
+
+
+def _kind_styles() -> dict[str, Any]:
+    """Return the shared kind label/accent constants, binding them once."""
+    global _KIND_STYLES  # noqa: PLW0603
+    styles = _KIND_STYLES
+    if styles is None:
+        from sase.ace.tui.widgets.prompt_panel._agent_display_agent_session import (
+            SESSION_IDENTITY_COLOR,
+        )
+        from sase.ace.tui.widgets.prompt_panel._identity_header import (
+            AGENT_FALLBACK_IDENTITY_COLOR,
+            STEP_FALLBACK_IDENTITY_COLOR,
+            WORKFLOW_IDENTITY_COLOR,
+            _STEP_TYPE_COLORS,
+        )
+        from sase.ace.tui.widgets._agent_list_styling import (
+            _AGENT_NAME_ANNOTATION_STYLE,
+            _GATE_ROW_STYLE,
+            _MONITOR_ROW_STYLE,
+            _PROC_SHELL_ROW_STYLE,
+        )
+
+        styles = {
+            "session": SESSION_IDENTITY_COLOR,
+            "proc": _PROC_SHELL_ROW_STYLE,
+            "agent_entry": _AGENT_NAME_ANNOTATION_STYLE,
+            "gate": _GATE_ROW_STYLE,
+            "monitor": _MONITOR_ROW_STYLE,
+            "step_fallback": STEP_FALLBACK_IDENTITY_COLOR,
+            "workflow": WORKFLOW_IDENTITY_COLOR,
+            "agent": AGENT_FALLBACK_IDENTITY_COLOR,
+            "step_colors": _STEP_TYPE_COLORS,
+        }
+        _KIND_STYLES = styles
+    return styles
+
+
 def node_finder_kind(agent: Agent) -> tuple[str, str]:
     """Return the kind label and accent color for *agent*."""
     if agent.is_clan_container:
         return ("CLAN", "#D75FFF")
-    from sase.ace.tui.widgets.prompt_panel._identity_header import (
-        identity_kind_for_agent,
+    global _IDENTITY_KIND_FN  # noqa: PLW0603
+    kind_fn = _IDENTITY_KIND_FN
+    if kind_fn is None:
+        from sase.ace.tui.widgets.prompt_panel._identity_header import (
+            identity_kind_for_agent,
+        )
+
+        kind_fn = identity_kind_for_agent
+        _IDENTITY_KIND_FN = kind_fn
+    return kind_fn(agent)
+
+
+def describe_node_finder_row(
+    agent: Agent,
+) -> tuple[bool, str, str, str, str]:
+    """Return ``(jumpable, name, title, kind_label, kind_accent)`` for *agent*.
+
+    Batch equivalent of :func:`node_finder_jumpable`, :func:`node_finder_name`,
+    :func:`node_finder_title`, and :func:`node_finder_kind` that reads each
+    agent property once. Snapshot building calls this per row instead of the
+    four singles; the singles remain the behavior contract (see the
+    differential test over every agent shape).
+    """
+    is_clan = agent.is_clan_container
+    is_proc = agent.is_proc_shell
+    is_wf_step = agent.is_workflow_step_child
+    step_type = agent.step_type
+    presented = agent.presented_agent_name
+    agent_name = agent.agent_name
+    display_name = agent.display_name
+    cl_name = agent.cl_name
+    # Each predicate below re-derives plan-chain role state, so read the
+    # repeated ones once: snapshot building calls this per row.
+    is_session_container = agent.is_agent_session_container_row
+    is_monitor = agent.is_monitor
+    is_gate = agent.is_gate
+    is_agent_entry = agent.is_agent_entry
+    if is_clan:
+        name = (
+            presented or agent.agent_clan or display_name or humanize_cl_name(cl_name)
+        )
+    elif is_proc:
+        proc_label = agent.proc_label
+        name = (
+            proc_label
+            or presented
+            or agent_name
+            or display_name
+            or humanize_cl_name(cl_name)
+        )
+    else:
+        name = presented or agent_name or display_name or humanize_cl_name(cl_name)
+
+    if is_wf_step and step_type in ("bash", "python"):
+        step_title = agent.step_name or display_name
+        raw_title = step_title or None
+    elif is_proc:
+        raw_title = agent.proc_label or proc_shell_command_title(
+            agent.proc_safe_preview
+        )
+    elif (
+        not is_clan
+        and not is_session_container
+        and (
+            is_monitor
+            or is_gate
+            or (is_wf_step and step_type == "agent")
+            or agent.is_agent_session_member_child
+        )
+    ):
+        raw_title = None
+    else:
+        raw_title = display_name or None
+    if not raw_title or raw_title == name:
+        title: str | None = None
+    else:
+        title = raw_title
+
+    jumpable = not agent.is_pre_prompt_step and not (
+        is_wf_step and step_type != "agent"
     )
 
-    return identity_kind_for_agent(agent)
+    styles = _kind_styles()
+    if is_clan:
+        kind_label, kind_accent = "CLAN", "#D75FFF"
+    elif is_session_container:
+        kind_label, kind_accent = "SESSION", styles["session"]
+    elif is_proc:
+        kind_label, kind_accent = "PROC SHELL", styles["proc"]
+    elif is_agent_entry:
+        kind_label, kind_accent = "AGENT SHELL", styles["agent_entry"]
+    elif is_gate:
+        kind_label, kind_accent = "GATE", styles["gate"]
+    elif is_monitor:
+        kind_label, kind_accent = "MONITOR", styles["monitor"]
+    elif is_wf_step and step_type:
+        kind_label = "STEP"
+        step_colors = styles["step_colors"]
+        kind_accent = step_colors.get(step_type, styles["step_fallback"])
+    elif (
+        agent.agent_type is AgentType.WORKFLOW
+        and not agent.is_workflow_child
+        and not agent.appears_as_agent
+    ):
+        kind_label, kind_accent = "WORKFLOW", styles["workflow"]
+    else:
+        kind_label, kind_accent = "AGENT", styles["agent"]
+
+    return (jumpable, name, title or "", kind_label, kind_accent)
 
 
 def node_finder_jumpable(agent: Agent) -> bool:
@@ -185,64 +334,112 @@ def _tokenize(query: str) -> tuple[str, ...]:
     return tuple(token for token in query.split() if token)
 
 
-@dataclass(frozen=True, slots=True)
-class _TokenMatch:
-    tier: int
-    score: int
-    title_used: bool
+# A row score is a ``(worst_tier, title_used, total_score)`` triple. Plain
+# tuples keep batch scoring over thousands of rows off per-row allocation.
+_RowScore = tuple[int, bool, int]
 
 
-def _match_token(token: str, name: str, title: str) -> _TokenMatch | None:
-    """Match one token against the better of the name/title haystacks."""
-    name_match = fuzzy_match(token, name) if name else None
-    title_match = fuzzy_match(token, title) if title else None
-    if name_match is None:
-        if title_match is None:
-            return None
-        return _TokenMatch(title_match.tier, title_match.score, True)
-    if title_match is None:
-        return _TokenMatch(name_match.tier, name_match.score, False)
-    if (title_match.tier, -title_match.score) < (name_match.tier, -name_match.score):
-        return _TokenMatch(title_match.tier, title_match.score, True)
-    return _TokenMatch(name_match.tier, name_match.score, False)
+def _score_tokens(
+    rows: tuple[NodeFinderRow, ...],
+    candidates: list[int],
+    tokens: tuple[str, ...],
+) -> tuple[
+    dict[int, _RowScore],
+    dict[int, _RowScore],
+    int | None,
+    tuple[int, bool, int, int] | None,
+    int | None,
+    tuple[int, bool, int, int] | None,
+]:
+    """Score *tokens* over *candidates* with token-AND fuzzy matching.
 
-
-@dataclass(frozen=True, slots=True)
-class _RowScore:
-    worst_tier: int
-    title_used: bool
-    total_score: int
-
-
-def _score_row(
-    row: NodeFinderRow, tokens: tuple[str, ...]
-) -> tuple[_RowScore | None, _RowScore | None]:
-    """Return ``(contiguous_score, any_score)``; ``None`` fails that pass."""
-    worst_contiguous = 0
-    worst_any = 0
-    title_used = False
-    total = 0
-    for position, token in enumerate(tokens):
-        match = _match_token(token, row.name, row.title)
-        if match is None:
-            return None, None
-        worst_any = max(worst_any, match.tier)
-        title_used = title_used or match.title_used
-        total += match.score
-        if match.tier > 2:
-            # Relaxed-only token: the contiguous pass fails here, but the
-            # any-match pass continues with later tokens.
-            for rest in tokens[position + 1 :]:
-                rest_match = _match_token(rest, row.name, row.title)
-                if rest_match is None:
-                    return None, None
-                worst_any = max(worst_any, rest_match.tier)
-                title_used = title_used or rest_match.title_used
-                total += rest_match.score
-            return None, _RowScore(worst_any, title_used, total)
-        worst_contiguous = max(worst_contiguous, match.tier)
-    score = _RowScore(worst_contiguous, title_used, total)
-    return score, _RowScore(worst_any, title_used, total)
+    Each token takes the better of the name/title haystacks (ties keep
+    the name), the contiguous pass keeps rows whose every token tiers
+    0-2, and the any-match pass keeps every full-token match. Row titles
+    repeat heavily across clan trees, so title scores memoize within the
+    call. Best keys track in candidate order, matching insertion-order
+    minimum.
+    """
+    contiguous: dict[int, _RowScore] = {}
+    any_match: dict[int, _RowScore] = {}
+    best_tight_pos: int | None = None
+    best_tight_key: tuple[int, bool, int, int] | None = None
+    best_loose_pos: int | None = None
+    best_loose_key: tuple[int, bool, int, int] | None = None
+    title_scores: dict[tuple[str, str], tuple[int, int] | None] = {}
+    # Bind the scorer once: one token scores thousands of rows, so the
+    # per-row module-global lookup is pure overhead.
+    tier_score = fuzzy_tier_score
+    for pos in candidates:
+        row = rows[pos]
+        if not row.jumpable:
+            continue
+        name = row.name
+        title = row.title
+        worst_contiguous = 0
+        worst_any = 0
+        used_title = False
+        total = 0
+        failed = False
+        relaxed_only = False
+        for token in tokens:
+            name_tier_score = tier_score(token, name) if name else None
+            if title:
+                memo_key = (token, title)
+                if memo_key in title_scores:
+                    title_tier_score = title_scores[memo_key]
+                else:
+                    title_tier_score = tier_score(token, title)
+                    title_scores[memo_key] = title_tier_score
+            else:
+                title_tier_score = None
+            if name_tier_score is None:
+                if title_tier_score is None:
+                    failed = True
+                    break
+                tier, score = title_tier_score
+                token_title_used = True
+            elif title_tier_score is None:
+                tier, score = name_tier_score
+                token_title_used = False
+            elif (title_tier_score[0], -title_tier_score[1]) < (
+                name_tier_score[0],
+                -name_tier_score[1],
+            ):
+                tier, score = title_tier_score
+                token_title_used = True
+            else:
+                tier, score = name_tier_score
+                token_title_used = False
+            worst_any = max(worst_any, tier)
+            used_title = used_title or token_title_used
+            total += score
+            if tier > 2:
+                relaxed_only = True
+            else:
+                worst_contiguous = max(worst_contiguous, tier)
+        if failed:
+            continue
+        loose: _RowScore = (worst_any, used_title, total)
+        any_match[pos] = loose
+        key = (worst_any, used_title, -total, pos)
+        if best_loose_key is None or key < best_loose_key:
+            best_loose_key = key
+            best_loose_pos = pos
+        if not relaxed_only:
+            tight: _RowScore = (worst_contiguous, used_title, total)
+            contiguous[pos] = tight
+            if best_tight_key is None or key < best_tight_key:
+                best_tight_key = key
+                best_tight_pos = pos
+    return (
+        contiguous,
+        any_match,
+        best_tight_pos,
+        best_tight_key,
+        best_loose_pos,
+        best_loose_key,
+    )
 
 
 def _is_refinement(previous: tuple[str, ...], tokens: tuple[str, ...]) -> bool:
@@ -286,26 +483,34 @@ def filter_node_finder(
 
     contiguous: dict[int, _RowScore] = {}
     any_match: dict[int, _RowScore] = {}
-    for pos in candidates:
-        row = rows[pos]
-        if not row.jumpable:
-            continue
-        tight, loose = _score_row(row, tokens)
-        if loose is not None:
-            any_match[pos] = loose
-        if tight is not None:
-            contiguous[pos] = tight
+    # Best match minimizes (worst tier, name-before-title, -score, order).
+    # Tracked incrementally in candidate order so the later selection needs
+    # no second pass over the matched rows.
+    best_tight_pos: int | None = None
+    best_tight_key: tuple[int, bool, int, int] | None = None
+    best_loose_pos: int | None = None
+    best_loose_key: tuple[int, bool, int, int] | None = None
+    if tokens:
+        (
+            contiguous,
+            any_match,
+            best_tight_pos,
+            best_tight_key,
+            best_loose_pos,
+            best_loose_key,
+        ) = _score_tokens(rows, candidates, tokens)
 
     if not tokens:
-        matched = {
-            pos: _RowScore(0, False, 0) for pos in candidates if rows[pos].jumpable
-        }
+        matched_positions = {pos for pos in candidates if rows[pos].jumpable}
+        matched: dict[int, _RowScore] = {}
         relaxed = False
     elif contiguous:
         matched = contiguous
+        matched_positions = set(matched)
         relaxed = False
     else:
         matched = any_match
+        matched_positions = set(matched)
         relaxed = True
 
     if tokens:
@@ -321,22 +526,18 @@ def filter_node_finder(
             if rows[pos].jumpable and (identity := rows[pos].identity) is not None
         )
 
-    # Best match minimizes (worst tier, name-before-title, -score, order).
-    best_pos: int | None = None
-    best_key: tuple[int, bool, int, int] | None = None
-    for pos, score in matched.items():
-        key = (score.worst_tier, score.title_used, -score.total_score, pos)
-        if best_key is None or key < best_key:
-            best_key = key
-            best_pos = pos
-
-    if not tokens:
-        if snapshot.here_row is not None and snapshot.here_row in matched:
+    best_pos: int | None
+    if tokens:
+        best_pos = best_tight_pos if contiguous else best_loose_pos
+    else:
+        if snapshot.here_row is not None and snapshot.here_row in matched_positions:
             best_pos = snapshot.here_row
-        elif matched:
-            best_pos = min(matched)
+        elif matched_positions:
+            best_pos = min(matched_positions)
+        else:
+            best_pos = None
 
-    if not matched:
+    if not matched_positions:
         return NodeFinderView(
             rows=(),
             best_index=None,
@@ -346,19 +547,46 @@ def filter_node_finder(
             query=query,
         )
 
+    if not tokens:
+        full = _full_keep_view(
+            snapshot,
+            rows,
+            matched_positions,
+            any_identities,
+            best_pos,
+            relaxed,
+            tokens,
+            query,
+        )
+        if full is not None:
+            return full
+        matched = dict.fromkeys(matched_positions, (0, False, 0))
+    elif len(matched) == snapshot.node_count:
+        full = _full_keep_view(
+            snapshot,
+            rows,
+            matched_positions,
+            any_identities,
+            best_pos,
+            relaxed,
+            tokens,
+            query,
+        )
+        if full is not None:
+            return full
+
+    # One memoized ancestor chain per kept node replaces a per-header
+    # scan over all kept nodes; the dict is shared with the header pass
+    # below so each chain resolves once per filter call.
+    chains: dict[int, list[int]] = {}
     keep: set[int] = set(matched)
     for pos in matched:
-        current = rows[pos].parent_row
-        seen = {pos}
-        while current is not None and current not in seen:
-            seen.add(current)
-            keep.add(current)
-            current = rows[current].parent_row if 0 <= current < len(rows) else None
+        keep.update(_ancestor_chain(rows, pos, chains))
 
     # Drop headers with no kept node rows beneath them. One ancestor walk
     # per kept node replaces a per-header scan over all kept nodes.
     kept_nodes = {pos for pos in keep if rows[pos].role is NodeFinderRole.NODE}
-    headers_with_nodes = _headers_with_kept_descendants(rows, kept_nodes)
+    headers_with_nodes = _headers_with_kept_descendants(rows, kept_nodes, chains)
     excluded_headers = {
         pos
         for pos in keep
@@ -374,10 +602,20 @@ def filter_node_finder(
         parent = row.parent_row
         while parent is not None and parent not in new_index:
             parent = rows[parent].parent_row if 0 <= parent < len(rows) else None
+        remapped_parent = new_index[parent] if parent is not None else None
         if row.role is NodeFinderRole.NODE and old not in matched:
-            display_rows.append(replace(row, parent_row=parent, jumpable=False))
+            if row.jumpable or remapped_parent != row.parent_row:
+                display_rows.append(
+                    replace(row, parent_row=remapped_parent, jumpable=False)
+                )
+            else:
+                display_rows.append(row)
+        elif parent == row.parent_row and remapped_parent == row.parent_row:
+            # The parent resolved to itself in the same slot: the row
+            # already points at the right target, so reuse it as is.
+            display_rows.append(row)
         else:
-            display_rows.append(replace(row, parent_row=parent))
+            display_rows.append(replace(row, parent_row=remapped_parent))
     matched_display = {new_index[pos] for pos in matched if pos in new_index}
     context = {new for new in range(len(display_rows)) if new not in matched_display}
 
@@ -407,21 +645,135 @@ def filter_node_finder(
     )
 
 
+def _full_keep_view(
+    snapshot: NodeFinderSnapshot,
+    rows: tuple[NodeFinderRow, ...],
+    matched_positions: set[int],
+    any_identities: frozenset[AgentIdentity],
+    best_pos: int | None,
+    relaxed: bool,
+    tokens: tuple[str, ...],
+    query: str,
+) -> NodeFinderView | None:
+    """Return the filtered view directly when every row is kept.
+
+    When all jumpable nodes match, the kept set is the whole snapshot
+    exactly when every header shelters a kept node and every non-jumpable
+    node is an ancestor of one (context). The ancestor walk stops as soon
+    as every header and every non-jumpable node is accounted for, so
+    full-tree queries skip per-row remapping and row copies entirely and
+    reuse the snapshot rows as displayed. Returns ``None`` when the fast
+    path does not apply so the caller falls back to the general display.
+    """
+    if len(matched_positions) != snapshot.node_count:
+        return None
+    total = len(rows)
+    headers: set[int] = set()
+    non_jumpable: set[int] = set()
+    for pos, row in enumerate(rows):
+        if row.role is not NodeFinderRole.NODE:
+            headers.add(pos)
+        elif not row.jumpable:
+            non_jumpable.add(pos)
+    if len(matched_positions) + len(headers) + len(non_jumpable) != total:
+        # Jumpable nodes outside the match exist (a refinement-narrowed
+        # candidate set): the kept set is partial, use the general path.
+        return None
+    pending_headers = set(headers)
+    pending_non_jumpable = set(non_jumpable)
+    for pos in matched_positions:
+        current = rows[pos].parent_row
+        seen = {pos}
+        while current is not None and current not in seen:
+            if not 0 <= current < total:
+                break
+            seen.add(current)
+            if current in pending_headers:
+                pending_headers.discard(current)
+                if not pending_headers and not pending_non_jumpable:
+                    break
+            elif current in pending_non_jumpable:
+                pending_non_jumpable.discard(current)
+                if not pending_headers and not pending_non_jumpable:
+                    break
+            current = rows[current].parent_row
+        if not pending_headers and not pending_non_jumpable:
+            break
+    if pending_headers or pending_non_jumpable:
+        return None
+    from sase.ace.tui.actions.navigation.jump_hints import build_jump_hint_maps
+
+    context = frozenset(pos for pos in range(total) if pos not in matched_positions)
+    hint_identities = [
+        row.identity
+        for pos, row in enumerate(rows)
+        if row.jumpable and pos not in context and row.identity is not None
+    ]
+    overflow = len(hint_identities) > NODE_FINDER_HINT_CAPACITY
+    hinted = hint_identities[:NODE_FINDER_HINT_CAPACITY]
+    hint_to_identity, identity_to_hint = build_jump_hint_maps(hinted, prefix_free=True)
+    return NodeFinderView(
+        rows=rows,
+        context=context,
+        best_index=best_pos,
+        relaxed=relaxed,
+        hint_to_identity=dict(hint_to_identity),
+        identity_to_hint=dict(identity_to_hint),
+        overflow=overflow,
+        any_match=any_identities,
+        tokens=tokens,
+        query=query,
+    )
+
+
+def _ancestor_chain(
+    rows: tuple[NodeFinderRow, ...] | list[NodeFinderRow],
+    pos: int,
+    chains: dict[int, list[int]],
+) -> list[int]:
+    """Return *pos*'s strict ancestor positions, memoized in *chains*.
+
+    Each row has a single ``parent_row``, so the walk is one deterministic
+    chain; a resolved suffix splices in instead of re-walking. Cycle and
+    bounds guards match the historical inline walks exactly, so counts and
+    kept sets are unchanged.
+    """
+    cached = chains.get(pos)
+    if cached is not None:
+        return cached
+    chain: list[int] = []
+    seen: set[int] = set()
+    total = len(rows)
+    current = rows[pos].parent_row
+    while current is not None and current not in seen:
+        if not 0 <= current < total:
+            break
+        seen.add(current)
+        chain.append(current)
+        tail = chains.get(current)
+        if tail is not None:
+            for node in tail:
+                if node in seen:
+                    break
+                seen.add(node)
+                chain.append(node)
+            break
+        current = rows[current].parent_row
+    chains[pos] = chain
+    return chain
+
+
 def _headers_with_kept_descendants(
     rows: tuple[NodeFinderRow, ...] | list[NodeFinderRow],
     kept_nodes: set[int],
+    chains: dict[int, list[int]] | None = None,
 ) -> set[int]:
     """Return header positions with at least one kept node beneath them."""
     headers: set[int] = set()
+    if chains is None:
+        chains = {}
     for node_pos in kept_nodes:
-        current = rows[node_pos].parent_row
-        seen: set[int] = set()
-        while current is not None and current not in seen:
-            if not 0 <= current < len(rows):
-                break
-            seen.add(current)
-            headers.add(current)
-            current = rows[current].parent_row
+        headers.update(_ancestor_chain(rows, node_pos, chains))
     return headers
 
 

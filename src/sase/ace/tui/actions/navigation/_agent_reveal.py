@@ -6,11 +6,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from ...models.fold_state import FoldLevel
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_panels import PanelKey
-    from ...models.fold_state import FoldLevel
 
 type AgentIdentity = tuple["AgentType", str, str | None]
 
@@ -97,7 +98,6 @@ def _ancestor_requirements(
 ) -> tuple[_AncestorRequirement, ...] | None:
     """Return a bounded, fully validated immediate-parent chain."""
     from ...models._agent_tree import agent_parent_fold_key, tree_parent_lookup
-    from ...models.fold_state import FoldLevel
 
     parents = (
         parent_lookup if parent_lookup is not None else tree_parent_lookup(complete)
@@ -169,8 +169,6 @@ def prepare_agent_navigation_target(
 
 
 def _fold_requirement_is_met(current: FoldLevel, required: FoldLevel) -> bool:
-    from ...models.fold_state import FoldLevel
-
     if required is FoldLevel.FULLY_EXPANDED:
         return current is FoldLevel.FULLY_EXPANDED
     return current is not FoldLevel.COLLAPSED
@@ -363,17 +361,23 @@ def reveal_agent_navigation_target(
 def unmet_ancestor_folds(
     complete: list[Agent],
     fold_manager: Any,
+    parent_lookup: dict[str, Agent] | None = None,
 ) -> dict[AgentIdentity, tuple[str, ...]]:
     """Return each row's unmet ancestor fold keys, nearest first.
 
     Reuses the exact reveal rule: clan folds need ``EXPANDED``, hidden steps
     need ``FULLY_EXPANDED``, judged by :func:`_fold_requirement_is_met`.
     One shared :func:`tree_parent_lookup` keeps the batch O(n · depth).
-    Rows with invalid ancestry are omitted, matching the reveal preflight.
+    Pass a caller-built *parent_lookup* to reuse an existing tree index
+    within one batch instead of rebuilding it. Rows with invalid ancestry
+    are omitted, matching the reveal preflight.
     """
-    from ...models._agent_tree import tree_parent_lookup
+    if parent_lookup is None:
+        from ...models._agent_tree import tree_parent_lookup
 
-    parents = tree_parent_lookup(complete)
+        parents = tree_parent_lookup(complete)
+    else:
+        parents = parent_lookup
     unmet: dict[AgentIdentity, tuple[str, ...]] = {}
     for agent in complete:
         requirements = _ancestor_requirements(complete, agent, parent_lookup=parents)

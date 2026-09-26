@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 AGENT_SESSION_KEY = "agent_session"
@@ -343,7 +344,32 @@ def _parse_plan_chain_suffix(
     """Return structured suffix metadata for new and legacy plan-chain rows."""
     if not isinstance(suffix, str):
         return None
+    if agent_session_role is not None and not isinstance(agent_session_role, str):
+        return _parse_plan_chain_suffix_uncached(suffix, agent_session_role)
+    cached = _cached_parse_plan_chain_suffix(suffix, agent_session_role)
+    return cached
 
+
+@lru_cache(maxsize=8192)
+def _cached_parse_plan_chain_suffix(
+    suffix: str,
+    agent_session_role: str | None,
+) -> _PlanChainSuffixInfo | None:
+    """Memoize suffix parsing over repeated roster scans.
+
+    The parse is a pure function of its inputs (regexes plus module-constant
+    maps) and agents repeat suffixes across snapshot, tree, and filter
+    passes, so caching keeps classification off repeated regex work. The
+    returned info is frozen and safe to share.
+    """
+    return _parse_plan_chain_suffix_uncached(suffix, agent_session_role)
+
+
+def _parse_plan_chain_suffix_uncached(
+    suffix: str,
+    agent_session_role: object = None,
+) -> _PlanChainSuffixInfo | None:
+    """Run the suffix parse without consulting the parse cache."""
     stored_role = _stored_session_role(agent_session_role)
     legacy_suffix = suffix in _LEGACY_SUFFIX_MAP
     if legacy_suffix:

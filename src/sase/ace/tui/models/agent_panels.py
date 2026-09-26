@@ -32,6 +32,7 @@ from sase.core.agent_tribe import (
 
 from .agent import Agent
 from ._agent_tree import (
+    TreeIndex,
     presentation_anchor,
     presentation_anchor_lookup,
     tree_parent_lookup,
@@ -110,7 +111,9 @@ def agent_is_rendered_in_agents_panel(agent: Agent) -> bool:
     return agent.status != "STARTING"
 
 
-def panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
+def panel_keys_for(
+    agents: list[Agent], *, tree_state: TreeIndex | None = None
+) -> list[PanelKey]:
     """Return the ordered panel keys for *agents*.
 
     The empty Agents tab still gets ``[None]`` as a deterministic
@@ -123,8 +126,11 @@ def panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
         return [None]
 
     rendered_agents = [a for a in agents if agent_is_rendered_in_agents_panel(a)]
-    parent_lookup = _build_parent_lookup(agents)
-    anchors = presentation_anchor_lookup(agents, parent_lookup)
+    if tree_state is None:
+        parent_lookup = _build_parent_lookup(agents)
+        anchors = presentation_anchor_lookup(agents, parent_lookup)
+    else:
+        parent_lookup, anchors = tree_state
     distinct_tribes: set[str] = set()
     has_no_tribe = False
     for a in rendered_agents:
@@ -172,8 +178,14 @@ def agents_for_panel(
     *,
     merge_tribe_panels: bool = False,
     include_hidden: bool = False,
+    tree_state: TreeIndex | None = None,
 ) -> list[Agent]:
-    """Return the agents whose effective panel key equals *key*."""
+    """Return the agents whose effective panel key equals *key*.
+
+    Pass a caller-built *tree_state* (see :data:`TreeIndex`) to reuse one
+    roster index across several panel queries instead of rebuilding it per
+    panel.
+    """
     candidates = (
         list(agents)
         if include_hidden
@@ -182,8 +194,11 @@ def agents_for_panel(
     if merge_tribe_panels:
         return candidates
     normalized_key = normalize_panel_key(key)
-    parent_lookup = _build_parent_lookup(agents)
-    anchors = presentation_anchor_lookup(agents, parent_lookup)
+    if tree_state is None:
+        parent_lookup = _build_parent_lookup(agents)
+        anchors = presentation_anchor_lookup(agents, parent_lookup)
+    else:
+        parent_lookup, anchors = tree_state
     return [
         a
         for a in candidates
@@ -212,6 +227,7 @@ class AgentPanelGroup:
         *,
         merge_tribe_panels: bool = False,
         collapsed_panel_keys: Collection[PanelKey] = (),
+        tree_state: TreeIndex | None = None,
     ) -> AgentPanelGroup:
         """Build a fresh panel group from *agents*, preserving focus when possible.
 
@@ -225,7 +241,7 @@ class AgentPanelGroup:
             return cls(panel_keys=[None], focused_idx=0)
 
         return cls.from_panel_keys(
-            panel_keys_for(agents),
+            panel_keys_for(agents, tree_state=tree_state),
             focused_key,
             collapsed_panel_keys=collapsed_panel_keys,
         )

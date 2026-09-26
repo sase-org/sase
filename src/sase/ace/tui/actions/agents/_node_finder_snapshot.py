@@ -11,8 +11,11 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
-from collections.abc import Iterator
 
+from ...models._agent_tree import (
+    agent_parent_fold_key,
+    presentation_anchor_lookup,
+)
 from ...models.agent import AgentType
 from ...models.agent_groups import GroupingMode, banner_label_for_group_key
 from ...models.agent_panels import AgentPanelGroup, agents_for_panel
@@ -23,10 +26,8 @@ from ...models.node_finder import (
     NodeFinderRole,
     NodeFinderRow,
     NodeFinderSnapshot,
-    node_finder_jumpable,
-    node_finder_kind,
+    describe_node_finder_row,
     node_finder_name,
-    node_finder_title,
 )
 
 if TYPE_CHECKING:
@@ -37,9 +38,30 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: Shared empty reasons set: most visible rows carry no reason, so reusing
+#: one instance skips a per-row ``frozenset`` allocation with equal value.
+_NO_REASONS: frozenset[NodeFinderReason] = frozenset()
+
 
 def _evolve(row: NodeFinderRow, **changes: Any) -> NodeFinderRow:
     return replace(row, **changes)
+
+
+def _roster_needs_no_fold_filter(complete: list[Agent]) -> bool:
+    """Return whether the fold filter would return *complete* unchanged.
+
+    With no fold parent on any agent, :func:`is_visible` succeeds before
+    consulting any level; with no hidden step, the hidden-only-parents
+    exclusion is empty. Both scans short-circuit on the first counterexample,
+    so folded rosters fall through to the full filter immediately.
+    """
+    for agent in complete:
+        if agent.is_hidden_step:
+            return False
+    for agent in complete:
+        if agent_parent_fold_key(agent) is not None:
+            return False
+    return True
 
 
 def _kind_word(agent: Agent) -> str:
@@ -131,11 +153,32 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         fold_key = agent_fold_key(agent)
         if fold_key is not None:
             levels[fold_key] = FoldLevel.FULLY_EXPANDED
-    expanded, _ = filter_agents_by_fold_state(complete, FoldStateProjection(levels))  # type: ignore[arg-type]
+    if _roster_needs_no_fold_filter(complete):
+        # No agent has a fold parent and no hidden step exists, so the
+        # fold filter would return the roster unchanged: skip its
+        # per-agent walk. The discarded fold counts are unused here.
+        expanded = list(complete)
+    else:
+        expanded, _ = filter_agents_by_fold_state(complete, FoldStateProjection(levels))  # type: ignore[arg-type]
 
     merged = bool(getattr(owner, "_agent_panels_grouped", False))
     mode: GroupingMode = getattr(owner, "_grouping_mode", GroupingMode.STANDARD)
-    panel_group = AgentPanelGroup.from_agents(expanded, merge_tribe_panels=merged)
+    # One roster index shared by every panel query below: panel grouping
+    # filters the same expanded roster once per panel key. When the fold
+    # filter kept every row, the expanded roster holds the same objects as
+    # the complete roster, so the index built above is reused as is.
+    if len(expanded) == len(complete) and all(
+        new is old for new, old in zip(expanded, complete, strict=True)
+    ):
+        expanded_lookup = parents
+        expanded_anchors = presentation_anchor_lookup(complete, parents)
+    else:
+        expanded_lookup = tree_parent_lookup(expanded)
+        expanded_anchors = presentation_anchor_lookup(expanded, expanded_lookup)
+    expanded_tree_state = (expanded_lookup, expanded_anchors)
+    panel_group = AgentPanelGroup.from_agents(
+        expanded, merge_tribe_panels=merged, tree_state=expanded_tree_state
+    )
 
     raw_query = getattr(owner, "_agent_search_query", "") or ""
     if raw_query:
@@ -164,15 +207,23 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     dismissed = set(getattr(owner, "_dismissed_agents", set()) or ())
 
     if fold_manager is not None:
-        unmet = unmet_ancestor_folds(complete, fold_manager)
+        unmet = unmet_ancestor_folds(complete, fold_manager, parent_lookup=parents)
     else:
         unmet = {}
 
     rows: list[NodeFinderRow] = []
     index_by_identity: dict[AgentIdentity, int] = {}
+    # Fold keys repeat across clan members, so the collapsed label for one
+    # unmet key tuple serves every row that shares it within this snapshot.
+    _nearest_collapsed_memo: dict[tuple[str, ...], str] = {}
 
     for panel_key in panel_group.panel_keys:
-        panel_agents = agents_for_panel(expanded, panel_key, merge_tribe_panels=merged)
+        panel_agents = agents_for_panel(
+            expanded,
+            panel_key,
+            merge_tribe_panels=merged,
+            tree_state=expanded_tree_state,
+        )
         tree = build_agent_tree(
             panel_agents, fold_registry=GroupFoldRegistry(), mode=mode
         )
@@ -222,7 +273,8 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             if not (0 <= entry.agent_idx < len(panel_agents)):
                 continue
             agent = panel_agents[entry.agent_idx]
-            if agent.identity in index_by_identity:
+            identity = agent.identity
+            if identity in index_by_identity:
                 continue
 
             reasons: set[NodeFinderReason] = set()
@@ -236,43 +288,45 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             if collapsed_key is not None:
                 reasons.add(NodeFinderReason.BANNER)
                 group_label = banner_label_for_group_key(collapsed_key)
-            missing = unmet.get(agent.identity, ())
+            missing = unmet.get(identity, ())
             if missing:
                 reasons.add(NodeFinderReason.FOLDED)
-            if query_set is not None and agent.identity not in query_set:
+            if query_set is not None and identity not in query_set:
                 reasons.add(NodeFinderReason.QUERY)
-            if agent.identity in hidden_by_i:
+            if identity in hidden_by_i:
                 reasons.add(NodeFinderReason.NON_RUN)
-            if agent.identity in rendered:
+            if identity in rendered:
                 if reasons:
                     logger.debug(
                         "node finder contradiction: rendered row %r has reasons %r",
-                        agent.identity,
+                        identity,
                         sorted(reason.value for reason in reasons),
                     )
                 reasons = set()
 
-            jumpable = node_finder_jumpable(agent)
-            kind_label, kind_accent = node_finder_kind(agent)
-            title = node_finder_title(agent) or ""
+            jumpable, name, title, kind_label, kind_accent = describe_node_finder_row(
+                agent
+            )
 
             parent_row = group_stack[-1][1] if group_stack else panel_idx
             parent_key = agent_parent_fold_key(agent)
             tree_parent = parents.get(parent_key, None) if parent_key else None
-            if (
-                tree_parent is not None
-                and tree_parent.identity in index_by_identity
-                and tree_parent.identity != agent.identity
-            ):
-                parent_row = index_by_identity[tree_parent.identity]
+            if tree_parent is not None:
+                tree_identity = tree_parent.identity
+                if tree_identity in index_by_identity and tree_identity != identity:
+                    parent_row = index_by_identity[tree_identity]
 
-            index_by_identity[agent.identity] = len(rows)
+            if missing not in _nearest_collapsed_memo:
+                _nearest_collapsed_memo[missing] = _nearest_collapsed_label(
+                    missing, parents
+                )
+            index_by_identity[identity] = len(rows)
             rows.append(
                 NodeFinderRow(
                     role=NodeFinderRole.NODE,
-                    identity=agent.identity,
+                    identity=identity,
                     agent=agent,
-                    name=node_finder_name(agent),
+                    name=name,
                     title=title,
                     kind_label=kind_label,
                     kind_accent=kind_accent,
@@ -280,9 +334,9 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
                     panel_key=panel_key,
                     parent_row=parent_row,
                     jumpable=jumpable,
-                    reasons=frozenset(reasons),
+                    reasons=frozenset(reasons) if reasons else _NO_REASONS,
                     unmet_fold_count=len(missing),
-                    nearest_collapsed=_nearest_collapsed_label(missing, parents),
+                    nearest_collapsed=_nearest_collapsed_memo[missing],
                     group_label=group_label,
                 )
             )
@@ -323,7 +377,10 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         for pos, row in enumerate(rows)
         if keep[pos] and row.role is NodeFinderRole.NODE
     }
-    headers_with_nodes = _headers_with_kept_descendants(rows, kept_nodes)
+    # One memoized ancestor chain per node shared with the header-count
+    # pass below; positions are stable when nothing is omitted.
+    chains: dict[int, list[int]] = {}
+    headers_with_nodes = _headers_with_kept_descendants(rows, kept_nodes, chains)
     for pos, row in enumerate(rows):
         if not keep[pos] or row.role is NodeFinderRole.NODE:
             continue
@@ -332,21 +389,39 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
 
     kept_positions = [pos for pos, kept in enumerate(keep) if kept]
     new_index = {old: new for new, old in enumerate(kept_positions)}
-    remapped: list[NodeFinderRow] = []
-    for old in kept_positions:
-        row = rows[old]
-        parent_pos = row.parent_row
-        while parent_pos is not None and parent_pos not in new_index:
-            parent_pos = (
-                rows[parent_pos].parent_row if 0 <= parent_pos < len(rows) else None
-            )
-        remapped.append(
-            _evolve(
-                row,
-                parent_row=new_index[parent_pos] if parent_pos is not None else None,
-            )
-        )
-    rows = remapped
+    counts_chains: dict[int, list[int]] | None = chains
+    if len(kept_positions) == len(rows):
+        # Nothing was omitted, so every parent index still resolves to
+        # itself: reuse the rows as built instead of copying each one.
+        rows = list(rows)
+    else:
+        # Remapping renumbers positions, so the header-count pass resolves
+        # its own chains over the final row set.
+        counts_chains = None
+        remapped: list[NodeFinderRow] = []
+        for old in kept_positions:
+            row = rows[old]
+            parent_pos = row.parent_row
+            while parent_pos is not None and parent_pos not in new_index:
+                parent_pos = (
+                    rows[parent_pos].parent_row if 0 <= parent_pos < len(rows) else None
+                )
+            if parent_pos == row.parent_row and (
+                parent_pos is None or new_index[parent_pos] == parent_pos
+            ):
+                # The parent resolved to itself in the same slot: the row
+                # already points at the right target, so reuse it as is.
+                remapped.append(row)
+            else:
+                remapped.append(
+                    _evolve(
+                        row,
+                        parent_row=(
+                            new_index[parent_pos] if parent_pos is not None else None
+                        ),
+                    )
+                )
+        rows = remapped
     index_by_identity = {
         row.identity: pos
         for pos, row in enumerate(rows)
@@ -356,7 +431,9 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     # Header counts over the final row set. Each jumpable node contributes
     # to every header above it in one ancestor walk instead of scanning all
     # nodes once per header.
-    header_counts: dict[int, tuple[int, int]] = _accumulate_header_counts(rows)
+    header_counts: dict[int, tuple[int, int]] = _accumulate_header_counts(
+        rows, counts_chains
+    )
     if header_counts:
         rows = [
             _evolve(
@@ -383,11 +460,22 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
                 for pos, row in enumerate(rows)
             ]
 
-    node_rows = [
-        row for row in rows if row.role is NodeFinderRole.NODE and row.jumpable
-    ]
-    hidden = sum(1 for row in node_rows if row.reasons)
-    query_hidden = sum(1 for row in node_rows if NodeFinderReason.QUERY in row.reasons)
+    node_count = 0
+    hidden = 0
+    query_hidden = 0
+    hidden_by_i_count = 0
+    for row in rows:
+        if row.role is not NodeFinderRole.NODE or not row.jumpable:
+            continue
+        node_count += 1
+        row_reasons = row.reasons
+        if not row_reasons:
+            continue
+        hidden += 1
+        if NodeFinderReason.QUERY in row_reasons:
+            query_hidden += 1
+        if NodeFinderReason.NON_RUN in row_reasons:
+            hidden_by_i_count += 1
 
     load_state = getattr(owner, "_agent_load_state", None)
     panel_group_live = getattr(owner, "_panel_group", None)
@@ -398,46 +486,74 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     return NodeFinderSnapshot(
         rows=tuple(rows),
         here_row=here_row,
-        node_count=len(node_rows),
+        node_count=node_count,
         hidden_count=hidden,
         query_hidden_count=query_hidden,
         query=raw_query,
         query_incomplete=bool(getattr(load_state, "query_incomplete", False)),
-        hidden_by_i_count=sum(
-            1 for row in node_rows if NodeFinderReason.NON_RUN in row.reasons
-        ),
-        hint_overflow=len(node_rows) > NODE_FINDER_HINT_CAPACITY,
+        hidden_by_i_count=hidden_by_i_count,
+        hint_overflow=node_count > NODE_FINDER_HINT_CAPACITY,
         focused_panel_key=focused_panel_key,
     )
 
 
-def _ancestor_positions(rows: list[NodeFinderRow], pos: int) -> Iterator[int]:
-    """Yield strict ancestor positions of *pos* with cycle and bounds guards."""
+def _ancestor_chain(
+    rows: list[NodeFinderRow], pos: int, chains: dict[int, list[int]]
+) -> list[int]:
+    """Return *pos*'s strict ancestor positions, memoized in *chains*.
+
+    Each row has a single ``parent_row``, so the walk is one deterministic
+    chain; a resolved suffix splices in instead of re-walking. Cycle
+    (stop at the first repeated position) and bounds guards match the
+    historical per-node walks exactly, so header sets and counts are
+    unchanged.
+    """
+    cached = chains.get(pos)
+    if cached is not None:
+        return cached
+    chain: list[int] = []
     seen: set[int] = set()
+    total = len(rows)
     current = rows[pos].parent_row
     while current is not None and current not in seen:
-        if not 0 <= current < len(rows):
+        if not 0 <= current < total:
             break
         seen.add(current)
-        yield current
+        chain.append(current)
+        tail = chains.get(current)
+        if tail is not None:
+            for node in tail:
+                if node in seen:
+                    break
+                seen.add(node)
+                chain.append(node)
+            break
         current = rows[current].parent_row
+    chains[pos] = chain
+    return chain
 
 
 def _headers_with_kept_descendants(
-    rows: list[NodeFinderRow], kept_nodes: set[int]
+    rows: list[NodeFinderRow],
+    kept_nodes: set[int],
+    chains: dict[int, list[int]] | None = None,
 ) -> set[int]:
     """Return header positions that have at least one kept node beneath them."""
+    if chains is None:
+        chains = {}
     headers: set[int] = set()
     for node_pos in kept_nodes:
-        for ancestor in _ancestor_positions(rows, node_pos):
-            headers.add(ancestor)
+        headers.update(_ancestor_chain(rows, node_pos, chains))
     return headers
 
 
 def _accumulate_header_counts(
     rows: list[NodeFinderRow],
+    chains: dict[int, list[int]] | None = None,
 ) -> dict[int, tuple[int, int]]:
     """Count jumpable/hidden nodes beneath each header in one linear pass."""
+    if chains is None:
+        chains = {}
     jumpable_counts: dict[int, int] = {}
     hidden_counts: dict[int, int] = {}
     headers: list[int] = []
@@ -456,7 +572,7 @@ def _accumulate_header_counts(
             jumpable_counts[node_pos] += 1
             if hidden:
                 hidden_counts[node_pos] += 1
-        for ancestor in _ancestor_positions(rows, node_pos):
+        for ancestor in _ancestor_chain(rows, node_pos, chains):
             if ancestor in header_set:
                 jumpable_counts[ancestor] += 1
                 if hidden:

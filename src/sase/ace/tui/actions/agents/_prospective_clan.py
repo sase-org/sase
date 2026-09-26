@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ._panel_fold_intent import effective_panel_collapses
+from ...models.fold_state import FoldLevel
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -46,8 +47,6 @@ class _FoldStateProjection:
         self._levels = levels
 
     def get(self, key: str) -> object:
-        from ...models.fold_state import FoldLevel
-
         return self._levels.get(key, FoldLevel.COLLAPSED)
 
 

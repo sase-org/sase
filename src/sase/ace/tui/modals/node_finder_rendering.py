@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from functools import lru_cache
 
 from rich.text import Text
 
@@ -331,13 +332,23 @@ def _depth_color(depth: int) -> str:
     return TREE_DEPTH_COLORS[(depth - 1) % len(TREE_DEPTH_COLORS)]
 
 
-def _name_match_runs(name: str, tokens: tuple[str, ...]) -> list[tuple[int, int]]:
+@lru_cache(maxsize=4096)
+def _name_match_runs(name: str, tokens: tuple[str, ...]) -> tuple[tuple[int, int], ...]:
+    """Return the highlight-run spans for *tokens* over *name*.
+
+    Highlight rendering recomputes the same runs on every list rebuild
+    (cursor moves, window re-centers, repeated refilters over the same
+    query); names repeat across those rebuilds while the parsed runs are
+    a pure function of the inputs, so memoizing keeps window assembly
+    off repeated matcher calls. The tuple return keeps shared entries
+    immutable for every consumer.
+    """
     runs: list[tuple[int, int]] = []
     for token in tokens:
         match = fuzzy_match(token, name)
         if match is not None:
             runs.extend(match.runs)
-    return runs
+    return tuple(runs)
 
 
 def _status_age(agent: Agent | None) -> tuple[str, str]:

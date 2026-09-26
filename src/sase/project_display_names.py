@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
+import os
 import re
 from threading import RLock
 from types import MappingProxyType
@@ -194,6 +196,16 @@ class ProjectRefDisplaySnapshot:
 
 _PROJECT_DISPLAY_NAME_CACHE: dict[str, ProjectDisplaySnapshot] | None = None
 _PROJECT_DISPLAY_NAME_CACHE_LOCK = RLock()
+
+#: Memoized ``humanize_cl_name`` results for the default (cached-map) path,
+#: keyed by ``(generation, name)``. Display labels repeat heavily across
+#: roster scans (every clan member shares its clan's label), so caching
+#: keeps those scans off the root-key/pathlib round-trip behind the map
+#: lookup. The generation bumps in :func:`invalidate_project_display_snapshot`,
+#: the single funnel for map mutations, so entries never outlive their map.
+_HUMANIZE_CACHE: dict[tuple[int, str], str] = {}
+_HUMANIZE_CACHE_GEN = 0
+_HUMANIZE_CACHE_CAP = 16384
 _CL_NAME_TOKEN_RE = re.compile(
     r"(?P<prefix>^|(?<=[\s(\[{]))"
     r"(?P<name>[A-Za-z0-9_.~-]+)"
@@ -207,8 +219,32 @@ def _projects_root(projects_root: Path | str | None) -> Path:
     return Path(projects_root).expanduser()
 
 
+@lru_cache(maxsize=64)
+def _cached_projects_root_key(
+    root_arg: str | None,
+    sase_home_env: str | None,
+    home_env: str | None,
+    cwd: str,
+) -> str:
+    """Return the cache key for one resolved projects root.
+
+    The resolved root is a pure function of these four inputs
+    (``SASE_HOME``/``HOME`` feed ``sase_home()``; *cwd* feeds
+    :meth:`Path.absolute` for relative roots), so keying on them is exact
+    and recomputes automatically after any ``chdir`` or env change instead
+    of rebuilding ``Path`` objects on every display-name lookup.
+    """
+    return str(_projects_root(root_arg).absolute())
+
+
 def _projects_root_cache_key(projects_root: Path | str | None) -> str:
-    return str(_projects_root(projects_root).absolute())
+    root_arg = None if projects_root is None else os.fspath(projects_root)
+    return _cached_projects_root_key(
+        root_arg,
+        os.environ.get("SASE_HOME"),
+        os.environ.get("HOME"),
+        os.getcwd(),
+    )
 
 
 def load_project_display_snapshot(
@@ -273,6 +309,12 @@ def invalidate_project_display_snapshot(
     with _PROJECT_DISPLAY_NAME_CACHE_LOCK:
         if _PROJECT_DISPLAY_NAME_CACHE is not None:
             _PROJECT_DISPLAY_NAME_CACHE.pop(cache_key, None)
+
+    # The humanize memo keys on a generation instead of the map, so any
+    # invalidation retires every entry even when only one root was popped.
+    global _HUMANIZE_CACHE_GEN  # noqa: PLW0603
+    _HUMANIZE_CACHE_GEN += 1
+    _HUMANIZE_CACHE.clear()
 
     from sase.xprompt.project_identity import invalidate_xprompt_project_identity
 
@@ -398,6 +440,16 @@ def humanize_cl_name(
     snapshot: ProjectDisplaySnapshot | None = None,
 ) -> str:
     """Project a canonical project/Patch name to a display label."""
+    if snapshot is None and projects_root is None:
+        key = (_HUMANIZE_CACHE_GEN, name)
+        cached = _HUMANIZE_CACHE.get(key)
+        if cached is not None:
+            return cached
+        result = _humanize_cl_name_with_map(name, _display_names(None, None))
+        if len(_HUMANIZE_CACHE) >= _HUMANIZE_CACHE_CAP:
+            _HUMANIZE_CACHE.clear()
+        _HUMANIZE_CACHE[key] = result
+        return result
     return _humanize_cl_name_with_map(
         name,
         _display_names(projects_root, snapshot),

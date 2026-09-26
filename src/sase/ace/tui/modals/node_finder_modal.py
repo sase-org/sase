@@ -63,6 +63,13 @@ _FLASH_S = 1.2
 _PREVIEW_DELAY_S = 0.15
 _PreviewLoader = Callable[["Agent"], NodeFinderPreviewPayload]
 
+#: Maximum rows materialized in the ``OptionList``. Broad results keep
+#: every row in the view (hints, cursor, and jump targets span the whole
+#: list) while only this window around the highlight becomes widgets, so
+#: a 2,000-row rebuild stays inside the refilter budget. Cursor motion
+#: re-centers the window when it steps outside.
+_OPTION_WINDOW_SIZE = 64
+
 
 @dataclass(frozen=True, slots=True)
 class NodeFinderResult:
@@ -108,6 +115,9 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self._highlighting = False
         self._preview_generation = 0
         self._cache = NodeFinderPreviewCache()
+        self._tier0_cache: dict[tuple[object, ...], Text] = {}
+        self._window_base = 0
+        self._window_end = 0
         self._debouncer: DetailPanelDebouncer | None = None
         self._node_finder_preview_tasks: set[asyncio.Task[None]] = set()
 
@@ -162,8 +172,7 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self._layout_class = desired
         if desired:
             self.add_class(desired)
-        highlighted = self._list().highlighted
-        self._rebuild_options(highlight=highlighted)
+        self._rebuild_options(highlight=self._highlighted_view_index())
 
     def on_key(self, event: Key) -> None:
         if self._search_mode:
@@ -282,7 +291,10 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option_list.id != "node-finder-list":
             return
-        self._jump_index(event.option_index)
+        if event.option_index is None:
+            self._set_flash("No matching node")
+            return
+        self._jump_index(event.option_index + self._window_base)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -319,11 +331,18 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
             return
         self._set_flash(f"no hint ‹{key}›")
 
+    def _highlighted_view_index(self) -> int | None:
+        """Return the highlighted view row, translating the option offset."""
+        highlighted = self._list().highlighted
+        if highlighted is None:
+            return None
+        return self._window_base + highlighted
+
     def _move_cursor(self, direction: int) -> None:
         if not self._view.rows:
             return
-        current = self._list().highlighted
-        if current is None:
+        current = self._highlighted_view_index()
+        if current is None or not (0 <= current < len(self._view.rows)):
             current = self._view.best_index if self._view.best_index is not None else 0
         nxt = next_jumpable_index(self._view, current, direction)
         self._set_highlighted(nxt)
@@ -337,7 +356,7 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
 
     def _jump_highlighted(self) -> None:
         self._flush_pending_refilter()
-        highlighted = self._list().highlighted
+        highlighted = self._highlighted_view_index()
         if highlighted is None:
             self._set_flash("No matching node")
             return
@@ -360,13 +379,37 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
                 return
         self._set_flash("No matching node")
 
+    def _window_for(self, highlight: int | None) -> tuple[int, int]:
+        """Return the ``[base, end)`` view range materialized as options.
+
+        The window centers on the highlight when the view overflows it;
+        small views materialize whole. Every view row stays reachable:
+        hints span the full view and cursor motion re-centers the window.
+        """
+        total = len(self._view.rows)
+        if total <= _OPTION_WINDOW_SIZE:
+            return (0, total)
+        target = highlight
+        if target is None or not (0 <= target < total):
+            target = self._view.best_index if self._view.best_index is not None else 0
+        start = min(
+            max(0, target - _OPTION_WINDOW_SIZE // 2), total - _OPTION_WINDOW_SIZE
+        )
+        return (start, start + _OPTION_WINDOW_SIZE)
+
     def _rebuild_options(self, *, highlight: int | None) -> None:
         option_list = self._list()
         hint_width = hint_column_width(self._view)
         status = show_status_column(self._layout_class)
         # One sibling-closure pass shared by every row's tree guides; computing
-        # it per row would make a rebuild O(rows^2).
+        # it per row would make a rebuild O(rows^2). Guides span the full
+        # view even though only the window becomes widgets.
         guide_ends = last_child_indices(self._view.rows)
+        resolved: int | None
+        if highlight is not None and 0 <= highlight < len(self._view.rows):
+            resolved = highlight
+        else:
+            resolved = self._view.best_index
         options: list[Option] = []
         if not self._view.rows:
             options.append(
@@ -376,8 +419,14 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
                     disabled=True,
                 )
             )
+            self._window_base = 0
+            self._window_end = 0
         else:
-            for index, row in enumerate(self._view.rows):
+            base, end = self._window_for(resolved)
+            self._window_base = base
+            self._window_end = end
+            for index in range(base, end):
+                row = self._view.rows[index]
                 disabled = (
                     not row.jumpable
                     or index in self._view.context
@@ -400,22 +449,24 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
                 )
         option_list.clear_options()
         option_list.add_options(options)
-        if highlight is not None and 0 <= highlight < len(self._view.rows):
-            self._set_highlighted(highlight)
-        elif self._view.best_index is not None:
-            self._set_highlighted(self._view.best_index)
+        if resolved is not None and self._window_base <= resolved < self._window_end:
+            self._set_highlighted(resolved)
 
     def _refresh_hint_gutters(self) -> None:
         if not self.is_mounted:
             return
-        highlighted = self._list().highlighted
-        self._rebuild_options(highlight=highlighted)
+        self._rebuild_options(highlight=self._highlighted_view_index())
 
     def _set_highlighted(self, index: int) -> None:
+        if not (self._window_base <= index < self._window_end):
+            # Outside the materialized window: re-center first so every
+            # cursor step stays reachable.
+            self._rebuild_options(highlight=index)
+            return
         option_list = self._list()
         self._highlighting = True
         try:
-            option_list.highlighted = index
+            option_list.highlighted = index - self._window_base
         finally:
             self._highlighting = False
 
@@ -451,12 +502,34 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
             preview.update(self._compose_preview(row, payload))
             self._schedule_tier1(row)
 
+    def _tier0_cache_key(self, row: NodeFinderRow) -> tuple[object, ...]:
+        """Return the Tier 0 cache key for *row*.
+
+        The snapshot (and its query) is fixed for the modal lifetime and
+        reasons never change within it, so the Tier 0 text depends only on
+        which node or header the row shows.
+        """
+        identity = row.identity
+        if identity is not None:
+            return ("node", identity)
+        return (
+            "header",
+            row.role.value,
+            row.name,
+            row.group_label,
+            row.panel_key,
+        )
+
     def _compose_preview(
         self,
         row: NodeFinderRow,
         payload: NodeFinderPreviewPayload | None,
     ) -> Text:
-        base = render_node_finder_preview(row, self._snapshot, self._snapshot.query)
+        key = self._tier0_cache_key(row)
+        base = self._tier0_cache.get(key)
+        if base is None:
+            base = render_node_finder_preview(row, self._snapshot, self._snapshot.query)
+            self._tier0_cache[key] = base
         if payload is None:
             return base
         cutoff = base.plain.rfind("PROMPT")
@@ -506,7 +579,9 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         return None
 
     def _current_row(self) -> NodeFinderRow | None:
-        highlighted = self._list().highlighted if self.is_mounted else None
+        if not self.is_mounted:
+            return None
+        highlighted = self._highlighted_view_index()
         if highlighted is None or not (0 <= highlighted < len(self._view.rows)):
             return None
         return self._view.rows[highlighted]
