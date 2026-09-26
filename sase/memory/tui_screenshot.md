@@ -46,9 +46,10 @@ goldens unless the fixture controls time and data.
 
 ## Troubleshooting
 
-- Missing visual extra: install the project visual dependencies; the screenshot command
-  should report an actionable renderer/import error rather than falling back to a second
-  renderer.
+- Renderer import error (`resvg_py`): `resvg_py` is a base runtime dependency, so a
+  missing import means the SASE install is incomplete or stale. Run `sase update` or
+  reinstall the environment that owns the `sase` entry point. Do not fall back to a
+  second renderer.
 - Missing tmux or launch timeout: use a private tmux socket for tests, remove only
   test-owned windows, and keep the overall screenshot timeout bounded. Failure messages
   should include the last known pane text when available.
@@ -68,8 +69,8 @@ goldens unless the fixture controls time and data.
   matching `.done` or `.error` marker. Write response files atomically so polling
   callers never consume partial SVG output.
 - Rasterization uses `sase.ace.tui.visual_render.render_svg_to_png()` and the bundled
-  Fira Code fonts. Do not fork a second renderer for agent screenshots or visual
-  snapshots.
+  Fira Code / DejaVu / Noto Emoji font stack. Do not fork a second renderer for agent
+  screenshots or visual snapshots.
 - Visual snapshot goldens live under `tests/ace/tui/visual/snapshots/png/` and
   `tests/pager/visual/snapshots/png/`. Do not treat live `sase screenshot` PNG bytes as
   those goldens unless the fixture controls time and data.
@@ -80,7 +81,9 @@ When TUI code, styling, layout, navigation, refresh, screenshot export, or snaps
 coverage changes, run `just fix-tui-screenshots` (targeted selectors after `--` when the
 change is local). `just test-visual` checks without writing; `just check-full` runs the
 full update form locally and can modify goldens. CI checks with
-`just fix-tui-screenshots --check` and never accepts goldens.
+`just fix-tui-screenshots --check` and never accepts goldens. The update form can exit 0
+with status `partial` and leave some goldens untouched; read its WARNING block before
+treating goldens as current (contract in [[lint_and_test.md]] › PNG Snapshot Tests).
 
 Full and targeted visual commands may require `/sase_monitor`. Monitor commands keep
 `CI=true` without `SASE_AGENT*`; `SASE_MONITOR_ID` is what still allows the update form.

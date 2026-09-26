@@ -62,8 +62,9 @@ instead of `bd` directly.
 `tools/smoke_sase_core_rs_tool_runs` is an isolated real-binding round trip against the
 installed `sase_core_rs` wheel. `tools/smoke_sase_tool_runs` is the black-box harness:
 it talks to the real store and CLI for catalog, foreground run, signals, lost-run
-recovery, fail-open recording, and query contracts. Later-phase live owner cases remain
-labeled phase-pending unless `--live` is passed.
+recovery, fail-open recording, hand-off, and query contracts. Cases that need the real
+monitor/proc supervisors or a cold-start timing measurement are labeled `not-run` unless
+`--live` is passed; `--live` runs them too.
 
 Its E3 triage group uses only fixture recipes in an isolated `SASE_HOME`: it proves
 all-KNOWN continuation reaches `test (scoped)`, NEW/UNKNOWN stops, exit-code parity and

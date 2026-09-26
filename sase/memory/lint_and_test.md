@@ -12,12 +12,13 @@ description: |-
 just install       # Install in editable mode with dev deps
 just fmt           # Auto-format Python + Markdown
 just lint          # Every whole-repo lint gate (ruff, mypy, symvision, toobig, ...)
-just check         # Agent default: whole-repo lint gates + a diff-scoped
-                   # test lane that never queues behind another agent's run
-just check-full    # Exhaustive verification: every lint gate + the full
-                   # test suite + local TUI screenshot update. Agents run
-                   # this only when explicitly instructed. CI does not run
-                   # this recipe.
+just check         # Agent default: whole-repo lint gates except `toobig`
+                   # + a diff-scoped test lane that never queues behind
+                   # another agent's run
+just check-full    # Exhaustive verification: every lint gate except `toobig`
+                   # + the full test suite + local TUI screenshot update.
+                   # Agents run this only when explicitly instructed.
+                   # CI does not run this recipe.
 just test          # Fast parallel pytest run (excludes PNG visual snapshots)
 just test-cov      # pytest with coverage + 50% gate (used by CI); also
                    # excludes the visual snapshot suite
@@ -29,15 +30,17 @@ just fix-tui-screenshots  # Capture, compare, and apply ACE/pager PNG goldens
 If you made file changes in this repo (the sase repo), make sure to run the `just check`
 command before terminating / replying to the user.
 
-`just check` runs every whole-repo lint gate plus a diff-scoped test lane
-(`just test-scoped`) that selects tests via a static import-graph closure. The scoped
-run is serial unless a middle gear wins it a small, bounded suite-gate lease, and it
-never queues behind other agents' runs either way. Selection is a heuristic backstopped
-by CI: `tools/select_tests --explain` shows why a test was or was not chosen, and
-`just selection-health` shows whether the heuristic has ever been wrong. When the
-selector cannot trust the closure, `just check` already escalates internally to the
-governed full test lane. That internal escalation is not a reason to run
-`just check-full`.
+`just check` runs every whole-repo lint gate except `toobig` plus a diff-scoped test
+lane (`just test-scoped`) that selects tests via a static import-graph closure. Neither
+`just check` nor `just check-full` runs the `toobig` line-count gate: CI enforces it
+through `just lint`, `just toobig` runs it on demand, and the `toobig_split` routine
+owns the resulting splits. The scoped run is serial unless a middle gear wins it a
+small, bounded suite-gate lease, and it never queues behind other agents' runs either
+way. Selection is a heuristic backstopped by CI: `tools/select_tests --explain` shows
+why a test was or was not chosen, and `just selection-health` shows whether the
+heuristic has ever been wrong. When the selector cannot trust the closure, `just check`
+already escalates internally to the governed full test lane. That internal escalation is
+not a reason to run `just check-full`.
 
 Do **not** run `just check-full` unless the current prompt, the user, or the assigned
 bead explicitly names that command. The intended case is a CI failure on a
@@ -127,6 +130,18 @@ writes. CI's dedicated `visual-test` job runs `just fix-tui-screenshots --check`
 never writes goldens. Comparison is exact pixel equality locally and in CI; do not treat
 CI as a tolerance lane. The fixtures pin color and the bundled Fira Code / DejaVu / Noto
 Emoji renderer stack.
+
+Update mode (`just fix-tui-screenshots`, `just update-visual-snapshots`, and the update
+stage of local `just check-full`) applies every golden it can prove and exits 0 with
+status `clean`, `applied`, or `partial`. `partial` means some nodes or goldens were
+skipped (failing tests, unstable captures, concurrent edits, or stale removal skipped on
+incomplete evidence). Those goldens are unchanged and **not known to be current**. After
+a `partial` run, read the WARNING block or the manifest's `skipped` list and
+`pruning_skipped_reason`; never read `counts:` alone as "nothing to update". `-n N`
+after `--` becomes the governed `SASE_PYTEST_WORKERS` request (`-n` in `PYTEST_ADDOPTS`
+is a usage error). A second run in the same checkout waits for the maintenance lock
+(bounded, default 2 h). `--check` stays strict: it never writes and exits 1 on required
+drift.
 
 Goldens live under `tests/ace/tui/visual/snapshots/png/` and
 `tests/pager/visual/snapshots/png/`. Reports land in unique run directories under

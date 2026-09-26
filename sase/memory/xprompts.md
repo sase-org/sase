@@ -14,10 +14,15 @@ description:
   standalone YAML workflows. Marker starts the string or follows whitespace/`([{"'`;
   `# Heading` is ignored.
 - Args: `#name(a, b)`, `#name(k=v)` (positional first), quoted comma/special values,
-  `[[ ... ]]` multi-line text.
+  `[[ ... ]]` multi-line text. A `[[` block closes at the first `]]` followed (after
+  optional whitespace) by `,`, `)`, `}`, `|`, or the end of the args; any other `]]` is
+  content. Quote the value when a literal `]]` must precede one of those terminators.
 - Shorthands: `#name:arg`, `#name:a,b`, `` #name:`arg with spaces` ``, `#name+` =
   `#name:true`; line `#name: text` captures to blank line, `#name:: text` to next
-  line-boundary directive.
+  line-boundary directive. Line shorthands (`#name: text`, `#name:: text`,
+  `#name(args): text`) bind their payload structurally and are never re-lexed as
+  `[[...]]`, so commas, `]]`, `+`, and unbalanced parens in prose stay literal. `+`
+  means a space only in the bare unquoted `#name:a,b` colon form.
 - Names: `#ns/name`; `__` -> `/`; aliases `#c` -> `#commit`, `#p` -> `#propose`.
 - Literal zones: fenced code and `%xprompts_enabled:false ... :true`. `$(cmd)` in args
   runs shell substitution. Bodies recurse.

@@ -158,8 +158,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: If you changed any file tracked by git in the sase repo (excluding file
   changes in the separate repos contained in the sase/repos/ directory), you MUST read
   this note before you finish your turn.
-- Lines: 145
-- Approx. tokens: 2097
+- Lines: 160
+- Approx. tokens: 2381
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -225,8 +225,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read before changing anything that affects TUI performance or
   responsiveness (navigation, refresh, rendering, startup), and before diagnosing TUI
   freezes or stalls.
-- Lines: 119
-- Approx. tokens: 1967
+- Lines: 128
+- Approx. tokens: 2148
 
 ### `sase/memory/tui_screenshot.md`
 
@@ -234,8 +234,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `sase/memory/tui.md`
 - Description: Read before using or changing `sase screenshot`, live TUI SVG export, or
   TUI PNG visual snapshot capture.
-- Lines: 96
-- Approx. tokens: 1369
+- Lines: 99
+- Approx. tokens: 1446
 
 ### `sase/memory/xprompts.md`
 
@@ -243,8 +243,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
-- Lines: 135
-- Approx. tokens: 2164
+- Lines: 140
+- Approx. tokens: 2290
 
 ## Statistics
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1366
-- Total approx. tokens: 18172
+- Total lines: 1398
+- Total approx. tokens: 18840
 
 ## Commands
 

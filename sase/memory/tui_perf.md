@@ -79,10 +79,19 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
     allocates project records), spawn subprocesses that can prompt interactively (a git
     credential prompt seizes the tty and freezes the TUI), or take unbounded
     shared-store locks (bound lock waits in Rust core; degrade with a toast).
-12. **Guard programmatic widget updates.** `OptionList` emits `OptionHighlighted` echoes
-    on programmatic `highlighted = X` assignments. Set a guard flag and clear it
-    synchronously (`finally:`) — clearing via `call_later` races the queued echo and
-    causes cursor jumps/freezes.
+12. **Guard programmatic widget updates.** A programmatic `OptionList.highlighted = X`
+    makes Textual's `watch_highlighted` post an `OptionHighlighted` message, which is
+    _queued_. Silence the echo at its source: set a guard flag around the assignment and
+    override `watch_highlighted` to return without calling `super()` while the flag is
+    set (`AgentList`, `BgCmdList`, `PatchList`, `BeadsOptionList`). The watcher runs
+    synchronously, so clearing the flag in `finally:` is correct there. The override
+    also skips Textual's `scroll_to_highlight()`, so scroll explicitly
+    (`AgentList._set_highlighted_programmatically`). A flag checked only in the
+    `OptionHighlighted` _handler_ never matches, because it is already cleared when the
+    queued echo arrives. When the message must still be posted, count pending echoes per
+    row and drop echoes whose `Option` is no longer in the list
+    (`CommandLinePopup._pending_echoes` / `user_highlight_index`). `clear_options()`
+    posts no echo.
 13. **Respect activity gates.** Defer non-urgent refresh work while the user is
     mid-navigation (`NavigationGate`, 250 ms window) or typing in the prompt input.
 14. **Idle ticks skip unchanged surfaces.** With `ace_refresh_tokens` on (the default),
