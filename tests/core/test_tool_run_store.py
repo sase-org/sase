@@ -529,3 +529,116 @@ def test_triage_binding_round_trips(tmp_path: Path) -> None:
     assert any(
         group["signature"] == mypy_item["signature"] for group in failures["groups"]
     )
+
+
+def test_triage_settle_stores_location_matched_owner_only(tmp_path: Path) -> None:
+    """Owner-pin round trip: settle stores the location-matching candidate only.
+
+    Regression for the sase-191.3 probe: the old token-substring matcher
+    suggested beads shaped like sase-106 for src/sase/tool/executor.py on
+    shared path tokens. The path-level matcher must store exactly the
+    location-matching candidate, with matched_on.
+    """
+    store = str(tmp_path / "tools" / "runs.sqlite")
+    definition = {
+        "schema_version": 1,
+        "name": "check",
+        "argv": ["just", "check"],
+        "description": "check",
+        "stages": "run_silent",
+        "inputs": ["Justfile"],
+        "env": [],
+        "args": "deny",
+        "fingerprint": {"repos": [], "toolchain": {}},
+    }
+    settled_run_id = tool_run_begin(
+        {
+            "schema_version": 1,
+            "tool_name": "check",
+            "definition": definition,
+            "display_argv": ["just", "check"],
+            "project": "sase",
+            "workspace": "owner-pin-workspace",
+            "now_ts": 30,
+            "commit_running": True,
+        },
+        store_path=store,
+    )["run"]["run_id"]
+    tool_run_observe(
+        {
+            "schema_version": 1,
+            "run_id": settled_run_id,
+            "fingerprint_before": {
+                "schema_version": 1,
+                "project_identity": "sase",
+                "repos": [
+                    {"identity": "sase", "head": "owner-pin-head", "dirty_paths": []}
+                ],
+                "completeness": {"complete": True},
+            },
+        },
+        store_path=store,
+    )
+    tool_run_finish(
+        {
+            "schema_version": 1,
+            "run_id": settled_run_id,
+            "state": "failed",
+            "exit_code": 1,
+            "duration_ms": 1,
+            "now_ts": 31,
+        },
+        store_path=store,
+    )
+    settled = tool_run_triage_settle(
+        {
+            "run_id": settled_run_id,
+            "stages": [
+                {
+                    "stage_key": "lint (mypy)",
+                    "stage_id": "stage-1",
+                    "output": (
+                        "src/sase/tool/executor.py:10:5: "
+                        "error: Bad thing  [attr-defined]\n"
+                    ),
+                    "truncated": False,
+                    "output_path": "logs/stage.log",
+                }
+            ],
+            "project_root": str(tmp_path),
+            "workspace_roots": [],
+            "ancestry": ["owner-pin-head"],
+            "flake_baseline": [],
+            "selection_records": [],
+            "owner_candidates": [
+                {
+                    "node_id": "sase-900",
+                    "location": "src/sase/tool/executor.py",
+                    "title": "fix executor failure",
+                    "status": "open",
+                },
+                {
+                    "node_id": "sase-106",
+                    "location": None,
+                    "title": "gate shell handoff",
+                    "status": "open",
+                },
+            ],
+            "knobs": {"min_witnesses": 1, "touched_requires_clean_witness": False},
+            "continuation_mode": "never",
+            "recipe_finished_ts": 32,
+            "now_ts": 32,
+        },
+        store_path=store,
+    )
+    assert settled["triaged"] is True
+    shown = tool_run_triage_show({"run_id": settled_run_id}, store_path=store)
+    assert len(shown["items"]) == 1
+    assert shown["items"][0]["label"]["possible_owners"] == [
+        {
+            "id": "sase-900",
+            "status": "open",
+            "reason": "possible owner",
+            "matched_on": "location",
+        }
+    ]
