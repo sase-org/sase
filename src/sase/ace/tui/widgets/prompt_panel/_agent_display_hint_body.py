@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 from rich.text import Text
 
 from ...models._projected_record import resolve_step_output
 from ...models.agent import Agent
+from ..decks.card_block import BlockSpreadOnly, card_block_id
+from ._agent_display_agent_session import legacy_followup_shell_facts
 from ._agent_display_content import (
     get_phase_label,
     get_prompt_content,
@@ -17,10 +20,17 @@ from ._agent_display_content import (
 from ._agent_display_header import AgentHeader
 from ._agent_display_xprompt import attach_xprompt_to_identity
 from ._agent_display_hint_annotators import (
+    hint_gate_annotator,
     hint_monitor_annotator,
     render_reply_with_hints,
 )
+from ._agent_gate_section import gate_phase_text
 from ._agent_monitor_section import monitor_phase_text
+from ._agent_session_reply_blocks import (
+    block_meta_for_session_shell,
+    phase_card_block,
+    session_reply_heading,
+)
 from ._agent_xprompt_highlighting import (
     agent_prompt_highlight_context,
     apply_authored_prompt_overlays,
@@ -39,11 +49,15 @@ def render_agent_prompt_hint_body(
     hint_mappings: dict[int, str],
     workspace_dir: str | None,
     reply_text: AgentHeader,
-) -> int:
+) -> tuple[int, list[Any]]:
     """Render the xprompt, prompt, and reply/chat sections with file hints.
 
     Context sections go into ``header_text``; reply/chat sections go into
-    ``reply_text``. Returns the updated hint counter.
+    ``reply_text``. Returns the updated hint counter plus extra Reply card
+    parts: the legacy ``followup_agents`` path returns its
+    ``BlockSpreadOnly`` heading and one :class:`CardBlock` per phase here so
+    the caller can keep per-phase blocks; every other path returns no extra
+    parts and appends into ``reply_text`` as before.
     """
     # AGENT XPROMPT section (with file path hints)
     raw_xprompt = agent.get_raw_xprompt_content()
@@ -115,51 +129,60 @@ def render_agent_prompt_hint_body(
 
         # Consolidated AGENT REPLY for agents with follow-ups (with hints)
         if agent.followup_agents:
-            append_section_heading(reply_text, "AGENT REPLY")
-
-            # Main agent's phase
-            reply_text.append_text(
-                render_phase_divider(
-                    get_phase_label(agent),
-                    agent.run_start_time or agent.start_time,
-                )
-            )
-            hint_counter = render_reply_with_hints(
-                agent,
-                reply_text,
-                hint_counter,
-                hint_mappings,
-                workspace_dir,
-                humanize_text,
-            )
-
-            # Follow-up phases
-            for followup in agent.followup_agents:
-                if followup.is_monitor:
+            phases = (agent, *agent.followup_agents)
+            facts = legacy_followup_shell_facts(agent)
+            reply_blocks: list[Any] = [
+                BlockSpreadOnly(session_reply_heading(len(phases)))
+            ]
+            for number, (phase, phase_facts) in enumerate(
+                zip(phases, facts, strict=True)
+            ):
+                block_id = card_block_id(phase.identity)
+                segment = Text(end="")
+                if phase.is_monitor:
                     annotate, hint_count = hint_monitor_annotator(
                         hint_counter,
                         hint_mappings,
                         workspace_dir,
                     )
-                    reply_text.append_text(
-                        monitor_phase_text(followup, annotate=annotate)
+                    segment.append_text(
+                        monitor_phase_text(phase, annotate=annotate, block_id=block_id)
                     )
                     hint_counter = hint_count()
-                    continue
-                reply_text.append_text(
-                    render_phase_divider(
-                        get_phase_label(followup),
-                        followup.run_start_time or followup.start_time,
+                elif phase.is_gate:
+                    annotate, hint_count = hint_gate_annotator(
+                        hint_counter,
+                        hint_mappings,
+                        workspace_dir,
+                    )
+                    segment.append_text(
+                        gate_phase_text(phase, annotate=annotate, block_id=block_id)
+                    )
+                    hint_counter = hint_count()
+                else:
+                    segment.append_text(
+                        render_phase_divider(
+                            get_phase_label(phase),
+                            phase.run_start_time or phase.start_time,
+                            block_id=block_id,
+                        )
+                    )
+                    hint_counter = render_reply_with_hints(
+                        phase,
+                        segment,
+                        hint_counter,
+                        hint_mappings,
+                        workspace_dir,
+                        humanize_text,
+                    )
+                reply_blocks.append(
+                    phase_card_block(
+                        phase,
+                        [segment],
+                        meta=block_meta_for_session_shell(phase_facts, number),
                     )
                 )
-                hint_counter = render_reply_with_hints(
-                    followup,
-                    reply_text,
-                    hint_counter,
-                    hint_mappings,
-                    workspace_dir,
-                    humanize_text,
-                )
+            return hint_counter, reply_blocks
         # AGENT CHAT section for completed agents (with hints)
         elif agent.status in ("DONE", "FAILED"):
             response_content = agent.get_response_content()
@@ -239,4 +262,4 @@ def render_agent_prompt_hint_body(
     else:
         header_text.append("No prompt file found.\n", style="dim italic")
 
-    return hint_counter
+    return hint_counter, []

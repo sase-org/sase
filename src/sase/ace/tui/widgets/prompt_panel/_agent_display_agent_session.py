@@ -8,6 +8,7 @@ from typing import Any
 
 from rich.text import Text
 
+from sase.agent.status_buckets import agent_status_bucket
 from sase.gate_shell.state import GATE_GLYPH
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
@@ -304,6 +305,54 @@ def agent_session_member_label(member: Agent, agent_session_name: str) -> str:
     return name
 
 
+def legacy_followup_shell_facts(
+    agent: Agent,
+) -> tuple[AgentSessionShellFacts, ...]:
+    """Return one facts row per legacy ``followup_agents`` phase.
+
+    The legacy non-session Reply path has no session roster, so labels fall
+    back to the role-suffix phase labels and plain phases keep the global
+    agent status bucket. Chronological order is root first, then followups,
+    which is also the card-block numbering.
+    """
+    facts: list[AgentSessionShellFacts] = []
+    for member in (agent, *agent.followup_agents):
+        if member.is_monitor:
+            facts.append(
+                AgentSessionShellFacts(
+                    member=member,
+                    label=get_phase_label(member),
+                    kind="monitor",
+                    glyph=MONITOR_GLYPH,
+                    accent=MONITOR_GLYPH_COLOR,
+                    status_bucket=_monitor_roster_bucket(member),
+                )
+            )
+        elif member.is_gate:
+            facts.append(
+                AgentSessionShellFacts(
+                    member=member,
+                    label=get_phase_label(member),
+                    kind="gate",
+                    glyph=GATE_GLYPH,
+                    accent=member.gate_accent or "#0BCDEC",
+                    status_bucket=_gate_roster_bucket(member),
+                )
+            )
+        else:
+            facts.append(
+                AgentSessionShellFacts(
+                    member=member,
+                    label=get_phase_label(member),
+                    kind="agent",
+                    glyph="",
+                    accent=PHASE_DIVIDER_ACCENT,
+                    status_bucket=agent_status_bucket(member),
+                )
+            )
+    return tuple(facts)
+
+
 __all__ = [
     "SESSION_IDENTITY_COLOR",
     "AgentSessionShellFacts",
@@ -315,4 +364,5 @@ __all__ = [
     "agent_session_roster_heading_suffix",
     "agent_session_shell_facts",
     "agent_session_shell_rows",
+    "legacy_followup_shell_facts",
 ]

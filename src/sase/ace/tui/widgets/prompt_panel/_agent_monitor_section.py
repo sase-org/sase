@@ -340,10 +340,11 @@ def monitor_phase_text(
     agent: Agent,
     *,
     annotate: MonitorTextAnnotator,
+    block_id: str | None = None,
 ) -> Text:
     """Flatten ``build_monitor_phase`` into one ``Text`` for hint-mode append."""
     result = Text(end="")
-    for part in build_monitor_phase(agent, annotate=annotate):
+    for part in build_monitor_phase(agent, annotate=annotate, block_id=block_id):
         if not isinstance(part, Text):
             raise TypeError(
                 "monitor_phase_text requires annotate so every part is Text, "

@@ -236,7 +236,7 @@ class AgentHintRenderMixin:
                 hint_mappings,
                 workspace_dir,
             )
-        hint_counter = render_agent_prompt_hint_body(
+        hint_counter, reply_blocks = render_agent_prompt_hint_body(
             self,
             agent,
             header_text,
@@ -247,14 +247,18 @@ class AgentHintRenderMixin:
             reply_text,
         )
 
+        reply_parts: list[object] = []
         if reply_text.plain.strip():
+            reply_parts.append(reply_text)
+        reply_parts.extend(reply_blocks)
+        if reply_parts:
             try:
                 header_text.end = ""  # type: ignore[union-attr]
             except Exception:
                 pass
             document = card_document(
                 context_card(header_text),  # type: ignore[arg-type]
-                reply_card(reply_text),  # type: ignore[arg-type]
+                reply_card(*reply_parts),  # type: ignore[arg-type]
             )
         else:
             document = card_document(

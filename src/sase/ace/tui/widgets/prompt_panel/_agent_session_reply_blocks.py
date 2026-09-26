@@ -65,32 +65,21 @@ def block_meta_for_session_shell(
 
 def phase_card_block(
     phase: Agent,
-    number: int,
     parts: Sequence[RenderableType],
     *,
-    label: str,
-    kind: str,
-    glyph: str,
-    accent: str,
-    status_bucket: str,
+    meta: BlockMeta,
 ) -> CardBlock:
     """Wrap one phase's parts in a stably identified card block.
 
-    The explicit meta fields keep this reusable for the legacy
-    ``followup_agents`` Reply path, which falls back to role-suffix labels.
+    Callers adapt their per-phase facts through
+    :func:`block_meta_for_session_shell`: session shells pass roster facts
+    while the legacy ``followup_agents`` Reply path passes role-suffix facts.
     """
     return CardBlock(
         card_block_id(phase.identity),
         get_phase_label(phase),
         *parts,
-        meta=BlockMeta(
-            number=str(number),
-            label=label,
-            glyph=glyph,
-            accent=accent,
-            status_bucket=status_bucket,
-            kind=kind,
-        ),
+        meta=meta,
     )
 
 
@@ -105,13 +94,8 @@ def build_session_reply_blocks(
     blocks = [
         phase_card_block(
             phase,
-            number,
             render_phase(phase, card_block_id(phase.identity)),
-            label=phase_facts.label,
-            kind=phase_facts.kind,
-            glyph=phase_facts.glyph,
-            accent=phase_facts.accent,
-            status_bucket=phase_facts.status_bucket,
+            meta=block_meta_for_session_shell(phase_facts, number),
         )
         for number, (phase, phase_facts) in enumerate(zip(phases, facts, strict=True))
     ]

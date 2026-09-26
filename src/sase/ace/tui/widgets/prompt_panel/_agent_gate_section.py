@@ -316,6 +316,24 @@ def build_gate_phase(
     return parts
 
 
+def gate_phase_text(
+    agent: Agent,
+    *,
+    annotate: GateTextAnnotator,
+    block_id: str | None = None,
+) -> Text:
+    """Flatten ``build_gate_phase`` into one ``Text`` for hint-mode append."""
+    result = Text(end="")
+    for part in build_gate_phase(agent, annotate=annotate, block_id=block_id):
+        if not isinstance(part, Text):
+            raise TypeError(
+                "gate_phase_text requires annotate so every part is Text, "
+                f"got {type(part).__name__}"
+            )
+        result.append_text(part)
+    return result
+
+
 __all__ = [
     "GATE_PHASE_LABEL",
     "GATE_SECTION_ID",
@@ -323,4 +341,5 @@ __all__ = [
     "build_gate_output",
     "build_gate_phase",
     "build_gate_section",
+    "gate_phase_text",
 ]

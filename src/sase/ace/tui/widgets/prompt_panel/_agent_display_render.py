@@ -43,6 +43,13 @@ from ._agent_display_clan import (
 )
 from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_agent_session_render import AgentSessionDisplayMixin
+from ._agent_display_agent_session import legacy_followup_shell_facts
+from ._agent_session_reply_blocks import (
+    block_meta_for_session_shell,
+    phase_card_block,
+    session_reply_heading,
+)
+from ..decks.card_block import BlockSpreadOnly, card_block_id
 from ._agent_display_header import build_header_text
 from ._agent_display_header_summary import (
     clear_detail_header_summary_cache,
@@ -459,36 +466,40 @@ class AgentDisplayRenderMixin(
 
             # For agents with follow-ups, show consolidated reply
             if agent.followup_agents:
-                reply_header = Text()
-                append_section_heading(reply_header, "AGENT REPLY")
+                phases = (agent, *agent.followup_agents)
+                facts = legacy_followup_shell_facts(agent)
 
-                reply_parts: list[Any] = [
-                    *build_traceback_block(error_tb_syntax),
-                    reply_header,
-                    render_phase_divider(
-                        get_phase_label(agent),
-                        agent.run_start_time or agent.start_time,
-                    ),
-                    *render_agent_reply_content(agent, self._render_markdown),
-                ]
-
-                # Follow-up phases
-                for followup in agent.followup_agents:
-                    if followup.is_monitor:
-                        reply_parts.extend(build_monitor_phase(followup))
-                        continue
-                    if followup.is_gate:
-                        reply_parts.extend(build_gate_phase(followup))
-                        continue
-                    reply_parts.append(
+                def render_legacy_phase(phase: Agent, block_id: str) -> list[Any]:
+                    if phase.is_monitor:
+                        return build_monitor_phase(phase, block_id=block_id)
+                    if phase.is_gate:
+                        return build_gate_phase(phase, block_id=block_id)
+                    return [
                         render_phase_divider(
-                            get_phase_label(followup),
-                            followup.run_start_time or followup.start_time,
+                            get_phase_label(phase),
+                            phase.run_start_time or phase.start_time,
+                            block_id=block_id,
+                        ),
+                        *render_agent_reply_content(phase, self._render_markdown),
+                    ]
+
+                legacy_blocks = []
+                for number, (phase, phase_facts) in enumerate(
+                    zip(phases, facts, strict=True)
+                ):
+                    block_id = card_block_id(phase.identity)
+                    legacy_blocks.append(
+                        phase_card_block(
+                            phase,
+                            render_legacy_phase(phase, block_id),
+                            meta=block_meta_for_session_shell(phase_facts, number),
                         )
                     )
-                    reply_parts.extend(
-                        render_agent_reply_content(followup, self._render_markdown)
-                    )
+                reply_parts: list[Any] = [
+                    *build_traceback_block(error_tb_syntax),
+                    BlockSpreadOnly(session_reply_heading(len(phases))),
+                    *legacy_blocks,
+                ]
 
                 self.update(  # type: ignore[attr-defined]
                     card_document(
