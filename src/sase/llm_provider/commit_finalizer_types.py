@@ -26,10 +26,18 @@ class BeadStateSyncOutcome:
     ``publication_error`` holds the operator-facing diagnostic when the commit
     reached only the local checkout, so a finalizer-created bead commit cannot
     be reported as finalized while it is still invisible to everyone else.
+    ``beads_root`` is the sidecar checkout that was reconciled, if any.
+    ``remaining_files`` lists bead files still dirty after the attempt.
+    ``reconcile_error`` and ``reconcile_error_kind`` name why a dirty
+    sidecar could not be reconciled (``lock``, ``integrity``, ``commit``).
     """
 
     committed: bool = False
     publication_error: str | None = None
+    beads_root: str | None = None
+    remaining_files: tuple[str, ...] = ()
+    reconcile_error: str | None = None
+    reconcile_error_kind: str | None = None
 
 
 @dataclass(frozen=True)
