@@ -198,6 +198,7 @@ class BgCmdList(OptionList):
         bgcmd_running: dict[int, bool] | None = None,
         chop_snapshots: "dict[tuple[str, str], ChopSnapshot] | None" = None,
         lumberjack_overruns: dict[str, int] | None = None,
+        lumberjack_health: dict[str, int] | None = None,
         service_procs: "dict[str, ServiceStatusProc] | None" = None,
         empty_placeholder: Text | None = None,
     ) -> None:
@@ -222,6 +223,10 @@ class BgCmdList(OptionList):
             lumberjack_overruns: Cached count of chops at overrun level
                 ``"over"``, keyed by lumberjack name. ``None`` or a missing
                 key renders no roll-up chip.
+            lumberjack_health: Cached count of failed/timed-out/
+                missing-script chops per lumberjack (the ``!N`` badge),
+                keyed by lumberjack name. ``None`` or a missing key
+                renders no badge.
             service_procs: Cached service-proc statuses keyed by name.
             empty_placeholder: Disabled placeholder row rendered when
                 ``items`` is empty. It is not a nav item: never selectable,
@@ -285,12 +290,18 @@ class BgCmdList(OptionList):
                             if lumberjack_overruns is not None
                             else 0
                         )
+                        health_count = (
+                            lumberjack_health.get(name, 0)
+                            if lumberjack_health is not None
+                            else 0
+                        )
                         option = self._format_lumberjack_option(
                             name=name,
                             status=lumberjack_status,
                             is_selected=is_selected,
                             hint_char=hint_char,
                             overrun_count=overrun_count,
+                            health_count=health_count,
                         )
                     case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
                         snap = (
@@ -380,6 +391,7 @@ class BgCmdList(OptionList):
         is_selected: bool,
         hint_char: str | None = None,
         overrun_count: int = 0,
+        health_count: int = 0,
     ) -> Option:
         """Format a top-level lumberjack option for display."""
         return format_lumberjack_option(
@@ -388,6 +400,7 @@ class BgCmdList(OptionList):
             is_selected=is_selected,
             hint_char=hint_char,
             overrun_count=overrun_count,
+            health_count=health_count,
         )
 
     def _format_service_proc_option(

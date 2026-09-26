@@ -143,6 +143,10 @@ class AxeRefreshCollectMixin(AxeDisplayItemsMixin):
         # chop-run dashboard (Phase 4) read from these without disk I/O.
         self._axe_lumberjack_chop_names = data.lumberjack_chop_names
         if data.include_full_snapshots:
+            # Full snapshots carry the per-job runs the health badge and
+            # the first-sight builtin fold both need; remember it so a
+            # header-only pre-load never initializes a misleading fold.
+            self._axe_full_snapshot_ready = True
             self._axe_output = data.axe_output
             self._axe_lumberjack_log_tails = data.lumberjack_log_tails
             self._axe_bgcmd_details = {

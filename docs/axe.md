@@ -1381,14 +1381,24 @@ under their lifecycle owners.
 
 ### Services Tab Views
 
-The Services tab sidebar is two panels: **Service Procs** (daemon procs plus any
-background commands (`!!`) under a `── oneshots ──` divider) and **Scheduled Routines**
-(each routine as a top-level row with its configured jobs as indented children). Each
-job row shows a status marker derived from its newest cached run: active `running` /
-`launched`, successful `success` / `action_succeeded`, healthy `no_op`, policy
-`skipped`, degraded `check_error`, failed `failure` / `timeout` / `action_failed`, or
-`missing_script`. Jobs with no history remain marked as never run. Selection drives
-three distinct dashboard views:
+The Services tab sidebar is four panels: **Service Procs** (daemon procs plus any
+background commands (`!!`) under a `── oneshots ──` divider) followed by one panel per
+routine declaring source — **User Routines**, **Plugin Routines**, then **Builtin
+Routines** — each routine a top-level row with its configured jobs as indented children.
+Source is the first config layer that declared the routine, not the layer that last
+changed one of its fields: a builtin routine with a user interval override stays
+Builtin, a plugin routine with user overrides stays Plugin, and jobs always render in
+their parent routine's panel. Routines sort alphabetically within their panel so status
+or interval changes never reorder rows. `j` / `k` move across panel boundaries on the
+underlying global list, while `J` jumps to the first row of the next panel and `K` to
+the last row of the previous panel (wrapping, skipping empty panels). Builtin rows start
+folded on first sight (`ace.services.fold_builtin_routines`, default `true`); a folded
+row still reports its jobs' health as a red `!N` badge on the parent row. Each job row
+shows a status marker derived from its newest cached run: active `running` / `launched`,
+successful `success` / `action_succeeded`, healthy `no_op`, policy `skipped`, degraded
+`check_error`, failed `failure` / `timeout` / `action_failed`, or `missing_script`. Jobs
+with no history remain marked as never run. Selection drives three distinct dashboard
+views:
 
 - **Routine overview** — selecting a routine row shows its status, interval, cycle
   count, error count, and a per-job table with each job's last-run status, relative
@@ -1647,7 +1657,8 @@ child escape.
 The visible **Services** tab provides live monitoring of the service host, the
 configured service procs, and the scheduler. The sidebar splits into the Service Procs
 panel (every service proc, including the `scheduler` proc itself, plus oneshots) and the
-Scheduled Routines panel (the routine/job tree):
+User, Plugin, and Builtin Routines panels (the routine/job tree grouped by declaring
+source):
 
 - A routine tree sidebar (routine rows + their jobs as children + background-command
   rows)
@@ -1664,10 +1675,10 @@ Scheduled Routines panel (the routine/job tree):
   unhealthy (see [Service Health Pill](ace.md#service-health-pill))
 
 Select a service proc row in the Service Procs panel before pressing `x` or `r`; those
-keys intentionally do nothing on routine and job rows in the Scheduled Routines panel.
-`!x` starts or stops the whole service host. `sase tui --restart-service`
-(`--restart-axe`, `-R`) restarts an already-running host in the background after the
-TUI's first status load (it is a no-op when the host is not running); the pill keeps
-showing health throughout.
+keys intentionally do nothing on routine and job rows in the routines panels. `!x`
+starts or stops the whole service host. `sase tui --restart-service` (`--restart-axe`,
+`-R`) restarts an already-running host in the background after the TUI's first status
+load (it is a no-op when the host is not running); the pill keeps showing health
+throughout.
 
 See [`docs/ace.md`](ace.md) for the full Services tab keybinding reference.

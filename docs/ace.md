@@ -3024,18 +3024,31 @@ which case the target wins.
 
 ## Keybindings: Services Tab
 
-The visible tab is **Services**. Its sidebar is two stacked panels. The top **Service
+The visible tab is **Services**. Its sidebar is four stacked panels. The top **Service
 Procs** panel holds every service proc assembled from built-in, plugin, user, and
 machine-overlay configuration — daemon rows plus background commands (oneshot service
-procs) in a separate `── oneshots ──` section below the daemon procs. The lower
-**Scheduled Routines** panel holds every routine with its job rows nested under it. Each
-panel border title carries at-a-glance metadata (counts, status chips, and badges such
-as hidden oneshots or a non-running scheduler). `J` jumps to the first row of the next
-panel and `K` to the last row of the previous panel, wrapping around and skipping empty
-panels; `Ctrl+O` returns to where you jumped from. Service proc rows show their
-lifecycle, enablement provenance, restart state, and bounded output. The dashboard
-status line reports the service host state (`Host: <state>`). Project-local `sase.yml`
-service entries are intentionally ignored.
+procs) in a separate `── oneshots ──` section below the daemon procs. Below it, one
+panel per routine declaring source holds that source's routines with their job rows
+nested under each parent: **User Routines**, then **Plugin Routines**, then **Builtin
+Routines**. Source means the first config layer that declared the routine, not the layer
+that last changed one of its fields — a builtin routine with a user interval override
+stays Builtin, and jobs always render in their parent routine's panel. Each panel border
+title carries at-a-glance metadata (counts, status chips, and badges such as hidden
+oneshots or a non-running scheduler). `J` jumps to the first row of the next panel and
+`K` to the last row of the previous panel, wrapping around and skipping empty panels;
+`Ctrl+O` returns to where you jumped from. `j` / `k` cross panel boundaries on the
+underlying global list without selecting chrome. Service proc rows show their lifecycle,
+enablement provenance, restart state, and bounded output. The dashboard status line
+reports the service host state (`Host: <state>`). Project-local `sase.yml` service
+entries are intentionally ignored.
+
+Builtin routine rows start folded on first sight so the dense builtin list stays calm; a
+folded row still carries its jobs' health as a red `!N` badge (failed, timed-out, or
+missing-script jobs, counted from the same cached snapshots as the panel title). Folding
+applies only once those snapshots have arrived, so a header-only pre-load never hides
+rows behind a misleading fold. `h` / `l` fold and expand the focused routine, and an
+explicit fold persists for the session. `ace.services.fold_builtin_routines` (default
+`true`) controls the first-sight behavior permanently.
 
 Once service status has loaded, the info panel leads with a host clause:
 `Services · host ● running 4d · sase.service` while the host runs (uptime in its largest
@@ -3051,8 +3064,8 @@ example `crash-looping (3)`) plus the restart count (`· 5r`) whatever the state
 
 On a selected top-level service proc, `x` starts or stops it, `r` restarts it, and `!e`
 enables or disables it on this machine. Those actions are no-ops when no service proc is
-selected; in particular, `x` does not toggle the host from a routine or job row in the
-Scheduled Routines panel. Use `!x` to start or stop the service host itself. The `SVC`
+selected; in particular, `x` does not toggle the host from a routine or job row in any
+of the routine panels. Use `!x` to start or stop the service host itself. The `SVC`
 footer pill shows the running/desired service-proc count (`N/M`), or a red `!` when the
 host or a service proc is unhealthy (see [Service Health Pill](#service-health-pill)).
 The right-hand panel shows the selected proc's effective command, current and desired
@@ -3068,16 +3081,18 @@ detailed scheduler reference below still uses “Axe.”
 
 ### Sidebar Row Taxonomy
 
-The Services sidebar renders four row types across its two panels so the operational
+The Services sidebar renders four row types across its four panels so the operational
 tree reads at a glance:
 
 - **Service proc** rows live in the Service Procs panel with a solid left accent bar
   (`▌`) in the service teal, a `[*]` / `[!]` / `[~]` / `[?]` / `[-]` / `[·]` status
   marker, the proc name, and an optional state chip (restart count, disablement
   provenance, or the core's human summary).
-- **Routine** rows live in the Scheduled Routines panel as top-level sections with a
-  solid left accent bar (`▌`) in the routine hue, a `[*]` / `[!]` / `[·]`
-  running/error/idle marker, the routine name, and an optional compact `Nc / Ne`
+- **Routine** rows live in their declaring-source panel (**User**, **Plugin**, or
+  **Builtin Routines**) as top-level sections with a solid left accent bar (`▌`) in the
+  routine hue, a `[*]` / `[!]` / `[·]` running/error/idle marker, the routine name, an
+  optional overrun roll-up (`⚠N`), a red health badge (`!N`) counting failed, timed-out,
+  or missing-script jobs even when the row is folded, and an optional compact `Nc / Ne`
   cycles/errors chip at the end.
 - **Job** rows are child rows indented under their parent with a `  └─` tree connector,
   a per-run status icon (`✓` success, `!` failure/timeout, `?` missing script, `●`
@@ -3153,11 +3168,12 @@ Pressing `d` outside Patches no longer opens a diff for an unrelated Patch.
 
 Every sidebar row is rendered as single-line Rich `Text` with `no_wrap=True` and
 `overflow="ellipsis"`. After each refresh each panel computes its widest formatted row
-and its border title, and the wider of the two panels decides the sidebar width: the AXE
-container resizes between a 35-cell minimum and an 80-cell maximum, clamped further so
-the right-hand dashboard always keeps at least 40 cells. On terminals too narrow to fit
-a label even at the clamped width, the row ellipsizes rather than wrapping onto a second
-line, and a long panel title truncates with Textual's border-title ellipsis.
+and its border title, and the widest of the visible panels decides the sidebar width:
+the AXE container resizes between a 35-cell minimum and an 80-cell maximum, clamped
+further so the right-hand dashboard always keeps at least 40 cells. On terminals too
+narrow to fit a label even at the clamped width, the row ellipsizes rather than wrapping
+onto a second line, and a long panel title truncates with Textual's border-title
+ellipsis.
 
 ### Controlled-Output Highlighting and ANSI Fallback
 

@@ -51,6 +51,7 @@ def format_lumberjack_option(
     is_selected: bool,
     hint_char: str | None = None,
     overrun_count: int = 0,
+    health_count: int = 0,
 ) -> Option:
     """Format a top-level lumberjack option for display."""
     text = Text(no_wrap=True, overflow="ellipsis")
@@ -88,6 +89,15 @@ def format_lumberjack_option(
     if overrun_count > 0:
         text.append("  ")
         text.append(f"⚠{overrun_count}", style="bold #FFAF5F")
+
+    # Health roll-up: failed / timed-out / missing-script jobs under this
+    # routine, counted from the same cached snapshots as the panel title.
+    # Rendered even when the routine's children are folded so a collapsed
+    # builtin still reports trouble at the parent row. Zero (or no
+    # snapshots yet) renders no badge.
+    if health_count > 0:
+        text.append("  ")
+        text.append(f"!{health_count}", style="bold red")
 
     # Optional compact status chip: cycles run / errors when known.
     # Keeps the row a single line — the chip is appended at the end

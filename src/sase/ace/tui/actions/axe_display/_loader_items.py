@@ -213,21 +213,52 @@ class AxeDisplayItemsMixin(AxeLoaderState):
             ordered.extend(sorted(buckets[key]))
         return ordered
 
+    def _fold_builtin_on_first_sight(self, lumberjack_name: str) -> bool:
+        """Return whether a first-seen routine row starts folded.
+
+        Only builtin routines fold, only when the permanent
+        ``ace.services.fold_builtin_routines`` preference is on, and only
+        once the full job snapshots needed for the health badge have
+        arrived — a header-only pre-load must not initialize a misleading
+        fold. Explicit user folds are stored, so this runs once per
+        routine and never overrides the user; User and Plugin routines
+        always start expanded.
+        """
+        if not getattr(self, "_axe_fold_builtin_routines", True):
+            return False
+        if not getattr(self, "_axe_full_snapshot_ready", False):
+            return False
+        origins = getattr(self, "_axe_routine_origins", None) or {}
+        origin = origins.get(lumberjack_name)
+        if origin is None:
+            return False
+        source = getattr(origin, "source", origin)
+        if isinstance(origin, dict):
+            candidate = origin.get("source", source)
+            if isinstance(candidate, str):
+                source = candidate
+        return source == "builtin"
+
     def _append_lumberjack_items(self, items: list[AxeItem]) -> None:
         """Append routine/job rows to ``items`` using per-routine fold state."""
-        from ...models.fold_state import FoldLevel
+        from ...models.fold_state import FoldLevel, FoldStateManager
 
+        fold_manager: FoldStateManager = self._axe_fold_manager
         # Top-level lumberjacks, each followed by its configured chops
         # when its per-lumberjack fold is expanded. First-time sightings
-        # default to expanded so chops are visible without an extra keystroke.
+        # default to expanded so chops are visible without an extra
+        # keystroke, except builtin routines under the fold preference.
         # Order is panel order (User → Plugin → Builtin), then alphabetical
         # by routine so status or interval changes never reorder rows.
         for lumberjack_name in self._ordered_routine_names_by_source():
             items.append(LumberjackItem(name=lumberjack_name))
             fold_key = f"lumberjack:{lumberjack_name}"
-            if not self._axe_fold_manager.has(fold_key):
-                self._axe_fold_manager.expand(fold_key)
-            if self._axe_fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
+            if not fold_manager.has(fold_key):
+                if self._fold_builtin_on_first_sight(lumberjack_name):
+                    fold_manager.restore_levels({fold_key: FoldLevel.COLLAPSED})
+                else:
+                    fold_manager.expand(fold_key)
+            if fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
                 for chop_name in self._axe_lumberjack_chop_names.get(
                     lumberjack_name, []
                 ):

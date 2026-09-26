@@ -1583,6 +1583,18 @@
           "description": "Whether the Services-tab description panel for service procs, routines, and jobs starts expanded; the configured toggle key changes this only for the current sase's TUI session.",
           "default": true
         },
+        "services": {
+          "type": "object",
+          "description": "Settings for sase's TUI Services tab routine panels",
+          "additionalProperties": false,
+          "properties": {
+            "fold_builtin_routines": {
+              "type": "boolean",
+              "description": "Whether builtin routine rows start folded on first sight; explicit folds always win for the TUI session.",
+              "default": true
+            }
+          }
+        },
         "page_size": {
           "type": "integer",
           "description": "Ctrl+J / Ctrl+K step and the default Artifacts limit: value.",

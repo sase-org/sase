@@ -274,6 +274,67 @@ def test_build_groups_routines_by_source_panel_order() -> None:
     ]
 
 
+def _seed_sourced_routines(app: FakePanelsApp, *, ready: bool, pref: bool) -> None:
+    app._service_status = _service_snapshot("scheduler")
+    app._bgcmd_slots = []
+    app._axe_lumberjack_names = ["mine", "plug", "housekeeping"]
+    app._axe_routine_origins = {
+        "mine": SimpleNamespace(source="user"),
+        "plug": SimpleNamespace(source="plugin"),
+        "housekeeping": SimpleNamespace(source="builtin"),
+    }
+    app._axe_lumberjack_chop_names = {
+        "mine": ["a"],
+        "plug": ["b"],
+        "housekeeping": ["c"],
+    }
+    app._axe_fold_builtin_routines = pref
+    app._axe_full_snapshot_ready = ready
+    app._build_axe_items()
+
+
+def _row_names(app: FakePanelsApp) -> list[str]:
+    return [type(item).__name__ for item in app._axe_items]
+
+
+def test_builtin_folds_on_first_sight_once_snapshots_ready() -> None:
+    from sase.ace.tui.models.fold_state import FoldLevel
+
+    app = FakePanelsApp()
+    _seed_sourced_routines(app, ready=True, pref=True)
+    # Builtin children stay folded; user and plugin rows stay expanded.
+    assert _row_names(app) == [
+        "ServiceProcItem",
+        "LumberjackItem",
+        "ChopItem",
+        "LumberjackItem",
+        "ChopItem",
+        "LumberjackItem",
+    ]
+    assert app._axe_fold_manager.get("lumberjack:housekeeping") is FoldLevel.COLLAPSED
+
+
+def test_builtin_stays_expanded_before_snapshots_ready() -> None:
+    app = FakePanelsApp()
+    _seed_sourced_routines(app, ready=False, pref=True)
+    # A header-only pre-load must not initialize a misleading fold.
+    assert _row_names(app).count("ChopItem") == 3
+
+
+def test_builtin_stays_expanded_when_preference_off() -> None:
+    app = FakePanelsApp()
+    _seed_sourced_routines(app, ready=True, pref=False)
+    assert _row_names(app).count("ChopItem") == 3
+
+
+def test_explicit_builtin_expand_survives_rebuild() -> None:
+    app = FakePanelsApp()
+    _seed_sourced_routines(app, ready=True, pref=True)
+    app._axe_fold_manager.expand("lumberjack:housekeeping")
+    app._build_axe_items()
+    assert _row_names(app).count("ChopItem") == 3
+
+
 def test_paint_hides_empty_routine_panels() -> None:
     app = FakeMountedApp()
     _seed_items(app)

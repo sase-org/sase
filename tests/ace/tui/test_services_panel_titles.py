@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from sase.ace.tui.actions.axe_display._panel_titles import (
     ROUTINE_PANEL_LABELS,
+    routine_health_count,
     scheduled_routines_panel_stats,
     scheduled_routines_panel_title,
     service_procs_panel_stats,
@@ -285,3 +286,53 @@ def test_source_title_singular_job() -> None:
     title = source_routine_panel_title(stats, focused=True, label="User Routines")
     assert "1 job" in title.plain
     assert "1 jobs" not in title.plain
+
+
+def test_routine_health_count_marks_failures_and_missing() -> None:
+    chop_names = {"housekeeping": ["a", "b", "c", "d", "e", "f", "g"]}
+    chop_snapshots = {
+        ("housekeeping", "a"): _chop_snapshot("failure"),
+        ("housekeeping", "b"): _chop_snapshot("timeout"),
+        ("housekeeping", "c"): _chop_snapshot("missing_script"),
+        ("housekeeping", "d"): _chop_snapshot("success"),
+        ("housekeeping", "e"): _chop_snapshot("running"),
+        # ("housekeeping", "f") has no snapshot yet: still loading, not
+        # counted, and never suppresses the failures above.
+        ("housekeeping", "g"): SimpleNamespace(runs=[]),
+    }
+    assert routine_health_count("housekeeping", chop_names, chop_snapshots) == 3
+
+
+def test_routine_health_count_healthy_is_zero() -> None:
+    chop_names = {"hooks": ["fast"]}
+    assert (
+        routine_health_count(
+            "hooks", chop_names, {("hooks", "fast"): _chop_snapshot("success")}
+        )
+        == 0
+    )
+    # No snapshots yet (loading) reads as zero, never as health claimed.
+    assert routine_health_count("hooks", chop_names, {}) == 0
+    assert routine_health_count("unknown", chop_names, {}) == 0
+
+
+def test_routine_health_count_matches_title_badges() -> None:
+    chop_names = {"hooks": ["a", "b", "c"], "waits": ["d"]}
+    chop_snapshots = {
+        ("hooks", "a"): _chop_snapshot("failure"),
+        ("hooks", "b"): _chop_snapshot("missing_script"),
+        ("hooks", "c"): _chop_snapshot("success"),
+        ("waits", "d"): _chop_snapshot("timeout"),
+    }
+    stats = scheduled_routines_panel_stats(
+        routine_names=["hooks", "waits"],
+        statuses={},
+        chop_names=chop_names,
+        chop_snapshots=chop_snapshots,
+        overrun_counts={},
+    )
+    per_routine = sum(
+        routine_health_count(name, chop_names, chop_snapshots)
+        for name in ("hooks", "waits")
+    )
+    assert per_routine == stats.jobs_failed + stats.jobs_missing == 3

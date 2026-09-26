@@ -294,6 +294,12 @@ ace:
   repro_output_dir: ""
   # Press d on the Services tab to toggle this state for the current session.
   axe_description_expanded: true
+  services:
+    # Fold Builtin Routines panel rows on first sight so dense builtin
+    # navigation stays calm. Applies only once the cached job snapshots
+    # needed for the per-routine health badge are ready; explicit h/l
+    # folds always win and persist for the TUI session.
+    fold_builtin_routines: true
   # Ctrl+J / Ctrl+K step and the default Artifacts limit: value.
   page_size: 100
   snippets: {}

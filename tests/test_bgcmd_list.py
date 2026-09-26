@@ -28,6 +28,24 @@ def test_bgcmd_list_format_lumberjack_option_selected() -> None:
     assert option.id == "lumberjack-hooks"
 
 
+def test_bgcmd_list_lumberjack_health_badge() -> None:
+    """A routine with unhealthy jobs keeps its !N badge on the parent row."""
+    widget = BgCmdList()
+    option = widget._format_lumberjack_option(
+        name="housekeeping", status=None, is_selected=False, health_count=1
+    )
+    assert "!1" in str(option.prompt)
+
+
+def test_bgcmd_list_lumberjack_health_badge_absent_when_zero() -> None:
+    """Healthy (or still-loading) routines render no health badge."""
+    widget = BgCmdList()
+    option = widget._format_lumberjack_option(
+        name="hooks", status=None, is_selected=False, health_count=0
+    )
+    assert "!" not in str(option.prompt)
+
+
 def test_bgcmd_list_format_bgcmd_option_long_command() -> None:
     """Long bgcmd labels are no longer hard-truncated by the formatter; the
     widget posts a wider :class:`BgCmdList.WidthChanged` instead and Rich's

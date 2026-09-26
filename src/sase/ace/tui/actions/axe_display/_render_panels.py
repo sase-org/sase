@@ -175,6 +175,14 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
             name: snap.overrun_chop_count
             for name, snap in self._axe_lumberjack_snapshots.items()
         }
+        from ._panel_titles import routine_health_count
+
+        lumberjack_health = {
+            name: routine_health_count(
+                name, self._axe_lumberjack_chop_names, self._axe_chop_snapshots
+            )
+            for name in self._axe_lumberjack_names
+        }
         service_snapshot = getattr(self, "_service_status", None)
         service_procs = (
             None
@@ -221,6 +229,7 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
                 bgcmd_running=bgcmd_running_cache,
                 chop_snapshots=self._axe_chop_snapshots,
                 lumberjack_overruns=lumberjack_overruns,
+                lumberjack_health=lumberjack_health,
                 service_procs=service_procs,
                 empty_placeholder=empty_placeholder,
             )

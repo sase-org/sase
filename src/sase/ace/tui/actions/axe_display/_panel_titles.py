@@ -56,6 +56,37 @@ _JOB_MISSING_BADGE = ("?", "bold yellow")
 _JOB_OVERRUN_BADGE = "⚠"
 _JOB_OVERRUN_STYLE = "bold #FFAF5F"
 
+# Job statuses that mark a routine unhealthy on its collapsed row. This is
+# the same set the panel title counts as failed/missing, so the routine
+# badge and the title badges always agree.
+UNHEALTHY_JOB_STATUSES = frozenset({"failure", "timeout", "missing_script"})
+
+_ROUTINE_HEALTH_BADGE_STYLE = "bold red"
+
+
+def routine_health_count(
+    routine: str,
+    chop_names: dict[str, list[str]],
+    chop_snapshots: dict[tuple[str, str], Any],
+) -> int:
+    """Return the ``!N`` health count for one routine row.
+
+    Counts every configured/generated job of ``routine`` once when its
+    newest cached run is failed, timed out, or missing its script. Jobs
+    with no snapshot yet (still loading) contribute nothing, so a
+    half-loaded cache never claims health it has not observed — and a
+    healthy routine yields ``0`` (the row renders no badge).
+    """
+    count = 0
+    for chop in chop_names.get(routine, []):
+        snap = chop_snapshots.get((routine, chop))
+        runs = getattr(snap, "runs", ()) if snap is not None else ()
+        if not runs:
+            continue
+        if getattr(runs[0].entry, "status", "") in UNHEALTHY_JOB_STATUSES:
+            count += 1
+    return count
+
 
 @dataclass(frozen=True)
 class ServiceProcsPanelStats:
@@ -229,10 +260,11 @@ def scheduled_routines_panel_stats(
             latest = getattr(runs[0].entry, "status", "")
             if latest == "running":
                 jobs_running += 1
-            elif latest in ("failure", "timeout"):
-                jobs_failed += 1
-            elif latest == "missing_script":
-                jobs_missing += 1
+            elif latest in UNHEALTHY_JOB_STATUSES:
+                if latest == "missing_script":
+                    jobs_missing += 1
+                else:
+                    jobs_failed += 1
     overruns = sum(overrun_counts.get(name, 0) for name in routine_names)
     scheduler_badge_text: str | None = None
     scheduler_badge_style = ""

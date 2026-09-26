@@ -114,9 +114,14 @@ def init_late_startup_state(
     self._axe_pending_selection = None
     self._axe_config_restart_saved_path = None
     # Per-lumberjack fold keys ("lumberjack:<name>") are initialized
-    # to EXPANDED lazily in ``_build_axe_items`` the first time each
-    # lumberjack is seen.
+    # lazily in ``_build_axe_items`` the first time each lumberjack is
+    # seen: expanded, except builtin routines when the
+    # ``ace.services.fold_builtin_routines`` preference is on and the
+    # full job snapshots needed for the health badge have arrived.
     self._axe_fold_manager = FoldStateManager()
+    # Flipped once the first full-snapshot collector payload lands, so a
+    # header-only pre-load never initializes a misleading builtin fold.
+    self._axe_full_snapshot_ready = False
 
     # Query history stacks for prev/next navigation, namespaced by
     # Artifacts pane id.
@@ -153,6 +158,15 @@ def init_late_startup_state(
     )
     self._reactive_axe_description_expanded = (
         description_expanded if isinstance(description_expanded, bool) else True
+    )
+    services_cfg = ace_cfg.get("services", {}) if isinstance(ace_cfg, dict) else {}
+    fold_builtin = (
+        services_cfg.get("fold_builtin_routines", True)
+        if isinstance(services_cfg, dict)
+        else True
+    )
+    self._axe_fold_builtin_routines = (
+        fold_builtin if isinstance(fold_builtin, bool) else True
     )
     artifacts_cfg = ace_cfg.get("artifacts", {}) if isinstance(ace_cfg, dict) else {}
     relations_expanded = (

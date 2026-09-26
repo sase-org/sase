@@ -80,6 +80,12 @@ class AxeLoaderState:
     _axe_painted_panel_key: str
     _axe_pending_selection: Any
     _axe_fold_manager: FoldStateManager
+    # Permanent ``ace.services.fold_builtin_routines`` preference (default
+    # True): fold builtin routine rows on first sight.
+    _axe_fold_builtin_routines: bool
+    # True once a full-snapshot collector payload has landed; gates the
+    # first-sight builtin fold so header-only pre-loads never mislead.
+    _axe_full_snapshot_ready: bool
     # Caches populated by the async collector so navigation paints without I/O.
     _axe_lumberjack_statuses: dict[str, LumberjackStatus | None]
     _axe_lumberjack_metrics: dict[str, LumberjackMetrics | None]
