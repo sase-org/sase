@@ -33,30 +33,35 @@ description:
 `%` directives are stripped before the model sees the prompt and use xprompt arg
 grammar.
 
-| Directive                | Alias  | Effect                                                                                 |
-| ------------------------ | ------ | -------------------------------------------------------------------------------------- |
-| `%model:<m>`             | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")`  |
-| `%effort:<lvl>`          | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                               |
-| `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(<suffix>, session=<parent>)` session child              |
-| `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                     |
-| `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                   |
-| `%queue:<n>`             | `%q`   | Runner-queue admission: positional `capacity`; `(capacity=, priority=/p=, weight=/w=)` |
-| `%final[:ops]`           |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords                |
-| `%repeat:<k>`            | `%r`   | k serial, auto-wait-chained runs                                                       |
-| `%auto[:plan/tale/epic]` | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                 |
-| `%hide`                  | `%h`   | Hidden row                                                                             |
-| `%{a \| b}`              | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                 |
+| Directive                | Alias  | Effect                                                                                                 |
+| ------------------------ | ------ | ------------------------------------------------------------------------------------------------------ |
+| `%model:<m>`             | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")`                  |
+| `%effort:<lvl>`          | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                                               |
+| `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(<suffix>, session=<parent>)` session child                              |
+| `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                                     |
+| `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                                   |
+| `%queue:<n>`             | `%q`   | Runner-queue admission: positional `capacity` (`N` or `<M>x`); `(capacity=, priority=/p=, weight=/w=)` |
+| `%final[:ops]`           |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords                                |
+| `%repeat:<k>`            | `%r`   | k serial, auto-wait-chained runs                                                                       |
+| `%auto[:plan/tale/epic]` | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                                 |
+| `%hide`                  | `%h`   | Hidden row                                                                                             |
+| `%{a \| b}`              | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                                 |
 
 `%model` is single-value; fan out models with `%{%m:opus | %m:sonnet}`.
 
 `%wait` covers dependencies and time floors only; `runners=`/`priority=` permanently
 moved to `%queue`/`%q` and raise a migration error on `%wait`. Authored `runners=` on
 `%queue` is also a migration error naming `capacity=`. `%queue`/`%q` accept a positive
-positional `capacity` (colon or parenthesized) plus parenthesized
+`capacity` (positional, colon or parenthesized) plus parenthesized
 `capacity=`/`priority=`/`p=`/`weight=`/`w=`; `p` canonicalizes to `priority` and `w` to
-`weight`. Capacity is this launch's admission budget: occupied load plus the candidate's
-weight must fit within authored positive integer `N`, replacing the global
-`max_running_agents` limit for that launch only. `%q:1` is the run-alone barrier for a
+`weight`. Capacity is either a positive integer `N` or an `<M>x` multiplier of the live
+effective `max_running_agents` budget: `M` must be finite and greater than zero with at
+most two decimal places, formatting canonically with trailing zeros trimmed (`1.50x`
+reads as `1.5x`). The multiplier resolves at admission time against the current
+effective limit, rounded to two decimals, so `%q(1.5x, w=0.25)` with an effective limit
+of 5 admits against a 7.5 budget. A fixed `N` replaces the global limit for that launch
+only; a multiplier scales with it instead: occupied load plus the candidate's weight
+must fit within the resolved budget. `%q:1` is the run-alone barrier for a
 default-weight launch; authored `capacity=0` is rejected. Each canonical field may occur
 once per launch unit across occurrences/aliases; disjoint fields compose, e.g.
 `%w(builder, time=5m) %q(1, p=20)`. Bare/empty `%q` never acquires `%wait`'s
