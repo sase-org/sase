@@ -2207,6 +2207,12 @@
               "description": "A multi-card deck renders spread (every card on one scrollable page) when its cards fit within this many panel viewport heights, and paged otherwise. 0 means always paged.",
               "minimum": 0,
               "default": 1.5
+            },
+            "block_spread_max_screens": {
+              "type": "number",
+              "description": "A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel viewport heights, and paged (one block at a time) otherwise. 0 means always one block per page.",
+              "minimum": 0,
+              "default": 1.5
             }
           }
         },

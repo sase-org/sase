@@ -385,6 +385,15 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19i(node_finder_preview_token)' \
         --epic-symbol 'sase-19i(NodeFinderModal)' \
         --epic-symbol 'sase-19i(NodeFinderResult)' \
+        --epic-symbol 'sase-19x(BlockCursor)' \
+        --epic-symbol 'sase-19x(arrived_ids)' \
+        --epic-symbol 'sase-19x(cycle_block_id)' \
+        --epic-symbol 'sase-19x(decide_block_mode)' \
+        --epic-symbol 'sase-19x(derive_spread_block)' \
+        --epic-symbol 'sase-19x(land_cursor)' \
+        --epic-symbol 'sase-19x(reconcile_cursor)' \
+        --epic-symbol 'sase-19x(select_cursor)' \
+        --epic-symbol 'sase-19x(step_cursor)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

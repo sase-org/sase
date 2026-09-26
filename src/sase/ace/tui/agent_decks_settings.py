@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 DEFAULT_SPREAD_MAX_SCREENS = 1.5
+DEFAULT_BLOCK_SPREAD_MAX_SCREENS = 1.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +14,7 @@ class AgentDecksSettings:
     """Cached agent-deck behavior settings used by ACE."""
 
     spread_max_screens: float = DEFAULT_SPREAD_MAX_SCREENS
+    block_spread_max_screens: float = DEFAULT_BLOCK_SPREAD_MAX_SCREENS
 
 
 DEFAULT_AGENT_DECKS_SETTINGS = AgentDecksSettings()
@@ -32,21 +34,27 @@ def parse_agent_decks_settings(ace_cfg: object) -> AgentDecksSettings:
         return DEFAULT_AGENT_DECKS_SETTINGS
     return AgentDecksSettings(
         spread_max_screens=_coerce_screens(raw.get("spread_max_screens")),
+        block_spread_max_screens=_coerce_screens(
+            raw.get("block_spread_max_screens"),
+            DEFAULT_BLOCK_SPREAD_MAX_SCREENS,
+        ),
     )
 
 
-def _coerce_screens(value: object) -> float:
+def _coerce_screens(
+    value: object, default: float = DEFAULT_SPREAD_MAX_SCREENS
+) -> float:
     if isinstance(value, bool):
-        return DEFAULT_SPREAD_MAX_SCREENS
+        return default
     if isinstance(value, int):
         if value < 0:
-            return DEFAULT_SPREAD_MAX_SCREENS
+            return default
         return float(value)
     if isinstance(value, float):
         if value < 0:
-            return DEFAULT_SPREAD_MAX_SCREENS
+            return default
         return value
-    return DEFAULT_SPREAD_MAX_SCREENS
+    return default
 
 
 def agent_decks_settings_for(widget: object) -> AgentDecksSettings:
@@ -63,6 +71,7 @@ def agent_decks_settings_for(widget: object) -> AgentDecksSettings:
 
 __all__ = [
     "DEFAULT_AGENT_DECKS_SETTINGS",
+    "DEFAULT_BLOCK_SPREAD_MAX_SCREENS",
     "DEFAULT_SPREAD_MAX_SCREENS",
     "AgentDecksSettings",
     "agent_decks_settings_for",

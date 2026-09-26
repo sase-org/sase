@@ -9,6 +9,7 @@ from rich.text import Text
 
 from sase.ace.tui.agent_decks_settings import (
     DEFAULT_AGENT_DECKS_SETTINGS,
+    DEFAULT_BLOCK_SPREAD_MAX_SCREENS,
     AgentDecksSettings,
     agent_decks_settings_for,
     parse_agent_decks_settings,
@@ -51,6 +52,32 @@ def test_settings_parser() -> None:
     assert parse_agent_decks_settings(
         {"agent_decks": {"spread_max_screens": 2.5}}
     ) == AgentDecksSettings(spread_max_screens=2.5)
+    assert DEFAULT_BLOCK_SPREAD_MAX_SCREENS == 1.5
+    assert parse_agent_decks_settings(
+        {"agent_decks": {"block_spread_max_screens": True}}
+    ) == (DEFAULT_AGENT_DECKS_SETTINGS)
+    assert (
+        parse_agent_decks_settings({"agent_decks": {"block_spread_max_screens": "1.5"}})
+        == DEFAULT_AGENT_DECKS_SETTINGS
+    )
+    assert (
+        parse_agent_decks_settings({"agent_decks": {"block_spread_max_screens": -1}})
+        == DEFAULT_AGENT_DECKS_SETTINGS
+    )
+    assert parse_agent_decks_settings(
+        {"agent_decks": {"block_spread_max_screens": 0}}
+    ) == AgentDecksSettings(spread_max_screens=1.5, block_spread_max_screens=0.0)
+    assert parse_agent_decks_settings(
+        {"agent_decks": {"block_spread_max_screens": 2}}
+    ) == AgentDecksSettings(spread_max_screens=1.5, block_spread_max_screens=2.0)
+    assert parse_agent_decks_settings(
+        {
+            "agent_decks": {
+                "spread_max_screens": 2.5,
+                "block_spread_max_screens": 0.5,
+            }
+        }
+    ) == AgentDecksSettings(spread_max_screens=2.5, block_spread_max_screens=0.5)
 
 
 def test_settings_helper_fails_open() -> None:
@@ -203,14 +230,24 @@ def test_config_schema_agent_decks_parity() -> None:
     )
     validator.validate({"ace": {"agent_decks": {"spread_max_screens": 1.5}}})
     validator.validate({"ace": {"agent_decks": {"spread_max_screens": 0}}})
-    assert default_config["ace"]["agent_decks"] == {"spread_max_screens": 1.5}
+    validator.validate({"ace": {"agent_decks": {"block_spread_max_screens": 1.5}}})
+    validator.validate({"ace": {"agent_decks": {"block_spread_max_screens": 0}}})
+    assert default_config["ace"]["agent_decks"] == {
+        "spread_max_screens": 1.5,
+        "block_spread_max_screens": 1.5,
+    }
     assert agent_decks["additionalProperties"] is False
     assert agent_decks["properties"]["spread_max_screens"]["default"] == 1.5
     assert agent_decks["properties"]["spread_max_screens"]["minimum"] == 0
+    assert agent_decks["properties"]["block_spread_max_screens"]["default"] == 1.5
+    assert agent_decks["properties"]["block_spread_max_screens"]["minimum"] == 0
     for invalid in (
         {"spread_max_screens": "1.5"},
         {"spread_max_screens": -1},
         {"spread_max_screens": True},
+        {"block_spread_max_screens": "1.5"},
+        {"block_spread_max_screens": -1},
+        {"block_spread_max_screens": True},
         {"unknown": True},
     ):
         with pytest.raises(ValidationError):

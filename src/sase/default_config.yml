@@ -414,6 +414,10 @@ ace:
     # its cards fit within this many panel viewport heights ("screens"), and
     # "paged" (one card at a time) otherwise. 0 means always paged.
     spread_max_screens: 1.5
+    # A card shown alone renders its card blocks "spread" (all inline) when the
+    # card fits within this many panel viewport heights, and "paged" (one block
+    # at a time) otherwise. 0 means always one block per page.
+    block_spread_max_screens: 1.5
   agent_header:
     # Fraction of the Agents tab detail column's height that the collapsed
     # header may occupy in total (border, chip rows, and the XPROMPT tab row
