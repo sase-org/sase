@@ -42,11 +42,6 @@ def normalize_gate_fork(value: object, *, persisted: bool = False) -> object:
     )
 
 
-def normalize_persisted_gate_fork(value: object) -> object:
-    """Normalize a pre-rename durable gate fork regardless of the sunset flag."""
-    return normalize_gate_fork(value, persisted=True)
-
-
 def normalize_gate_spec_block(spec: Mapping[str, Any]) -> dict[str, Any]:
     """Return *spec* with a legacy ``shell`` block moved to ``turn`` when allowed.
 
@@ -179,7 +174,6 @@ __all__ = [
     "normalize_gate_shell_bool_args",
     "normalize_gate_spec_block",
     "normalize_persisted_continuation_mode",
-    "normalize_persisted_gate_fork",
     "normalize_persisted_gate_spec_block",
     "normalize_proc_name_args",
     "normalize_reclaim_config",
