@@ -364,8 +364,10 @@ _lint-patch-stitch-terminology: _setup
 # that first consumes its symbols (sase-17x.9 consumed ensure_command_line_spec
 # and CompletionSpecCacheError; sase-18g.3 consumed the agent-header preview
 # symbols keyed to the sase-18g epic). sase-18j.7 consumed the triage
-# wrappers and sase-18j.8 consumed tool_run_failures. The queue multiplier
-# seams await sase-19f.4's display and editing surfaces. sase-19x.3 consumed
+# wrappers and sase-18j.8 consumed tool_run_failures. sase-19f.6 consumed
+# the queue multiplier seams (format_queue_capacity_multiplier,
+# resolve_queue_capacity_multiplier, parse_queue_capacity_value) in its display
+# surfaces. sase-19x.3 consumed
 # the card-block seams (BlockMeta, card_block_id) in its session Reply builder,
 # and sase-19x.4 consumed the reply-block seams (phase_card_block,
 # block_meta_for_session_shell, session_reply_heading) in the legacy
@@ -384,8 +386,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19x.4(phase_card_block)' \
         --epic-symbol 'sase-19x.4(block_meta_for_session_shell)' \
         --epic-symbol 'sase-19x.4(session_reply_heading)' \
-        --epic-symbol 'sase-19f(format_queue_capacity_multiplier)' \
-        --epic-symbol 'sase-19f(resolve_queue_capacity_multiplier)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
         {{ args }}

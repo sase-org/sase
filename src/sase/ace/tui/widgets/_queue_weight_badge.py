@@ -127,11 +127,9 @@ def format_queue_capacity_badge_value(
     explicit: bool,
     multiplier: object | None = None,
 ) -> str | None:
-    if not explicit:
-        return None
     capacity_int = _queue_capacity_int(capacity)
     if capacity_int is not None:
-        return str(capacity_int)
+        return str(capacity_int) if explicit else None
     if multiplier is None:
         return None
     from sase.xprompt.queue_directive import format_queue_capacity_multiplier
@@ -147,12 +145,14 @@ def queue_capacity_badge_number_style(
     multiplier: object | None = None,
 ) -> str:
     """Return the badge number style for an authored capacity value."""
-    if _multiplier_over_limit(multiplier if explicit else None):
-        return QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE
-    if _capacity_over_effective_limit(
-        capacity if explicit else None,
-        effective_limit,
-    ):
+    if _queue_capacity_int(capacity) is not None:
+        if _capacity_over_effective_limit(
+            capacity if explicit else None,
+            effective_limit,
+        ):
+            return QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE
+        return QUEUE_CAPACITY_BADGE_NUMBER_STYLE
+    if _multiplier_over_limit(multiplier):
         return QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE
     return QUEUE_CAPACITY_BADGE_NUMBER_STYLE
 

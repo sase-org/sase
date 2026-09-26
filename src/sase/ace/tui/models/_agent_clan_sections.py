@@ -456,12 +456,25 @@ def _waiting_digest(row: Agent) -> tuple[str, ...]:
         parts.append(f"until {row.wait_until}")
     if row.wait_runners is not None:
         parts.append(f"c{row.wait_runners}")
+    elif row.queue_capacity is None:
+        formatted = _authored_multiplier_label(row.queue_capacity_multiplier)
+        if formatted is not None:
+            parts.append(f"c{formatted}")
     if row.runner_slot_queue_position is not None:
         queue = f"queue #{row.runner_slot_queue_position}"
         if row.runner_slot_queue_size is not None:
             queue += f"/{row.runner_slot_queue_size}"
         parts.append(queue)
     return tuple(parts)
+
+
+def _authored_multiplier_label(multiplier: object) -> str | None:
+    """Return the formatted multiplier when it stands in for absent capacity."""
+    if multiplier is None:
+        return None
+    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+    return format_queue_capacity_multiplier(multiplier)
 
 
 def _retry_digest(row: Agent) -> tuple[str, ...]:

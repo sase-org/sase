@@ -136,7 +136,7 @@ def append_runner_queue_section(
             (
                 _queue_entry_capacity_badge_width(entry)
                 for entry in queue
-                if entry.wait_runners_explicit
+                if entry.wait_runners_explicit or _entry_has_authored_multiplier(entry)
             ),
             default=0,
         )
@@ -352,11 +352,20 @@ def _queue_entry_capacity_detail(entry: RunnerQueueEntry) -> str:
     return " · ".join(dict.fromkeys(labels))
 
 
+def _entry_has_authored_multiplier(entry: RunnerQueueEntry) -> bool:
+    """Return whether a valid multiplier stands in for absent integer capacity."""
+    if entry.threshold is not None or entry.capacity_multiplier is None:
+        return False
+    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+    return format_queue_capacity_multiplier(entry.capacity_multiplier) is not None
+
+
 def _queue_entry_capacity_parts(entry: RunnerQueueEntry) -> tuple[str, ...]:
     free = _queue_entry_free_capacity(entry)
     capacity_budget = (
         queue_capacity_budget_display_enabled()
-        and entry.wait_runners_explicit
+        and (entry.wait_runners_explicit or _entry_has_authored_multiplier(entry))
         and free is not None
     )
     if format_queue_weight_badge_value(

@@ -265,7 +265,7 @@ def build_wait_lanes(
         )
         multiplier = wait_agent.queue_capacity_multiplier
         threshold = capacity if capacity is not None else 0
-        if capacity_explicit and multiplier is not None and capacity is None:
+        if multiplier is not None and capacity is None:
             from sase.xprompt.queue_directive import (
                 format_queue_capacity_multiplier,
                 resolve_queue_capacity_multiplier,
@@ -358,7 +358,19 @@ def _runner_wait_has_detail(agent: Agent) -> bool:
         )
         is not None
         or _runner_capacity_explanation_blockers(agent)
+        or _has_authored_capacity_multiplier(agent)
     )
+
+
+def _has_authored_capacity_multiplier(agent: Agent) -> bool:
+    """Return whether a valid multiplier stands in for absent integer capacity."""
+    if agent.queue_capacity is not None or agent.wait_runners is not None:
+        return False
+    if agent.queue_capacity_multiplier is None:
+        return False
+    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+    return format_queue_capacity_multiplier(agent.queue_capacity_multiplier) is not None
 
 
 def _runner_capacity_parts(agent: Agent) -> tuple[str, ...]:

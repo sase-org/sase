@@ -54,7 +54,8 @@ def test_badge_value_formats_multiplier() -> None:
         format_queue_capacity_badge_value(None, explicit=True, multiplier=1.5) == "1.5x"
     )
     assert (
-        format_queue_capacity_badge_value(None, explicit=False, multiplier=1.5) is None
+        format_queue_capacity_badge_value(None, explicit=False, multiplier=1.5)
+        == "1.5x"
     )
     assert (
         format_queue_capacity_badge_value(None, explicit=True, multiplier=None) is None
@@ -82,7 +83,7 @@ def test_badge_style_marks_multiplier_above_one_over_limit() -> None:
         queue_capacity_badge_number_style(
             None, explicit=False, effective_limit=5.0, multiplier=1.5
         )
-        == QUEUE_CAPACITY_BADGE_NUMBER_STYLE
+        == _OVER_LIMIT
     )
 
 
@@ -253,3 +254,117 @@ def test_agent_list_entry_prefers_integer_over_multiplier() -> None:
 
     assert entry.wait.queue_capacity == 4
     assert entry.wait.queue_capacity_multiplier is None
+
+
+def _loaded_multiplier_agent(**overrides):
+    """Loader-shaped agent: multiplier persisted without the explicit flag."""
+    arguments = {
+        "status": "QUEUED",
+        "agent_name": "alpha",
+        "queue_capacity_multiplier": 1.5,
+        "queue_capacity_explicit": False,
+        "slot_requested_at": "2026-07-25T12:00:00Z",
+        "runner_effective_limit": 5.0,
+    }
+    arguments.update(overrides)
+    return make_agent(**arguments)
+
+
+def test_loaded_multiplier_renders_badge_header_and_wait_lane() -> None:
+    agent = _loaded_multiplier_agent()
+
+    text = Text()
+    assert append_agent_queue_badges(text, agent) is True
+    assert "c1.5x" in text.plain
+
+    header, _ = build_header_text(agent, cheap=True)
+    assert "1.5x budget (7.5 capacity units)" in header.plain
+
+    lanes = build_wait_lanes(
+        agent,
+        agent_status_buckets=None,
+        clan_wait_member_statuses=None,
+        tribe_wait_bindings=None,
+        wait_bead_statuses=None,
+    )
+    capacity = next(value for tag, value in lanes if tag == "capacity")
+    assert "capacity budget 1.5x (7.5)" in capacity.plain
+
+
+def test_loaded_multiplier_capacity_record_stays_implicit() -> None:
+    record = capacity_record_from_agent(_loaded_multiplier_agent(), {})
+
+    assert record["queue_capacity_multiplier"] == 1.5
+    assert record["queue_capacity"] is None
+    assert record["queue_capacity_explicit"] is False
+
+
+def test_queue_ladder_entry_badges_implicit_multiplier() -> None:
+    entry = RunnerQueueEntry(
+        identity=(AgentType.RUNNING, "alpha", "alpha"),
+        presented_name="alpha",
+        threshold=None,
+        wait_runners_explicit=False,
+        capacity_multiplier=1.5,
+        priority=10,
+        slot_requested_at="2026-07-25T12:00:00Z",
+        status="QUEUED",
+    )
+
+    assert _queue_entry_capacity_badge_width(entry) > 0
+
+    text = Text()
+    agent = _loaded_multiplier_agent(
+        cl_name="alpha",
+        raw_suffix="alpha",
+        agent_name="alpha",
+        runner_slot_queue_position=1,
+        runner_slot_queue_size=1,
+    )
+    assert append_agent_queue_badges(text, agent) is True
+    assert "c1.5x" in text.plain
+
+
+def test_waiting_digests_show_loaded_multiplier() -> None:
+    from sase.ace.tui.models._agent_clan_sections import build_agent_member_digest
+    from sase.ace.tui.widgets.prompt_panel._member_roster_digest import (
+        agent_roster_digest,
+    )
+
+    agent = _loaded_multiplier_agent()
+    clan_digest = build_agent_member_digest(
+        agent, label=".alpha", agent_session_depth=0
+    )
+    assert "c1.5x" in clan_digest.waiting
+    assert "c1.5x" in agent_roster_digest(agent).waiting
+
+    integer_agent = make_agent(
+        status="QUEUED",
+        agent_name="alpha",
+        wait_runners=4,
+        slot_requested_at="2026-07-25T12:00:00Z",
+        runner_effective_limit=5.0,
+    )
+    integer_digest = build_agent_member_digest(
+        integer_agent, label=".alpha", agent_session_depth=0
+    )
+    assert "c4" in integer_digest.waiting
+    assert "c4" in agent_roster_digest(integer_agent).waiting
+
+
+def test_implicit_integer_capacity_renders_no_badge() -> None:
+    agent = make_agent(
+        status="QUEUED",
+        agent_name="alpha",
+        queue_capacity=4,
+        queue_capacity_explicit=False,
+        wait_runners=4,
+        wait_runners_explicit=False,
+        slot_requested_at="2026-07-25T12:00:00Z",
+        runner_effective_limit=5.0,
+    )
+
+    assert format_queue_capacity_badge_value(4, explicit=False, multiplier=None) is None
+    text = Text()
+    assert append_agent_queue_badges(text, agent) is False
+    assert "c4" not in text.plain
