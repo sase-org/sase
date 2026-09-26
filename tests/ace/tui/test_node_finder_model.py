@@ -142,7 +142,7 @@ def test_name_mirrors_agents_row_across_kinds() -> None:
     assert node_finder_name(gate) == "g"
 
     proc = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="p",
         project_file="/p/p.sase",
         status="RUNNING",

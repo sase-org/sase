@@ -312,7 +312,7 @@ def describe_node_finder_row_from_facts(
     return (jumpable, name, title or "", kind_label, kind_accent)
 
 
-def describe_node_finder_row_for_snapshot(
+def _describe_node_finder_row_for_snapshot(
     agent: Agent,
     *,
     is_monitor: bool | None = None,
@@ -424,7 +424,7 @@ def describe_node_finder_row(
     entry point per row instead of this single-row wrapper; the singles remain
     the behavior contract (see the differential test over every agent shape).
     """
-    return describe_node_finder_row_for_snapshot(agent)
+    return _describe_node_finder_row_for_snapshot(agent)
 
 
 def node_finder_jumpable(agent: Agent) -> bool:

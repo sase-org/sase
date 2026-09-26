@@ -870,7 +870,7 @@ def _describe_shapes() -> list[Agent]:
         role_suffix="--setup",
     )
     proc = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="proc",
         project_file="/p/p.sase",
         status="RUNNING",
@@ -927,7 +927,7 @@ def test_batched_description_matches_single_row() -> None:
     """The batched describer matches the single-row contract for every shape."""
     from sase.ace.tui.models.node_finder import (
         describe_node_finder_row,
-        describe_node_finder_row_for_snapshot,
+        _describe_node_finder_row_for_snapshot,
         describe_node_finder_row_from_facts,
         kind_styles,
     )
@@ -960,10 +960,68 @@ def test_batched_description_matches_single_row() -> None:
             styles=styles,
         )
         assert from_facts == expected, agent.agent_name
-        for_snapshot = describe_node_finder_row_for_snapshot(
+        for_snapshot = _describe_node_finder_row_for_snapshot(
             agent,
             is_monitor=agent.is_monitor,
             is_gate=agent.is_gate,
             styles=styles,
         )
         assert for_snapshot == expected, agent.agent_name
+
+
+def test_plain_row_describer_matches_single_row() -> None:
+    """The plain-row fast path matches the single-row contract exactly."""
+    from sase.ace.tui.actions.agents._node_finder_snapshot import _describe_plain_row
+    from sase.ace.tui.models.node_finder import (
+        describe_node_finder_row,
+        kind_styles,
+    )
+
+    styles = kind_styles()
+    started = _started()
+    presented = make_agent("titled-agent", clan="titled")
+    presented.presented_agent_name = "Shown Name"
+    pre_prompt = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="preprompt",
+        project_file="/p/p.sase",
+        status="RUNNING",
+        start_time=started,
+        raw_suffix="ts-plain-pre",
+        agent_name="pre.node",
+        is_pre_prompt_step=True,
+    )
+    shapes = [
+        make_agent("plain"),
+        make_agent("presented", clan="c1"),
+        presented,
+        pre_prompt,
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="nameless",
+            project_file="/p/p.sase",
+            status="RUNNING",
+            start_time=started,
+            raw_suffix="ts-plain-noname",
+            agent_name=None,
+        ),
+    ]
+    for agent in shapes:
+        assert not agent.is_clan_container
+        assert not agent.is_proc_shell
+        assert not agent.is_workflow_step_child
+        assert not agent.is_agent_session_container_row
+        assert not agent.is_monitor
+        assert not agent.is_gate
+        assert not agent.is_agent_session_member_child
+        assert agent.agent_type is AgentType.RUNNING
+        expected = describe_node_finder_row(agent)
+        fast = _describe_plain_row(
+            agent.presented_agent_name,
+            agent.agent_name,
+            agent.display_name,
+            agent.cl_name,
+            agent.is_pre_prompt_step,
+            styles,
+        )
+        assert fast == expected, agent.agent_name

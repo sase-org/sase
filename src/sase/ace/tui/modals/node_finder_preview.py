@@ -16,8 +16,8 @@ from sase.procs.text_bounding import tail_text_by_lines_and_chars
 
 from ..models._agent_clan import ClanStatusCounts
 from ..models._agent_clan_sections import (
-    ClanInMemorySnapshot,
-    aggregate_clan_in_memory,
+    clan_relative_label,
+    clan_section_member_rows,
 )
 from ..models.agent import AgentType
 from ..models.fold_state import FoldLevel
@@ -64,11 +64,15 @@ def render_node_finder_preview(
     agent = row.agent
     text = Text()
     _append_kind_chip(text, row)
-    in_memory = aggregate_clan_in_memory(agent) if agent.is_clan_container else None
-    _append_identity(text, agent, in_memory=in_memory)
+    # Tier 0 shows member statuses, labels, and activity only. The full
+    # clan aggregation (digests, errors, variables, bead/plan indexes)
+    # serves the Agents panel, not this preview: resolving the same member
+    # rows directly keeps first paint off that per-member digest work.
+    clan_rows = clan_section_member_rows(agent) if agent.is_clan_container else None
+    _append_identity(text, agent, clan_rows=clan_rows)
     _append_breadcrumb(text, row, snapshot)
     _append_navigation_status(text, row, query)
-    _append_kind_section(text, row, snapshot, in_memory=in_memory)
+    _append_kind_section(text, row, snapshot, clan_rows=clan_rows)
     if _has_tier1_source(row):
         _append_tier1_skeleton(text)
     return text
@@ -84,20 +88,19 @@ def _append_kind_chip(text: Text, row: NodeFinderRow) -> None:
 def _append_identity(
     text: Text,
     agent: Agent,
-    in_memory: ClanInMemorySnapshot | None = None,
+    clan_rows: tuple[Agent, ...] | None = None,
 ) -> None:
     if agent.is_clan_container:
-        if in_memory is None:
-            in_memory = aggregate_clan_in_memory(agent)
-        clan_view = in_memory
-        counts = Counter(member.status for member in clan_view.members)
+        if clan_rows is None:
+            clan_rows = clan_section_member_rows(agent)
+        counts = Counter(member.display_status for member in clan_rows)
         text.append_text(
             build_clan_compact_lines(
                 agent=agent,
                 counts=_clan_counts(counts),
-                agent_count=len(clan_view.members),
+                agent_count=len(clan_rows),
                 agent_session_count=sum(
-                    1 for member in clan_view.members if member.agent_session_name
+                    1 for member in clan_rows if member.agent_session
                 ),
                 # The preview describes current data, not an interactive fold.
                 fold_level=_collapsed_fold_level(),
@@ -194,16 +197,16 @@ def _append_kind_section(
     text: Text,
     row: NodeFinderRow,
     snapshot: NodeFinderSnapshot,
-    in_memory: ClanInMemorySnapshot | None = None,
+    clan_rows: tuple[Agent, ...] | None = None,
 ) -> None:
     agent = row.agent
     assert agent is not None
     if agent.is_agent_session_container_row:
         _append_session_shells(text, row, snapshot)
     elif agent.is_clan_container:
-        if in_memory is None:
-            in_memory = aggregate_clan_in_memory(agent)
-        _append_clan_members(text, agent, in_memory=in_memory)
+        if clan_rows is None:
+            clan_rows = clan_section_member_rows(agent)
+        _append_clan_members(text, agent, clan_rows=clan_rows)
     elif agent.is_monitor or agent.is_proc_shell:
         _append_proc_details(text, agent)
     elif agent.is_gate:
@@ -248,12 +251,13 @@ def _append_session_shells(
 def _append_clan_members(
     text: Text,
     agent: Agent,
-    in_memory: ClanInMemorySnapshot | None = None,
+    clan_rows: tuple[Agent, ...] | None = None,
 ) -> None:
-    if in_memory is None:
-        in_memory = aggregate_clan_in_memory(agent)
+    if clan_rows is None:
+        clan_rows = clan_section_member_rows(agent)
+    clan_name = agent.agent_clan or agent.display_name
     _append_section_header(text, "MEMBERS", "#D75FFF")
-    counts = Counter(member.status for member in in_memory.members)
+    counts = Counter(member.display_status for member in clan_rows)
     if counts:
         text.append(
             " · ".join(
@@ -262,14 +266,14 @@ def _append_clan_members(
             style="dim",
         )
         text.append("\n")
-    for member in in_memory.members[:12]:
+    for member in clan_rows[:12]:
         text.append("• ", style="dim")
-        text.append(member.label, style="bold")
-        text.append(f" · {member.status}", style=_STATUS_STYLE)
+        text.append(clan_relative_label(member, clan_name), style="bold")
+        text.append(f" · {member.display_status}", style=_STATUS_STYLE)
         if member.activity:
             text.append(f" · {member.activity}", style="dim")
         text.append("\n")
-    remaining = len(in_memory.members) - 12
+    remaining = len(clan_rows) - 12
     if remaining > 0:
         text.append(f"… {remaining} more members", style="dim")
         text.append("\n")

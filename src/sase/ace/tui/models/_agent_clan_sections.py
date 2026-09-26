@@ -258,7 +258,7 @@ def aggregate_clan_in_memory(agent: Agent) -> ClanInMemorySnapshot:
     members = tuple(
         build_agent_member_digest(
             row,
-            label=_clan_relative_label(row, clan_name),
+            label=clan_relative_label(row, clan_name),
             agent_session_depth=_agent_session_depth(row),
         )
         for row in rows
@@ -512,7 +512,7 @@ def _row_name(row: Agent) -> str:
     return row.presented_agent_name or row.step_name or row.display_name
 
 
-def _clan_relative_label(row: Agent, clan_name: str) -> str:
+def clan_relative_label(row: Agent, clan_name: str) -> str:
     name = _row_name(row)
     prefix = f"{clan_name}."
     if name.startswith(prefix):
@@ -549,6 +549,7 @@ __all__ = [
     "aggregate_agent_workflow_variables",
     "aggregate_clan_in_memory",
     "build_agent_member_digest",
+    "clan_relative_label",
     "clan_section_member_rows",
     "first_meaningful_line",
 ]

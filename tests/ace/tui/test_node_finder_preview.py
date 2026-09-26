@@ -77,7 +77,7 @@ def test_tier0_is_pure_for_every_node_kind(monkeypatch: pytest.MonkeyPatch) -> N
     gate.gate_id = "gate-1"
     gate.gate_label = "Accept plan"
     proc = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="proc",
         project_file="/project/project.sase",
         status="RUNNING",
