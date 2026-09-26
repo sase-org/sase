@@ -26,6 +26,7 @@ class AgentWaitInfo:
     remaining_seconds: int | None = None
     queue_capacity: int | None = None
     queue_capacity_explicit: bool = False
+    queue_capacity_multiplier: float | None = None
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None

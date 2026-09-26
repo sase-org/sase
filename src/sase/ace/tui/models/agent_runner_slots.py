@@ -31,6 +31,7 @@ from ._agent_runner_slot_capacity import (
     positive_int as _positive_int,
     snapshot_waiter_is_parked as _snapshot_waiter_is_parked,
     text_value as _text_value,
+    waiter_capacity_multiplier as _waiter_capacity_multiplier,
     waiter_sort_key as _waiter_sort_key,
     waiter_threshold as _waiter_threshold,
 )
@@ -127,7 +128,10 @@ def _refresh_runner_slot_context_fallback(
                     or "unassigned"
                 ),
                 threshold=agent.wait_runners,
-                wait_runners_explicit=agent.wait_runners_explicit,
+                wait_runners_explicit=(
+                    agent.wait_runners_explicit or agent.queue_capacity_explicit
+                ),
+                capacity_multiplier=agent.queue_capacity_multiplier,
                 priority=normalize_wait_priority(agent.wait_priority),
                 slot_requested_at=agent.slot_requested_at,
                 status=agent.status,
@@ -239,7 +243,13 @@ def _apply_runner_capacity_snapshot(
                     or "unassigned"
                 ),
                 threshold=_waiter_threshold(waiter),
-                wait_runners_explicit=agent.wait_runners_explicit,
+                wait_runners_explicit=(
+                    agent.wait_runners_explicit or agent.queue_capacity_explicit
+                ),
+                capacity_multiplier=(
+                    _waiter_capacity_multiplier(waiter)
+                    or agent.queue_capacity_multiplier
+                ),
                 priority=normalize_wait_priority(waiter.get("priority")),
                 slot_requested_at=_text_value(waiter.get("slot_requested_at")),
                 status=(

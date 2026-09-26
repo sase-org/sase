@@ -121,6 +121,7 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         elif source.queue_capacity_multiplier is not None:
             target.set_queue_capacity(
                 None,
+                explicit=source.queue_capacity_explicit or source.wait_runners_explicit,
                 multiplier=source.queue_capacity_multiplier,
             )
     if target.wait_priority is None and source.wait_priority is not None:

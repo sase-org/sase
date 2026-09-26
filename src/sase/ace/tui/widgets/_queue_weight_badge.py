@@ -67,9 +67,12 @@ def append_queue_capacity_badge(
     explicit: bool,
     effective_limit: object | None = None,
     pad: bool = True,
+    multiplier: object | None = None,
 ) -> bool:
-    """Append ``cN`` for an authored queue-capacity budget."""
-    value = format_queue_capacity_badge_value(capacity, explicit=explicit)
+    """Append ``cN`` (or ``c<M>x``) for an authored queue-capacity budget."""
+    value = format_queue_capacity_badge_value(
+        capacity, explicit=explicit, multiplier=multiplier
+    )
     if value is None:
         return False
     if pad:
@@ -79,6 +82,7 @@ def append_queue_capacity_badge(
         capacity,
         explicit=explicit,
         effective_limit=effective_limit,
+        multiplier=multiplier,
     )
     text.append(value, style=number_style)
     return True
@@ -98,12 +102,20 @@ def append_agent_queue_badges(text: Text, agent: Agent) -> bool:
     wait_agent = wait_display_agent(agent)
     if not queue_capacity_budget_display_enabled():
         return appended
+    capacity = (
+        wait_agent.queue_capacity
+        if wait_agent.queue_capacity is not None
+        else wait_agent.wait_runners
+    )
     return (
         append_queue_capacity_badge(
             text,
-            wait_agent.wait_runners,
-            explicit=wait_agent.wait_runners_explicit,
+            capacity,
+            explicit=(
+                wait_agent.queue_capacity_explicit or wait_agent.wait_runners_explicit
+            ),
             effective_limit=wait_agent.runner_effective_limit,
+            multiplier=wait_agent.queue_capacity_multiplier,
         )
         or appended
     )
@@ -113,13 +125,18 @@ def format_queue_capacity_badge_value(
     capacity: object,
     *,
     explicit: bool,
+    multiplier: object | None = None,
 ) -> str | None:
     if not explicit:
         return None
     capacity_int = _queue_capacity_int(capacity)
-    if capacity_int is None:
+    if capacity_int is not None:
+        return str(capacity_int)
+    if multiplier is None:
         return None
-    return str(capacity_int)
+    from sase.xprompt.queue_directive import format_queue_capacity_multiplier
+
+    return format_queue_capacity_multiplier(multiplier)
 
 
 def queue_capacity_badge_number_style(
@@ -127,14 +144,27 @@ def queue_capacity_badge_number_style(
     *,
     explicit: bool,
     effective_limit: object | None,
+    multiplier: object | None = None,
 ) -> str:
     """Return the badge number style for an authored capacity value."""
+    if _multiplier_over_limit(multiplier if explicit else None):
+        return QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE
     if _capacity_over_effective_limit(
         capacity if explicit else None,
         effective_limit,
     ):
         return QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE
     return QUEUE_CAPACITY_BADGE_NUMBER_STYLE
+
+
+def _multiplier_over_limit(multiplier: object | None) -> bool:
+    """Return whether an authored ``<M>x`` multiplier exceeds unity."""
+    if multiplier is None or isinstance(multiplier, bool):
+        return False
+    try:
+        return float(str(multiplier)) > 1.0
+    except (TypeError, ValueError):
+        return False
 
 
 def _capacity_over_effective_limit(

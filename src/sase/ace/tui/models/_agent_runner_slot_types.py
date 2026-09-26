@@ -27,6 +27,7 @@ class RunnerQueueEntry:
     eligible: bool = False
     blockers: tuple[dict[str, Any], ...] = ()
     parked: bool = False
+    capacity_multiplier: float | None = None
 
 
 @dataclass(frozen=True)

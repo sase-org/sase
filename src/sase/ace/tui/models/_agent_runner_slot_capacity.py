@@ -92,6 +92,9 @@ def capacity_record_from_agent(
             if agent.queue_capacity is not None
             else agent.wait_runners
         ),
+        "queue_capacity_multiplier": _finite_positive_float(
+            agent.queue_capacity_multiplier
+        ),
         "queue_capacity_explicit": (
             agent.queue_capacity_explicit or agent.wait_runners_explicit
         ),
@@ -226,6 +229,17 @@ def finite_float(value: object) -> float | None:
         return None
     number = float(value)
     return number if math.isfinite(number) else None
+
+
+def _finite_positive_float(value: object) -> float | None:
+    number = finite_float(value)
+    if number is None or number <= 0.0:
+        return None
+    return number
+
+
+def waiter_capacity_multiplier(waiter: dict[str, Any]) -> float | None:
+    return _finite_positive_float(waiter.get("queue_capacity_multiplier"))
 
 
 def nonnegative_int(value: object) -> int | None:

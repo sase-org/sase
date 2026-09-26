@@ -255,10 +255,40 @@ def build_wait_lanes(
             value.append(parts[0], style=_WAITING_VALUE_STYLE)
             for part in parts[1:]:
                 value.append(f" · {part}", style="dim #AF87FF")
-        threshold = (
-            wait_agent.wait_runners if wait_agent.wait_runners is not None else 0
+        capacity_explicit = (
+            wait_agent.queue_capacity_explicit or wait_agent.wait_runners_explicit
         )
-        if wait_agent.wait_runners_explicit:
+        capacity = (
+            wait_agent.queue_capacity
+            if wait_agent.queue_capacity is not None
+            else wait_agent.wait_runners
+        )
+        multiplier = wait_agent.queue_capacity_multiplier
+        threshold = capacity if capacity is not None else 0
+        if capacity_explicit and multiplier is not None and capacity is None:
+            from sase.xprompt.queue_directive import (
+                format_queue_capacity_multiplier,
+                resolve_queue_capacity_multiplier,
+            )
+
+            formatted = format_queue_capacity_multiplier(multiplier)
+            if formatted is not None:
+                if value.plain:
+                    value.append(" · ", style="dim #AF87FF")
+                if queue_capacity_budget_display_enabled():
+                    resolved = resolve_queue_capacity_multiplier(
+                        multiplier, wait_agent.runner_effective_limit
+                    )
+                    label = f"capacity budget {formatted}"
+                    if resolved is not None:
+                        label += f" ({format_capacity_value(resolved)})"
+                    value.append(label, style=_WAITING_VALUE_STYLE)
+                else:
+                    value.append(
+                        f"waiting for weighted load ×{formatted}",
+                        style=_WAITING_VALUE_STYLE,
+                    )
+        elif capacity_explicit:
             if value.plain:
                 value.append(" · ", style="dim #AF87FF")
             if queue_capacity_budget_display_enabled():
@@ -319,6 +349,7 @@ def _wait_gutter_width(lanes: Sequence[WaitLane]) -> int:
 def _runner_wait_has_detail(agent: Agent) -> bool:
     return bool(
         agent.wait_runners_explicit
+        or agent.queue_capacity_explicit
         or agent.wait_priority_explicit
         or agent.queue_weight_invalid
         or format_queue_weight_badge_value(
@@ -336,7 +367,13 @@ def _runner_capacity_parts(agent: Agent) -> tuple[str, ...]:
     free = _runner_free_capacity(agent)
     capacity_budget = (
         queue_capacity_budget_display_enabled()
-        and agent.wait_runners_explicit
+        and (
+            agent.wait_runners_explicit
+            or (
+                agent.queue_capacity_explicit
+                and agent.queue_capacity_multiplier is not None
+            )
+        )
         and free is not None
     )
     if format_queue_weight_badge_value(

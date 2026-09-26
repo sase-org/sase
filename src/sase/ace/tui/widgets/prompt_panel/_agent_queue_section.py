@@ -126,7 +126,7 @@ def append_runner_queue_section(
             (
                 cell_len(f"≤{entry.threshold if entry.threshold is not None else 0}")
                 for entry in queue
-                if entry.wait_runners_explicit
+                if entry.wait_runners_explicit and entry.capacity_multiplier is None
             ),
             default=0,
         )
@@ -284,6 +284,7 @@ def _append_queue_entry(
             explicit=entry.wait_runners_explicit,
             effective_limit=effective_limit,
             pad=False,
+            multiplier=entry.capacity_multiplier,
         )
         if appended:
             text.append(" " * max(0, capacity_width - (len(text) - start)))
@@ -292,7 +293,11 @@ def _append_queue_entry(
     if threshold_width:
         text.append(" ")
         threshold = entry.threshold if entry.threshold is not None else 0
-        threshold_label = f"≤{threshold}" if entry.wait_runners_explicit else ""
+        threshold_label = (
+            f"≤{threshold}"
+            if entry.wait_runners_explicit and entry.capacity_multiplier is None
+            else ""
+        )
         text.append(
             threshold_label.ljust(threshold_width),
             style=_PARKED_COLOR if threshold_label else None,
@@ -383,6 +388,7 @@ def _queue_entry_capacity_badge_width(entry: RunnerQueueEntry) -> int:
     value = format_queue_capacity_badge_value(
         entry.threshold,
         explicit=entry.wait_runners_explicit,
+        multiplier=entry.capacity_multiplier,
     )
     return 0 if value is None else cell_len(f"c{value}")
 

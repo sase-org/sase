@@ -199,19 +199,42 @@ def _append_capacity_fields(text: Text, agent: Agent) -> None:
         )
     if not queue_capacity_budget_display_enabled():
         return
+    capacity_explicit = (
+        wait_agent.queue_capacity_explicit or wait_agent.wait_runners_explicit
+    )
+    capacity = (
+        wait_agent.queue_capacity
+        if wait_agent.queue_capacity is not None
+        else wait_agent.wait_runners
+    )
+    multiplier = wait_agent.queue_capacity_multiplier
     value = format_queue_capacity_badge_value(
-        wait_agent.wait_runners,
-        explicit=wait_agent.wait_runners_explicit,
+        capacity,
+        explicit=capacity_explicit,
+        multiplier=multiplier,
     )
     if value is None:
         return
     text.append("Capacity: ", style="bold #87D7FF")
     value_style = queue_capacity_badge_number_style(
-        wait_agent.wait_runners,
-        explicit=wait_agent.wait_runners_explicit,
+        capacity,
+        explicit=capacity_explicit,
         effective_limit=wait_agent.runner_effective_limit,
+        multiplier=multiplier,
     )
-    if value == "0":
+    if multiplier is not None and capacity is None:
+        from sase.xprompt.queue_directive import resolve_queue_capacity_multiplier
+
+        resolved = resolve_queue_capacity_multiplier(
+            multiplier, wait_agent.runner_effective_limit
+        )
+        text.append(f"{value} budget", style=value_style)
+        if resolved is not None:
+            text.append(
+                f" ({format_capacity_value(resolved)} capacity units)",
+                style=value_style,
+            )
+    elif value == "0":
         text.append("legacy 0", style=value_style)
         text.append(" (exact-weight drain budget)", style="dim #87AFD7")
     else:

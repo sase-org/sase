@@ -406,20 +406,28 @@ def _wait_info(
         else False
     )
     if queue_capacity is None:
-        queue_capacity = (
+        fallback_capacity = (
             waiting.wait_runners
             if waiting is not None
             else meta.wait_runners
             if meta is not None
             else None
         )
-        queue_capacity_explicit = (
-            waiting.wait_runners_explicit
-            if waiting is not None
-            else meta.wait_runners_explicit
-            if meta is not None
-            else False
-        )
+        if fallback_capacity is not None:
+            queue_capacity = fallback_capacity
+            queue_capacity_explicit = (
+                waiting.wait_runners_explicit
+                if waiting is not None
+                else meta.wait_runners_explicit
+                if meta is not None
+                else False
+            )
+    queue_capacity_multiplier = None
+    if queue_capacity is None:
+        if waiting is not None and waiting.queue_capacity_multiplier is not None:
+            queue_capacity_multiplier = waiting.queue_capacity_multiplier
+        elif meta is not None:
+            queue_capacity_multiplier = meta.queue_capacity_multiplier
     return AgentWaitInfo(
         wait_for=wait_for,
         wait_for_beads=wait_for_beads,
@@ -431,6 +439,7 @@ def _wait_info(
         ),
         queue_capacity=queue_capacity,
         queue_capacity_explicit=queue_capacity_explicit,
+        queue_capacity_multiplier=queue_capacity_multiplier,
         wait_runners=queue_capacity,
         wait_runners_explicit=queue_capacity_explicit,
         wait_priority=(
