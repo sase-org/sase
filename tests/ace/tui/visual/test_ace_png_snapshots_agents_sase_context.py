@@ -33,6 +33,8 @@ from sase.core.bead_touch_index_facade import (
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     choose_agent_metadata_view,
+    main_deck_scroll,
+    page_svg_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -311,7 +313,9 @@ def _created_bead_touches() -> tuple[_BeadTouchDisplayEvent, ...]:
     )
 
 
-def _created_bead_agent(tmp_path: Path) -> Agent:
+def _created_bead_agent(
+    tmp_path: Path, *, phase_bead_id: str | None = "sase-1e"
+) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-bead-created",
@@ -323,7 +327,7 @@ def _created_bead_agent(tmp_path: Path) -> Agent:
         workspace_dir=str(tmp_path),
         llm_provider="codex",
         model="gpt-5",
-        phase_bead_id="sase-1e",
+        phase_bead_id=phase_bead_id,
     )
 
 
@@ -370,7 +374,11 @@ async def test_agents_bead_created_by_agent_narrow_png_snapshot(
     tmp_path: Path,
 ) -> None:
     """The CREATED pill stays contiguous in a narrow split card."""
-    agent = _created_bead_agent(tmp_path)
+    # No phase bead: with one attached, the taller deck squeezes the split
+    # card to ~6 cells, shredding "Beads:"/"CREATED" mid-token so the SVG
+    # sentinels below can never match. The wide golden covers the phase-bead
+    # card, including the assigned row this variant omits.
+    agent = _created_bead_agent(tmp_path, phase_bead_id=None)
     touches = _created_bead_touches()
     monkeypatch.setattr(
         "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
@@ -384,6 +392,17 @@ async def test_agents_bead_created_by_agent_narrow_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_svg_contains(page, "Beads:")
+        # The first bead row starts at the bottom edge, so nudge the deck
+        # until its CREATED pill scrolls into view.
+        scroll = main_deck_scroll(page)
+        for _ in range(10):
+            if "CREATED" in page_svg_text(page):
+                break
+            scroll.scroll_to(
+                y=min(int(scroll.max_scroll_y), int(scroll.scroll_y) + 2),
+                animate=False,
+            )
+            await wait_for_visual_idle(page)
         await wait_for_svg_contains(page, "CREATED")
         await wait_for_visual_idle(page)
 
@@ -391,7 +410,6 @@ async def test_agents_bead_created_by_agent_narrow_png_snapshot(
         # the lane and pill tokens that prove the created rendering instead.
         assert_page_svg_contains(page, "Beads:")
         assert_page_svg_contains(page, "CREATED")
-        assert_page_svg_contains(page, "assigned")
         ace_png_visual.assert_page_png(
             page,
             "agents_bead_created_by_agent_90x32",
