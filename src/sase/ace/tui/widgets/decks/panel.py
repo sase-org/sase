@@ -18,6 +18,7 @@ from ..file_panel import (
 )
 from ..llm_calls_panel import AgentLLMCallsPanel, LLMCallsVisibilityChanged
 from .availability import DeckAvailability
+from .block_rail import BlockRail
 from .empty_state import deck_empty_state
 from .files_spread import FilesSpreadView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
@@ -97,6 +98,7 @@ class DeckPanel(  # type: ignore[misc]
     def compose(self) -> ComposeResult:
         """Compose the pre-composed Main, Files and Tools scrolls."""
         i = self._panel_index
+        yield BlockRail(classes="deck-block-rail")
         with VerticalScroll(
             id=f"agent-deck-panel-{i}-main-scroll", classes="deck-scroll -main"
         ):
@@ -248,6 +250,10 @@ class DeckPanel(  # type: ignore[misc]
             self._sync_block_navigable()  # type: ignore[attr-defined]
         except Exception:
             pass
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def _on_files_scroll_y(self, _old: int, _new: int) -> None:
         if not self.is_spread(DeckId.FILES) or self._deck is not DeckId.FILES:
@@ -280,6 +286,18 @@ class DeckPanel(  # type: ignore[misc]
         except Exception:
             pass
 
+    @on(BlockRail.BlockRailSelected)
+    def _on_block_rail_selected(self, message: BlockRail.BlockRailSelected) -> None:
+        """Select the rail-clicked block and take logical focus."""
+        try:
+            self.select_block(message.block_id)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            self.post_message(DeckPanelFocusRequested(self._panel_index))
+        except Exception:
+            pass
+
     def set_focused(self, focused: bool) -> None:
         """Sync focus chrome classes without moving widget focus."""
         self._focused = bool(focused)
@@ -290,6 +308,10 @@ class DeckPanel(  # type: ignore[misc]
             self.add_class("-unfocused")
             self.remove_class("-focused")
         self.refresh_chrome()
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def set_deck(self, deck: DeckId) -> None:
         """Show ``deck``, toggling scroll visibility and chrome."""
@@ -326,6 +348,10 @@ class DeckPanel(  # type: ignore[misc]
                 pass
         try:
             self._sync_block_navigable()
+        except Exception:
+            pass
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -414,6 +440,10 @@ class DeckPanel(  # type: ignore[misc]
                 self._sync_block_navigable()
             except Exception:
                 pass
+            try:
+                self._sync_block_rail()  # type: ignore[attr-defined]
+            except Exception:
+                pass
             return shown
         if self._deck is DeckId.FILES:
             if self.is_spread(DeckId.FILES):
@@ -460,6 +490,10 @@ class DeckPanel(  # type: ignore[misc]
                 self.refresh_chrome()
             try:
                 self._sync_block_navigable()
+            except Exception:
+                pass
+            try:
+                self._sync_block_rail()  # type: ignore[attr-defined]
             except Exception:
                 pass
             return active
@@ -586,6 +620,10 @@ class DeckPanel(  # type: ignore[misc]
             self._schedule_block_redecision()
         except Exception:
             pass
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
         return self._main_active_card
 
     @property
@@ -663,6 +701,10 @@ class DeckPanel(  # type: ignore[misc]
             self.search_command().add_class("-shown")
         except Exception:
             pass
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
     def hide_search_overlay(self) -> None:
         """Hide the overlay and restore the active deck scroll."""
@@ -720,6 +762,11 @@ class DeckPanel(  # type: ignore[misc]
         try:
             if self._deck is DeckId.MAIN:
                 self._refresh_main_mode_for_shown()
+        except Exception:
+            pass
+        try:
+            if self._deck is DeckId.MAIN:
+                self._sync_block_rail()  # type: ignore[attr-defined]
         except Exception:
             pass
         try:

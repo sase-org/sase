@@ -4029,6 +4029,16 @@ HintInputBar #hint-escape-hint {
     display: block;
 }
 
+.deck-block-rail {
+    height: 1;
+    padding: 0 2;
+    display: none;
+}
+
+.deck-block-rail.-shown {
+    display: block;
+}
+
 .deck-search-scroll {
     height: 1fr;
     border: solid $secondary;

@@ -48,6 +48,10 @@ class DeckPanelChromeMixin:
     def _on_app_theme_changed(self, _theme: object) -> None:
         self.refresh_chrome()
         try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
             document = self._main_document  # type: ignore[attr-defined]
             if document.cards and self._is_spread_active_for(DeckId.MAIN):
                 # The spread render key includes the accent, so this repaints

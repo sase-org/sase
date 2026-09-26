@@ -13,6 +13,7 @@ from typing import Any
 
 from ...agent_decks_settings import agent_decks_settings_for
 from .block_model import decide_block_mode
+from .block_rail import BlockRail, BlockRailEntry
 from .flag import card_blocks_enabled
 from .model import DeckId, RenderMode, resolve_active_card
 from .render_mode import measure_main_rows, spread_budget_rows
@@ -186,6 +187,7 @@ class DeckPanelBlocksMixin:
             except Exception:
                 pass
             self._sync_block_navigable()
+            self._sync_block_rail()
             return True
         except Exception:
             return False
@@ -300,6 +302,7 @@ class DeckPanelBlocksMixin:
             except Exception:
                 pass
             self._sync_block_navigable()
+            self._sync_block_rail()
             return bool(moved)
         except Exception:
             return False
@@ -364,6 +367,7 @@ class DeckPanelBlocksMixin:
             except Exception:
                 pass
             self._sync_block_navigable()
+            self._sync_block_rail()
             return bool(moved)
         except Exception:
             return False
@@ -408,6 +412,7 @@ class DeckPanelBlocksMixin:
             except Exception:
                 pass
             self._sync_block_navigable()
+            self._sync_block_rail()
             return True
         except Exception:
             return False
@@ -452,6 +457,7 @@ class DeckPanelBlocksMixin:
             except Exception:
                 pass
             self._sync_block_navigable()
+            self._sync_block_rail()
             return True
         except Exception:
             return False
@@ -531,6 +537,161 @@ class DeckPanelBlocksMixin:
                 active = None
         card = document.card(active) if active is not None else None
         return bool(card is not None and card.has_block_navigation)
+
+    def _block_rail_widget(self) -> BlockRail | None:
+        """Return the pre-composed rail widget, if it is mounted."""
+        try:
+            return self.query_one(BlockRail)  # type: ignore[attr-defined]
+        except Exception:
+            return None
+
+    def _block_key_hint(self) -> tuple[str, str]:
+        """Return the live ``(prev, next)`` block key display names.
+
+        Falls back to the ``[`` / ``]`` defaults until the card-block key
+        phase registers its keymap actions.
+        """
+        prev, next_key = "[", "]"
+        try:
+            from ...keymaps import key_display_name
+        except Exception:
+            return (prev, next_key)
+        try:
+            registry = getattr(getattr(self, "app", None), "_keymap_registry", None)
+            app_keys = getattr(registry, "app", None) if registry is not None else None
+            if app_keys is None:
+                return (prev, next_key)
+            raw_prev = getattr(app_keys, "prev_card_block", "")
+            raw_next = getattr(app_keys, "next_card_block", "")
+            if raw_prev:
+                prev = key_display_name(str(raw_prev)) or prev
+            if raw_next:
+                next_key = key_display_name(str(raw_next)) or next_key
+        except Exception:
+            pass
+        return (prev, next_key)
+
+    def _block_rail_card(self) -> Any | None:
+        """Return the rail's card, or None when the rail must be hidden.
+
+        The rail shows only when the flag is on, the deck is MAIN and
+        paged, the active card has two or more blocks, the document is a
+        full paint of the current subject, and neither the search overlay
+        nor the empty state is shown.
+        """
+        try:
+            if not card_blocks_enabled():
+                return None
+            if self._deck is not DeckId.MAIN:  # type: ignore[attr-defined]
+                return None
+            document = self._main_document  # type: ignore[attr-defined]
+            if getattr(document, "partial", False):
+                return None
+            if not getattr(document, "cards", ()):
+                return None
+            if self._deck_is_empty(self._deck):  # type: ignore[attr-defined]
+                return None
+            if bool(self.is_spread(DeckId.MAIN)):  # type: ignore[attr-defined]
+                return None
+            try:
+                search = self.search_scroll()  # type: ignore[attr-defined]
+                if search is not None and search.has_class("-shown"):
+                    return None
+            except Exception:
+                pass
+            view = self.main_view  # type: ignore[attr-defined]
+            try:
+                active = view.active_card_id
+            except Exception:
+                active = None
+            if active is None:
+                try:
+                    active = self._main_active_card  # type: ignore[attr-defined]
+                except Exception:
+                    active = None
+            card = document.card(active) if active is not None else None
+            if card is None or not bool(card.has_block_navigation):
+                return None
+            try:
+                if view._block_cursor_subject != document.subject:  # type: ignore[attr-defined]
+                    return None
+            except Exception:
+                pass
+            return card
+        except Exception:
+            return None
+
+    def _sync_block_rail(self) -> None:
+        """Show, refresh or hide the one-row block rail (never raises)."""
+        try:
+            rail = self._block_rail_widget()
+            if rail is None:
+                return
+            card = self._block_rail_card()
+            if card is None:
+                try:
+                    rail.remove_class("-shown")
+                except Exception:
+                    pass
+                rail.clear()
+                return
+            view = self.main_view  # type: ignore[attr-defined]
+            try:
+                active = view.active_block_id(card.card_id)
+            except Exception:
+                active = None
+            if active is None:
+                try:
+                    active = card.newest_block_id
+                except Exception:
+                    active = None
+            try:
+                arrived = tuple(view.arrived_block_ids(card.card_id))
+            except Exception:
+                arrived = ()
+            entries: list[BlockRailEntry] = []
+            try:
+                for block in card.blocks:
+                    meta = getattr(block, "meta", None)
+                    if meta is None:
+                        continue
+                    entries.append(BlockRailEntry(str(block.block_id), meta))
+            except Exception:
+                pass
+            if not entries:
+                try:
+                    rail.remove_class("-shown")
+                except Exception:
+                    pass
+                rail.clear()
+                return
+            try:
+                accent = self._resolve_accent(DeckId.MAIN)  # type: ignore[attr-defined]
+            except Exception:
+                accent = ""
+            try:
+                focused = bool(self._focused)  # type: ignore[attr-defined]
+            except Exception:
+                focused = True
+            try:
+                width = max(1, int(self._chrome_width()) - 2)  # type: ignore[attr-defined]
+            except Exception:
+                width = 80
+            rail.set_rail(
+                entries,
+                active_id=active,
+                arrived_ids=arrived,
+                accent=accent,
+                focused=focused,
+                key_hint=self._block_key_hint(),
+                width=width,
+            )
+            try:
+                rail.add_class("-shown")
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def _sync_block_navigable(self) -> None:
         """Refresh the cached predicate; poke the footer when it flips."""
