@@ -119,6 +119,10 @@ providers:
       - grok-4.6
     # Large follows the current default model; small stays on the previous
     # flagship used by the @medium and @small shipped aliases.
+    # The predecessor continues the successor's effort descent: grok-4.7
+    # takes @large at xhigh while grok-4.6 takes @medium at high.
+    supersedes:
+      grok-4.7: grok-4.6
     tiers:
       large: grok-4.7
       small: grok-4.6
