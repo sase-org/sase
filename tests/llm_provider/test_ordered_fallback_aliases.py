@@ -242,18 +242,19 @@ def test_shipped_xlarge_uses_ordered_fallbacks(
     real_model_alias_defaults: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The shipped `@xlarge` prefers Claude, then Codex, then Grok at xhigh."""
+    """The shipped `@xlarge` sticks to its first member while it is available."""
+    from sase.llm_provider.load_balancing import concatenated_selector_members
+    from sase.xprompt.effort import split_model_effort
+
     selector = parse_model_alias_selector(
         implicit_alias_targets()[XLARGE_MODEL_ALIAS_NAME]
     )
     assert selector is not None
     assert selector.mode == "fallback"
-    assert selector.members == (
-        "claude/opus@xhigh",
-        "codex/gpt-6-sol@xhigh",
-        "grok/grok-4.7@xhigh",
-    )
-    assert selector.fallback_members == ()
+    expected = [
+        split_model_effort(member) for member in concatenated_selector_members(selector)
+    ]
+    assert len(expected) > 1
 
     mock_provider_config(
         monkeypatch,
@@ -265,20 +266,22 @@ def test_shipped_xlarge_uses_ordered_fallbacks(
         lambda _target: True,
     )
     selected = [resolve_model_alias("@xlarge", consume=True) for _ in range(3)]
-    assert selected == ["claude/opus", "claude/opus", "claude/opus"]
+    assert selected == [expected[0][0]] * 3
 
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda target: target.startswith("codex/"),
-    )
-    only_codex = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (only_codex.target, only_codex.effort) == ("codex/gpt-6-sol", "xhigh")
-
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda target: target.startswith("grok/"),
-    )
-    only_grok = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (only_grok.target, only_grok.effort) == ("grok/grok-4.7", "xhigh")
+    seen_providers: set[str] = set()
+    for shipped_target, shipped_effort in expected:
+        provider = shipped_target.split("/", 1)[0]
+        if provider in seen_providers:
+            continue
+        seen_providers.add(provider)
+        prefix = provider + "/"
+        monkeypatch.setattr(
+            llm_config,
+            "_resolved_target_is_available",
+            lambda target, prefix=prefix: target.startswith(prefix),
+        )
+        only_provider = resolve_model_alias_with_effort("@xlarge", consume=True)
+        assert (only_provider.target, only_provider.effort) == (
+            shipped_target,
+            shipped_effort,
+        )

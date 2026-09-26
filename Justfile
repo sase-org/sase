@@ -434,7 +434,12 @@ lint-keep-sorted: _setup-keep-sorted
     git ls-files -z '*.yml' '*.yaml' | xargs -0 -r sh -c 'for path do [ ! -e "$path" ] || printf "%s\0" "$path"; done' sh | xargs -0 -r {{ keep_sorted_bin }} --mode lint
 
 # Check all formatting (CI mode)
-fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check
+fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check fmt-docs-check
+
+# Check generated Markdown blocks are current (CI mode, no writes)
+fmt-docs-check: _setup-format-tools
+    @printf "\n---------- Checking generated docs... ----------\n"
+    {{ format_venv_bin }}/python tools/render_model_alias_docs --check
 
 # Check Python formatting (CI mode)
 fmt-py-check: _setup-format-tools
@@ -732,6 +737,7 @@ _require-tool-run name:
 check: (_require-tool-run "check") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
+    @tools/run_silent "fmt (generated docs)" just fmt-docs-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy
@@ -760,6 +766,7 @@ check: (_require-tool-run "check") _setup
 check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
+    @tools/run_silent "fmt (generated docs)" just fmt-docs-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy

@@ -405,10 +405,37 @@ def test_soft_primary_reservation_survives_healthy_tail(
     )
 
 
-def test_shipped_large_honors_grok_priority_while_xlarge_prefers_claude(
+def _shipped_member(
+    alias: str, provider: str | None = None
+) -> tuple[str, str, str | None]:
+    """Return the first shipped ``(provider, model, effort)`` for an alias."""
+    from sase.llm_provider.load_balancing import (
+        concatenated_selector_members,
+        parse_model_alias_selector,
+    )
+    from sase.llm_provider.model_alias_policy import implicit_alias_targets
+    from sase.xprompt.effort import split_model_effort
+
+    selector = parse_model_alias_selector(implicit_alias_targets()[alias])
+    assert selector is not None, alias
+    for member in concatenated_selector_members(selector):
+        target, effort = split_model_effort(member)
+        member_provider, _, model = target.partition("/")
+        if provider is None or member_provider == provider:
+            return member_provider, model, effort
+    raise AssertionError(f"shipped @{alias} has no {provider or 'first'} member")
+
+
+def test_shipped_large_honors_priority_while_xlarge_keeps_order(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
+    """Priority/disables steer pools while ordered fallbacks keep shipped order.
+
+    Members derive from the shipped alias loader: `@large` must resolve to
+    its shipped grok member under grok priority with Claude soft-disabled,
+    while `@xlarge` must keep its first shipped member.
+    """
     _pin_providers(monkeypatch)
     mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
     context = _context(
@@ -416,28 +443,26 @@ def test_shipped_large_honors_grok_priority_while_xlarge_prefers_claude(
         disables={"claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)},
     )
 
+    expected_grok = _shipped_member("large", "grok")
     assert resolve_model_provider_with_effort("@large", routing_context=context) == (
-        "grok",
-        "grok-4.7",
-        "xhigh",
+        expected_grok
     )
+    expected_first = _shipped_member("xlarge")
     assert resolve_model_provider_with_effort("@xlarge", routing_context=context) == (
-        "claude",
-        "opus",
-        "xhigh",
+        expected_first
     )
     default = resolve_launch_selection(
         PromptDirectives(), consume=False, routing_context=context
     )
     assert default is not None
-    assert (default.provider, default.model) == ("grok", "grok-4.7")
+    assert (default.provider, default.model) == expected_grok[:2]
     directed = resolve_launch_selection(
         PromptDirectives(model="@large", model_alias="large"),
         consume=False,
         routing_context=context,
     )
     assert directed is not None
-    assert (directed.provider, directed.model) == ("grok", "grok-4.7")
+    assert (directed.provider, directed.model) == expected_grok[:2]
 
 
 def test_delegated_and_raw_selector_pools_use_the_same_eligibility(

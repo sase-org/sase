@@ -12,7 +12,10 @@ from sase.llm_provider.config import (
     resolve_model_alias,
     resolve_model_alias_with_effort,
 )
-from sase.llm_provider.load_balancing import parse_model_alias_selector
+from sase.llm_provider.load_balancing import (
+    concatenated_selector_members,
+    parse_model_alias_selector,
+)
 from sase.llm_provider.model_alias_policy import (
     LARGE_MODEL_ALIAS_NAME,
     MEDIUM_MODEL_ALIAS_NAME,
@@ -22,7 +25,7 @@ from sase.llm_provider.model_alias_policy import (
     implicit_alias_targets,
 )
 from sase.llm_provider.types import LLMInvocationOptions
-from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
+from sase.xprompt.effort import EFFORT_LEVELS_ORDERED, split_model_effort
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
@@ -77,80 +80,68 @@ def test_size_aliases_use_independent_rotations(
     )
 
 
-@pytest.mark.parametrize(
-    ("alias", "expectations"),
-    [
-        (
-            "@xsmall",
-            {
-                "claude/": ("claude/claude-haiku-4-5", "xhigh"),
-                "codex/": ("codex/gpt-6-luna", "medium"),
-                "agy/": ("agy/gemini-3.8-flash-high", None),
-                "muse/": ("muse/muse-spark-1.3-contributor", "medium"),
-            },
-        ),
-        (
-            "@small",
-            {
-                "claude/": ("claude/sonnet", "high"),
-                "codex/": ("codex/gpt-6-luna", "high"),
-                "grok/": ("grok/grok-4.6", "medium"),
-                "muse/": ("muse/muse-spark-1.3-contributor", "high"),
-            },
-        ),
-        (
-            "@medium",
-            {
-                "claude/": ("claude/sonnet", "xhigh"),
-                "codex/": ("codex/gpt-6-luna", "xhigh"),
-                "grok/": ("grok/grok-4.6", "high"),
-                "muse/": ("muse/muse-spark-1.3-contributor", "xhigh"),
-            },
-        ),
-        (
-            "@large",
-            {
-                "claude/": ("claude/opus", "high"),
-                "codex/": ("codex/gpt-6-sol", "xhigh"),
-                "grok/": ("grok/grok-4.7", "xhigh"),
-            },
-        ),
-        (
-            "@xlarge",
-            {
-                "claude/": ("claude/opus", "xhigh"),
-                "codex/": ("codex/gpt-6-sol", "xhigh"),
-                "grok/": ("grok/grok-4.7", "xhigh"),
-            },
-        ),
-    ],
-)
+def _shipped_members(alias_name: str) -> tuple[str, ...]:
+    """Return the shipped selector members for a size alias, in order."""
+    selector = parse_model_alias_selector(implicit_alias_targets()[alias_name])
+    assert selector is not None, alias_name
+    return concatenated_selector_members(selector)
+
+
 def test_packaged_defaults_select_correct_effort_per_provider(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
-    alias: str,
-    expectations: dict[str, tuple[str, str | None]],
 ) -> None:
+    """A lone available provider selects its shipped member at its shipped effort.
+
+    Expectations derive from the shipped alias loader: with only one
+    provider's targets available, resolution must land on that provider's
+    first shipped member (pool rotation and ordered fallback both converge
+    there). Retuning a model ID or rung needs no test edit; the graph-shape
+    tripwire in ``test_model_alias_defaults.py`` still guards structural
+    changes.
+    """
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
-    for prefix, (expected_target, expected_effort) in expectations.items():
-        monkeypatch.setattr(
-            llm_config,
-            "_resolved_target_is_available",
-            lambda target, prefix=prefix: target.startswith(prefix),
-        )
+    for alias_name, target in implicit_alias_targets().items():
+        selector = parse_model_alias_selector(target)
+        assert selector is not None, alias_name
+        seen_providers: set[str] = set()
+        for member in concatenated_selector_members(selector):
+            shipped_target, shipped_effort = split_model_effort(member)
+            provider = shipped_target.split("/", 1)[0]
+            if provider in seen_providers:
+                continue
+            seen_providers.add(provider)
+            prefix = provider + "/"
+            monkeypatch.setattr(
+                llm_config,
+                "_resolved_target_is_available",
+                lambda target, prefix=prefix: target.startswith(prefix),
+            )
 
-        selected = resolve_model_alias_with_effort(alias, consume=True)
+            selected = resolve_model_alias_with_effort(f"@{alias_name}", consume=True)
 
-        assert selected.target == expected_target
-        assert selected.effort == expected_effort
+            assert (selected.target, selected.effort) == (
+                shipped_target,
+                shipped_effort,
+            ), alias_name
 
 
-def test_shipped_medium_codex_member_launches_gpt6_luna(
+def test_shipped_medium_codex_member_launches_at_shipped_effort(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
-    """The @medium Codex member launches GPT-6 Luna at its xhigh rung."""
+    """The shipped @medium Codex member launches with Codex model/effort flags."""
+    codex_members = [
+        member
+        for member in _shipped_members(MEDIUM_MODEL_ALIAS_NAME)
+        if member.startswith("codex/")
+    ]
+    assert codex_members, "shipped @medium must keep a Codex launch-path member"
+    expected_target, expected_effort = split_model_effort(codex_members[0])
+    assert expected_effort is not None
+    _, expected_model = expected_target.split("/", 1)
+
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
         llm_config,
@@ -159,9 +150,8 @@ def test_shipped_medium_codex_member_launches_gpt6_luna(
     )
 
     selected = resolve_model_alias_with_effort("@medium", consume=True)
-    assert selected.target == "codex/gpt-6-luna"
+    assert (selected.target, selected.effort) == (expected_target, expected_effort)
     effort = selected.effort
-    assert effort == "xhigh"
 
     with (
         patch(
@@ -176,17 +166,18 @@ def test_shipped_medium_codex_member_launches_gpt6_luna(
             "test",
             model_tier="large",
             suppress_output=True,
-            model_override="gpt-6-luna",
+            model_override=expected_model,
             options=LLMInvocationOptions(reasoning_effort=effort, explicit=True),
         )
 
     cmd = mock_popen.call_args[0][0]
-    assert cmd[cmd.index("--model") + 1] == "gpt-6-luna"
-    assert 'model_reasoning_effort="xhigh"' in cmd
-    assert cmd[cmd.index('model_reasoning_effort="xhigh"') - 1] == "-c"
+    assert cmd[cmd.index("--model") + 1] == expected_model
+    effort_flag = f'model_reasoning_effort="{expected_effort}"'
+    assert effort_flag in cmd
+    assert cmd[cmd.index(effort_flag) - 1] == "-c"
 
 
-def test_shipped_large_round_robins_claude_codex_grok(
+def test_shipped_large_pool_round_robins_shipped_members(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
@@ -194,12 +185,9 @@ def test_shipped_large_round_robins_claude_codex_grok(
         implicit_alias_targets()[LARGE_MODEL_ALIAS_NAME]
     )
     assert selector is not None
-    assert selector.members == (
-        "claude/opus@high",
-        "codex/gpt-6-sol@xhigh",
-        "grok/grok-4.7@xhigh",
-    )
-    assert selector.fallback_members == ()
+    assert selector.mode == "round_robin"
+    expected = [split_model_effort(member)[0] for member in selector.members]
+    assert len(expected) > 1
 
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
@@ -207,8 +195,10 @@ def test_shipped_large_round_robins_claude_codex_grok(
         "_resolved_target_is_available",
         lambda _target: True,
     )
-    selected = [resolve_model_alias("@large", consume=True) for _ in range(3)]
-    assert selected == ["claude/opus", "codex/gpt-6-sol", "grok/grok-4.7"]
+    selected = [
+        resolve_model_alias("@large", consume=True) for _ in range(len(expected))
+    ]
+    assert selected == expected
 
 
 def test_shipped_xlarge_uses_ordered_fallbacks(
@@ -220,12 +210,11 @@ def test_shipped_xlarge_uses_ordered_fallbacks(
     )
     assert selector is not None
     assert selector.mode == "fallback"
-    assert selector.members == (
-        "claude/opus@xhigh",
-        "codex/gpt-6-sol@xhigh",
-        "grok/grok-4.7@xhigh",
-    )
-    assert selector.fallback_members == ()
+    expected = [
+        split_model_effort(member)
+        for member in _shipped_members(XLARGE_MODEL_ALIAS_NAME)
+    ]
+    assert len(expected) > 1
 
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
@@ -234,23 +223,25 @@ def test_shipped_xlarge_uses_ordered_fallbacks(
         lambda _target: True,
     )
     selected = [resolve_model_alias("@xlarge", consume=True) for _ in range(3)]
-    assert selected == ["claude/opus", "claude/opus", "claude/opus"]
+    assert selected == [expected[0][0]] * 3
 
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda target: target.startswith("codex/"),
-    )
-    only_codex = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (only_codex.target, only_codex.effort) == ("codex/gpt-6-sol", "xhigh")
-
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda target: target.startswith("grok/"),
-    )
-    only_grok = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (only_grok.target, only_grok.effort) == ("grok/grok-4.7", "xhigh")
+    seen_providers: set[str] = set()
+    for shipped_target, shipped_effort in expected:
+        provider = shipped_target.split("/", 1)[0]
+        if provider in seen_providers:
+            continue
+        seen_providers.add(provider)
+        prefix = provider + "/"
+        monkeypatch.setattr(
+            llm_config,
+            "_resolved_target_is_available",
+            lambda target, prefix=prefix: target.startswith(prefix),
+        )
+        only_provider = resolve_model_alias_with_effort("@xlarge", consume=True)
+        assert (only_provider.target, only_provider.effort) == (
+            shipped_target,
+            shipped_effort,
+        )
 
 
 def test_only_shipped_xsmall_has_antigravity_member(

@@ -79,10 +79,20 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert by_value["@fast"].aliases == ("fast",)
 
 
-def test_model_completion_catalog_reflects_real_builtin_model_metadata(
+def test_model_completion_catalog_mirrors_visible_provider_models(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Real metadata includes Spark and excludes removed Claude point versions."""
+    """Catalog model rows mirror the registry for visible providers.
+
+    Expectations derive from ``get_llm_metadata_payload`` (the data source)
+    rather than naming model IDs: every non-hidden provider's known models
+    appear with their provider and short alias, provider rows carry the
+    matching model counts, and hidden providers stay out per the hook-driven
+    policy. Adding, removing, or renaming a built-in model needs no test
+    edit.
+    """
+    from sase.llm_provider import registry
+
     # Keep catalog assertions on registry-driven model rows deterministic by
     # bypassing user-defined alias rows.
     monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
@@ -90,191 +100,75 @@ def test_model_completion_catalog_reflects_real_builtin_model_metadata(
 
     entries = model_completion.build_model_completion_catalog()
     model_entries = {entry.value: entry for entry in entries if entry.kind == "model"}
+    by_value = {entry.value: entry for entry in entries}
 
-    assert "claude-opus-5" not in model_entries
-    assert "claude-sonnet-5" not in model_entries
-    assert "gpt-5.3-codex-spark" in model_entries
+    payload = registry.get_llm_metadata_payload()
+    providers = payload["providers"]
+    assert isinstance(providers, dict)
+    model_to_provider = payload["model_to_provider"]
+    assert isinstance(model_to_provider, dict)
+    short_aliases = payload.get("model_short_aliases", {})
+    assert isinstance(short_aliases, dict)
+    hidden = registry.model_picker_hidden_provider_names()
 
-    spark = model_entries["gpt-5.3-codex-spark"]
-    assert spark.provider == "codex"
-    assert spark.aliases == ("gpt53spark",)
-    assert spark.description == "Codex (gpt53spark)"
-
-    assert "gpt-6-astra" in model_entries
-
-    astra = model_entries["gpt-6-astra"]
-    assert astra.provider == "codex"
-    assert astra.aliases == ("astra",)
-    assert astra.description == "Codex (astra)"
-
-    assert "gpt-6-sol" in model_entries
-
-    sol = model_entries["gpt-6-sol"]
-    assert sol.provider == "codex"
-    assert sol.aliases == ("gpt6sol",)
-    assert sol.description == "Codex (gpt6sol)"
-
-    assert "gpt-6-luna" in model_entries
-
-    gpt6_luna = model_entries["gpt-6-luna"]
-    assert gpt6_luna.provider == "codex"
-    assert gpt6_luna.aliases == ("gpt6luna",)
-    assert gpt6_luna.description == "Codex (gpt6luna)"
-
-    assert "gpt-5.6-sol" in model_entries
-
-    legacy_sol = model_entries["gpt-5.6-sol"]
-    assert legacy_sol.provider == "codex"
-    assert legacy_sol.aliases == ("gpt56sol",)
-    assert legacy_sol.description == "Codex (gpt56sol)"
-
-    assert "gpt-5.6-luna" in model_entries
-    luna = model_entries["gpt-5.6-luna"]
-    assert luna.provider == "codex"
-    assert luna.aliases == ("gpt56luna",)
-    assert luna.description == "Codex (gpt56luna)"
-
-    assert "gpt-5.6-terra" in model_entries
-    terra = model_entries["gpt-5.6-terra"]
-    assert terra.provider == "codex"
-    assert terra.aliases == ("gpt56terra",)
-    assert terra.description == "Codex (gpt56terra)"
-
-
-def test_model_completion_catalog_includes_agy_gemini_37_flash_variants(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Real registry metadata surfaces all three Antigravity 3.7 Flash rows."""
-    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
-    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
-
-    entries = model_completion.build_model_completion_catalog()
-    model_entries = {entry.value: entry for entry in entries if entry.kind == "model"}
-
-    expected_aliases = {
-        "gemini-3.7-flash-high": "flash37h",
-        "gemini-3.7-flash-medium": "flash37m",
-        "gemini-3.7-flash-low": "flash37l",
-    }
-    for model, alias in expected_aliases.items():
-        assert model in model_entries
+    assert model_to_provider, "registry must publish models for this mirror check"
+    for model, provider in model_to_provider.items():
+        if provider in hidden:
+            assert model not in model_entries, model
+            continue
+        assert model in model_entries, model
         entry = model_entries[model]
-        assert entry.provider == "agy"
-        assert entry.aliases == (alias,)
+        assert entry.provider == provider
+        expected_alias = short_aliases.get(model)
+        if expected_alias is not None:
+            assert expected_alias in entry.aliases, model
 
-    scoped = model_completion.filter_model_completion_entries(entries, "agy/")
-    scoped_values = {entry.value for entry in scoped}
-    for model in expected_aliases:
-        assert f"agy/{model}" in scoped_values
+    for provider, meta in providers.items():
+        assert isinstance(meta, dict)
+        provider_row = f"{provider}/"
+        if provider in hidden:
+            assert provider_row not in by_value
+            continue
+        assert provider_row in by_value, provider
+        provider_models = [
+            entry for entry in model_entries.values() if entry.provider == provider
+        ]
+        assert provider_models, provider
+        assert by_value[provider_row].provider_model_count == len(provider_models)
+
+        scoped_values = {
+            entry.value
+            for entry in model_completion.filter_model_completion_entries(
+                entries, provider_row
+            )
+        }
+        for model in meta["known_model_names"]:
+            if model_to_provider.get(model) != provider:
+                continue
+            assert f"{provider}/{model}" in scoped_values, (provider, model)
+
+    visible_aliases = [
+        (model, alias)
+        for model, alias in short_aliases.items()
+        if model_to_provider.get(model) not in hidden
+    ]
+    assert visible_aliases, "registry must publish a short alias for this check"
+    for model, alias in visible_aliases[:5]:
+        alias_values = {
+            entry.value
+            for entry in model_completion.filter_model_completion_entries(
+                entries, alias
+            )
+        }
+        assert model in alias_values, alias
 
 
-def test_model_completion_catalog_includes_agy_gemini_38_flash_variants(
+def test_model_completion_lsp_payload_mirrors_visible_registry_models(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Real registry metadata surfaces all three Antigravity 3.8 Flash rows."""
-    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
-    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+    """The serialized LSP catalog carries every visible registry model row."""
+    from sase.llm_provider import registry
 
-    entries = model_completion.build_model_completion_catalog()
-    model_entries = {entry.value: entry for entry in entries if entry.kind == "model"}
-
-    expected_aliases = {
-        "gemini-3.8-flash-high": "flash38h",
-        "gemini-3.8-flash-medium": "flash38m",
-        "gemini-3.8-flash-low": "flash38l",
-    }
-    for model, alias in expected_aliases.items():
-        assert model in model_entries
-        entry = model_entries[model]
-        assert entry.provider == "agy"
-        assert entry.aliases == (alias,)
-
-    scoped = model_completion.filter_model_completion_entries(entries, "agy/")
-    scoped_values = {entry.value for entry in scoped}
-    for model in expected_aliases:
-        assert f"agy/{model}" in scoped_values
-
-
-def test_model_completion_catalog_includes_grok_47(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Real registry metadata surfaces both supported Grok models."""
-    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
-    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
-
-    entries = model_completion.build_model_completion_catalog()
-    model_entries = {entry.value: entry for entry in entries if entry.kind == "model"}
-
-    for model in ("grok-4.7", "grok-4.6"):
-        assert model_entries[model].provider == "grok"
-
-    scoped_values = {
-        entry.value
-        for entry in model_completion.filter_model_completion_entries(entries, "grok/")
-    }
-    assert {"grok/grok-4.7", "grok/grok-4.6"}.issubset(scoped_values)
-
-
-def test_model_completion_catalog_filters_gpt6_sol(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Filtering `gpt6` and `codex/gpt-6` surfaces the GPT-6 Sol row."""
-    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
-    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
-
-    entries = model_completion.build_model_completion_catalog()
-
-    gpt6_values = {
-        entry.value
-        for entry in model_completion.filter_model_completion_entries(entries, "gpt6")
-    }
-    assert "gpt-6-sol" in gpt6_values
-
-    scoped_values = {
-        entry.value
-        for entry in model_completion.filter_model_completion_entries(
-            entries, "codex/gpt-6"
-        )
-    }
-    assert "codex/gpt-6-sol" in scoped_values
-
-
-def test_model_completion_catalog_filters_gpt6_luna(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Filtering `gpt6` and `codex/gpt-6` surfaces the GPT-6 Luna row."""
-    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
-    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
-
-    entries = model_completion.build_model_completion_catalog()
-
-    gpt6_values = {
-        entry.value
-        for entry in model_completion.filter_model_completion_entries(entries, "gpt6")
-    }
-    assert "gpt-6-luna" in gpt6_values
-
-    scoped_values = {
-        entry.value
-        for entry in model_completion.filter_model_completion_entries(
-            entries, "codex/gpt-6"
-        )
-    }
-    assert "codex/gpt-6-luna" in scoped_values
-
-    alias_values = {
-        entry.value
-        for entry in model_completion.filter_model_completion_entries(
-            entries, "gpt6luna"
-        )
-    }
-    assert "gpt-6-luna" in alias_values
-
-
-def test_model_completion_lsp_payload_includes_gpt6_sol(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The serialized LSP catalog carries the GPT-6 Sol Codex row."""
     monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
     monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
 
@@ -282,12 +176,23 @@ def test_model_completion_lsp_payload_includes_gpt6_sol(
     entries = payload["entries"]
     assert isinstance(entries, list)
     by_value = {entry["value"]: entry for entry in entries if isinstance(entry, dict)}
-    assert "gpt-6-sol" in by_value
-    assert by_value["gpt-6-sol"]["provider"] == "codex"
-    assert "gpt6sol" in by_value["gpt-6-sol"]["aliases"]
-    assert "gpt-6-luna" in by_value
-    assert by_value["gpt-6-luna"]["provider"] == "codex"
-    assert "gpt6luna" in by_value["gpt-6-luna"]["aliases"]
+
+    metadata = registry.get_llm_metadata_payload()
+    model_to_provider = metadata["model_to_provider"]
+    assert isinstance(model_to_provider, dict)
+    short_aliases = metadata.get("model_short_aliases", {})
+    assert isinstance(short_aliases, dict)
+    hidden = registry.model_picker_hidden_provider_names()
+
+    for model, provider in model_to_provider.items():
+        if provider in hidden:
+            continue
+        assert model in by_value, model
+        row = by_value[model]
+        assert row["provider"] == provider
+        expected_alias = short_aliases.get(model)
+        if expected_alias is not None:
+            assert expected_alias in row["aliases"], model
 
 
 def test_model_completion_catalog_hides_fakey_from_real_registry(

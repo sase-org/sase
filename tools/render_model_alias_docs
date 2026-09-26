@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import argparse
+import difflib
 import sys
 from html import escape
 from pathlib import Path
@@ -27,9 +29,13 @@ def _cell(text: str) -> str:
 
 
 def _format_row(cells: tuple[str, str, str], widths: tuple[int, int, int]) -> str:
-    return "| " + " | ".join(
-        cell.ljust(width) for cell, width in zip(cells, widths, strict=True)
-    ) + " |"
+    return (
+        "| "
+        + " | ".join(
+            cell.ljust(width) for cell, width in zip(cells, widths, strict=True)
+        )
+        + " |"
+    )
 
 
 def _declared_aliases(path: Path = DEFAULTS_PATH) -> dict[str, dict[str, str]]:
@@ -61,8 +67,10 @@ def _declared_aliases(path: Path = DEFAULTS_PATH) -> dict[str, dict[str, str]]:
     return declared
 
 
-def _render_table() -> str:
-    aliases = _declared_aliases()
+def _render_table(defaults_path: Path | None = None) -> str:
+    aliases = _declared_aliases(
+        DEFAULTS_PATH if defaults_path is None else defaults_path
+    )
 
     rows: list[tuple[str, str, str]] = []
     for alias, entry in aliases.items():
@@ -73,7 +81,9 @@ def _render_table() -> str:
         else:
             shipped_default = "None."
 
-        rows.append((f"`@{alias}`", _cell(entry["description"]), _cell(shipped_default)))
+        rows.append(
+            (f"`@{alias}`", _cell(entry["description"]), _cell(shipped_default))
+        )
 
     headers = ("Alias", "Description", "Shipped default")
     all_rows = (headers, *rows)
@@ -109,9 +119,7 @@ def _replace_generated_block(text: str, generated: str) -> str:
     begin_index = text.index(BEGIN_MARKER)
     end_index = text.index(END_MARKER)
     if end_index < begin_index:
-        raise ValueError(
-            f"end marker appears before begin marker in {DOCS_PATH}"
-        )
+        raise ValueError(f"end marker appears before begin marker in {DOCS_PATH}")
 
     return (
         text[: begin_index + len(BEGIN_MARKER)]
@@ -122,17 +130,59 @@ def _replace_generated_block(text: str, generated: str) -> str:
     )
 
 
-def render_docs(path: Path = DOCS_PATH) -> bool:
+def render_docs(path: Path | None = None, defaults_path: Path | None = None) -> bool:
+    path = DOCS_PATH if path is None else path
     text = path.read_text(encoding="utf-8")
-    new_text = _replace_generated_block(text, _render_table())
+    new_text = _replace_generated_block(text, _render_table(defaults_path))
     if new_text == text:
         return False
     path.write_text(new_text, encoding="utf-8")
     return True
 
 
-def main() -> int:
+def check_docs(
+    path: Path | None = None, defaults_path: Path | None = None
+) -> list[str]:
+    """Compare the on-disk block with the in-memory render without writing."""
+    path = DOCS_PATH if path is None else path
+    text = path.read_text(encoding="utf-8")
+    expected = _replace_generated_block(text, _render_table(defaults_path))
+    if expected == text:
+        return []
+    return list(
+        difflib.unified_diff(
+            text.splitlines(),
+            expected.splitlines(),
+            fromfile=str(path),
+            tofile=f"{path} (generated)",
+            lineterm="",
+        )
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Render the generated model-alias defaults block in docs/llms.md."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="compare the on-disk block without writing; exit nonzero on drift",
+    )
+    args = parser.parse_args(argv)
     try:
+        if args.check:
+            diff = check_docs()
+            if diff:
+                _error(
+                    "generated model-alias-defaults block in "
+                    f"{DOCS_PATH} is stale; run `just fix` (or "
+                    "`just fmt-docs`) to regenerate"
+                )
+                for line in diff:
+                    print(line)
+                return 1
+            return 0
         render_docs()
     except (OSError, ValueError, RuntimeError) as exc:
         _error(str(exc))

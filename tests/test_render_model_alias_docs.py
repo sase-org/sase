@@ -8,6 +8,8 @@ from pathlib import Path
 import sys
 from types import ModuleType
 
+import pytest
+
 from sase.llm_provider.model_alias_policy import (
     implicit_alias_targets,
     role_alias_descriptions,
@@ -59,6 +61,44 @@ def test_renderer_table_matches_runtime_loaded_defaults(
             assert renderer._cell(f"`{targets[alias]}`") in table
         if alias in fallbacks:
             assert renderer._cell(f"`{fallbacks[alias]}`") in table
+
+
+def test_check_passes_on_current_generated_block() -> None:
+    renderer = _load_renderer("render_model_alias_docs_check_clean")
+    assert renderer.check_docs() == []
+    assert renderer.main(["--check"]) == 0
+
+
+def test_check_reports_stale_block_without_writing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    renderer = _load_renderer("render_model_alias_docs_check_stale")
+    docs = tmp_path / "llms.md"
+    docs.write_text(
+        "# Models\n\n"
+        f"{renderer.BEGIN_MARKER}\n\nstale table\n\n{renderer.END_MARKER}\n",
+        encoding="utf-8",
+    )
+    defaults = tmp_path / "model_alias_defaults.yml"
+    defaults.write_text(
+        "schema_version: 1\n"
+        "aliases:\n"
+        "  small:\n"
+        "    description: Small alias.\n"
+        '    target: "claude/sonnet@high"\n',
+        encoding="utf-8",
+    )
+
+    before = docs.read_text(encoding="utf-8")
+    diff = renderer.check_docs(docs, defaults)
+    assert diff
+    assert any(line.startswith(("+", "-")) and "table" in line for line in diff)
+    assert docs.read_text(encoding="utf-8") == before
+
+    monkeypatch.setattr(renderer, "DOCS_PATH", docs)
+    monkeypatch.setattr(renderer, "DEFAULTS_PATH", defaults)
+    assert renderer.main(["--check"]) == 1
+    assert docs.read_text(encoding="utf-8") == before
 
 
 def test_renderer_rejects_malformed_alias_input(tmp_path: Path) -> None:
