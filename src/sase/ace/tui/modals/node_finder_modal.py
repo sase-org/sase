@@ -25,6 +25,7 @@ from ..actions.navigation.jump_hints import (
 from ..models.node_finder import (
     NodeFinderRow,
     NodeFinderSnapshot,
+    NodeFinderView,
     filter_node_finder,
     next_jumpable_index,
 )
@@ -70,6 +71,12 @@ _PreviewLoader = Callable[["Agent"], NodeFinderPreviewPayload]
 #: re-centers the window when it steps outside.
 _OPTION_WINDOW_SIZE = 64
 
+#: Maximum memoized filtered views per modal. Repeated refilters of the
+#: same query (the common case is a handful of recent queries) hit; the
+#: bound keeps a broad whole-tree view plus a few narrow ones resident
+#: without growing across opens, since the cache dies with the modal.
+_VIEW_CACHE_SIZE = 8
+
 
 @dataclass(frozen=True, slots=True)
 class NodeFinderResult:
@@ -104,7 +111,18 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self._snapshot = snapshot
         self._has_back = has_back
         self._preview_loader = preview_loader or load_node_finder_preview
-        self._view = filter_node_finder(snapshot, "")
+        # Per-modal filtered-view memo: the snapshot is fixed for the modal
+        # lifetime and filtering is deterministic in (query, previous tokens),
+        # so a repeated refilter (backspace, query toggle, Tab/Enter flush,
+        # or the coalesced latest-wins worker firing twice) reuses the exact
+        # same view object instead of rescanning thousands of rows. Keyed by
+        # the previous view's tokens rather than its identity, so correctness
+        # never depends on refinement monotonicity; a changed query always
+        # misses and recomputes. Bounded and modal-local: entries die with
+        # the modal, and live owner state is still read afresh on every open.
+        self._view_cache: dict[tuple[str, tuple[str, ...] | None], NodeFinderView] = {}
+        self._view = self._filtered_view("", None)
+        self._last_options_key: tuple[object, ...] | None = None
         self._search_mode = False
         self._pending = ""
         self._flash = ""
@@ -258,13 +276,33 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
             self._pending_refilter_query = None
         self._apply_refilter(query, generation)
 
+    def _filtered_view(
+        self, query: str, previous: NodeFinderView | None
+    ) -> NodeFinderView:
+        """Return the filtered view for *query*, reusing a memoized one.
+
+        Views are never mutated after construction (refilters replace
+        ``self._view`` and every row tuple is frozen), so sharing one
+        across repeated refilters is exact. The previous view's tokens
+        join the key so a refinement-narrowed evaluation and a full one
+        for the same query never collide.
+        """
+        key = (query, previous.tokens if previous is not None else None)
+        hit = self._view_cache.get(key)
+        if hit is None:
+            hit = filter_node_finder(self._snapshot, query, previous=previous)
+            if len(self._view_cache) >= _VIEW_CACHE_SIZE:
+                self._view_cache.pop(next(iter(self._view_cache)))
+            self._view_cache[key] = hit
+        return hit
+
     def _apply_refilter(self, query: str, generation: int) -> None:
         if generation != self._refilter_generation:
             return  # Superseded by a newer keystroke; latest wins.
         if not self.is_mounted:
             return
         with tui_trace("node_finder.filter"):
-            self._view = filter_node_finder(self._snapshot, query, previous=self._view)
+            self._view = self._filtered_view(query, self._view)
             self._pending = ""
             self._rebuild_options(highlight=self._view.best_index)
             self._paint_chrome()
@@ -398,23 +436,54 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         return (start, start + _OPTION_WINDOW_SIZE)
 
     def _rebuild_options(self, *, highlight: int | None) -> None:
+        view = self._view
+        resolved: int | None
+        if highlight is not None and 0 <= highlight < len(view.rows):
+            resolved = highlight
+        else:
+            resolved = view.best_index
+        if view.rows:
+            base, end = self._window_for(resolved)
+        else:
+            base, end = 0, 0
+        # Skip when the list already shows exactly what this rebuild would
+        # produce: the same view object with the same render parameters,
+        # window, and highlight. Repeated refilters of one query memoize to
+        # the same view, so the clear/add churn and the window's row renders
+        # are skipped without changing any pixel. The live highlight check
+        # matters: cursor motion sets it directly without rebuilding, so a
+        # refilter that resolves elsewhere must still rebuild to reset it.
+        # ``resolved`` always lands inside ``(base, end)`` by construction,
+        # so the ``_set_highlighted`` below never re-centers (and never
+        # re-enters this method) from here.
+        key = (
+            id(view),
+            self._search_mode,
+            self._pending,
+            self._layout_class,
+            base,
+            end,
+            resolved,
+        )
+        if (
+            key == self._last_options_key
+            and self._window_base == base
+            and self._window_end == end
+            and (resolved is None or self._highlighted_view_index() == resolved)
+        ):
+            return
         option_list = self._list()
-        hint_width = hint_column_width(self._view)
+        hint_width = hint_column_width(view)
         status = show_status_column(self._layout_class)
         # One sibling-closure pass shared by every row's tree guides; computing
         # it per row would make a rebuild O(rows^2). Guides span the full
         # view even though only the window becomes widgets.
-        guide_ends = last_child_indices(self._view.rows)
-        resolved: int | None
-        if highlight is not None and 0 <= highlight < len(self._view.rows):
-            resolved = highlight
-        else:
-            resolved = self._view.best_index
+        guide_ends = last_child_indices(view.rows)
         options: list[Option] = []
-        if not self._view.rows:
+        if not view.rows:
             options.append(
                 Option(
-                    empty_match_label(self._view.query),
+                    empty_match_label(view.query),
                     id="__empty__",
                     disabled=True,
                 )
@@ -422,20 +491,17 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
             self._window_base = 0
             self._window_end = 0
         else:
-            base, end = self._window_for(resolved)
             self._window_base = base
             self._window_end = end
             for index in range(base, end):
-                row = self._view.rows[index]
+                row = view.rows[index]
                 disabled = (
-                    not row.jumpable
-                    or index in self._view.context
-                    or row.identity is None
+                    not row.jumpable or index in view.context or row.identity is None
                 )
                 options.append(
                     Option(
                         render_row_prompt(
-                            self._view,
+                            view,
                             index,
                             search_mode=self._search_mode,
                             pending=self._pending,
@@ -451,6 +517,7 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         option_list.add_options(options)
         if resolved is not None and self._window_base <= resolved < self._window_end:
             self._set_highlighted(resolved)
+        self._last_options_key = key
 
     def _refresh_hint_gutters(self) -> None:
         if not self.is_mounted:

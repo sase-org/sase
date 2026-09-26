@@ -617,8 +617,16 @@ def filter_tree_rows(
     predicate: Callable[[Agent], bool],
 ) -> list[Agent]:
     """Filter rows while retaining matched ancestors and their descendants."""
-    lookup = tree_parent_lookup(agents)
     matched = {id(agent) for agent in agents if predicate(agent)}
+    if len(matched) == len(agents):
+        # Every row matched, so the ancestor/descendant retention below can
+        # add nothing: the kept set is the whole roster in input order, which
+        # is exactly what the tail comprehension would return. Skipping the
+        # parent index, ancestor walks, and child buckets keeps match-all
+        # queries (including the finder's per-open query survivor pass) off
+        # the tree machinery without changing the result.
+        return list(agents)
+    lookup = tree_parent_lookup(agents)
     included = set(matched)
 
     # Older workflow fixtures/archives can identify children only through the

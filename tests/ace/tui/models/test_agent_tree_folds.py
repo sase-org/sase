@@ -132,3 +132,22 @@ def test_clan_tree_query_retains_complete_immediate_parent_chain() -> None:
     )
 
     assert filtered == projected
+
+
+def test_filter_tree_rows_match_all_returns_roster_in_order() -> None:
+    """A match-all predicate keeps every row without tree retention work."""
+    first = _agent("research.alpha", "alpha")
+    second = _agent("research.beta", "beta")
+    roster = [first, second]
+
+    filtered = filter_tree_rows(roster, lambda row: True)
+
+    assert filtered == roster
+    assert all(new is old for new, old in zip(filtered, roster, strict=True))
+
+
+def test_filter_tree_rows_match_none_returns_empty() -> None:
+    """A match-none predicate still flows through the exact filter path."""
+    roster = [_agent("research.alpha", "alpha"), _agent("research.beta", "beta")]
+
+    assert filter_tree_rows(roster, lambda row: False) == []

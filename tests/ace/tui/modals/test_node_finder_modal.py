@@ -398,6 +398,80 @@ async def test_tier1_hits_lru_on_revisit() -> None:
         await wait_for(pilot, lambda: "cached-alpha" in _plain(preview))
 
 
+def test_repeated_refilter_reuses_memoized_view() -> None:
+    """One query filtered twice shares the exact same view object."""
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    empty = modal._view
+    first = modal._filtered_view("alp", empty)
+    assert [row.name for row in first.rows] == ["alpha", "alpine"]
+    second = modal._filtered_view("alp", empty)
+    assert second is first
+
+
+def test_changed_query_recomputes_view() -> None:
+    """A changed query never serves the memoized view of another query."""
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    first = modal._filtered_view("alp", modal._view)
+    other = modal._filtered_view("beta", modal._view)
+    assert other is not first
+    assert [row.name for row in other.rows] == ["beta"]
+    assert other.query == "beta"
+
+
+def test_refinement_and_full_eval_share_names_best_and_mode() -> None:
+    """Same query from different previous tokens agrees on the outcome."""
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    empty = modal._view
+    prefix = modal._filtered_view("alp", empty)
+    narrowed = modal._filtered_view("alpi", prefix)
+    full = modal._filtered_view("alpi", empty)
+    assert [row.name for row in narrowed.rows] == [row.name for row in full.rows]
+    assert narrowed.best_index == full.best_index
+    assert narrowed.relaxed == full.relaxed
+
+
+@pytest.mark.asyncio
+async def test_repeated_refilter_skips_identical_option_rebuild() -> None:
+    """A no-change refilter leaves the materialized options untouched."""
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+        await wait_for(pilot, lambda: modal.is_mounted)
+        modal._refilter_generation += 1
+        modal._apply_refilter("alp", modal._refilter_generation)
+        option_list = modal.query_one("#node-finder-list", OptionList)
+        prompts = [
+            option_list.get_option_at_index(index).prompt.plain
+            for index in range(option_list.option_count)
+        ]
+        highlighted = option_list.highlighted
+        modal._refilter_generation += 1
+        modal._apply_refilter("alp", modal._refilter_generation)
+        assert modal._view.query == "alp"
+        assert option_list.option_count == len(prompts)
+        assert [
+            option_list.get_option_at_index(index).prompt.plain
+            for index in range(option_list.option_count)
+        ] == prompts
+        assert option_list.highlighted == highlighted
+
+
+@pytest.mark.asyncio
+async def test_refilter_after_cursor_move_resets_highlight_to_best() -> None:
+    """Cursor motion defeats the rebuild skip so the refilter re-centers."""
+    modal = _modal(_node("alpha"), _node("alpine"), _node("beta"))
+    async with _ModalHost(modal).run_test(size=(160, 40)) as pilot:
+        await wait_for(pilot, lambda: modal.is_mounted)
+        modal._refilter_generation += 1
+        modal._apply_refilter("alp", modal._refilter_generation)
+        assert modal._view.best_index == 0
+        modal._move_cursor(1)
+        option_list = modal.query_one("#node-finder-list", OptionList)
+        assert option_list.highlighted == 1
+        modal._refilter_generation += 1
+        modal._apply_refilter("alp", modal._refilter_generation)
+        assert option_list.highlighted == 0
+
+
 @pytest.mark.asyncio
 async def test_tier1_tasks_cancel_on_unmount() -> None:
     hang = asyncio.Event()
