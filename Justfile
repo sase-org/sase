@@ -365,7 +365,9 @@ _lint-patch-stitch-terminology: _setup
 # and CompletionSpecCacheError; sase-18g.3 consumed the agent-header preview
 # symbols keyed to the sase-18g epic). sase-18j.7 consumed the triage
 # wrappers and sase-18j.8 consumed tool_run_failures. The queue multiplier
-# seams await sase-19f.4's display and editing surfaces. Never put a comment
+# seams await sase-19f.4's display and editing surfaces. The card-block seams
+# (BlockMeta, card_block_id) await sase-19x.3's session Reply builder.
+# Never put a comment
 # line inside the continued command below: just joins the lines, so the comment
 # would swallow every later argument.
 _lint-symvision *args: _setup
@@ -375,6 +377,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19f(parse_queue_capacity_value)' \
         --epic-symbol 'sase-19f(format_queue_capacity_multiplier)' \
         --epic-symbol 'sase-19f(resolve_queue_capacity_multiplier)' \
+        --epic-symbol 'sase-19x(BlockMeta)' \
+        --epic-symbol 'sase-19x(card_block_id)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
         --epic-symbol 'sase-19i(build_node_finder_snapshot)' \

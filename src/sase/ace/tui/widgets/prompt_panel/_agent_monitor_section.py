@@ -322,6 +322,7 @@ def build_monitor_phase(
     agent: Agent,
     *,
     annotate: MonitorTextAnnotator | None = None,
+    block_id: str | None = None,
 ) -> list[object]:
     """Return the agent_session-facing MONITOR phase: divider, fields, and log."""
     parts: list[object] = [
@@ -330,6 +331,7 @@ def build_monitor_phase(
             agent.run_start_time or agent.start_time,
             accent=MONITOR_GLYPH_COLOR,
             glyph=MONITOR_GLYPH,
+            block_id=block_id,
         )
     ]
     parts.extend(_monitor_field_parts(agent, annotate=annotate))

@@ -301,6 +301,7 @@ def build_gate_phase(
     agent: Agent,
     *,
     annotate: GateTextAnnotator | None = None,
+    block_id: str | None = None,
 ) -> list[object]:
     """Return the agent_session-facing GATE phase: divider, fields, and log."""
     accent = agent.gate_accent or "#0BCDEC"
@@ -310,6 +311,7 @@ def build_gate_phase(
             agent.run_start_time or agent.start_time,
             accent=accent,
             glyph=GATE_GLYPH,
+            block_id=block_id,
         )
     ]
     parts.extend(_gate_field_parts(agent))

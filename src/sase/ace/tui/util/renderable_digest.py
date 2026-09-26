@@ -57,6 +57,28 @@ def _update_digest(hasher: Any, node: object) -> None:
         for child in getattr(node, "renderables", ()):
             _update_digest(hasher, child)
         return
+    if bool(getattr(node, "__sase_card_block__", False)):
+        hasher.update(b"B")
+        hasher.update(
+            str(getattr(node, "block_id", "")).encode("utf-8", errors="replace")
+        )
+        hasher.update(b"\x00")
+        hasher.update(str(getattr(node, "title", "")).encode("utf-8", errors="replace"))
+        hasher.update(b"\x00")
+        meta = getattr(node, "meta", None)
+        for field in ("number", "label", "glyph", "accent", "status_bucket", "kind"):
+            hasher.update(
+                str(getattr(meta, field, "")).encode("utf-8", errors="replace")
+            )
+            hasher.update(b"\x00")
+        for child in getattr(node, "renderables", ()):
+            _update_digest(hasher, child)
+        return
+    if bool(getattr(node, "__sase_block_spread_only__", False)):
+        hasher.update(b"O")
+        for child in getattr(node, "renderables", ()):
+            _update_digest(hasher, child)
+        return
     if isinstance(node, str):
         hasher.update(b"s")
         hasher.update(node.encode("utf-8", errors="replace"))

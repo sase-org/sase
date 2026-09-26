@@ -32,11 +32,13 @@ from ._file_path_hints import (
 
 def _plain_renderable_content(renderable: object) -> str:
     """Flatten the hint document for introspection without rendering it."""
+    from ..decks.card_block import is_card_container
+
     if isinstance(renderable, Text):
         return renderable.plain
     if isinstance(renderable, Syntax):
         return str(renderable.code)
-    if bool(getattr(renderable, "__sase_card_part__", False)):
+    if is_card_container(renderable):
         return "\n".join(
             _plain_renderable_content(child)
             for child in getattr(renderable, "renderables", ())
@@ -81,6 +83,9 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
                 if not isinstance(child, CardPart):
                     kept.append(child)
                     continue
+                if child.blocks:
+                    kept.append(self._prepare_cached_block_card(child))
+                    continue
                 inner: RenderableType
                 if len(child.renderables) == 1:
                     inner = child.renderables[0]  # type: ignore[assignment]
@@ -100,6 +105,47 @@ class AgentHintsDisplayMixin(AgentHintRenderMixin):
         )
         self._agent_hint_renderable = cached
         return cached
+
+    def _prepare_cached_block_card(self, card: object) -> object:
+        """Wrap a card with blocks in per-block salted segment caches."""
+        from ..decks.card_block import BlockSpreadOnly, CardBlock
+        from ..decks.card_part import CardPart
+
+        assert isinstance(card, CardPart)
+        preamble: list[object] = []
+        for child in card.preamble:
+            if isinstance(child, BlockSpreadOnly):
+                preamble.append(
+                    BlockSpreadOnly(
+                        *[
+                            CachedRenderable(
+                                inner,
+                                _plain_renderable_content(inner),
+                            )
+                            for inner in child.renderables
+                        ]
+                    )
+                )
+            else:
+                preamble.append(
+                    CachedRenderable(child, _plain_renderable_content(child))  # type: ignore[arg-type]
+                )
+        blocks: list[object] = []
+        for block in card.blocks:
+            plain = _plain_renderable_content(block)
+            blocks.append(
+                CardBlock(
+                    block.block_id,
+                    block.title,
+                    CachedRenderable(
+                        Group(*block.renderables),  # type: ignore[arg-type]
+                        plain,
+                        digest_salt=block.block_id,
+                    ),
+                    meta=block.meta,
+                )
+            )
+        return CardPart(card.card_id, card.title, *preamble, *blocks)  # type: ignore[arg-type]
 
     def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
         """Render the agent display with hints and trace the keystroke path.

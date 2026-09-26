@@ -154,10 +154,15 @@ def _bind_syntax_highlight_cache(syntax: Syntax, content_digest: str) -> None:
 class CachedRenderable:
     """Rich wrapper that reuses rendered segments per render width."""
 
-    def __init__(self, renderable: RenderableType, content: str) -> None:
+    def __init__(
+        self, renderable: RenderableType, content: str, digest_salt: str = ""
+    ) -> None:
         self._renderable = renderable
         self._content = content
-        self._digest = _content_digest(content)
+        if digest_salt:
+            self._digest = _content_digest(f"{digest_salt}\x00{content}")
+        else:
+            self._digest = _content_digest(content)
         self._segments_by_options: OrderedDict[tuple[object, ...], tuple[Segment, ...]]
         self._segments_by_options = OrderedDict()
         self._measurements_by_options: OrderedDict[tuple[object, ...], Measurement] = (

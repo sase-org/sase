@@ -115,9 +115,11 @@ def identity_kind_for_agent(agent: Agent) -> tuple[str, str]:
 
 def _find_carrier(content: object) -> AgentHeaderRenderable | None:
     """Return the first document carrier inside ``content``, if any."""
+    from ..decks.card_block import is_card_container
+
     if isinstance(content, AgentHeaderRenderable):
         return content
-    if bool(getattr(content, "__sase_card_part__", False)):
+    if is_card_container(content):
         for child in getattr(content, "renderables", ()):
             found = _find_carrier(child)
             if found is not None:

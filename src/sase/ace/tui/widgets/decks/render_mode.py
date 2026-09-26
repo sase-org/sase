@@ -10,6 +10,7 @@ from rich.console import Console, ConsoleOptions, Group
 from rich.syntax import Syntax
 from rich.text import Text
 
+from .card_block import is_card_container
 from .card_part import CardPart
 from .model import RenderMode
 
@@ -68,8 +69,9 @@ def _lower_bound_rows(renderables: Iterable[object], *, stop_after: float) -> in
 
 
 def _lower_bound_node(node: object) -> int:
-    # CardPart and Group: sum children.
-    if isinstance(node, (Group, CardPart)):
+    # Card containers and Group: sum children so each block keeps the
+    # cheap lower bound (and its early exit) instead of counting as one row.
+    if isinstance(node, Group) or is_card_container(node):
         renderables = getattr(node, "renderables", ())
         subtotal = 0
         for child in renderables:

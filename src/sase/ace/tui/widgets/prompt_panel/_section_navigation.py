@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 SECTION_MARKER_META_KEY = "sase_prompt_panel_section"
 SECTION_FOLD_ONLY_META_KEY = "sase_prompt_panel_section_fold_only"
 DECK_CARD_META_KEY = "sase_deck_card"
+DECK_BLOCK_META_KEY = "sase_card_block"
 
 
 class PromptPanelSectionRole(Enum):
@@ -33,6 +34,7 @@ class PromptPanelSectionRole(Enum):
     TITLE = auto()
     FOLD_ONLY = auto()
     CARD = auto()
+    BLOCK = auto()
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,6 +333,9 @@ def _segment_section_identity(
     card_id = meta.get(DECK_CARD_META_KEY)
     if isinstance(card_id, str) and card_id:
         return f"card:{card_id}", PromptPanelSectionRole.CARD
+    block_id = meta.get(DECK_BLOCK_META_KEY)
+    if isinstance(block_id, str) and block_id:
+        return f"block:{block_id}", PromptPanelSectionRole.BLOCK
     identity = meta.get(SECTION_MARKER_META_KEY)
     if not isinstance(identity, str) or not identity:
         return None
@@ -343,6 +348,7 @@ def _segment_section_identity(
 
 
 __all__ = [
+    "DECK_BLOCK_META_KEY",
     "DECK_CARD_META_KEY",
     "PromptPanelSectionAnchor",
     "PromptPanelSectionRole",

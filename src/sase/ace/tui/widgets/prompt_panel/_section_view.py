@@ -226,6 +226,26 @@ class SectionViewMixin(Static):
                 pairs.append((identity, anchor.row))
         return tuple(pairs)
 
+    def block_anchor_rows(self, *, width: int) -> tuple[tuple[str, int], ...] | None:
+        """Return ordered ``(block_id, row)`` pairs, or None when not ready."""
+        generation = getattr(self, "_section_generation", 0)
+        ready = (
+            getattr(self, "_section_anchor_generation", -1) == generation
+            and getattr(self, "_section_anchor_width", -1) == width
+        )
+        if not ready:
+            return None
+        pairs: list[tuple[str, int]] = []
+        for anchor in getattr(self, "_section_anchors", ()):
+            if anchor.role is not PromptPanelSectionRole.BLOCK:
+                continue
+            identity = anchor.identity
+            if identity.startswith("block:"):
+                pairs.append((identity[len("block:") :], anchor.row))
+            else:
+                pairs.append((identity, anchor.row))
+        return tuple(pairs)
+
     def enable_section_layout_reserve(self) -> bool:
         """Enable final-title alignment extent on the first navigation request."""
         if not self._section_view_features_enabled() or getattr(
@@ -324,7 +344,10 @@ class SectionViewMixin(Static):
 
         current: str | None = None
         for anchor in getattr(self, "_section_anchors", ()):
-            if anchor.role is PromptPanelSectionRole.CARD:
+            if anchor.role in (
+                PromptPanelSectionRole.CARD,
+                PromptPanelSectionRole.BLOCK,
+            ):
                 continue
             if anchor.row > row:
                 break

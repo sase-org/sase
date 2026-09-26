@@ -169,6 +169,7 @@ def render_phase_divider(
     *,
     accent: str = PHASE_DIVIDER_ACCENT,
     glyph: str | None = None,
+    block_id: str | None = None,
 ) -> Text:
     """Create a styled phase divider: ``--- LABEL --- HH:MM:SS ---...---``."""
     if start_time:
@@ -192,6 +193,16 @@ def render_phase_divider(
         used += len(glyph) + 1
     remaining = max(50 - used, 3)
     divider.append("\u2500" * remaining + "\n", style=f"dim {accent}")
+    if block_id is not None:
+        from rich.style import Style
+
+        from ._section_navigation import DECK_BLOCK_META_KEY
+
+        divider.stylize(
+            Style(meta={DECK_BLOCK_META_KEY: block_id}),
+            0,
+            len(divider.plain),
+        )
     return divider
 
 
