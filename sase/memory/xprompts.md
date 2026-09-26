@@ -38,19 +38,21 @@ description:
 `%` directives are stripped before the model sees the prompt and use xprompt arg
 grammar.
 
-| Directive                | Alias  | Effect                                                                                                 |
-| ------------------------ | ------ | ------------------------------------------------------------------------------------------------------ |
-| `%model:<m>`             | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")`                  |
-| `%effort:<lvl>`          | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                                               |
-| `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(<suffix>, session=<parent>)` session child                              |
-| `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                                     |
-| `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                                   |
-| `%queue:<n>`             | `%q`   | Runner-queue admission: positional `capacity` (`N` or `<M>x`); `(capacity=, priority=/p=, weight=/w=)` |
-| `%final[:ops]`           |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords                                |
-| `%repeat:<k>`            | `%r`   | k serial, auto-wait-chained runs                                                                       |
-| `%auto[:plan/tale/epic]` | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                                 |
-| `%hide`                  | `%h`   | Hidden row                                                                                             |
-| `%{a \| b}`              | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                                 |
+| Directive                 | Alias  | Effect                                                                                                 |
+| ------------------------- | ------ | ------------------------------------------------------------------------------------------------------ |
+| `%model:<m>`              | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")`                  |
+| `%effort:<lvl>`           | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                                               |
+| `%id:<n>`                 | `%i`   | Agent ID; bare auto-name; `%id(<suffix>, session=<parent>)` session child                              |
+| `%clan:<name>`            | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                                     |
+| `%wait:<n>`               | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                                   |
+| `%queue:<n>`              | `%q`   | Runner-queue admission: positional `capacity` (`N` or `<M>x`); `(capacity=, priority=/p=, weight=/w=)` |
+| `%hold:<sel>` / `%hold()` |        | Reverse-`%wait` admission hold on other queued agents and undispatched procs; running work immune      |
+| `%proc:<cmd>` / `%proc::` |        | Beta stand-alone process unit; `%queue` fields gate dispatch only, never held after dispatch           |
+| `%final[:ops]`            |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords                                |
+| `%repeat:<k>`             | `%r`   | k serial, auto-wait-chained runs                                                                       |
+| `%auto[:plan/tale/epic]`  | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                                 |
+| `%hide`                   | `%h`   | Hidden row                                                                                             |
+| `%{a \| b}`               | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                                 |
 
 `%model` is single-value; fan out models with `%{%m:opus | %m:sonnet}`.
 
@@ -71,6 +73,28 @@ default-weight launch; authored `capacity=0` is rejected. Each canonical field m
 once per launch unit across occurrences/aliases; disjoint fields compose, e.g.
 `%w(builder, time=5m) %q(1, p=20)`. Bare/empty `%q` never acquires `%wait`'s
 previous-agent meaning.
+
+`%hold` is the reverse of `%wait`: instead of making a new launch wait for other work,
+it makes matching _other_ work wait. While a hold is active, every agent it matches
+stays `QUEUED` at the runner-admission gate even when capacity is free, and every
+matching `%proc` unit not yet dispatched stays pending; work already running is never
+paused or stopped. Selectors union across occurrences: exact names, `@tribe`/`tribe=`,
+`hood=`, plus `pending` (agents WAITING/QUEUED when armed, frozen at arm time) and
+`future` (launches submitted after arming). `scope=project` (default) limits the hold to
+the armer's project; `scope=host` covers the machine. `ttl=` is optional: without it the
+hold uses the configured default (`2h`), and no hold outlives the cap (`12h`). A hold
+ends on explicit release, when the armer's session settles (agent) or shell exits, or at
+TTL expiry; a broken hold store fails open so admission never strands a waiter. Bare
+`%hold` is a directive error (a hold needs at least one selector); there is no `%h`
+alias (`%h` stays `%hide`), and `%hold` cannot combine with `%repeat` or `%dispatch`.
+Imperative form: `sase agent hold create|run|list|show|release`. Full contract:
+`docs/xprompt.md` Hold Directive and `docs/cli.md`.
+
+Beta `%proc` units (`%proc("cmd")`, `%proc(...)::` code form) dispatch natively without
+an agent runner slot. `%queue`/`%q` fields on a proc gate _dispatch_ only: the unit
+waits for a runner-capacity check under the same budget/priority rules as an agent
+launch, an omitted weight counts as `0`, and once dispatched the proc holds no runner
+capacity and never delays later launches.
 
 `%final` is repeatable. Colon and parenthesized forms accept only selector operations:
 lowercase instance slugs add, `!name` removes, and `none` clears removable defaults.
