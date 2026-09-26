@@ -439,6 +439,23 @@ class AgentDetailDeckMixin:
             self.set_deck_preferred_card(index, shown)
         return shown
 
+    def _remember_deck_preferred_card(
+        self, panel_index: int, card_id: str | None
+    ) -> None:
+        """Record the preferred card without re-showing the Main document.
+
+        Block-only swaps already show the owning card; only the stickiness
+        record needs updating so later subjects land on this card.
+        """
+        try:
+            self.deck_area.set_preferred_card_state(panel_index, card_id)
+        except Exception:
+            pass
+        try:
+            self._notify_deck_state_changed()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     def cycle_focused_card_block(self, direction: int) -> bool:
         """Cycle card blocks in the focused panel; the owning card sticks."""
         try:
@@ -460,7 +477,7 @@ class AgentDetailDeckMixin:
             active = panel.active_main_card()
         except Exception:
             active = None
-        self.set_deck_preferred_card(index, active)
+        self._remember_deck_preferred_card(index, active)
         return True
 
     def select_focused_card_block(self, block_id: str | None) -> bool:
@@ -484,7 +501,7 @@ class AgentDetailDeckMixin:
             active = panel.active_main_card()
         except Exception:
             active = None
-        self.set_deck_preferred_card(index, active)
+        self._remember_deck_preferred_card(index, active)
         return True
 
     def cycle_focused_deck(self, direction: int) -> None:

@@ -149,6 +149,17 @@ class DeckArea(Vertical):
         except Exception:
             pass
 
+    def set_preferred_card_state(self, index: int, card_id: str | None) -> None:
+        """Record the preferred card without re-showing the Main document.
+
+        Block-only swaps (``cycle_block``/``select_block``) already show the
+        owning card, sync chrome/rail, and step the cursor; pushing the whole
+        document again re-measures, re-renders, and re-applies deck CSS for
+        an identical frame. New subjects and deck switches still go through
+        :meth:`set_preferred_card`.
+        """
+        self._state = with_preferred_card(self._state, index, card_id)
+
     def panels_showing(self, deck: DeckId) -> tuple[DeckPanel, ...]:
         """Return visible panels showing ``deck``."""
         return tuple(p for p in self.visible_panels() if p.deck is deck)

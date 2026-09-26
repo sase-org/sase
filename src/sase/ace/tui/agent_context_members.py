@@ -10,7 +10,6 @@ producer when its audited events are rendered.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 from sase.ace.tui.models.agent import Agent
@@ -58,11 +57,16 @@ class _ContextMember:
 
 
 def _normalize_artifacts_dir(value: str | None) -> str | None:
-    """Return a realpath-normalized artifacts dir, mirroring the loaders."""
-    if not value:
-        return None
+    """Return a realpath-normalized artifacts dir, mirroring the loaders.
+
+    Event lanes call this per event per render, so resolve through the
+    memoized ``normalize_dir`` cache instead of issuing ``realpath``
+    syscalls every time; the return value is identical.
+    """
+    from sase.ace.tui.util.normalized_dirs import normalize_dir
+
     try:
-        return os.path.realpath(value)
+        return normalize_dir(value)
     except (OSError, ValueError):
         return value
 

@@ -421,3 +421,71 @@ async def test_block_spread_to_paged_keeps_scrollbar_in_sync() -> None:
         assert right.main_view.active_block_id("reply") == "b11"
         assert left.cycle_block(1) is True
         assert left.main_view.active_block_id("reply") == "b11"
+
+
+async def test_focused_block_cycle_sticks_without_document_reshow() -> None:
+    """``cycle_focused_card_block`` records stickiness, not a re-show.
+
+    Regression for the block-cycle latency path: the owning card is already
+    shown by ``panel.cycle_block``, so pushing the whole Main document again
+    only re-measures, re-renders, and re-applies deck CSS for an identical
+    frame. The cursor, follow/arrival state, rail, and per-panel stickiness
+    must all still converge without that re-show.
+    """
+    from unittest.mock import patch
+
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app)
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        panel.show_main_document(_document("s1", _reply_card(3), digest="d1"), "reply")
+        await pilot.pause()
+        view = panel.main_view
+        assert view.active_block_id("reply") == "b2"
+        with patch.object(
+            panel, "show_main_document", wraps=panel.show_main_document
+        ) as spy:
+            assert detail.cycle_focused_card_block(-1) is True
+            await pilot.pause()
+            assert detail.cycle_focused_card_block(-1) is True
+            await pilot.pause()
+            assert spy.call_count == 0
+        # Cursor stepped twice: newest -> b1 -> b0; parked, so not following.
+        assert view.active_block_id("reply") == "b0"
+        cursor = view._block_cursors["reply"]
+        assert cursor.following is False
+        # The owning card sticks for later subjects; chrome and rail synced.
+        assert detail.deck_area.state.panels[0].preferred_card == "reply"
+        assert panel.card_blocks_navigable is True
+        assert panel.active_main_card() == "reply"
+        assert view._last_render_key == ("d1", "reply", False, "paged", "b0")
+
+
+async def test_focused_block_select_sticks_without_document_reshow() -> None:
+    """``select_focused_card_block`` records stickiness, not a re-show."""
+    from unittest.mock import patch
+
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app)
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        panel = detail.deck_area.panel(0)
+        sibling = detail.deck_area.panel(1)
+        panel.show_main_document(_document("s1", _reply_card(3), digest="d1"), "reply")
+        sibling.show_main_document(
+            _document("s1", _reply_card(3), digest="d1"), "reply"
+        )
+        await pilot.pause()
+        with patch.object(
+            panel, "show_main_document", wraps=panel.show_main_document
+        ) as spy:
+            assert detail.select_focused_card_block("b0") is True
+            await pilot.pause()
+            assert spy.call_count == 0
+        assert panel.main_view.active_block_id("reply") == "b0"
+        assert detail.deck_area.state.panels[0].preferred_card == "reply"
+        # Split independence: the sibling panel keeps its own cursor.
+        assert sibling.main_view.active_block_id("reply") == "b2"
