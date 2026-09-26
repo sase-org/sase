@@ -144,7 +144,7 @@ print(json.dumps(out, sort_keys=True))
     assert out["paused_override"] == {
         "paused": True,
         "provider": "codex",
-        "model": "gpt-5.6-terra",
+        "model": "gpt-6-luna",
     }
     assert "LLM provider 'claude' is temporarily disabled" in out["direct_error"]
     assert out["after_clear_xlarge"][0] == "claude"

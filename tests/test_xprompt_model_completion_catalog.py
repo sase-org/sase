@@ -114,6 +114,13 @@ def test_model_completion_catalog_reflects_real_builtin_model_metadata(
     assert sol.aliases == ("gpt6sol",)
     assert sol.description == "Codex (gpt6sol)"
 
+    assert "gpt-6-luna" in model_entries
+
+    gpt6_luna = model_entries["gpt-6-luna"]
+    assert gpt6_luna.provider == "codex"
+    assert gpt6_luna.aliases == ("gpt6luna",)
+    assert gpt6_luna.description == "Codex (gpt6luna)"
+
     assert "gpt-5.6-sol" in model_entries
 
     legacy_sol = model_entries["gpt-5.6-sol"]
@@ -232,6 +239,38 @@ def test_model_completion_catalog_filters_gpt6_sol(
     assert "codex/gpt-6-sol" in scoped_values
 
 
+def test_model_completion_catalog_filters_gpt6_luna(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Filtering `gpt6` and `codex/gpt-6` surfaces the GPT-6 Luna row."""
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+
+    gpt6_values = {
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(entries, "gpt6")
+    }
+    assert "gpt-6-luna" in gpt6_values
+
+    scoped_values = {
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "codex/gpt-6"
+        )
+    }
+    assert "codex/gpt-6-luna" in scoped_values
+
+    alias_values = {
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "gpt6luna"
+        )
+    }
+    assert "gpt-6-luna" in alias_values
+
+
 def test_model_completion_lsp_payload_includes_gpt6_sol(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -246,6 +285,9 @@ def test_model_completion_lsp_payload_includes_gpt6_sol(
     assert "gpt-6-sol" in by_value
     assert by_value["gpt-6-sol"]["provider"] == "codex"
     assert "gpt6sol" in by_value["gpt-6-sol"]["aliases"]
+    assert "gpt-6-luna" in by_value
+    assert by_value["gpt-6-luna"]["provider"] == "codex"
+    assert "gpt6luna" in by_value["gpt-6-luna"]["aliases"]
 
 
 def test_model_completion_catalog_hides_fakey_from_real_registry(

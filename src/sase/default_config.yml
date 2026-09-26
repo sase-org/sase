@@ -1547,9 +1547,9 @@ llm_provider:
   # here are grammar examples only, not the shipped defaults.
   # model_aliases:
   #   builtin:
-  #     xsmall: "claude/claude-haiku-4-5 | codex/gpt-5.6-luna@low"
-  #     small: "claude/sonnet@low | codex/gpt-5.6-terra@low"
-  #     medium: "claude/sonnet@medium | codex/gpt-5.6-terra@medium | 3 grok/grok-4.6@high"
+  #     xsmall: "claude/claude-haiku-4-5 | codex/gpt-6-luna@medium"
+  #     small: "claude/sonnet@low | codex/gpt-6-luna@high"
+  #     medium: "claude/sonnet@medium | codex/gpt-6-luna@xhigh | 3 grok/grok-4.6@high"
   #     large: "claude/opus@high | codex/gpt-6-sol@xhigh | grok/grok-4.7@xhigh"
   #     xlarge: "claude/opus@xhigh || codex/gpt-6-sol@xhigh || grok/grok-4.7@xhigh"
   #   custom:

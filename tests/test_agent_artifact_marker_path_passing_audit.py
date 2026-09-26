@@ -263,6 +263,15 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "rescan; no marker is written here."
         ),
     ),
+    "src/sase/ace/tui/modals/node_finder_preview_loader.py:_source_paths": (
+        PathPassingReview(
+            exemption=(
+                "Read-only Node Finder preview freshness probe: agent_meta.json "
+                "and reply files are stat'd only to detect a changed preview "
+                "source; no marker is written."
+            ),
+        )
+    ),
 }
 
 

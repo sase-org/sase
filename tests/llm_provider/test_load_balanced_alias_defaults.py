@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from sase.llm_provider import config as llm_config
+from sase.llm_provider.codex import CodexProvider
 from sase.llm_provider.config import (
     resolve_model_alias,
     resolve_model_alias_with_effort,
@@ -18,6 +21,7 @@ from sase.llm_provider.model_alias_policy import (
     XSMALL_MODEL_ALIAS_NAME,
     implicit_alias_targets,
 )
+from sase.llm_provider.types import LLMInvocationOptions
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -80,7 +84,7 @@ def test_size_aliases_use_independent_rotations(
             "@xsmall",
             {
                 "claude/": ("claude/claude-haiku-4-5", "xhigh"),
-                "codex/": ("codex/gpt-5.6-luna", "xhigh"),
+                "codex/": ("codex/gpt-6-luna", "medium"),
                 "agy/": ("agy/gemini-3.8-flash-high", None),
                 "muse/": ("muse/muse-spark-1.3-contributor", "medium"),
             },
@@ -89,7 +93,7 @@ def test_size_aliases_use_independent_rotations(
             "@small",
             {
                 "claude/": ("claude/sonnet", "high"),
-                "codex/": ("codex/gpt-5.6-terra", "high"),
+                "codex/": ("codex/gpt-6-luna", "high"),
                 "grok/": ("grok/grok-4.6", "medium"),
                 "muse/": ("muse/muse-spark-1.3-contributor", "high"),
             },
@@ -98,7 +102,7 @@ def test_size_aliases_use_independent_rotations(
             "@medium",
             {
                 "claude/": ("claude/sonnet", "xhigh"),
-                "codex/": ("codex/gpt-5.6-terra", "xhigh"),
+                "codex/": ("codex/gpt-6-luna", "xhigh"),
                 "grok/": ("grok/grok-4.6", "high"),
                 "muse/": ("muse/muse-spark-1.3-contributor", "xhigh"),
             },
@@ -140,6 +144,46 @@ def test_packaged_defaults_select_correct_effort_per_provider(
 
         assert selected.target == expected_target
         assert selected.effort == expected_effort
+
+
+def test_shipped_medium_codex_member_launches_gpt6_luna(
+    monkeypatch: pytest.MonkeyPatch,
+    real_model_alias_defaults: None,
+) -> None:
+    """The @medium Codex member launches GPT-6 Luna at its xhigh rung."""
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+
+    selected = resolve_model_alias_with_effort("@medium", consume=True)
+    assert selected.target == "codex/gpt-6-luna"
+    effort = selected.effort
+    assert effort == "xhigh"
+
+    with (
+        patch(
+            "sase.llm_provider.codex.stream_and_parse_codex_json_output"
+        ) as mock_stream,
+        patch("sase.llm_provider.codex.subprocess.Popen") as mock_popen,
+        patch("sase.llm_provider.codex.provider_timer"),
+    ):
+        mock_popen.return_value = MagicMock()
+        mock_stream.return_value = ("response", "", 0)
+        CodexProvider().invoke(
+            "test",
+            model_tier="large",
+            suppress_output=True,
+            model_override="gpt-6-luna",
+            options=LLMInvocationOptions(reasoning_effort=effort, explicit=True),
+        )
+
+    cmd = mock_popen.call_args[0][0]
+    assert cmd[cmd.index("--model") + 1] == "gpt-6-luna"
+    assert 'model_reasoning_effort="xhigh"' in cmd
+    assert cmd[cmd.index('model_reasoning_effort="xhigh"') - 1] == "-c"
 
 
 def test_shipped_large_round_robins_claude_codex_grok(
