@@ -147,7 +147,19 @@ class AppLayoutMixin:
                 with Vertical(id="bgcmd-list-container"):
                     yield BgCmdList(panel_key="service_procs", id="service-procs-panel")
                     yield BgCmdList(
-                        panel_key="scheduled_routines", id="scheduled-routines-panel"
+                        panel_key="user_routines",
+                        id="user-routines-panel",
+                        classes="services-subpanel",
+                    )
+                    yield BgCmdList(
+                        panel_key="plugin_routines",
+                        id="plugin-routines-panel",
+                        classes="services-subpanel",
+                    )
+                    yield BgCmdList(
+                        panel_key="builtin_routines",
+                        id="builtin-routines-panel",
+                        classes="services-subpanel",
                     )
                 with Vertical(id="axe-container"):
                     with AxeInfoRow(id="axe-info-row"):

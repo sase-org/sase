@@ -58,6 +58,10 @@ class FakePanelsApp(AxeMixin, BasicNavigationMixin, AxeDisplayMixin):
         self._axe_chop_snapshots: dict[tuple[str, str], Any] = {}
         self._axe_lumberjack_snapshots: dict[str, Any] = {}
         self._axe_chop_run_offsets: dict[tuple[str, str], int] = {}
+        self._axe_routine_origins: dict[str, Any] = {}
+        self._axe_chop_origins: dict[tuple[str, str], Any] = {}
+        self._entry_jump_mode_active = False
+        self._entry_jump_index_to_hint: dict[int, str] = {}
         self._service_status = None
         self._axe_panel_index = build_services_panel_index([])
         self._axe_painted_panel_key = "service_procs"
@@ -77,6 +81,7 @@ class StubPanel:
         self.styles = SimpleNamespace(height=None)
         self.titles: list[Any] = []
         self.focus_calls = 0
+        self.display = True
 
     def update_list(self, **kwargs: Any) -> None:
         self.calls.append(("update_list", kwargs.get("current_idx")))
@@ -105,13 +110,15 @@ class StubPanel:
 
 
 class FakeMountedApp(FakePanelsApp):
-    """Fake with two stub panels mounted and queryable."""
+    """Fake with four stub panels mounted and queryable."""
 
     def __init__(self) -> None:
         super().__init__()
         self.panels = {
             "service_procs": StubPanel(),
-            "scheduled_routines": StubPanel(),
+            "user_routines": StubPanel(),
+            "plugin_routines": StubPanel(),
+            "builtin_routines": StubPanel(),
         }
         self.focused: Any = None
         self._keymap_registry = SimpleNamespace(app=SimpleNamespace(add_axe_item="a"))
@@ -119,11 +126,21 @@ class FakeMountedApp(FakePanelsApp):
     def query_one(self, selector: str, *_args: Any, **_kwargs: Any) -> Any:
         if selector == "#service-procs-panel":
             return self.panels["service_procs"]
-        if selector == "#scheduled-routines-panel":
-            return self.panels["scheduled_routines"]
+        if selector == "#user-routines-panel":
+            return self.panels["user_routines"]
+        if selector == "#plugin-routines-panel":
+            return self.panels["plugin_routines"]
+        if selector == "#builtin-routines-panel":
+            return self.panels["builtin_routines"]
         if selector == "#bgcmd-list-container":
-            return SimpleNamespace(size=SimpleNamespace(height=0, width=120))
+            return SimpleNamespace(
+                size=SimpleNamespace(height=0, width=120),
+                styles=SimpleNamespace(width=None),
+            )
         raise AssertionError(f"unexpected selector {selector!r}")
+
+    def call_after_refresh(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
 
 
 def _seed_items(app: FakePanelsApp) -> None:
@@ -181,7 +198,9 @@ def test_same_panel_highlight_never_rebuilds() -> None:
     procs_calls = app.panels["service_procs"].calls
     assert ("update_highlight", 0) in procs_calls
     assert not [c for c in procs_calls if c[0] == "update_list"]
-    assert app.panels["scheduled_routines"].calls == []
+    assert app.panels["user_routines"].calls == []
+    assert app.panels["plugin_routines"].calls == []
+    assert app.panels["builtin_routines"].calls == []
     assert app._axe_painted_panel_key == "service_procs"
 
 
@@ -191,11 +210,11 @@ def test_focus_crossing_swaps_highlight_chrome_and_titles() -> None:
     app.current_idx = 0
     app._axe_painted_panel_key = "service_procs"
     app.panels["service_procs"].classes.add("-focused-panel")
-    # j into the first routine row (global 3, local 0).
+    # j into the first routine row (global 3, local 0 in User Routines).
     app.current_idx = 3
     app._refresh_axe_panel_highlights()
     procs = app.panels["service_procs"]
-    routines = app.panels["scheduled_routines"]
+    routines = app.panels["user_routines"]
     assert ("clear_highlight", None) in procs.calls
     assert "-focused-panel" not in procs.classes
     assert ("update_highlight", 0) in routines.calls
@@ -203,7 +222,7 @@ def test_focus_crossing_swaps_highlight_chrome_and_titles() -> None:
     assert len(procs.titles) == 1 and len(routines.titles) == 1
     assert not [c for c in procs.calls if c[0] == "update_list"]
     assert not [c for c in routines.calls if c[0] == "update_list"]
-    assert app._axe_painted_panel_key == "scheduled_routines"
+    assert app._axe_painted_panel_key == "user_routines"
 
 
 def test_click_in_unfocused_panel_selects_global_row() -> None:
@@ -215,10 +234,54 @@ def test_click_in_unfocused_panel_selects_global_row() -> None:
             app, SimpleNamespace(index=local, panel_key=panel_key)
         )
 
-    _click("scheduled_routines", 1)  # the chop row, global 4
+    _click("user_routines", 1)  # the chop row, global 4
     assert app.current_idx == 4
     _click("service_procs", 2)  # the oneshot row, global 2
     assert app.current_idx == 2
+
+
+def test_build_groups_routines_by_source_panel_order() -> None:
+    from types import SimpleNamespace as _NS
+
+    app = FakePanelsApp()
+    app._service_status = _service_snapshot("scheduler")
+    app._bgcmd_slots = []
+    app._axe_lumberjack_names = ["z-user", "a-builtin", "m-plugin", "b-user"]
+    app._axe_routine_origins = {
+        "z-user": _NS(source="user"),
+        "a-builtin": _NS(source="builtin"),
+        "m-plugin": _NS(source="plugin"),
+        "b-user": _NS(source="user"),
+    }
+    app._axe_lumberjack_chop_names = {name: [] for name in app._axe_lumberjack_names}
+    app._build_axe_items()
+    assert [item.name for item in app._axe_items if hasattr(item, "name")] == [
+        "scheduler",
+        "b-user",
+        "z-user",
+        "m-plugin",
+        "a-builtin",
+    ]
+    index = app._axe_panel_index
+    assert index.slice_for("user_routines").global_indices == [1, 2]
+    assert index.slice_for("plugin_routines").global_indices == [3]
+    assert index.slice_for("builtin_routines").global_indices == [4]
+    assert index.visible_keys() == [
+        "service_procs",
+        "user_routines",
+        "plugin_routines",
+        "builtin_routines",
+    ]
+
+
+def test_paint_hides_empty_routine_panels() -> None:
+    app = FakeMountedApp()
+    _seed_items(app)
+    app._paint_axe_panels()
+    assert app.panels["service_procs"].display is True
+    assert app.panels["user_routines"].display is True
+    assert app.panels["plugin_routines"].display is False
+    assert app.panels["builtin_routines"].display is False
 
 
 def test_panel_highlight_path_reads_no_disk() -> None:
@@ -241,7 +304,7 @@ def test_panel_highlight_path_reads_no_disk() -> None:
         app._refresh_axe_panel_highlights()
         app.current_idx = 3
         app._refresh_axe_panel_highlights()
-        app._build_axe_panel_titles("scheduled_routines")
+        app._build_axe_panel_titles("user_routines")
 
 
 def test_focus_follows_only_bgcmd_owned_focus() -> None:

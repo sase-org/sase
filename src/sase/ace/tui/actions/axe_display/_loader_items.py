@@ -135,10 +135,11 @@ class AxeDisplayItemsMixin(AxeLoaderState):
 
         items: list[AxeItem] = []
 
-        # Visual order matches the two sidebar panels: every service proc,
-        # then the oneshot rows, then every routine with its job rows.
-        # Routines always live in their own panel now, so the
-        # ``service:scheduler`` fold is gone regardless of status shape.
+        # Visual order matches the sidebar panels: every service proc,
+        # then the oneshot rows, then routines grouped by declaring
+        # source (User → Plugin → Builtin), alphabetically within each
+        # panel with each routine's jobs immediately after it. Jobs
+        # always render in their parent routine's panel.
         service_status = getattr(self, "_service_status", None)
         if service_status is not None:
             for proc in service_status.procs:
@@ -155,7 +156,8 @@ class AxeDisplayItemsMixin(AxeLoaderState):
         self._axe_items = items
         from ._panels import build_services_panel_index
 
-        self._axe_panel_index = build_services_panel_index(items)
+        routine_origins = getattr(self, "_axe_routine_origins", None)
+        self._axe_panel_index = build_services_panel_index(items, routine_origins)
 
         restored_idx = restore_selection_by_identity(
             items,
@@ -179,6 +181,38 @@ class AxeDisplayItemsMixin(AxeLoaderState):
         self._axe_last_idx = restored_idx
         self._axe_last_item_key = selected_axe_item_key(items, restored_idx)
 
+    def _ordered_routine_names_by_source(self) -> list[str]:
+        """Return routine names in panel order, alphabetical within panel."""
+        from ._panels import ROUTINE_PANEL_ORDER, routine_panel_key_for_source
+
+        origins = getattr(self, "_axe_routine_origins", None) or {}
+        buckets: dict[str, list[str]] = {key: [] for key in ROUTINE_PANEL_ORDER}
+        for name in self._axe_lumberjack_names:
+            origin = origins.get(name)
+            if origin is None:
+                # Tests and degraded configs may seed names without
+                # origins; keep them visible in User rather than dropping
+                # the row. Real collector payloads always carry origins.
+                buckets["user_routines"].append(name)
+                continue
+            source = getattr(origin, "source", origin)
+            if isinstance(origin, dict):
+                candidate = origin.get("source", source)
+                if isinstance(candidate, str):
+                    source = candidate
+            try:
+                panel_key = routine_panel_key_for_source(source)  # type: ignore[arg-type]
+            except ValueError:
+                # Unknown source values fail clearly at index build time;
+                # keep the row out of the wrong panel here so the error
+                # surfaces from the single membership helper instead.
+                raise
+            buckets[panel_key].append(name)
+        ordered: list[str] = []
+        for key in ROUTINE_PANEL_ORDER:
+            ordered.extend(sorted(buckets[key]))
+        return ordered
+
     def _append_lumberjack_items(self, items: list[AxeItem]) -> None:
         """Append routine/job rows to ``items`` using per-routine fold state."""
         from ...models.fold_state import FoldLevel
@@ -186,7 +220,9 @@ class AxeDisplayItemsMixin(AxeLoaderState):
         # Top-level lumberjacks, each followed by its configured chops
         # when its per-lumberjack fold is expanded. First-time sightings
         # default to expanded so chops are visible without an extra keystroke.
-        for lumberjack_name in self._axe_lumberjack_names:
+        # Order is panel order (User → Plugin → Builtin), then alphabetical
+        # by routine so status or interval changes never reorder rows.
+        for lumberjack_name in self._ordered_routine_names_by_source():
             items.append(LumberjackItem(name=lumberjack_name))
             fold_key = f"lumberjack:{lumberjack_name}"
             if not self._axe_fold_manager.has(fold_key):

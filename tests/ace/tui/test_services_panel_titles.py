@@ -5,10 +5,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sase.ace.tui.actions.axe_display._panel_titles import (
+    ROUTINE_PANEL_LABELS,
     scheduled_routines_panel_stats,
     scheduled_routines_panel_title,
     service_procs_panel_stats,
     service_procs_panel_title,
+    source_routine_panel_title,
 )
 
 
@@ -250,3 +252,36 @@ def test_routines_scheduler_badges() -> None:
 
     unknown = scheduled_routines_panel_stats(**base, service_procs=None)
     assert unknown.scheduler_badge_text is None
+
+
+def test_source_titles_use_provenance_labels() -> None:
+    base = {
+        "routine_names": ["hooks"],
+        "statuses": {},
+        "chop_names": {"hooks": ["a"]},
+        "chop_snapshots": {("hooks", "a"): _chop_snapshot("success")},
+        "overrun_counts": {},
+    }
+    assert ROUTINE_PANEL_LABELS == {
+        "user_routines": "User Routines",
+        "plugin_routines": "Plugin Routines",
+        "builtin_routines": "Builtin Routines",
+    }
+    for key, label in ROUTINE_PANEL_LABELS.items():
+        stats = scheduled_routines_panel_stats(**base)
+        title = source_routine_panel_title(stats, focused=True, label=label)
+        assert label in title.plain
+        assert "Scheduled Routines" not in title.plain
+
+
+def test_source_title_singular_job() -> None:
+    stats = scheduled_routines_panel_stats(
+        routine_names=["hooks"],
+        statuses={},
+        chop_names={"hooks": ["only"]},
+        chop_snapshots={},
+        overrun_counts={},
+    )
+    title = source_routine_panel_title(stats, focused=True, label="User Routines")
+    assert "1 job" in title.plain
+    assert "1 jobs" not in title.plain

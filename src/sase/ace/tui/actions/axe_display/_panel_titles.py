@@ -26,6 +26,12 @@ _SERVICE_PROCS_STYLE = "bold #00D7AF"
 _SCHEDULED_ROUTINES_ICON = "◷"
 _SCHEDULED_ROUTINES_STYLE = "bold #FFD700"
 
+ROUTINE_PANEL_LABELS: dict[str, str] = {
+    "user_routines": "User Routines",
+    "plugin_routines": "Plugin Routines",
+    "builtin_routines": "Builtin Routines",
+}
+
 # Severity letters use the chrome style; counts use their metric style,
 # exactly like ``format_agent_count_chip``.
 _SERVICE_CHIP_METRICS: tuple[tuple[str, str, str], ...] = (
@@ -70,7 +76,7 @@ class ServiceProcsPanelStats:
 
 @dataclass(frozen=True)
 class ScheduledRoutinesPanelStats:
-    """At-a-glance counts for the Scheduled Routines panel title."""
+    """At-a-glance counts for one routine panel title."""
 
     routines: int = 0
     running: int = 0
@@ -196,7 +202,12 @@ def scheduled_routines_panel_stats(
     overrun_counts: dict[str, int],
     service_procs: Any = None,
 ) -> ScheduledRoutinesPanelStats:
-    """Build Scheduled Routines title stats from cached render state."""
+    """Build one routine panel's title stats from cached render state.
+
+    Call once per visible source group with that group's routine names;
+    pass ``service_procs`` only for the first visible routine panel so
+    the scheduler badge renders once.
+    """
     running = error = idle = 0
     for name in routine_names:
         status = statuses.get(name)
@@ -307,13 +318,21 @@ def service_procs_panel_title(stats: ServiceProcsPanelStats, *, focused: bool) -
     return title
 
 
-def scheduled_routines_panel_title(
-    stats: ScheduledRoutinesPanelStats, *, focused: bool
+def _jobs_label(count: int) -> str:
+    """Return ``1 job`` or ``N jobs`` for panel titles."""
+    return f"{count} job" if count == 1 else f"{count} jobs"
+
+
+def source_routine_panel_title(
+    stats: ScheduledRoutinesPanelStats,
+    *,
+    focused: bool,
+    label: str,
 ) -> Text:
-    """Build the Scheduled Routines border title from ``stats``."""
-    title = Text()
+    """Build one source-panel border title from ``stats``."""
+    title = Text(no_wrap=True, overflow="ellipsis")
     title.append(f"{_SCHEDULED_ROUTINES_ICON} ", style=_SCHEDULED_ROUTINES_STYLE)
-    title.append("Scheduled Routines", style=_SCHEDULED_ROUTINES_STYLE)
+    title.append(label, style=_SCHEDULED_ROUTINES_STYLE)
     title.append(" · ", style=_PANEL_UNFOCUSED_CHROME_STYLE)
     title.append(str(stats.routines), style=_chrome_style(focused=focused))
     chip = _format_title_chip(
@@ -325,7 +344,7 @@ def scheduled_routines_panel_title(
         title.append(" ", style=_PANEL_UNFOCUSED_CHROME_STYLE)
         title.append_text(chip)
     title.append(" · ", style=_PANEL_UNFOCUSED_CHROME_STYLE)
-    title.append(f"{stats.jobs} jobs", style=_chrome_style(focused=focused))
+    title.append(_jobs_label(stats.jobs), style=_chrome_style(focused=focused))
     for count, (glyph, style) in (
         (stats.jobs_running, _JOB_RUNNING_BADGE),
         (stats.jobs_failed, _JOB_FAILED_BADGE),
@@ -341,3 +360,22 @@ def scheduled_routines_panel_title(
         title.append(" · ", style=_PANEL_UNFOCUSED_CHROME_STYLE)
         title.append(stats.scheduler_badge_text, style=stats.scheduler_badge_style)
     return title
+
+
+def scheduled_routines_panel_title(
+    stats: ScheduledRoutinesPanelStats, *, focused: bool
+) -> Text:
+    """Build the legacy Scheduled Routines border title from ``stats``.
+
+    Kept for existing callers/tests; new panels use
+    :func:`source_routine_panel_title` with a source label.
+    """
+    return source_routine_panel_title(
+        stats, focused=focused, label="Scheduled Routines"
+    )
+
+
+# Source-panel aliases: the per-panel stats shape is identical, only the
+# routine-name subset and the scheduler-badge owner change.
+SourceRoutinesPanelStats = ScheduledRoutinesPanelStats
+source_routine_panel_stats = scheduled_routines_panel_stats

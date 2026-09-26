@@ -1,8 +1,9 @@
 """Side-panel painting mixin for the ace axe display.
 
-Repaints the Services-tab side panels (service procs, scheduled routines),
-their border titles, highlights, and layout from the in-memory caches
-populated by ``AxeDisplayLoadersMixin``.
+Repaints the Services-tab side panels (service procs plus the User,
+Plugin, and Builtin routine sections), their border titles, highlights,
+and layout from the in-memory caches populated by
+``AxeDisplayLoadersMixin``.
 """
 
 from __future__ import annotations
@@ -27,10 +28,17 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
 
         try:
             procs_panel = self.query_one("#service-procs-panel", BgCmdList)  # type: ignore[attr-defined]
-            routines_panel = self.query_one("#scheduled-routines-panel", BgCmdList)  # type: ignore[attr-defined]
+            user_panel = self.query_one("#user-routines-panel", BgCmdList)  # type: ignore[attr-defined]
+            plugin_panel = self.query_one("#plugin-routines-panel", BgCmdList)  # type: ignore[attr-defined]
+            builtin_panel = self.query_one("#builtin-routines-panel", BgCmdList)  # type: ignore[attr-defined]
         except Exception:
             return None
-        return {"service_procs": procs_panel, "scheduled_routines": routines_panel}
+        return {
+            "service_procs": procs_panel,
+            "user_routines": user_panel,
+            "plugin_routines": plugin_panel,
+            "builtin_routines": builtin_panel,
+        }
 
     def _axe_focused_panel_key(self) -> ServicesPanelKey:
         """Return the panel holding the selection (derived, never stored)."""
@@ -38,16 +46,45 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
             return self._axe_panel_index.panel_for_global(self.current_idx)
         return "service_procs"
 
+    def _routine_names_for_panel(self, panel_key: str) -> list[str]:
+        """Return cached routine names belonging to ``panel_key``."""
+        from ._panels import ROUTINE_PANEL_ORDER, routine_panel_key_for_source
+
+        origins = getattr(self, "_axe_routine_origins", None) or {}
+        names: list[str] = []
+        for name in self._axe_lumberjack_names:
+            origin = origins.get(name)
+            source = getattr(origin, "source", origin) if origin is not None else "user"
+            if isinstance(origin, dict):
+                candidate = origin.get("source", source)
+                if isinstance(candidate, str):
+                    source = candidate
+            if source not in ("user", "plugin", "builtin"):
+                # Missing origins fall back to User; unknown strings fail
+                # at index build time, so treat missing as User here too.
+                if origin is None:
+                    source = "user"
+                else:
+                    continue
+            try:
+                if routine_panel_key_for_source(source) == panel_key:  # type: ignore[arg-type]
+                    names.append(name)
+            except ValueError:
+                continue
+        return sorted(names)
+
     def _build_axe_panel_titles(self, focused_key: str) -> dict[str, Any]:
-        """Build both panel border titles from the in-memory caches."""
+        """Build all panel border titles from the in-memory caches."""
         from ._panel_titles import (
+            ROUTINE_PANEL_LABELS,
             ScheduledRoutinesPanelStats,
             ServiceProcsPanelStats,
             scheduled_routines_panel_stats,
-            scheduled_routines_panel_title,
             service_procs_panel_stats,
             service_procs_panel_title,
+            source_routine_panel_title,
         )
+        from ._panels import ROUTINE_PANEL_ORDER
 
         service_snapshot = getattr(self, "_service_status", None)
         service_procs = (
@@ -75,25 +112,35 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
             host_state=host_state,
             status_unavailable=service_snapshot is None,
         )
-        routines_stats: ScheduledRoutinesPanelStats = scheduled_routines_panel_stats(
-            routine_names=list(self._axe_lumberjack_names),
-            statuses=self._axe_lumberjack_statuses,
-            chop_names=self._axe_lumberjack_chop_names,
-            chop_snapshots=self._axe_chop_snapshots,
-            overrun_counts={
-                name: snap.overrun_chop_count
-                for name, snap in self._axe_lumberjack_snapshots.items()
-            },
-            service_procs=service_procs,
-        )
-        return {
+        titles: dict[str, Any] = {
             "service_procs": service_procs_panel_title(
                 procs_stats, focused=focused_key == "service_procs"
             ),
-            "scheduled_routines": scheduled_routines_panel_title(
-                routines_stats, focused=focused_key == "scheduled_routines"
-            ),
         }
+        # Scheduler badge renders once, on the first visible routine panel.
+        first_routine_panel = self._axe_panel_index.first_visible_routine_panel()
+        overrun_counts = {
+            name: snap.overrun_chop_count
+            for name, snap in self._axe_lumberjack_snapshots.items()
+        }
+        for key in ROUTINE_PANEL_ORDER:
+            routine_names = self._routine_names_for_panel(key)
+            routines_stats: ScheduledRoutinesPanelStats = (
+                scheduled_routines_panel_stats(
+                    routine_names=routine_names,
+                    statuses=self._axe_lumberjack_statuses,
+                    chop_names=self._axe_lumberjack_chop_names,
+                    chop_snapshots=self._axe_chop_snapshots,
+                    overrun_counts=overrun_counts,
+                    service_procs=service_procs if key == first_routine_panel else None,
+                )
+            )
+            titles[key] = source_routine_panel_title(
+                routines_stats,
+                focused=focused_key == key,
+                label=ROUTINE_PANEL_LABELS[key],
+            )
+        return titles
 
     def _service_procs_empty_placeholder(self) -> Any:
         """Return the disabled placeholder for an empty Service Procs panel."""
@@ -102,7 +149,7 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
         return Text("No service procs", style="dim")
 
     def _routines_empty_placeholder(self) -> Any:
-        """Return the disabled placeholder for an empty Routines panel."""
+        """Return the disabled placeholder for the empty User Routines panel."""
         from rich.text import Text
 
         from ...keymaps import key_display_name
@@ -111,7 +158,7 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
         return Text(f"No routines configured · {add_key} to add", style="dim")
 
     def _paint_axe_panels(self) -> None:
-        """Repaint both Services panels from the cached state (no disk I/O)."""
+        """Repaint visible Services panels from the cached state (no disk I/O)."""
         widgets = self._axe_panel_widgets()
         if widgets is None:
             return
@@ -135,12 +182,19 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
             else {proc.name: proc for proc in service_snapshot.procs}
         )
         titles = self._build_axe_panel_titles(focused_key)
-        placeholders = {
-            "service_procs": self._service_procs_empty_placeholder(),
-            "scheduled_routines": self._routines_empty_placeholder(),
-        }
+        visible_keys = self._axe_panel_index.visible_keys()
         for key in SERVICES_PANEL_ORDER:
             widget = widgets[key]
+            if key not in visible_keys:
+                try:
+                    widget.display = False
+                except Exception:
+                    pass
+                continue
+            try:
+                widget.display = True
+            except Exception:
+                pass
             panel_slice = self._axe_panel_index.slice_for(key)
             local_idx = self._axe_panel_index.local_idx_for(key, self.current_idx)
             local_hints: dict[int, str] | None = None
@@ -151,6 +205,11 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
                     if local >= 0:
                         mapped[local] = hint
                 local_hints = mapped or None
+            empty_placeholder = None
+            if key == "service_procs":
+                empty_placeholder = self._service_procs_empty_placeholder()
+            elif key == "user_routines":
+                empty_placeholder = self._routines_empty_placeholder()
             widget.update_list(
                 items=list(panel_slice.items),
                 current_idx=local_idx,
@@ -163,7 +222,7 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
                 chop_snapshots=self._axe_chop_snapshots,
                 lumberjack_overruns=lumberjack_overruns,
                 service_procs=service_procs,
-                empty_placeholder=placeholders[key],
+                empty_placeholder=empty_placeholder,
             )
             widget.update_border_title(titles[key])
             if key == focused_key:
@@ -179,7 +238,7 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
 
         Same-panel moves touch one widget (the hot path stays O(1)
         widget work); focus crossings swap the highlight, the focus
-        chrome, and both titles, then move Textual focus.
+        chrome, and visible titles, then move Textual focus.
         """
         from ._panels import SERVICES_PANEL_ORDER
 
@@ -189,10 +248,13 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
         focused_key = self._axe_focused_panel_key()
         local_idx = self._axe_panel_index.local_idx_for(focused_key, self.current_idx)
         painted_key = getattr(self, "_axe_painted_panel_key", focused_key)
+        visible_keys = self._axe_panel_index.visible_keys()
         if painted_key == focused_key:
             widgets[focused_key].update_highlight(local_idx)
             return
         for key in SERVICES_PANEL_ORDER:
+            if key not in visible_keys:
+                continue
             widget = widgets[key]
             if key == focused_key:
                 widget.update_highlight(local_idx)
@@ -201,7 +263,7 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
                 widget.remove_class("-focused-panel")
                 widget.clear_highlight()
         titles = self._build_axe_panel_titles(focused_key)
-        for key in SERVICES_PANEL_ORDER:
+        for key in visible_keys:
             widgets[key].update_border_title(titles[key])
         self._axe_painted_panel_key = focused_key
         self._focus_axe_focused_panel()
@@ -235,7 +297,7 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
             pass
 
     def _apply_axe_panel_heights(self, widgets: dict[str, Any]) -> None:
-        """Size the two Services panels from their rendered line counts."""
+        """Size the visible Services panels from their rendered line counts."""
         from textual.css.query import NoMatches
 
         from ...util.panel_heights import allocate_panel_heights
@@ -252,14 +314,13 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
             except Exception:
                 pass
             return
-        from ._panels import SERVICES_PANEL_ORDER
-
-        ordered = [widgets[key] for key in SERVICES_PANEL_ORDER]
+        visible_keys = self._axe_panel_index.visible_keys()
+        ordered = [widgets[key] for key in visible_keys]
         heights = allocate_panel_heights(
             [int(getattr(w, "rendered_line_count", 0)) for w in ordered],
-            [False, False],
+            [False for _ in ordered],
             container_height,
-            filler_idx=1,
+            filler_idx=len(ordered) - 1,
         )
         if heights is None:
             return
@@ -281,12 +342,11 @@ class AxeDisplayPanelsMixin(AxeDisplayLoadersMixin):
         self._apply_axe_panel_heights(widgets)
 
     def _settle_axe_sidebar_width(self, widgets: dict[str, Any]) -> None:
-        """Size the sidebar to the painted panels, in the same frame."""
+        """Size the sidebar to the visible panels, in the same frame."""
         from ..._app_layout import services_sidebar_width
 
-        from ._panels import SERVICES_PANEL_ORDER
-
-        ordered = [widgets[key] for key in SERVICES_PANEL_ORDER]
+        visible_keys = self._axe_panel_index.visible_keys()
+        ordered = [widgets[key] for key in visible_keys]
         requested = [int(getattr(w, "_requested_width", 0)) for w in ordered]
         if not any(width > 0 for width in requested):
             return

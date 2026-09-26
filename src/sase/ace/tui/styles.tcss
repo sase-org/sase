@@ -5727,14 +5727,16 @@ HookHistoryModal #hook-history-hints {
 #bgcmd-list-container BgCmdList {
     width: 100%;
     /* Fallback only — overridden per-refresh by the Services height
-       allocation, which sizes Service Procs to content and lets
-       Scheduled Routines absorb the remaining rows. */
+       allocation, which sizes leading panels to content and lets the
+       last visible panel absorb the remaining rows. */
     height: 1fr;
     border: solid $primary;
     padding: 0 1;
 }
 
-#scheduled-routines-panel {
+/* Gap between stacked Services panels, applied by the shared
+   ``services-subpanel`` class on every routine panel. */
+#bgcmd-list-container BgCmdList.services-subpanel {
     margin-top: 1;
 }
 

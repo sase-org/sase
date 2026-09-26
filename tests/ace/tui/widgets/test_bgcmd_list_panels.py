@@ -23,7 +23,7 @@ from sase.ace.tui.widgets.bgcmd_list import (
 class _Host(App):
     def compose(self) -> ComposeResult:
         yield BgCmdList(panel_key="service_procs", id="procs")
-        yield BgCmdList(panel_key="scheduled_routines", id="routines")
+        yield BgCmdList(panel_key="user_routines", id="routines")
 
 
 def _paint(
@@ -50,7 +50,7 @@ async def test_panel_key_defaults_and_stores() -> None:
         procs = app.query_one("#procs", BgCmdList)
         routines = app.query_one("#routines", BgCmdList)
         assert procs.panel_key == "service_procs"
-        assert routines.panel_key == "scheduled_routines"
+        assert routines.panel_key == "user_routines"
         assert BgCmdList.SelectionChanged(0).panel_key == "service_procs"
 
 
@@ -128,7 +128,7 @@ async def test_selection_changed_carries_panel_key() -> None:
         widget.on_option_list_option_selected(
             OptionList.OptionSelected(widget, option, 0)
         )
-        assert [msg.panel_key for msg in posted] == ["scheduled_routines"]
+        assert [msg.panel_key for msg in posted] == ["user_routines"]
         assert [msg.index for msg in posted] == [0]
 
 
