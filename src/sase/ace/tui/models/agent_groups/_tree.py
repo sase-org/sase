@@ -11,7 +11,9 @@ from sase.project_display_names import humanize_cl_name
 from ..agent import Agent, format_compact_duration
 from .._agent_clan import sase_agent_status_counts
 from .._agent_tree import (
+    TreeIndex,
     agent_is_tree_child,
+    presentation_anchor,
     presentation_anchor_lookup,
     tree_parent_lookup,
 )
@@ -25,7 +27,6 @@ from ._buckets import (
 from ._keys import (
     GroupingKeys,
     grouping_keys_for,
-    panel_uses_patch_level,
     walk_anchors,
     walk_order,
 )
@@ -90,32 +91,48 @@ def _grouped_walk(
     agents: list[Agent],
     mode: GroupingMode,
     reference: datetime,
+    tree_state: TreeIndex | None = None,
 ) -> _GroupedWalk:
-    """Build one shared anchored walk for banners and agent rows."""
-    parent_lookup = tree_parent_lookup(agents)
-    anchors = presentation_anchor_lookup(agents, parent_lookup)
-    keys_per_agent = [
-        grouping_keys_for(
-            agent,
-            parent_lookup,
-            mode,
-            reference,
-            anchors=anchors,
-        )
-        for agent in agents
-    ]
+    """Build one shared anchored walk for banners and agent rows.
+
+    Pass a caller-built *tree_state* (see :data:`TreeIndex`) over the same
+    roster to reuse one parent/anchor index instead of rebuilding it.
+    """
+    if tree_state is None:
+        parent_lookup = tree_parent_lookup(agents)
+        anchors = presentation_anchor_lookup(agents, parent_lookup)
+    else:
+        parent_lookup, anchors = tree_state
+    # Structural descendants inherit grouping from their outer presentation
+    # anchor, so agents sharing one anchor share one key computation.
+    keys_by_anchor: dict[int, GroupingKeys] = {}
+    keys_per_agent: list[GroupingKeys] = []
+    for agent in agents:
+        anchor = presentation_anchor(agent, parent_lookup, anchors)
+        cached = keys_by_anchor.get(id(anchor))
+        if cached is None:
+            cached = grouping_keys_for(
+                agent,
+                parent_lookup,
+                mode,
+                reference,
+                anchors=anchors,
+            )
+            keys_by_anchor[id(anchor)] = cached
+        keys_per_agent.append(cached)
     time_anchors = walk_anchors(
         agents,
         parent_lookup,
         mode,
         anchors=anchors,
     )
-    use_cs = panel_uses_patch_level(
-        agents,
-        mode,
-        parent_lookup=parent_lookup,
-        anchors=anchors,
-    )
+    # The Patch level is present exactly when some agent's key carries a
+    # Patch name; the keys above already hold that predicate per anchor, so
+    # re-walking the roster for it would recompute the same values.
+    if mode is GroupingMode.STANDARD:
+        use_cs = any(key.patch for key in keys_per_agent)
+    else:
+        use_cs = False
     index_by_identity = {id(agent): i for i, agent in enumerate(agents)}
     cluster_roots = [
         index_by_identity.get(id(anchors.get(id(agent), agent)), i)
@@ -264,6 +281,7 @@ def build_agent_tree(
     fold_registry: GroupFoldView | None = None,
     mode: GroupingMode = GroupingMode.STANDARD,
     now: datetime | None = None,
+    tree_state: TreeIndex | None = None,
 ) -> list[TreeEntry]:
     """Build the grouped tree of banner + agent entries.
 
@@ -286,6 +304,8 @@ def build_agent_tree(
             within each status subgroup.
         now: Reference time for ``BY_DATE`` bucketing.  Defaults to
             ``datetime.now()``; only consulted when *mode* is ``BY_DATE``.
+        tree_state: Optional caller-built roster index over the same agents
+            (see :data:`TreeIndex`); reuses it instead of rebuilding one.
 
     Returns:
         A list of :class:`TreeEntry` rows, ready to be walked by the
@@ -293,7 +313,7 @@ def build_agent_tree(
     """
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
     reference = now if now is not None else local_now()
-    grouped_walk = _grouped_walk(agents, mode, reference)
+    grouped_walk = _grouped_walk(agents, mode, reference, tree_state)
     keys_per_agent = grouped_walk.keys_per_agent
     use_cs = grouped_walk.use_patch_level
     walk = grouped_walk.indices

@@ -8,6 +8,10 @@ from .fold_state import FoldLevel, FoldStateManager
 def filter_agents_by_fold_state(
     agents: list[Agent],
     fold_manager: FoldStateManager,
+    *,
+    fold_keys: dict[int, str | None] | None = None,
+    parent_keys: dict[int, str | None] | None = None,
+    hidden_steps: set[int] | frozenset[int] | None = None,
 ) -> tuple[list[Agent], dict[str, tuple[int, int]]]:
     """Filter agents through every immediate ancestor's in-memory fold.
 
@@ -18,16 +22,40 @@ def filter_agents_by_fold_state(
     its *gating* fold key (see :func:`agent_gating_fold_key`) -- the agent
     agent session or workflow that reveals it -- rather than its immediate starter,
     so a mid-agent session starter never owns a shell's fold.
+
+    The optional *fold_keys*, *parent_keys*, and *hidden_steps* carry one
+    per-open read of :func:`agent_fold_key`, :func:`agent_parent_fold_key`,
+    and ``is_hidden_step`` keyed by ``id(agent)`` for the same roster, so
+    batch callers skip re-deriving those predicates once per pass. Results
+    are identical; any agent missing from the tables falls back to a direct
+    read.
     """
+
+    def _fold_key(agent: Agent, agent_id: int) -> str | None:
+        if fold_keys is not None and agent_id in fold_keys:
+            return fold_keys[agent_id]
+        return agent_fold_key(agent)
+
+    def _parent_key(agent: Agent, agent_id: int) -> str | None:
+        if parent_keys is not None and agent_id in parent_keys:
+            return parent_keys[agent_id]
+        return agent_parent_fold_key(agent)
+
+    def _is_hidden(agent: Agent, agent_id: int) -> bool:
+        if hidden_steps is not None:
+            return agent_id in hidden_steps
+        return agent.is_hidden_step
+
     owners_by_key: dict[str, Agent] = {}
     for agent in agents:
-        key = agent_fold_key(agent)
+        agent_id = id(agent)
+        key = _fold_key(agent, agent_id)
         if key is None:
             continue
         existing = owners_by_key.get(key)
         if existing is not None and (not existing.is_child_row or agent.is_child_row):
             continue
-        if agent.is_child_row and agent_parent_fold_key(agent) == key:
+        if agent.is_child_row and _parent_key(agent, agent_id) == key:
             # Legacy workflow children repeat their parent's suffix. They
             # alias the parent fold and must not own it, including when
             # that parent is absent.
@@ -37,7 +65,13 @@ def filter_agents_by_fold_state(
         owners_by_key[key] = agent
     children_by_parent: dict[str, list[Agent]] = {}
     for agent in agents:
-        parent_key = agent_gating_fold_key(agent, owners_by_key)
+        agent_id = id(agent)
+        if agent.is_monitor or agent.is_gate:
+            parent_key = agent_gating_fold_key(agent, owners_by_key)
+        else:
+            # Non-shell rows are gated by their immediate parent, which the
+            # facet table already holds.
+            parent_key = _parent_key(agent, agent_id)
         if parent_key is None or parent_key not in owners_by_key:
             continue
         if (agent.is_monitor or agent.is_gate) and parent_key.startswith("clan:"):
@@ -54,7 +88,7 @@ def filter_agents_by_fold_state(
             # The outer clan fold is binary: every direct member is ordinary.
             fold_counts[parent_key] = (len(children), 0)
             continue
-        hidden = sum(1 for child in children if child.is_hidden_step)
+        hidden = sum(1 for child in children if _is_hidden(child, id(child)))
         fold_counts[parent_key] = (len(children) - hidden, hidden)
 
     # Historical non-clan workflows containing only internal steps stay out of
@@ -78,12 +112,12 @@ def filter_agents_by_fold_state(
             visibility[agent_id] = False
             return False
 
-        own_key = agent_fold_key(agent)
+        own_key = _fold_key(agent, agent_id)
         if own_key in hidden_only_parents:
             visibility[agent_id] = False
             return False
 
-        parent_key = agent_parent_fold_key(agent)
+        parent_key = _parent_key(agent, agent_id)
         if parent_key is None:
             visibility[agent_id] = True
             return True
@@ -116,7 +150,7 @@ def filter_agents_by_fold_state(
             return False
         if (
             not parent_key.startswith("clan:")
-            and agent.is_hidden_step
+            and _is_hidden(agent, agent_id)
             and level != FoldLevel.FULLY_EXPANDED
         ):
             visibility[agent_id] = False

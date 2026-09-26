@@ -82,6 +82,82 @@ def _snapshot_facets(
     return (parent_keys, fold_keys, depths, identity_of, hidden_steps)
 
 
+def _unmet_with_facets(
+    complete: list[Agent],
+    fold_manager: Any,
+    parents: dict[str, Agent],
+    parent_keys: dict[int, str | None],
+    hidden_steps: set[int],
+) -> dict[AgentIdentity, tuple[str, ...]]:
+    """Return each row's unmet ancestor fold keys, nearest first.
+
+    Facet-driven equivalent of :func:`unmet_ancestor_folds` for one
+    snapshot: parent keys and hidden-step flags come from the single
+    per-open facet read instead of re-deriving plan-chain predicates once
+    per row. Cycle, bound, and missing-parent guards match the reveal
+    preflight exactly, so rows with invalid ancestry are omitted the same
+    way; any agent missing from the tables falls back to a direct read.
+    """
+    from ...models._agent_tree import agent_parent_fold_key
+    from ...models.fold_state import FoldLevel
+    from ..navigation._agent_reveal import _fold_requirement_is_met
+
+    bound = len(complete) + 1
+    unmet: dict[AgentIdentity, tuple[str, ...]] = {}
+    for agent in complete:
+        requirements: list[tuple[str, FoldLevel]] = []
+        current = agent
+        visited: set[int] = set()
+        valid = True
+        for _ in range(bound):
+            current_id = id(current)
+            if current_id in visited:
+                valid = False
+                break
+            visited.add(current_id)
+            if current_id in parent_keys:
+                parent_key = parent_keys[current_id]
+            else:
+                parent_key = agent_parent_fold_key(current)
+            if parent_key is None:
+                break
+            parent = parents.get(parent_key)
+            if parent is None:
+                valid = False
+                break
+            if current_id in hidden_steps:
+                is_hidden = True
+            elif current_id in parent_keys:
+                # Roster members use the table: ``hidden_steps`` holds
+                # exactly the hidden ones.
+                is_hidden = False
+            else:
+                is_hidden = current.is_hidden_step
+            requirements.append(
+                (
+                    parent_key,
+                    (
+                        FoldLevel.FULLY_EXPANDED
+                        if is_hidden and not parent_key.startswith("clan:")
+                        else FoldLevel.EXPANDED
+                    ),
+                )
+            )
+            current = parent
+        else:
+            valid = False
+        if not valid:
+            continue
+        missing = tuple(
+            fold_key
+            for fold_key, level in requirements
+            if not _fold_requirement_is_met(fold_manager.get(fold_key), level)
+        )
+        if missing:
+            unmet[agent.identity] = missing
+    return unmet
+
+
 def _roster_needs_no_fold_filter(
     parent_keys: dict[int, str | None],
     hidden_steps: set[int],
@@ -163,7 +239,6 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     from ...models import filter_agents_by_fold_state
     from ...models._agent_tree import agent_tree_depth, tree_parent_lookup
     from ...models.agent_groups import build_agent_tree
-    from ..navigation._agent_reveal import unmet_ancestor_folds
     from ._fold_scope import panel_fold_registry
     from ._panel_fold_intent import effective_panel_collapses
     from ._prospective_clan import FoldStateProjection, apply_active_agent_query
@@ -190,7 +265,13 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         # per-agent walk. The discarded fold counts are unused here.
         expanded = list(complete)
     else:
-        expanded, _ = filter_agents_by_fold_state(complete, FoldStateProjection(levels))  # type: ignore[arg-type]
+        expanded, _ = filter_agents_by_fold_state(
+            complete,
+            FoldStateProjection(levels),  # type: ignore[arg-type]
+            fold_keys=fold_keys,
+            parent_keys=parent_keys,
+            hidden_steps=hidden_steps,
+        )
 
     merged = bool(getattr(owner, "_agent_panels_grouped", False))
     mode: GroupingMode = getattr(owner, "_grouping_mode", GroupingMode.STANDARD)
@@ -238,7 +319,9 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
     dismissed = set(getattr(owner, "_dismissed_agents", set()) or ())
 
     if fold_manager is not None:
-        unmet = unmet_ancestor_folds(complete, fold_manager, parent_lookup=parents)
+        unmet = _unmet_with_facets(
+            complete, fold_manager, parents, parent_keys, hidden_steps
+        )
     else:
         unmet = {}
 
@@ -255,8 +338,22 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
             merge_tribe_panels=merged,
             tree_state=expanded_tree_state,
         )
+        # The index above already covers this exact roster when the panel
+        # kept every row, so the tree reuses it instead of rebuilding the
+        # same parent/anchor tables for the same objects in the same order.
+        if len(panel_agents) == len(expanded) and all(
+            new is old for new, old in zip(panel_agents, expanded, strict=True)
+        ):
+            panel_tree_state: tuple[dict[str, Agent], dict[int, Agent]] | None = (
+                expanded_tree_state
+            )
+        else:
+            panel_tree_state = None
         tree = build_agent_tree(
-            panel_agents, fold_registry=GroupFoldRegistry(), mode=mode
+            panel_agents,
+            fold_registry=GroupFoldRegistry(),
+            mode=mode,
+            tree_state=panel_tree_state,
         )
         panel_idx = len(rows)
         rows.append(
