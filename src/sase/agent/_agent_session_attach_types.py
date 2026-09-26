@@ -75,6 +75,10 @@ class AgentSessionAttachSibling:
 class AgentSessionAttachError(RuntimeError):
     """Raised when a ``%id(suffix, session=parent)`` launch cannot be prepared."""
 
+    def __init__(self, message: str, *, reason: str | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
+
 
 __all__ = [
     "AGENT_SESSION_ATTACH_ENV",

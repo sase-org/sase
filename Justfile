@@ -376,7 +376,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19f(format_queue_capacity_multiplier)' \
         --epic-symbol 'sase-19f(resolve_queue_capacity_multiplier)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
-        --epic-symbol 'sase-18i(PlanGateHistory)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
         --epic-symbol 'sase-19i(NodeFinderView)' \
         --epic-symbol 'sase-19i(build_node_finder_snapshot)' \

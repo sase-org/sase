@@ -239,6 +239,18 @@ def _approve_plan_from_cli(
         raise _rendered_error(miss_error_code(outcome), selector, outcome.header)
     if isinstance(direct, DirectApprovalRefusal):
         raise DirectApprovalRefused(direct)
+    if direct.recovery is not None:
+        if dry_run:
+            from sase.main.plan_approve_render import render_coder_recovery_dry_run
+
+            render_coder_recovery_dry_run(direct)
+            return None
+        from sase.main.plan_approve_render import render_coder_recovery
+        from sase.main.plan_direct_approval_run import execute_coder_recovery
+
+        recovery_result = execute_coder_recovery(direct)
+        render_coder_recovery(recovery_result)
+        return recovery_result
     if dry_run:
         from sase.main.plan_approve_render import render_direct_approval_dry_run
 

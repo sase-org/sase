@@ -99,13 +99,16 @@ def classify_plan_gate_history(located: Path) -> PlanGateHistory:
                 age=_relative_age(_parse_approved_at(receipt.approved_at)),
                 notification_id=receipt.retired_gate_id,
             )
-    entries = _gate_history_for_plan(located)
+    entries = gate_history_for_plan(located)
     if not entries:
         return PlanGateHistory(kind="none")
     newest = entries[0]
     state = str(newest.get("state") or "")
     handled_action = str(newest.get("handled_action") or "").strip().lower()
-    age = _relative_age(_as_unix_time(newest.get("created_at_unix")))
+    age = _relative_age(
+        _as_unix_time(newest.get("handled_at_unix"))
+        or _as_unix_time(newest.get("created_at_unix"))
+    )
     notification_id = _entry_notification_id(newest)
     bundle_path = _entry_bundle_path(newest)
     action_data = _entry_action_data(newest)
@@ -143,17 +146,18 @@ def diagnose_located_plan_miss(selector: str, located: Path) -> PendingPlanMiss:
     metadata = plan_metadata_for_path(str(located))
     title = metadata.title or name
     history = classify_plan_gate_history(located)
+    inspect_command = inspect_command_for_located_plan(located, history)
     if history.kind == "direct":
         action = (history.action or "tale").strip() or "tale"
+        via = direct_approval_via_text(located)
         return PendingPlanMiss(
             selector=selector,
             header=f"{name} is not awaiting approval",
             detail_lines=(
                 f"{title}",
                 f"{located}",
-                f"This plan was already approved as a {action} via"
-                f" sase plan approve{history.age}.",
-                f"Inspect it with: sase plan show {name}",
+                f"This plan was already approved as a {action} {via}{history.age}.",
+                f"Inspect it with: {inspect_command}",
             ),
             suggestions=(),
         )
@@ -171,7 +175,9 @@ def diagnose_located_plan_miss(selector: str, located: Path) -> PendingPlanMiss:
             suggestions=(),
         )
     if history.kind == "handled" and history.action:
-        handled_action = history.action.strip().lower()
+        handled_action = (
+            refined_gate_history_action(history) or history.action.strip().lower()
+        )
         phrase = _HANDLED_PHRASES.get(handled_action, f"was already {handled_action}")
         age = history.age
         return PendingPlanMiss(
@@ -181,7 +187,7 @@ def diagnose_located_plan_miss(selector: str, located: Path) -> PendingPlanMiss:
                 f"{title}",
                 f"{located}",
                 f"This plan {phrase}{age}.",
-                f"Inspect it with: sase plan show {name}",
+                f"Inspect it with: {inspect_command}",
             ),
             suggestions=(),
         )
@@ -206,10 +212,114 @@ def diagnose_located_plan_miss(selector: str, located: Path) -> PendingPlanMiss:
             f"{title}",
             f"{located}",
             "Its approval gate is orphaned: no live gate shell or planner owns it.",
-            f"Inspect it with: sase plan show {name}",
+            f"Inspect it with: {inspect_command}",
         ),
         suggestions=(),
     )
+
+
+def refined_gate_history_action(history: PlanGateHistory) -> str | None:
+    """Return the real approval action for a handled gate history, if known.
+
+    The pending-action store records the protocol action (shared by tale,
+    approve, and commit); the gate bundle's ``response.json`` records the real
+    choice. Falls back to ``None`` when the bundle cannot be read.
+    """
+    bundle_path = getattr(history, "bundle_path", None)
+    if bundle_path is None:
+        return None
+    action, _ref = _gate_approval_facts(Path(bundle_path))
+    return action
+
+
+def gate_history_committed_ref(history: PlanGateHistory) -> str | None:
+    """Return the committed ``plan:`` ref a handled gate approval produced."""
+    bundle_path = getattr(history, "bundle_path", None)
+    if bundle_path is None:
+        return None
+    _action, ref = _gate_approval_facts(Path(bundle_path))
+    return ref
+
+
+def _gate_approval_facts(bundle_path: Path) -> tuple[str | None, str | None]:
+    """Return ``(real action, committed ref)`` from a gate bundle response.
+
+    Best-effort; never raises. The action refines the stored protocol action
+    through ``response.json``; the ref is the primary option result's
+    ``plan_archive_ref``.
+    """
+    try:
+        import json
+
+        response_path = bundle_path / "response.json"
+        raw = json.loads(response_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None, None
+    if not isinstance(raw, dict):
+        return None, None
+    try:
+        from sase._plan_gate_envelope import translate_plan_gate_response
+        from sase._plan_approval_protocol import persisted_plan_action
+    except Exception:
+        return None, None
+    try:
+        translated = translate_plan_gate_response(bundle_path, raw)
+    except Exception:
+        return None, None
+    action = persisted_plan_action(translated)
+    ref = translated.get("plan_archive_ref")
+    committed = ref.strip() if isinstance(ref, str) and ref.strip() else None
+    return action, committed
+
+
+def inspect_command_for_located_plan(
+    located: Path, history: PlanGateHistory | None = None
+) -> str:
+    """Return a ``sase plan show`` command that resolves to exactly one plan.
+
+    Uses the committed ``plan:`` ref when the approval committed the plan,
+    otherwise the absolute local plan path, so the selector never stays
+    ambiguous between the local proposal and the committed copy.
+    """
+    if history is not None:
+        if history.kind == "handled":
+            committed = gate_history_committed_ref(history)
+            if committed:
+                return f"sase plan show {committed}"
+        elif history.kind == "direct":
+            committed = _receipt_committed_ref(located)
+            if committed:
+                return f"sase plan show {committed}"
+    try:
+        absolute = str(located.expanduser().resolve(strict=False))
+    except Exception:
+        absolute = str(located)
+    return f"sase plan show {absolute}"
+
+
+def _receipt_committed_ref(located: Path) -> str | None:
+    try:
+        from sase.plan_approval_receipts import read_direct_approval_receipt
+
+        receipt = read_direct_approval_receipt(located)
+    except Exception:
+        return None
+    if receipt is None or not receipt.plan_archive_ref:
+        return None
+    return receipt.plan_archive_ref
+
+
+def direct_approval_via_text(located: Path) -> str:
+    """Return the via-phrase for a direct-approval history line."""
+    try:
+        from sase.plan_approval_receipts import read_direct_approval_receipt
+
+        receipt = read_direct_approval_receipt(located)
+    except Exception:
+        receipt = None
+    if receipt is not None and (receipt.replaced_coders or receipt.recovered_gate_id):
+        return "coder relaunched via sase plan approve"
+    return "via sase plan approve"
 
 
 def _diagnose_unknown_plan(
@@ -393,7 +503,7 @@ def _resolve_plan_ref(normalized: str) -> Path | None:
     return None
 
 
-def _gate_history_for_plan(plan_path: Path) -> list[dict[str, object]]:
+def gate_history_for_plan(plan_path: Path) -> list[dict[str, object]]:
     """Return pending-action entries for *plan_path*, newest first."""
     try:
         from sase.notifications.pending_actions import read_pending_action_store

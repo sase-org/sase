@@ -35,6 +35,8 @@ class DirectApprovalReceipt:
     agent_session: str | None = None
     retired_gate_id: str | None = None
     original_path: str | None = None
+    replaced_coders: tuple[str, ...] = ()
+    recovered_gate_id: str | None = None
     schema_version: int = 1
 
 
@@ -149,6 +151,13 @@ def _receipt_from_dict(raw: dict[str, Any]) -> DirectApprovalReceipt | None:
             return value
         return None
 
+    def _opt_str_tuple(value: object) -> tuple[str, ...]:
+        if not isinstance(value, list):
+            return ()
+        return tuple(
+            item.strip() for item in value if isinstance(item, str) and item.strip()
+        )
+
     route = raw.get("route")
     project = raw.get("project")
     source = raw.get("source")
@@ -169,6 +178,8 @@ def _receipt_from_dict(raw: dict[str, Any]) -> DirectApprovalReceipt | None:
         agent_session=_opt_str("agent_session") or _opt_str("family"),
         retired_gate_id=_opt_str("retired_gate_id"),
         original_path=_opt_str("original_path"),
+        replaced_coders=_opt_str_tuple(raw.get("replaced_coders")),
+        recovered_gate_id=_opt_str("recovered_gate_id"),
     )
 
 

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from sase.main.plan_direct_approval_recovery import CoderRecovery, PriorCoder
+    from sase.main.plan_pending_diagnosis import PlanGateHistory
 
 DirectApprovalKind = Literal["tale", "commit", "approve", "epic"]
 DirectApprovalLocation = Literal["scratch", "proposal", "committed"]
@@ -32,6 +36,7 @@ class CoderPlacement:
     agent_session: str | None = None
     reason: str | None = None
     planner_artifacts_dir: str | None = None
+    suffix: str = "code"
 
 
 @dataclass(frozen=True)
@@ -60,6 +65,7 @@ class DirectApprovalPlan:
     bead: str | None = None
     predicted_plan_ref: str = ""
     coder_prompt_preview: str = ""
+    recovery: CoderRecovery | None = None
 
 
 @dataclass(frozen=True)
@@ -129,16 +135,31 @@ def resolve_direct_approval(
 
     history = classify_plan_gate_history(source_path)
     gate = _retired_gate_from_history(history)
-    handled_refusal = _handled_refusal(request, source_path, name, title, history)
-    if handled_refusal is not None:
-        return handled_refusal
-
     planner = _resolve_planner(source_path, history)
     project_refusal_or_name = _resolve_project(request, source_path, history, planner)
     if isinstance(project_refusal_or_name, DirectApprovalRefusal):
         return project_refusal_or_name
     project = project_refusal_or_name
     project_tag = _project_tag_for(project)
+
+    recovered = _resolve_recovery(
+        request,
+        source_path,
+        location,
+        name,
+        title,
+        size,
+        history,
+        planner,
+        project,
+        project_tag,
+    )
+    if recovered is not None:
+        return recovered
+
+    handled_refusal = _handled_refusal(request, source_path, name, title, history)
+    if handled_refusal is not None:
+        return handled_refusal
 
     # Epic-guard and gateless-epic refusals need the authored tier.
     authored_tier = _authored_tier(source_path)
@@ -225,7 +246,7 @@ def compose_coder_prompt(
     if _needs_quoting(argument):
         argument = f'"{escape_for_xprompt(argument)}"'
     if placement.mode == "session" and placement.parent:
-        id_part = f"%id(code, session={placement.parent})"
+        id_part = f"%id({placement.suffix}, session={placement.parent})"
     elif bead:
         id_part = f"%id(bead={bead})"
     else:
@@ -325,15 +346,157 @@ def _retired_gate_from_history(history: object) -> RetiredGate | None:
     )
 
 
+def _resolve_recovery(
+    request: DirectApprovalRequest,
+    source_path: Path,
+    location: DirectApprovalLocation,
+    name: str,
+    title: str | None,
+    size: str | None,
+    history: PlanGateHistory,
+    planner: str | None,
+    project: str,
+    project_tag: str,
+) -> DirectApprovalPlan | DirectApprovalRefusal | None:
+    """Return a recovery plan, a coder-state refusal, or ``None``.
+
+    ``None`` means the history is not an approval that owed a coder (or the
+    requested kind is not a coder kind), so the caller keeps today's refusal.
+    """
+    from sase.main.plan_direct_approval_recovery import evaluate_approval_recovery
+
+    effective_kind = request.kind or "tale"
+    if effective_kind not in ("tale", "approve"):
+        return None
+    recovery = evaluate_approval_recovery(
+        local_plan=source_path,
+        history=history,
+        project=project,
+        cwd=request.cwd,
+    )
+    if recovery is None:
+        return None
+    if recovery.verdict == "live":
+        return coder_running_refusal(name, title or name, recovery)
+    placement = _resolve_placement(
+        planner, project, history, plan_name=name, recovery=True
+    )
+    if isinstance(placement, DirectApprovalRefusal):
+        placement = CoderPlacement(
+            mode="standalone",
+            parent=planner,
+            reason="agent session lookup failed",
+        )
+    model_directive = _resolve_model_directive(
+        source_path, request.coder_model, request.coder_prompt
+    )
+    bead = _resolve_bead(source_path, placement, project)
+    wait_spec = _parse_wait(request.wait)
+    prompt = compose_coder_prompt(
+        project_tag=project_tag,
+        model_directive=model_directive,
+        plan_argument=recovery.plan_argument or str(source_path),
+        extra_prompt=request.coder_prompt,
+        wait=wait_spec,
+        bead=bead,
+        placement=placement,
+    )
+    if recovery.verdict == "succeeded":
+        return already_implemented_refusal(name, title or name, recovery, prompt)
+    from typing import cast
+
+    return DirectApprovalPlan(
+        request=request,
+        kind=cast(DirectApprovalKind, effective_kind),
+        source_path=source_path,
+        location=location,
+        name=name,
+        title=title,
+        size=size,
+        project=project,
+        project_tag=project_tag,
+        planner=planner,
+        gate=_retired_gate_from_history(history),
+        placement=placement,
+        model_directive=model_directive,
+        bead=bead,
+        predicted_plan_ref=recovery.plan_argument or str(source_path),
+        coder_prompt_preview=prompt,
+        recovery=recovery,
+    )
+
+
+def _recovery_plan_bit(recovery: CoderRecovery) -> str:
+    age = f" {recovery.approved_age}" if recovery.approved_age else ""
+    return f"{recovery.plan_argument} · approved as a {recovery.approved_action}{age}"
+
+
+def _recovery_display_prior(recovery: CoderRecovery, want: str) -> PriorCoder | None:
+    for prior in recovery.prior_coders:
+        if prior.state == want:
+            return prior
+    return recovery.prior_coders[0] if recovery.prior_coders else None
+
+
+def coder_running_refusal(
+    name: str, title: str, recovery: CoderRecovery
+) -> DirectApprovalRefusal:
+    from sase.main.plan_direct_approval_recovery import prior_coder_word
+
+    prior = _recovery_display_prior(recovery, "live")
+    if prior is None:
+        coder_bit = "coder   none found"
+        hints: tuple[str, ...] = ("sase agent list",)
+    else:
+        coder_bit = f"coder   {prior.name} · {prior_coder_word(prior)}"
+        hints = (f"sase agent show {prior.name}",)
+    return DirectApprovalRefusal(
+        code="coder_running",
+        header=f"{name} is already approved and its coder is running",
+        detail_lines=(title, _recovery_plan_bit(recovery), coder_bit),
+        hints=hints,
+    )
+
+
+def already_implemented_refusal(
+    name: str, title: str, recovery: CoderRecovery, prompt: str
+) -> DirectApprovalRefusal:
+    import shlex
+
+    from sase.main.plan_direct_approval_recovery import prior_coder_word
+
+    prior = _recovery_display_prior(recovery, "succeeded")
+    if prior is None:
+        coder_bit = "plan status is done"
+    else:
+        coder_bit = f"coder   {prior.name} · {prior_coder_word(prior)}"
+    return DirectApprovalRefusal(
+        code="already_implemented",
+        header=f"{name} is already approved and implemented",
+        detail_lines=(
+            title,
+            _recovery_plan_bit(recovery),
+            coder_bit,
+            "To run another coder anyway:",
+        ),
+        hints=(f"sase run {shlex.quote(prompt)}",),
+    )
+
+
 def _handled_refusal(
     request: DirectApprovalRequest,
     source_path: Path,
     name: str,
     title: str,
-    history: object,
+    history: PlanGateHistory,
 ) -> DirectApprovalRefusal | None:
     kind = getattr(history, "kind", "none")
     if kind == "direct":
+        from sase.main.plan_pending_diagnosis import (
+            direct_approval_via_text,
+            inspect_command_for_located_plan,
+        )
+
         action = getattr(history, "action", None) or "tale"
         age = getattr(history, "age", "") or ""
         try:
@@ -344,27 +507,31 @@ def _handled_refusal(
         except Exception:
             coder = None
         coder_bit = f" \u00b7 coder {coder}" if coder else ""
+        via = direct_approval_via_text(source_path)
+        inspect_command = inspect_command_for_located_plan(source_path, history)
         return DirectApprovalRefusal(
             code="already_approved",
             header=f"{name} is not awaiting approval",
             detail_lines=(
                 f"{title}",
                 f"{source_path}",
-                f"This plan was already approved as a {action} via"
-                f" sase plan approve{age}{coder_bit}.",
-                f"Inspect it with: sase plan show {name}",
+                f"This plan was already approved as a {action} {via}{age}{coder_bit}.",
+                f"Inspect it with: {inspect_command}",
             ),
-            hints=(f"sase plan show {name}",),
+            hints=(inspect_command,),
         )
     if kind == "handled":
-        from sase.main.plan_pending_diagnosis import diagnose_located_plan_miss
+        from sase.main.plan_pending_diagnosis import (
+            diagnose_located_plan_miss,
+            inspect_command_for_located_plan,
+        )
 
         miss = diagnose_located_plan_miss(request.selector, source_path)
         return DirectApprovalRefusal(
             code="conflict_already_handled",
             header=miss.header,
             detail_lines=miss.detail_lines,
-            hints=(f"sase plan show {name}",),
+            hints=(inspect_command_for_located_plan(source_path, history),),
         )
     return None
 
@@ -522,6 +689,7 @@ def _resolve_placement(
     history: object,
     *,
     plan_name: str = "",
+    recovery: bool = False,
 ) -> CoderPlacement | DirectApprovalRefusal:
     planner_artifacts_dir = _planner_artifacts_dir(history)
     if not planner:
@@ -541,20 +709,50 @@ def _resolve_placement(
             reason="agent session lookup is unavailable",
             planner_artifacts_dir=planner_artifacts_dir,
         )
+    attach_error: AgentSessionAttachError | None = None
+    attach = None
     try:
         attach = resolve_agent_session_attach_plan(
             AgentSessionAttachDirective(parent=planner, suffix="code"),
             project_name=project,
         )
     except AgentSessionAttachError as exc:
-        reason = _strip_attach_prefix(str(exc))
-        return CoderPlacement(
-            mode="standalone",
-            parent=planner,
-            reason=reason,
-            planner_artifacts_dir=planner_artifacts_dir
-            or getattr(exc, "artifacts_dir", None),
-        )
+        if getattr(exc, "reason", None) == "name_taken":
+            try:
+                attach = resolve_agent_session_attach_plan(
+                    AgentSessionAttachDirective(parent=planner, suffix="@"),
+                    project_name=project,
+                )
+            except AgentSessionAttachError as retry_exc:
+                attach_error = retry_exc
+            except Exception as retry_error:
+                return CoderPlacement(
+                    mode="standalone",
+                    parent=planner,
+                    reason=str(retry_error) or "agent session lookup failed",
+                    planner_artifacts_dir=planner_artifacts_dir,
+                )
+            if attach is not None:
+                return CoderPlacement(
+                    mode="session",
+                    parent=planner,
+                    member_name=attach.agent_name,
+                    agent_session=attach.parent_base,
+                    planner_artifacts_dir=planner_artifacts_dir
+                    or attach.parent_artifacts_dir,
+                    suffix="@",
+                )
+        else:
+            attach_error = exc
+        if attach is None and attach_error is not None:
+            reason = _strip_attach_prefix(str(attach_error))
+            return CoderPlacement(
+                mode="standalone",
+                parent=planner,
+                reason=reason,
+                planner_artifacts_dir=planner_artifacts_dir
+                or getattr(attach_error, "artifacts_dir", None),
+            )
     except Exception as exc:
         return CoderPlacement(
             mode="standalone",
@@ -562,7 +760,14 @@ def _resolve_placement(
             reason=str(exc) or "agent session lookup failed",
             planner_artifacts_dir=planner_artifacts_dir,
         )
-    if attach.parent_is_running:
+    if attach is None:
+        return CoderPlacement(
+            mode="standalone",
+            parent=planner,
+            reason="agent session lookup failed",
+            planner_artifacts_dir=planner_artifacts_dir,
+        )
+    if attach.parent_is_running and not recovery:
         return DirectApprovalRefusal(
             code="planner_running",
             header=f"\u2717 {plan_name or 'plan'}'s planner {planner} is still running",
@@ -748,6 +953,8 @@ __all__ = [
     "PlacementMode",
     "RetiredGate",
     "RetiredGateState",
+    "already_implemented_refusal",
+    "coder_running_refusal",
     "compose_coder_prompt",
     "resolve_direct_approval",
 ]

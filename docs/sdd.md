@@ -144,9 +144,10 @@ lists pending PlanApproval notifications, recent approvals, and inferred rejecte
 archived proposals. `sase plan approve <name>` defaults to a tale; an epic-authored plan
 requires an explicit `--kind epic` or `--kind tale` to prevent an accidental downgrade.
 The command can also directly approve an archived or scratch plan with no live gate;
-`--dry-run` previews it and `--project` supplies explicit project context. The selected
-target schema is validated before the response, SDD copy, or notification dismissal, and
-failures leave the proposal pending.
+`--dry-run` previews it and `--project` supplies explicit project context. Approving an
+already-approved plan relaunches a failed, killed, or never-launched coder and refuses
+one that is running or finished. The selected target schema is validated before the
+response, SDD copy, or notification dismissal, and failures leave the proposal pending.
 
 Tale approval promotes the plan and launches its coder through the agent runner. Every
 epic approval surface — sase's TUI, the CLI, Telegram, or a bare gate response — instead

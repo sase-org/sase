@@ -199,8 +199,109 @@ def render_direct_approval_refusal(refusal: DirectApprovalRefusal) -> None:
     for line in refusal.detail_lines:
         out.print(f"  {line}")
     for hint in refusal.hints:
-        if hint not in refusal.detail_lines:
+        if not any(hint in line for line in refusal.detail_lines):
             out.print(f"  [dim]{hint}[/dim]")
+
+
+def render_coder_recovery(outcome: DirectApprovalOutcome) -> None:
+    """Render a relaunched replacement coder as a recovery card."""
+    plan = outcome.plan
+    recovery = plan.recovery
+    out = _console(stderr=False)
+    out.print(f"[green]↻ Coder relaunched[/green] · [bold cyan]{plan.name}[/bold cyan]")
+    if plan.title:
+        out.print(f"  {plan.title}")
+    out.print(f"\n  [dim]plan[/dim]    {_recovery_plan_line(recovery, plan)}")
+    out.print(f"  [dim]before[/dim]  {_recovery_before_line(recovery)}")
+    if plan.kind == "commit":
+        out.print("  [dim]coder[/dim]   none · commit only")
+    elif outcome.coder is not None:
+        route = (
+            "agent session " + str(plan.placement.agent_session)
+            if plan.placement.mode == "session"
+            else "standalone"
+        )
+        name = outcome.coder.agent_name
+        label = name or f"PID {outcome.coder.pid}"
+        out.print(
+            f"  [dim]coder[/dim]   [bold]{label}[/bold] · {route}"
+            f" · %model:{plan.model_directive or 'custom'}"
+        )
+    else:
+        route = "session" if plan.placement.mode == "session" else "standalone"
+        out.print(
+            f"  [dim]coder[/dim]   {route} · %model:{plan.model_directive or 'custom'}"
+        )
+    if (
+        plan.placement.mode == "standalone"
+        and plan.placement.reason
+        and outcome.coder is not None
+    ):
+        out.print(f"          [dim]no agent session: {plan.placement.reason}[/dim]")
+    for warning in outcome.warnings:
+        out.print(f"  [yellow]! {warning}[/yellow]")
+    if outcome.coder_error:
+        out.print(f"\n[red]✗ Coder launch failed:[/red] {outcome.coder_error}")
+        out.print("  Launch it yourself:")
+        _print_recovery_command(out, outcome.coder_prompt)
+    elif outcome.coder is not None:
+        follow = (
+            f"sase agent show {outcome.coder.agent_name}"
+            if outcome.coder.agent_name
+            else "sase agent list"
+        )
+        out.print(f"\n  [dim]follow[/dim]  {follow}")
+
+
+def render_coder_recovery_dry_run(plan: DirectApprovalPlan) -> None:
+    """Render a read-only preview of a coder recovery."""
+    out = _console(stderr=False)
+    out.print(
+        f"[cyan]◇ Dry run[/cyan] · [bold cyan]{plan.name}[/bold cyan] "
+        "would get a replacement coder"
+    )
+    if plan.title:
+        out.print(f"  {plan.title}")
+    out.print(f"\n  [dim]plan[/dim]    {_recovery_plan_line(plan.recovery, plan)}")
+    out.print(f"  [dim]before[/dim]  {_recovery_before_line(plan.recovery)}")
+    route = (
+        "agent session " + str(plan.placement.agent_session)
+        if plan.placement.mode == "session"
+        else "standalone"
+    )
+    out.print(
+        f"  [dim]coder[/dim]   {route} · %model:{plan.model_directive or 'custom'}"
+    )
+    if plan.placement.mode == "standalone" and plan.placement.reason:
+        out.print(f"          [dim]no agent session: {plan.placement.reason}[/dim]")
+    out.print(f"  [dim]prompt[/dim]  {plan.coder_prompt_preview}")
+    out.print(
+        "\n  [dim]Nothing was changed. Re-run without -n/--dry-run to approve.[/dim]"
+    )
+
+
+def _recovery_plan_line(recovery: object, plan: DirectApprovalPlan) -> str:
+    from sase.main.plan_direct_approval_recovery import CoderRecovery
+
+    if not isinstance(recovery, CoderRecovery):
+        return plan.predicted_plan_ref or str(plan.source_path)
+    age = f" {recovery.approved_age}" if recovery.approved_age else ""
+    line = f"{recovery.plan_argument} · approved as a {recovery.approved_action}{age}"
+    if recovery.gate_id:
+        line += f" · gate {recovery.gate_id}"
+    return line
+
+
+def _recovery_before_line(recovery: object) -> str:
+    from sase.main.plan_direct_approval_recovery import (
+        CoderRecovery,
+        prior_coder_word,
+    )
+
+    if not isinstance(recovery, CoderRecovery) or not recovery.prior_coders:
+        return "none found · the approval's coder never launched"
+    prior = recovery.prior_coders[0]
+    return f"{prior.name} · {prior_coder_word(prior)}"
 
 
 def render_approval_error(error: Exception) -> None:
@@ -225,6 +326,8 @@ def render_approval_error(error: Exception) -> None:
 
 __all__ = [
     "render_approval_error",
+    "render_coder_recovery",
+    "render_coder_recovery_dry_run",
     "render_direct_approval",
     "render_direct_approval_dry_run",
     "render_direct_approval_refusal",

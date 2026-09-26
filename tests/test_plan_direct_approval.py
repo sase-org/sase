@@ -14,6 +14,7 @@ from sase.main.plan_direct_approval import (
     compose_coder_prompt,
     resolve_direct_approval,
 )
+from sase.main.plan_pending_diagnosis import PlanGateHistory
 from sase.plan_approval_actions import PlanApprovalValidationError
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
@@ -244,3 +245,98 @@ def test_compose_coder_prompt_session_directive_parses_without_legacy_syntax() -
         _, directives = extract_prompt_directives(prompt)
     assert directives.agent_session_attach_parent == "bob"
     assert directives.agent_session_attach_suffix == "code"
+
+
+# --- coder recovery placement --------------------------------------------------
+
+
+def _attach_plan_for_placement(*, running: bool = False):
+    from sase.agent.agent_session_attach import AgentSessionAttachLaunchPlan
+
+    return AgentSessionAttachLaunchPlan(
+        parent_arg="0sk",
+        suffix_arg="code",
+        parent_name="0sk",
+        parent_base="0sk",
+        parent_timestamp="20260925000000",
+        parent_artifacts_dir="/tmp/planner",
+        role_suffix="--code",
+        agent_name="0sk--code",
+        agent_session_role="code",
+        parent_agent_session_member_name="0sk",
+        parent_agent_session_role_suffix="--0",
+        parent_needs_rename=False,
+        parent_project_name="demo",
+        parent_is_running=running,
+    )
+
+
+def test_name_taken_attach_error_retries_with_at(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agent.agent_session_attach import AgentSessionAttachError
+    from sase.main.plan_direct_approval import (
+        _resolve_placement,
+        compose_coder_prompt,
+    )
+
+    monkeypatch.chdir(tmp_path)
+
+    calls: list[str] = []
+
+    def _fake_attach(directive, project_name=None):
+        calls.append(directive.suffix)
+        if directive.suffix == "code":
+            raise AgentSessionAttachError("taken", reason="name_taken")
+        return _attach_plan_for_placement()
+
+    monkeypatch.setattr(
+        "sase.agent.agent_session_attach.resolve_agent_session_attach_plan",
+        _fake_attach,
+    )
+    history = PlanGateHistory(kind="none")
+
+    placement = _resolve_placement("0sk", "demo", history, plan_name="work")
+
+    assert not isinstance(placement, DirectApprovalRefusal)
+    assert placement.mode == "session"
+    assert placement.suffix == "@"
+    assert calls == ["code", "@"]
+    prompt = compose_coder_prompt(
+        project_tag="+demo",
+        model_directive="@small",
+        plan_argument="plan:202609/work.md",
+        extra_prompt=None,
+        wait=None,
+        bead=None,
+        placement=placement,
+    )
+    assert "%id(@, session=0sk)" in prompt
+
+
+def test_recovery_ignores_parent_running_but_fresh_refuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main.plan_direct_approval import DirectApprovalRefusal, _resolve_placement
+
+    monkeypatch.setattr(
+        "sase.agent.agent_session_attach.resolve_agent_session_attach_plan",
+        lambda directive, project_name=None: _attach_plan_for_placement(running=True),
+    )
+    history = PlanGateHistory(kind="none")
+
+    recovered = _resolve_placement(
+        "0sk", "demo", history, plan_name="work", recovery=True
+    )
+    assert not isinstance(recovered, DirectApprovalRefusal)
+
+    fresh = _resolve_placement("0sk", "demo", history, plan_name="work")
+    assert isinstance(fresh, DirectApprovalRefusal)
+    assert fresh.code == "planner_running"
+
+
+def test_attach_name_taken_reason() -> None:
+    from sase.agent.agent_session_attach import AgentSessionAttachError
+
+    assert AgentSessionAttachError("x").reason is None
+    assert AgentSessionAttachError("x", reason="name_taken").reason == "name_taken"

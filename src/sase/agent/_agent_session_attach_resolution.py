@@ -325,7 +325,8 @@ def _ensure_agent_session_name_available(
     if current_owner_agent_name_key(agent_name) in known_keys:
         raise _types.AgentSessionAttachError(
             f"Agent {member_kind} '{agent_name}' already exists. "
-            f"Use %i(@, session={directive.parent}) to allocate the next free suffix."
+            f"Use %i(@, session={directive.parent}) to allocate the next free suffix.",
+            reason="name_taken",
         )
 
 

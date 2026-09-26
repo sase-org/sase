@@ -304,6 +304,176 @@ def _settle_concurrent_answer(
     )
 
 
+def execute_coder_recovery(plan: DirectApprovalPlan) -> DirectApprovalOutcome:
+    """Launch one replacement coder for an already-approved plan.
+
+    Skips every approval side effect (adopt, archive, gate retirement,
+    planner metadata): the approval already happened. Writes the receipt
+    before launching so a crash between the two stays recoverable, then
+    rewrites it with the new coder outcome.
+    """
+    from sase._plan_approval_protocol import PlanApprovalActionError
+
+    if os.environ.get("SASE_AGENT"):
+        raise PlanApprovalActionError(
+            "agent_launch_denied",
+            plan.name,
+            "plan approval launches agents and must be run by the user, "
+            "not from inside a running SASE agent",
+        )
+    recovery = plan.recovery
+    if recovery is None:
+        raise PlanApprovalActionError(
+            "invalid_request",
+            plan.name,
+            "coder recovery needs an evaluated recovery plan",
+        )
+    local_plan = plan.source_path.expanduser().resolve(strict=False)
+    from sase.notification_gates.durability import file_lock
+    from sase.plan_approval_receipts import receipt_path_for
+
+    lock_path = Path(str(receipt_path_for(local_plan)) + ".lock")
+    with file_lock(lock_path, timeout=30.0):
+        _refuse_if_recovered(plan, local_plan)
+        prior_names = _prior_coder_names(plan, local_plan)
+        coder_prompt = _coder_prompt(plan, plan.predicted_plan_ref, local_plan)
+        _write_recovery_receipt(plan, local_plan, coder=None, coder_error=None)
+        coder: AgentLaunchResult | None = None
+        coder_error: str | None = None
+        try:
+            coder = _launch_coder(coder_prompt, local_plan)
+        except Exception as exc:
+            coder_error = str(exc) or type(exc).__name__
+        _write_recovery_receipt(
+            plan,
+            local_plan,
+            coder=coder,
+            coder_error=coder_error,
+            prior_names=prior_names,
+        )
+    return DirectApprovalOutcome(
+        plan=plan,
+        local_plan_path=local_plan,
+        plan_ref=plan.predicted_plan_ref,
+        saved_plan_path=None,
+        coder_prompt=coder_prompt,
+        coder=coder,
+        coder_error=coder_error,
+    )
+
+
+def _refuse_if_recovered(plan: DirectApprovalPlan, local_plan: Path) -> None:
+    """Re-evaluate coder evidence under the lock; refuse when it changed."""
+    from sase.main.plan_direct_approval import (
+        DirectApprovalRefused,
+        already_implemented_refusal,
+        coder_running_refusal,
+    )
+    from sase.main.plan_direct_approval_recovery import evaluate_approval_recovery
+    from sase.main.plan_pending_diagnosis import classify_plan_gate_history
+
+    history = classify_plan_gate_history(local_plan)
+    recovery = evaluate_approval_recovery(
+        local_plan=local_plan,
+        history=history,
+        project=plan.project,
+        cwd=plan.request.cwd,
+    )
+    if recovery is None or recovery.verdict == "recover":
+        return
+    if recovery.verdict == "live":
+        raise DirectApprovalRefused(
+            coder_running_refusal(plan.name, plan.title or plan.name, recovery)
+        )
+    raise DirectApprovalRefused(
+        already_implemented_refusal(
+            plan.name,
+            plan.title or plan.name,
+            recovery,
+            _coder_prompt(plan, plan.predicted_plan_ref, local_plan),
+        )
+    )
+
+
+def _prior_coder_names(plan: DirectApprovalPlan, local_plan: Path) -> tuple[str, ...]:
+    """Return prior coder names to record as replaced, oldest first."""
+    from sase.main.plan_direct_approval_recovery import CoderRecovery
+
+    names: list[str] = []
+    recovery = plan.recovery
+    if isinstance(recovery, CoderRecovery):
+        for prior in recovery.prior_coders:
+            if prior.name not in names:
+                names.append(prior.name)
+    try:
+        from sase.plan_approval_receipts import read_direct_approval_receipt
+
+        receipt = read_direct_approval_receipt(local_plan)
+    except Exception:
+        receipt = None
+    if receipt is not None:
+        for old in receipt.replaced_coders:
+            if old not in names:
+                names.append(old)
+        if receipt.coder_agent and receipt.coder_agent not in names:
+            names.append(receipt.coder_agent)
+    return tuple(names)
+
+
+def _write_recovery_receipt(
+    plan: DirectApprovalPlan,
+    local_plan: Path,
+    *,
+    coder: AgentLaunchResult | None,
+    coder_error: str | None,
+    prior_names: tuple[str, ...] | None = None,
+) -> None:
+    from datetime import UTC, datetime
+
+    from sase.main.plan_direct_approval_recovery import CoderRecovery
+    from sase.plan_approval_receipts import (
+        DirectApprovalReceipt,
+        read_direct_approval_receipt,
+        write_direct_approval_receipt,
+    )
+
+    recovery = plan.recovery
+    gate_id = recovery.gate_id if isinstance(recovery, CoderRecovery) else None
+    replaced = tuple(prior_names or ())
+    plan_archive_ref: str | None = None
+    saved_plan_path: str | None = None
+    if plan.predicted_plan_ref.startswith("plan:"):
+        plan_archive_ref = plan.predicted_plan_ref
+    try:
+        previous = read_direct_approval_receipt(local_plan)
+    except Exception:
+        previous = None
+    if previous is not None:
+        if plan_archive_ref is None:
+            plan_archive_ref = previous.plan_archive_ref
+        if saved_plan_path is None:
+            saved_plan_path = previous.saved_plan_path
+    receipt = DirectApprovalReceipt(
+        plan_path=str(local_plan),
+        action=plan.kind,
+        approved_at=datetime.now(UTC).isoformat(),
+        source="cli",
+        route=("session" if plan.placement.mode == "session" else "standalone"),
+        project=plan.project,
+        plan_archive_ref=plan_archive_ref,
+        saved_plan_path=saved_plan_path,
+        coder_agent=getattr(coder, "agent_name", None) if coder is not None else None,
+        coder_pid=getattr(coder, "pid", None) if coder is not None else None,
+        coder_error=coder_error,
+        agent_session=plan.placement.agent_session,
+        retired_gate_id=None,
+        original_path=str(plan.source_path),
+        replaced_coders=replaced,
+        recovered_gate_id=gate_id,
+    )
+    write_direct_approval_receipt(receipt)
+
+
 def _launch_coder(prompt: str, local_plan: Path) -> AgentLaunchResult:
     from sase.agent.launch_cwd import launch_agents_from_cwd
 
@@ -339,4 +509,8 @@ def _record_planner_metadata(plan: DirectApprovalPlan, warnings: list[str]) -> N
         warnings.append(f"planner metadata could not be recorded: {exc}")
 
 
-__all__ = ["DirectApprovalOutcome", "execute_direct_approval"]
+__all__ = [
+    "DirectApprovalOutcome",
+    "execute_coder_recovery",
+    "execute_direct_approval",
+]

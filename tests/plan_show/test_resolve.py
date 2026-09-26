@@ -516,6 +516,9 @@ def test_rung_name_ambiguous_across_repo_and_local(tmp_path: Path) -> None:
 
     assert isinstance(result, PlanShowAmbiguity)
     assert len(result.candidates) == 2
+    references = [candidate.reference for candidate in result.candidates]
+    assert len(set(references)) == 2
+    assert str(local_root / "202608" / "dup.md") in references
 
 
 def test_miss_carries_close_match_suggestions(

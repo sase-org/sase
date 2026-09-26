@@ -52,7 +52,10 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "Approve a pending proposal or a plan file without a live approval gate. "
             "PLAN matches a live proposal first (notification ID, archive or bundle "
             "path, name, <shard>/<name>, plan: ref, or planner agent), then a plan "
-            "file. If PLAN is omitted, exactly one pending proposal must exist."
+            "file. If PLAN is omitted, exactly one pending proposal must exist. "
+            "A plan already approved whose coder failed, was killed, or never "
+            "launched gets a replacement coder; one whose coder is running or "
+            "finished is refused."
         ),
         epilog=(
             "examples:\n"
@@ -64,7 +67,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan approve 0qw --prompt 'Focus tests'\n"
             "  sase plan approve abcdef12 --wait 'sase-s7.2,bead=sase-64.3'\n"
             "  sase plan approve big_epic --kind epic\n"
-            "  sase plan approve abcdef12 --kind commit"
+            "  sase plan approve abcdef12 --kind commit\n"
+            "  sase plan approve my_plan   # relaunch a failed coder"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

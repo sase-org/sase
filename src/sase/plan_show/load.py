@@ -85,12 +85,27 @@ def load_ambiguity_candidate(
     path: Path, *, roots: tuple[Path, ...]
 ) -> PlanShowAmbiguityCandidate:
     """Build one lightweight candidate row for an ambiguous target."""
+    from sase.sdd.plan_refs import resolve_plan_reference_from_roots
+
     normalized = path.expanduser().resolve(strict=False)
     metadata, content = _load_metadata_and_content(normalized)
     frontmatter: dict[str, Any] = {}
     if content is not None:
         frontmatter, _ = parse_plan_frontmatter(content)
     reference = canonicalize_plan_reference_from_roots(normalized, roots=roots)
+    if reference is not None:
+        try:
+            resolution = resolve_plan_reference_from_roots(reference, roots=roots)
+        except Exception:
+            resolution = None
+        resolved_path = resolution.resolved_path if resolution is not None else None
+        if (
+            resolution is None
+            or resolved_path is None
+            or resolution.status not in ("exact", "drifted")
+            or resolved_path.expanduser().resolve(strict=False) != normalized
+        ):
+            reference = None
     return PlanShowAmbiguityCandidate(
         reference=reference or str(normalized),
         tier=metadata.authored_tier,
