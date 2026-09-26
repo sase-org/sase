@@ -6040,6 +6040,119 @@ JumpAllModal #jump-all-footer {
     padding-top: 1;
 }
 
+/* ===== Node Finder Modal ===== */
+
+NodeFinderModal {
+    align: center middle;
+}
+
+NodeFinderModal > #node-finder-container {
+    width: 94%;
+    height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 0 1;
+}
+
+NodeFinderModal #node-finder-title {
+    text-align: center;
+    text-style: bold;
+    height: 1;
+}
+
+NodeFinderModal #node-finder-top {
+    height: 3;
+    width: 100%;
+}
+
+NodeFinderModal #node-finder-query {
+    width: 1fr;
+    border: tall $secondary;
+}
+
+NodeFinderModal #node-finder-query:focus {
+    border: tall $accent;
+}
+
+NodeFinderModal #node-finder-pill {
+    width: auto;
+    min-width: 10;
+    height: 3;
+    content-align: center middle;
+    padding: 0 1;
+}
+
+NodeFinderModal #node-finder-scope {
+    width: auto;
+    min-width: 24;
+    height: 3;
+    content-align: right middle;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+NodeFinderModal #node-finder-body {
+    height: 1fr;
+    width: 100%;
+}
+
+NodeFinderModal #node-finder-list {
+    width: 44%;
+    height: 100%;
+    border-right: solid $secondary;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+NodeFinderModal #node-finder-preview-scroll {
+    width: 1fr;
+    height: 100%;
+    padding: 0 1;
+}
+
+NodeFinderModal.-medium #node-finder-list,
+NodeFinderModal.-medium #node-finder-preview-scroll {
+    width: 1fr;
+}
+
+NodeFinderModal.-narrow #node-finder-body {
+    layout: vertical;
+}
+
+NodeFinderModal.-narrow #node-finder-list {
+    width: 100%;
+    height: 1fr;
+    border-right: none;
+    border-bottom: solid $secondary;
+}
+
+NodeFinderModal.-narrow #node-finder-preview-scroll {
+    width: 100%;
+    height: 40%;
+}
+
+NodeFinderModal OptionList > .option-list--option-disabled {
+    color: auto;
+    background: transparent;
+    text-style: none;
+}
+
+NodeFinderModal #node-finder-footer {
+    height: 1;
+    width: 100%;
+    color: $text-muted;
+}
+
+NodeFinderModal #node-finder-legend {
+    width: 1fr;
+}
+
+NodeFinderModal #node-finder-flash {
+    width: auto;
+    min-width: 8;
+    text-align: right;
+}
+
 /* ===== Recursive Fuzzy File Finder Modal (Ctrl+R) ===== */
 
 RecursiveFileFinderModal {

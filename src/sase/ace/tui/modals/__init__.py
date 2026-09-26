@@ -168,6 +168,8 @@ __all__ = [
     "MiniXPromptSaveConfirmState",
     "RecursiveFileFinderModal",
     "ModelPickerModal",
+    "NodeFinderModal",
+    "NodeFinderResult",
     "NotificationModal",
     "ReportModal",
     "ParentSelectModal",

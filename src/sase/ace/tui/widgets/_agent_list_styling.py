@@ -215,7 +215,7 @@ _TREE_GUIDE = "│  "
 # beyond the palette cycle with modulo so the hot render path stays total,
 # adjacent levels never share a color, and malformed or unusually deep trees
 # cannot generate a theme at render time.
-_TREE_DEPTH_COLORS: tuple[str, ...] = (
+TREE_DEPTH_COLORS: tuple[str, ...] = (
     "#5FAFFF",  # sky blue
     "#5FD7AF",  # mint
     "#FFD75F",  # gold
@@ -223,6 +223,7 @@ _TREE_DEPTH_COLORS: tuple[str, ...] = (
     "#D7AFFF",  # lavender
     "#5FD7FF",  # cyan
 )
+_TREE_DEPTH_COLORS = TREE_DEPTH_COLORS
 
 # Agent-grouping row identity colors. These saturated colors distinguish each
 # grouping kind without adding a trailing marker to the displayed name.

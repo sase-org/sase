@@ -377,18 +377,10 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19f(resolve_queue_capacity_multiplier)' \
         --epic-symbol 'sase-18i(CoderPlacement)' \
         --epic-symbol 'sase-18i(RetiredGate)' \
-        --epic-symbol 'sase-19i(NodeFinderView)' \
         --epic-symbol 'sase-19i(build_node_finder_snapshot)' \
-        --epic-symbol 'sase-19i(filter_node_finder)' \
-        --epic-symbol 'sase-19i(next_jumpable_index)' \
-        --epic-symbol 'sase-19i(node_finder_glyph)' \
-        --epic-symbol 'sase-19i(NodeFinderPreviewCache)' \
-        --epic-symbol 'sase-19i(NodeFinderPreviewPayload)' \
         --epic-symbol 'sase-19i(node_finder_preview_token)' \
-        --epic-symbol 'sase-19i(load_node_finder_preview)' \
-        --epic-symbol 'sase-19i(render_node_finder_preview)' \
-        --epic-symbol 'sase-19i(render_tier1)' \
-        --epic-symbol 'sase-19i(tier1_source)' \
+        --epic-symbol 'sase-19i(NodeFinderModal)' \
+        --epic-symbol 'sase-19i(NodeFinderResult)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

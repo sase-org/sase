@@ -239,6 +239,15 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             ),
         )
     ),
+    "src/sase/ace/tui/modals/node_finder_preview_loader.py:_source_paths": (
+        PathPassingReview(
+            exemption=(
+                "Read-only Node Finder preview freshness token: agent_meta.json "
+                "is listed only as an mtime/size source alongside live_reply "
+                "and prompt files; the loader never writes a marker."
+            ),
+        )
+    ),
     "src/sase/core/agent_hold_facade.py:agent_armer_wire_for_artifacts": PathPassingReview(
         exemption=(
             "Read-only hold-armer identity lookup: agent_meta.json is read to "

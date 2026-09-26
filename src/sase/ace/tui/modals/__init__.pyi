@@ -194,6 +194,8 @@ from .models_panel import LaunchPaneHost as LaunchPaneHost
 from .models_panel import LaunchPaneSessionState as LaunchPaneSessionState
 from .models_panel import ModelsPanel as ModelsPanel
 from .models_panel import ModelsPanelResult as ModelsPanelResult
+from .node_finder_modal import NodeFinderModal as NodeFinderModal
+from .node_finder_modal import NodeFinderResult as NodeFinderResult
 from .notification_modal import NotificationModal as NotificationModal
 from .parent_select_modal import ParentSelectModal as ParentSelectModal
 from .plan_approval_modal import PlanApprovalModal as PlanApprovalModal

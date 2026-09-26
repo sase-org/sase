@@ -247,6 +247,8 @@ _LAZY_EXPORTS = {
     "LaunchPaneSessionState": (".models_panel", "LaunchPaneSessionState"),
     "ModelsPanel": (".models_panel", "ModelsPanel"),
     "ModelsPanelResult": (".models_panel", "ModelsPanelResult"),
+    "NodeFinderModal": (".node_finder_modal", "NodeFinderModal"),
+    "NodeFinderResult": (".node_finder_modal", "NodeFinderResult"),
     "NotificationModal": (".notification_modal", "NotificationModal"),
     "ParentSelectModal": (".parent_select_modal", "ParentSelectModal"),
     "PlanApprovalModal": (".plan_approval_modal", "PlanApprovalModal"),
