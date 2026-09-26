@@ -167,6 +167,22 @@ tools:
             -c,
             "from importlib.metadata import version; print(version('sase-core-rs'))",
           ]
+        # Bounded lint-toolchain version probes (E4 hermetic-baseline): each
+        # probe runs in <=1 s and all probes share a <=2 s budget
+        # (src/sase/tool/observe.py). An unavailable or failing probe makes
+        # the fingerprint explicitly incomplete instead of yielding an
+        # old-looking successful identity. ruff names the format-venv binary
+        # that `just _lint-ruff` actually runs; symvision has no --version
+        # flag, so its installed distribution version is read instead.
+        ruff: [.venv-format/bin/ruff, --version]
+        mypy: [.venv/bin/mypy, --version]
+        symvision:
+          [
+            .venv/bin/python,
+            -c,
+            "from importlib.metadata import version; print(version('symvision'))",
+          ]
+        prettier: [node_modules/.bin/prettier, --version]
   check-full:
     argv: [just, check-full]
     description: Run the exhaustive repository check.
@@ -190,6 +206,17 @@ tools:
             -c,
             "from importlib.metadata import version; print(version('sase-core-rs'))",
           ]
+        # Bounded lint-toolchain version probes (E4 hermetic-baseline): same
+        # budget and incomplete-on-unavailable contract as `check` above.
+        ruff: [.venv-format/bin/ruff, --version]
+        mypy: [.venv/bin/mypy, --version]
+        symvision:
+          [
+            .venv/bin/python,
+            -c,
+            "from importlib.metadata import version; print(version('symvision'))",
+          ]
+        prettier: [node_modules/.bin/prettier, --version]
   install:
     argv: [just, install]
     description: Install local SASE development dependencies.

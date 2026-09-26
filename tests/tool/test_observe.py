@@ -289,6 +289,44 @@ def test_failing_probe_is_incomplete_evidence_not_a_version(
     assert "toolchain probe broken exited 1" in fingerprint["completeness"]["missing"]
 
 
+def test_absent_executable_probe_is_incomplete(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = _git_init(tmp_path / "proj")
+    (root / "sase").mkdir()
+    (root / "sase" / "sase.yml").write_text(
+        yaml.dump(
+            {
+                "tools": {
+                    "probe": {
+                        "argv": ["true"],
+                        "description": "probe",
+                        "fingerprint": {
+                            "toolchain": {
+                                "good": [sys.executable, "--version"],
+                                "ghost": [
+                                    str(tmp_path / "no-such-dir" / "no-such-bin"),
+                                    "--version",
+                                ],
+                            },
+                        },
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _home(monkeypatch, tmp_path)
+    monkeypatch.chdir(root)
+    clear_config_cache()
+    fingerprint = observe_fingerprint(resolve_run_argv(["probe"]))
+    toolchain = fingerprint["toolchain"]
+    assert "incomplete" not in toolchain["good"]
+    assert toolchain["ghost"]["incomplete"] == "absent executable"
+    assert fingerprint["completeness"]["complete"] is False
+    assert "absent executable" in fingerprint["completeness"]["missing"]
+
+
 def test_probe_timeout_is_explicit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

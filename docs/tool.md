@@ -133,6 +133,25 @@ exhausted observation budget. They are never replaced with zero, and a run is ne
 called `mutated_input` unless both fingerprints are complete. A run whose wrapper was
 SIGKILLed is later reported `lost`, without a guessed duration or exit code.
 
+## Fingerprinted toolchain and external state (E4 hermetic-baseline)
+
+`check` and `check-full` version-probe every lint toolchain they run: `python`, `just`,
+`sase-core-rs`, plus `ruff`, `mypy`, `symvision`, and `prettier`. Each probe runs in at
+most 1 s and all probes share a 2 s budget; an unavailable or failing probe makes the
+fingerprint explicitly incomplete instead of yielding an old-looking successful
+identity, and a changed lint-tool version moves the fingerprint digest so an old receipt
+can never cover a new toolchain. This does not fix install provenance (`sase-vr` still
+tracks that ruff/mypy resolve by install date rather than `uv.lock`): the probes capture
+the drift instead of preventing it.
+
+Bead and feature-flag state read by lint stages (`_lint-flags`, symvision
+`--epic-symbol`) is external state and is deliberately not fingerprinted: digesting it
+would invalidate every receipt on any unrelated bead close. Receipts built on `check`
+fingerprints therefore carry a conservative time-to-live of at most 2 h, and receipt
+lookup refuses expired coverage. A bead change inside that window that flips a lint
+verdict is an explicit limitation of the receipt, not proof of coverage; the next
+`check` re-observes and mints again.
+
 ## Failure semantics
 
 The child's exit code is returned, or `128+signal`; catalog and usage errors return `2`.

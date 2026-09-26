@@ -39,6 +39,22 @@ def test_sase_project_catalog_has_five_named_tools() -> None:
     assert all(entry.digest for entry in catalog.entries)
 
 
+def test_check_tools_probe_lint_toolchain() -> None:
+    """E4 hermetic-baseline: `check` and `check-full` version-probe ruff,
+    mypy, symvision, and prettier so a changed lint toolchain moves the
+    fingerprint digest and an unavailable probe is explicit incompleteness."""
+
+    catalog = load_project_tool_catalog()
+    by_name = {entry.name: entry for entry in catalog.entries}
+    for tool in ("check", "check-full"):
+        toolchain = by_name[tool].definition["fingerprint"]["toolchain"]
+        assert {"ruff", "mypy", "symvision", "prettier"} <= set(toolchain)
+        assert all(
+            isinstance(toolchain[name], list) and toolchain[name]
+            for name in ("ruff", "mypy", "symvision", "prettier")
+        )
+
+
 def test_missing_catalog_is_empty(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
