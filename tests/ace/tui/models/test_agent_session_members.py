@@ -636,3 +636,85 @@ def test_current_agent_session_shell_uses_newest_active_candidate_in_chain_order
     root.followup_agents = [coder]
 
     assert current_agent_session_shell_row(root) is coder
+
+
+def _failed_monitor(
+    name: str,
+    *,
+    root,
+    status_bucket: str = "Failed",
+    followup_outcome: str | None = None,
+    followup_error: str | None = None,
+    next_action: str | None = None,
+) -> object:
+    monitor = _agent(
+        name,
+        role="monitor",
+        parent_timestamp=root.raw_suffix,
+        status="TESTED",
+        status_bucket=status_bucket,
+        start_offset=1,
+        stop_offset=2,
+    )
+    monitor.monitor_id = "m-lane"
+    monitor.monitor_state = "failed"
+    monitor.monitor_followup_outcome = followup_outcome
+    monitor.monitor_followup_error = followup_error
+    monitor.monitor_next_action = next_action
+    return monitor
+
+
+def test_lane_entries_skip_non_final_failed_monitor_with_launched_followup() -> None:
+    """A handed-off monitor never contributes a Failed lane entry."""
+    from sase.ace.tui.models.agent_session_members import (
+        agent_session_lane_status_entries,
+    )
+
+    root = _agent("alpha--0", role="root", status="DONE", status_bucket="Done")
+    monitor = _failed_monitor("alpha--mon", root=root, followup_outcome="launched")
+    continuation = _agent(
+        "alpha--1",
+        role="code",
+        parent_timestamp=root.raw_suffix,
+        status="DONE",
+        status_bucket="Done",
+        start_offset=3,
+    )
+
+    entries = agent_session_lane_status_entries((root, monitor, continuation))
+
+    assert entries
+    assert all(bucket != "Failed" for _status, bucket in entries)
+
+
+def test_lane_entries_map_final_launched_monitor_to_running() -> None:
+    """A final failed monitor with a launched follow-up yields Running."""
+    from sase.ace.tui.models.agent_session_members import (
+        agent_session_lane_status_entries,
+    )
+
+    root = _agent("alpha--0", role="root", status="DONE", status_bucket="Done")
+    monitor = _failed_monitor("alpha--mon", root=root, followup_outcome="launched")
+
+    entries = agent_session_lane_status_entries((root, monitor))
+
+    assert entries[-1] == ("TESTED", "Running")
+
+
+def test_lane_entries_keep_failed_bucket_when_followup_errored() -> None:
+    """A follow-up that failed to launch preserves the Failed entry."""
+    from sase.ace.tui.models.agent_session_members import (
+        agent_session_lane_status_entries,
+    )
+
+    root = _agent("alpha--0", role="root", status="DONE", status_bucket="Done")
+    monitor = _failed_monitor(
+        "alpha--mon",
+        root=root,
+        followup_outcome="launched",
+        followup_error="boom",
+    )
+
+    entries = agent_session_lane_status_entries((root, monitor))
+
+    assert entries[-1] == ("TESTED", "Failed")

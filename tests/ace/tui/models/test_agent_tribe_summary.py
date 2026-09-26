@@ -572,3 +572,85 @@ def test_snapshot_carries_description(
     assert documented.description == "Epic phase workers."
     assert missing.description == ""
     assert unconfigured.description == ""
+
+
+def _settled_failed_monitor(name: str, root, *, start_minute: int):
+    monitor = _agent(
+        name,
+        "TESTED",
+        start_minute=start_minute,
+        clan="research",
+        generation="gen-1",
+        agent_session="build",
+        role="monitor",
+        parent=root.raw_suffix,
+    )
+    monitor.status_bucket = "Failed"
+    monitor.monitor_id = f"m-{name}"
+    monitor.monitor_state = "failed"
+    monitor.monitor_followup_outcome = "launched"
+    monitor.stop_time = _NOW
+    return monitor
+
+
+def test_settled_failed_monitor_with_followup_does_not_fail_tribe() -> None:
+    from sase.ace.tui.models.agent_loader import _apply_status_overrides
+
+    root = _agent(
+        "build--plan",
+        "DONE",
+        start_minute=0,
+        clan="research",
+        generation="gen-1",
+        agent_session="build",
+        role="plan",
+    )
+    starter = _agent(
+        "build--0",
+        "DONE",
+        start_minute=1,
+        clan="research",
+        generation="gen-1",
+        agent_session="build",
+        role="code",
+        parent=root.raw_suffix,
+    )
+    monitor = _settled_failed_monitor("build--mon", root, start_minute=2)
+    cont = _agent(
+        "build--1",
+        "DONE",
+        start_minute=3,
+        clan="research",
+        generation="gen-1",
+        agent_session="build",
+        role="code",
+        parent=root.raw_suffix,
+    )
+    root.runtime_children = [starter, monitor, cont]
+    rows = [root, starter, monitor, cont]
+    _apply_status_overrides(rows)
+    projected = project_clan_tree(rows)
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        projected,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    assert snapshot.status != "FAILED"
+    assert snapshot.status_bucket != "Failed"
+
+
+def test_real_failed_agent_still_fails_tribe() -> None:
+    failed = _agent("oops", "FAILED", start_minute=0)
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        [failed],
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    assert snapshot.status == "FAILED"
+    assert snapshot.status_bucket == "Failed"

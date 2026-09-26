@@ -37,6 +37,7 @@ from .agent import Agent, AgentType, compute_row_runtime
 from .agent_session_members import (
     concrete_agent_session_member_rows,
     is_sequential_agent_session_container,
+    monitor_row_is_settled,
 )
 from .agent_nodes import is_agents_tab_agent_node
 from .agent_panels import PanelKey, agent_panel_label
@@ -506,7 +507,9 @@ def build_agent_tribe_summary_snapshot(
         if unit.status_bucket in {"Failed", "Stopped", "Waiting"}
     )
     aggregate_entries = tuple(
-        (row.status, agent_status_bucket(row)) for row in real_rows
+        (row.status, agent_status_bucket(row))
+        for row in real_rows
+        if not (row.is_monitor and monitor_row_is_settled(row))
     )
     status = aggregate_agent_group_effective_status(aggregate_entries) or "EMPTY"
     status_bucket = aggregate_agent_group_bucket(aggregate_entries) or "Running"

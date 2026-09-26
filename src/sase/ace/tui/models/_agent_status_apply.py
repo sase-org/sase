@@ -34,18 +34,28 @@ from ._agent_status_agent_session import (
 )
 from ._agent_status_roles import agent_session_role, is_coder_agent, is_feedback_agent
 from .agent import Agent, AgentType
-from .agent_session_members import agent_row_is_in_flight, row_is_agent_session_shell
+from .agent_session_members import (
+    agent_row_is_in_flight,
+    monitor_row_lane_bucket,
+    row_is_agent_session_shell,
+)
 
 
 DiffBadgeClassifier = Callable[[list[Agent]], None]
 
 
 def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
-    """Copy the visible root status/metadata from a selected logical child."""
+    """Copy the visible root status/metadata from a selected logical child.
+
+    A mirrored settled monitor keeps its label but contributes its lane
+    (handoff) bucket, so a failed check with a launched or pending
+    continuation never files the session as failed.
+    """
     parent.status = child.status
     parent.status_bucket = child.status_bucket
     copy_missing_display_metadata(parent, child)
     if child.is_monitor:
+        parent.status_bucket = monitor_row_lane_bucket(child)
         parent.monitor_start_status = child.monitor_start_status
         parent.monitor_stop_status = child.monitor_stop_status
         parent.monitor_state = child.monitor_state
@@ -138,7 +148,8 @@ def apply_status_overrides(
     active, waiting, or newest concrete child/shell row.  This pass propagates
     child timestamps, plan metadata, diff paths, and meta_* fields back to the
     root for detail panels, labels concrete post-gate handoff rows, and leaves
-    pending plan/question status publication to gate-shell rows.
+    pending plan/question status publication to gate-shell rows.  A mirrored
+    settled monitor keeps its label but contributes its lane (handoff) bucket.
     """
     all_agents = [*agents, *(workflow_agent_steps or [])]
     for agent in all_agents:

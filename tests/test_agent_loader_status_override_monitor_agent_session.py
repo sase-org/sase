@@ -133,6 +133,11 @@ def _nested_monitor(
     monitor_start_status: str | None = None,
     monitor_stop_status: str | None = None,
     stop_time: datetime | None = None,
+    monitor_followup_outcome: str | None = None,
+    monitor_followup_agent: str | None = None,
+    monitor_followup_error: str | None = None,
+    monitor_next_action: str | None = None,
+    monitor_host_completion_status: str | None = None,
 ) -> Agent:
     """A monitor whose durable starter link points at the coder, not the root."""
     return Agent(
@@ -156,6 +161,11 @@ def _nested_monitor(
         monitor_stop_status=monitor_stop_status,
         monitor_label="just check",
         monitor_command="just check-full",
+        monitor_followup_outcome=monitor_followup_outcome,
+        monitor_followup_agent=monitor_followup_agent,
+        monitor_followup_error=monitor_followup_error,
+        monitor_next_action=monitor_next_action,
+        monitor_host_completion_status=monitor_host_completion_status,
     )
 
 
@@ -401,3 +411,113 @@ def test_later_active_followup_clears_previously_mirrored_pair() -> None:
     assert root.monitor_start_status is None
     assert root.monitor_stop_status is None
     assert root.monitor_state is None
+
+
+def test_nested_failed_monitor_with_launched_followup_mirrors_running() -> None:
+    """A failed check with a launched continuation keeps the lane Running."""
+    root = _plan_root()
+    coder = _completed_code_child(root)
+    monitor = _nested_monitor(
+        coder,
+        root,
+        status="TESTED",
+        status_bucket="Failed",
+        monitor_state="failed",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        stop_time=_STARTED + timedelta(minutes=25),
+        monitor_followup_outcome="launched",
+        monitor_followup_agent="sess--1",
+    )
+
+    _apply_status_overrides([root, coder, monitor])
+
+    assert root.status == "TESTED"
+    assert root.status_bucket == "Running"
+    assert agent_status_bucket(root) == "Running"
+    assert agent_status_bucket(monitor) == "Failed"
+
+
+def test_nested_failed_monitor_with_pending_followup_mirrors_running() -> None:
+    """A failed check with only a next action keeps the lane Running."""
+    root = _plan_root()
+    coder = _completed_code_child(root)
+    monitor = _nested_monitor(
+        coder,
+        root,
+        status="TESTED",
+        status_bucket="Failed",
+        monitor_state="failed",
+        stop_time=_STARTED + timedelta(minutes=25),
+        monitor_next_action="continue",
+    )
+
+    _apply_status_overrides([root, coder, monitor])
+
+    assert root.status_bucket == "Running"
+    assert agent_status_bucket(root) == "Running"
+
+
+def test_nested_failed_monitor_with_followup_error_stays_failed() -> None:
+    """A continuation that failed to launch is a real failure."""
+    root = _plan_root()
+    coder = _completed_code_child(root)
+    monitor = _nested_monitor(
+        coder,
+        root,
+        status="TESTED",
+        status_bucket="Failed",
+        monitor_state="failed",
+        stop_time=_STARTED + timedelta(minutes=25),
+        monitor_followup_outcome="launched",
+        monitor_followup_error="boom",
+    )
+
+    _apply_status_overrides([root, coder, monitor])
+
+    assert root.status_bucket == "Failed"
+    assert agent_status_bucket(root) == "Failed"
+
+
+def test_nested_completed_monitor_with_host_completion_mirrors_done() -> None:
+    """Host completion settles the mirrored lane as Done."""
+    root = _plan_root()
+    coder = _completed_code_child(root)
+    monitor = _nested_monitor(
+        coder,
+        root,
+        status="TESTED",
+        status_bucket="Done",
+        monitor_state="completed",
+        stop_time=_STARTED + timedelta(minutes=25),
+        monitor_followup_outcome="host-completed",
+    )
+
+    _apply_status_overrides([root, coder, monitor])
+
+    assert root.status_bucket == "Done"
+    assert agent_status_bucket(root) == "Done"
+
+
+def test_plain_session_failed_monitor_with_launched_followup_mirrors_running() -> None:
+    """The launched-follow-up lane rule also holds for plain session roots."""
+    root = _plain_agent_session_root()
+    starter = _completed_plain_child(root)
+    monitor = _nested_monitor(
+        starter,
+        root,
+        status="TESTED",
+        status_bucket="Failed",
+        monitor_state="failed",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        stop_time=_STARTED + timedelta(minutes=25),
+        monitor_followup_outcome="launched",
+        monitor_followup_agent="sess--1",
+    )
+
+    _apply_status_overrides([root, starter, monitor])
+
+    assert root.status == "TESTED"
+    assert root.status_bucket == "Running"
+    assert agent_status_bucket(root) == "Running"

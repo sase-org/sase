@@ -10,7 +10,7 @@ from sase.agent.status_buckets import (
     agent_status_bucket,
 )
 from sase.gate_shell.state import gate_state_is_terminal
-from sase.monitor_state import monitor_state_is_terminal
+from sase.monitor_state import monitor_lane_status_bucket, monitor_state_is_terminal
 from .agent import Agent, AgentType
 
 
@@ -435,6 +435,49 @@ def _settled_member_bucket(member: Agent) -> str:
     return "Done"
 
 
+def monitor_row_lane_bucket(row: Agent) -> str:
+    """Return the agent-level lane bucket for one monitor row.
+
+    The row keeps its own bucket for its own display; aggregates read a
+    settled monitor only as the current state of its lane via
+    :func:`monitor_lane_status_bucket`.
+    """
+    own = agent_status_bucket(row)
+    if not (row.is_monitor and monitor_row_is_settled(row)):
+        return own
+    return monitor_lane_status_bucket(
+        row.monitor_state,
+        own,
+        followup_outcome=row.monitor_followup_outcome,
+        followup_error=row.monitor_followup_error,
+        next_action=row.monitor_next_action,
+        host_completion_status=row.monitor_host_completion_status,
+    )
+
+
+def agent_session_lane_status_entries(
+    rows: Sequence[Agent],
+) -> tuple[tuple[str, str], ...]:
+    """Return ``(status, bucket)`` entries for a session lane, handoff-aware.
+
+    Starts from :func:`agent_session_member_status_buckets`. A settled monitor
+    that is not the final row already handed its result to a later row, so it
+    is skipped. A final settled monitor contributes its lane bucket from
+    :func:`monitor_row_lane_bucket`. Every other row keeps its bucket.
+    """
+    buckets = agent_session_member_status_buckets(rows)
+    entries: list[tuple[str, str]] = []
+    final_index = len(rows) - 1
+    for index, (row, bucket) in enumerate(zip(rows, buckets, strict=True)):
+        if row.is_monitor and monitor_row_is_settled(row):
+            if index != final_index:
+                continue
+            entries.append((row.status, monitor_row_lane_bucket(row)))
+        else:
+            entries.append((row.status, bucket))
+    return tuple(entries)
+
+
 def agent_session_member_status_buckets(members: Sequence[Agent]) -> tuple[str, ...]:
     """Return effective buckets for an ordered sequential agent session.
 
@@ -547,6 +590,7 @@ __all__ = [
     "NO_SHELL_LANES",
     "ShellLaneCounts",
     "agent_row_is_in_flight",
+    "agent_session_lane_status_entries",
     "concrete_agent_statuses",
     "concrete_agent_session_member_rows",
     "concrete_agent_session_shell_rows",
@@ -556,6 +600,7 @@ __all__ = [
     "gate_row_is_settled",
     "is_sequential_agent_session_container",
     "monitor_row_is_settled",
+    "monitor_row_lane_bucket",
     "panel_shell_lane_counts",
     "row_is_agent_session_shell",
     "shell_lane_counts",

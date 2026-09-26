@@ -14,7 +14,10 @@ from sase.agent.status_buckets import (
 from ...models._agent_clan import clan_members
 from ...models._agent_clan_sections import ClanMemberDigest
 from ...models.agent import Agent, AgentType, compute_row_runtime
-from ...models.agent_session_members import agent_session_member_status_buckets
+from ...models.agent_session_members import (
+    agent_session_lane_status_entries,
+    agent_session_member_status_buckets,
+)
 from ._member_roster import MemberRosterChild, MemberRosterEntry
 
 
@@ -189,10 +192,7 @@ def clan_roster_entries(
 
         rows = agent_session_rows(member, children)
         agent_session_buckets = agent_session_member_status_buckets(rows)
-        agent_session_status_entries = tuple(
-            (row.status, bucket)
-            for row, bucket in zip(rows, agent_session_buckets, strict=True)
-        )
+        agent_session_status_entries = agent_session_lane_status_entries(rows)
         agent_session_status = (
             aggregate_agent_group_effective_status(agent_session_status_entries)
             or member.display_status
