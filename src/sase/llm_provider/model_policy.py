@@ -493,25 +493,6 @@ def format_policy_violations(
     return "\n".join(lines)
 
 
-def check_shipped_model_policy(manifest: ModelManifest | None = None) -> None:
-    """Raise with fix-it diagnostics when shipped policy is violated."""
-    target = get_model_manifest() if manifest is None else manifest
-    violations = validate_manifest_policy(target)
-    if violations:
-        raise RuntimeError(
-            "bundled size-alias policy is violated:\n"
-            + format_policy_violations(violations)
-        )
-
-
-def validate_shipped_model_policy(
-    manifest: ModelManifest | None = None,
-) -> tuple[PolicyViolation, ...]:
-    """Return shipped-policy violations for the bundled manifest."""
-    target = get_model_manifest() if manifest is None else manifest
-    return validate_manifest_policy(target)
-
-
 def main(argv: list[str] | None = None) -> int:
     """Check shipped policy without adding runtime startup work."""
     parser = argparse.ArgumentParser(
@@ -524,7 +505,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
-        violations = validate_shipped_model_policy()
+        violations = validate_manifest_policy(get_model_manifest())
     except RuntimeError as exc:
         print(f"[model_policy] {exc}", file=sys.stderr)
         return 1

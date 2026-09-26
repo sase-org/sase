@@ -275,10 +275,14 @@ successful answer.
 
 ### Model Mapping
 
-| Tier    | Claude CLI Alias |
-| ------- | ---------------- |
-| `large` | `opus`           |
-| `small` | `sonnet`         |
+<!-- BEGIN GENERATED: model-tiers-claude -->
+
+| Tier    | Model    |
+| ------- | -------- |
+| `large` | `opus`   |
+| `small` | `sonnet` |
+
+<!-- END GENERATED: model-tiers-claude -->
 
 `opus` and `sonnet` are floating Claude CLI aliases that Claude resolves to its current
 model (Opus 5 today), so SASE intentionally does not pin them to point version IDs.
@@ -413,14 +417,19 @@ instead of writing a false-success answer.
 `agy` stable model slugs are used verbatim, matching `agy models` output. The tier
 defaults are:
 
-| Tier    | Model                   | Short alias |
-| ------- | ----------------------- | ----------- |
-| `large` | `gemini-3.7-flash-high` | `flash37h`  |
-| `small` | `gemini-3.7-flash-low`  | `flash37l`  |
+<!-- BEGIN GENERATED: model-tiers-agy -->
+
+| Tier    | Model                   |
+| ------- | ----------------------- |
+| `large` | `gemini-3.7-flash-high` |
+| `small` | `gemini-3.7-flash-low`  |
+
+<!-- END GENERATED: model-tiers-agy -->
 
 All other `agy models` slugs remain reachable through the model picker, configured
-aliases, and provider/model directives such as `%m:agy/gemini-3.6-flash-high`. None of
-the shipped size aliases include an Antigravity member.
+aliases, and provider/model directives such as `%m:agy/gemini-3.6-flash-high`. The
+shipped `@xsmall` pool includes an Antigravity member (see the generated
+[shipped size-alias defaults](#implicit-role-aliases)).
 
 ### Environment Variables
 
@@ -482,10 +491,14 @@ extracted from `item.completed` events.
 
 ### Model Mapping
 
-| Tier    | Codex Model         |
+<!-- BEGIN GENERATED: model-tiers-codex -->
+
+| Tier    | Model               |
 | ------- | ------------------- |
 | `large` | `gpt-6-sol`         |
 | `small` | `codex-mini-latest` |
+
+<!-- END GENERATED: model-tiers-codex -->
 
 ### Plan Handling
 
@@ -576,10 +589,14 @@ events; SASE extracts assistant text from `assistant` events and falls back to t
 
 ### Model Mapping
 
-| Tier    | Qwen Model          |
+<!-- BEGIN GENERATED: model-tiers-qwen -->
+
+| Tier    | Model               |
 | ------- | ------------------- |
 | `large` | `qwen3.6-plus`      |
 | `small` | `qwen3-coder-flash` |
+
+<!-- END GENERATED: model-tiers-qwen -->
 
 ### Authentication
 
@@ -648,10 +665,14 @@ OpenCode model IDs normally include an upstream provider prefix. Use
 `%model:opencode/<provider/model>` to route a single SASE prompt to a concrete OpenCode
 model.
 
-| Tier    | OpenCode Model                |
+<!-- BEGIN GENERATED: model-tiers-opencode -->
+
+| Tier    | Model                         |
 | ------- | ----------------------------- |
 | `large` | `anthropic/claude-sonnet-4-5` |
 | `small` | `openai/gpt-5-mini`           |
+
+<!-- END GENERATED: model-tiers-opencode -->
 
 ### Authentication and Config
 
@@ -779,10 +800,14 @@ Muse's synchronous ceiling goes to a SASE monitor, chosen before the command sta
 
 ### Model Mapping
 
-| Tier    | Muse Model       |
+<!-- BEGIN GENERATED: model-tiers-muse -->
+
+| Tier    | Model            |
 | ------- | ---------------- |
 | `large` | `muse-spark-1.3` |
 | `small` | `muse-spark-1.3` |
+
+<!-- END GENERATED: model-tiers-muse -->
 
 | Model                        | Context | In / Cached / Out (per 1M) | Notes                                                                                                                                      |
 | ---------------------------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1001,10 +1026,14 @@ Decisions inside that command:
 
 ### Model Mapping
 
-| Tier    | Grok Model |
+<!-- BEGIN GENERATED: model-tiers-grok -->
+
+| Tier    | Model      |
 | ------- | ---------- |
 | `large` | `grok-4.7` |
 | `small` | `grok-4.6` |
+
+<!-- END GENERATED: model-tiers-grok -->
 
 `large` follows Grok Build's current default, `grok-4.7`. `small` stays on the previous
 flagship, `grok-4.6`, which the shipped `@medium` and `@small` aliases continue to use.
@@ -1679,6 +1708,26 @@ warning is logged at invocation time.
 
 Source: `src/sase/llm_provider/registry.py`, `src/sase/llm_provider/_invoke.py`
 
+### Built-in Model Catalog
+
+The bundled manifest catalogues every model each built-in provider knows by name, in
+picker and completion order. This table is generated from
+`src/sase/llm_provider/models.yml`:
+
+<!-- BEGIN GENERATED: known-models -->
+
+| Provider | Known models                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| agy      | `gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.8-flash-low`, `gemini-3.7-flash-high`, `gemini-3.7-flash-medium`, `gemini-3.7-flash-low`, `gemini-3.6-flash-high`, `gemini-3.6-flash-medium`, `gemini-3.6-flash-low`, `gemini-3.5-flash-high`, `gemini-3.5-flash-medium`, `gemini-3.5-flash-low`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium` |
+| claude   | `opus`, `sonnet`, `haiku`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                                                                                                                                                                                                                                                                     |
+| codex    | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                                                                                                    |
+| grok     | `grok-4.7`, `grok-4.6`                                                                                                                                                                                                                                                                                                                                                                                                              |
+| muse     | `muse-spark-1.3`, `muse-spark-1.3-contributor`, `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                                                                    |
+| opencode | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                                                                                                                                                                           |
+| qwen     | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                                                                                                                                                                                       |
+
+<!-- END GENERATED: known-models -->
+
 ### Model Short Aliases
 
 Providers also declare compact display shorthands for long model ids via the
@@ -1691,18 +1740,25 @@ example, `%model:fable` does _not_ select `claude-fable-5` — it falls back to 
 default provider (with a warning) unless you define `fable` as a configured model alias
 yourself.
 
+<!-- BEGIN GENERATED: model-short-aliases -->
+
 | Provider | Shorthands                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| claude   | `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| codex    | `gpt-6-astra` → `astra`, `gpt-6-sol` → `gpt6sol`, `gpt-6-luna` → `gpt6luna`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.6-terra` → `gpt56terra`, `gpt-5.6-luna` → `gpt56luna`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                      |
 | agy      | `gemini-3.8-flash-high` → `flash38h`, `gemini-3.8-flash-medium` → `flash38m`, `gemini-3.8-flash-low` → `flash38l`, `gemini-3.7-flash-high` → `flash37h`, `gemini-3.7-flash-medium` → `flash37m`, `gemini-3.7-flash-low` → `flash37l`, `gemini-3.6-flash-high` → `flash36h`, `gemini-3.6-flash-medium` → `flash36m`, `gemini-3.6-flash-low` → `flash36l`, `gemini-3.5-flash-high` → `flash35h`, `gemini-3.5-flash-medium` → `flash35m`, `gemini-3.5-flash-low` → `flash35l`, `gemini-3.1-pro-high` → `pro31h`, `gemini-3.1-pro-low` → `pro31l`, `claude-sonnet-4-6` → `sonnet46`, `claude-opus-4-6-thinking` → `opus46t`, `gpt-oss-120b-medium` → `gptoss120m` |
-| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| claude   | `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| codex    | `gpt-6-astra` → `astra`, `gpt-6-sol` → `gpt6sol`, `gpt-6-luna` → `gpt6luna`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.6-terra` → `gpt56terra`, `gpt-5.6-luna` → `gpt56luna`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-5.3-codex` → `gpt53`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                      |
+| grok     | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | muse     | `muse-spark-1.3` → `spark13`, `muse-spark-1.3-contributor` → `spark13c`, `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| fakey    | `fakey-large` → `fakeyl`, `fakey-small` → `fakeys`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-Source: `llm_model_short_aliases()` in each provider module under
-`src/sase/llm_provider/`
+<!-- END GENERATED: model-short-aliases -->
+
+The hidden `fakey` test provider is not part of the shipped manifest; it additionally
+declares `fakey-large` → `fakeyl` and `fakey-small` → `fakeys` for tests.
+
+Source: `src/sase/llm_provider/models.yml` (built-in providers answer the
+`llm_model_short_aliases()` hook from the manifest)
 
 ### Model Advisories
 
@@ -1847,6 +1903,26 @@ to a concrete model.
 ModelTier = Literal["large", "small"]
 ```
 
+### Provider Tier Defaults
+
+Each built-in provider maps the two tiers to one of its catalogued models. This table is
+generated from `src/sase/llm_provider/models.yml`; each provider section above carries
+its own generated tier table with the same values:
+
+<!-- BEGIN GENERATED: provider-tier-defaults -->
+
+| Provider | Large tier                    | Small tier             |
+| -------- | ----------------------------- | ---------------------- |
+| agy      | `gemini-3.7-flash-high`       | `gemini-3.7-flash-low` |
+| claude   | `opus`                        | `sonnet`               |
+| codex    | `gpt-6-sol`                   | `codex-mini-latest`    |
+| grok     | `grok-4.7`                    | `grok-4.6`             |
+| muse     | `muse-spark-1.3`              | `muse-spark-1.3`       |
+| opencode | `anthropic/claude-sonnet-4-5` | `openai/gpt-5-mini`    |
+| qwen     | `qwen3.6-plus`                | `qwen3-coder-flash`    |
+
+<!-- END GENERATED: provider-tier-defaults -->
+
 ### Legacy Mapping
 
 The old `"big"`/`"little"` terminology is still supported for backward compatibility:
@@ -1871,6 +1947,33 @@ requests.
 2. `SASE_MODEL_SIZE_OVERRIDE` env var (legacy, same values)
 3. `--model-tier` / `--model-size` CLI flag (sets the env var)
 4. Caller's `model_tier` parameter (default: `"large"`)
+
+### Maintaining the Built-in Catalog
+
+A routine built-in model addition, tier change, or size-pool retune is a one-file edit:
+
+```bash
+# 1. Edit the bundled manifest.
+$EDITOR src/sase/llm_provider/models.yml
+# 2. Regenerate the mirrored tables in this document.
+just fix
+# 3. Verify formatting, policy, and tests.
+just check
+```
+
+`just check` (and CI) fails on stale generated content or invalid manifest policy, so a
+forgotten regeneration or a policy breach is caught before landing. The generated
+Markdown is an expected review diff — no hand edits to prose tables are needed.
+
+Three concepts share the manifest but mean different things:
+
+- **Catalog membership** ([Built-in Model Catalog](#built-in-model-catalog)) is what a
+  provider knows by name: picker rows, `%model:provider/model` routing, and completion.
+- **Tier defaults** ([Provider Tier Defaults](#provider-tier-defaults)) are each
+  provider's `"large"`/`"small"` invocation choices.
+- **Pool selection** ([Implicit role aliases](#implicit-role-aliases)) is which catalog
+  members the five shipped size aliases (`@xsmall` … `@xlarge`) route to, at which
+  effort.
 
 ## Role Aliases for Delegated Work
 

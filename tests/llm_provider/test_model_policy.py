@@ -17,7 +17,6 @@ from sase.llm_provider.model_policy import (
     PolicyViolation,
     format_policy_violations,
     validate_manifest_policy,
-    validate_shipped_model_policy,
 )
 
 
@@ -85,7 +84,8 @@ def _messages(violations: tuple[PolicyViolation, ...]) -> str:
 
 
 def test_shipped_policy_is_valid(real_model_alias_defaults: None) -> None:
-    assert validate_shipped_model_policy() == ()
+    manifest = model_manifest.get_model_manifest()
+    assert validate_manifest_policy(manifest) == ()
 
 
 def test_shipped_grok_predecessor_continues_descent(
@@ -93,7 +93,7 @@ def test_shipped_grok_predecessor_continues_descent(
 ) -> None:
     manifest = model_manifest.get_model_manifest()
     assert manifest.providers["grok"].supersedes.get("grok-4.7") == "grok-4.6"
-    assert validate_shipped_model_policy() == ()
+    assert validate_manifest_policy(manifest) == ()
 
 
 def test_typo_names_member_and_suggests_correction() -> None:

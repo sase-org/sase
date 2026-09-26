@@ -138,11 +138,11 @@ def test_fix_uses_formatter_venv_without_application_setup(tmp_path: Path) -> No
         text=True,
     ).stdout.strip()
     (Path(site_packages) / "yaml.py").write_text("", encoding="utf-8")
-    (tmp_path / "tools/render_model_alias_docs").write_text(
+    (tmp_path / "tools/render_model_docs").write_text(
         "from pathlib import Path\n"
         "import os\n"
         "with Path(os.environ['JUST_SPY_FILE']).open('a', encoding='utf-8') as f:\n"
-        "    f.write('format-python tools/render_model_alias_docs\\n')\n",
+        "    f.write('format-python tools/render_model_docs\\n')\n",
         encoding="utf-8",
     )
 
@@ -175,7 +175,7 @@ def test_fix_uses_formatter_venv_without_application_setup(tmp_path: Path) -> No
     recorded = calls.read_text(encoding="utf-8")
     assert "ruff format src/ tests/" in recorded
     assert "ruff check --fix src/ tests/" in recorded
-    assert "format-python tools/render_model_alias_docs" in recorded
+    assert "format-python tools/render_model_docs" in recorded
     assert "prettier --write **/*.md" in recorded
     assert "keep-sorted sample.yml" in recorded
     assert "forbidden-app-python" not in recorded

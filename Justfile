@@ -391,11 +391,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-19x(reconcile_cursor)' \
         --epic-symbol 'sase-19x(select_cursor)' \
         --epic-symbol 'sase-19x(step_cursor)' \
-        --epic-symbol 'sase-1aa.4(PolicyViolation)' \
-        --epic-symbol 'sase-1aa.4(check_shipped_model_policy)' \
-        --epic-symbol 'sase-1aa.4(format_policy_violations)' \
-        --epic-symbol 'sase-1aa.4(validate_manifest_policy)' \
-        --epic-symbol 'sase-1aa.4(validate_shipped_model_policy)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
@@ -424,7 +419,7 @@ fmt-md: _setup-prettier
 # Render generated Markdown blocks
 fmt-docs: _setup-format-tools
     @printf "\n---------- Rendering generated docs... ----------\n"
-    {{ format_venv_bin }}/python tools/render_model_alias_docs
+    {{ format_venv_bin }}/python tools/render_model_docs
 
 # Auto-fix keep-sorted blocks in YAML files
 fix-keep-sorted: _setup-keep-sorted
@@ -442,7 +437,14 @@ fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check fmt-docs-check
 # Check generated Markdown blocks are current (CI mode, no writes)
 fmt-docs-check: _setup-format-tools
     @printf "\n---------- Checking generated docs... ----------\n"
-    {{ format_venv_bin }}/python tools/render_model_alias_docs --check
+    {{ format_venv_bin }}/python tools/render_model_docs --check
+
+# Check the bundled size-alias policy from models.yml (CI mode, no writes).
+# Fails with fix-it diagnostics when the shipped catalog, tier defaults, or
+# alias pools violate policy; run `just fix` after editing models.yml.
+model-policy-check: _setup
+    @printf "\n---------- Checking shipped model policy... ----------\n"
+    {{ venv_bin }}/python -m sase.llm_provider.model_policy --check
 
 # Check Python formatting (CI mode)
 fmt-py-check: _setup-format-tools
@@ -741,6 +743,7 @@ check: (_require-tool-run "check") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "fmt (generated docs)" just fmt-docs-check
+    @tools/run_silent "model policy" just model-policy-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy
@@ -770,6 +773,7 @@ check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "fmt (generated docs)" just fmt-docs-check
+    @tools/run_silent "model policy" just model-policy-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy

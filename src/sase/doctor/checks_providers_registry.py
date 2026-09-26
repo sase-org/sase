@@ -69,3 +69,63 @@ def check_llm_registry() -> DiagnosticCheck:
 
 
 _check_llm_registry = check_llm_registry
+
+
+def check_llm_shipped_model_policy() -> DiagnosticCheck:
+    """Validate the bundled size-alias policy from ``models.yml``."""
+    from sase.llm_provider import model_manifest
+    from sase.llm_provider.model_policy import (
+        PolicyViolation,
+        format_policy_violations,
+        validate_manifest_policy,
+    )
+
+    try:
+        manifest = model_manifest.get_model_manifest()
+    except Exception as exc:  # noqa: BLE001 - doctor converts load failures.
+        return DiagnosticCheck(
+            id="llm.model_policy",
+            group="llm",
+            status="ERROR",
+            title="Shipped model policy",
+            summary="bundled model manifest could not be loaded",
+            details=(f"{type(exc).__name__}: {exc}",),
+            next_steps=(
+                "Reinstall SASE or restore src/sase/llm_provider/models.yml, "
+                "then rerun `sase doctor -C llm.model_policy`.",
+            ),
+            data={"error": f"{type(exc).__name__}: {exc}"},
+        )
+
+    violations: tuple[PolicyViolation, ...] = validate_manifest_policy(manifest)
+    if violations:
+        return DiagnosticCheck(
+            id="llm.model_policy",
+            group="llm",
+            status="WARN",
+            title="Shipped model policy",
+            summary=(
+                f"{len(violations)} bundled size-alias policies are violated"
+                if len(violations) != 1
+                else "1 bundled size-alias policy is violated"
+            ),
+            details=tuple(format_policy_violations(violations).splitlines()),
+            next_steps=(
+                "Fix src/sase/llm_provider/models.yml, run `just fix` to "
+                "regenerate docs/llms.md, then rerun "
+                "`sase doctor -C llm.model_policy`.",
+            ),
+            data={"violation_count": len(violations)},
+        )
+
+    return DiagnosticCheck(
+        id="llm.model_policy",
+        group="llm",
+        status="OK",
+        title="Shipped model policy",
+        summary="bundled size-alias policy is valid",
+        data={
+            "provider_count": len(manifest.providers),
+            "violation_count": 0,
+        },
+    )

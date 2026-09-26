@@ -4536,15 +4536,16 @@ fewer than two pool members or the live validation line reports an error.
   and tasks without an explicit model use CLAUDE(opus) until you clear it; the violet
   non-default pill appears in the top bar.
 - Highlight `@large`, `e`, pick `claude/opus`, and confirm — only large phases and tasks
-  without an explicit model use that target, replacing the shipped
-  `claude/opus@high | codex/gpt-6-sol@xhigh | grok/grok-4.7@xhigh` pool; other-sized
+  without an explicit model use that target, replacing the shipped pool (see the
+  generated [shipped size-alias defaults](llms.md#implicit-role-aliases)); other-sized
   phase/task routing is unchanged.
 - Highlight `@xlarge`, `e`, pick `claude/opus`, and confirm — xlarge phases and tasks
   use that target directly, and `big epic lander` (left at its shipped `@xlarge`
   reference) inherits the same change.
 - Leave `@xlarge` implicit — xlarge phases, tasks, and threshold-selected epic landers
   (which reference `@xlarge` by default) select the first available member of its
-  `claude/opus@xhigh || codex/gpt-6-sol@xhigh || grok/grok-4.7@xhigh` fallback chain.
+  fallback chain (see the generated
+  [shipped size-alias defaults](llms.md#implicit-role-aliases)).
 - Highlight `@xsmall`, `e`, choose `Custom...`, enter
   `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases and tasks
   round-robin across installed providers while the panel continues to show the next

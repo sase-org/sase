@@ -141,6 +141,8 @@ jobs:
         run: just fmt-md-check
       - name: Check generated model docs
         run: just fmt-docs-check
+      - name: Check shipped model policy
+        run: just model-policy-check
       - name: Lint
         run: just lint
       - name: SASE validation

@@ -26,6 +26,7 @@ def test_provider_check_specs_registers_llm_auth(tmp_path) -> None:
 
     assert ids == [
         "llm.registry",
+        "llm.model_policy",
         "llm.default",
         "llm.auth",
         "llm.model_advisory",

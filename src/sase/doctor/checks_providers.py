@@ -90,6 +90,12 @@ def provider_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=_check_llm_registry,
         ),
         CheckSpec(
+            id="llm.model_policy",
+            group="llm",
+            title="Shipped model policy",
+            runner=_check_llm_shipped_model_policy,
+        ),
+        CheckSpec(
             id="llm.default",
             group="llm",
             title="Default LLM provider",
@@ -120,6 +126,14 @@ def _check_llm_registry() -> DiagnosticCheck:
     from sase.doctor.checks_providers_registry import check_llm_registry
 
     return check_llm_registry()
+
+
+def _check_llm_shipped_model_policy() -> DiagnosticCheck:
+    from sase.doctor.checks_providers_registry import (
+        check_llm_shipped_model_policy,
+    )
+
+    return check_llm_shipped_model_policy()
 
 
 def _check_llm_default(context: DoctorContext) -> DiagnosticCheck:

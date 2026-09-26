@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""Render generated model-catalog blocks in docs/llms.md from models.yml.
+
+Every mirrored model table in ``docs/llms.md`` — the shipped size-alias
+defaults, the built-in model catalog, the short-alias list, the provider
+tier-default summary, and each provider section's tier table — is generated
+from ``src/sase/llm_provider/models.yml`` by this tool. Run ``just fix``
+(``just fmt-docs``) after editing the manifest, and ``just check``
+(``just fmt-docs-check``) verifies every block is current.
+
+This tool stays YAML-only on purpose: it must run in the narrow formatter
+venv, which does not install ``sase``. Never import provider code here; a
+dedicated test asserts the import stays free of ``sase.llm_provider``
+runtime modules.
+"""
+
+from __future__ import annotations
+
+import argparse
+import difflib
+import sys
+from collections.abc import Callable, Mapping, Sequence
+from html import escape
+from pathlib import Path
+
+import yaml  # type: ignore[import-untyped]
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DOCS_PATH = REPO_ROOT / "docs" / "llms.md"
+MANIFEST_PATH = REPO_ROOT / "src" / "sase" / "llm_provider" / "models.yml"
+
+# Backwards-compatible alias for the pre-rename manifest path constant.
+DEFAULTS_PATH = MANIFEST_PATH
+
+
+def _error(message: str) -> None:
+    print(f"[render_model_docs] {message}", file=sys.stderr)
+
+
+def _block_markers(name: str) -> tuple[str, str]:
+    return (
+        f"<!-- BEGIN GENERATED: {name} -->",
+        f"<!-- END GENERATED: {name} -->",
+    )
+
+
+def _cell(text: str) -> str:
+    escaped = escape(" ".join(text.split()), quote=False).replace("|", r"\|")
+    return escaped.replace("&gt;_", r"&gt;\_")
+
+
+def _format_row(cells: tuple[str, ...], widths: tuple[int, ...]) -> str:
+    return (
+        "| "
+        + " | ".join(
+            cell.ljust(width) for cell, width in zip(cells, widths, strict=True)
+        )
+        + " |"
+    )
+
+
+def _render_grid(
+    headers: tuple[str, ...], rows: Sequence[tuple[str, ...]]
+) -> str:
+    all_rows = (headers, *rows)
+    widths = tuple(
+        max(len(row[index]) for row in all_rows) for index in range(len(headers))
+    )
+    separator = tuple("-" * width for width in widths)
+    lines = [
+        _format_row(headers, widths),
+        _format_row(separator, widths),
+    ]
+    lines.extend(_format_row(row, widths) for row in rows)
+    return "\n".join(lines)
+
+
+def _load_manifest(path: Path) -> dict[str, object]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a YAML mapping")
+    providers = data.get("providers")
+    if not isinstance(providers, dict) or not providers:
+        raise ValueError(f"{path} must contain a non-empty providers mapping")
+    for name, entry in providers.items():
+        if not isinstance(name, str) or not isinstance(entry, dict):
+            raise ValueError(f"{path} providers must be string-keyed mappings")
+        models = entry.get("models")
+        if not isinstance(models, list) or not all(
+            isinstance(model, str) for model in models
+        ):
+            raise ValueError(f"{path} provider {name!r} needs a models string list")
+        tiers = entry.get("tiers")
+        if not isinstance(tiers, dict):
+            raise ValueError(f"{path} provider {name!r} needs a tiers mapping")
+        for tier in ("large", "small"):
+            tier_model = tiers.get(tier)
+            if not isinstance(tier_model, str) or tier_model not in models:
+                raise ValueError(
+                    f"{path} provider {name!r} tier {tier!r} must name one of "
+                    "its models"
+                )
+    aliases = data.get("aliases")
+    if not isinstance(aliases, dict):
+        raise ValueError(f"{path} must contain an aliases mapping")
+    return data
+
+
+def _declared_aliases(
+    path: Path = DEFAULTS_PATH,
+) -> dict[str, dict[str, str]]:
+    data = _load_manifest(path)
+    aliases = data["aliases"]
+    assert isinstance(aliases, dict)
+
+    declared: dict[str, dict[str, str]] = {}
+    for alias, entry in aliases.items():
+        if not isinstance(alias, str) or not isinstance(entry, dict):
+            raise ValueError(f"{path} aliases must be string-keyed mappings")
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise ValueError(f"{path} alias {alias!r} is missing a description")
+        target = entry.get("target")
+        fallback = entry.get("fallback")
+        if target is not None and not isinstance(target, str):
+            raise ValueError(f"{path} alias {alias!r} has a non-string target")
+        if fallback is not None and not isinstance(fallback, str):
+            raise ValueError(f"{path} alias {alias!r} has a non-string fallback")
+        declared[alias] = {
+            "description": description,
+            **({"target": target} if isinstance(target, str) else {}),
+            **({"fallback": fallback} if isinstance(fallback, str) else {}),
+        }
+    return declared
+
+
+def _providers(data: Mapping[str, object]) -> Mapping[str, Mapping[str, object]]:
+    providers = data["providers"]
+    assert isinstance(providers, dict)
+    return providers
+
+
+def _render_table(manifest_path: Path | None = None) -> str:
+    """Render the shipped size-alias defaults table (legacy entry point)."""
+    aliases = _declared_aliases(MANIFEST_PATH if manifest_path is None else manifest_path)
+
+    rows: list[tuple[str, ...]] = []
+    for alias, entry in aliases.items():
+        if "target" in entry:
+            shipped_default = f"`{entry['target']}`"
+        elif "fallback" in entry:
+            shipped_default = f"`{entry['fallback']}`"
+        else:
+            shipped_default = "None."
+
+        rows.append(
+            (f"`@{alias}`", _cell(entry["description"]), _cell(shipped_default))
+        )
+
+    return _render_grid(("Alias", "Description", "Shipped default"), rows)
+
+
+def _render_short_alias_table(manifest_path: Path | None = None) -> str:
+    data = _load_manifest(MANIFEST_PATH if manifest_path is None else manifest_path)
+    rows: list[tuple[str, ...]] = []
+    for provider, entry in _providers(data).items():
+        short_aliases = entry.get("short_aliases") or {}
+        assert isinstance(short_aliases, dict)
+        if short_aliases:
+            shorthands = ", ".join(
+                f"`{model}` → `{alias}`"
+                for model, alias in short_aliases.items()
+            )
+        else:
+            shorthands = "—"
+        rows.append((provider, _cell(shorthands)))
+    return _render_grid(("Provider", "Shorthands"), rows)
+
+
+def _render_known_models_table(manifest_path: Path | None = None) -> str:
+    data = _load_manifest(MANIFEST_PATH if manifest_path is None else manifest_path)
+    rows: list[tuple[str, ...]] = []
+    for provider, entry in _providers(data).items():
+        models = entry["models"]
+        assert isinstance(models, list)
+        rows.append((provider, ", ".join(f"`{model}`" for model in models)))
+    return _render_grid(("Provider", "Known models"), rows)
+
+
+def _render_tier_defaults_table(manifest_path: Path | None = None) -> str:
+    data = _load_manifest(MANIFEST_PATH if manifest_path is None else manifest_path)
+    rows: list[tuple[str, ...]] = []
+    for provider, entry in _providers(data).items():
+        tiers = entry["tiers"]
+        assert isinstance(tiers, dict)
+        rows.append(
+            (provider, f"`{tiers['large']}`", f"`{tiers['small']}`")
+        )
+    return _render_grid(("Provider", "Large tier", "Small tier"), rows)
+
+
+def _render_provider_tier_table(
+    manifest_path: Path | None, provider: str
+) -> str:
+    data = _load_manifest(MANIFEST_PATH if manifest_path is None else manifest_path)
+    providers = _providers(data)
+    if provider not in providers:
+        raise ValueError(f"unknown provider {provider!r} in manifest")
+    tiers = providers[provider]["tiers"]
+    assert isinstance(tiers, dict)
+    rows = [
+        ("`large`", f"`{tiers['large']}`"),
+        ("`small`", f"`{tiers['small']}`"),
+    ]
+    return _render_grid(("Tier", "Model"), rows)
+
+
+def _provider_block(manifest_path: Path, provider: str) -> Callable[[], str]:
+    """Return a render callable for one provider's tier table."""
+
+    def render() -> str:
+        return _render_provider_tier_table(manifest_path, provider)
+
+    return render
+
+
+def _block_renderers(
+    manifest_path: Path | None,
+) -> tuple[tuple[str, Callable[[], str]], ...]:
+    """Return every (marker name, render callable) pair in document order."""
+    data_path = MANIFEST_PATH if manifest_path is None else manifest_path
+    data = _load_manifest(data_path)
+    providers = tuple(_providers(data))
+    blocks: list[tuple[str, Callable[[], str]]] = [
+        ("model-alias-defaults", lambda: _render_table(data_path)),
+        ("known-models", lambda: _render_known_models_table(data_path)),
+        ("model-short-aliases", lambda: _render_short_alias_table(data_path)),
+        ("provider-tier-defaults", lambda: _render_tier_defaults_table(data_path)),
+    ]
+    for provider in providers:
+        blocks.append((f"model-tiers-{provider}", _provider_block(data_path, provider)))
+    return tuple(blocks)
+
+
+def _replace_generated_block(text: str, marker: str, generated: str) -> str:
+    begin_marker, end_marker = _block_markers(marker)
+    begin_count = text.count(begin_marker)
+    end_count = text.count(end_marker)
+    if begin_count != 1 or end_count != 1:
+        raise ValueError(
+            "expected exactly one generated block marker pair "
+            f"{marker!r} in {DOCS_PATH}; found {begin_count} begin "
+            f"marker(s) and {end_count} end marker(s)"
+        )
+
+    begin_index = text.index(begin_marker)
+    end_index = text.index(end_marker)
+    if end_index < begin_index:
+        raise ValueError(f"end marker appears before begin marker in {DOCS_PATH}")
+
+    return (
+        text[: begin_index + len(begin_marker)]
+        + "\n\n"
+        + generated
+        + "\n\n"
+        + text[end_index:]
+    )
+
+
+def render_docs(
+    path: Path | None = None, manifest_path: Path | None = None
+) -> bool:
+    path = DOCS_PATH if path is None else path
+    text = path.read_text(encoding="utf-8")
+    new_text = text
+    for marker, render in _block_renderers(manifest_path):
+        new_text = _replace_generated_block(new_text, marker, render())
+    if new_text == text:
+        return False
+    path.write_text(new_text, encoding="utf-8")
+    return True
+
+
+def check_docs(
+    path: Path | None = None, manifest_path: Path | None = None
+) -> list[str]:
+    """Compare every on-disk block with its in-memory render without writing."""
+    path = DOCS_PATH if path is None else path
+    text = path.read_text(encoding="utf-8")
+    expected = text
+    for marker, render in _block_renderers(manifest_path):
+        expected = _replace_generated_block(expected, marker, render())
+    if expected == text:
+        return []
+    return list(
+        difflib.unified_diff(
+            text.splitlines(),
+            expected.splitlines(),
+            fromfile=str(path),
+            tofile=f"{path} (generated)",
+            lineterm="",
+        )
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Render generated model-catalog blocks in docs/llms.md."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="compare the on-disk blocks without writing; exit nonzero on drift",
+    )
+    args = parser.parse_args(argv)
+    try:
+        if args.check:
+            diff = check_docs()
+            if diff:
+                _error(
+                    "generated model blocks in "
+                    f"{DOCS_PATH} are stale; run `just fix` (or "
+                    "`just fmt-docs`) to regenerate"
+                )
+                for line in diff:
+                    print(line)
+                return 1
+            return 0
+        render_docs()
+    except (OSError, ValueError, RuntimeError) as exc:
+        _error(str(exc))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
