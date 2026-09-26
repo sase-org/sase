@@ -64,6 +64,8 @@ def test_create_update_close_and_remove_canonicalize_shorthand(
                 "Nested",
                 "-T",
                 f"phase({_suffix(epic_id)})",
+                "-w",
+                "Epic plan defines this phase",
             ]
         )
     )

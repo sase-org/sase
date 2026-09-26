@@ -15,6 +15,21 @@ class _TestApp(App[None]):
         yield from ()
 
 
+async def test_create_task_requires_a_creation_reason() -> None:
+    dismissed: list[BeadCreateResult | None] = []
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = BeadCreateModal("sase")
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        modal.query_one("#bead-create-title", Input).value = "Fix retry race"
+        modal.action_save()
+        await pilot.pause()
+
+        assert dismissed == []
+        assert modal.query_one("#bead-create-reason", Input).has_focus
+
+
 async def test_create_task_requires_an_explicit_size() -> None:
     dismissed: list[BeadCreateResult | None] = []
     async with _TestApp().run_test(size=(100, 40)) as pilot:
@@ -23,6 +38,9 @@ async def test_create_task_requires_an_explicit_size() -> None:
         await pilot.pause()
 
         modal.query_one("#bead-create-title", Input).value = "Fix retry race"
+        modal.query_one(
+            "#bead-create-reason", Input
+        ).value = "A second agent reproduced dropped retries after the queue change"
         modal.action_save()
         await pilot.pause()
 
@@ -38,6 +56,9 @@ async def test_create_task_returns_the_selected_size() -> None:
         await pilot.pause()
 
         modal.query_one("#bead-create-title", Input).value = "Fix retry race"
+        modal.query_one(
+            "#bead-create-reason", Input
+        ).value = "A second agent reproduced dropped retries after the queue change"
         modal.query_one("#bead-create-size", Select).value = "medium"
         modal.query_one("#bead-create-task-type", Select).value = "bug"
         modal.query_one(
@@ -57,5 +78,8 @@ async def test_create_task_returns_the_selected_size() -> None:
                 "location": "src/retry.py",
                 "repro": "fails on retry",
             },
+            creation_reason=(
+                "A second agent reproduced dropped retries after the queue change"
+            ),
         )
     ]

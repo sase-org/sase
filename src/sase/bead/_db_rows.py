@@ -59,6 +59,7 @@ def row_to_issue(row: sqlite3.Row) -> Issue:
         task_type_fields=task_type_fields_from_json(
             _row_optional_value(row, "task_type_fields")
         ),
+        creation_reason=_row_optional_text(row, "creation_reason"),
     )
 
 

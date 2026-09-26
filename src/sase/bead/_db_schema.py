@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS issues (
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
     external_ref TEXT,
+    creation_reason TEXT NOT NULL DEFAULT '',
     CHECK(
         (issue_type = 'phase' AND parent_id IS NOT NULL) OR
         (issue_type = 'plan') OR

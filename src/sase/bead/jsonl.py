@@ -192,6 +192,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
             if issue.task_type_fields
             else {}
         ),
+        **({"creation_reason": issue.creation_reason} if issue.creation_reason else {}),
         "dependencies": [
             {
                 "issue_id": d.issue_id,
@@ -255,6 +256,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         external_ref=_optional_str(data.get("external_ref", "")),
         task_type=_optional_str(data.get("task_type", "")),
         task_type_fields=_task_type_fields_from_data(data.get("task_type_fields")),
+        creation_reason=_optional_str(data.get("creation_reason", "")),
         dependencies=deps,
     )
     issue.validate()

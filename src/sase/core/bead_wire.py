@@ -152,6 +152,11 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         if data.get("task_type") is None
         else str(data.get("task_type", "")),
         task_type_fields=_task_type_fields_from_data(data.get("task_type_fields")),
+        creation_reason=(
+            ""
+            if data.get("creation_reason") is None
+            else str(data.get("creation_reason", ""))
+        ),
         dependencies=[
             Dependency(
                 issue_id=str(dep["issue_id"]),

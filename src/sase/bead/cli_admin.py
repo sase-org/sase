@@ -532,12 +532,13 @@ Quick Start:
   sase bead init                                 Create sdd/beads/ in current directory
   Agents: use /sase_new_task before creating any task bead
   sase bead create -t "Follow-up" --type 'task(bug)' --size small \\
+      -w "A second agent reproduced this failure" \\
       -f location=src/foo.py -f repro='fails on retry'
                                                   Create a standalone typed draft task
   sase bead +1 <task-id> -n "Independent repro"  Corroborate an existing task
-  sase bead create -t "Fix bug" --type phase(<plan-id>)
-  sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan
-  sase bead create -t "Epic" --type plan(sdd/plans/202605/epic.md) --tier epic
+  sase bead create -t "Fix bug" --type phase(<plan-id>) -w "Epic plan defines this phase"
+  sase bead create -t "New feature" --type plan(sdd/plans/202605/feature.md) --tier plan -w "Planning the feature breakdown"
+  sase bead create -t "Epic" --type plan(sdd/plans/202605/epic.md) --tier epic -w "Planning the epic breakdown"
   sase bead list                                 List open/claimed/ready/in-progress issues
   sase bead task-type                            List agent-creatable task types
   sase bead task-type show flake                 Inspect one type's fields and template

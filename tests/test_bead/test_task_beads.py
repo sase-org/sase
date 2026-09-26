@@ -39,6 +39,8 @@ def test_create_task_accepts_size_and_prints_type(
             "task(bug)",
             "--size",
             "medium",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
             "--field",
             "location=src/retry.py",
             "--field",
@@ -73,6 +75,8 @@ def test_create_task_prints_relocated_published_id(
             "task(bug)",
             "--size",
             "small",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
             "--field",
             "location=src/retry.py",
             "--field",
@@ -137,6 +141,8 @@ def test_create_task_requires_type(
             "task",
             "--size",
             "small",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
         ]
     )
 
@@ -169,6 +175,8 @@ def test_create_task_records_acting_agent(
             "task(bug)",
             "--size",
             "small",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
             "--field",
             "location=src/retry.py",
             "--field",
@@ -194,6 +202,8 @@ def test_create_task_without_agent_records_store_owner(project_dir: Path) -> Non
             "task(bug)",
             "--size",
             "small",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
             "--field",
             "location=src/retry.py",
             "--field",
@@ -224,6 +234,8 @@ def test_create_phase_inherits_parent_creator(project_dir: Path) -> None:
             "Inherited phase",
             "--type",
             f"phase({parent.id})",
+            "--reason",
+            "Epic plan defines this phase",
         ]
     )
 
@@ -239,7 +251,16 @@ def test_create_task_requires_size(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     args = create_parser().parse_args(
-        ["bead", "create", "--title", "Missing size", "--type", "task"]
+        [
+            "bead",
+            "create",
+            "--title",
+            "Missing size",
+            "--type",
+            "task",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
+        ]
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -266,6 +287,8 @@ def test_create_plan_prefers_frontmatter_proposer(project_dir: Path) -> None:
             "Attributed plan",
             "--type",
             f"plan({plan_path})",
+            "--reason",
+            "Planning the feature breakdown",
         ]
     )
 

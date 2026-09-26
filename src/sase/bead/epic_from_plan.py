@@ -151,6 +151,7 @@ def create_and_launch_epic_from_plan(
                     issue_type=IssueType.PLAN,
                     plan_proposed_by=plan.proposed_by,
                 ),
+                creation_reason=(f"Approved epic plan {plan_ref} requests this work"),
             )
         if proj.last_prefix_repair is not None:
             from sase.bead.cli_work_from_plan_render import render_prefix_repair
@@ -173,6 +174,10 @@ def create_and_launch_epic_from_plan(
                     or generated_phase_description(plan_ref, phase_spec.id),
                     model=phase_spec.model or "",
                     size=phase_spec.size,
+                    creation_reason=(
+                        f"Epic plan {plan_ref} defines phase {phase_spec.id} "
+                        "as one work unit"
+                    ),
                 )
                 phases.append(phase)
                 phase_by_frontmatter_id[phase_spec.id] = phase

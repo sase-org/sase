@@ -54,6 +54,7 @@ class BeadProjectMutationCrudMixin:
         created_by: str | None = None,
         task_type: str = "",
         task_type_fields: dict[str, str] | None = None,
+        creation_reason: str | None = None,
     ) -> Issue:
         """Create a new issue.
 
@@ -89,6 +90,7 @@ class BeadProjectMutationCrudMixin:
             created_by=created_by,
             task_type=task_type,
             task_type_fields=task_type_fields or {},
+            creation_reason=creation_reason,
             now=self._current_time(),
         )
         self._record_mutation_outcome(outcome)

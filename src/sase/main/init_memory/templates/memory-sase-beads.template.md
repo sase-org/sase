@@ -60,9 +60,13 @@ caused by an active epic belongs on that epic as a `DISCOVERED ISSUE:` note, eve
 
 ```bash
 sase bead +1 <task-id> -n "<independent reproduction and impact>" -R <artifact-ref>
-sase bead create -T "task(<slug>)" -t "<title>" -d "<what is wrong and how you found it>" -z <size> -f <field>=<value>
+sase bead create -T "task(<slug>)" -t "<title>" -w "<why this bead was filed>" -d "<what is wrong and how you found it>" -z <size> -f <field>=<value>
 sase bead update <id> -s ready
 ```
+
+Every `sase bead create` requires `-w/--reason`: one or two sentences explaining why the bead was filed, distinct
+from its title. `@<path>` reads the reason from a file, blank or over-2000-character reasons are rejected, and
+historical beads with no reason still load.
 
 A genuinely new task starts as an `open` draft; refine its description, evidence refs, dependencies, and scope before
 marking it `ready`. Each ready bead raises one `TaskTriage` gate, from which the owner either launches

@@ -407,6 +407,8 @@ def test_bead_create_dispatch_records_acting_agent_as_created_by(
             "task(bug)",
             "--size",
             "small",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
             "--field",
             "location=src/retry.py",
             "--field",

@@ -47,6 +47,8 @@ def _create_typed_task(
         "task(flake)",
         "--size",
         "medium",
+        "--reason",
+        "CI flakes on the retry path three times this week",
         "--field",
         "node_id=tests/foo.py::test_bar",
         "--field",
@@ -135,6 +137,8 @@ def test_create_typed_task_rejects_unknown_type(
             "task(not_a_real_type)",
             "--size",
             "small",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
         ]
     )
 
@@ -164,6 +168,8 @@ def test_create_typed_task_reports_every_field_problem(
             "task(flake)",
             "--size",
             "small",
+            "--reason",
+            "CI flakes on the retry path three times this week",
             "--field",
             "unknown_field=x",
         ]
@@ -194,6 +200,8 @@ def test_create_typed_task_rejects_fields_on_bare_task(
             "task",
             "--size",
             "small",
+            "--reason",
+            "A second agent reproduced dropped retries after the queue change",
             "--field",
             "node_id=tests/foo.py::test_bar",
         ]
@@ -309,6 +317,8 @@ def test_show_appends_rendered_body_below_description(
             "task(flake)",
             "--size",
             "medium",
+            "--reason",
+            "CI flakes on the retry path three times this week",
             "--description",
             "Found while landing the retry patch.",
             "--field",

@@ -322,6 +322,8 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     # After drop-flag: leftover ``issue_type != 'flag'`` predicates are safe
     # to strip only once those rows are gone.
     _migrate_external_ref_index(conn)
+    # Runs last: plain ALTER TABLE, no rebuild after it to drop the column.
+    _migrate_add_creation_reason(conn)
 
 
 def _migrate_add_task_type(conn: sqlite3.Connection) -> None:
@@ -340,3 +342,18 @@ def _migrate_drop_flag_type(conn: sqlite3.Connection) -> None:
         return
     migration_sql = require_rust_binding("bead_drop_flag_type_migration_sql")
     conn.executescript(migration_sql())
+
+
+def _migrate_add_creation_reason(conn: sqlite3.Connection) -> None:
+    """Add immutable creation-reason storage to the compatibility mirror.
+
+    Runs after every table-rebuilding migration: those copy an explicit
+    legacy column list, so a column added before them would be dropped.
+    """
+    columns = _columns(conn)
+    if not columns or "creation_reason" in columns:
+        return
+    conn.execute(
+        "ALTER TABLE issues ADD COLUMN creation_reason TEXT NOT NULL DEFAULT ''"
+    )
+    conn.commit()

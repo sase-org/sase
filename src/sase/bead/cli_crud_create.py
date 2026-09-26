@@ -30,6 +30,38 @@ _TYPE_ARG_USAGE = (
     "phase(<parent_id>), or task(<slug>)"
 )
 
+CREATION_REASON_MAX_LEN = 2000
+
+_CREATION_REASON_EXAMPLE = (
+    "-w 'A second agent reproduced dropped retries after the queue change'"
+)
+
+
+def normalize_creation_reason(value: str | None) -> str:
+    """Validate one explicit bead creation reason, mirroring sase-core.
+
+    ``None`` is only for older callers whose wire predates the field; the CLI
+    always supplies a value. A supplied reason is trimmed and must be
+    non-blank and at most 2000 characters.
+    """
+    if value is None:
+        raise ValueError(
+            f"bead creation requires -w/--reason ({_CREATION_REASON_EXAMPLE})"
+        )
+    trimmed = value.strip()
+    if not trimmed:
+        raise ValueError(
+            "bead creation_reason cannot be empty or blank "
+            f"({_CREATION_REASON_EXAMPLE})"
+        )
+    length = len(trimmed)
+    if length > CREATION_REASON_MAX_LEN:
+        raise ValueError(
+            "bead creation_reason must be at most "
+            f"{CREATION_REASON_MAX_LEN} characters: got {length}"
+        )
+    return trimmed
+
 
 def handle_bead_init(args: argparse.Namespace) -> None:
     root, beads_dirname = find_beads_location(materialize=True)
@@ -110,7 +142,13 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             if args.description is not None
             else ""
         )
-    except (TaskTypeCreateError, CliFileValueError) as exc:
+        raw_reason = getattr(args, "reason", None)
+        creation_reason = normalize_creation_reason(
+            read_at_path_value(raw_reason, target="--reason")
+            if raw_reason is not None
+            else None
+        )
+    except (TaskTypeCreateError, CliFileValueError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     changespec_name = (
@@ -243,6 +281,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 created_by=creator,
                 task_type=task_type,
                 task_type_fields=field_values,
+                creation_reason=creation_reason,
             )
         except ValueError as exc:
             print(f"Error: {exc}", file=sys.stderr)

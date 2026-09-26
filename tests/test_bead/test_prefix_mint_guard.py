@@ -116,6 +116,7 @@ def test_bead_create_reports_auto_prefix_repair(
             model=None,
             size=None,
             ref=None,
+            reason="Planning the feature breakdown",
         )
     )
 

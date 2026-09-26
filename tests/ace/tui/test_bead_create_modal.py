@@ -26,6 +26,9 @@ async def test_create_modal_requires_and_returns_an_explicit_size() -> None:
         size = modal.query_one("#bead-create-size", Select)
         assert size.value == ""
         modal.query_one("#bead-create-title", Input).value = "Sized task"
+        modal.query_one(
+            "#bead-create-reason", Input
+        ).value = "A second agent reproduced dropped retries after the queue change"
         modal.action_save()
         await pilot.pause()
 
@@ -56,5 +59,8 @@ async def test_create_modal_requires_and_returns_an_explicit_size() -> None:
                 "location": "src/retry.py",
                 "repro": "fails on retry",
             },
+            creation_reason=(
+                "A second agent reproduced dropped retries after the queue change"
+            ),
         )
     ]

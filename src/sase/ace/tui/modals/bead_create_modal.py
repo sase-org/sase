@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Input, Label, Select, TextArea
 
@@ -28,6 +28,7 @@ class BeadCreateResult:
     issue_type: str = IssueType.TASK.value
     task_type: str = ""
     task_type_fields: dict[str, str] = field(default_factory=dict)
+    creation_reason: str = ""
 
 
 class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
@@ -41,45 +42,55 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="bead-create-container", classes="bead-modal-container"):
-            yield Label(
-                f"Create bead · {self.project_name}",
-                classes="bead-modal-title",
-            )
-            yield Label("Type", classes="bead-modal-label")
-            yield Select(
-                [
-                    ("Task", IssueType.TASK.value),
-                ],
-                value=IssueType.TASK.value,
-                allow_blank=False,
-                id="bead-create-type",
-            )
-            yield Label("Title", classes="bead-modal-label")
-            yield Input(id="bead-create-title")
-            yield Label("Description", classes="bead-modal-label")
-            yield TextArea("", id="bead-create-description")
-            yield Label("Size", classes="bead-modal-label")
-            yield Select(
-                [
-                    ("Choose a size…", ""),
-                    *[(size.value, size.value) for size in PhaseSize],
-                ],
-                value="",
-                allow_blank=False,
-                id="bead-create-size",
-            )
-            yield Label("Task type", classes="bead-modal-label")
-            yield Select(
-                _task_type_options(),
-                value="",
-                allow_blank=False,
-                id="bead-create-task-type",
-            )
-            yield Label(
-                "Task type fields (name=value per line)", classes="bead-modal-label"
-            )
-            yield TextArea("", id="bead-create-task-fields")
-            yield Checkbox("Ready for triage", id="bead-create-ready")
+            with VerticalScroll(id="bead-create-scroll"):
+                yield Label(
+                    f"Create bead · {self.project_name}",
+                    classes="bead-modal-title",
+                )
+                yield Label("Type", classes="bead-modal-label")
+                yield Select(
+                    [
+                        ("Task", IssueType.TASK.value),
+                    ],
+                    value=IssueType.TASK.value,
+                    allow_blank=False,
+                    id="bead-create-type",
+                )
+                yield Label("Title", classes="bead-modal-label")
+                yield Input(id="bead-create-title")
+                yield Label(
+                    "Why this bead was filed (required)",
+                    classes="bead-modal-label",
+                )
+                yield Input(
+                    placeholder="One or two sentences, not the title",
+                    id="bead-create-reason",
+                )
+                yield Label("Description", classes="bead-modal-label")
+                yield TextArea("", id="bead-create-description")
+                yield Label("Size", classes="bead-modal-label")
+                yield Select(
+                    [
+                        ("Choose a size…", ""),
+                        *[(size.value, size.value) for size in PhaseSize],
+                    ],
+                    value="",
+                    allow_blank=False,
+                    id="bead-create-size",
+                )
+                yield Label("Task type", classes="bead-modal-label")
+                yield Select(
+                    _task_type_options(),
+                    value="",
+                    allow_blank=False,
+                    id="bead-create-task-type",
+                )
+                yield Label(
+                    "Task type fields (name=value per line)",
+                    classes="bead-modal-label",
+                )
+                yield TextArea("", id="bead-create-task-fields")
+                yield Checkbox("Ready for triage", id="bead-create-ready")
             with Horizontal(classes="bead-modal-buttons"):
                 yield Button(
                     "Create  Ctrl+S",
@@ -103,6 +114,18 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
         if not title:
             self.notify("Bead title cannot be empty", severity="error")
             return
+        reason = self.query_one("#bead-create-reason", Input).value.strip()
+        if not reason:
+            self.notify("Creation reason is required", severity="error")
+            self.query_one("#bead-create-reason", Input).focus()
+            return
+        if len(reason) > 2000:
+            self.notify(
+                f"Creation reason must be at most 2000 characters: got {len(reason)}",
+                severity="error",
+            )
+            self.query_one("#bead-create-reason", Input).focus()
+            return
         issue_type = str(self.query_one("#bead-create-type", Select).value)
         ready = self.query_one("#bead-create-ready", Checkbox).value
         size = str(self.query_one("#bead-create-size", Select).value)
@@ -125,6 +148,7 @@ class BeadCreateModal(ModalScreen[BeadCreateResult | None]):
                 issue_type=issue_type,
                 task_type=task_type,
                 task_type_fields=task_type_fields,
+                creation_reason=reason,
             )
         )
 

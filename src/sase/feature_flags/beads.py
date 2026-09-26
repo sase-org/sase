@@ -166,6 +166,7 @@ def create_flag_bead(
                 created_by=resolve_bead_creator(issue_type=IssueType.TASK),
                 task_type=FLAG_TASK_TYPE,
                 task_type_fields=field_values,
+                creation_reason=(f"Flag {key!r} needs a removal-tracked bead"),
             )
             mutation.commit(require_mutation_commit_message("create", [issue.id]))
     except (ValueError, RuntimeError, OSError) as exc:

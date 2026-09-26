@@ -51,9 +51,9 @@ def create_issue(
         "description, notes, design, refs, plus_one_evidence, close_history, "
         "snooze, model, size, task_type, task_type_fields, "
         "is_ready_to_work, "
-        "changespec_name, changespec_bug_id, external_ref) "
+        "changespec_name, changespec_bug_id, external_ref, creation_reason) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?, ?, ?)",
+        "?, ?, ?, ?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -84,6 +84,7 @@ def create_issue(
             issue.changespec_name,
             issue.changespec_bug_id,
             issue.external_ref or None,
+            issue.creation_reason,
         ),
     )
     if commit:

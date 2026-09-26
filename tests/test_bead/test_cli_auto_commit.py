@@ -160,6 +160,8 @@ def test_bead_create_in_separate_repo_writes_and_commits_workspace_local_clone(
         description=None,
         assignee=None,
         model=None,
+        reason="Planning the feature breakdown",
+        ref=None,
     )
     from sase.sdd.files import commit_sdd_store_files as real_commit
     from sase.sdd._git_contention import store_write_lock_is_held
@@ -202,6 +204,8 @@ def test_handle_bead_create_auto_commit_message(
         description=None,
         assignee=None,
         model=None,
+        reason="Planning the feature breakdown",
+        ref=None,
     )
 
     with patch("sase.bead.cli_crud_create.auto_commit_bead_store") as auto_commit:

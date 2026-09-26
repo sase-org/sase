@@ -49,6 +49,8 @@ def _create_flake(
         "task(flake)",
         "--size",
         "medium",
+        "--reason",
+        "CI flakes on the retry path three times this week",
         "--description",
         "Found while landing the retry patch.",
         "--field",

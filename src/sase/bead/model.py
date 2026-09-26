@@ -260,6 +260,7 @@ class Issue:
     task_type: str = ""
     task_type_fields: dict[str, str] = field(default_factory=dict)
     dependencies: list[Dependency] = field(default_factory=list)
+    creation_reason: str = ""
 
     @property
     def patch_name(self) -> str:

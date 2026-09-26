@@ -63,6 +63,8 @@ def test_create_phase_with_foreign_parent_uses_parent_store(
             f"phase({epic.id})",
             "-z",
             "small",
+            "-w",
+            "Epic plan defines this phase",
         ]
     )
     bead_cli.handle_bead_create(args)
@@ -101,6 +103,8 @@ def test_create_plan_with_foreign_parent_stores_owner_plan_reference(
             f"plan(../owner/sdd/plans/202609/child.md,{epic.id})",
             "--tier",
             "plan",
+            "-w",
+            "Planning the feature breakdown",
         ]
     )
     bead_cli.handle_bead_create(args)

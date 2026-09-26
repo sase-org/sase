@@ -33,6 +33,7 @@ def _create_args(
     external_ref: str | None = None,
     model: str | None = None,
     size: str | None = None,
+    reason: str | None = "Planning the feature breakdown",
 ) -> argparse.Namespace:
     return argparse.Namespace(
         title=title,
@@ -45,6 +46,8 @@ def _create_args(
         external_ref=external_ref,
         model=model,
         size=size,
+        reason=reason,
+        ref=None,
     )
 
 
@@ -87,6 +90,8 @@ def test_create_plan_accepts_patch_alias(
             "Epic",
             "--patch",
             "feature_epic",
+            "--reason",
+            "Planning the feature breakdown",
         ]
     )
 
@@ -109,6 +114,8 @@ def test_create_accepts_external_ref_alias(project_dir: Path) -> None:
             "Mirrored task",
             "--size",
             "small",
+            "-w",
+            "Mirror upstream bug:sase#42 as a tracked bead",
             "-x",
             "bug:sase#42",
             "-f",
@@ -285,10 +292,32 @@ def test_create_rejects_bug_id_without_patch(
 def test_parser_accepts_model_on_create_short_and_long() -> None:
     parser = create_parser()
     short = parser.parse_args(
-        ["bead", "create", "-t", "x", "-T", "phase(p)", "-m", "claude/opus"]
+        [
+            "bead",
+            "create",
+            "-t",
+            "x",
+            "-T",
+            "phase(p)",
+            "-m",
+            "claude/opus",
+            "-w",
+            "Epic plan defines this phase",
+        ]
     )
     long = parser.parse_args(
-        ["bead", "create", "-t", "x", "-T", "phase(p)", "--model", "codex/gpt-5.5"]
+        [
+            "bead",
+            "create",
+            "-t",
+            "x",
+            "-T",
+            "phase(p)",
+            "--model",
+            "codex/gpt-5.5",
+            "--reason",
+            "Epic plan defines this phase",
+        ]
     )
     assert short.model == "claude/opus"
     assert long.model == "codex/gpt-5.5"
@@ -305,7 +334,18 @@ def test_parser_accepts_model_on_update_short_and_long() -> None:
 def test_parser_accepts_size_on_create_and_update_short_and_long() -> None:
     parser = create_parser()
     create_short = parser.parse_args(
-        ["bead", "create", "-t", "x", "-T", "phase(p)", "-z", "xsmall"]
+        [
+            "bead",
+            "create",
+            "-t",
+            "x",
+            "-T",
+            "phase(p)",
+            "-z",
+            "xsmall",
+            "-w",
+            "Epic plan defines this phase",
+        ]
     )
     create_long = parser.parse_args(
         [
@@ -317,6 +357,8 @@ def test_parser_accepts_size_on_create_and_update_short_and_long() -> None:
             "phase(p)",
             "--size",
             "small",
+            "--reason",
+            "Epic plan defines this phase",
         ]
     )
     update_short = parser.parse_args(["bead", "update", "x", "-z", "large"])

@@ -173,24 +173,30 @@ def register_bead_create_parser(
         description=(
             "Create a plan, phase, or standalone task bead. New task beads "
             "require an explicit size and -T 'task(<slug>)'; plan beads reject "
-            "size, while raw phase creation accepts it optionally. Typed tasks "
-            "take repeatable -f/--field values for the type's declared fields. "
-            "A full parent ID in plan(...,<parent>) or phase(<parent>) creates "
-            "the child in that parent's owning enabled project. "
+            "size, while raw phase creation accepts it optionally. Every "
+            "create requires -w/--reason explaining why the bead was filed. "
+            "Typed tasks take repeatable -f/--field values for the type's "
+            "declared fields. A full parent ID in plan(...,<parent>) or "
+            "phase(<parent>) creates the child in that parent's owning "
+            "enabled project. "
             f"Free-text values accept {AT_PATH_PREFIX}<path>."
         ),
         epilog=(
             "Examples:\n"
             "  sase bead create -T 'task(bug)' -t \"Fix retry race\" -z medium "
+            "-w 'A second agent reproduced dropped retries after the queue change' "
             "-d @/tmp/diagnosis.md -f location=src/retry.py "
             "-f repro='fails on retry'\n"
             "  sase bead create -T 'task(bug)' -t \"Fix retry race\" -z medium "
+            "-w 'A second agent reproduced dropped retries after the queue change' "
             "-f location=src/retry.py -f repro='fails on retry'\n"
             "  sase bead create -T 'task(flake)' -t \"Flaky retry\" -z medium "
+            "-w 'CI flakes on the retry path three times this week' "
             "-f node_id=tests/foo.py::test_bar -f evidence=@notes.txt\n"
-            '  sase bead create -T phase(sase-ab) -t "Add endpoint" -z small\n'
+            '  sase bead create -T phase(sase-ab) -t "Add endpoint" -z small '
+            "-w 'Epic plan calls for the endpoint in this phase'\n"
             "  sase bead create -T plan(plan:202608/feature.md) "
-            '-t "Feature" -r epic'
+            "-t \"Feature\" -r epic -w 'Planning the feature breakdown'"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -267,6 +273,17 @@ def register_bead_create_parser(
             "phase(<parent_id>), or "
             "task(<slug>); parent IDs may be full or shorthand. New tasks "
             "require a catalog slug; list them with `sase bead task-type`"
+        ),
+    )
+    parser.add_argument(
+        "-w",
+        "--reason",
+        required=True,
+        help=(
+            "Why this bead was filed (one or two sentences, not the title); "
+            f"{_AT_PATH_READS_IT}. Required; blank or over-2000-character "
+            "reasons are rejected before mutation. Example: -w 'A second "
+            "agent reproduced dropped retries after the queue change'"
         ),
     )
 

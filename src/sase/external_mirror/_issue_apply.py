@@ -104,6 +104,9 @@ def apply_issue_mirror(
                     external_ref=candidate.ref,
                     size=PhaseSize.SMALL,
                     task_type=_MIRRORED_ISSUE_TASK_TYPE,
+                    creation_reason=(
+                        f"Mirror upstream {candidate.ref} as a tracked bead"
+                    ),
                 )
                 live_index[candidate.ref] = CoveredBead(issue, mirrored=True)
                 beads_created += 1

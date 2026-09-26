@@ -415,6 +415,8 @@ def test_bead_create_and_update_help_document_at_path() -> None:
     assert "@@ escapes a literal leading @" in create_help
     assert "Free-text values accept @<path>." in create_help
     assert "-d @/tmp/diagnosis.md" in create_help
+    _assert_metavar_option_documented(create_help, "-w", "--reason", "REASON")
+    assert "-w 'A second agent reproduced dropped retries" in create_help
 
     _assert_metavar_option_documented(update_help, "-d", "--description", "DESCRIPTION")
     assert "@<path> reads it from that file" in update_help
