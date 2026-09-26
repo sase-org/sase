@@ -20,7 +20,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_artifacts_lane import (
 from sase.ace.tui.widgets.prompt_panel._agent_bead_touches import (
     MAX_VISIBLE_BEADS,
     _bead_touch_glyph,
-    _ordered_bead_verb_chips,
+    _styled_bead_verb_chips,
     append_agent_bead_touch_rows,
     _visible_bead_entries,
 )
@@ -38,12 +38,14 @@ from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
     COLOR_BEAD_CLOSED_MUTED_PILL,
     COLOR_BEAD_CLOSED_PILL,
     COLOR_BEAD_CLOSED_STALE,
+    COLOR_BEAD_CREATED_CAP,
+    COLOR_BEAD_CREATED_CHIP,
+    COLOR_BEAD_CREATED_PILL,
     COLOR_BEAD_PRIMARY,
     COLOR_BEAD_REOPENED_SINCE,
     COLOR_BEAD_RESOLUTION,
     COLOR_BEAD_SUBHEADER,
     COLOR_REASON,
-    COLOR_ROLE,
     COLOR_SUMMARY,
     MEMORY_GLYPH,
     REASON_LINE_CELL_LIMIT,
@@ -60,6 +62,10 @@ from sase.ace.tui.models._agent_clan_sections import ClanContextEntry
 from sase.artifact_read_log import ARTIFACT_READ_LOG_SCHEMA_VERSION, ArtifactReadEvent
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
+
+
+def _chip_names(entry: BeadTouchEntry) -> list[str]:
+    return [chip for chip, _ in _styled_bead_verb_chips(entry)]
 
 
 @pytest.fixture(autouse=True)
@@ -84,6 +90,8 @@ def _entry(
     note_preview: BeadNotePreview | None = None,
     note_label: str | None = None,
     agent_close: BeadTouchClose | None = None,
+    creation_reason: str = "",
+    creation_reason_truncated: bool = False,
 ) -> BeadTouchEntry:
     return BeadTouchEntry(
         bead_id=bead_id,
@@ -98,6 +106,8 @@ def _entry(
         note_preview=note_preview,
         note_agent_label=note_label,
         agent_close=agent_close,
+        creation_reason=creation_reason,
+        creation_reason_truncated=creation_reason_truncated,
     )
 
 
@@ -238,15 +248,15 @@ def test_glyph_precedence_closed_over_created_over_edited_over_read() -> None:
     assert _bead_touch_glyph(_entry("sase-1", "", own=True)) == MEMORY_GLYPH
 
 
-def test_verb_chip_order_own_then_durable_then_read_then_viewed() -> None:
+def test_verb_chip_order_assigned_then_durable_then_read_then_viewed() -> None:
     entry = _entry(
         "sase-1",
         "2026-05-24T14:00:00+00:00",
         verbs={"noted": 3, "closed": 1, "read": 2, "viewed": 1},
         own=True,
     )
-    assert _ordered_bead_verb_chips(entry) == [
-        "own",
+    assert _chip_names(entry) == [
+        "assigned",
         "noted ×3",
         "closed",
         "read ×2",
@@ -254,11 +264,20 @@ def test_verb_chip_order_own_then_durable_then_read_then_viewed() -> None:
     ]
 
 
-def test_single_counts_carry_no_suffix() -> None:
+def test_created_row_reports_no_assignment_chip() -> None:
     entry = _entry(
-        "sase-1", "2026-05-24T14:00:00+00:00", verbs={"created": 1, "dep": 1}
+        "sase-1",
+        "2026-05-24T14:00:00+00:00",
+        verbs={"created": 1, "noted": 1},
+        own=True,
     )
-    assert _ordered_bead_verb_chips(entry) == ["created", "dep"]
+    # The ▐CREATED▌ pill carries creator credit, so no chip doubles it.
+    assert _chip_names(entry) == ["noted"]
+
+
+def test_single_counts_carry_no_suffix() -> None:
+    entry = _entry("sase-1", "2026-05-24T14:00:00+00:00", verbs={"noted": 1, "dep": 1})
+    assert _chip_names(entry) == ["noted", "dep"]
 
 
 # --- rows --------------------------------------------------------------------
@@ -292,30 +311,53 @@ def test_row_order_palette_and_title() -> None:
     )
     plain = text.plain
     assert plain.index("sase-14g") < plain.index("sase-l6.4")
-    assert "16:41:02  ✚ sase-14g · created · noted ×2" in plain
-    assert "16:12:55  ✓ sase-l6.4 · own · closed · noted ×3" in plain
+    assert "16:41:02  ✚ sase-14g ▐CREATED▌ · noted ×2" in plain
+    assert "16:12:55  ✓ sase-l6.4 · assigned · closed · noted ×3" in plain
     assert "↳ Custom gate with a failed command becomes unreachable" in plain
     assert "↳ Stream SASE CONTEXT lanes progressively" in plain
     assert_span_covers(text, "✚", COLOR_BEAD_SUBHEADER)
+    assert_span_covers(text, "CREATED", COLOR_BEAD_CREATED_PILL)
+    assert_span_covers(text, "▐", COLOR_BEAD_CREATED_CAP)
     assert_span_covers(text, "sase-14g", COLOR_BEAD_PRIMARY)
     assert_span_covers(text, "noted ×2", COLOR_SUMMARY)
-    assert_span_covers(text, "own", COLOR_ROLE)
+    assert_span_covers(text, "assigned", COLOR_SUMMARY)
     assert_span_covers(text, "Stream SASE CONTEXT lanes progressively", COLOR_REASON)
 
 
-def test_own_only_bead_renders_without_verbs() -> None:
+def test_assigned_only_bead_renders_without_verbs() -> None:
     text = Text()
     append_agent_bead_touch_rows(
         text, entries=(_entry("sase-14j.5", "", own=True, title=""),)
     )
     plain = text.plain
-    assert "sase-14j.5 · own" in plain
+    assert "sase-14j.5 · assigned" in plain
     assert "×" not in plain
     assert "↳" not in plain
-    assert_span_covers(text, "own", COLOR_ROLE)
+    assert_span_covers(text, "assigned", COLOR_SUMMARY)
 
 
-def test_read_reason_renders_over_title() -> None:
+def test_assigned_only_bead_shows_resolved_title() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14j.5",
+                "",
+                own=True,
+                title="File the retry race before the queue change lands",
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "sase-14j.5 · assigned" in plain
+    assert "↳ File the retry race before the queue change lands" in plain
+    assert "created" not in plain
+    assert "CREATED" not in plain
+    assert "why:" not in plain
+
+
+def test_read_reason_keeps_title_with_explicit_label() -> None:
     text = Text()
     append_agent_bead_touch_rows(
         text,
@@ -330,8 +372,123 @@ def test_read_reason_renders_over_title() -> None:
         ),
     )
     plain = text.plain
-    assert "↳ Need the scope" in plain
-    assert "Bead title" not in plain
+    assert "↳ Bead title" in plain
+    assert "↳ read: Need the scope" in plain
+
+
+def test_created_row_shows_pill_title_and_why() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14g",
+                "2026-05-24T16:41:02+00:00",
+                verbs={"created": 1, "noted": 2},
+                title="Fix retry race",
+                creation_reason="A second agent reproduced dropped retries",
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "✚ sase-14g ▐CREATED▌ · noted ×2" in plain
+    assert "· created" not in plain
+    assert "↳ Fix retry race" in plain
+    assert "↳ why: A second agent reproduced dropped retries" in plain
+    assert_span_covers(text, "CREATED", COLOR_BEAD_CREATED_PILL)
+    assert_span_covers(text, "▐", COLOR_BEAD_CREATED_CAP)
+    assert_span_covers(text, "Fix retry race", COLOR_REASON)
+
+
+def test_created_row_without_reason_falls_back_to_title() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14g",
+                "2026-05-24T16:41:02+00:00",
+                verbs={"created": 1},
+                title="Fix retry race",
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "▐CREATED▌" in plain
+    assert "↳ Fix retry race" in plain
+    assert "why:" not in plain
+
+
+def test_created_plus_closed_keeps_closed_pill_and_created_chip() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-1a2",
+                "2026-09-25T17:20:45+00:00",
+                verbs={"created": 1, "closed": 1},
+                title="Fix retry race",
+                creation_reason="A second agent reproduced dropped retries",
+                agent_close=_close("2026-09-25T17:20:45+00:00"),
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "✓ sase-1a2 ▐CLOSED▌ · created" in plain
+    assert "▐CREATED▌" not in plain
+    assert "↳ Fix retry race" in plain
+    assert "↳ why: A second agent reproduced dropped retries" in plain
+    assert_span_covers(text, "CLOSED", COLOR_BEAD_CLOSED_PILL)
+    assert_span_covers(text, "created", COLOR_BEAD_CREATED_CHIP)
+
+
+def test_creation_reason_sanitizes_controls_and_bounds_lines() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14g",
+                "2026-05-24T16:41:02+00:00",
+                verbs={"created": 1},
+                title="Fix\x00 retry\x1b races",
+                creation_reason="  why\x07 with\x1b[31m markup  ",
+            ),
+        ),
+        line_cell_limit=40,
+    )
+    plain = text.plain
+    assert "\x00" not in plain
+    assert "\x07" not in plain
+    assert "\x1b" not in plain
+    assert "↳ Fix retry races" in plain
+    assert "why:" in plain
+    assert "… full reason in bead detail" not in plain
+    for line in plain.splitlines():
+        assert cell_len(line) <= 40 or "sase-14g" in line
+
+
+def test_truncated_creation_reason_links_to_bead_detail() -> None:
+    long_reason = " ".join(f"word-{index:02d}" for index in range(60))
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14g",
+                "2026-05-24T16:41:02+00:00",
+                verbs={"created": 1},
+                title="Fix retry race",
+                creation_reason=long_reason,
+                creation_reason_truncated=True,
+            ),
+        ),
+        line_cell_limit=60,
+    )
+    plain = text.plain
+    assert "↳ why: word-00" in plain
+    assert "… full reason in bead detail" in plain
 
 
 def test_title_falls_back_when_no_read_reason() -> None:
@@ -503,7 +660,7 @@ def test_note_preview_is_attributed_bounded_and_keeps_read_reason() -> None:
     assert "… full note in bead detail" in plain
     assert "+1 earlier note in bead detail" in plain
     assert "↳ read: Inspect the regression" in plain
-    assert "Fallback title" not in plain
+    assert "↳ Fallback title must not repeat" in plain
     assert "\x1b" not in plain
     assert "[not markup]" not in plain
     for line in plain.splitlines():
@@ -779,13 +936,13 @@ def test_standing_done_row_shows_pill_and_drops_closed_chip() -> None:
         ),
     )
     plain = text.plain
-    assert "✓ sase-19f.2 ▐CLOSED▌ · own · noted ×2" in plain
+    assert "✓ sase-19f.2 ▐CLOSED▌ · assigned · noted ×2" in plain
     assert "· closed" not in plain
     assert_span_covers(text, "✓", COLOR_BEAD_CLOSED_GLYPH)
     assert_span_covers(text, "▐", COLOR_BEAD_CLOSED_CAP)
     assert_span_covers(text, "CLOSED", COLOR_BEAD_CLOSED_PILL)
     assert_span_covers(text, "▌", COLOR_BEAD_CLOSED_CAP)
-    assert_span_covers(text, "own", COLOR_ROLE)
+    assert_span_covers(text, "assigned", COLOR_SUMMARY)
 
 
 def test_standing_canceled_row_shows_grey_pill_and_resolution() -> None:
@@ -858,7 +1015,7 @@ def test_no_close_row_renders_exactly_as_before() -> None:
     assert_span_covers(text, "✎", COLOR_BEAD_SUBHEADER)
 
 
-def test_standing_close_reason_beats_read_reason_and_title() -> None:
+def test_standing_close_keeps_labeled_title_close_and_read() -> None:
     text = Text()
     append_agent_bead_touch_rows(
         text,
@@ -876,9 +1033,9 @@ def test_standing_close_reason_beats_read_reason_and_title() -> None:
         ),
     )
     plain = text.plain
+    assert "↳ Bead title" in plain
     assert "↳ closed: Phase checks green" in plain
-    assert "Need the scope" not in plain
-    assert "Bead title" not in plain
+    assert "↳ read: Need the scope" in plain
 
 
 def test_standing_close_without_reason_falls_back_to_title() -> None:

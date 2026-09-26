@@ -44,6 +44,8 @@ def _touch(
     current_note_count: int = 0,
     note_preview: BeadNotePreview | None = None,
     close: BeadTouchClose | None = None,
+    creation_reason: str = "",
+    creation_reason_truncated: bool = False,
 ) -> BeadTouch:
     return BeadTouch(
         actor=actor,
@@ -55,6 +57,8 @@ def _touch(
         current_note_count=current_note_count,
         note_preview=note_preview,
         close=close,
+        creation_reason=creation_reason,
+        creation_reason_truncated=creation_reason_truncated,
     )
 
 
@@ -177,6 +181,64 @@ def test_merge_single_touch_carries_verbs_title_and_timestamps() -> None:
     assert entry.last_at == "2026-09-20T16:41:02Z"
     assert entry.own is False
     assert entry.agent_label is None
+    assert entry.creation_reason == ""
+
+
+def test_merge_carries_creation_reason_from_creator_row_only() -> None:
+    creator = _touch(
+        "alpha",
+        "sase-14j.4",
+        verbs={"created": 1},
+        title="Fix retry race",
+        last_at="2026-09-20T16:41:02Z",
+        creation_reason="A second agent reproduced dropped retries",
+    )
+    noter = _touch(
+        "beta",
+        "sase-14j.4",
+        verbs={"noted": 1},
+        last_at="2026-09-20T16:42:02Z",
+    )
+    (entry,) = merge_bead_touch_entries(
+        (_display(creator), _display(noter, "coder")), (), ()
+    )
+    assert entry.creation_reason == "A second agent reproduced dropped retries"
+    assert entry.creation_reason_truncated is False
+
+
+def test_merge_leaves_assigned_only_row_without_creation_reason() -> None:
+    (entry,) = merge_bead_touch_entries((), (), ("sase-14j.4",))
+    assert entry.own is True
+    assert entry.verbs == {}
+    assert entry.creation_reason == ""
+
+
+def test_merge_titles_assigned_only_row_from_resolved_summaries() -> None:
+    (entry,) = merge_bead_touch_entries(
+        (), (), ("sase-14j.4",), {"sase-14j.4": "File the retry race"}
+    )
+    assert entry.own is True
+    assert entry.title == "File the retry race"
+    assert entry.creation_reason == ""
+
+
+def test_merge_never_infers_creation_from_assignment() -> None:
+    touch = _touch(
+        "alpha",
+        "sase-14j.4",
+        verbs={"noted": 1},
+        title="File the retry race",
+        last_at="2026-09-20T16:41:02Z",
+    )
+    (entry,) = merge_bead_touch_entries(
+        (_display(touch),),
+        (),
+        ("sase-14j.4",),
+        {"sase-14j.4": "Resolved summary title"},
+    )
+    assert entry.own is True
+    assert entry.title == "File the retry race"
+    assert entry.creation_reason == ""
 
 
 def test_merge_selects_newest_note_across_session_members_with_its_role() -> None:

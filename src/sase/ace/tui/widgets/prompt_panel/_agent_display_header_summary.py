@@ -363,6 +363,53 @@ def clear_detail_header_summary_cache(widget: object) -> None:
 _TRACE_SPAN_PREFIX = "widget.prompt_panel.build_detail_header_summary"
 
 
+def _assigned_bead_titles(
+    agent: Agent,
+    phase_bead: object | None,
+    associated_plan: object | None,
+) -> dict[str, str]:
+    """Return in-memory titles for the agent's assigned beads, if known.
+
+    Only already-resolved summaries feed this map (the phase bead summary,
+    the associated plan's epic/phase titles); it performs no store or
+    index read so the UI thread stays off I/O. The merge uses it solely
+    to title assignment-only rows.
+    """
+    titles: dict[str, str] = {}
+    bead_summary = phase_bead
+    bead_id = getattr(bead_summary, "id", None)
+    bead_title = getattr(bead_summary, "title", None)
+    if isinstance(bead_id, str) and bead_id.strip():
+        if isinstance(bead_title, str) and bead_title.strip():
+            titles[bead_id.strip()] = bead_title.strip()
+    plan_title = getattr(associated_plan, "title", None)
+    epic_bead_id = getattr(agent, "epic_bead_id", None)
+    if (
+        isinstance(epic_bead_id, str)
+        and epic_bead_id.strip()
+        and isinstance(plan_title, str)
+        and plan_title.strip()
+    ):
+        titles.setdefault(epic_bead_id.strip(), plan_title.strip())
+    phases = getattr(associated_plan, "phases", None)
+    if phases:
+        try:
+            iterator = iter(phases)
+        except TypeError:
+            iterator = iter(())
+        for phase in iterator:
+            phase_id = getattr(phase, "id", None)
+            phase_title = getattr(phase, "title", None)
+            if (
+                isinstance(phase_id, str)
+                and phase_id.strip()
+                and isinstance(phase_title, str)
+                and phase_title.strip()
+            ):
+                titles.setdefault(phase_id.strip(), phase_title.strip())
+    return titles
+
+
 def build_detail_header_summary(
     agent: Agent,
     *,
@@ -490,6 +537,7 @@ def _build_detail_header_summary_impl(
                 load_bead_touches_for_agent_context(agent),
                 artifact_reads,
                 own_bead_ids_for_agent(agent),
+                _assigned_bead_titles(agent, phase_bead, associated_plan),
             )
 
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()

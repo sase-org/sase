@@ -188,6 +188,36 @@ def test_close_wire_conversion_is_additive_and_defensive() -> None:
     )
 
 
+def test_creation_reason_wire_conversion_is_additive_and_defensive() -> None:
+    touch = touch_index._touch_from_dict(
+        {
+            "actor": "owner.machine.alpha",
+            "bead_id": "sase-1ap.3",
+            "creation_reason": "  A second agent reproduced dropped retries  ",
+            "creation_reason_truncated": True,
+        }
+    )
+    assert touch.creation_reason == "A second agent reproduced dropped retries"
+    assert touch.creation_reason_truncated is True
+
+    legacy = touch_index._touch_from_dict(
+        {"actor": "owner.machine.alpha", "bead_id": "sase-1ap.3"}
+    )
+    assert legacy.creation_reason == ""
+    assert legacy.creation_reason_truncated is False
+
+    malformed = touch_index._touch_from_dict(
+        {
+            "actor": "owner.machine.alpha",
+            "bead_id": "sase-1ap.3",
+            "creation_reason": 42,
+            "creation_reason_truncated": "true",
+        }
+    )
+    assert malformed.creation_reason == ""
+    assert malformed.creation_reason_truncated is False
+
+
 def test_touch_matches_agent_identity_rules() -> None:
     """Globalized, local, and legacy bare-local actors match; rest do not."""
     assert touch_index.touch_matches_agent(

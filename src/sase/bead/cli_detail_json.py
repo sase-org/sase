@@ -120,6 +120,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "snooze": _snooze_to_wire_dict(issue),
         "flag": _flag_to_wire_dict(issue),
         "description": issue.description,
+        **({"creation_reason": issue.creation_reason} if issue.creation_reason else {}),
         "notes": notes_to_dicts(issue.notes),
         "notes_text": issue.notes_text,
         "design": issue.design,

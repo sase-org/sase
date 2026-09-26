@@ -113,6 +113,24 @@ def _render_artifact_link_entry(
     return lines
 
 
+def render_creation_reason_lines(
+    issue: Issue,
+    *,
+    palette: DetailPalette,
+    style: DetailStyle,
+    wrap: int | None,
+) -> list[str]:
+    """Render the immutable filing reason, or ``[]`` for historical beads.
+
+    The reason explains why the bead was filed, distinct from the title
+    (what it is) and the description (scope/evidence). Pre-feature beads
+    carry an empty reason and render no lines so their output is unchanged.
+    """
+    if not issue.creation_reason.strip():
+        return []
+    return _prose_lines(issue.creation_reason, style=style, wrap=wrap, indent="  ")
+
+
 def description_and_task_type_lines(
     issue: Issue,
     *,

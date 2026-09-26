@@ -117,6 +117,8 @@ def bead_properties_header(
         properties.append(
             ("Previously closed", _previously_closed_text(issue.close_history))
         )
+    if issue.creation_reason.strip():
+        properties.append(("Creation reason", issue.creation_reason.strip()))
     properties.extend(
         [
             ("Assignee", issue.assignee),
@@ -231,6 +233,8 @@ def bead_preview_markdown(
             "**External issue:**" if index == 0 else " " * len("**External issue:**")
         )
         lines.append(f"{label} {_external_issue_inline(link)}  ")
+    if issue.creation_reason.strip():
+        lines.append(f"**Creation reason:** {issue.creation_reason.strip()}  ")
     if issue.design.strip():
         lines.append(f"**Plan reference:** {issue.design.strip()}  ")
         path = (

@@ -32,7 +32,7 @@ def register_bead_touched_parser(
             "are, and automation never produces viewed. linked currently "
             "never appears: bead link events are owner-attributed and task "
             "sase-159 tracks that. The CLI lists touched beads only; the "
-            "panel also marks assigned but untouched beads with an own chip."
+            "panel also marks assigned but untouched beads with an assigned chip."
         ),
         epilog=(
             "examples:\n"

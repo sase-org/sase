@@ -73,6 +73,8 @@ class BeadTouch:
     current_note_count: int = 0
     note_preview: BeadNotePreview | None = None
     close: BeadTouchClose | None = None
+    creation_reason: str = ""
+    creation_reason_truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -271,6 +273,7 @@ def _touch_from_dict(payload: Mapping[str, Any]) -> BeadTouch:
                 verbs[str(verb)] = total
     current_note_count = _positive_int(payload.get("current_note_count"))
     note_preview = _note_preview_from_dict(payload.get("note_preview"))
+    creation_reason = _optional_reason_text(payload.get("creation_reason"))
     if current_note_count == 0:
         # A preview without its required current-note count is malformed.  Do
         # not let an incomplete newer wire produce a blank or misattributed UI
@@ -288,7 +291,16 @@ def _touch_from_dict(payload: Mapping[str, Any]) -> BeadTouch:
         current_note_count=current_note_count,
         note_preview=note_preview,
         close=_close_from_dict(payload.get("close")),
+        creation_reason=creation_reason,
+        creation_reason_truncated=payload.get("creation_reason_truncated") is True,
     )
+
+
+def _optional_reason_text(value: object) -> str:
+    """Return a trimmed reason string, or ``""`` for missing/non-string wire."""
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
 
 
 def _positive_int(value: object) -> int:

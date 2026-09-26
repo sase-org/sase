@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -35,6 +36,9 @@ class BeadTouchEntry:
     bead the agent was assigned even when it never touched it (no verbs).
     ``agent_label`` is the one session-producer label shared by the
     entry's labeled contributors; mixed-producer beads report ``None``.
+    ``creation_reason`` is the indexed filing reason, present only when a
+    contributing touch carries the creator's ``created`` verb; rendering
+    never infers it from ``own``/assignment.
     """
 
     bead_id: str
@@ -49,6 +53,8 @@ class BeadTouchEntry:
     note_preview: BeadNotePreview | None = None
     note_agent_label: str | None = None
     agent_close: BeadTouchClose | None = None
+    creation_reason: str = ""
+    creation_reason_truncated: bool = False
 
 
 def _canonical_bead_id(value: str | None) -> str:
@@ -111,6 +117,8 @@ class _BeadBucket:
             tuple[datetime, str, BeadNotePreview, str | None] | None
         ) = None
         self.agent_close: BeadTouchClose | None = None
+        self.creation_reason = ""
+        self.creation_reason_truncated = False
 
     def add_verbs(self, verbs: dict[str, int]) -> None:
         for verb, count in verbs.items():
@@ -151,6 +159,29 @@ class _BeadBucket:
     def add_close(self, close: BeadTouchClose | None) -> None:
         self.agent_close = prefer_bead_touch_close(self.agent_close, close)
 
+    def add_creation_reason(self, reason: str | None, truncated: bool = False) -> None:
+        """Fold one touch's indexed filing reason without attribution drift.
+
+        Only the creator's touch row carries a reason (the core reducer
+        never emits one for another actor), so the first non-blank reason
+        wins and ``own``-only buckets keep the empty legacy fallback.
+        """
+        cleaned = (reason or "").strip()
+        if not cleaned or self.creation_reason:
+            return
+        self.creation_reason = cleaned
+        self.creation_reason_truncated = bool(truncated)
+
+    def add_assigned_title(self, title: str | None) -> None:
+        """Fill an assignment-only title from an already-resolved summary.
+
+        Callers pass only in-memory summaries (never a store read), so
+        rendering stays off the UI-thread I/O path.
+        """
+        cleaned = (title or "").strip()
+        if not self.title and cleaned:
+            self.title = cleaned
+
     def entry(self) -> BeadTouchEntry:
         first_at = ""
         last_at = ""
@@ -176,6 +207,8 @@ class _BeadBucket:
             note_preview=note_preview,
             note_agent_label=note_agent_label,
             agent_close=self.agent_close,
+            creation_reason=self.creation_reason,
+            creation_reason_truncated=self.creation_reason_truncated,
         )
 
 
@@ -189,20 +222,26 @@ def merge_bead_touch_entries(
     touches: tuple[BeadTouchDisplayEvent, ...] | list[BeadTouchDisplayEvent],
     reads: tuple[ArtifactReadDisplayEvent, ...] | list[ArtifactReadDisplayEvent],
     own_bead_ids: tuple[str, ...] | list[str] = (),
+    assigned_titles: Mapping[str, str] | None = None,
 ) -> tuple[BeadTouchEntry, ...]:
     """Fold touches, audited bead reads, and own beads into one ranked view.
 
-    Pure function over its three inputs so it is testable without a store:
+    Pure function over its inputs so it is testable without a store:
     touch rows (durable index rows plus synthesized ``viewed`` rows from the
     machine-local view log, already ordered durable-first so durable titles
     win), the already-loaded audited artifact reads (only ``bead:`` refs
     contribute; anything else is ignored so a bead read can never
-    double-list), and the agent's own bead ids. Emits one entry per
+    double-list), the agent's own bead ids, and optional in-memory
+    ``assigned_titles`` for assignment-only rows. Emits one entry per
     bead with merged verb counts, the newest timestamp across all sources,
-    the title from whichever source has one, and the ``own`` mark. Bead ids
-    are compared after :func:`_canonical_bead_id` so a ``bead:``-prefixed ref
-    and a bare id never split into two rows. Ranking is newest-touch-first
-    with a bead-id tiebreak; timestamp-less own-only beads sort last.
+    the title from whichever source has one, the ``own`` mark, and the
+    indexed creation reason from the creator's touch row only (never
+    inferred from ``own``/assignment). Bead ids are compared after
+    :func:`_canonical_bead_id` so a ``bead:``-prefixed ref and a bare id
+    never split into two rows. Ranking is newest-touch-first with a
+    bead-id tiebreak; timestamp-less own-only beads sort last.
+    ``assigned_titles`` carries only already-resolved summaries so the
+    UI thread performs no bead lookup.
     """
     buckets: dict[str, _BeadBucket] = {}
     own_keys = {
@@ -227,6 +266,10 @@ def merge_bead_touch_entries(
         bucket.add_label(display.agent_label)
         bucket.add_note_preview(display.touch, display.agent_label)
         bucket.add_close(display.touch.close)
+        bucket.add_creation_reason(
+            getattr(display.touch, "creation_reason", ""),
+            bool(getattr(display.touch, "creation_reason_truncated", False)),
+        )
 
     for read_display in reads:
         ref = (read_display.event.ref or "").strip()
@@ -244,6 +287,15 @@ def merge_bead_touch_entries(
     for key in own_keys:
         bucket = bucket_for(key, key)
         bucket.own = True
+
+    if isinstance(assigned_titles, Mapping) and assigned_titles:
+        normalized = {
+            _canonical_bead_id(bead_id): title
+            for bead_id, title in assigned_titles.items()
+        }
+        for key, title in normalized.items():
+            if key and title and key in buckets:
+                buckets[key].add_assigned_title(title)
 
     return tuple(
         sorted((bucket.entry() for bucket in buckets.values()), key=_entry_rank)

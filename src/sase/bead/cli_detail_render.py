@@ -17,6 +17,7 @@ from sase.bead.cli_detail_sections import (
     render_artifact_link_section_lines,
     render_bead_note_lines,
     render_close_history_lines,
+    render_creation_reason_lines,
     render_flag_lines,
     render_plus_one_evidence_lines,
     render_snooze_lines,
@@ -283,6 +284,11 @@ def render_issue_detail(
             )
         )
 
+    creation_reason_lines = render_creation_reason_lines(
+        issue, palette=palette, style=style, wrap=wrap
+    )
+    if creation_reason_lines:
+        lines.extend(["", palette.section("CREATION REASON"), *creation_reason_lines])
     description_lines = description_and_task_type_lines(issue, style=style, wrap=wrap)
     if description_lines:
         lines.extend(["", palette.section("DESCRIPTION"), *description_lines])

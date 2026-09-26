@@ -22,11 +22,13 @@ from ._agent_context_common import (
     COLOR_BEAD_CLOSED_MUTED_PILL,
     COLOR_BEAD_CLOSED_PILL,
     COLOR_BEAD_CLOSED_STALE,
+    COLOR_BEAD_CREATED_CAP,
+    COLOR_BEAD_CREATED_CHIP,
+    COLOR_BEAD_CREATED_PILL,
     COLOR_BEAD_PRIMARY,
     COLOR_BEAD_REOPENED_SINCE,
     COLOR_BEAD_RESOLUTION,
     COLOR_BEAD_SUBHEADER,
-    COLOR_ROLE,
     COLOR_SUMMARY,
     COLOR_TRUNCATION,
     REASON_LINE_CELL_LIMIT,
@@ -53,7 +55,12 @@ __all__ = [
 CLOSED_PILL_TEXT = "CLOSED"
 CLOSED_PILL_LEFT = "▐"
 CLOSED_PILL_RIGHT = "▌"
+CREATED_PILL_TEXT = "CREATED"
+CREATED_PILL_LEFT = "▐"
+CREATED_PILL_RIGHT = "▌"
 REOPENED_SINCE_CHIP = "reopened since"
+ASSIGNED_CHIP = "assigned"
+CREATED_CHIP = "created"
 
 
 def _standing_close(entry: BeadTouchEntry) -> BeadTouchClose | None:
@@ -62,6 +69,20 @@ def _standing_close(entry: BeadTouchEntry) -> BeadTouchClose | None:
     if close is not None and close.standing:
         return close
     return None
+
+
+def _is_created(entry: BeadTouchEntry) -> bool:
+    """Return whether the indexed verbs credit this agent with creation.
+
+    The ``created`` verb comes only from the core reducer's creator row;
+    assignment (``own``) never implies it.
+    """
+    return "created" in entry.verbs
+
+
+def _is_assigned_only(entry: BeadTouchEntry) -> bool:
+    """Return whether the row is an assignment with no creator credit."""
+    return bool(entry.own) and not _is_created(entry)
 
 
 def _close_resolution(entry: BeadTouchEntry) -> str:
@@ -91,27 +112,46 @@ def _closed_pill_styles(entry: BeadTouchEntry) -> tuple[str, str]:
 
 
 def _styled_bead_verb_chips(entry: BeadTouchEntry) -> list[tuple[str, str]]:
-    """Return ``(chip, style)`` pairs with the closed rewrite applied.
+    """Return ``(chip, style)`` pairs with the closed/created rewrite applied.
 
     Standing closes drop the plain ``closed`` chip because the pill replaces
     it; a non-``done`` resolution adds its raw resolution chip, and a
     non-standing close keeps a struck ``closed`` followed by
-    ``reopened since``. Rows without an agent close render exactly as today.
+    ``reopened since``. A non-closed created row drops the plain ``created``
+    chip because the amber ``▐CREATED▌`` pill replaces it; a standing close
+    on a created row keeps the ``▐CLOSED▌`` pill priority and adds a
+    compact ``created`` chip instead. Assignment-only rows render a calm
+    ``assigned`` chip; created rows never claim assignment.
     """
+    created = _is_created(entry)
+    assigned_only = _is_assigned_only(entry)
     close = entry.agent_close
     if close is None:
-        return [
-            (chip, COLOR_ROLE if chip == "own" else COLOR_SUMMARY)
-            for chip in _ordered_bead_verb_chips(entry)
-        ]
+        chips: list[tuple[str, str]] = []
+        if assigned_only:
+            chips.append((ASSIGNED_CHIP, COLOR_SUMMARY))
+        for verb, count in entry.verbs.items():
+            if verb in ("read", "viewed"):
+                continue
+            if verb == "created":
+                # The CREATED pill carries this; avoid doubling it as a chip.
+                continue
+            chips.append((_chip(verb, count), COLOR_SUMMARY))
+        if "read" in entry.verbs:
+            chips.append((_chip("read", entry.verbs["read"]), COLOR_SUMMARY))
+        if "viewed" in entry.verbs:
+            chips.append((_chip("viewed", entry.verbs["viewed"]), COLOR_SUMMARY))
+        return chips
     styled: list[tuple[str, str]] = []
-    if entry.own:
-        styled.append(("own", COLOR_ROLE))
+    if assigned_only:
+        styled.append((ASSIGNED_CHIP, COLOR_SUMMARY))
     if close.standing:
         if _close_resolution(entry) != "done":
             styled.append((_close_resolution(entry), COLOR_BEAD_RESOLUTION))
+        if created:
+            styled.append((CREATED_CHIP, COLOR_BEAD_CREATED_CHIP))
         for verb, count in entry.verbs.items():
-            if verb in ("closed", "read", "viewed"):
+            if verb in ("closed", "created", "read", "viewed"):
                 continue
             styled.append((_chip(verb, count), COLOR_SUMMARY))
     else:
@@ -121,6 +161,9 @@ def _styled_bead_verb_chips(entry: BeadTouchEntry) -> list[tuple[str, str]]:
             if verb == "closed":
                 styled.append((_chip(verb, count), COLOR_BEAD_CLOSED_STALE))
                 styled.append((REOPENED_SINCE_CHIP, COLOR_BEAD_REOPENED_SINCE))
+                continue
+            if verb == "created":
+                styled.append((_chip(verb, count), COLOR_BEAD_CREATED_CHIP))
                 continue
             styled.append((_chip(verb, count), COLOR_SUMMARY))
     if "read" in entry.verbs:
@@ -181,27 +224,6 @@ def _visible_bead_entries(
 def _bead_touch_glyph(entry: BeadTouchEntry) -> str:
     """Return the row's single strongest verb glyph via the shared vocabulary."""
     return touch_glyph(entry.verbs)
-
-
-def _ordered_bead_verb_chips(entry: BeadTouchEntry) -> list[str]:
-    """Return the verb chips in render order.
-
-    ``own`` first, then durable verbs in the entry's verb-map order
-    (the merge produces that order newest-touch-first), then ``read``,
-    then ``viewed``. Counts above one render as ``×N``.
-    """
-    chips: list[str] = []
-    if entry.own:
-        chips.append("own")
-    for verb, count in entry.verbs.items():
-        if verb in ("read", "viewed"):
-            continue
-        chips.append(_chip(verb, count))
-    if "read" in entry.verbs:
-        chips.append(_chip("read", entry.verbs["read"]))
-    if "viewed" in entry.verbs:
-        chips.append(_chip("viewed", entry.verbs["viewed"]))
-    return chips
 
 
 def _chip(verb: str, count: int) -> str:
@@ -320,6 +342,35 @@ def _copied_hint_label(hint_label: Text | None) -> Text | None:
     return hint_label.copy() if hint_label is not None else None
 
 
+def _bead_touch_reason_lines(entry: BeadTouchEntry) -> list[str]:
+    """Return the labeled ``↳`` lines for one bead row, in render order.
+
+    Title first (when available), then the filing reason as ``why: …``
+    for created rows, then the standing-close reason and the newest
+    audited read reason with explicit labels. Filing, close, and read
+    reasons never replace the title. All text is sanitized so control
+    characters cannot break the card; wrapping happens at render time.
+    """
+    lines: list[str] = []
+    title = _safe_note_text(entry.title)
+    if title:
+        lines.append(title)
+    if _is_created(entry):
+        reason = _safe_note_text(entry.creation_reason)
+        if reason:
+            lines.append(f"why: {reason}")
+            if entry.creation_reason_truncated:
+                lines.append("… full reason in bead detail")
+    close_reason = _safe_note_text(_standing_close_reason(entry))
+    if close_reason:
+        lines.append(close_reason)
+    if entry.read_reasons:
+        first = _safe_note_text(entry.read_reasons[0])
+        if first:
+            lines.append(f"read: {first}")
+    return lines
+
+
 def append_agent_bead_touch_rows(
     text: Text,
     *,
@@ -332,11 +383,14 @@ def append_agent_bead_touch_rows(
 
     The ARTIFACTS lane owns sub-section ordering and the summary counts;
     this helper only paints the compact rows, reasons, hints, and overflow
-    footer. The bead id is never truncated; the ``↳`` line shows the newest
-    audited read reason when present, otherwise the bead title, and is
-    omitted when both are empty. The reason/title wraps via
-    ``append_context_reason``. Note wrapping honors ``line_cell_limit`` so a
-    split Context card can keep three physical body lines.
+    footer. The bead id is never truncated. A created row shows a bounded
+    title line plus a labeled ``why:`` filing-reason line; every row keeps
+    its title line when available while read and close reasons keep
+    explicit labels instead of replacing the title. All ``↳`` lines wrap
+    via ``append_context_reason``. Note wrapping honors
+    ``line_cell_limit`` so a split Context card can keep three physical
+    body lines. Rows with no title, filing reason, read reason, close
+    reason, or note preview omit ``↳`` lines entirely (legacy fallback).
     """
     visible = _visible_bead_entries(entries)
     if hint_labels is None:
@@ -372,6 +426,11 @@ def append_agent_bead_touch_rows(
             text.append(CLOSED_PILL_LEFT, style=cap_style)
             text.append(CLOSED_PILL_TEXT, style=pill_style)
             text.append(CLOSED_PILL_RIGHT, style=cap_style)
+        elif _is_created(item):
+            text.append(" ", style=COLOR_SUMMARY)
+            text.append(CREATED_PILL_LEFT, style=COLOR_BEAD_CREATED_CAP)
+            text.append(CREATED_PILL_TEXT, style=COLOR_BEAD_CREATED_PILL)
+            text.append(CREATED_PILL_RIGHT, style=COLOR_BEAD_CREATED_CAP)
         for chip, chip_style in _styled_bead_verb_chips(item):
             text.append(" · ", style=COLOR_SUMMARY)
             text.append(chip, style=chip_style)
@@ -385,19 +444,10 @@ def append_agent_bead_touch_rows(
                 role_label=item.note_agent_label,
                 line_cell_limit=line_cell_limit,
             )
-        close_reason = _standing_close_reason(item)
-        if close_reason:
-            reason_text = close_reason
-        else:
-            reason_text = (
-                f"read: {item.read_reasons[0]}"
-                if item.note_preview is not None and item.read_reasons
-                else (item.read_reasons[0] if item.read_reasons else item.title)
-            )
-        if reason_text.strip():
+        for reason_line in _bead_touch_reason_lines(item):
             append_context_reason(
                 text,
-                reason_text,
+                reason_line,
                 indent=reason_indent,
                 line_cell_limit=line_cell_limit,
             )

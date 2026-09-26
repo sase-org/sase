@@ -272,6 +272,133 @@ async def test_agents_bead_closed_by_agent_narrow_png_snapshot(
         )
 
 
+def _created_bead_touches() -> tuple[_BeadTouchDisplayEvent, ...]:
+    """Return touches covering created, created-plus-closed, and legacy rows.
+
+    Bead ids stay short so the CREATED pill fits the 90x32 split-card
+    viewport as well as the wide card.
+    """
+    actor = "visual.bead-created"
+    return (
+        _BeadTouchDisplayEvent(
+            touch=BeadTouch(
+                actor=actor,
+                bead_id="sase-1c",
+                title="File creation reasons",
+                verbs={"created": 1, "noted": 1},
+                first_at="2026-09-26T14:02:00Z",
+                last_at="2026-09-26T14:05:00Z",
+                creation_reason="Second agent saw the drop",
+            )
+        ),
+        _BeadTouchDisplayEvent(
+            touch=BeadTouch(
+                actor=actor,
+                bead_id="sase-1d",
+                title="Created then closed",
+                verbs={"closed": 1, "created": 1},
+                first_at="2026-09-26T14:01:00Z",
+                last_at="2026-09-26T14:04:00Z",
+                creation_reason="Filed from triage",
+                close=BeadTouchClose(
+                    closed_at="2026-09-26T14:04:00Z",
+                    resolution="done",
+                    reason="Landed",
+                    standing=True,
+                ),
+            )
+        ),
+    )
+
+
+def _created_bead_agent(tmp_path: Path) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-bead-created",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 9, 26, 14, 0, 0),
+        raw_suffix="20260926140000",
+        agent_name="visual.bead-created",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+        phase_bead_id="sase-1e",
+    )
+
+
+async def test_agents_bead_created_by_agent_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The Context card distinguishes created beads with a CREATED pill."""
+    agent = _created_bead_agent(tmp_path)
+    touches = _created_bead_touches()
+    monkeypatch.setattr(
+        "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
+        lambda _agent: touches,
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "sase-1c")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "SASE CONTEXT")
+        assert_page_svg_contains(page, "Beads:")
+        assert_page_svg_contains(page, "sase-1c")
+        assert_page_svg_contains(page, "CREATED")
+        assert_page_svg_contains(page, "why:")
+        assert_page_svg_contains(page, "assigned")
+        assert_page_svg_contains(page, "CLOSED")
+        assert_page_svg_contains(page, "created")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_bead_created_by_agent_120x40",
+            title="ACE agents Context-card created beads",
+        )
+
+
+async def test_agents_bead_created_by_agent_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The CREATED pill stays contiguous in a narrow split card."""
+    agent = _created_bead_agent(tmp_path)
+    touches = _created_bead_touches()
+    monkeypatch.setattr(
+        "sase.ace.tui.bead_touches.load_bead_touches_for_agent_context",
+        lambda _agent: touches,
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', patches=patches(), size=(90, 32)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "Beads:")
+        await wait_for_svg_contains(page, "CREATED")
+        await wait_for_visual_idle(page)
+
+        # The narrow card wraps the "SASE CONTEXT" heading itself, so assert
+        # the lane and pill tokens that prove the created rendering instead.
+        assert_page_svg_contains(page, "Beads:")
+        assert_page_svg_contains(page, "CREATED")
+        assert_page_svg_contains(page, "assigned")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_bead_created_by_agent_90x32",
+            title="ACE agents Context-card created beads narrow",
+        )
+
+
 async def test_agents_sase_plan_metadata_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

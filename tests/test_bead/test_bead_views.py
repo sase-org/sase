@@ -22,7 +22,7 @@ from sase.ace.tui._bead_touches_shared import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_bead_touches import (
     _bead_touch_glyph,
-    _ordered_bead_verb_chips,
+    _styled_bead_verb_chips,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import MEMORY_GLYPH
 from sase.bead.bead_views import (
@@ -204,7 +204,7 @@ def test_viewed_only_entry_renders_weakest_and_never_read() -> None:
     assert entry.verbs == {"viewed": 2}
     assert "read" not in entry.verbs
     assert _bead_touch_glyph(entry) == MEMORY_GLYPH
-    assert _ordered_bead_verb_chips(entry) == ["viewed ×2"]
+    assert [chip for chip, _ in _styled_bead_verb_chips(entry)] == ["viewed ×2"]
 
 
 def test_viewed_chip_sorts_after_read() -> None:
@@ -222,7 +222,11 @@ def test_viewed_chip_sorts_after_read() -> None:
         (),
     )
 
-    assert _ordered_bead_verb_chips(entry) == ["noted", "read ×2", "viewed ×3"]
+    assert [chip for chip, _ in _styled_bead_verb_chips(entry)] == [
+        "noted",
+        "read ×2",
+        "viewed ×3",
+    ]
 
 
 # --- loader ---------------------------------------------------------------
