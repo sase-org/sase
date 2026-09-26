@@ -395,6 +395,21 @@ def tool_run_receipt_lookup(
     )
 
 
+def tool_run_receipts_report(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    return dict(
+        require_rust_binding("tool_run_receipts_report")(
+            store_path or str(tool_run_store_path()),
+            {"schema_version": 1, **dict(request)},
+            busy_timeout_ms,
+        )
+    )
+
+
 __all__ = [
     "tool_run_append_event",
     "tool_run_begin",
@@ -407,6 +422,7 @@ __all__ = [
     "tool_run_reconcile",
     "tool_run_receipt_lookup",
     "tool_run_receipt_settle",
+    "tool_run_receipts_report",
     "tool_run_request_stop",
     "tool_run_retention_apply",
     "tool_run_retention_preview",
