@@ -32,6 +32,7 @@ from sase.tool.query import (
     handle_show,
 )
 from sase.tool.receipt_query import ToolReceiptCliRequest, handle_receipt
+from sase.tool.receipt_report import ToolReceiptsCliRequest, handle_receipts
 from sase.tool.render import EMPTY, format_state, format_typical
 
 
@@ -101,6 +102,15 @@ def handle_tool_command(args: argparse.Namespace) -> None:
                 )
             )
         )
+    if subcommand == "receipts":
+        sys.exit(
+            handle_receipts(
+                ToolReceiptsCliRequest(
+                    days=int(getattr(args, "tool_receipts_days", 7)),
+                    json=bool(getattr(args, "tool_receipts_json", False)),
+                )
+            )
+        )
     if subcommand == "runs":
         sys.exit(
             handle_runs(
@@ -147,7 +157,7 @@ def handle_tool_command(args: argparse.Namespace) -> None:
             )
         )
     print(
-        "Usage: sase tool {failures,list,receipt,run,runs,show,stop,wait}",
+        "Usage: sase tool {failures,list,receipt,receipts,run,runs,show,stop,wait}",
         file=sys.stderr,
     )
     sys.exit(2)

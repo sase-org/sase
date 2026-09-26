@@ -34,7 +34,7 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
     tool_subparsers = tool_parser.add_subparsers(
         dest="tool_subcommand",
         help="Tool subcommands",
-        metavar="{failures,list,receipt,run,runs,show,stop,wait}",
+        metavar="{failures,list,receipt,receipts,run,runs,show,stop,wait}",
     )
 
     failures_parser = tool_subparsers.add_parser(
@@ -159,6 +159,42 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
         "tool_receipt_tool",
         metavar="TOOL",
         help="Named tool to query",
+    )
+
+    receipts_parser = tool_subparsers.add_parser(
+        "receipts",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="List receipts and content-equivalent repeat opportunities",
+        description=(
+            "List retained verdict receipts and report content-equivalent "
+            "verification repeats: counts, summed duration, top tools, and "
+            "the observation window. The comparison is content-addressed, "
+            "so a verified dirty tree later committed at a new HEAD counts "
+            "as a repeat opportunity. The report never changes what `run` "
+            "executes and never claims the current tree is covered."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase tool receipts\n"
+            "  sase tool receipts -d 14\n"
+            "  sase tool receipts -j"
+        ),
+    )
+    receipts_parser.add_argument(
+        "-d",
+        "--days",
+        type=int,
+        default=7,
+        metavar="N",
+        dest="tool_receipts_days",
+        help="Look back N days (default: 7)",
+    )
+    receipts_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        dest="tool_receipts_json",
+        help="Emit a versioned machine-readable JSON object",
     )
 
     run_parser = tool_subparsers.add_parser(

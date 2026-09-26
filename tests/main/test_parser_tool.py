@@ -46,13 +46,14 @@ def test_tool_help_advertises_implemented_verbs() -> None:
         "failures",
         "list",
         "receipt",
+        "receipts",
         "run",
         "runs",
         "show",
         "stop",
         "wait",
     ]
-    assert "{failures,list,receipt,run,runs,show,stop,wait}" in help_text
+    assert "{failures,list,receipt,receipts,run,runs,show,stop,wait}" in help_text
     usage_line = next(
         line for line in raw_help.splitlines() if line.startswith("usage:")
     )
@@ -154,3 +155,25 @@ def test_tool_failures_flags() -> None:
     assert parsed.tool_failures_limit == 20
     assert parsed.tool_failures_tool == "check"
     assert parsed.tool_failures_json is True
+
+
+def test_tool_receipts_flags() -> None:
+    parsed = create_parser().parse_args(
+        [
+            "tool",
+            "receipts",
+            "-d",
+            "14",
+            "-j",
+        ]
+    )
+    assert parsed.tool_subcommand == "receipts"
+    assert parsed.tool_receipts_days == 14
+    assert parsed.tool_receipts_json is True
+
+
+def test_tool_receipts_defaults() -> None:
+    parsed = create_parser().parse_args(["tool", "receipts"])
+    assert parsed.tool_subcommand == "receipts"
+    assert parsed.tool_receipts_days == 7
+    assert parsed.tool_receipts_json is False
