@@ -2251,9 +2251,16 @@ to the right of a mid-token caret, with `%m:@large`. Accepting a concrete model 
 `gpt-6-sol` replaces the whole live `==query` token with `%m:gpt-6-sol`. At prompt or
 line end the expansion appends one ASCII space; before a tab it appends none; before an
 existing ASCII space it preserves the rest of that whitespace run and leaves the caret
-after the first space. A valid shortcut with no matching rows returns an empty shortcut
-list rather than unrelated completion. Unaccepted equals text has no launch-time
-meaning.
+after the first space. When the trigger's `---` segment already holds a standalone
+`%model`/`%m` directive, accepting instead deletes the shortcut token and rewrites the
+earliest such directive in place with the selected value, removing any further
+standalone model directives in the segment so exactly one remains; the caret lands at
+the end of the rewritten directive. Directives inside alternation bodies (`%alt(...)`,
+`%(...)`, `%{...}`), other `---` segments, and literal/definition regions are never
+targets, and a trigger inside an alternation expands at its own token without touching
+sibling branches or outside text. A valid shortcut with no matching rows returns an
+empty shortcut list rather than unrelated completion. Unaccepted equals text has no
+launch-time meaning.
 
 The LSP reads the launcher-materialized catalog snapshot, so restart the editor session
 after alias or provider config changes. sase's TUI live prompt bar can additionally

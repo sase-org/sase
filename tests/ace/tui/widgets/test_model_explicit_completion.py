@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
 from textual.app import ComposeResult
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._file_completion_workers import (
     ModelCompletionCatalogWorkerResult,
 )
+from sase.ace.tui.widgets._model_shortcut_edits import apply_model_shortcut_edit
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
 from sase.ace.tui.widgets.model_explicit_completion import (
     MODEL_EXPLICIT_COMPLETION_KIND,
@@ -521,6 +523,77 @@ def test_double_equals_edit_plan_spacer_cases() -> None:
         assert planned.caret_offset == planned.replacement_start + len(
             planned.replacement
         )
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_caret"),
+    [
+        ("%model:old Use ==gp", (0, 19), "%m:gpt-5.6-sol Use ", 15),
+        ("Use ==gp then %m:old", (0, 8), "Use then %m:gpt-5.6-sol ", 24),
+    ],
+)
+def test_double_equals_edit_plan_applies_segment_replacement(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_caret: int,
+) -> None:
+    """A standalone directive in the trigger's segment takes the value."""
+    context = detect_model_explicit_completion_context(text, cursor)
+    assert context is not None
+    selected = build_model_explicit_completion_candidates(
+        context,
+        _model_entries(),
+    )[0]
+    planned = plan_model_explicit_completion_edit(
+        text,
+        cursor,
+        _model_entries(),
+        selected,
+    )
+
+    assert planned is not None
+    assert planned.additional_edits
+    applied = apply_model_shortcut_edit(
+        text,
+        planned.replacement_start,
+        planned.replacement_end,
+        planned.replacement,
+        planned.additional_edits,
+    )
+    assert applied == expected_text
+    assert planned.caret_offset == expected_caret
+
+
+async def test_double_equals_accept_moves_value_to_existing_directive() -> None:
+    """Accepting with a segment directive rewrites it and deletes the token."""
+    app = ModelExplicitCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+        original = "%model:old Use ==gp"
+        expanded = "%m:gpt-5.6-sol Use "
+        ta.load_text(original)
+        ta.cursor_location = (0, len(original))
+
+        await pilot.press("ctrl+t")
+        await pilot.press("ctrl+f")
+
+        assert ta.text == expanded
+        assert ta.cursor_location == (0, len("%m:gpt-5.6-sol "))
+        assert app.submitted == []
+        assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
+
+        await pilot.press("escape")
+        await pilot.press("u")
+
+        assert ta.text == original
+        assert ta._file_completion_active is False
+
+        await pilot.press("ctrl+r")
+
+        assert ta.text == expanded
+        assert ta._file_completion_active is False
 
 
 async def test_unknown_double_equals_stays_literal_and_can_submit() -> None:

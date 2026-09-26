@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from typing import Literal
 
 from sase.ace.tui.util.editor_offsets import editor_range_to_offsets, utf16_character
+from sase.ace.tui.widgets._model_shortcut_edits import (
+    ModelShortcutPlannedEdit,
+    parse_model_shortcut_edit_payload,
+)
 from sase.ace.tui.widgets._directive_completion_models import (
     build_explicit_model_shortcut_candidates,
 )
@@ -34,16 +38,6 @@ class ModelExplicitShortcutContext:
     token: str
     replacement_start: int
     replacement_end: int
-
-
-@dataclass(frozen=True, slots=True)
-class _ModelExplicitShortcutEdit:
-    """One validated edit that expands a ``==model`` shortcut."""
-
-    replacement_start: int
-    replacement_end: int
-    replacement: str
-    caret_offset: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,8 +138,15 @@ def plan_model_explicit_completion_edit(
     cursor_location: tuple[int, int],
     entries: Sequence[ModelCompletionEntry],
     selected: CompletionCandidate,
-) -> _ModelExplicitShortcutEdit | None:
-    """Plan accepting *selected* through the shared Rust edit contract."""
+) -> ModelShortcutPlannedEdit | None:
+    """Plan accepting *selected* through the shared Rust edit contract.
+
+    Consumes the full multi-edit result: the typed shortcut token is
+    deleted while the earliest eligible standalone directive in the same
+    prompt segment is rewritten with the selected value and any further
+    ones are removed. Payloads without ``additional_edits`` keep the
+    token-local expansion.
+    """
     metadata = selected.metadata
     if not isinstance(metadata, ModelCompletionMetadata) or metadata.kind != "model":
         return None
@@ -163,40 +164,9 @@ def plan_model_explicit_completion_edit(
         marker=MODEL_EXPLICIT_SHORTCUT_MARKER,
         expected_kind="model",
     )
-    if (
-        not isinstance(payload, dict)
-        or payload.get("schema_version") != 1
-        or payload.get("kind") != "model"
-    ):
+    if not isinstance(payload, dict) or payload.get("kind") != "model":
         return None
-    edit = payload.get("edit")
-    if not isinstance(edit, dict):
-        return None
-    replacement = edit.get("new_text")
-    if not isinstance(replacement, str):
-        return None
-    edit_range = editor_range_to_offsets(
-        text,
-        edit.get("range"),
-        allow_empty=True,
-    )
-    if edit_range is None:
-        return None
-    start, end = edit_range
-    preview = f"{text[:start]}{replacement}{text[end:]}"
-    caret = editor_range_to_offsets(
-        preview,
-        {"start": payload.get("caret"), "end": payload.get("caret")},
-        allow_empty=True,
-    )
-    if caret is None:
-        return None
-    return _ModelExplicitShortcutEdit(
-        replacement_start=start,
-        replacement_end=end,
-        replacement=replacement,
-        caret_offset=caret[0],
-    )
+    return parse_model_shortcut_edit_payload(text, payload)
 
 
 def _editor_position(

@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.widgets._model_shortcut_edits import apply_model_shortcut_edit
 from sase.ace.tui.widgets.model_alias_completion import (
     build_model_alias_completion_candidates,
     detect_model_alias_completion_context,
@@ -23,7 +24,7 @@ from sase.xprompt.model_completion import (
 )
 from tests._xprompt_directive_completion_parity_lsp import (
     LspSession,
-    apply_lsp_text_edit,
+    apply_lsp_completion_item_edits,
 )
 
 PARITY_ENTRIES: tuple[ModelCompletionEntry, ...] = (
@@ -338,6 +339,18 @@ def test_ace_and_lsp_double_equals_model_filter_text_preselect_and_expansion(
     assert "Expansion" in str(documentation.get("value") or "")
 
 
+def _apply_ace_plan(text: str, planned: Any) -> str:
+    applied = apply_model_shortcut_edit(
+        text,
+        planned.replacement_start,
+        planned.replacement_end,
+        planned.replacement,
+        planned.additional_edits,
+    )
+    assert applied is not None
+    return applied
+
+
 @pytest.mark.parametrize(
     ("text", "cursor", "alias"),
     [
@@ -360,20 +373,13 @@ def test_ace_and_lsp_equals_alias_edits_match(
     alias: str,
 ) -> None:
     planned = _ace_plan(text, cursor, alias)
-    ace_text = (
-        f"{text[: planned.replacement_start]}"
-        f"{planned.replacement}"
-        f"{text[planned.replacement_end :]}"
-    )
+    ace_text = _apply_ace_plan(text, planned)
     assert planned.caret_offset == planned.replacement_start + len(planned.replacement)
 
     with _parity_session(tmp_path) as lsp:
         result = lsp.complete_list(text, cursor=cursor)
     item = next(row for row in result.items if row.label == alias)
-    raw = item.raw or {}
-    text_edit = raw.get("textEdit")
-    assert isinstance(text_edit, dict)
-    lsp_text, lsp_caret = apply_lsp_text_edit(text, text_edit)
+    lsp_text, lsp_caret = apply_lsp_completion_item_edits(text, item.raw or {})
     assert lsp_text == ace_text
     assert lsp_caret == planned.caret_offset
 
@@ -401,20 +407,124 @@ def test_ace_and_lsp_double_equals_model_edits_match(
     model: str,
 ) -> None:
     planned = _ace_model_plan(text, cursor, model)
-    ace_text = (
-        f"{text[: planned.replacement_start]}"
-        f"{planned.replacement}"
-        f"{text[planned.replacement_end :]}"
-    )
+    ace_text = _apply_ace_plan(text, planned)
     assert planned.caret_offset == planned.replacement_start + len(planned.replacement)
 
     with _parity_session(tmp_path) as lsp:
         result = lsp.complete_list(text, cursor=cursor)
     item = next(row for row in result.items if row.label == model)
-    raw = item.raw or {}
-    text_edit = raw.get("textEdit")
-    assert isinstance(text_edit, dict)
-    lsp_text, lsp_caret = apply_lsp_text_edit(text, text_edit)
+    lsp_text, lsp_caret = apply_lsp_completion_item_edits(text, item.raw or {})
+    assert lsp_text == ace_text
+    assert lsp_caret == planned.caret_offset
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "alias", "expected", "expected_caret"),
+    [
+        ("%model:old Use =la", (0, 18), "@large", "%m:@large Use ", 10),
+        ("Use =la then %m:old", (0, 7), "@large", "Use then %m:@large ", 19),
+        ("%m:a Use =la and %model:b", (0, 12), "@large", None, None),
+        (
+            "%{%m:opus | %m:sonnet} Use =la",
+            (0, 32),
+            "@large",
+            "%{%m:opus | %m:sonnet} Use %m:@large ",
+            None,
+        ),
+        (
+            "%{a =la %m:keep | b} end",
+            (0, 7),
+            "@large",
+            "%{a %m:@large %m:keep | b} end",
+            None,
+        ),
+        (
+            "%m:old\n---\nUse =la",
+            (2, 7),
+            "@large",
+            "%m:old\n---\nUse %m:@large ",
+            None,
+        ),
+        ("🙂 %model:old Use =la", (0, 20), "@large", None, None),
+        (
+            "%{a +launch | b} Use =la",
+            (0, 24),
+            "@large",
+            "%{a +launch | b} Use %m:@large ",
+            None,
+        ),
+    ],
+)
+def test_ace_and_lsp_equals_alias_segment_replacement_matches(
+    tmp_path: Path,
+    text: str,
+    cursor: tuple[int, int],
+    alias: str,
+    expected: str | None,
+    expected_caret: int | None,
+) -> None:
+    """Both frontends apply the same segment-scoped shortcut acceptance.
+
+    A standalone directive elsewhere in the trigger's ``---`` segment moves
+    the selected value to that directive's position while the shortcut token
+    disappears; alternation bodies, other segments, and branch project tags
+    stay intact, and a trigger inside an alternation expands locally.
+    """
+    planned = _ace_plan(text, cursor, alias)
+    ace_text = _apply_ace_plan(text, planned)
+    if expected is not None:
+        assert ace_text == expected
+    if text in {"Use =la then %m:old", "%m:a Use =la and %model:b"}:
+        assert "=la" not in ace_text
+        assert ace_text.count("%m:") == 1
+    if expected_caret is not None:
+        assert planned.caret_offset == expected_caret
+
+    with _parity_session(tmp_path) as lsp:
+        result = lsp.complete_list(text, cursor=cursor)
+    item = next(row for row in result.items if row.label == alias)
+    lsp_text, lsp_caret = apply_lsp_completion_item_edits(text, item.raw or {})
+    assert lsp_text == ace_text
+    assert lsp_caret == planned.caret_offset
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "model", "expected", "expected_caret"),
+    [
+        ("%model:old Use ==la", (0, 19), "large-model", "%m:large-model Use ", 15),
+        ("Use ==la then %m:old", (0, 8), "large-model", None, None),
+        (
+            "%{a ==la %m:keep | b} end",
+            (0, 8),
+            "large-model",
+            "%{a %m:large-model %m:keep | b} end",
+            None,
+        ),
+    ],
+)
+def test_ace_and_lsp_double_equals_segment_replacement_matches(
+    tmp_path: Path,
+    text: str,
+    cursor: tuple[int, int],
+    model: str,
+    expected: str | None,
+    expected_caret: int | None,
+) -> None:
+    """Both frontends apply the same ``==model`` segment replacement."""
+    planned = _ace_model_plan(text, cursor, model)
+    ace_text = _apply_ace_plan(text, planned)
+    if expected is not None:
+        assert ace_text == expected
+    if text == "Use ==la then %m:old":
+        assert "==la" not in ace_text
+        assert ace_text.count("%m:") == 1
+    if expected_caret is not None:
+        assert planned.caret_offset == expected_caret
+
+    with _parity_session(tmp_path) as lsp:
+        result = lsp.complete_list(text, cursor=cursor)
+    item = next(row for row in result.items if row.label == model)
+    lsp_text, lsp_caret = apply_lsp_completion_item_edits(text, item.raw or {})
     assert lsp_text == ace_text
     assert lsp_caret == planned.caret_offset
 

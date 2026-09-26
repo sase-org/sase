@@ -660,3 +660,69 @@ def apply_lsp_text_edit(text: str, text_edit: Mapping[str, Any]) -> tuple[str, i
     start, end = offsets
     replacement = str(text_edit.get("newText") or "")
     return f"{text[:start]}{replacement}{text[end:]}", start + len(replacement)
+
+
+def apply_lsp_completion_item_edits(
+    text: str,
+    item_raw: Mapping[str, Any],
+) -> tuple[str, int]:
+    """Apply an LSP item's ``textEdit`` plus ``additionalTextEdits``.
+
+    Returns ``(new_text, caret_python_offset)``. The caret is the end of
+    the primary application for the token-local case, and the end of the
+    first non-empty additional edit (the destination replacement) for a
+    segment replacement — mirroring the shared Rust caret contract.
+    """
+    from sase.ace.tui.util.editor_offsets import editor_range_to_offsets
+
+    text_edit = item_raw.get("textEdit")
+    assert isinstance(text_edit, dict)
+    spans: list[tuple[int, int, str, bool]] = []
+
+    def _span(raw: Any, *, primary: bool) -> tuple[int, int, str, bool]:
+        assert isinstance(raw, dict)
+        offsets = editor_range_to_offsets(
+            text,
+            raw.get("range"),
+            allow_empty=True,
+        )
+        assert offsets is not None
+        start, end = offsets
+        return start, end, str(raw.get("newText") or ""), primary
+
+    spans.append(_span(text_edit, primary=True))
+    additional = item_raw.get("additionalTextEdits", [])
+    assert isinstance(additional, list)
+    for raw in additional:
+        spans.append(_span(raw, primary=False))
+    for first in range(len(spans)):
+        for second in range(first + 1, len(spans)):
+            assert not (
+                spans[first][0] < spans[second][1]
+                and spans[second][0] < spans[first][1]
+            ), "LSP edits must be nonoverlapping"
+    ordered = sorted(spans, key=lambda span: (span[0], span[1]))
+    pieces: list[str] = []
+    pos = 0
+    caret = 0
+    primary_end = 0
+    destination_seen = False
+    for span_start, span_end, new_text, primary in ordered:
+        assert span_start >= pos
+        pieces.append(text[pos:span_start])
+        edit_end = sum(len(piece) for piece in pieces) + len(new_text)
+        if primary:
+            primary_end = edit_end
+        if new_text and not destination_seen:
+            # The destination replacement carries the caret: the first
+            # non-empty edit in application order, whether it rides as the
+            # primary (merged coincident range) or as an additional edit.
+            caret = edit_end
+            destination_seen = True
+        pieces.append(new_text)
+        pos = span_end
+    pieces.append(text[pos:])
+    new_text_full = "".join(pieces)
+    if not destination_seen:
+        caret = primary_end
+    return new_text_full, caret

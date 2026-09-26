@@ -14,6 +14,10 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefPayloadCompletionMetadata,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets._model_shortcut_edits import (
+    ModelShortcutPlannedEdit,
+    apply_model_shortcut_edit,
+)
 from sase.ace.tui.widgets.model_alias_completion import (
     is_model_alias_completion_placeholder,
     plan_model_alias_completion_edit,
@@ -215,12 +219,7 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         if planned is None:
             self._clear_file_completion()
             return False
-        start = self._location_from_absolute(planned.replacement_start)
-        end = self._location_from_absolute(planned.replacement_end)
-        self._replace_via_keyboard(planned.replacement, start, end)
-        self.cursor_location = self._location_from_absolute(planned.caret_offset)
-        self._clear_file_completion()
-        return True
+        return self._accept_model_shortcut_plan(planned)
 
     def _accept_model_explicit_completion(
         self,
@@ -247,9 +246,38 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         if planned is None:
             self._clear_file_completion()
             return False
-        start = self._location_from_absolute(planned.replacement_start)
-        end = self._location_from_absolute(planned.replacement_end)
-        self._replace_via_keyboard(planned.replacement, start, end)
+        return self._accept_model_shortcut_plan(planned)
+
+    def _accept_model_shortcut_plan(
+        self,
+        planned: ModelShortcutPlannedEdit,
+    ) -> bool:
+        """Apply a shortcut edit set as one logical acceptance.
+
+        The token-local case keeps the single keyboard replacement. A
+        segment replacement applies every core edit to the whole prompt in
+        one replacement, so dismissal and single-step undo behave exactly
+        like the single-edit accept.
+        """
+        if not planned.additional_edits:
+            start = self._location_from_absolute(planned.replacement_start)
+            end = self._location_from_absolute(planned.replacement_end)
+            self._replace_via_keyboard(planned.replacement, start, end)
+            self.cursor_location = self._location_from_absolute(planned.caret_offset)
+            self._clear_file_completion()
+            return True
+        old_text = self.text
+        new_text = apply_model_shortcut_edit(
+            old_text,
+            planned.replacement_start,
+            planned.replacement_end,
+            planned.replacement,
+            planned.additional_edits,
+        )
+        if new_text is None:
+            self._clear_file_completion()
+            return False
+        self._replace_absolute_range(0, len(old_text), new_text)
         self.cursor_location = self._location_from_absolute(planned.caret_offset)
         self._clear_file_completion()
         return True
