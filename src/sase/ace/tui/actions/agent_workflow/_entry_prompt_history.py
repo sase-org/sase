@@ -29,11 +29,8 @@ class EntryPromptHistoryMixin:
             mru_prefix_project_name,
         )
 
-        from ...modals import (
-            PromptHistoryAction,
-            PromptHistoryModal,
-            PromptHistoryResult,
-        )
+        from ...modals import PromptHistoryAction, PromptHistoryResult
+        from ...modals.prompts_modal import PromptsOrigin
 
         # Load the MRU head (same as Space).
         pairs = load_launchable_vcs_xprompt_mru_pairs()
@@ -126,9 +123,23 @@ class EntryPromptHistoryMixin:
             else:
                 _edit_prompt(result.prompt_text)
 
-        self.push_screen(  # type: ignore[attr-defined]
-            PromptHistoryModal(show_cancelled=show_cancelled),
-            on_history_select,
+        def on_history_cancel() -> None:
+            invalidate_prompt_session(self)
+
+        # Route through the complete overlay on the History tab with a
+        # home/MRU origin: submit/edit callbacks stay this entry point's own
+        # so a tab switch can never silently apply the live-bar action.
+        # Stash restores land in the home bar; Trash restores stay in Stash.
+        self._spawn_prompt_stash_task(  # type: ignore[attr-defined]
+            self._open_prompts_overlay_async(  # type: ignore[attr-defined]
+                initial_tab="history",
+                origin=PromptsOrigin(
+                    kind="home_mru",
+                    show_cancelled=show_cancelled,
+                ),
+                history_handler=on_history_select,
+                cancel_handler=on_history_cancel,
+            )
         )
 
     def _first_prompt_history_entry_for_editor(self) -> str | None:

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.modals.stashed_prompts_modal import StashedPromptsModal
+from sase.ace.tui.modals.prompts_modal import PromptsModal, PromptsTab
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 from ._prompt_stash_restore_helpers import (
@@ -44,9 +44,10 @@ async def test_feedback_mode_is_noop_with_toast(
     ]
 
 
-async def test_empty_store_toasts_and_skips_modal(
+async def test_empty_store_opens_overlay_on_stash(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    """An empty Stash still opens the overlay (empty state points at Trash)."""
     _skip_without_prompt_stash_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
@@ -54,8 +55,11 @@ async def test_empty_store_toasts_and_skips_modal(
 
     await harness._open_prompt_stash_panel()
 
-    assert harness.pushed == []
-    assert harness.notifications == [("No stashed prompts to restore", None)]
+    assert len(harness.pushed) == 1
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, PromptsModal)
+    assert modal._active_tab is PromptsTab.STASH
+    assert harness.notifications == []
 
 
 async def test_open_pushes_modal_with_snapshot_entries(
@@ -77,15 +81,16 @@ async def test_open_pushes_modal_with_snapshot_entries(
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
-    assert isinstance(modal, StashedPromptsModal)
+    assert isinstance(modal, PromptsModal)
+    assert modal._active_tab is PromptsTab.STASH
     # Newest first.
-    assert [e.id for e in modal._entries] == ["b", "a"]
+    assert [e.id for e in modal._stash_pane._entries] == ["b", "a"]
 
 
 async def test_action_restore_prompt_stash_opens_modal(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The global ``@`` action opens the unified picker for multiple entries."""
+    """The global ``@`` action opens the overlay for multiple entries."""
     _skip_without_prompt_stash_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
@@ -103,8 +108,8 @@ async def test_action_restore_prompt_stash_opens_modal(
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
-    assert isinstance(modal, StashedPromptsModal)
-    assert [e.id for e in modal._entries] == ["b", "a"]
+    assert isinstance(modal, PromptsModal)
+    assert [e.id for e in modal._stash_pane._entries] == ["b", "a"]
 
 
 async def test_action_open_prompt_stash_single_entry_opens_without_restoring(
@@ -123,8 +128,8 @@ async def test_action_open_prompt_stash_single_entry_opens_without_restoring(
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
-    assert isinstance(modal, StashedPromptsModal)
-    assert [e.id for e in modal._entries] == ["a"]
+    assert isinstance(modal, PromptsModal)
+    assert [e.id for e in modal._stash_pane._entries] == ["a"]
     assert bar.restored is None
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 
@@ -235,7 +240,7 @@ async def test_action_restore_prompt_stash_single_bundle_restores_panes_and_pops
 async def test_action_restore_prompt_stash_empty_store_toasts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The global ``@`` action toasts instead of opening an empty picker."""
+    """The global ``@`` action opens the overlay even when fully empty."""
     _skip_without_prompt_stash_bindings()
     path = tmp_path / "prompt_stash.jsonl"
     _point_store_at(monkeypatch, path)
@@ -244,8 +249,10 @@ async def test_action_restore_prompt_stash_empty_store_toasts(
     await harness.action_restore_prompt_stash()
     await _wait_prompt_stash_tasks(harness)
 
-    assert harness.pushed == []
-    assert harness.notifications == [("No stashed prompts to restore", None)]
+    assert len(harness.pushed) == 1
+    modal, _callback = harness.pushed[0]
+    assert isinstance(modal, PromptsModal)
+    assert modal._active_tab is PromptsTab.STASH
 
 
 # --- prompt-local restore events ------------------------------------------
@@ -269,8 +276,8 @@ async def test_restore_requested_single_entry_still_opens_modal(
 
     assert len(harness.pushed) == 1
     modal, _callback = harness.pushed[0]
-    assert isinstance(modal, StashedPromptsModal)
-    assert [e.id for e in modal._entries] == ["a"]
+    assert isinstance(modal, PromptsModal)
+    assert [e.id for e in modal._stash_pane._entries] == ["a"]
     assert bar.restored is None
     from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
 

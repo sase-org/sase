@@ -20,8 +20,9 @@ A typed :class:`PromptsOrigin` records which entry point opened the overlay
 a :class:`PromptsResult` naming the tab that produced it, so switching tabs
 can never silently apply the initial tab's callback to the wrong action.
 
-Existing external entry points keep pushing the standalone pickers until the
-rollout phase routes them here.
+All Stash and History entry points open this overlay (on their correct
+initial tab with a typed origin); the standalone ``StashedPromptsModal``
+and ``PromptHistoryModal`` remain for focused unit tests only.
 """
 
 from __future__ import annotations

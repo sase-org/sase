@@ -1186,10 +1186,10 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,M`       | Kill running mentors                                                                        |
 | `,R`       | Show runners info                                                                           |
 | `,<space>` | Run agent from current PR (skips project selection)                                         |
-| `,.`       | Open prompt history modal                                                                   |
+| `,.`       | Open the Prompts overlay on History                                                         |
 | `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                                   |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                    |
-| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                            |
+| `,>`       | Open the Prompts overlay on History with cancelled prompts visible                          |
+| `,@`       | Open the Prompts overlay on Stash without auto-restoring a lone entry                       |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers
 use lifecycle-aware discovery: project entries, including `home` when it appears in
@@ -2861,10 +2861,10 @@ clan. Help is not a leader command: press the app-level `?` to open the Help mod
 | `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                                                                       |
 | `,X`       | Kill & edit this session's last launched agent, ignoring marks and focus                                                                       |
 | `,<space>` | Run agent from current agent's PR (skips selection)                                                                                            |
-| `,.`       | Open prompt history modal                                                                                                                      |
+| `,.`       | Open the Prompts overlay on History                                                                                                            |
 | `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                                                                                      |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                                                                       |
-| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                                                                               |
+| `,>`       | Open the Prompts overlay on History with cancelled prompts visible                                                                             |
+| `,@`       | Open the Prompts overlay on Stash without auto-restoring a lone entry                                                                          |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`,
 `TALE DONE`, `PLAN REJECTED`, `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from
@@ -3327,10 +3327,10 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 | `,E`      | Plan Everything from cached update snapshots and skip confirmation if runnable              |
 | `,L`      | Jump to the log entry for the most recent error toast                                       |
 | `,R`      | Show runners info                                                                           |
-| `,.`      | Open prompt history modal                                                                   |
+| `,.`      | Open the Prompts overlay on History                                                         |
 | `,Ctrl+G` | Open prompt history and edit the newest entry immediately                                   |
-| `,>`      | Open prompt history modal with cancelled prompts visible                                    |
-| `,@`      | Open the prompt stash picker without auto-restoring a lone entry                            |
+| `,>`      | Open the Prompts overlay on History with cancelled prompts visible                          |
+| `,@`      | Open the Prompts overlay on Stash without auto-restoring a lone entry                       |
 
 ### Bang Mode (`!` prefix)
 
@@ -3494,7 +3494,7 @@ These work on all tabs:
 | `Space`                 | Prefill the prompt with the most recently launched VCS xprompt (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt)                                   |
 | `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                               |
 | `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                      |
-| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the restore picker                                                                              |
+| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the Prompts overlay on Stash                                                                    |
 | `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                          |
 | `Q`                     | Open the quit / restart menu                                                                                                                                           |
 | `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Services (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
@@ -4984,9 +4984,9 @@ after the tab strip and a 2-cell minimum gap; separators kept) still identifies 
 group; widening restores full labels without oscillation. Every group is clickable:
 procs opens the Admin Center Procs tab, updates opens the Updates tab (or the Procs tab
 on the running update while SASE is updating, when the badge shows its green gear
-inset), overrides, priority, and disabled open Launch settings, stash opens the prompt
-stash picker, and inbox opens the notification modal. While SASE is updating itself, the
-`updates` group shows a green `⚙` gear inset at its left edge.
+inset), overrides, priority, and disabled open Launch settings, stash opens the Prompts
+overlay on Stash, and inbox opens the notification modal. While SASE is updating itself,
+the `updates` group shows a green `⚙` gear inset at its left edge.
 
 ### Proc Indicator
 
@@ -6397,7 +6397,7 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | Key                          | Action                                                                                                                                                    |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Enter`                      | Open the submission panel for a non-empty agent prompt; pressing `Enter` again confirms the primary launch action. Does not accept a completion candidate |
-| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                                                               |
+| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the Prompts overlay on Stash                                                                            |
 | `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                                       |
 | `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                                   |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                                  |
@@ -6422,9 +6422,9 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 | `Ctrl+G X`                   | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                                      |
 | `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                                      |
 | `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                             |
-| `Ctrl+G p`                   | Open the stashed-prompt picker                                                                                                                            |
+| `Ctrl+G p`                   | Open the Prompts overlay on Stash                                                                                                                         |
 | `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                                             |
-| `Ctrl+K`                     | Open prompt history from a single-line prompt, scoped to that prompt's project (see [Prompt History Modal](#prompt-history-modal))                        |
+| `Ctrl+K`                     | Open the Prompts overlay on History from a single-line prompt, scoped to that prompt's project (see [Prompt History Modal](#prompt-history-modal))        |
 | `Ctrl+P`                     | Cycle toward older workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its last row             |
 | `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its first row            |
 | `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))                                                |
@@ -6648,7 +6648,7 @@ prefix actions currently available.
 | Key         | Action                                                                                                                                                                              |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Enter`     | Open the submit chooser by default; `Enter` inside that panel confirms the primary action. With `ace.prompt_submission.confirm_on_enter: false`, submit the active pane immediately |
-| `Ctrl+S`    | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                                                                                         |
+| `Ctrl+S`    | Stash the active pane; from an empty prompt, open the Prompts overlay on Stash                                                                                                      |
 | `g<enter>`  | Launch the selected pane and remove it from the stack                                                                                                                               |
 | `Ctrl+C`    | Record the selected pane as cancelled history and remove it; the final remaining pane cancels normally                                                                              |
 | `Escape`    | Enter NORMAL mode for stack navigation                                                                                                                                              |
@@ -6694,9 +6694,9 @@ Prompt stashes are a per-user draft pile stored outside prompt history. `Ctrl+S`
 captures the selected non-empty pane plus the shared prompt frontmatter; when other
 panes remain the bar stays open, and when the last pane is stashed the bar closes
 without also recording the draft as cancelled history. If the active pane is empty,
-`Ctrl+S` opens the stashed-prompt picker instead. `gs` captures all non-empty panes in
-their current order as one bundled stash row and dismisses the bar. `gS` opens an update
-flow for an existing pinned stash and overwrites the chosen row with the current
+`Ctrl+S` opens the Prompts overlay on Stash instead. `gs` captures all non-empty panes
+in their current order as one bundled stash row and dismisses the bar. `gS` opens an
+update flow for an existing pinned stash and overwrites the chosen row with the current
 non-empty panes. Manual and restart stashes remember the active pane and its cursor, and
 restore focuses that pane in INSERT mode at the same logical line and column. Legacy
 rows and failed-launch recovery rows have no saved position, so they still restore to
@@ -6724,22 +6724,48 @@ placeholders. Tags in inline code, fenced code, and disabled xprompt regions sta
 literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders)
 for the exact launch, conversion, and naming rules.
 
-`Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar. From the main
+`Ctrl+G p` opens the Prompts overlay on the Stash tab from the prompt bar. From the main
 sase's TUI tabs, even when the prompt bar is not active, `@` restores a lone stashed
-draft directly and opens the picker when several are stashed; `,@` or clicking the
-`stash:` chip always opens the picker. In the picker, `space` toggles a row's persistent
-pin, `Tab` toggles a row's restore mark, `d` marks one row for deletion, `D` marks every
-row for deletion, `a` toggles restore marks on all rows, and `Enter` confirms the marked
-set; restores are pin-aware, so marked pinned rows stay stashed. Delete marks are staged
-until confirmation, replace restore marks for the same rows, and do not alter pin state;
-confirming delete marks with `Enter` deletes those rows and keeps the picker open on the
-remaining entries, and the picker closes only when nothing remains or when rows are also
-being restored. `Escape` or `q` closes the picker and discards unconfirmed marks;
-deletions already confirmed with `Enter` and pin toggles are saved immediately. With no
-explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed when
-restored, while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows 1-10
-directly with the same pin-aware behavior. A small `stash: ≡ N` pink-chip top-bar group
-shows how many restorable drafts are currently stashed.
+draft directly and opens the overlay when several are stashed; `,@` or clicking the
+`stash:` chip always opens the overlay on Stash, and an empty Stash still opens it (the
+empty state explains how to save a draft and points at Trash when Trash has rows). In
+the Stash tab, `space` toggles a row's persistent pin, `Tab` toggles a row's restore
+mark, `d` marks one row for discard, `D` marks every row for discard, `a` toggles
+restore marks on all rows, and `Enter` confirms the marked set; restores are pin-aware,
+so marked pinned rows stay stashed. With no explicit marks, `Enter` restores the
+highlighted row; pinned rows stay stashed when restored, while unpinned rows are popped.
+Number keys `1`-`9` and `0` restore rows 1-10 directly with the same pin-aware behavior.
+`Escape` or `q` closes the overlay and discards unconfirmed marks. A small `stash: ≡ N`
+pink-chip top-bar group shows how many restorable drafts are currently stashed; the
+Trash count appears in the overlay's `Trash M/N` tab.
+
+Discarding a Stash row moves it to **Trash**, newest-deleted-first with the deletion age
+visible — never permanent deletion. In the Trash tab, `Enter` (or a digit key, or marked
+`Tab`/`a`) restores rows back to Stash while the overlay stays open; it never loads the
+prompt bar. `d`/`D` stage rows for permanent deletion and `Enter` asks for explicit
+confirmation before purging; `Ctrl+Y` copies a row. Trash holds at most
+`ace.prompt_stash.trash_limit` entries (default 20; this is an entry-count limit, not a
+byte quota): a discard batch that would overflow it names the expected permanent-loss
+count up front, and the success toast names the actual evictions. Setting the limit to
+`0` disables recovery — discards are permanently deleted. A lowered limit is enforced
+the next time the overlay opens, and any evictions are surfaced. Trash recovers only
+drafts deliberately discarded from Stash; successful unpinned Stash restores consume
+their rows without entering Trash, and there is no history deletion action.
+
+Compact demo — discard `fix flaky parser test`, then recover it:
+
+1. Stash tab: highlight the row, press `d`, then `Enter`; confirm
+   `Move 1 draft to Trash?`. The toast reads `Moved 1 draft to Trash` and the tab strip
+   shows `Trash 1/20`.
+2. Press `]` to reach the Trash tab: the row sits newest-first with its deletion age.
+3. Press `Enter`: the toast reads `Restored 1 draft to Stash`, the overlay stays open,
+   and `[` returns to a Stash tab holding the recovered draft.
+
+Trash requires the current stash core binding: restart old TUI processes before the new
+behavior takes effect, since mixed-version operation is unsupported. Before the first
+new-format write, sase verifies a recoverable pre-upgrade backup of `prompt_stash.jsonl`
+under the stash lock and fails closed when backup creation fails; recover pre-upgrade
+drafts from that backup.
 
 ### Editing an Existing XPrompt from the TUI
 
@@ -7770,18 +7796,28 @@ always apply to whole selected lines regardless of the cursor column.
 
 ## Prompt History Modal
 
-Press `Ctrl+K` from the prompt input to open the prompt history modal. That shortcut is
-available when the current prompt is a single logical line; that line's first active
-workspace reference (e.g. `+sase`) becomes an initial `project:<name>` filter scope once
-the project-identity snapshot resolves, with the remaining text preserved as a literal
-search (see Filtering below). A `+<project>` tag counts when it names a known project or
-leads the line, a `#` VCS reference always counts, whichever comes first wins, and
-references inside code spans are skipped. Press `,.` (leader + `.`) to open the same
-modal unscoped from the main sase's TUI UI. The modal loads prompts previously launched
-from sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100).
-Normal launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do
-not clutter the list, while failed-launch recovery can still preserve a short submitted
-prompt. The same history is available from the shell through [`sase prompt`](prompt.md).
+Stash, History, and Trash live in one **Prompts** overlay: a single frame with a
+`Stash N` / `History` / `Trash M/N` tab strip, a consistent list/preview split, and one
+contextual footer per tab. `[` and `]` cycle tabs with wraparound (even from the focused
+History filter), clicking a tab selects it, `Esc` closes, and `q` closes when focus is
+outside a text input. Each tab keeps its highlight, scroll, filter, loaded pages,
+preview position, and staged marks across switches, and History loads lazily on first
+activation so opening Stash performs no history disk I/O.
+
+Press `Ctrl+K` from the prompt input to open the overlay on the History tab. That
+shortcut is available when the current prompt is a single logical line; that line's
+first active workspace reference (e.g. `+sase`) becomes an initial `project:<name>`
+filter scope once the project-identity snapshot resolves, with the remaining text
+preserved as a literal search (see Filtering below). A `+<project>` tag counts when it
+names a known project or leads the line, a `#` VCS reference always counts, whichever
+comes first wins, and references inside code spans are skipped. Press `,.` (leader +
+`.`) to open the same tab unscoped from the main sase's TUI UI. `,>` opens it with
+cancelled prompts visible, and `,Ctrl+G` edits the newest entry immediately. The History
+tab loads prompts previously launched from sase's TUI or `sase run` in recency pages of
+`ace.page_size` rows (default 100). Normal launch writes skip prompts shorter than five
+words (e.g. `y`, `ok`) so they do not clutter the list, while failed-launch recovery can
+still preserve a short submitted prompt. The same history is available from the shell
+through [`sase prompt`](prompt.md).
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace

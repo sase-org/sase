@@ -163,6 +163,10 @@ async def test_plus_dispatches_custom_agent_and_at_does_not() -> None:
 
             await page.press("at")
             assert custom_calls == []
+            # ``@`` now opens the overlay even when Stash is empty; dismiss
+            # it so the next key reaches the app binding under test.
+            await page.press("escape")
+            await page.expect_no_modal()
 
             await page.press("plus")
             assert custom_calls == [True]
@@ -281,4 +285,5 @@ async def test_agents_prompt_input_ctrl_k_keeps_local_history_priority() -> None
             await page.pause()
             await page.press("h", "i", "ctrl+k")
 
-            await page.expect_modal("PromptHistoryModal")
+            # History now opens as the History tab of the Prompts overlay.
+            await page.expect_modal("PromptsModal")

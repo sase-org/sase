@@ -19,6 +19,7 @@ async def _assert_handler_returns_while_read_is_stuck(
     invoke: Callable[[], Awaitable[None]],
     *,
     counts_read: bool = False,
+    overlay_read: bool = False,
 ) -> None:
     entered = threading.Event()
     release = threading.Event()
@@ -28,8 +29,25 @@ async def _assert_handler_returns_while_read_is_stuck(
         release.wait(timeout=1.0)
         return (0, 0) if counts_read else []
 
-    attr = "_read_prompt_stash_counts" if counts_read else "_read_prompt_stash_entries"
-    setattr(harness, attr, _slow_read)
+    def _slow_overlay_read() -> object:
+        from sase.ace.tui.actions.agent_workflow._prompt_bar_stash_restore import (
+            _PromptsOverlaySnapshot,
+        )
+
+        entered.set()
+        release.wait(timeout=1.0)
+        return _PromptsOverlaySnapshot(entries=(), trash=(), trash_limit=20)
+
+    if overlay_read:
+        # Overlay entry points batch the lifecycle read through
+        # ``_read_prompt_stash_overlay_snapshot`` on a worker thread.
+        attr = "_read_prompt_stash_overlay_snapshot"
+        setattr(harness, attr, _slow_overlay_read)
+    else:
+        attr = (
+            "_read_prompt_stash_counts" if counts_read else "_read_prompt_stash_entries"
+        )
+        setattr(harness, attr, _slow_read)
     try:
         await asyncio.wait_for(invoke(), timeout=0.05)
         assert getattr(harness, "_prompt_stash_async_tasks", set())
@@ -69,6 +87,9 @@ async def test_store_read_handlers_return_while_store_is_stuck(
     await _assert_handler_returns_while_read_is_stuck(
         harness,
         invocations[operation],
+        # The three overlay entry points read through the batched overlay
+        # snapshot; only the pinned-update path still uses the legacy seam.
+        overlay_read=operation != "update_pinned",
     )
 
 

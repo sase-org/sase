@@ -847,6 +847,7 @@ ace:
 | `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                   |
 | `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                   |
 | `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                           |
+| `prompt_stash`                      | dict         | see below | Stash Trash recovery settings for sase's TUI Prompts overlay.                                                                                                |
 | `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab.                                                                                   |
 | `agent_header`                      | dict         | see below | Collapsed Agents-tab header panel XPROMPT preview budget.                                                                                                    |
 | `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                    |
@@ -1719,6 +1720,30 @@ Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py
 `src/sase/ace/tui/widgets/_misspelling_highlight.py`,
 `src/sase/ace/tui/actions/_startup_misspellings.py`,
 `src/sase/ace/tui/modals/spellcheck_panel_modal.py`
+
+#### `ace.prompt_stash`
+
+Controls Stash Trash recovery in sase's TUI Prompts overlay (see
+[Prompt History Modal](ace.md#prompt-history-modal)). Trash recovers only drafts
+deliberately discarded from Stash, up to the configured row limit.
+
+```yaml
+ace:
+  prompt_stash:
+    trash_limit: 20
+```
+
+| Field         | Type | Default | Description                                                                                                                                                                                                      |
+| ------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trash_limit` | int  | `20`    | Maximum Trash rows kept. An entry-count limit, not a byte quota. `0` disables recovery and permanently discards rows marked for Trash. Must be an integer >= 0; booleans and malformed values fall back to `20`. |
+
+A lowered limit is enforced the next time the overlay opens (over-limit rows are
+permanently deleted oldest-first and the evictions surfaced). Trash requires the current
+stash core binding: restart old TUI processes before the new behavior takes effect,
+since mixed-version operation is unsupported.
+
+Source: `src/sase/ace/config.py`, `src/sase/core/prompt_stash_facade.py`,
+`src/sase/ace/tui/actions/agent_workflow/_prompt_bar_stash_restore.py`
 
 #### `ace.agent_decks`
 

@@ -131,11 +131,8 @@ class PromptBarRequestsMixin:
         if self._prompt_context is None:
             return
 
-        from ...modals import (
-            PromptHistoryAction,
-            PromptHistoryModal,
-            PromptHistoryResult,
-        )
+        from ...modals import PromptHistoryAction, PromptHistoryResult
+        from ...modals.prompts_modal import PromptsOrigin
 
         vcs_prefix = event.vcs_prefix
 
@@ -169,19 +166,22 @@ class PromptBarRequestsMixin:
                 return replace_vcs_workflow_tags(prompt_text, vcs_prefix)
             return prompt_text
 
+        def on_history_cancel() -> None:
+            if event.preserve_prompt_bar:
+                try:
+                    bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
+                    bar.active_text_area().focus()
+                except Exception:
+                    pass
+                return
+            self.notify("No prompt from history - cancelled", severity="warning")  # type: ignore[attr-defined]
+            invalidate_prompt_session(self, clear_context=False)
+            self._unmount_prompt_bar()  # type: ignore[attr-defined]
+            self._prompt_context = None
+
         def on_history_select(result: PromptHistoryResult | None) -> None:
             if result is None:
-                if event.preserve_prompt_bar:
-                    try:
-                        bar = self.query_one("#prompt-input-bar", PromptInputBar)  # type: ignore[attr-defined]
-                        bar.active_text_area().focus()
-                    except Exception:
-                        pass
-                    return
-                self.notify("No prompt from history - cancelled", severity="warning")  # type: ignore[attr-defined]
-                invalidate_prompt_session(self, clear_context=False)
-                self._unmount_prompt_bar()  # type: ignore[attr-defined]
-                self._prompt_context = None
+                on_history_cancel()
                 return
 
             if result.action == PromptHistoryAction.SUBMIT:
@@ -210,13 +210,23 @@ class PromptBarRequestsMixin:
                     self._unmount_prompt_bar()  # type: ignore[attr-defined]
                     self._prompt_context = None
 
-        self.push_screen(  # type: ignore[attr-defined]
-            PromptHistoryModal(
-                show_cancelled=event.show_cancelled,
-                initial_filter=event.initial_filter,
-                prompt_seed=event.prompt_seed,
-            ),
-            on_history_select,
+        # Route through the complete overlay on the History tab: the live-bar
+        # origin carries this entry point's seed, filter, and scope so the
+        # History pane opens on the same query the standalone picker used.
+        # Stash/Trash tab outcomes apply through the shared lifecycle
+        # dispatch; only History outcomes reach on_history_select.
+        self._spawn_prompt_stash_task(  # type: ignore[attr-defined]
+            self._open_prompts_overlay_async(  # type: ignore[attr-defined]
+                initial_tab="history",
+                origin=PromptsOrigin(
+                    kind="live_bar",
+                    show_cancelled=event.show_cancelled,
+                    initial_filter=event.initial_filter,
+                    prompt_seed=event.prompt_seed,
+                ),
+                history_handler=on_history_select,
+                cancel_handler=on_history_cancel,
+            )
         )
 
     def _load_history_selection(self, event: object, built: str) -> None:
