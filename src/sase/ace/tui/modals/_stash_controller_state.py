@@ -22,6 +22,7 @@ from sase.project_display_names import ProjectDisplaySnapshot
 from ._prompt_stash_preview import PromptStashPreviewPane
 from ._stash_trash_commit import TrashCommitPreview, preview_trash_commit
 from .prompt_stash_row import DEFAULT_STASH_PREVIEW_WIDTH
+from .stash_messages import newest_first_stash_entries
 
 if TYPE_CHECKING:
     from .stash_messages import StashRestoreResult
@@ -65,15 +66,13 @@ class StashControllerStateMixin:
         entries: list[PromptStashEntryWire],
         *,
         project_display_snapshot: ProjectDisplaySnapshot | None = None,
-        trash_limit: int = 20,
+        trash_limit: int = 100,
         trash_count: int = 0,
     ) -> None:
         # Newest first; ISO timestamps sort lexicographically, ties broken by
         # pane order so a "stash all" group keeps a stable display order.
-        self._entries: list[PromptStashEntryWire] = sorted(
-            entries,
-            key=lambda e: (e.created_at, e.pane_index),
-            reverse=True,
+        self._entries: list[PromptStashEntryWire] = newest_first_stash_entries(
+            list(entries)
         )
         self._project_display_snapshot = (
             project_display_snapshot or ProjectDisplaySnapshot()
@@ -130,11 +129,7 @@ class StashControllerStateMixin:
         highlighted = self._highlighted_index_and_entry()
         if highlighted is not None:
             highlighted_id = highlighted[1].id
-        self._entries = sorted(
-            entries,
-            key=lambda e: (e.created_at, e.pane_index),
-            reverse=True,
-        )
+        self._entries = newest_first_stash_entries(list(entries))
         live = {entry.id for entry in self._entries}
         self._pop.intersection_update(live)
         self._deleted.intersection_update(live)

@@ -16,7 +16,7 @@ from sase.ace.tui.modals.prompts_modal import (
     PromptsTab,
 )
 from sase.ace.tui.modals.stash_pane import StashRestoreResult
-from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from sase.ace.tui.modals.prompts_tab_bar import PromptsTabBar
 from sase.history.prompt_catalog import PromptHistoryPage, record_from_entry
 from tests.ace.tui.modals.prompt_history_modal_test_helpers import _item
 from tests.ace.tui.modals.stashed_prompts_modal_test_helpers import make_entry
@@ -93,9 +93,13 @@ async def test_opens_on_stash_without_history_io(
         await pilot.pause()
         modal = app.screen
         assert isinstance(modal, PromptsModal)
-        strip = modal.query_one("#prompts-modal-tabs", PanelTabStrip)
-        labels = [tab.label for tab in strip._tabs]
-        assert labels == ["Stash 2", "History", "Trash 0/20"]
+        bar = modal.query_one("#prompts-modal-tabs", PromptsTabBar)
+        assert bar.state.surface == "stash"
+        assert bar.state.stash_count == 2
+        assert bar.state.trash_count == 0
+        assert bar.state.trash_limit == 100
+        assert "Stash 2" in bar.render().plain
+        assert "History" in bar.render().plain
         assert modal.query_one("#stashed-prompts-list", OptionList)
         assert modal._active_tab is PromptsTab.STASH
         # History pane is not mounted, so no catalog/page read could have run.
@@ -104,6 +108,7 @@ async def test_opens_on_stash_without_history_io(
             modal.query_one("#history-pane-body")
         footer = modal.query_one("#prompts-modal-footer", Static)
         assert "pin" in str(footer.content)
+        assert "@ newest" in str(footer.content)
 
 
 def _record_history_io(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -145,16 +150,13 @@ async def test_brackets_cycle_tabs_with_wraparound(
         assert modal._active_tab is PromptsTab.HISTORY
         await pilot.press("]")
         await pilot.pause()
-        assert modal._active_tab is PromptsTab.TRASH
-        await pilot.press("]")
-        await pilot.pause()
         assert modal._active_tab is PromptsTab.STASH
         await pilot.press("[")
         await pilot.pause()
-        assert modal._active_tab is PromptsTab.TRASH
+        assert modal._active_tab is PromptsTab.HISTORY
         await pilot.press("[")
         await pilot.pause()
-        assert modal._active_tab is PromptsTab.HISTORY
+        assert modal._active_tab is PromptsTab.STASH
 
 
 async def test_click_selects_tab(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,19 +166,17 @@ async def test_click_selects_tab(monkeypatch: pytest.MonkeyPatch) -> None:
         await pilot.pause()
         modal = app.screen
         assert isinstance(modal, PromptsModal)
-        strip = modal.query_one("#prompts-modal-tabs", PanelTabStrip)
+        bar = modal.query_one("#prompts-modal-tabs", PromptsTabBar)
 
-        async def _click_tab(tab_id: str) -> None:
-            pad = max(0, (strip.size.width - strip._line_width) // 2)
-            start, end = strip._tab_ranges[tab_id]
-            await pilot.click(
-                "#prompts-modal-tabs", offset=(pad + (start + end) // 2, 0)
-            )
+        async def _click_surface(surface: str) -> None:
+            hits = {sid: (s, e) for s, e, sid in bar._hits}
+            start, end = hits[surface]
+            await pilot.click("#prompts-modal-tabs", offset=((start + end) // 2, 0))
             await pilot.pause()
 
-        await _click_tab("history")
+        await _click_surface("history")
         assert modal._active_tab is PromptsTab.HISTORY
-        await _click_tab("stash")
+        await _click_surface("stash")
         assert modal._active_tab is PromptsTab.STASH
 
 

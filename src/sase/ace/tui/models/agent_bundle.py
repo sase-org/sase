@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
 from sase.core.agent_identity_facade import (
@@ -113,7 +113,7 @@ def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
             }
         elif item.name == "finalizer_status" and value is not None:
             if dataclasses.is_dataclass(value):
-                value = dataclasses.asdict(value)
+                value = dataclasses.asdict(cast(Any, value))
         result[item.name] = value
     return result
 

@@ -2,9 +2,10 @@
 
 Every Stash and History entry point routes through
 :meth:`PromptBarStashRestoreOverlayMixin._open_prompts_overlay_async`
-so the complete Stash | History | Trash overlay (not the legacy standalone
-pickers) is what users see. Outcomes arrive as a typed
-:class:`PromptsResult` and fan out by producing tab.
+so the complete Prompts overlay (Stash + History tabs, with Trash as the
+Stash tab's view, not the legacy standalone pickers) is what users see.
+Outcomes arrive as a typed :class:`PromptsResult` and fan out by producing
+tab.
 """
 
 from __future__ import annotations
@@ -58,10 +59,29 @@ class PromptBarStashRestoreOverlayMixin(PromptBarStashStoreMixin):
         mounted bar (so a feedback / approve-prompt bar still no-ops) and
         defaults to ``prompt`` mode when no bar is mounted, mounting the home
         prompt bar with the restored drafts.
+
+        A fast second ``@`` while the snapshot read is still in flight is
+        absorbed: it sets the pending-newest flag and returns without
+        spawning a second open. The in-flight open then pops the newest
+        draft directly instead of pushing the overlay, so ``@@`` reliably
+        pops the last stash.
         """
-        self._spawn_prompt_stash_task(
-            self._open_prompt_stash_panel(auto_restore_single=True)
-        )
+        if getattr(self, "_prompts_stash_open_in_flight", False):
+            self._prompts_stash_pop_newest_pending = True
+            return
+        self._prompts_stash_open_in_flight = True
+        self._prompts_stash_pop_newest_pending = False
+        self._spawn_prompt_stash_task(self._restore_open_wrapper())
+
+    async def _restore_open_wrapper(self) -> None:
+        """Await the ``@`` open and always clear the in-flight flags."""
+        try:
+            await self._open_prompt_stash_panel(
+                auto_restore_single=True, honor_pending_newest=True
+            )
+        finally:
+            self._prompts_stash_open_in_flight = False
+            self._prompts_stash_pop_newest_pending = False
 
     async def action_open_prompt_stash(self) -> None:
         """Leader shortcut: open the prompt-stash panel without auto-restoring."""
@@ -74,6 +94,7 @@ class PromptBarStashRestoreOverlayMixin(PromptBarStashStoreMixin):
         bar_mode: str | None = None,
         *,
         auto_restore_single: bool = False,
+        honor_pending_newest: bool = False,
     ) -> None:
         """Read the lifecycle snapshot off-thread and restore or open Stash.
 
@@ -101,6 +122,7 @@ class PromptBarStashRestoreOverlayMixin(PromptBarStashStoreMixin):
             initial_tab="stash",
             origin=PromptsOrigin(kind="live_bar"),
             auto_restore_single=auto_restore_single,
+            honor_pending_newest=honor_pending_newest,
             history_handler=self._apply_live_bar_history_result,
             cancel_handler=self._cancel_prompts_overlay_noop,
         )
@@ -142,6 +164,7 @@ class PromptBarStashRestoreOverlayMixin(PromptBarStashStoreMixin):
         initial_tab: str,
         origin: object,
         auto_restore_single: bool = False,
+        honor_pending_newest: bool = False,
         history_handler: Callable[[object], None] | None = None,
         cancel_handler: Callable[[], None] | None = None,
     ) -> None:
@@ -185,6 +208,22 @@ class PromptBarStashRestoreOverlayMixin(PromptBarStashStoreMixin):
             and tab is PromptsTab.STASH
         ):
             await self._auto_restore_single_entry(overlay.entries[0])  # type: ignore[attr-defined]
+            return
+
+        if (
+            honor_pending_newest
+            and tab is PromptsTab.STASH
+            and overlay.entries
+            and getattr(self, "_prompts_stash_pop_newest_pending", False)
+        ):
+            from ...modals.stash_messages import (
+                newest_first_stash_entries,
+                single_restore_result,
+            )
+
+            self._prompts_stash_pop_newest_pending = False
+            newest = newest_first_stash_entries(list(overlay.entries))[0]
+            await self._apply_prompts_stash_result(single_restore_result(newest))  # type: ignore[attr-defined]
             return
 
         def _on_result(result: object) -> None:

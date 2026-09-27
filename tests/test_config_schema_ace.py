@@ -213,7 +213,7 @@ def test_bundled_default_ace_page_size_is_100() -> None:
 def test_config_schema_accepts_ace_prompt_stash_trash_limit() -> None:
     validator = Draft7Validator(schema())
     validator.validate({"ace": {"prompt_stash": {"trash_limit": 0}}})
-    validator.validate({"ace": {"prompt_stash": {"trash_limit": 20}}})
+    validator.validate({"ace": {"prompt_stash": {"trash_limit": 100}}})
 
 
 @pytest.mark.parametrize("value", [-1, True, 3.5, "20"])
@@ -226,7 +226,7 @@ def test_config_schema_rejects_invalid_ace_prompt_stash_trash_limit(
         )
 
 
-def test_bundled_default_ace_prompt_stash_trash_limit_is_20() -> None:
+def test_bundled_default_ace_prompt_stash_trash_limit_is_100() -> None:
     public_schema = schema()
     default_config = yaml.safe_load(
         (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
@@ -235,7 +235,7 @@ def test_bundled_default_ace_prompt_stash_trash_limit_is_20() -> None:
         "properties"
     ]["trash_limit"]
 
-    assert default_config["ace"]["prompt_stash"]["trash_limit"] == 20
+    assert default_config["ace"]["prompt_stash"]["trash_limit"] == 100
     assert trash_schema["type"] == "integer"
     assert trash_schema["minimum"] == 0
-    assert trash_schema["default"] == 20
+    assert trash_schema["default"] == 100

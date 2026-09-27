@@ -8,7 +8,7 @@ from sase.config.core import load_merged_config
 
 _DEFAULT_ACE_PAGE_SIZE = 100
 
-_DEFAULT_ACE_PROMPT_STASH_TRASH_LIMIT = 20
+_DEFAULT_ACE_PROMPT_STASH_TRASH_LIMIT = 100
 
 
 def get_ace_page_size() -> int:
@@ -30,7 +30,7 @@ def get_ace_page_size() -> int:
 
 
 def get_ace_prompt_stash_trash_limit() -> int:
-    """Return the stash Trash row limit, defaulting to 20.
+    """Return the stash Trash row limit, defaulting to 100.
 
     This is an entry-count limit, not a byte quota; zero disables recovery.
     Invalid, missing, or unloadable values fall back to the bundled default

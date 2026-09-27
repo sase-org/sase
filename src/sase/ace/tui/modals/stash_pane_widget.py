@@ -27,7 +27,7 @@ def _stash_empty_text(*, trash_count: int) -> str:
     base = "No stashed drafts yet. Stash the current prompt to save it here."
     if trash_count:
         noun = "draft" if trash_count == 1 else "drafts"
-        base += f" Trash holds {trash_count} discarded {noun} — switch with ]."
+        base += f" Trash holds {trash_count} discarded {noun} — press t to view."
     return base
 
 
@@ -63,7 +63,7 @@ class StashPane(StashControllerMixin, OptionListNavigationMixin, Widget):
         entries: list[PromptStashEntryWire],
         *,
         project_display_snapshot: ProjectDisplaySnapshot | None = None,
-        trash_limit: int = 20,
+        trash_limit: int = 100,
         trash_count: int = 0,
     ) -> None:
         super().__init__()
@@ -78,6 +78,13 @@ class StashPane(StashControllerMixin, OptionListNavigationMixin, Widget):
         if self._entries:
             return None
         return _stash_empty_text(trash_count=self._trash_count)
+
+    def _hint_text(self) -> str:
+        """Overlay footer with the ``@ newest`` shortcut first."""
+        base = super()._hint_text()
+        lines = base.split("\n", 1)
+        lines[0] = f"@ newest · {lines[0]}"
+        return "\n".join(lines)
 
     def dismiss(self, result: StashRestoreResult | None = None) -> None:
         """Translate screen-style cancel/confirm into a bubbled selection."""

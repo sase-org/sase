@@ -19,6 +19,39 @@ from .base import OptionListNavigationMixin
 from .prompt_stash_row import INDEX_KEYS
 
 
+def newest_first_stash_entries(
+    entries: list[PromptStashEntryWire],
+) -> list[PromptStashEntryWire]:
+    """Return stash entries newest-first.
+
+    Sorts by ``(created_at, pane_index)`` in reverse. ISO-8601 timestamps
+    sort lexicographically; ties break by pane order so a "stash all" group
+    keeps a stable display order.
+    """
+    return sorted(
+        entries,
+        key=lambda e: (e.created_at, e.pane_index),
+        reverse=True,
+    )
+
+
+def single_restore_result(
+    entry: PromptStashEntryWire,
+    *,
+    pinned: bool | None = None,
+) -> StashRestoreResult:
+    """Return the single-entry restore outcome for *entry*.
+
+    Pinned entries restore with ``keep_ids`` (stay stashed); unpinned
+    entries restore with ``pop_ids``. ``pinned`` defaults to
+    ``entry.pinned``.
+    """
+    is_pinned = entry.pinned if pinned is None else pinned
+    if is_pinned:
+        return StashRestoreResult(keep_ids=[entry.id])
+    return StashRestoreResult(pop_ids=[entry.id])
+
+
 @dataclass
 class StashRestoreResult:
     """Outcome of the unified stash picker.
@@ -93,4 +126,6 @@ __all__ = [
     "STASH_BINDINGS",
     "StashRestoreResult",
     "TrashRequested",
+    "newest_first_stash_entries",
+    "single_restore_result",
 ]

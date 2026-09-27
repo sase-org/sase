@@ -3499,7 +3499,7 @@ These work on all tabs:
 | `Space`                 | Prefill the prompt with the most recently launched VCS xprompt (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt)                                   |
 | `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                               |
 | `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                      |
-| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the Prompts overlay on Stash                                                                    |
+| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the Prompts overlay on Stash (`@@` pops the newest draft when several are stashed)              |
 | `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                          |
 | `Q`                     | Open the quit / restart menu                                                                                                                                           |
 | `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Services (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
@@ -6763,9 +6763,9 @@ then removed from Stash; it is not moved to Trash. When Stash is empty or holds 
 than one draft, `@` opens the overlay on Stash instead of loading one. `,@` or clicking
 the `stash:` chip always opens that overlay, including when exactly one draft is stashed
 and when Stash is empty. The empty placeholder says to stash the current prompt. When
-Trash has rows, it also names that count and says to switch with `]`. Tab order is
-Stash, then History, then Trash, so `]` from Stash opens History. Press `[` to wrap from
-Stash to Trash.
+Trash has rows, it also names that count and says to press `t` to view. `[` and `]`
+toggle between the Stash and History tabs with wraparound, so `]` from Stash opens
+History. Press `t` on Stash to open its Trash view.
 
 In the Stash tab, `space` toggles a row's persistent pin, `Tab` toggles a row's restore
 mark, `d` marks one row for discard, `D` marks every row for discard, `a` toggles
@@ -6775,34 +6775,36 @@ highlighted row; pinned rows stay stashed when restored, while unpinned rows are
 from Stash and are not moved to Trash.
 
 Number keys `1`-`9` and `0` restore rows 1-10 directly with the same pin-aware behavior.
-`Escape` or `q` closes the overlay and discards unconfirmed marks. Confirming discards
-for only some rows keeps the overlay open and repaints it in place; discarding every
-row, or combining discards with restores, closes the overlay. A small `stash: ≡ N`
-pink-chip top-bar group shows how many restorable drafts are currently stashed; the
-Trash count appears in the overlay's `Trash M/N` tab.
+`@` on the Stash tab restores the newest draft, so `@@` pops the latest stash when
+several are stashed. `Escape` or `q` closes the overlay and discards unconfirmed marks.
+Confirming discards for only some rows keeps the overlay open and repaints it in place;
+discarding every row, or combining discards with restores, closes the overlay. A small
+`stash: ≡ N` pink-chip top-bar group shows how many restorable drafts are currently
+stashed; the Trash count appears as the 🗑️ chip on the Stash tab, expanding to
+`Trash N/LIMIT` in the Trash view.
 
 Every Prompts overlay entry point — including the History ones (`Ctrl+K`, `,.`, `,>`) —
 first reads the stash store. If that read fails (for example a stale core binding, or a
 parse or lock error), an error toast beginning `Failed to read stashed prompts` names
 the cause and no overlay opens.
 
-Discarding a Stash row moves it to **Trash**, newest-deleted-first with the deletion age
-visible, unless `ace.prompt_stash.trash_limit` is `0` (see below). In the Trash tab,
-`Enter` (or a digit key, or marked `Tab`/`a`) restores rows back to Stash while the
-overlay stays open; it never loads the prompt bar. `d`/`D` stage rows for permanent
-deletion and `Enter` asks for explicit confirmation before purging; `Ctrl+Y` copies a
-row. Trash holds at most `ace.prompt_stash.trash_limit` entries (default 20; this is an
-entry-count limit, not a byte quota): a discard batch that would overflow it names the
-expected permanent-loss count up front, and the success toast names the actual
+Discarding a Stash row moves it to the **Trash view**, newest-deleted-first with the
+deletion age visible, unless `ace.prompt_stash.trash_limit` is `0` (see below). In the
+Trash view, `Enter` (or a digit key, or marked `Tab`/`a`) restores rows back to Stash
+while the overlay stays open; it never loads the prompt bar. `d`/`D` stage rows for
+permanent deletion and `Enter` asks for explicit confirmation before purging; `Ctrl+Y`
+copies a row. Trash holds at most `ace.prompt_stash.trash_limit` entries (default 100;
+this is an entry-count limit, not a byte quota): a discard batch that would overflow it
+names the expected permanent-loss count up front, and the success toast names the actual
 evictions. Setting the limit to `0` disables recovery: Stash `d`/`D` plus `Enter` then
 delete permanently, and a partial discard is applied without a confirmation prompt. A
 lowered limit is applied the next time the overlay opens, before that window is shown.
 Over-limit rows are permanently deleted, oldest discarded first. The toast reads
 `Trash limit lowered to N: permanently deleted K oldest draft` (or `drafts`). The Trash
-tab in the window that just opened still lists the rows and `Trash M/N` count from
+view in the window that just opened still lists the rows and `Trash N/LIMIT` count from
 before that deletion, so the count can be higher than the new limit. Close the overlay
 and open it again to see the rows that remain. `Enter` on a row that was already deleted
-does not restore it and does not show a success toast. The Trash tab then repaints from
+does not restore it and does not show a success toast. The Trash view then repaints from
 the store, so every already-deleted row disappears. If applying the limit fails, the
 stored Trash is left unchanged and the overlay still opens. The error toast is
 `Failed to reconcile Trash limit: ...`, or `Prompt stash is busy — retry` when the stash
@@ -6815,13 +6817,12 @@ other Stash row unmarked. Discarding every Stash row closes the overlay, so the 
 steps would start by opening Stash again:
 
 1. Stash tab: highlight the row, press `d`, then `Enter`; confirm
-   `Move 1 draft to Trash?`. The toast reads `Moved 1 draft to Trash` and the tab strip
-   shows `Trash 1/20`.
-2. Press `[` (tabs cycle Stash → History → Trash with wraparound, so `[` from Stash
-   lands on Trash) to reach the Trash tab: the row sits newest-first with its deletion
-   age.
+   `Move 1 draft to Trash?`. The toast reads `Moved 1 draft to Trash` and the Stash
+   tab's 🗑️ chip shows `🗑️ 1`.
+2. Press `t` to open the Trash view: the row sits newest-first with its deletion age
+   under the `🗑️ Trash 1/100` pill.
 3. Press `Enter`: the toast reads `Restored 1 draft to Stash`, the overlay stays open,
-   and `]` wraps back to a Stash tab holding the recovered draft.
+   and `t`/`Esc` return to a Stash tab holding the recovered draft.
 
 Trash requires the current stash core binding: restart old TUI processes before the new
 behavior takes effect, since mixed-version operation is unsupported. Before the first
@@ -7858,13 +7859,17 @@ always apply to whole selected lines regardless of the cursor column.
 
 ## Prompts Overlay { #prompt-history-modal }
 
-Stash, History, and Trash live in one **Prompts** overlay: a single frame with a
-`Stash N` / `History` / `Trash M/N` tab strip, a consistent list/preview split, and one
-contextual footer per tab. `[` and `]` cycle tabs with wraparound (even from the focused
-History filter), clicking a tab selects it, `Esc` closes, and `q` closes when focus is
-outside a text input. Each tab keeps its highlight, scroll, filter, loaded pages,
-preview position, and staged marks across switches, and History loads lazily on first
-activation so opening Stash performs no history disk I/O.
+Stash and History live in one **Prompts** overlay: a single frame with a split-button
+Stash tab (`≡ Stash N` plus a 🗑️ chip) and a `↺ History` tab, a consistent list/preview
+split, and one contextual footer per view. Trash is the Stash tab's Trash view, opened
+with `t` or the 🗑️ chip; `t`/`Esc` return to the Stash list and `q` closes. `@` on Stash
+restores the newest draft, so `@@` pops the most recently stashed prompt when several
+are stashed. `[` and `]` cycle the two top-level tabs with wraparound (even from the
+focused History filter), clicking the Stash label shows the list while clicking the 🗑️
+chip shows Trash, `Esc` closes, and `q` closes when focus is outside a text input. Each
+tab keeps its highlight, scroll, filter, loaded pages, preview position, and staged
+marks across switches, the Stash tab remembers its last view, and History loads lazily
+on first activation so opening Stash performs no history disk I/O.
 
 Press `Ctrl+K` from the prompt input to open the overlay on the History tab. That
 shortcut is available when the current prompt is a single logical line; that line's

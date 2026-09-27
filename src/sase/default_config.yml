@@ -333,7 +333,7 @@ ace:
     # marked for Trash are permanently discarded instead. The limit is
     # enforced inside the Rust stash transaction, including when a lowered
     # limit is first reconciled after reload.
-    trash_limit: 20
+    trash_limit: 100
   current_project:
     # Show the current-project group of the status-row launch-context cluster
     # (the `current +<project>` chip at the far right of each tab's status

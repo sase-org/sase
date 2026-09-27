@@ -211,7 +211,7 @@ async def test_prompts_overlay_stash_png_snapshot(
             page,
             list_id="#stashed-prompts-list",
             option_count=5,
-            sentinel="Trash 3/20",
+            sentinel="Stash 5",
         )
 
         ace_png_visual.assert_page_png(
@@ -265,7 +265,7 @@ async def test_prompts_overlay_stash_narrow_png_snapshot(
             page,
             list_id="#stashed-prompts-list",
             option_count=5,
-            sentinel="T3/20",
+            sentinel="Stash 5",
         )
 
         ace_png_visual.assert_page_png(

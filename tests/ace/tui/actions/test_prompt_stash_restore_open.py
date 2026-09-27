@@ -307,3 +307,189 @@ async def test_non_restore_event_ignored() -> None:
     await _wait_prompt_stash_tasks(harness)
     assert harness.notifications == []
     assert harness.pushed == []
+
+
+# --- @@ race guard ----------------------------------------------------------
+
+
+async def _wait_for_read_started(read_calls: list[int]) -> None:
+    import asyncio
+
+    for _ in range(100):
+        if read_calls:
+            return
+        await asyncio.sleep(0.02)  # sase-test-wait: let the read reach the gate
+    raise AssertionError("snapshot read never started")
+
+
+async def test_double_at_restores_newest_once_without_overlay(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Two fast `@` presses pop the newest draft exactly once, no overlay."""
+    import asyncio
+    import threading
+
+    from tests.ace.tui.actions._prompt_stash_restore_helpers import (
+        _point_store_at,
+        _restore_pairs,
+        _seed,
+        _skip_without_lifecycle_bindings,
+        _wait_prompt_stash_tasks,
+        _FakeBar,
+        _RestoreHarness,
+    )
+
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    gate = threading.Event()
+    read_calls: list[int] = []
+    orig = harness._read_prompt_stash_overlay_snapshot
+
+    def _blocking_read():  # type: ignore[no-untyped-def]
+        read_calls.append(1)
+        assert gate.wait(timeout=10)
+        return orig()
+
+    monkeypatch.setattr(harness, "_read_prompt_stash_overlay_snapshot", _blocking_read)
+
+    await harness.action_restore_prompt_stash()
+    await _wait_for_read_started(read_calls)
+    # Second `@` while the open is in flight: no new task, pending set.
+    await harness.action_restore_prompt_stash()
+    assert getattr(harness, "_prompts_stash_pop_newest_pending", False) is True
+    gate.set()
+    await _wait_prompt_stash_tasks(harness)
+
+    assert len(read_calls) == 1
+    assert harness.pushed == []
+    assert _restore_pairs(bar) == [("beta", "")]
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["a"]
+
+
+async def test_double_at_single_entry_restores_once(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`@@` with one draft restores once (second press absorbed)."""
+    import asyncio
+    import threading
+
+    from tests.ace.tui.actions._prompt_stash_restore_helpers import (
+        _point_store_at,
+        _restore_pairs,
+        _seed,
+        _skip_without_lifecycle_bindings,
+        _wait_prompt_stash_tasks,
+        _FakeBar,
+        _RestoreHarness,
+    )
+
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(path, [("a", "2026-06-16T10:00:00", "alpha", "")])
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    gate = threading.Event()
+    read_calls: list[int] = []
+    orig = harness._read_prompt_stash_overlay_snapshot
+
+    def _blocking_read():  # type: ignore[no-untyped-def]
+        read_calls.append(1)
+        assert gate.wait(timeout=10)
+        return orig()
+
+    monkeypatch.setattr(harness, "_read_prompt_stash_overlay_snapshot", _blocking_read)
+
+    await harness.action_restore_prompt_stash()
+    await _wait_for_read_started(read_calls)
+    await harness.action_restore_prompt_stash()
+    gate.set()
+    await _wait_prompt_stash_tasks(harness)
+
+    assert len(read_calls) == 1
+    assert harness.pushed == []
+    assert _restore_pairs(bar) == [("alpha", "")]
+
+
+async def test_failed_read_clears_flags_next_opens(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed snapshot read clears flags so the next `@` opens normally."""
+    from tests.ace.tui.actions._prompt_stash_restore_helpers import (
+        _point_store_at,
+        _seed,
+        _skip_without_lifecycle_bindings,
+        _wait_prompt_stash_tasks,
+        _RestoreHarness,
+    )
+
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    harness = _RestoreHarness()
+
+    def _failing_read():  # type: ignore[no-untyped-def]
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(harness, "_read_prompt_stash_overlay_snapshot", _failing_read)
+    await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
+
+    assert harness.pushed == []
+    assert getattr(harness, "_prompts_stash_open_in_flight", False) is False
+    assert getattr(harness, "_prompts_stash_pop_newest_pending", False) is False
+
+    # Next `@` opens normally (overlay pushed).
+    monkeypatch.undo()
+    await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
+    assert len(harness.pushed) == 1
+
+
+async def test_single_at_pushes_overlay(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A single `@` with several drafts still pushes the overlay."""
+    from tests.ace.tui.actions._prompt_stash_restore_helpers import (
+        _point_store_at,
+        _seed,
+        _skip_without_lifecycle_bindings,
+        _wait_prompt_stash_tasks,
+        _RestoreHarness,
+    )
+
+    _skip_without_lifecycle_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    harness = _RestoreHarness()
+    await harness.action_restore_prompt_stash()
+    await _wait_prompt_stash_tasks(harness)
+    assert len(harness.pushed) == 1

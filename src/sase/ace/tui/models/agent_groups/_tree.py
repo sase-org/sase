@@ -408,8 +408,10 @@ def build_agent_tree(
                 root_key = (parent, k.name_root)
                 root_counts[root_key] = root_counts.get(root_key, 0) + 1
             if k.name_root and k.name_prefix:
-                prefix_key = (parent, k.name_root, k.name_prefix)
-                prefix_counts[prefix_key] = prefix_counts.get(prefix_key, 0) + 1
+                prefix_count_key = (parent, k.name_root, k.name_prefix)
+                prefix_counts[prefix_count_key] = (
+                    prefix_counts.get(prefix_count_key, 0) + 1
+                )
 
     entries: list[TreeEntry] = []
     cur_proj: str | None = None

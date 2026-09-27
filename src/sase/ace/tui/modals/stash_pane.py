@@ -20,6 +20,8 @@ from .stash_messages import PinToggled as PinToggled
 from .stash_messages import STASH_BINDINGS as STASH_BINDINGS
 from .stash_messages import StashRestoreResult as StashRestoreResult
 from .stash_messages import TrashRequested as TrashRequested
+from .stash_messages import newest_first_stash_entries as newest_first_stash_entries
+from .stash_messages import single_restore_result as single_restore_result
 from .stash_pane_widget import StashPane as StashPane
 
 __all__ = [
@@ -30,6 +32,8 @@ __all__ = [
     "StashPane",
     "StashRestoreResult",
     "TrashRequested",
+    "newest_first_stash_entries",
+    "single_restore_result",
     "preview_trash_commit",
     "trash_commit_confirm_text",
     "trash_outcome_text",

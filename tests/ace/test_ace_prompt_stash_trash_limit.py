@@ -10,9 +10,9 @@ from sase.ace.config import get_ace_prompt_stash_trash_limit
 from sase.config.core import clear_config_cache, load_merged_config
 
 
-def test_bundled_default_trash_limit_is_20() -> None:
-    assert load_merged_config()["ace"]["prompt_stash"]["trash_limit"] == 20
-    assert get_ace_prompt_stash_trash_limit() == 20
+def test_bundled_default_trash_limit_is_100() -> None:
+    assert load_merged_config()["ace"]["prompt_stash"]["trash_limit"] == 100
+    assert get_ace_prompt_stash_trash_limit() == 100
 
 
 def test_get_trash_limit_reads_merged_config(
@@ -59,7 +59,7 @@ def test_get_trash_limit_falls_back_for_invalid_values(
 ) -> None:
     monkeypatch.setattr("sase.ace.config.load_merged_config", lambda: config)
 
-    assert get_ace_prompt_stash_trash_limit() == 20
+    assert get_ace_prompt_stash_trash_limit() == 100
 
 
 def test_get_trash_limit_falls_back_when_config_unavailable(
@@ -70,7 +70,7 @@ def test_get_trash_limit_falls_back_when_config_unavailable(
 
     monkeypatch.setattr("sase.ace.config.load_merged_config", unavailable)
 
-    assert get_ace_prompt_stash_trash_limit() == 20
+    assert get_ace_prompt_stash_trash_limit() == 100
 
 
 def test_get_trash_limit_observes_user_config_after_cache_clear() -> None:

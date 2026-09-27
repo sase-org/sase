@@ -1730,12 +1730,12 @@ discarded from Stash, up to the configured row limit.
 ```yaml
 ace:
   prompt_stash:
-    trash_limit: 20
+    trash_limit: 100
 ```
 
-| Field         | Type | Default | Description                                                                                                                                                                                                      |
-| ------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `trash_limit` | int  | `20`    | Maximum Trash rows kept. An entry-count limit, not a byte quota. `0` disables recovery and permanently discards rows marked for Trash. Must be an integer >= 0; booleans and malformed values fall back to `20`. |
+| Field         | Type | Default | Description                                                                                                                                                                                                       |
+| ------------- | ---- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trash_limit` | int  | `100`   | Maximum Trash rows kept. An entry-count limit, not a byte quota. `0` disables recovery and permanently discards rows marked for Trash. Must be an integer >= 0; booleans and malformed values fall back to `100`. |
 
 A lowered limit is applied the next time the overlay opens. Over-limit rows are
 permanently deleted, oldest discarded first, and a toast reports how many were deleted.

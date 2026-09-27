@@ -1,4 +1,4 @@
-"""Reusable Trash pane for the tabbed Prompts overlay.
+"""Reusable Trash view for the Stash tab of the Prompts overlay.
 
 Trash shows drafts deliberately discarded from Stash, newest-deleted-first
 with the deletion age visible. It shares the Stash row/preview treatment
@@ -104,8 +104,16 @@ class TrashCopyRequested(Message, namespace="trash_pane"):
         self.entry = entry
 
 
+class BackRequested(Message, namespace="trash_pane"):
+    """Posted when ``escape`` requests a return to the Stash list view."""
+
+    def __init__(self) -> None:
+        super().__init__()
+
+
 TRASH_BINDINGS: list[Any] = [
-    *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+    *[b for b in OptionListNavigationMixin.NAVIGATION_BINDINGS if b[0] != "escape"],
+    Binding("escape", "back", "Back", priority=True),
     Binding("tab", "toggle_restore", "Restore", priority=True),
     ("a", "toggle_all", "All"),
     ("d", "mark_purge", "Delete"),
@@ -190,6 +198,7 @@ class TrashPane(OptionListNavigationMixin, Widget):
     TrashRestoreRequested = TrashRestoreRequested
     PurgeRequested = PurgeRequested
     TrashCopyRequested = TrashCopyRequested
+    BackRequested = BackRequested
 
     # Option-list DOM id for OptionListNavigationMixin (j/k and friends).
     _option_list_id = _TRASH_LIST_ID
@@ -201,7 +210,7 @@ class TrashPane(OptionListNavigationMixin, Widget):
         records: list[PromptStashTrashRecordWire],
         *,
         project_display_snapshot: ProjectDisplaySnapshot | None = None,
-        trash_limit: int = 20,
+        trash_limit: int = 100,
     ) -> None:
         super().__init__()
         self._records: list[PromptStashTrashRecordWire] = _sort_trash_records(
@@ -274,7 +283,7 @@ class TrashPane(OptionListNavigationMixin, Widget):
 
     def _hint_text(self) -> str:
         return (
-            "Enter: restore to Stash · 1-9/0 restore · a all · j/k move · esc/q · ^d/u\n"
+            "enter restore to Stash · 1-9/0 restore · a all · j/k move · q close · ^d/u\n"
             "tab ✓ restore · d permanently delete row · D permanently delete all · ^y copy"
         )
 
@@ -530,6 +539,10 @@ class TrashPane(OptionListNavigationMixin, Widget):
         self._restore.difference_update(entry_ids)
         self._refresh_rows()
 
+    def action_back(self) -> None:
+        """Return to the Stash list view instead of closing the overlay."""
+        self.post_message(BackRequested())
+
     def action_copy_row(self) -> None:
         record = self._highlighted_record()
         if record is None:
@@ -573,6 +586,7 @@ class TrashPane(OptionListNavigationMixin, Widget):
 
 
 __all__ = [
+    "BackRequested",
     "PurgeRequested",
     "TRASH_BINDINGS",
     "TrashActionResult",

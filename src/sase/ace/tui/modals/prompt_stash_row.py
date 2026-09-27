@@ -13,6 +13,7 @@ from sase.project_display_names import ProjectDisplaySnapshot
 # Split-pane callers derive a smaller/larger budget from the laid-out list.
 INDEX_KEYS = "1234567890"
 PIN_GLYPH = "📌"
+TRASH_GLYPH = "🗑️"
 
 _SHORTCUT_WIDTH = 4
 _SHORTCUT_STYLE = "bold black on #AF87FF"
@@ -242,6 +243,7 @@ def trash_row_label(
 __all__ = [
     "INDEX_KEYS",
     "PIN_GLYPH",
+    "TRASH_GLYPH",
     "DEFAULT_STASH_PREVIEW_WIDTH",
     "append_shortcut",
     "first_line_preview",

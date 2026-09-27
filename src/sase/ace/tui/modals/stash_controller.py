@@ -37,6 +37,8 @@ from .stash_messages import (
     PinToggled,
     StashRestoreResult,
     TrashRequested,
+    newest_first_stash_entries,
+    single_restore_result,
 )
 
 _SPLIT_PANE_MIN_TERMINAL_WIDTH = 110
@@ -310,9 +312,19 @@ class StashControllerMixin(StashControllerStateMixin):
         self._refresh_rows()
 
     def _single_restore_result(self, entry: PromptStashEntryWire) -> StashRestoreResult:
-        if entry.id in self._pinned:
-            return StashRestoreResult(keep_ids=[entry.id])
-        return StashRestoreResult(pop_ids=[entry.id])
+        return single_restore_result(entry, pinned=entry.id in self._pinned)
+
+    def newest_restore_result(self) -> StashRestoreResult | None:
+        """Return the restore outcome for the newest stash entry.
+
+        Newest-first is ``(created_at, pane_index)`` order, pin-aware, and
+        ignores staged marks like digit keys do. Returns ``None`` when the
+        stash is empty.
+        """
+        if not self._entries:
+            return None
+        newest = newest_first_stash_entries(list(self._entries))[0]
+        return single_restore_result(newest, pinned=newest.id in self._pinned)
 
     def action_restore_index(self, index: int) -> None:
         if not 0 <= index < len(self._entries):

@@ -22,7 +22,7 @@ from sase.ace.tui.modals.stash_pane import (
 )
 from sase.ace.tui.modals.stash_pane_widget import _stash_empty_text
 from sase.ace.tui.modals.trash_pane import TrashPane
-from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from sase.ace.tui.modals.prompts_tab_bar import PromptsTabBar
 from tests.ace.tui.modals.stashed_prompts_modal_test_helpers import make_entry
 from tests.ace.tui.modals.test_trash_pane import make_record
 
@@ -37,7 +37,7 @@ class TrashFlowHost(App[None]):
         entries: list | None = None,
         *,
         trash: list | None = None,
-        trash_limit: int = 20,
+        trash_limit: int = 100,
         initial_tab: PromptsTab = PromptsTab.STASH,
         origin: PromptsOrigin | None = None,
     ) -> None:
@@ -106,17 +106,13 @@ async def test_trash_tab_shows_count_over_limit() -> None:
         await pilot.pause()
         modal = app.screen
         assert isinstance(modal, PromptsModal)
-        strip = modal.query_one("#prompts-modal-tabs", PanelTabStrip)
-        assert [tab.label for tab in strip._tabs] == [
-            "Stash 2",
-            "History",
-            "Trash 2/20",
-        ]
-        assert [tab.accent_color for tab in strip._tabs] == [
-            "orchid",
-            "cyan",
-            "#EBC04F",
-        ]
+        bar = modal.query_one("#prompts-modal-tabs", PromptsTabBar)
+        assert bar.state.stash_count == 2
+        assert bar.state.trash_count == 2
+        assert bar.state.trash_limit == 100
+        plain = bar.render().plain
+        assert "Stash 2" in plain
+        assert "History" in plain
 
 
 async def test_trash_footer_names_restore_and_purge_verbs() -> None:
@@ -129,7 +125,7 @@ async def test_trash_footer_names_restore_and_purge_verbs() -> None:
         assert isinstance(modal, PromptsModal)
         footer = modal.query_one("#prompts-modal-footer", Static)
         content = str(footer.content)
-        assert "Enter: restore to Stash" in content
+        assert "enter restore to Stash" in content
         assert "permanently delete" in content
 
 
@@ -147,7 +143,7 @@ async def test_open_on_trash_skips_history_io(
         assert modal._history_pane is None
 
 
-async def test_brackets_cycle_three_tabs_with_wraparound(
+async def test_brackets_cycle_two_tabs_with_wraparound(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from tests.ace.tui.modals.test_prompts_modal import _record_history_io
@@ -163,17 +159,13 @@ async def test_brackets_cycle_three_tabs_with_wraparound(
         assert modal._active_tab is PromptsTab.HISTORY
         await pilot.press("]")
         await pilot.pause()
-        assert modal._active_tab is PromptsTab.TRASH
-        assert modal.query_one("#trash-list", OptionList)
-        await pilot.press("]")
-        await pilot.pause()
         assert modal._active_tab is PromptsTab.STASH
         await pilot.press("[")
         await pilot.pause()
-        assert modal._active_tab is PromptsTab.TRASH
+        assert modal._active_tab is PromptsTab.HISTORY
         await pilot.press("[")
         await pilot.pause()
-        assert modal._active_tab is PromptsTab.HISTORY
+        assert modal._active_tab is PromptsTab.STASH
 
 
 # -- stash-to-trash flow -----------------------------------------------------
@@ -264,16 +256,12 @@ async def test_apply_lifecycle_snapshot_repaints_panes_and_counts() -> None:
         await pilot.pause()
         assert [e.id for e in modal._stash_pane._entries] == ["b"]
         assert modal._stash_pane._deleted == set()
-        strip = modal.query_one("#prompts-modal-tabs", PanelTabStrip)
-        assert [tab.label for tab in strip._tabs] == [
-            "Stash 1",
-            "History",
-            "Trash 1/20",
-        ]
-        # Trash pane picks up the snapshot when it mounts.
-        await pilot.press("]")
-        await pilot.pause()
-        await pilot.press("]")
+        bar = modal.query_one("#prompts-modal-tabs", PromptsTabBar)
+        assert bar.state.stash_count == 1
+        assert bar.state.trash_count == 1
+        assert bar.state.trash_limit == 100
+        # Trash view picks up the snapshot when it mounts.
+        await pilot.press("t")
         await pilot.pause()
         assert modal._active_tab is PromptsTab.TRASH
         trash_pane = modal._ensure_trash_pane()

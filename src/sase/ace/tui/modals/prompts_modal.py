@@ -1,13 +1,16 @@
-"""Tabbed Prompts overlay unifying Stash, History, and Trash recall.
+"""Tabbed Prompts overlay unifying Stash, History, and the Stash Trash view.
 
 One stable frame hosts the reusable :class:`StashPane`,
-:class:`HistoryPane`, and :class:`TrashPane` widgets behind a
-:class:`PanelTabStrip` (no number shortcuts). Each tab keeps its highlight,
-scroll, filter, loaded pages, preview position, and staged marks across
-switches; the History pane mounts lazily on first activation so opening
-Stash performs no history disk I/O. ``[``/``]`` cycle tabs with wraparound
-(even from the focused history filter), clicking a tab selects it, ``Esc``
-closes, and ``q`` closes only when focus is outside a text input.
+:class:`HistoryPane`, and :class:`TrashPane` widgets behind a dedicated
+:class:`PromptsTabBar` (no number shortcuts). Each surface keeps its
+highlight, scroll, filter, loaded pages, preview position, and staged marks
+across switches; the History pane mounts lazily on first activation so
+opening Stash performs no history disk I/O. ``[``/``]`` toggle between the
+two top-level tabs with wraparound (even from the focused history filter),
+clicking the Stash label always shows the list while clicking the trash chip
+always shows Trash, ``t`` toggles the Trash view, ``Esc`` in Trash goes back
+to the list, ``@`` on Stash restores the newest draft, and ``q`` closes only
+when focus is outside a text input.
 
 Stash delete marks commit to Trash rather than permanent deletion; Trash
 restores move rows back to Stash while the overlay stays open, and purges
@@ -17,8 +20,9 @@ state.
 
 A typed :class:`PromptsOrigin` records which entry point opened the overlay
 (a live prompt bar or a home/MRU launcher) and every outcome is reported as
-a :class:`PromptsResult` naming the tab that produced it, so switching tabs
-can never silently apply the initial tab's callback to the wrong action.
+a :class:`PromptsResult` naming the surface that produced it, so switching
+surfaces can never silently apply the initial tab's callback to the wrong
+action.
 
 All Stash and History entry points open this overlay (on their correct
 initial tab with a typed origin); the standalone ``StashedPromptsModal``
@@ -36,7 +40,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Label, OptionList, Static
+from textual.widgets import OptionList, Static
 
 from sase.core.prompt_stash_wire import (
     PromptStashEntryWire,
@@ -44,28 +48,31 @@ from sase.core.prompt_stash_wire import (
 )
 from sase.project_display_names import ProjectDisplaySnapshot
 
-from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 from ._prompt_history_models import PromptHistoryResult
 from .base import FilterInput
 from .history_pane import HistoryPane
+from .prompts_tab_bar import PromptsTabBar, PromptsTabBarState
 from .stash_pane import StashPane, StashRestoreResult
-from .trash_pane import TrashActionResult, TrashPane
+from .trash_pane import BackRequested, TrashActionResult, TrashPane
 
 PromptsOriginKind = Literal["live_bar", "home_mru"]
 
 
 class PromptsTab(Enum):
-    """Tabs of the Prompts overlay."""
+    """Surfaces of the Prompts overlay.
+
+    ``STASH`` and ``HISTORY`` are the top-level tabs; ``TRASH`` is the
+    Stash tab's Trash view.
+    """
 
     STASH = "stash"
     HISTORY = "history"
     TRASH = "trash"
 
 
-_TAB_ORDER: tuple[PromptsTab, ...] = (
+_TOP_LEVEL_TABS: tuple[PromptsTab, ...] = (
     PromptsTab.STASH,
     PromptsTab.HISTORY,
-    PromptsTab.TRASH,
 )
 
 
@@ -97,11 +104,6 @@ class PromptsResult:
     trash: TrashActionResult | None = None
 
 
-_STASH_ACCENT = "orchid"
-_HISTORY_ACCENT = "cyan"
-# Amber at rest (hex: "amber" is not a Rich-parseable color name).
-_TRASH_ACCENT = "#EBC04F"
-
 _SPLIT_PANE_MIN_TERMINAL_WIDTH = 110
 
 
@@ -111,6 +113,8 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
     BINDINGS = [
         Binding("[", "prev_tab", "Previous tab"),
         Binding("]", "next_tab", "Next tab"),
+        Binding("t", "toggle_trash_view", "Trash", show=False),
+        Binding("at", "restore_newest_stash", "Restore newest", show=False),
     ]
 
     def __init__(
@@ -121,13 +125,16 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
         origin: PromptsOrigin | None = None,
         initial_tab: PromptsTab = PromptsTab.STASH,
         trash: list[PromptStashTrashRecordWire] | None = None,
-        trash_limit: int = 20,
+        trash_limit: int = 100,
     ) -> None:
         super().__init__()
         stash_entries = list(entries)
         trash_records = list(trash) if trash is not None else []
         self._origin = origin or PromptsOrigin()
         self._active_tab = initial_tab
+        self._stash_view = (
+            PromptsTab.TRASH if initial_tab is PromptsTab.TRASH else PromptsTab.STASH
+        )
         self._trash_limit = trash_limit
         self._stash_pane = StashPane(
             stash_entries,
@@ -141,51 +148,25 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
         self._trash_mounted = False
         self._trash_records = trash_records
         self._stash_count = len(stash_entries)
-        # Last focused selector per tab, restored on every switch.
+        # Last focused selector per surface, restored on every switch.
         self._focus_memory: dict[PromptsTab, str] = {}
-        self._tabs = self._build_tabs()
 
-    # -- tab strip -----------------------------------------------------------
+    # -- tab bar -------------------------------------------------------------
 
-    def _build_tabs(self) -> tuple[PanelTab, ...]:
-        trash_count = len(self._trash_records)
-        return (
-            PanelTab(
-                id=PromptsTab.STASH.value,
-                label=f"Stash {self._stash_count}",
-                accent_color=_STASH_ACCENT,
-                compact_label=f"S{self._stash_count}",
-            ),
-            PanelTab(
-                id=PromptsTab.HISTORY.value,
-                label="History",
-                accent_color=_HISTORY_ACCENT,
-                compact_label="H",
-            ),
-            PanelTab(
-                id=PromptsTab.TRASH.value,
-                label=f"Trash {trash_count}/{self._trash_limit}",
-                accent_color=_TRASH_ACCENT,
-                compact_label=f"T{trash_count}/{self._trash_limit}",
-            ),
+    def _tab_bar_state(self) -> PromptsTabBarState:
+        return PromptsTabBarState(
+            surface=self._active_tab.value,
+            stash_count=self._stash_count,
+            trash_count=len(self._trash_records),
+            trash_limit=self._trash_limit,
         )
-
-    def _tab_for_id(self, tab_id: str) -> PromptsTab | None:
-        for tab in _TAB_ORDER:
-            if tab.value == tab_id:
-                return tab
-        return None
 
     # -- layout --------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
         with Container(id="prompts-modal-container"):
-            yield Label("Prompts", id="prompts-modal-title")
-            yield PanelTabStrip(
-                self._tabs,
-                self._active_tab.value,
-                show_numbers=False,
-                compact_below=_SPLIT_PANE_MIN_TERMINAL_WIDTH,
+            yield PromptsTabBar(
+                self._tab_bar_state(),
                 id="prompts-modal-tabs",
             )
             with Vertical(id="prompts-modal-body"):
@@ -193,6 +174,11 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
             yield Static("", id="prompts-modal-footer")
 
     def on_mount(self) -> None:
+        try:
+            container = self.query_one("#prompts-modal-container", Container)
+            container.border_title = "Prompts"
+        except Exception:
+            pass
         self._set_narrow_mode(
             self.app.size.width < _SPLIT_PANE_MIN_TERMINAL_WIDTH  # type: ignore[attr-defined]
         )
@@ -244,12 +230,13 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
         return self._stash_pane
 
     def _sync_chrome(self) -> None:
-        """Keep the tab strip and per-tab footer in lockstep."""
+        """Keep the tab bar and per-surface footer in lockstep."""
         try:
-            strip = self.query_one("#prompts-modal-tabs", PanelTabStrip)
+            bar = self.query_one("#prompts-modal-tabs", PromptsTabBar)
         except Exception:
-            return
-        strip.set_active_tab(self._active_tab.value)
+            bar = None
+        if bar is not None:
+            bar.set_state(self._tab_bar_state())
         try:
             footer = self.query_one("#prompts-modal-footer", Static)
         except Exception:
@@ -283,7 +270,6 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
         )
         if self._trash_pane is not None:
             self._trash_pane.apply_snapshot(self._trash_records)
-        self._refresh_tabs()
         self._sync_chrome()
 
     def apply_store_failure(self) -> None:
@@ -293,27 +279,49 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
             self._trash_pane.apply_store_failure()
         self._sync_chrome()
 
-    def _refresh_tabs(self) -> None:
-        self._tabs = self._build_tabs()
-        try:
-            strip = self.query_one("#prompts-modal-tabs", PanelTabStrip)
-        except Exception:
-            return
-        strip.set_tabs(self._tabs)
-
     # -- tab switching -------------------------------------------------------
 
     def action_prev_tab(self) -> None:
-        """Cycle to the previous tab with wraparound."""
+        """Cycle to the previous top-level tab with wraparound."""
         self._cycle_tab(-1)
 
     def action_next_tab(self) -> None:
-        """Cycle to the next tab with wraparound."""
+        """Cycle to the next top-level tab with wraparound."""
         self._cycle_tab(1)
 
+    def action_toggle_trash_view(self) -> None:
+        """Toggle the Stash tab between its list and Trash views."""
+        if self._active_tab is PromptsTab.HISTORY:
+            return
+        if self._active_tab is PromptsTab.TRASH:
+            self._activate(PromptsTab.STASH)
+        else:
+            self._activate(PromptsTab.TRASH)
+
+    def action_restore_newest_stash(self) -> None:
+        """Restore the newest stash entry (pin-aware, ignores staged marks)."""
+        if self._active_tab is not PromptsTab.STASH:
+            return
+        result = self._stash_pane.newest_restore_result()
+        if result is None:
+            return
+        self.dismiss(
+            PromptsResult(
+                tab=PromptsTab.STASH,
+                origin=self._origin,
+                stash=result,
+            )
+        )
+
     def _cycle_tab(self, step: int) -> None:
-        index = _TAB_ORDER.index(self._active_tab)
-        self._activate(_TAB_ORDER[(index + step) % len(_TAB_ORDER)])
+        # Trash counts as the Stash position; returning to Stash restores
+        # the remembered Stash view.
+        pos = 1 if self._active_tab is PromptsTab.HISTORY else 0
+        new_top = _TOP_LEVEL_TABS[(pos + step) % len(_TOP_LEVEL_TABS)]
+        if new_top is PromptsTab.STASH:
+            self._activate(self._stash_view)
+        else:
+            self._activate(new_top)
 
     def _ensure_trash_pane(self) -> TrashPane:
         if self._trash_pane is None:
@@ -341,6 +349,8 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
             self._focus_memory[self._active_tab] = f"#{focused_id}"
 
     def _activate(self, tab: PromptsTab) -> None:
+        if tab in (PromptsTab.STASH, PromptsTab.TRASH):
+            self._stash_view = tab
         if tab is self._active_tab and self._pane_mounted(tab):
             self._focus_active_default()
             return
@@ -430,17 +440,26 @@ class PromptsModal(ModalScreen[PromptsResult | None]):
             except Exception:
                 pass
 
-    @on(PanelTabStrip.TabClicked)
-    def _on_tab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
-        """Select a tab by mouse click."""
+    @on(PromptsTabBar.SurfaceClicked)
+    def _on_surface_clicked(self, event: PromptsTabBar.SurfaceClicked) -> None:
+        """Select a surface by mouse click (Stash label shows the list)."""
         event.stop()
-        tab = self._tab_for_id(event.tab_id)
-        if tab is not None:
-            self._activate(tab)
+        if event.surface == "stash":
+            self._activate(PromptsTab.STASH)
+        elif event.surface == "trash":
+            self._activate(PromptsTab.TRASH)
+        elif event.surface == "history":
+            self._activate(PromptsTab.HISTORY)
+
+    @on(BackRequested)
+    def _on_trash_back_requested(self, event: BackRequested) -> None:
+        """Return from the Trash view to the Stash list."""
+        event.stop()
+        self._activate(PromptsTab.STASH)
 
     @on(HistoryPane.CycleTabRequested)
     def _on_cycle_tab_requested(self, event: HistoryPane.CycleTabRequested) -> None:
-        """Cycle tabs for a bracket typed in the history filter."""
+        """Cycle top-level tabs for a bracket typed in the history filter."""
         event.stop()
         self._cycle_tab(event.step)
 
