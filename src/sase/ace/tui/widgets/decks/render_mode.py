@@ -12,7 +12,7 @@ from rich.text import Text
 
 from .card_block import is_card_container
 from .card_part import CardPart
-from .model import RenderMode
+from .model import DeckId, RenderMode
 
 SPREAD_HYSTERESIS = 0.10
 
@@ -106,16 +106,21 @@ def _lower_bound_node(node: object) -> int:
     return 1
 
 
-def measure_main_rows(
+def measure_card_rows(
     cards: Iterable[CardPart],
     *,
+    deck: DeckId,
     width: int,
     console: Console,
     options: ConsoleOptions,
     budget: float,
     cache_key_prefix: str | None,
 ) -> int:
-    """Measure spread rows with a cheap lower bound first, then exact render."""
+    """Measure spread rows with a cheap lower bound first, then exact render.
+
+    The per-card cache namespace includes ``deck`` so two card-document
+    decks never share a measurement entry.
+    """
     card_list = list(cards)
     if not card_list:
         return 0
@@ -133,9 +138,12 @@ def measure_main_rows(
 
     total = separator_rows
     render_width = max(1, int(width))
+    namespaced_prefix = (
+        None if cache_key_prefix is None else f"{deck.value}:{cache_key_prefix}"
+    )
     for card in card_list:
-        if cache_key_prefix:
-            digest = f"{cache_key_prefix}:{card.card_id}"
+        if namespaced_prefix:
+            digest = f"{namespaced_prefix}:{card.card_id}"
         else:
             try:
                 digest = renderable_content_digest(card)
@@ -167,6 +175,6 @@ def measure_main_rows(
 __all__ = [
     "SPREAD_HYSTERESIS",
     "decide_render_mode",
-    "measure_main_rows",
+    "measure_card_rows",
     "spread_budget_rows",
 ]

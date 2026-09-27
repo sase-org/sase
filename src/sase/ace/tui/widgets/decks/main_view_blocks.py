@@ -52,8 +52,8 @@ def sync_scrollbar_position(scroll: VerticalScroll) -> None:
         pass
 
 
-class MainDeckViewBlocksMixin:
-    """Per-card block cursors and block-page projection for Main views."""
+class CardDocumentViewBlocksMixin:
+    """Per-card block cursors and block-page projection for card-document views."""
 
     _block_cursors: dict[str, BlockCursor]
     _block_cursor_subject: object | None
@@ -538,4 +538,9 @@ class MainDeckViewBlocksMixin:
         return selected
 
 
-__all__ = ["MainDeckViewBlocksMixin"]
+#: Compatibility alias: the mixin was generalized from Main-only, and the
+#: ``Main*`` name stays for older imports.
+MainDeckViewBlocksMixin = CardDocumentViewBlocksMixin
+
+
+__all__ = ["CardDocumentViewBlocksMixin", "MainDeckViewBlocksMixin"]

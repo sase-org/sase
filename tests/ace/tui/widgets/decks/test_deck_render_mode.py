@@ -7,11 +7,11 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.ace.tui.widgets.decks.card_part import CardPart, context_card, reply_card
-from sase.ace.tui.widgets.decks.model import RenderMode
+from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
 from sase.ace.tui.widgets.decks.render_mode import (
     decide_render_mode,
     _lower_bound_rows,
-    measure_main_rows,
+    measure_card_rows,
     spread_budget_rows,
 )
 
@@ -156,8 +156,9 @@ def test_lower_bound_below_exact_on_wrapped_text() -> None:
     long_line = "word " * 30
     card = context_card(Text(long_line))
     lower = _lower_bound_rows(list(card.renderables), stop_after=1000)
-    measured = measure_main_rows(
+    measured = measure_card_rows(
         [card],
+        deck=DeckId.MAIN,
         width=20,
         console=console,
         options=options,
@@ -174,8 +175,9 @@ def test_measurement_cache_hit() -> None:
     console = Console(width=80)
     options = console.options
     card = context_card(Text("hello"))
-    first = measure_main_rows(
+    first = measure_card_rows(
         [card],
+        deck=DeckId.MAIN,
         width=80,
         console=console,
         options=options,
@@ -183,8 +185,9 @@ def test_measurement_cache_hit() -> None:
         cache_key_prefix="cache-test",
     )
     size_after_first = len(rm._measure_cache)
-    second = measure_main_rows(
+    second = measure_card_rows(
         [card],
+        deck=DeckId.MAIN,
         width=80,
         console=console,
         options=options,
@@ -203,8 +206,9 @@ def test_measurement_lower_bound_short_circuits_paged() -> None:
     big = context_card(Text("\n".join(f"line {i}" for i in range(200))))
     cards = [big, reply_card(Text("tail"))]
     # Tiny budget: the lower bound alone exceeds budget*1.10.
-    total = measure_main_rows(
+    total = measure_card_rows(
         cards,
+        deck=DeckId.MAIN,
         width=80,
         console=console,
         options=options,

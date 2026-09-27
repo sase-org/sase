@@ -19,6 +19,7 @@ from ..file_panel import (
 from ..llm_calls_panel import AgentLLMCallsPanel, LLMCallsVisibilityChanged
 from .availability import DeckAvailability
 from .block_rail import BlockRail
+from .card_documents import DeckPanelCardDocumentsMixin
 from .empty_state import deck_empty_state
 from .files_spread import FilesSpreadView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
@@ -51,6 +52,7 @@ class DeckPanelFocusRequested(Message):
 class DeckPanel(  # type: ignore[misc]
     DeckPanelViewMixin,
     DeckPanelBlocksMixin,
+    DeckPanelCardDocumentsMixin,
     DeckPanelChromeMixin,
     DeckPanelSpreadMixin,
     DeckPanelFilesMixin,
@@ -81,6 +83,7 @@ class DeckPanel(  # type: ignore[misc]
         self._init_spread_state()
         self._init_block_panel_state()
         self._init_view_state()
+        self._init_document_host_state()
 
     @property
     def panel_index(self) -> int:

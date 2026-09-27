@@ -7,10 +7,11 @@ from typing import Any
 from textual.containers import VerticalScroll
 
 from ...agent_decks_settings import agent_decks_settings_for
+from .card_documents import CARD_DOCUMENT_DECKS
 from .model import DeckId, DeckView, RenderMode, cycle_card_id
 from .render_mode import (
     decide_render_mode,
-    measure_main_rows,
+    measure_card_rows,
     spread_budget_rows,
 )
 from .view_policy import forced_deck_mode
@@ -37,10 +38,8 @@ class DeckPanelSpreadMixin:
     _one_shot_spread_card: str | None
 
     def _init_spread_state(self) -> None:
-        self._render_mode = {
-            DeckId.MAIN: RenderMode.PAGED,
-            DeckId.FILES: RenderMode.PAGED,
-        }
+        self._render_mode = dict.fromkeys(CARD_DOCUMENT_DECKS, RenderMode.PAGED)
+        self._render_mode[DeckId.FILES] = RenderMode.PAGED
         self._mode_subject = {}
         self._files_probe_pages = ()
         self._files_probe_total = None
@@ -101,33 +100,34 @@ class DeckPanelSpreadMixin:
         except Exception:
             return False
 
-    # -- Main decisions -------------------------------------------------
+    # -- Card-document decisions ------------------------------------------
 
-    def _decide_main_mode(
+    def _decide_document_mode(
         self,
+        deck: DeckId,
         document: Any,
         *,
         same_subject: bool,
+        policy: DeckView | None = None,
     ) -> RenderMode:
-        previous = self._render_mode.get(DeckId.MAIN, RenderMode.PAGED)
+        """Decide the spread/paged mode for any card-document ``deck``."""
+        if policy is None:
+            try:
+                policy = self.view_policy(deck)  # type: ignore[attr-defined]
+            except Exception:
+                policy = DeckView.AUTO
+        previous = self._render_mode.get(deck, RenderMode.PAGED)
         card_count = len(document.cards)
         try:
-            policy = self.view_policy(DeckId.MAIN)  # type: ignore[attr-defined]
+            forced = forced_deck_mode(policy, card_count)
         except Exception:
-            policy = None
-        if policy is not None:
-            try:
-                forced = forced_deck_mode(policy, card_count)
-            except Exception:
-                forced = None
-            if forced is not None:
-                return forced
+            forced = None
+        if forced is not None:
+            return forced
         spread_max = self._spread_settings_max_screens()
-        if card_count <= 1:
-            return RenderMode.SPREAD
         if spread_max <= 0:
             return RenderMode.PAGED
-        rows, width = self._spread_viewport(DeckId.MAIN)
+        rows, width = self._spread_viewport(deck)
         if rows <= 0 or width <= 0:
             return previous
         budget = spread_budget_rows(spread_max, rows)
@@ -144,8 +144,9 @@ class DeckPanelSpreadMixin:
             )
         console, options = pair
         try:
-            total = measure_main_rows(
+            total = measure_card_rows(
                 document.cards,
+                deck=deck,
                 width=width,
                 console=console,
                 options=options,
@@ -162,6 +163,16 @@ class DeckPanelSpreadMixin:
             spread_max_screens=spread_max,
             previous=previous,
             same_subject=same_subject,
+        )
+
+    def _decide_main_mode(
+        self,
+        document: Any,
+        *,
+        same_subject: bool,
+    ) -> RenderMode:
+        return self._decide_document_mode(
+            DeckId.MAIN, document, same_subject=same_subject
         )
 
     # -- Files decisions ------------------------------------------------
@@ -226,6 +237,29 @@ class DeckPanelSpreadMixin:
         return total
 
     # -- Scroll-derived active cards ------------------------------------
+
+    def spread_active_for(self, deck: DeckId) -> str | None:
+        """Return the scroll-derived active card for any card-document ``deck``."""
+        try:
+            host = self.card_document_host(deck)  # type: ignore[attr-defined]
+        except Exception:
+            host = None
+        if host is None:
+            return None
+        view, _document, _deck = host
+        try:
+            if view.render_mode is not RenderMode.SPREAD:
+                return self._stored_document_active(deck)  # type: ignore[attr-defined]
+            return view.spread_active_card()
+        except Exception:
+            try:
+                return self._stored_document_active(deck)  # type: ignore[attr-defined]
+            except Exception:
+                return None
+
+    def _document_spread_active(self, deck: DeckId) -> str | None:
+        """Return the scroll-derived active card for ``deck``."""
+        return self.spread_active_for(deck)
 
     def _main_spread_active(self) -> str | None:
         try:
@@ -311,31 +345,40 @@ class DeckPanelSpreadMixin:
 
     # -- Main spread cycling --------------------------------------------
 
-    def _cycle_main_spread(self, direction: int) -> str | None:
+    def _cycle_document_spread(self, deck: DeckId, direction: int) -> str | None:
+        """Cycle spread cards on any card-document ``deck``."""
         try:
-            document = self._main_document  # type: ignore[attr-defined]
+            host = self.card_document_host(deck)  # type: ignore[attr-defined]
         except Exception:
+            host = None
+        if host is None:
             return None
+        view, document, _deck = host
         ids = [card.card_id for card in document.cards]
         if not ids:
             return None
-        active = self._main_spread_active()
+        active = self.spread_active_for(deck)
         next_id = cycle_card_id(ids, active, direction)
         if next_id is None:
             return None
         try:
-            view = self.main_view  # type: ignore[attr-defined]
             shown = view.scroll_to_card(next_id)
         except Exception:
             return None
         if shown is None:
             return None
-        self._main_active_card = shown  # type: ignore[attr-defined]
+        try:
+            self._store_document_active(deck, shown)  # type: ignore[attr-defined]
+        except Exception:
+            return None
         try:
             self.refresh_chrome()  # type: ignore[attr-defined]
         except Exception:
             pass
         return shown
+
+    def _cycle_main_spread(self, direction: int) -> str | None:
+        return self._cycle_document_spread(DeckId.MAIN, direction)
 
     def _cycle_files_spread(self, direction: int) -> None:
         try:

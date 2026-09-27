@@ -73,11 +73,22 @@ class _CardSeparator:
         return Measurement(width, width)
 
 
-def main_separator_for(card_id: str, title: str, *, accent: str) -> _CardSeparator:
-    """Build a Main-deck separator with the deck glyph."""
-    return _CardSeparator(
-        card_id, title, glyph=deck_spec(DeckId.MAIN).glyph, accent=accent
-    )
+def card_separator_for(
+    deck: DeckId, card: Any, *, accent: str | None = None
+) -> _CardSeparator:
+    """Build a spread separator for ``card`` on any card-document deck."""
+    spec = deck_spec(deck)
+    try:
+        card_id = str(card.card_id)
+    except Exception:
+        card_id = ""
+    try:
+        title = str(card.title)
+    except Exception:
+        title = ""
+    if accent is None:
+        accent = spec.fallback_accent
+    return _CardSeparator(card_id, title, glyph=spec.glyph, accent=accent)
 
 
 def files_separator_for(card_id: str, title: str) -> _CardSeparator:
@@ -89,6 +100,6 @@ def files_separator_for(card_id: str, title: str) -> _CardSeparator:
 
 
 __all__ = [
+    "card_separator_for",
     "files_separator_for",
-    "main_separator_for",
 ]

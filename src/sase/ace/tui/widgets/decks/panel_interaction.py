@@ -15,10 +15,11 @@ from textual.widgets import Static
 from ..file_panel import AgentFilePanel
 from ..llm_calls_panel import AgentLLMCallsPanel
 from .availability import DeckAvailability
+from .card_documents import CARD_DOCUMENT_DECKS
 from .files_spread import FilesSpreadView
 from .main_document import MainDeckDocument
 from .main_view import MainDeckView
-from .model import DeckId, RenderMode
+from .model import DeckId
 
 
 class DeckPanelInteractionMixin:
@@ -38,14 +39,11 @@ class DeckPanelInteractionMixin:
         def __getattr__(self, name: str) -> Any: ...
 
     def _watch_deck_scrolls(self) -> None:
-        try:
-            main_scroll = self.query_one(
-                f"#agent-deck-panel-{self._panel_index}-main-scroll",
-                VerticalScroll,
-            )
-            self.watch(main_scroll, "scroll_y", self._on_main_scroll_y, init=False)
-        except Exception:
-            pass
+        for deck in CARD_DOCUMENT_DECKS:
+            try:
+                self._watch_document_scroll(deck)  # type: ignore[attr-defined]
+            except Exception:
+                pass
         try:
             files_scroll = self.query_one(
                 f"#agent-deck-panel-{self._panel_index}-files-scroll",
@@ -85,68 +83,7 @@ class DeckPanelInteractionMixin:
     def _sync_spread_block_cursor_from_scroll(self) -> None:
         """Recompute the spread block cursor from the scroll position."""
         try:
-            document = self._main_document
-            if getattr(document, "partial", False):
-                return
-        except Exception:
-            return
-        try:
-            view = self.main_view
-        except Exception:
-            return
-        try:
-            spread = bool(self.is_spread(DeckId.MAIN))
-        except Exception:
-            spread = False
-        card = None
-        try:
-            if spread:
-                try:
-                    preferred = self._main_active_card
-                except Exception:
-                    preferred = None
-                card = self._spread_block_card(document, preferred)  # type: ignore[attr-defined]
-            else:
-                try:
-                    active = view.active_card_id
-                except Exception:
-                    active = None
-                if active is None:
-                    try:
-                        active = self._main_active_card
-                    except Exception:
-                        active = None
-                if active is None:
-                    return
-                try:
-                    block_mode = view.block_mode_for_active_card()
-                except Exception:
-                    block_mode = None
-                if block_mode is not RenderMode.SPREAD:
-                    return
-                card = document.card(active)
-                if card is None or not bool(card.has_block_navigation):
-                    return
-        except Exception:
-            return
-        if card is None:
-            return
-        try:
-            updated = view.sync_spread_cursor_from_scroll(card)  # type: ignore[attr-defined]
-        except Exception:
-            updated = None
-        if updated is None:
-            return
-        try:
-            self.refresh_chrome()
-        except Exception:
-            pass
-        try:
-            self._sync_block_navigable()  # type: ignore[attr-defined]
-        except Exception:
-            pass
-        try:
-            self._sync_block_rail()  # type: ignore[attr-defined]
+            self.sync_document_spread_block_cursor(DeckId.MAIN)  # type: ignore[attr-defined]
         except Exception:
             pass
 

@@ -33,6 +33,14 @@ EMPTY_MAIN_DOCUMENT = MainDeckDocument(
     cards=(), subject=None, partial=False, digest=None
 )
 
+#: Generic alias: every card-document deck (Main today, FINAL later) shows a
+#: :class:`MainDeckDocument`. New code should use the ``Card*`` names; the
+#: ``Main*`` names stay for compatibility.
+CardDocument = MainDeckDocument
+
+#: Generic alias for :data:`EMPTY_MAIN_DOCUMENT`.
+EMPTY_CARD_DOCUMENT = EMPTY_MAIN_DOCUMENT
+
 
 def build_main_deck_document(
     content: object,
