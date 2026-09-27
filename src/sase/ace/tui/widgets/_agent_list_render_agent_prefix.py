@@ -10,7 +10,6 @@ from rich.text import Text
 
 from ..models._agent_tree import agent_is_tree_child, agent_tree_depth, agent_tree_title
 from ..models.agent import Agent, AgentType
-from ..models.agent_session_members import gate_row_is_settled, monitor_row_is_settled
 from ..models.tribe_display import (
     TRIBE_IDENTITY_FALLBACK_COLOR,
     compose_tribe_identity_style,
@@ -18,29 +17,23 @@ from ..models.tribe_display import (
 from ..provider_styles import provider_emoji_badge
 from ._agent_list_helpers import ordered_row_providers
 from ._agent_list_render_layout import render_tier_gutter
+from ._agent_list_render_rail import (
+    gate_glyph_style as _gate_glyph_style,
+    monitor_glyph_style as _monitor_glyph_style,
+    row_kind_glyph,
+)
 from ._agent_list_styling import (
     _AGENT_TYPE_COLORS,
     _APPROVE_ICON,
     _CHILD_INDENT,
-    _GATE_FAILED_COUNT_GLYPH_STYLE,
-    _GATE_GLYPH,
-    _GATE_ROW_STYLE,
-    _GATE_SETTLED_COUNT_GLYPH_STYLE,
     _HIDDEN_ICON,
-    _MONITOR_GLYPH,
-    _MONITOR_GLYPH_STYLE,
     _MONITOR_ROW_STYLE,
-    _MONITOR_SETTLED_GLYPH_STYLE,
-    _NAMED_PROC_GLYPH,
-    _NAMED_PROC_GLYPH_STYLE,
     _NAMED_PROC_ROW_STYLE,
     _REVERTED_GLYPH,
     _REVERTED_GLYPH_STYLE,
     _STEP_TYPE_COLORS,
-    _STEP_TYPE_GLYPHS,
     _TREE_DEPTH_COLORS,
     _TREE_GUIDE,
-    _TYPE_GLYPHS,
 )
 
 
@@ -73,30 +66,6 @@ def _append_machine_chip(text: Text, agent: Agent) -> None:
     if not alias or _is_indented_member_turn(agent):
         return
     text.append(f"{alias} ", style="bold #5FD7FF")
-
-
-def _monitor_glyph_style(agent: Agent) -> str:
-    """Return the row gear style for a monitor turn.
-
-    Shares ``monitor_row_is_settled`` with the ``⚙N`` lane counts so a grey
-    gear on a row and the grey count it feeds can never disagree.
-    """
-    return (
-        _MONITOR_SETTLED_GLYPH_STYLE
-        if monitor_row_is_settled(agent)
-        else _MONITOR_GLYPH_STYLE
-    )
-
-
-def _gate_glyph_style(agent: Agent) -> str:
-    """Return the row glyph style for a gate turn."""
-    if agent.gate_state in {"failed", "timeout", "lost"}:
-        return _GATE_FAILED_COUNT_GLYPH_STYLE
-    if gate_row_is_settled(agent):
-        return _GATE_SETTLED_COUNT_GLYPH_STYLE
-    if agent.gate_accent:
-        return f"bold {agent.gate_accent}"
-    return _GATE_ROW_STYLE
 
 
 def _tree_depth_style(depth: int, *, is_selected: bool) -> str:
@@ -179,26 +148,20 @@ def append_agent_row_prefix(
         indent = "  " * agent.retry_attempt + "↳ "
         text.append(indent, style="dim #808080")
 
+    # The kind badge is shared with the rail density through
+    # ``row_kind_glyph`` so the two renderings cannot drift.
+    kind = row_kind_glyph(agent, is_expanded=is_expanded)
     # Indentation for rows linked under a parent agent/workflow.
     if tree_depth > 0:
         _append_tree_indent(text, tree_depth, is_selected=is_selected)
         if approve_icon is not None:
             text.append(f"{approve_icon} ", style="bold #00FFFF")
-        if agent.is_monitor:
-            text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
-        elif agent.is_gate:
-            text.append(f"{_GATE_GLYPH} ", style=_gate_glyph_style(agent))
-        elif agent.is_workflow_step_child:
-            step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
-            if step_glyph is not None:
-                glyph_color = _STEP_TYPE_COLORS.get(agent.step_type or "", "#FFFFFF")
-                text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
-    elif agent.is_monitor:
-        text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
-    elif agent.is_gate:
-        text.append(f"{_GATE_GLYPH} ", style=_gate_glyph_style(agent))
-    elif agent.is_named_proc:
-        text.append(f"{_NAMED_PROC_GLYPH} ", style=_NAMED_PROC_GLYPH_STYLE)
+        if kind is not None:
+            glyph, glyph_style = kind
+            text.append(f"{glyph} ", style=glyph_style)
+    elif kind is not None:
+        glyph, glyph_style = kind
+        text.append(f"{glyph} ", style=glyph_style)
 
     # Hidden icon for agents that are normally hidden
     if agent.hidden:
@@ -241,18 +204,20 @@ def append_agent_row_prefix(
     # already marks tree depth).  Other top-level types render as a
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
-    if not (agent.is_clan_container or is_agent_session_container_row) and not (
-        is_appears_as_agent
-        or agent_is_tree_child(agent)
-        or agent.is_monitor
-        or agent.is_gate
-        or agent.is_named_proc
+    if (
+        kind is None
+        and not (agent.is_clan_container or is_agent_session_container_row)
+        and not (
+            is_appears_as_agent
+            or agent_is_tree_child(agent)
+            or agent.is_monitor
+            or agent.is_gate
+            or agent.is_named_proc
+        )
     ):
-        type_glyph = _TYPE_GLYPHS.get(dt)
-        if type_glyph is not None:
-            text.append(f"{type_glyph} ", style=f"bold {color}")
-        else:
-            text.append(f"[{dt}] ", style=f"bold {color}")
+        # Known display types already rendered through ``row_kind_glyph``
+        # above; unknown ones keep the ``[X]`` debug badge.
+        text.append(f"[{dt}] ", style=f"bold {color}")
 
     if _should_render_provider_badge(agent):
         for provider in ordered_row_providers(agent):
