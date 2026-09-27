@@ -1,9 +1,11 @@
 """FINAL deck document builder (epic sase-1b2, ``final-deck-shell``).
 
 Assembles the ``overview`` plus ``instance:<id>`` cards from the typed
-node view. Card bodies are minimal here — one status header line each —
-and the next two phases (``final-overview-card``, ``final-instance-cards``)
-fill them in.
+node view. Instance card bodies render through
+:mod:`sase.ace.tui.widgets.decks.final.instance_card` (generic,
+provider-neutral) plus the additive
+:mod:`sase.ace.tui.widgets.decks.final.enrichers`; the Overview body
+belongs to ``final-overview-card``.
 """
 
 from __future__ import annotations
@@ -16,6 +18,8 @@ from sase.finalizers.view_vocabulary import FINAL_GLYPH, instance_style
 
 from ..main_document import MainDeckDocument
 from ..model import RenderMode
+from .enrichers import instance_enrichments
+from .instance_card import build_instance_card_renderables
 
 #: Card id of the run-level Overview card (plan D3).
 FINAL_OVERVIEW_CARD_ID = "overview"
@@ -119,22 +123,21 @@ def build_final_deck_document(
         FINAL_OVERVIEW_CARD_ID, FINAL_OVERVIEW_TITLE, header, *rows, *tail
     )
     cards: list[CardPart] = [overview]
+    runs = list(getattr(node_view, "runs", ()) or ())
     for item in instances:
         instance_id = str(getattr(item, "instance_id", ""))
-        provider = getattr(item, "provider_ref", None) or instance_id
         status = getattr(item, "status", None)
-        style = instance_style(status)
-        reason = getattr(item, "selection_reason", "") or ""
-        body = Text()
-        body.append(f"{provider}", style=f"bold {style.color}")
-        body.append(f"  {style.glyph} {style.word}", style=style.color)
-        if reason:
-            body.append(f"\n{reason}", style="dim")
+        provider_ref = getattr(item, "provider_ref", None)
+        body = build_instance_card_renderables(item, runs)
+        extra = instance_enrichments(
+            str(provider_ref) if provider_ref else None, item, runs
+        )
         cards.append(
             CardPart(
                 final_instance_card_id(instance_id),
                 final_instance_tab_title(instance_id, status),
-                body,
+                *body,
+                *extra,
             )
         )
     return MainDeckDocument(
