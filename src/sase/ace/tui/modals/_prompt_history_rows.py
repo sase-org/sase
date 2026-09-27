@@ -34,7 +34,7 @@ _PROJECT_PLACEHOLDER = "—"
 _ListSummaryFactory = Callable[[str], PromptListSummary]
 
 
-def ellipsize_right(value: str, width: int) -> str:
+def _ellipsize_right(value: str, width: int) -> str:
     """Trim text to width, reserving space for an ellipsis when possible."""
     if width <= 0:
         return ""
@@ -45,7 +45,7 @@ def ellipsize_right(value: str, width: int) -> str:
     return f"{value[: width - 3]}..."
 
 
-def format_history_timestamp(timestamp: str) -> str:
+def _format_history_timestamp(timestamp: str) -> str:
     """Format SASE history timestamps as compact MM-DD HH:MM values."""
     raw_timestamp = timestamp.strip()
     try:
@@ -115,8 +115,8 @@ def create_prompt_history_label(
     xprompt_style = "dim italic" if is_cancelled else "green"
     directive_style = "dim italic" if is_cancelled else "yellow"
 
-    last_used = format_history_timestamp(item.entry.last_used)
-    prompt = ellipsize_right(
+    last_used = _format_history_timestamp(item.entry.last_used)
+    prompt = _ellipsize_right(
         summary.clean_preview,
         preview_width,
     )
@@ -160,9 +160,9 @@ def _append_project_column(
 
     prefix = summary.project_prefix
     ref_width = max(_PROJECT_COL_WIDTH - len(prefix), 0)
-    ref = ellipsize_right(summary.project_ref_display, ref_width)
+    ref = _ellipsize_right(summary.project_ref_display, ref_width)
     if not ref and len(prefix) > _PROJECT_COL_WIDTH:
-        prefix = ellipsize_right(prefix, _PROJECT_COL_WIDTH)
+        prefix = _ellipsize_right(prefix, _PROJECT_COL_WIDTH)
 
     text.append(prefix, style=metadata_style)
     if ref:
@@ -215,9 +215,9 @@ def _fit_tag_tokens(
     if not displayed:
         token_text, style = tokens[0]
         if len(tokens) == 1:
-            return [(ellipsize_right(token_text, width), style)]
+            return [(_ellipsize_right(token_text, width), style)]
         suffix = f"+{len(tokens)}"
-        return [(ellipsize_right(suffix, width), style)]
+        return [(_ellipsize_right(suffix, width), style)]
 
     overflow_style = displayed[-1][1]
     while displayed:
@@ -230,7 +230,7 @@ def _fit_tag_tokens(
         overflow_style = displayed[-1][1] if displayed else tokens[0][1]
 
     suffix = f"+{len(tokens)}"
-    return [(ellipsize_right(suffix, width), tokens[0][1])]
+    return [(_ellipsize_right(suffix, width), tokens[0][1])]
 
 
 def _tag_tokens_width(tokens: list[tuple[str, str]]) -> int:

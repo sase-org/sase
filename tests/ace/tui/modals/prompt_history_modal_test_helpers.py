@@ -1,13 +1,11 @@
-"""Shared helpers for prompt-history modal tests."""
+"""Shared helpers for prompt-history pane tests."""
 
 from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
-from sase.ace.tui.modals.prompt_history_modal import (
-    _PromptDisplayItem,
-    PromptHistoryModal,
-)
+from sase.ace.tui.modals._prompt_history_models import PromptDisplayItem
+from sase.ace.tui.modals.history_pane import HistoryPane
 from sase.core.prompt_history_filter_wire import PromptHistoryProjectIdentity
 from sase.history.prompt_history_project_filter import (
     PromptHistoryProjectCatalog,
@@ -15,9 +13,11 @@ from sase.history.prompt_history_project_filter import (
 )
 from sase.history.prompt_store import PromptEntry
 
+_PromptDisplayItem = PromptDisplayItem
+
 
 class _PromptHistoryTestApp(App[None]):
-    """Minimal app harness for prompt-history modal pilot tests."""
+    """Minimal app harness for prompt-history pane pilot tests."""
 
     ENABLE_COMMAND_PALETTE = False
 
@@ -55,8 +55,8 @@ def _modal_with_catalog(
     items: list[_PromptDisplayItem],
     *,
     show_cancelled: bool = False,
-) -> PromptHistoryModal:
-    modal = object.__new__(PromptHistoryModal)
+) -> HistoryPane:
+    modal = object.__new__(HistoryPane)
     modal._catalog = catalog
     modal._all_items = items
     modal._show_cancelled = show_cancelled

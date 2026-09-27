@@ -1,13 +1,10 @@
 """Reusable History pane and its shared controller logic.
 
-This module owns the prompt-history state and loading logic shared by the
-standalone :class:`PromptHistoryModal` and the tabbed :class:`PromptsModal`
-overlay. The screen-specific behavior previously in
-``prompt_history_modal.py`` now lives in
-:class:`PromptHistoryControllerMixin` so both hosts keep identical behavior;
-the modal keeps its exact DOM while :class:`HistoryPane` renders only the
-filter and list/preview panels (the overlay shell owns the heading, tab
-strip, and footer).
+This module owns the prompt-history state and loading logic shown on the
+History tab of the tabbed :class:`PromptsModal` overlay.
+:class:`_PromptHistoryControllerMixin` holds the filter/list state and
+interactions; :class:`HistoryPane` renders only the filter and list/preview
+panels (the overlay shell owns the heading, tab strip, and footer).
 """
 
 from __future__ import annotations
@@ -70,7 +67,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class PromptHistoryLoadedPage:
+class _PromptHistoryLoadedPage:
     """One fetched page so unload can drop it and refetch from the same cursor."""
 
     item_count: int
@@ -133,7 +130,7 @@ HISTORY_BINDINGS: list[Any] = [
 ]
 
 
-class PromptHistoryControllerMixin:
+class _PromptHistoryControllerMixin:
     """Shared history loading state, paging, and layout pieces.
 
     Hosts provide ``_emit_result`` and compose the shared pieces. The
@@ -198,8 +195,7 @@ class PromptHistoryControllerMixin:
         """
         if initial_filter and prompt_seed is not None:
             raise ValueError(
-                "PromptHistoryModal accepts either initial_filter or "
-                "prompt_seed, never both"
+                "History accepts either initial_filter or prompt_seed, never both"
             )
         self._all_items: list[PromptDisplayItem] = []
         self._filtered_items: list[PromptDisplayItem] = []
@@ -218,7 +214,7 @@ class PromptHistoryControllerMixin:
         self._history_loaded_once = False
         self._history_loading = False
         self._page_size = get_ace_page_size()
-        self._loaded_pages: list[PromptHistoryLoadedPage] = []
+        self._loaded_pages: list[_PromptHistoryLoadedPage] = []
 
     def _create_styled_label(self, item: PromptDisplayItem) -> Text:
         """Create styled text for a prompt list item."""
@@ -265,7 +261,7 @@ class PromptHistoryControllerMixin:
         if not hasattr(self, "_loaded_pages"):
             self._loaded_pages = []
         self._loaded_pages.append(
-            PromptHistoryLoadedPage(
+            _PromptHistoryLoadedPage(
                 item_count=len(page.records),
                 resume_cursor=resume_cursor,
             )
@@ -446,7 +442,7 @@ class PromptHistoryControllerMixin:
 
 
 class HistoryPane(
-    PromptHistoryControllerMixin,
+    _PromptHistoryControllerMixin,
     PromptHistoryListStateMixin,
     PromptHistoryInteractionMixin,
     OptionListNavigationMixin,
@@ -512,7 +508,5 @@ class HistoryPane(
 __all__ = [
     "HISTORY_BINDINGS",
     "HistoryPane",
-    "PromptHistoryControllerMixin",
-    "PromptHistoryLoadedPage",
     "create_prompt_history_label",
 ]

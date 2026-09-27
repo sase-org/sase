@@ -18,9 +18,9 @@ from sase.ace.tui.modals.trash_pane import (
     TrashCopyRequested,
     TrashPane,
     TrashRestoreRequested,
+    _sort_trash_records,
+    _trash_empty_text,
     purge_confirm_text,
-    sort_trash_records,
-    trash_empty_text,
 )
 from sase.core.prompt_stash_wire import PromptStashTrashRecordWire
 from tests.ace.tui.modals.stashed_prompts_modal_test_helpers import make_entry
@@ -110,7 +110,7 @@ def test_sort_newest_first_with_stable_ties() -> None:
         make_record("a", trashed_at="2026-06-16T12:00:00"),
         make_record("c", trashed_at="2026-06-16T09:00:00"),
     ]
-    assert [r.entry.id for r in sort_trash_records(records)] == ["b", "a", "c"]
+    assert [r.entry.id for r in _sort_trash_records(records)] == ["b", "a", "c"]
 
 
 def test_trash_row_label_marks() -> None:
@@ -140,11 +140,11 @@ def test_trash_row_label_marks() -> None:
 
 
 def test_trash_empty_text_variants() -> None:
-    assert "disabled" in trash_empty_text(trash_limit=0)
-    assert "0" in trash_empty_text(trash_limit=0)
-    plain = trash_empty_text(trash_limit=20)
+    assert "disabled" in _trash_empty_text(trash_limit=0)
+    assert "0" in _trash_empty_text(trash_limit=0)
+    plain = _trash_empty_text(trash_limit=20)
     assert "Stash d" in plain
-    pointed = trash_empty_text(trash_limit=20, has_stash_rows=True)
+    pointed = _trash_empty_text(trash_limit=20, has_stash_rows=True)
     assert "Stash d moves" in pointed
 
 

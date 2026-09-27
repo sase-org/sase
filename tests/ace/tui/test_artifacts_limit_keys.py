@@ -229,7 +229,7 @@ async def test_artifacts_prompt_bar_ctrl_k_still_opens_history() -> None:
         await page.pause()
         page.query_one_widget(".prompt-input", PromptTextArea)
         await page.press("h", "i", "ctrl+k")
-        await page.expect_modal("PromptHistoryModal")
+        await page.expect_modal("PromptsModal")
 
 
 async def test_agents_tab_ctrl_j_does_not_rewrite_artifacts_query() -> None:

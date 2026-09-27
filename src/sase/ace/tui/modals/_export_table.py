@@ -273,9 +273,8 @@ _LAZY_EXPORTS = {
     ),
     "ProjectSelectModal": (".project_select_modal", "ProjectSelectModal"),
     "ProjectSelectResult": (".project_selection_types", "ProjectSelectResult"),
-    "PromptHistoryAction": (".prompt_history_modal", "PromptHistoryAction"),
-    "PromptHistoryModal": (".prompt_history_modal", "PromptHistoryModal"),
-    "PromptHistoryResult": (".prompt_history_modal", "PromptHistoryResult"),
+    "PromptHistoryAction": ("._prompt_history_models", "PromptHistoryAction"),
+    "PromptHistoryResult": ("._prompt_history_models", "PromptHistoryResult"),
     "PromptSubmitChoice": (".prompt_submit_choice_modal", "PromptSubmitChoice"),
     "PromptSubmitChoiceModal": (
         ".prompt_submit_choice_modal",

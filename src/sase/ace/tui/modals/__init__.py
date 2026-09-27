@@ -187,7 +187,6 @@ __all__ = [
     "ProjectSelectResult",
     "HistoryPane",
     "PromptHistoryAction",
-    "PromptHistoryModal",
     "PromptHistoryResult",
     "PromptsModal",
     "PromptsOrigin",

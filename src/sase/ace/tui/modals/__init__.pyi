@@ -217,9 +217,8 @@ from .project_alias_editor_modal import (
 )
 from .project_select_modal import ProjectSelectModal as ProjectSelectModal
 from .project_selection_types import ProjectSelectResult as ProjectSelectResult
-from .prompt_history_modal import PromptHistoryAction as PromptHistoryAction
-from .prompt_history_modal import PromptHistoryModal as PromptHistoryModal
-from .prompt_history_modal import PromptHistoryResult as PromptHistoryResult
+from ._prompt_history_models import PromptHistoryAction as PromptHistoryAction
+from ._prompt_history_models import PromptHistoryResult as PromptHistoryResult
 from .prompts_modal import PromptsModal as PromptsModal
 from .prompts_modal import PromptsOrigin as PromptsOrigin
 from .prompts_modal import PromptsOriginKind as PromptsOriginKind

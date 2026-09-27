@@ -1,4 +1,4 @@
-"""Tests for prompt-history modal project filtering and scope hints."""
+"""Tests for History pane project filtering and scope hints."""
 
 from __future__ import annotations
 
@@ -8,10 +8,17 @@ import pytest
 from textual.widgets import Input
 
 from sase.ace.testing import wait_for
-import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
 import sase.ace.tui.modals.history_pane as history_pane
-from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
-from sase.core.prompt_history_filter_wire import PromptHistoryProjectIdentity
+from sase.ace.tui.modals.history_pane import HistoryPane
+from sase.ace.tui.modals.prompts_modal import (
+    PromptsModal,
+    PromptsOrigin,
+    PromptsTab,
+)
+from sase.core.prompt_history_filter_wire import (
+    PromptHistoryProjectIdentity,
+    PromptHistorySeed,
+)
 from sase.history.prompt_catalog import PromptHistoryPage
 from sase.history.prompt_history_project_filter import PromptHistoryProjectCatalog
 from tests.ace.tui.modals.prompt_history_modal_test_helpers import (
@@ -161,7 +168,7 @@ def test_scope_hint_shows_project_label_when_scoped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hint = _FakeScopeHint()
-    modal = object.__new__(PromptHistoryModal)
+    modal = object.__new__(HistoryPane)
     catalog = _catalog(PromptHistoryProjectIdentity(key="sase", label="sase"))
     modal._last_compiled_query = catalog.compile_query("project:sase fix")
     modal._seed_hint_text = None
@@ -186,7 +193,7 @@ def test_scope_hint_shows_diagnostic_for_malformed_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     hint = _FakeScopeHint()
-    modal = object.__new__(PromptHistoryModal)
+    modal = object.__new__(HistoryPane)
     catalog = _catalog()
     modal._last_compiled_query = catalog.compile_query("project:")
     modal._seed_hint_text = None
@@ -216,7 +223,7 @@ def test_scope_hint_shows_seed_hint_until_user_edits_away(
         value = "fix parser"
 
     filter_input = _FakeFilterInput()
-    modal = object.__new__(PromptHistoryModal)
+    modal = object.__new__(HistoryPane)
     catalog = _catalog()
     modal._last_compiled_query = catalog.compile_query("fix parser")
     modal._seed_hint_text = "Project scope unavailable; searching all loaded prompts"
@@ -246,14 +253,12 @@ async def test_typing_during_seed_resolution_wins_over_the_seed(
 
     def slow_build_seed(
         _draft: str, _catalog: PromptHistoryProjectCatalog
-    ) -> prompt_history_modal.PromptHistorySeed:
+    ) -> PromptHistorySeed:
         release.wait(10.0)
-        return prompt_history_modal.PromptHistorySeed(
-            seed_text="project:sase fix parser", hint=None
-        )
+        return PromptHistorySeed(seed_text="project:sase fix parser", hint=None)
 
     monkeypatch.setattr(
-        prompt_history_modal.PromptHistoryProjectCatalog,
+        PromptHistoryProjectCatalog,
         "load",
         classmethod(lambda cls: cls(entries=())),
     )
@@ -270,18 +275,28 @@ async def test_typing_during_seed_resolution_wins_over_the_seed(
         ),
     )
 
-    modal = PromptHistoryModal(prompt_seed="#gh:sase fix parser")
+    overlay = PromptsModal(
+        [],
+        initial_tab=PromptsTab.HISTORY,
+        origin=PromptsOrigin(prompt_seed="#gh:sase fix parser"),
+    )
     async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
-        pilot.app.push_screen(modal)
+        pilot.app.push_screen(overlay)
         await pilot.pause()
-        filter_input = modal.query_one("#prompt-history-filter-input", Input)
+        filter_input = overlay.query_one("#prompt-history-filter-input", Input)
         await wait_for(pilot, lambda: filter_input.has_focus)
 
         await pilot.press("x")
         assert filter_input.value == "x"
 
         release.set()
-        await wait_for(pilot, lambda: modal._history_loaded_once)
+        await wait_for(
+            pilot,
+            lambda: (
+                overlay._history_pane is not None
+                and overlay._history_pane._history_loaded_once
+            ),
+        )
 
         assert filter_input.value == "x"
 
@@ -290,7 +305,7 @@ async def test_ctrl_k_seed_with_project_tag_resolves_to_project_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        prompt_history_modal.PromptHistoryProjectCatalog,
+        PromptHistoryProjectCatalog,
         "load",
         classmethod(
             lambda cls: cls(
@@ -306,11 +321,21 @@ async def test_ctrl_k_seed_with_project_tag_resolves_to_project_scope(
         ),
     )
 
-    modal = PromptHistoryModal(prompt_seed="+sase fix parser")
+    overlay = PromptsModal(
+        [],
+        initial_tab=PromptsTab.HISTORY,
+        origin=PromptsOrigin(prompt_seed="+sase fix parser"),
+    )
     async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
-        pilot.app.push_screen(modal)
+        pilot.app.push_screen(overlay)
         await pilot.pause()
-        filter_input = modal.query_one("#prompt-history-filter-input", Input)
-        await wait_for(pilot, lambda: modal._history_loaded_once)
+        filter_input = overlay.query_one("#prompt-history-filter-input", Input)
+        await wait_for(
+            pilot,
+            lambda: (
+                overlay._history_pane is not None
+                and overlay._history_pane._history_loaded_once
+            ),
+        )
 
         assert filter_input.value == "project:sase fix parser"

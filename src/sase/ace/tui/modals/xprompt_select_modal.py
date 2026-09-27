@@ -345,7 +345,7 @@ class XPromptSelectModal(
 
         Terminals deliver ``Ctrl+I`` as the Tab byte, and Textual's focus
         cycling claims a bare Tab before the declared ``ctrl+i`` binding can
-        fire (the same collision handled in :class:`PromptHistoryModal`).
+        fire (the same collision handled in the History pane).
         Intercepting ``tab`` here makes the expansion keymap work whether the
         filter input or the option list holds focus; a genuine ``ctrl+i`` event
         (enhanced keyboard protocol or the test harness) still routes through

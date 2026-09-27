@@ -17,7 +17,7 @@ class PromptHistoryAction(Enum):
 
 @dataclass
 class PromptHistoryResult:
-    """Result from PromptHistoryModal."""
+    """Result from selecting a prompt in History."""
 
     action: PromptHistoryAction
     prompt_text: str

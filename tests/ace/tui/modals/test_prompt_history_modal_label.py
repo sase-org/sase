@@ -1,4 +1,4 @@
-"""Tests for prompt-history modal label rendering and preview content."""
+"""Tests for History pane label rendering and preview content."""
 
 from __future__ import annotations
 
@@ -6,18 +6,19 @@ import pytest
 
 import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
-import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
 import sase.ace.tui.modals.history_pane as history_pane
-from sase.ace.tui.modals.prompt_history_modal import (
+from sase.ace.tui.modals._prompt_history_rows import (
     _MIN_PREVIEW_WIDTH,
     _OPTION_HORIZONTAL_PADDING_WIDTH,
     _PROMPT_COL_START,
-    PromptHistoryModal,
-    _create_prompt_history_label,
     _ellipsize_right,
     _format_history_timestamp,
-    _prompt_history_header_text,
-    _prompt_preview_width_for_list_content,
+    prompt_history_header_text as _prompt_history_header_text,
+    prompt_preview_width_for_list_content as _prompt_preview_width_for_list_content,
+)
+from sase.ace.tui.modals.history_pane import (
+    HistoryPane,
+    create_prompt_history_label as _create_prompt_history_label,
 )
 from sase.history.prompt_metadata import PromptListSummary
 from tests.ace.tui.modals.prompt_history_modal_test_helpers import _item
@@ -180,7 +181,7 @@ def test_prompt_history_preview_metadata_includes_prompt_metadata(
 
     preview = FakeStatic()
     metadata = FakeStatic()
-    modal = object.__new__(PromptHistoryModal)
+    modal = object.__new__(HistoryPane)
 
     def fake_query_one(selector: str, _widget_type: object) -> FakeStatic:
         if selector == "#prompt-history-preview":
@@ -255,7 +256,7 @@ def test_prompt_history_preview_uses_display_text(
 
     preview = FakeStatic()
     metadata = FakeStatic()
-    modal = object.__new__(PromptHistoryModal)
+    modal = object.__new__(HistoryPane)
     item = _item(text="#gh:gh_acme__widgets Fix parser")
     item.display_text = "#gh:widgets Fix parser"
 

@@ -97,7 +97,7 @@ class TrashRequested(Message, namespace="stashed_prompts_modal"):
 
 
 @dataclass(frozen=True, slots=True)
-class TrashCommitPreview:
+class _TrashCommitPreview:
     """Preview of a staged Stash → Trash commit.
 
     ``expected_evictions`` is the permanent-loss count the batch would cause
@@ -120,7 +120,7 @@ def preview_trash_commit(
     *,
     trash_count: int,
     trash_limit: int,
-) -> TrashCommitPreview:
+) -> _TrashCommitPreview:
     """Compute the confirmation preview for moving marked rows to Trash.
 
     Stale IDs (absent from *entries*) are dropped: unknown IDs are no-ops.
@@ -130,7 +130,7 @@ def preview_trash_commit(
     marked = [entry_id for entry_id in marked_ids if entry_id in live]
     pinned_marks = tuple(entry_id for entry_id in marked if entry_id in pinned)
     expected = max(0, trash_count + len(marked) - trash_limit) if trash_limit > 0 else 0
-    return TrashCommitPreview(
+    return _TrashCommitPreview(
         marked_ids=tuple(marked),
         pinned_ids=pinned_marks,
         expected_evictions=expected,
@@ -139,7 +139,7 @@ def preview_trash_commit(
     )
 
 
-def trash_commit_confirm_text(preview: TrashCommitPreview) -> str:
+def trash_commit_confirm_text(preview: _TrashCommitPreview) -> str:
     """Return the explicit confirmation message for a Stash → Trash commit."""
     count = len(preview.marked_ids)
     noun = "draft" if count == 1 else "drafts"
@@ -171,7 +171,7 @@ def trash_outcome_text(moved: int, evicted: list[str]) -> str:
     return message
 
 
-def stash_empty_text(*, trash_count: int) -> str:
+def _stash_empty_text(*, trash_count: int) -> str:
     """Return the empty-Stash explanation, pointing at Trash when it has rows."""
     base = "No stashed drafts yet. Stash the current prompt to save it here."
     if trash_count:
@@ -339,7 +339,7 @@ class StashControllerMixin:
         option_list.highlighted = new_index
         self._paint_preview(self._entries[new_index].id)
 
-    def trash_preview_for_marks(self) -> TrashCommitPreview:
+    def trash_preview_for_marks(self) -> _TrashCommitPreview:
         """Return the Trash confirmation preview for the current marks."""
         marked = [e.id for e in self._entries if e.id in self._deleted]
         return preview_trash_commit(
@@ -742,7 +742,7 @@ class StashPane(StashControllerMixin, OptionListNavigationMixin, Widget):
     def _placeholder_text(self) -> str | None:
         if self._entries:
             return None
-        return stash_empty_text(trash_count=self._trash_count)
+        return _stash_empty_text(trash_count=self._trash_count)
 
     def dismiss(self, result: StashRestoreResult | None = None) -> None:
         """Translate screen-style cancel/confirm into a bubbled selection."""
@@ -772,10 +772,8 @@ __all__ = [
     "StashControllerMixin",
     "StashPane",
     "StashRestoreResult",
-    "TrashCommitPreview",
     "TrashRequested",
     "preview_trash_commit",
-    "stash_empty_text",
     "trash_commit_confirm_text",
     "trash_outcome_text",
 ]

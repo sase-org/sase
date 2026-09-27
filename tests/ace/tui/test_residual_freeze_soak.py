@@ -15,11 +15,11 @@ import pytest
 from textual.widgets import Input
 
 import sase.ace.tui.actions.agents._loading_disk as loading_disk
-import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
+import sase.ace.tui.modals.history_pane as history_pane
 from sase.ace.testing import AcePage
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
-from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
+from sase.ace.tui.modals.prompts_modal import PromptsModal, PromptsTab
 from sase.ace.tui.modals.revive_agent_modal import DismissedAgentSelectModal
 from sase.history.prompt_catalog import PromptHistoryPage
 from tests._agent_revive_helpers import make_agent
@@ -326,27 +326,30 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
             return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
 
         monkeypatch.setattr(
-            prompt_history_modal,
+            history_pane,
             "load_prompt_record_page",
             slow_history_page,
         )
-        history_modal = PromptHistoryModal()
-        page.app.push_screen(history_modal)
+        overlay = PromptsModal([], initial_tab=PromptsTab.HISTORY)
+        page.app.push_screen(overlay)
         try:
             await _wait_for_thread_event(history_started)
-            history_filter = history_modal.query_one(
-                "#prompt-history-filter-input", Input
-            )
+            history_pane_widget = overlay._history_pane
+            assert history_pane_widget is not None
+            history_filter = overlay.query_one("#prompt-history-filter-input", Input)
             await _press_within_deadline(page, "h")
             assert history_filter.value == "h"
             await _hold_past_hitch_threshold()
         finally:
             history_release.set()
         await page.wait_for(
-            lambda _state: history_modal._history_loaded_once,
+            lambda _state: (
+                overlay._history_pane is not None
+                and overlay._history_pane._history_loaded_once
+            ),
             timeout=LOAD_TOLERANT_TIMEOUT,
         )
-        history_modal.dismiss(None)
+        overlay.dismiss(None)
         await page.expect_no_modal(timeout=LOAD_TOLERANT_TIMEOUT)
 
         archive_started = Event()

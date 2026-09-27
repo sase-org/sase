@@ -120,7 +120,7 @@ TRASH_BINDINGS: list[Any] = [
 ]
 
 
-def sort_trash_records(
+def _sort_trash_records(
     records: list[PromptStashTrashRecordWire],
 ) -> list[PromptStashTrashRecordWire]:
     """Return trash records newest-deleted-first.
@@ -132,7 +132,7 @@ def sort_trash_records(
     return sorted(records, key=lambda r: r.trashed_at, reverse=True)
 
 
-def trash_empty_text(*, trash_limit: int, has_stash_rows: bool = False) -> str:
+def _trash_empty_text(*, trash_limit: int, has_stash_rows: bool = False) -> str:
     """Return the empty-Trash explanation for the given configuration."""
     if trash_limit == 0:
         return (
@@ -204,7 +204,7 @@ class TrashPane(OptionListNavigationMixin, Widget):
         trash_limit: int = 20,
     ) -> None:
         super().__init__()
-        self._records: list[PromptStashTrashRecordWire] = sort_trash_records(
+        self._records: list[PromptStashTrashRecordWire] = _sort_trash_records(
             list(records)
         )
         self._project_display_snapshot = (
@@ -242,7 +242,7 @@ class TrashPane(OptionListNavigationMixin, Widget):
         the highlight follows its row when it is still present.
         """
         highlighted_id = self._highlighted_entry_id()
-        self._records = sort_trash_records(list(records))
+        self._records = _sort_trash_records(list(records))
         live = {record.entry.id for record in self._records}
         self._restore.intersection_update(live)
         self._purge.intersection_update(live)
@@ -279,7 +279,7 @@ class TrashPane(OptionListNavigationMixin, Widget):
         )
 
     def _empty_text(self) -> str:
-        return trash_empty_text(trash_limit=self._trash_limit)
+        return _trash_empty_text(trash_limit=self._trash_limit)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="trash-pane-body"):
@@ -580,6 +580,4 @@ __all__ = [
     "TrashPane",
     "TrashRestoreRequested",
     "purge_confirm_text",
-    "sort_trash_records",
-    "trash_empty_text",
 ]

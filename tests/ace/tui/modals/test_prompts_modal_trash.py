@@ -16,8 +16,8 @@ from sase.ace.tui.modals.stash_pane import (
     StashPane,
     StashRestoreResult,
     TrashRequested,
+    _stash_empty_text,
     preview_trash_commit,
-    stash_empty_text,
     trash_commit_confirm_text,
     trash_outcome_text,
 )
@@ -372,8 +372,8 @@ def test_outcome_text_names_actual_evictions() -> None:
 
 
 def test_stash_empty_text_pointer() -> None:
-    assert "Trash holds" not in stash_empty_text(trash_count=0)
-    assert "Trash holds 1 discarded draft" in stash_empty_text(trash_count=1)
+    assert "Trash holds" not in _stash_empty_text(trash_count=0)
+    assert "Trash holds 1 discarded draft" in _stash_empty_text(trash_count=1)
 
 
 def test_trash_result_carries_origin() -> None:

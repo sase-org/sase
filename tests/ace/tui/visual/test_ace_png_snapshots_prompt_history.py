@@ -1,14 +1,18 @@
-"""sase's TUI PNG visual snapshot coverage for the prompt-history modal."""
+"""sase's TUI PNG visual snapshot coverage for the Prompts overlay History tab."""
 
 from __future__ import annotations
 
 import pytest
 
-import sase.ace.tui.modals.prompt_history_modal as prompt_history_modal
+import sase.ace.tui.modals.history_pane as history_pane
 import sase.history.prompt_metadata as prompt_metadata
 import sase.xprompt._parsing as xprompt_parsing
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.prompt_history_modal import PromptHistoryModal
+from sase.ace.tui.modals.prompts_modal import (
+    PromptsModal,
+    PromptsOrigin,
+    PromptsTab,
+)
 from sase.history.prompt_catalog import PromptHistoryPage, record_from_entry
 from sase.history.prompt_store import PromptEntry
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -26,7 +30,7 @@ pytestmark = pytest.mark.visual
 def prompt_history_sources(monkeypatch: pytest.MonkeyPatch):
     """Patch prompt-history sources to deterministic visual fixtures."""
     monkeypatch.setattr(
-        prompt_history_modal,
+        history_pane,
         "load_prompt_record_page",
         lambda **_kwargs: PromptHistoryPage(
             records=[record_from_entry(entry) for entry in _prompt_entries()],
@@ -47,7 +51,7 @@ def prompt_history_sources(monkeypatch: pytest.MonkeyPatch):
     _clear_prompt_metadata_caches()
 
 
-async def test_prompt_history_modal_redesign_png_snapshot(
+async def test_prompts_overlay_history_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     prompt_history_sources: None,
@@ -58,15 +62,19 @@ async def test_prompt_history_modal_redesign_png_snapshot(
         await wait_for_startup(page)
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
-        modal = PromptHistoryModal(show_cancelled=True)
-        page.app.push_screen(modal)
-        await page.expect_modal("PromptHistoryModal")
+        overlay = PromptsModal(
+            [],
+            initial_tab=PromptsTab.HISTORY,
+            origin=PromptsOrigin(show_cancelled=True),
+        )
+        page.app.push_screen(overlay)
+        await page.expect_modal("PromptsModal")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
-            "prompt_history_modal_redesign_120x40",
-            title="ACE prompt history modal redesign",
+            "prompts_overlay_history_120x40",
+            title="ACE Prompts overlay History tab",
         )
 
 

@@ -22,7 +22,7 @@ can never silently apply the initial tab's callback to the wrong action.
 
 All Stash and History entry points open this overlay (on their correct
 initial tab with a typed origin); the standalone ``StashedPromptsModal``
-and ``PromptHistoryModal`` remain for focused unit tests only.
+remains for focused unit tests only.
 """
 
 from __future__ import annotations
