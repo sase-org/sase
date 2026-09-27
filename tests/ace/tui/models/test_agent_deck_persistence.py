@@ -23,6 +23,9 @@ from sase.ace.tui.widgets.decks.model import (
     DeckId,
     DeckLayout,
     DeckPanelState,
+    DeckView,
+    DeckViewPolicies,
+    with_panel_view,
 )
 
 
@@ -174,3 +177,140 @@ def test_serialize_rejects_oversize_payload() -> None:
                 ),
             )
         )
+
+
+def test_views_round_trip(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    snapshot = AgentsDeckStateSnapshot(
+        layout=DeckLayout.LEFT_RIGHT,
+        ratio=50,
+        focused=0,
+        nodes_collapsed=False,
+        panels=(
+            _DeckPanelSnapshot(
+                DeckId.MAIN,
+                "reply",
+                DeckViewPolicies(main=DeckView.PAGE_BLOCKS, files=DeckView.SPREAD),
+            ),
+            _DeckPanelSnapshot(DeckId.FILES, None, DeckViewPolicies()),
+        ),
+    )
+    save_agents_deck_state(snapshot, path)
+    assert load_agents_deck_state(path) == snapshot
+    serialized = path.read_text()
+    assert '"views":{"files":"spread","main":"page_blocks"}' in serialized
+    rebuilt = area_state_from_snapshot(
+        snapshot_from_area_state(area_state_from_snapshot(snapshot))
+    )
+    assert rebuilt.panels[0].views.main is DeckView.PAGE_BLOCKS
+    assert rebuilt.panels[0].views.files is DeckView.SPREAD
+
+
+def test_legacy_file_without_views_decodes_to_auto(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [{"deck": "main", "preferred_card": "reply"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].views == DeckViewPolicies()
+
+
+def test_garbage_views_decode_to_auto(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "main",
+                        "preferred_card": None,
+                        "views": {
+                            "main": "sideways",
+                            "files": 42,
+                            "unknown": "spread",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].views == DeckViewPolicies()
+    # Non-object views also fail open to AUTO.
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "main",
+                        "preferred_card": None,
+                        "views": "spread",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert load_agents_deck_state(path).panels[0].views == DeckViewPolicies()
+
+
+def test_files_page_blocks_decodes_to_auto(tmp_path: Path) -> None:
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "main",
+                        "preferred_card": None,
+                        "views": {
+                            "main": "page_blocks",
+                            "files": "page_blocks",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].views.main is DeckView.PAGE_BLOCKS
+    assert loaded.panels[0].views.files is DeckView.AUTO
+
+
+def test_zoom_unwrap_carries_views() -> None:
+    split = toggle_split(
+        DeckAreaState(), DeckLayout.TOP_BOTTOM, DeckPanelState(DeckId.FILES)
+    )
+    zoomed = toggle_zoom(split)
+    edited = with_panel_view(zoomed, 0, DeckId.MAIN, DeckView.PAGE_CARDS)
+    snapshot = snapshot_from_area_state(edited)
+    assert snapshot.panels[0].views.main is DeckView.PAGE_CARDS
+    rebuilt = area_state_from_snapshot(snapshot)
+    assert rebuilt.panels[0].views.main is DeckView.PAGE_CARDS

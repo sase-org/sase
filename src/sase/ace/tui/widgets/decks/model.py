@@ -63,12 +63,59 @@ def cycle_card_id(
     return list(card_ids)[(index + direction) % len(card_ids)]
 
 
+class DeckView(StrEnum):
+    """Deck view policy: automatic or one fixed layout."""
+
+    AUTO = "auto"
+    SPREAD = "spread"
+    PAGE_CARDS = "page_cards"
+    PAGE_BLOCKS = "page_blocks"
+
+
+DECK_VIEW_CHOICES: tuple[DeckView, ...] = (
+    DeckView.AUTO,
+    DeckView.SPREAD,
+    DeckView.PAGE_CARDS,
+    DeckView.PAGE_BLOCKS,
+)
+
+
+@dataclass(frozen=True)
+class DeckViewPolicies:
+    """Per-panel view policies for the Main and Files decks."""
+
+    main: DeckView = DeckView.AUTO
+    files: DeckView = DeckView.AUTO
+
+    def for_deck(self, deck: DeckId) -> DeckView:
+        """Return the policy for ``deck`` (Tools is always ``AUTO``)."""
+        if deck is DeckId.MAIN:
+            return self.main
+        if deck is DeckId.FILES:
+            return self.files
+        return DeckView.AUTO
+
+    def with_deck(self, deck: DeckId, view: DeckView) -> DeckViewPolicies:
+        """Return a copy with ``deck`` set to ``view``.
+
+        Rejects Tools policies and Files ``PAGE_BLOCKS`` with ``ValueError``.
+        """
+        if deck is DeckId.TOOLS:
+            raise ValueError(f"Tools deck has no view policy: {view!r}")
+        if deck is DeckId.FILES and view is DeckView.PAGE_BLOCKS:
+            raise ValueError("Files deck cannot use page_blocks")
+        if deck is DeckId.MAIN:
+            return dataclasses.replace(self, main=view)
+        return dataclasses.replace(self, files=view)
+
+
 @dataclass(frozen=True)
 class DeckPanelState:
     """One deck panel's deck and preferred Main card."""
 
     deck: DeckId
     preferred_card: str | None = None
+    views: DeckViewPolicies = DeckViewPolicies()
 
 
 @dataclass(frozen=True)
@@ -91,8 +138,7 @@ def with_panel_deck(state: DeckAreaState, index: int, deck: DeckId) -> DeckAreaS
     panels = list(state.panels)
     if index < 0 or index >= len(panels):
         raise IndexError(index)
-    current = panels[index]
-    panels[index] = DeckPanelState(deck, current.preferred_card)
+    panels[index] = dataclasses.replace(panels[index], deck=deck)
     return dataclasses.replace(state, panels=tuple(panels))
 
 
@@ -103,9 +149,36 @@ def with_preferred_card(
     panels = list(state.panels)
     if index < 0 or index >= len(panels):
         raise IndexError(index)
-    current = panels[index]
-    panels[index] = DeckPanelState(current.deck, card_id)
+    panels[index] = dataclasses.replace(panels[index], preferred_card=card_id)
     return dataclasses.replace(state, panels=tuple(panels))
+
+
+def with_panel_view(
+    state: DeckAreaState, index: int, deck: DeckId, view: DeckView
+) -> DeckAreaState:
+    """Return a new state with ``index`` holding ``view`` for ``deck``.
+
+    When zoomed, the same index in ``zoom_snapshot`` is updated as well so
+    the change survives unzoom and persistence (which unwraps the zoom).
+    """
+    if index < 0 or index >= len(state.panels):
+        raise IndexError(index)
+    updated_views = state.panels[index].views.with_deck(deck, view)
+    panels = list(state.panels)
+    panels[index] = dataclasses.replace(panels[index], views=updated_views)
+    updated = dataclasses.replace(state, panels=tuple(panels))
+    snapshot = state.zoom_snapshot
+    if snapshot is not None and 0 <= index < len(snapshot.panels):
+        snapshot_views = snapshot.panels[index].views.with_deck(deck, view)
+        snapshot_panels = list(snapshot.panels)
+        snapshot_panels[index] = dataclasses.replace(
+            snapshot_panels[index], views=snapshot_views
+        )
+        updated = dataclasses.replace(
+            updated,
+            zoom_snapshot=dataclasses.replace(snapshot, panels=tuple(snapshot_panels)),
+        )
+    return updated
 
 
 def _default_card_id(card_ids: Sequence[str]) -> str | None:

@@ -5,10 +5,13 @@ side-effect free except for its explicit load/save functions so callers can run
 all file and JSON work through ``asyncio.to_thread``.
 
 Schema version 1 stores ``{layout, ratio, focused, nodes_collapsed, panels}``
-where each panel entry is ``{deck, preferred_card}``. A zoomed session persists
-its pre-zoom snapshot, so callers must pass the effective (unzoomed) state via
-:func:`snapshot_from_area_state`. Loading fails open: unknown decks or layouts
-fall back to their defaults while the rest of the file still applies.
+where each panel entry is ``{deck, preferred_card, views}`` with the additive
+optional ``views`` object ``{main, files}`` holding per-deck view policies. A
+zoomed session persists its pre-zoom snapshot, so callers must pass the
+effective (unzoomed) state via :func:`snapshot_from_area_state`. Loading fails
+open: unknown decks or layouts fall back to their defaults while the rest of
+the file still applies. A missing, non-object, or unknown-valued ``views``
+decodes to ``AUTO``; Files ``page_blocks`` decodes to ``AUTO``.
 """
 
 from __future__ import annotations
@@ -29,6 +32,8 @@ from ..widgets.decks.model import (
     DeckId,
     DeckLayout,
     DeckPanelState,
+    DeckView,
+    DeckViewPolicies,
 )
 
 log = logging.getLogger(__name__)
@@ -46,6 +51,7 @@ class _DeckPanelSnapshot:
 
     deck: DeckId = DeckId.MAIN
     preferred_card: str | None = None
+    views: DeckViewPolicies = DeckViewPolicies()
 
 
 @dataclass(frozen=True)
@@ -85,6 +91,23 @@ def _decode_layout(raw: Any) -> DeckLayout:
         raise _AgentsDeckStateDecodeError(f"unknown layout: {raw!r}") from None
 
 
+def _decode_view(raw: Any) -> DeckView:
+    try:
+        return DeckView(str(raw))
+    except ValueError:
+        return DeckView.AUTO
+
+
+def _decode_views(raw: Any) -> DeckViewPolicies:
+    if not isinstance(raw, dict):
+        return DeckViewPolicies()
+    main = _decode_view(raw.get("main", DeckView.AUTO.value))
+    files = _decode_view(raw.get("files", DeckView.AUTO.value))
+    if files is DeckView.PAGE_BLOCKS:
+        files = DeckView.AUTO
+    return DeckViewPolicies(main=main, files=files)
+
+
 def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
     if not isinstance(raw, dict):
         raise _AgentsDeckStateDecodeError("panel must be an object")
@@ -96,7 +119,8 @@ def _decode_panel(raw: Any) -> _DeckPanelSnapshot:
         or len(preferred) > MAX_CARD_ID_LENGTH
     ):
         raise _AgentsDeckStateDecodeError("invalid preferred card")
-    return _DeckPanelSnapshot(deck, preferred)
+    views = _decode_views(raw.get("views", None))
+    return _DeckPanelSnapshot(deck, preferred, views)
 
 
 def _decode_agents_deck_state(decoded: Any) -> AgentsDeckStateSnapshot:
@@ -146,7 +170,7 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
     """Capture ``state`` for persistence, unwrapping any zoom snapshot."""
     effective = state.zoom_snapshot if state.zoom_snapshot is not None else state
     panels = tuple(
-        _DeckPanelSnapshot(panel.deck, panel.preferred_card)
+        _DeckPanelSnapshot(panel.deck, panel.preferred_card, panel.views)
         for panel in effective.panels[:MAX_PANELS]
     ) or (_DeckPanelSnapshot(),)
     layout = effective.layout
@@ -168,7 +192,8 @@ def snapshot_from_area_state(state: DeckAreaState) -> AgentsDeckStateSnapshot:
 def area_state_from_snapshot(snapshot: AgentsDeckStateSnapshot) -> DeckAreaState:
     """Rebuild deck-area state from ``snapshot`` (no zoom snapshot)."""
     panels = tuple(
-        DeckPanelState(item.deck, item.preferred_card) for item in snapshot.panels
+        DeckPanelState(item.deck, item.preferred_card, item.views)
+        for item in snapshot.panels
     ) or (DeckPanelState(DeckId.MAIN),)
     if snapshot.layout is DeckLayout.SINGLE:
         panels = panels[:1]
@@ -192,7 +217,14 @@ def _serialize_agents_deck_state(snapshot: AgentsDeckStateSnapshot) -> str:
         "focused": snapshot.focused,
         "nodes_collapsed": snapshot.nodes_collapsed,
         "panels": [
-            {"deck": item.deck.value, "preferred_card": item.preferred_card}
+            {
+                "deck": item.deck.value,
+                "preferred_card": item.preferred_card,
+                "views": {
+                    "main": item.views.main.value,
+                    "files": item.views.files.value,
+                },
+            }
             for item in snapshot.panels
         ],
     }

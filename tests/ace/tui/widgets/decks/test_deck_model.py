@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.tui.widgets.decks.layout import toggle_zoom
 from sase.ace.tui.widgets.decks.model import (
     DECK_CYCLE,
+    DECK_VIEW_CHOICES,
     DeckAreaState,
     DeckId,
+    DeckLayout,
     DeckPanelState,
+    DeckView,
+    DeckViewPolicies,
     cycle_card_id,
     cycle_deck_id,
     resolve_active_card,
     with_panel_deck,
+    with_panel_view,
     with_preferred_card,
 )
 
@@ -104,3 +110,76 @@ def test_resolve_active_card() -> None:
     assert resolve_active_card([], None, partial=False) is None
     # Partial with no preference still falls back (nothing to keep).
     assert resolve_active_card(["context"], None, partial=True) == "context"
+
+
+def test_deck_view_choices_palette_order() -> None:
+    assert DECK_VIEW_CHOICES == (
+        DeckView.AUTO,
+        DeckView.SPREAD,
+        DeckView.PAGE_CARDS,
+        DeckView.PAGE_BLOCKS,
+    )
+
+
+def test_view_policies_for_deck() -> None:
+    policies = DeckViewPolicies(main=DeckView.PAGE_BLOCKS, files=DeckView.SPREAD)
+    assert policies.for_deck(DeckId.MAIN) is DeckView.PAGE_BLOCKS
+    assert policies.for_deck(DeckId.FILES) is DeckView.SPREAD
+    assert policies.for_deck(DeckId.TOOLS) is DeckView.AUTO
+
+
+def test_view_policies_with_deck_rejects_invalid() -> None:
+    policies = DeckViewPolicies()
+    assert (
+        policies.with_deck(DeckId.MAIN, DeckView.PAGE_BLOCKS).main
+        is DeckView.PAGE_BLOCKS
+    )
+    assert policies.with_deck(DeckId.FILES, DeckView.SPREAD).files is DeckView.SPREAD
+    with pytest.raises(ValueError):
+        policies.with_deck(DeckId.TOOLS, DeckView.SPREAD)
+    with pytest.raises(ValueError):
+        policies.with_deck(DeckId.TOOLS, DeckView.AUTO)
+    with pytest.raises(ValueError):
+        policies.with_deck(DeckId.FILES, DeckView.PAGE_BLOCKS)
+
+
+def test_replace_helpers_keep_views() -> None:
+    state = DeckAreaState(
+        panels=(
+            DeckPanelState(
+                DeckId.MAIN,
+                "reply",
+                DeckViewPolicies(main=DeckView.SPREAD),
+            ),
+        ),
+    )
+    moved = with_panel_deck(state, 0, DeckId.FILES)
+    assert moved.panels[0].views.main is DeckView.SPREAD
+    assert moved.panels[0].deck is DeckId.FILES
+    assert moved.panels[0].preferred_card == "reply"
+    renamed = with_preferred_card(state, 0, "context")
+    assert renamed.panels[0].views.main is DeckView.SPREAD
+    assert renamed.panels[0].preferred_card == "context"
+
+
+def test_with_panel_view_updates_zoom_snapshot() -> None:
+    state = DeckAreaState(
+        panels=(
+            DeckPanelState(DeckId.MAIN),
+            DeckPanelState(DeckId.FILES),
+        ),
+        focused=1,
+        layout=DeckLayout.LEFT_RIGHT,
+    )
+    zoomed = toggle_zoom(state)
+    updated = with_panel_view(zoomed, 1, DeckId.FILES, DeckView.SPREAD)
+    assert updated.panels[1].views.files is DeckView.SPREAD
+    assert updated.zoom_snapshot is not None
+    assert updated.zoom_snapshot.panels[1].views.files is DeckView.SPREAD
+    # The other panel is untouched in both states.
+    assert updated.panels[0].views.files is DeckView.AUTO
+    assert updated.zoom_snapshot.panels[0].views.files is DeckView.AUTO
+    with pytest.raises(IndexError):
+        with_panel_view(state, 5, DeckId.MAIN, DeckView.SPREAD)
+    with pytest.raises(ValueError):
+        with_panel_view(state, 0, DeckId.TOOLS, DeckView.SPREAD)
