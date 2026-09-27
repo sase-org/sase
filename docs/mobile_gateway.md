@@ -14,7 +14,7 @@ The implementation is split across repos:
   execute generic gate or specialized question actions. The sibling
   `_mobile_notification_*` modules are internal implementation details.
 - `sase.integrations.mobile_agents` and `sase.integrations.mobile_helpers` are the
-  fixed-operation bridge facades used by the Rust gateway to list/launch/kill/retry
+  fixed-operation bridge facades used by the Rust gateway to list/launch/kill/retry/fork
   agents and to expose Patch, xprompt, bead, and update helpers. The sibling
   `_mobile_agent_*` and `_mobile_helper_*` modules are internal implementation details.
 - `../sase-core/crates/sase_gateway` owns the Rust HTTP server, wire records,
@@ -128,6 +128,11 @@ Agent bridge operations:
 | `sase mobile agent-bridge launch-image`   | Store an uploaded image and launch an image prompt      |
 | `sase mobile agent-bridge kill-agent`     | Kill an agent by exact name                             |
 | `sase mobile agent-bridge retry-agent`    | Retry an agent by name, timestamp, or mobile context    |
+| `sase mobile agent-bridge fork-agent`     | Fork a named agent with an instruction (`#fork:<name>`) |
+
+A `kill-agent` request with `retain_for_retry: true` (used by remote fleet stops) skips
+the dismissal record, so the stopped row stays visible and retryable; kill markers,
+claims, and notification dismissal still happen.
 
 Helper bridge operations:
 

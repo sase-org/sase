@@ -71,11 +71,15 @@ curl -fsS http://127.0.0.1:7629/api/v1/health
 ```
 
 The important properties are loopback bind, the correct SASE home, restart-on-failure
-behavior, and an `sase` agent-bridge command the host can exec. On machines where
-noninteractive SSH does not load the uv-tool bin directory, set
-`mobile_gateway.agent_bridge_command` to the absolute installed `sase` path. Without it,
-authenticated hello can succeed while remote launch fails with `agent_bridge`
-unavailable.
+behavior, and an `sase` agent-bridge command the host can exec. When the service host
+supervises the gateway, it passes the resolved `sase` executable (the one running the
+service host) as the agent-bridge and helper-bridge command automatically, and
+`mobile_gateway.agent_bridge_command` is ignored. The setting applies only when you run
+the gateway yourself in the foreground with `sase mobile gateway start`; there, on
+machines where noninteractive SSH does not load the uv-tool bin directory, set it to the
+bare absolute `sase` path (not `sase mobile agent-bridge` — the gateway appends the
+subcommand itself). Without a usable bridge command, authenticated hello can succeed
+while remote launch fails with `agent_bridge` unavailable.
 
 ## Expose Through Tailscale Serve
 
@@ -167,6 +171,8 @@ network work, and local mutations:
 | `sase machine status`            | Run bounded authenticated hello checks for selected aliases, or every alias when none are given. |
 | `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle and activate it.      |
 | `sase machine rename` / `remove` | Change viewer-local alias state; removal also deletes the local credential reference.            |
+| `sase machine agent`             | Journaled `stop` / `retry` / `fork` of a remote agent on its owning host (see below).            |
+| `sase machine attention`         | Journaled `answer` / `approve` of a pending remote question or gate on its owning host.          |
 
 `sase machine add -S/--ssh-target` records the SSH destination that terminal handoffs,
 such as [remote sudo requests](sudo.md#remote-flow), use for that machine. It defaults
@@ -190,8 +196,9 @@ sase run "%dispatch:apollo summarize the current project state; do not change fi
 
 The equivalent parenthesized form is `%dispatch(apollo)`. Exactly one selector is
 allowed, and `%dispatch:local` is reserved — omit the directive for a local launch. V1
-remote launch does not combine with `%wait`, `%queue`, or `%clan`. The controller strips
-only the dispatch selector, so other launch directives are processed on the target.
+remote launch does not combine with `%wait`, `%queue`, `%clan`, or `%hold`. The
+controller strips only the dispatch selector, so other launch directives are processed
+on the target.
 
 In sase's TUI, `gD` from prompt NORMAL mode or `Ctrl+G D` from INSERT mode opens the
 **Launch Target** picker. It lists `here` plus every enrolled alias. Local enrollment
@@ -259,23 +266,38 @@ into status subgroups.
   answer/approve flow; see [Remote Attention](notifications.md#remote-attention).
 
 Prompt submission first validates portable source proof off the TUI event loop. A
-preflight failure keeps and refocuses the draft. After preflight passes, sase's TUI
-shows a provisional `QUEUED` owner row before the background launch settles. A
-structured accepted response keeps it `QUEUED`, while a settled response changes it to
-`STARTING`. When the launch finishes without a structured dispatch result—including the
-current rejection and failed-receipt paths—the row becomes outcome-unknown `WAITING`;
-run **Agents: check dispatch launch outcome** from the command palette. The provisional
-disappears when the target's authoritative fleet row arrives with the matching logical
-or exact locator.
+preflight failure restores the prompt to the prompt bar with a
+`source blocked: <reason>` notice (when a modal is open it stashes the prompt and warns
+instead). After preflight passes, sase's TUI shows a provisional `QUEUED` owner row
+before the background launch settles. A structured accepted response keeps it `QUEUED`,
+while a settled response changes it to `STARTING`. When the launch finishes without a
+structured dispatch result—including the current rejection and failed-receipt paths—the
+row becomes outcome-unknown `WAITING`; run **Agents: check dispatch launch outcome**
+from the command palette. The provisional disappears when the target's authoritative
+fleet row arrives with the matching logical or exact locator.
 
 Those operations are journaled through `sase machine agent` and
-`sase machine attention`. Use sase's TUI command palette or configure the corresponding
-`ace.keymaps.app` fields for direct keys.
+`sase machine attention`. On a capable remote row, the normal Agents keys route to the
+remote operation: `x` stops, `R` retries, and `F` forks (it opens a `Fork on <alias>`
+prompt bar for the instruction). Bounded content, attention answers, and launch-outcome
+checks are in the command palette; their `ace.keymaps.app` fields
+(`view_remote_agent_content`, `answer_remote_attention`,
+`check_dispatch_launch_outcome`, plus a dedicated `retry_remote_agent`) are unbound by
+default.
 
-Stop, retry, and fork wait for a settled receipt inside the acceptance window (at least
-30 seconds). A lost response is recovered with the same operation key. An outcome still
-unknown when the window ends is uncertain and must not be submitted again under a new
-key.
+From the shell, `sase machine agent stop|retry ALIAS AGENT...` and
+`sase machine agent fork ALIAS AGENT [INSTRUCTION]` look the agent up on the target
+including already-settled rows, matching `AGENT` exactly against the remote row's agent
+id, agent session id, or agent label. The command exits `0` only when every receipt is
+`applied` or `already_settled`. `sase machine attention answer|approve ALIAS REQUEST`
+acts on a pending remote question or gate; sase's TUI normally supplies the full request
+through a private request sidecar.
+
+Stop, retry, and fork wait for a settled receipt inside the acceptance window: the
+command's `-t/--timeout` value, else `dispatch.request_timeout_seconds`, but never less
+than 30 seconds. A lost response is recovered with the same operation key. An outcome
+still unknown when the window ends is uncertain and must not be submitted again under a
+new key.
 
 A fresh remote agent can be exact-stopped once the owner index has its record, including
 while the full fleet snapshot is still the previous cache.

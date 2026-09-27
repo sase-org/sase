@@ -21,11 +21,11 @@ links:
 
 SASE (pronounced "sassy" — yes, really) is a coordination layer that sits above
 coding-agent CLIs like Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code, OpenCode,
-or Meta's Muse Code. This post is the practical on-ramp: by the end you'll have
-installed `sase`, checked that a provider CLI is ready, launched a safe read-only agent
-run, found the resulting agent record, and picked up the vocabulary you'll keep bumping
-into in the rest of the docs. Plan on roughly fifteen minutes at a terminal, plus
-however long your favorite model takes to think.
+Meta's Muse Code, or xAI's Grok Build. This post is the practical on-ramp: by the end
+you'll have installed `sase`, checked that a provider CLI is ready, launched a safe
+read-only agent run, found the resulting agent record, and picked up the vocabulary
+you'll keep bumping into in the rest of the docs. Plan on roughly fifteen minutes at a
+terminal, plus however long your favorite model takes to think.
 
 <!-- more -->
 
@@ -38,7 +38,7 @@ names the parts afterward.
 
 SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and one authenticated
 coding-agent CLI such as Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
-OpenCode, or Meta's Muse Code. With Python and `uv` in place:
+OpenCode, Meta's Muse Code, or xAI's Grok Build. With Python and `uv` in place:
 
 ```bash
 uv tool install sase
@@ -64,11 +64,12 @@ sase doctor
 ```
 
 If the provider check reports a missing executable or an authentication gap, install and
-authenticate one provider CLI, then run `sase doctor` again. Among SASE's built-in
-providers, Muse Code is the one SASE can currently install itself: use
-`sase agent-cli install muse --dry-run` to inspect the downloaded script's URL, digest,
-command, and target, then `sase agent-cli install muse` to confirm and run it. Other
-built-in providers use the install commands in the provider guide. The
+authenticate one provider CLI, then run `sase doctor` again. SASE can install most
+built-in providers itself: every npm-packaged CLI (Claude Code, Codex CLI, OpenCode,
+Qwen Code, Grok Build) via `npm install -g <package>`, and Muse Code from its install
+script. Use `sase agent-cli install <name> --dry-run` to inspect the plan, then
+`sase agent-cli install <name>` to confirm and run it. The Antigravity CLI uses the
+install command in the provider guide. The
 [agent provider guide](../../agent_providers.md) keeps install, authentication, and
 provider/model selection options in one place so this quickstart can stay focused.
 
@@ -101,7 +102,8 @@ what lets a failed run be retried without touching your primary checkout.
 
 The launched agent gets its own durable record on disk: prompt, reply transcript,
 artifacts directory, status, and workspace path. `sase agent list` gives you the first
-visible handle for that record while the model is thinking or after it finishes.
+visible handle for that record while the model is thinking; once it finishes, use
+`sase agent list -a` to include recently completed DONE/FAILED agents.
 
 **What you just did.** Dispatched a read-only coding-agent run inside an explicit
 [workspace](../../workspace.md), then looked up the resulting SASE agent record.
@@ -187,9 +189,9 @@ unit of repeatable agent work in SASE.
 
 When a task is too big to hand to a single agent and hope, SASE asks you to write a plan
 first. **Spec-Driven Development (SDD)** keeps those plans as first-class artifacts on
-disk under three (admittedly whimsical) names: ordinary plans are _tales_, and
-executable multi-phase plans are _epics_. Any of them can be filed as a **bead** — a
-git-portable, issue-like work unit with status, dependencies, and an assignee.
+disk under two (admittedly whimsical) names: ordinary plans are _tales_, and executable
+multi-phase plans are _epics_. Any of them can be filed as a **bead** — a git-portable,
+issue-like work unit with status, dependencies, and an assignee.
 
 The smallest useful loop:
 
@@ -223,8 +225,8 @@ The names you'll keep bumping into, in one place:
 
 - **[sase's TUI](../../ace.md)** — the TUI control surface for Patches, agents,
   notifications, and automation.
-- **[AXE](../../axe.md)** — the background automation daemon. Runs hooks, mentor
-  launches, comment polling, dependency unblocking, error digests.
+- **[Scheduler and Service Host](../../axe.md)** — background automation. Runs hooks,
+  mentor launches, comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the
   [CLI reference](../../cli.md).
 - **[Workspaces](../../workspace.md)** — isolated numbered clones managed by SASE so
@@ -239,14 +241,15 @@ The names you'll keep bumping into, in one place:
 - **[SDD](../../sdd.md)** — Spec-Driven Development. Plans and epics as first-class
   artifacts on disk.
 - **[Plugins and providers](../../plugins.md)** — model and VCS providers behind a
-  common boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, and
-  Muse Code for agents; bare git and GitHub for version control.
+  common boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode,
+  Muse Code, and Grok Build for agents; bare git and GitHub for version control.
 
 ## What to read next
 
 - [SASE: Structured Agentic Software Engineering](structured-agentic-software-engineering.md)
   — the conceptual front door, for when you want the _why_ to match the _how_.
-- [CLI reference](../../cli.md) — every `sase` subcommand on one page.
+- [CLI reference](../../cli.md) — a discovery index of `sase` commands that links to
+  each command's full guide.
 - [The SASE repository](https://github.com/sase-org/sase) — source, issues, and project
   direction. If something on this page didn't work, an issue is the fastest way to make
   the next reader's first 15 minutes smoother.

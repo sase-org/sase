@@ -72,11 +72,12 @@ Start with a read-only task in SASE's managed `home` project. Use one launch for
 normal form when SASE can auto-detect an installed provider CLI, or the explicit form
 when Muse Code or Grok Build is your provider. SASE never auto-detects `muse` or `grok`
 from PATH because both are generic executable names; this is about default provider
-selection. Select either explicitly with a provider/model directive. Grok Build can
-still be reached automatically through whichever shipped size aliases currently target
-it (see the generated [shipped size-alias defaults](llms.md#implicit-role-aliases)).
-Alias routing checks for an available `grok` executable but does not verify its
-identity, so resolve any Grok identity warning from `sase doctor` before launching:
+selection. Select either explicitly with a provider/model directive. Both can still be
+reached automatically through whichever shipped size aliases currently target them (see
+the generated [shipped size-alias defaults](llms.md#implicit-role-aliases)); override
+`llm_provider.model_aliases.builtin.<size>` to change that. Alias routing checks for an
+available `grok` executable but does not verify its identity, so resolve any Grok
+identity warning from `sase doctor` before launching:
 
 ```bash
 # Auto-detected providers:
@@ -132,11 +133,11 @@ sase's TUI has three top-level tabs:
   scheduled work below `scheduler`. sase's TUI starts the active controller unless you
   pass `--no-service`.
 
-The top bar's colored `+<project>` chip is the [current project](ace.md#current-project)
-— the project you most recently launched an agent on (or promoted with
-`sase project set-current`). After the `+home` run above, that chip is `+home`.
-First-open Artifacts filters seed from it; they do not lock you into that project. Press
-`?` for help and `q` to quit.
+The colored `project: +<project>` chip at the right of each tab's status row is the
+[current project](ace.md#current-project) — the project you most recently launched an
+agent on (or promoted with `sase project set-current`). After the `+home` run above,
+that chip is `+home`. First-open Artifacts filters seed from it; they do not lock you
+into that project. Press `?` for help and `q` to quit.
 
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
 visible in [sase's TUI](ace.md), with the [scheduler](axe.md) handling lifecycle work in
@@ -187,8 +188,10 @@ sase artifact list --project home --explicit --limit 10
 ```
 
 The `Workspace note` row's `REF` column contains a durable file reference such as
-`file:explicit:0123456789abcdef01234567`. Copy the exact value from your output and
-inspect it without launching an agent:
+`file:explicit:0123456789abcdef01234567`. The table truncates that column in narrower
+terminals, so widen the terminal or print the full `ref` field with
+`sase artifact list --project home --explicit -q 'Workspace note' --json`. Copy the
+exact value from your output and inspect it without launching an agent:
 
 ```bash
 sase artifact show file:explicit:0123456789abcdef01234567
@@ -301,9 +304,9 @@ sase bead show <bead-id>  # inspects one bead in detail
 For a self-contained follow-up that does not need an epic, agents first run
 `/sase_new_task`; when it is genuinely new, create a standalone task bead with
 `sase bead create --type 'task(bug)' --title "Follow up" --size small -w "Independent follow-up that does not belong on the current epic" -f location=src/foo.py -f repro='fails on retry'`,
-move it to `ready` when it is ready for triage, and launch it with
-`sase bead work <task-id>`. AXE also turns stored `ready` tasks into notification gates
-where a reviewer can launch or close them.
+move it to `ready` with `sase bead update <task-id> --status ready` when it is ready for
+triage, and launch it with `sase bead work <task-id>`. AXE also turns stored `ready`
+tasks into notification gates where a reviewer can launch or close them.
 
 Approving a structured epic plan files its epic and phase beads, wires their
 dependencies, and automatically invokes the same path as
@@ -328,8 +331,9 @@ The names you'll keep bumping into, in one place:
   and automation.
 - **[Current project](ace.md#current-project)** — the project SASE treats as working
   context: in practice, the one you most recently launched an agent on (or promoted with
-  `sase project set-current` / sase's TUI Projects tab `c`). `sase project current`
-  prints it. The working directory never sets it, and there may be none.
+  `sase project set-current` / the `c` key on the Admin Center's Projects tab).
+  `sase project current` prints it. The working directory never sets it, and there may
+  be none.
 - **[Scheduler and Service Host](axe.md)** — background automation. Runs hooks, mentor
   launches, comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the

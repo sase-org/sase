@@ -115,8 +115,10 @@ Start the gateway on loopback:
 sase mobile gateway start
 ```
 
-The command prints a pairing code, pairing ID, and expiration. Keep the process running
-while mobile clients connect.
+Run in the foreground, the command prints a pairing code, pairing ID, and expiration;
+keep the process running while mobile clients connect. When the built-in `gateway`
+service proc is enabled on this machine, the command instead hands ownership to the
+service host and returns (see [Mobile Gateway](mobile_gateway.md)).
 
 For an emulator pointed at host loopback, use `http://10.0.2.2:7629` as the base URL in
 the Android app. For a physical device on the same trusted LAN, bind explicitly to a LAN

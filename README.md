@@ -73,9 +73,11 @@ Prerequisites: Linux or macOS (POSIX; Windows is not supported), Python 3.12+,
 `nvim` then `vim`), and one authenticated agent CLI: Claude Code, Codex, Antigravity CLI
 (`agy`), Qwen Code, OpenCode, Meta's Muse Code (`muse`), or xAI's Grok Build (`grok`).
 SASE's default provider autodetection never selects Muse or Grok from `PATH`, because
-those executable names are generic. Select Muse explicitly. Model-alias routing is a
-separate mechanism: whichever shipped size aliases currently target Grok can select it
-(see the generated [shipped size-alias defaults](docs/llms.md#implicit-role-aliases)).
+those executable names are generic; select either explicitly with a provider/model
+directive. Model-alias routing is a separate mechanism: whichever shipped size aliases
+currently target Muse or Grok can select them (see the generated
+[shipped size-alias defaults](docs/llms.md#implicit-role-aliases)). The `+home` examples
+below run in SASE's built-in `home` sandbox, not in your current directory.
 
 ```bash
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github

@@ -98,8 +98,9 @@ runner, agent identity, proc identity, or model request. Eligible Agent units st
 the established agent launch path. An eligible `%proc` unit stays undispatched while an
 active agent hold matches it, and one that authors `%queue` fields must also fit the
 shared runner-capacity budget; it then dispatches as a native `named-proc` record with
-origin `xprompt-proc`. Restarts replay the journal instead of re-running settled
-predicates or duplicating reserved identities.
+origin `xprompt-proc` (pre-rename sase-core builds write the legacy lifecycle spelling
+`proc-shell`; sase reads both). Restarts replay the journal instead of re-running
+settled predicates or duplicating reserved identities.
 
 Detached launches appear in the agent registry and sase's TUI Agents tab. Multi-prompt
 launches create a sequence of detached agents. Stand-alone `%proc` named procs appear in

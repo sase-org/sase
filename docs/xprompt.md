@@ -1985,26 +1985,28 @@ cancel the dependent unit.
 An eligible `%proc` unit dispatches natively once its waits and `%if::` pass, no active
 [agent hold](#hold-directive) matches it, and any authored queue fields pass the
 runner-capacity check described below: the admission coordinator reserves a `named-proc`
-(lifecycle `named-proc`, origin `xprompt-proc`) and starts its detached supervisor. The
-supervisor then acquires an operational workspace lease when `workspace` is true,
-materializes the approved source as a private `0600` script, executes it by argv —
-`/bin/bash --noprofile --norc <script>` or the SASE interpreter plus that script, never
-shell interpolation — and releases the lease through the existing resumable settlement
-path on every terminal outcome. Execution and idle timeouts begin when the child starts,
-not while waits, the condition, or the workspace lease are pending. The child's
-environment inherits the detached supervisor's own ordinary tool environment — `PATH`,
-`HOME`, locale, and toolchain configuration — rather than a private hermetic one, so
-user-installed tools such as `just`, `uv`, and Cargo resolve exactly as they do outside
-the proc. Parent agent, job, and artifact identity are scrubbed from that inherited
-environment, along with any stale `SASE_PROC_*` sidecar left over from an earlier proc,
-before the SASE interpreter directory is prefixed onto `PATH` and only the current
-documented proc context (`SASE_PROC_ID`, `SASE_PROC_LOG_PATH`, `SASE_PROC_SESSION_ID`,
-selected project, project file, and workspace number) is added; the proc never sets
-`SASE_AGENT` or another agent-artifact variable. The private script directory holds only
-the `0600` script and is not a replacement user home, and this scrubbing is not a
-filesystem or network sandbox — the child still runs with the supervisor's filesystem
-and network permissions. A stand-alone `%proc` unit never allocates an agent runner
-slot, session, `done.json`, or finalizer obligation.
+(lifecycle `named-proc`, origin `xprompt-proc`; sase-core builds from before the
+turn/named-proc rename write the legacy lifecycle spelling `proc-shell`, and sase reads
+both) and starts its detached supervisor. The supervisor then acquires an operational
+workspace lease when `workspace` is true, materializes the approved source as a private
+`0600` script, executes it by argv — `/bin/bash --noprofile --norc <script>` or the SASE
+interpreter plus that script, never shell interpolation — and releases the lease through
+the existing resumable settlement path on every terminal outcome. Execution and idle
+timeouts begin when the child starts, not while waits, the condition, or the workspace
+lease are pending. The child's environment inherits the detached supervisor's own
+ordinary tool environment — `PATH`, `HOME`, locale, and toolchain configuration — rather
+than a private hermetic one, so user-installed tools such as `just`, `uv`, and Cargo
+resolve exactly as they do outside the proc. Parent agent, job, and artifact identity
+are scrubbed from that inherited environment, along with any stale `SASE_PROC_*` sidecar
+left over from an earlier proc, before the SASE interpreter directory is prefixed onto
+`PATH` and only the current documented proc context (`SASE_PROC_ID`,
+`SASE_PROC_LOG_PATH`, `SASE_PROC_SESSION_ID`, selected project, project file, and
+workspace number) is added; the proc never sets `SASE_AGENT` or another agent-artifact
+variable. The private script directory holds only the `0600` script and is not a
+replacement user home, and this scrubbing is not a filesystem or network sandbox — the
+child still runs with the supervisor's filesystem and network permissions. A stand-alone
+`%proc` unit never allocates an agent runner slot, session, `done.json`, or finalizer
+obligation.
 
 A `%proc` unit may also carry `%queue` / `%q` fields:
 
@@ -2580,20 +2582,21 @@ launch's admission limit. Without an authored capacity, the limit is the current
 replace that limit for this launch only: the agent starts when occupied weighted load
 plus its own weight fits within the authored positive-integer budget. `%q:1.5x`,
 `%q(1.5x, w=0.25)`, and `%q(capacity=.5x)` instead author a multiplier of the effective
-`max_running_agents` budget. Multipliers have one or two decimal places and are
-re-resolved on every queued admission poll, so a `1.5x` multiplier with effective budget
-`5` has an admission limit of `7.5`, then becomes `15` if the effective budget rises to
-`10`. A weight above the resolved budget stays `QUEUED` until the budget changes. With
-the `queue_capacity_budget` flag off, multipliers still parse and persist but do not
-alter admission. This means `%q:100` can intentionally admit work above a global budget
-of `1`, while `%q:1` is the run-alone barrier for a default-weight launch. Four
-independent claims of weight `0.25` fit in capacity `1`; one claim of weight `2` does
-not, so authoring weight greater than an integer capacity is rejected. `capacity=0` is
-rejected at authoring time with a migration message recommending `%q:1` for run-alone
-behavior. Authored `runners=` on `%queue` is rejected with a migration message naming
-`capacity=`. Retired `%wait(runners=...)` guidance likewise recommends
-`%queue(capacity=...)`. Previously serialized `wait_runners` integer values still load
-as the legacy spelling of canonical `queue_capacity`.
+`max_running_agents` budget. Multipliers have at most two decimal places (`2x`, `1.5x`,
+and `1.25x` are all valid) and are re-resolved on every queued admission poll, so a
+`1.5x` multiplier with effective budget `5` has an admission limit of `7.5`, then
+becomes `15` if the effective budget rises to `10`. A weight above the resolved budget
+stays `QUEUED` until the budget changes. With the `queue_capacity_budget` flag off,
+multipliers still parse and persist but do not alter admission. This means `%q:100` can
+intentionally admit work above a global budget of `1`, while `%q:1` is the run-alone
+barrier for a default-weight launch. Four independent claims of weight `0.25` fit in
+capacity `1`; one claim of weight `2` does not, so authoring weight greater than an
+integer capacity is rejected. `capacity=0` is rejected at authoring time with a
+migration message recommending `%q:1` for run-alone behavior. Authored `runners=` on
+`%queue` is rejected with a migration message naming `capacity=`. Retired
+`%wait(runners=...)` guidance likewise recommends `%queue(capacity=...)`. Previously
+serialized `wait_runners` integer values still load as the legacy spelling of canonical
+`queue_capacity`.
 
 Among waiters that currently fit their own admission limit, the lowest numeric
 `%queue(priority=N)` / `%q(p=N)` starts first, with FIFO ordering among equal
@@ -2783,13 +2786,13 @@ starting until an earlier step finishes.
 
 Holds live in one store (`~/.sase/agent_holds.json`), keyed by the _armer_: the agent or
 shell that armed the hold. Each armer has at most one hold. A hold ends when it is
-released, when its armer ends (an agent armer's session settles or a shell armer's
-process exits), or when its TTL expires. A broken hold store fails open: admission
-ignores it rather than stranding a waiter. The
-[`sase agent hold`](cli.md#sase-agent-hold) commands arm, list, show, and release holds,
-and `sase agent hold run -- COMMAND` holds matching work only while one command runs.
-The **Holds** pane in sase's TUI [Config tab](configuration.md#config-tab) lists active
-holds and releases one.
+released, when its armer ends (an agent armer's session settles, a `%proc` armer's proc
+reaches a terminal state, or a CLI armer's parent shell — or its `hold run` command —
+exits), or when its TTL expires. A broken hold store fails open: admission ignores it
+rather than stranding a waiter. The [`sase agent hold`](cli.md#sase-agent-hold) commands
+arm, list, show, and release holds, and `sase agent hold run -- COMMAND` holds matching
+work only while one command runs. The **Holds** pane in sase's TUI
+[Config tab](configuration.md#config-tab) lists active holds and releases one.
 
 The `%hold` directive declares a hold in prompt text, using the same selectors:
 
@@ -2806,7 +2809,7 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 
 | Selector                     | Matches                                                                                                                       |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Name (`planner`)             | An exact agent name or named proc name                                                                                        |
+| Name (`planner`)             | An agent, agent session, clan, workflow, or named proc name; role-suffixed names stay exact                                   |
 | Tribe (`@nightly`, `tribe=`) | Agents in that tribe                                                                                                          |
 | Hood (`hood=sase-s7`)        | Agents in that [hood](agent_sessions.md), written without a `--role` suffix                                                   |
 | `pending`                    | The agents that are WAITING or QUEUED in scope when the hold is armed; later launches and undispatched procs are not captured |
@@ -2814,9 +2817,9 @@ The `%hold` directive declares a hold in prompt text, using the same selectors:
 
 `scope=project` (the default) limits the hold to the armer's project; `scope=host`
 covers every project on the machine. `ttl=` accepts durations such as `90s`, `45m`, or
-`1h30m`; without it the hold uses `agent_hold_default_ttl` (`2h`), and no hold may
-outlive `agent_hold_max_ttl` (`12h`). See
-[agent hold limits](configuration.md#agent-hold-limits).
+`1h30m` (the `sase agent hold -T` flag takes only single-unit values); without it the
+hold uses `agent_hold_default_ttl` (`2h`), and no hold may outlive `agent_hold_max_ttl`
+(`12h`). See [agent hold limits](configuration.md#agent-hold-limits).
 
 `%hold` may appear more than once; every occurrence is unioned. `hood=` and `tribe=` may
 repeat; `ttl=` and `scope=` may each appear at most once per launch unit. Positional

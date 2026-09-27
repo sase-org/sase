@@ -2050,7 +2050,7 @@ scalar launch-model-setting rows shows its configured/shipped target, resolved
 provider/model, and provenance. The title shows the launch-effective default effort and
 current effective `max_running_agents` capacity budget — occupied capacity units against
 the host ceiling, where a serial session still carries one live claim while any of its
-shells is live, including a monitor and its `--next` agent. Active temporary values
+turns is live, including a monitor and its `--next` agent. Active temporary values
 include their remaining time and configured provenance. Non-pool aliases that explicitly
 carry an effort explain its provenance on the second description line.
 

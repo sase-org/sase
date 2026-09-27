@@ -52,7 +52,7 @@ title: Structured Agentic Software Engineering
 
   <p>
     Run <code>sase init</code> to check and apply owner identity, optional remote-machine enrollment, agent memory,
-    sidecar repositories, and generated skill files before handing work to agents.
+    sidecar repositories, the optional native service-host unit, and generated skill files before handing work to agents.
   </p>
 
 <a href="init/">Open initialization</a>

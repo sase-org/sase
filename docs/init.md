@@ -130,7 +130,8 @@ alias for `sase memory init`, and `sase init config` remains a compatibility ali
 `sase config init`, `sase init repo` is an alias for `sase repo init`, and
 `sase init skills` remains an alias for `sase skill init`. `sase init machine` remains a
 compatibility alias for `sase machine init`, and `sase init service` remains a
-compatibility alias for `sase service init`.
+compatibility alias for `sase service init` — except that the alias has no preview step
+or `--yes` flag: unless you pass `--check`, it applies the service plan immediately.
 
 ## Commands
 
@@ -139,6 +140,7 @@ compatibility alias for `sase service init`.
 | `sase init`                             | Check config, machine, memory, repositories, service, and skills; prompt once per needed initializer.               |
 | `sase init -a, --all`                   | Check or initialize every registered enabled main project, continuing after project errors.                         |
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.                              |
+| `sase init -d, --diff`                  | Show full file diffs for planned changes.                                                                           |
 | `sase init -j, --json`                  | With `--check`, emit one schema-versioned JSON plan; `status` distinguishes drift from blockers.                    |
 | `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                                          |
 | `sase init -p, --project NAME`          | Check or initialize named enabled projects (repeatable; name, display name, or alias).                              |
@@ -153,7 +155,8 @@ compatibility alias for `sase service init`.
 | `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.                               |
 | `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                                            |
 | `sase memory agent-docs list`           | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files.                         |
-| `sase memory read <path>`               | Agent-side read of one reference memory file with an attributable audit event.                                      |
+| `sase memory read <selector>... -r WHY` | Agent-side audited read of one or more notes, memory webs, or `web:keyword` strands.                                |
+| `sase memory show <selector>...`        | The same read without the audit event or reason, for humans.                                                        |
 | `sase memory log`                       | Summarize audited reference memory reads.                                                                           |
 | `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                                                      |
 | `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                                                    |
@@ -170,7 +173,7 @@ compatibility alias for `sase service init`.
 | `sase service init --check`             | Report native-unit, captured-environment, and legacy-unit drift without writing.                                    |
 | `sase service init --diff`              | Show planned native-unit changes, with captured environment values redacted.                                        |
 | `sase service init --yes`               | Apply the native-unit plan without the ordinary confirmation prompt.                                                |
-| `sase init service`                     | Compatibility alias for `sase service init`.                                                                        |
+| `sase init service`                     | Compatibility alias for `sase service init`, except that it applies immediately (no preview or `--yes`).            |
 | `sase skill`                            | Alias for `sase skill list`.                                                                                        |
 | `sase skill list`                       | Inspect generated skill sources, provider targets, and deployed-file drift without writing.                         |
 | `sase skill init`                       | Generate skill files; existing files require confirmation or `--force`.                                             |
@@ -556,13 +559,17 @@ For day-to-day read/write operations, including audited reads, see [Memory](memo
 
 ## Memory Read Audit Log
 
-`sase memory read <memory-relative-path> -r <reason>` is the audited path for
-agent-initiated reference memory reads. The argument is relative to the selected project
-or home `sase/memory/` root; the command allows `type: reference` Markdown notes and
-rejects `type: core` notes because core memory is expected to arrive through instruction
-loading. The command strips one leading YAML frontmatter block from stdout and appends
-`## Children` when nested reference notes exist, but the audit log records only metadata
-such as path, agent name, timestamp, cwd, byte count, and reason.
+`sase memory read <selector>... -r <reason>` is the audited path for agent-initiated
+reference memory reads. Each selector is a flat note name relative to the selected
+project or home `sase/memory/` root (such as `generated_skills.md`), a bare memory-web
+name (such as `glossary`, which prints every strand), or a `web:keyword` strand
+reference (such as `glossary:stitch`); one unknown selector fails the whole batch. The
+command also accepts `-d/--depth`, `-f/--format`, and `-p/--project`, and it allows
+`type: reference` Markdown notes and rejects `type: core` notes because core memory is
+expected to arrive through instruction loading. The command strips one leading YAML
+frontmatter block from stdout and appends `## Children` when nested reference notes
+exist, but the audit log records only metadata such as path, agent name, timestamp, cwd,
+byte count, and reason.
 
 This audited path is distinct from `#memory/<stem>` xprompt inclusion: an explicitly
 authored `#memory/<stem>` reference in a prompt expands the same note body at launch
@@ -572,7 +579,8 @@ See [Memory Field](xprompt.md#memory-field).
 Every read must include a non-empty reason via `-r` or `--reason`. The command also
 requires agent attribution from `SASE_AGENT_NAME`, `SASE_AGENT`, or
 `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a log
-row. Human shell users normally inspect files directly.
+row. Human shell users normally use `sase memory show <selector>...`, which prints the
+same content without a reason or audit event.
 
 `sase memory log` reads the project-scoped audit log from SASE state under
 `~/.sase/projects/<project>/`, not from the repo. Use `--path` or `--agent` to drill

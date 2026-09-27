@@ -622,8 +622,8 @@ the hour.
 
 The `gate_turn_reclaim` job is the backstop for
 [gate turns](notifications.md#gate-turns-and-continuation). It scans gate-turn session
-members across projects, settles shells whose gate bundle is already terminal, cancels
-gates that reached their own deadline, and force-settles a shell as `lost` once
+members across projects, settles turns whose gate bundle is already terminal, cancels
+gates that reached their own deadline, and force-settles a turn as `lost` once
 `gate.turn.reclaim_grace_seconds` (one hour by default) has passed after that deadline.
 It then diagnoses settled gates whose requested successor never recorded, reading the
 agent artifact index once per pass and resuming from a per-project cursor. Work left
