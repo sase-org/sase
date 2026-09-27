@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from .decks.availability import (
     DeckAvailability,
     probe_files_deck,
+    probe_final_deck,
     probe_tools_deck,
 )
 from .decks.main_document import (
@@ -181,12 +182,37 @@ class AgentDetailDeckMixin:
                         )
                 except Exception:
                     pass
+            elif panel.deck is DeckId.FINAL:
+                # Every FINAL panel paints its own view; the shared
+                # stat-signature cache makes duplicates instant.
+                try:
+                    preferred = self._final_preferred_card(panel)
+                except Exception:
+                    preferred = None
+                try:
+                    panel.final_view.update_display(
+                        agent,
+                        attempt_number=attempt_number,
+                        generation=self._agent_detail_generation,
+                        preferred_card=preferred,
+                    )
+                except Exception:
+                    pass
             else:
                 log.warning(
                     "Unknown deck %r in _deck_refresh_views; skipping refresh",
                     panel.deck,
                 )
                 continue
+
+    def _final_preferred_card(self, panel: Any) -> str | None:
+        """Return the panel's sticky FINAL card from area state, if any."""
+        try:
+            area = self.deck_area
+            index = panel.panel_index
+            return area.state.panels[index].preferred_card_for(DeckId.FINAL)
+        except Exception:
+            return None
 
     def _deck_refresh_availability(self) -> None:
         agent = self._current_agent
@@ -205,6 +231,7 @@ class AgentDetailDeckMixin:
                     ),
                     DeckId.FILES: DeckAvailability(False, 0),
                     DeckId.TOOLS: DeckAvailability(False, 0),
+                    DeckId.FINAL: DeckAvailability(False, 0),
                 }
             else:
                 availability = {
@@ -216,6 +243,9 @@ class AgentDetailDeckMixin:
                         agent, attempt_number=attempt_number
                     ),
                     DeckId.TOOLS: probe_tools_deck(
+                        agent, attempt_number=attempt_number
+                    ),
+                    DeckId.FINAL: probe_final_deck(
                         agent, attempt_number=attempt_number
                     ),
                 }
@@ -273,11 +303,16 @@ class AgentDetailDeckMixin:
                 except Exception:
                     pass
                 try:
+                    panel.final_view.show_empty()
+                except Exception:
+                    pass
+                try:
                     panel.set_availability(
                         {
                             DeckId.MAIN: DeckAvailability(False, 0),
                             DeckId.FILES: DeckAvailability(False, 0),
                             DeckId.TOOLS: DeckAvailability(False, 0),
+                            DeckId.FINAL: DeckAvailability(False, 0),
                         }
                     )
                 except Exception:
@@ -311,6 +346,10 @@ class AgentDetailDeckMixin:
                 except Exception:
                     pass
                 try:
+                    panel.final_view.show_empty()
+                except Exception:
+                    pass
+                try:
                     panel.set_availability(
                         {
                             DeckId.MAIN: DeckAvailability(
@@ -319,6 +358,7 @@ class AgentDetailDeckMixin:
                             ),
                             DeckId.FILES: DeckAvailability(False, 0),
                             DeckId.TOOLS: DeckAvailability(False, 0),
+                            DeckId.FINAL: DeckAvailability(False, 0),
                         }
                     )
                 except Exception:
@@ -408,6 +448,26 @@ class AgentDetailDeckMixin:
                     panel.tools_view.update_display(agent)
                 else:
                     panel.tools_view.show_empty()
+            except Exception:
+                pass
+        elif deck is DeckId.FINAL:
+            from .decks.final.flag import final_deck_enabled
+
+            if not final_deck_enabled():
+                log.warning("FINAL deck picked while its flag is off; showing Main")
+                self.show_deck(panel_index, DeckId.MAIN)
+                return
+            try:
+                preferred = self._final_preferred_card(panel)
+            except Exception:
+                preferred = None
+            try:
+                panel.final_view.update_display(
+                    agent,
+                    attempt_number=attempt_number,
+                    generation=self._agent_detail_generation,
+                    preferred_card=preferred,
+                )
             except Exception:
                 pass
         else:

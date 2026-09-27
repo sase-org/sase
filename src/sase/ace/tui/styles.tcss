@@ -4006,6 +4006,10 @@ HintInputBar #hint-escape-hint {
     border: solid #87D7FF;
 }
 
+.deck-panel.-deck-final {
+    border: solid #FF87D7;
+}
+
 .deck-panel.-deck-main.-unfocused {
     border: solid $secondary 35%;
 }
@@ -4016,6 +4020,10 @@ HintInputBar #hint-escape-hint {
 
 .deck-panel.-deck-tools.-unfocused {
     border: solid #87D7FF 35%;
+}
+
+.deck-panel.-deck-final.-unfocused {
+    border: solid #FF87D7 35%;
 }
 
 .deck-scroll {
@@ -4791,6 +4799,10 @@ DeckPickerModal .deck-picker-row.focused.-deck-files {
 
 DeckPickerModal .deck-picker-row.focused.-deck-tools {
     border-left: thick #87D7FF;
+}
+
+DeckPickerModal .deck-picker-row.focused.-deck-final {
+    border-left: thick #FF87D7;
 }
 
 AgentActionChooserModal {

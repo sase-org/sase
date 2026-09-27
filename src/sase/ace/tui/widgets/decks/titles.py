@@ -132,8 +132,9 @@ def deck_title(
 ) -> Text:
     """Render a deck title tab strip, picking the widest fitting tier."""
     tabs = tuple(tabs)
-    # Files full tier lists all tabs only when there are 4 or fewer.
-    use_compact_full = deck is DeckId.FILES and len(tabs) > 4
+    # Files and FINAL list full-tier tabs only when there are 4 or fewer;
+    # FINAL has no badge, so it shares Files' compact-only rungs.
+    use_compact_full = deck in (DeckId.FILES, DeckId.FINAL) and len(tabs) > 4
     candidates: list[tuple[str, Text]]
     if use_compact_full:
         candidates = [
@@ -173,13 +174,39 @@ def deck_title(
     return candidates[-1][1]
 
 
-def _build_switcher(parts: Sequence[tuple[str, str, str]], *, counts: bool) -> Text:
-    """Join the ``(label, counted label, style)`` deck switcher entries."""
+def final_switcher_segment(status: str | None, glyph: str | None) -> Text:
+    """Return the styled ``final <glyph>`` switcher segment (plan §3.6).
+
+    The glyph renders in its status color so a landing failure shows in
+    the border while reading Main or Files; unknown states stay dim.
+    """
+    from sase.finalizers.view_vocabulary import FINAL_GLYPH, STATE_STYLES
+
+    mark = glyph or FINAL_GLYPH
+    style = STATE_STYLES.get(status or "")
+    color = style.color if style is not None else "dim"
+    if color == "dim":
+        return Text(f"final {mark}", style="dim")
+    return Text(f"final {mark}", style=f"bold {color}")
+
+
+def _build_switcher(
+    parts: Sequence[tuple[str | Text, str | Text, str]], *, counts: bool
+) -> Text:
+    """Join the ``(label, counted label, style)`` deck switcher entries.
+
+    A label may already be a styled ``Text`` segment (the FINAL status
+    segment); styled segments keep their own style in both tiers.
+    """
     switcher = Text()
     for i, (label, counted, style) in enumerate(parts):
         if i > 0:
             switcher.append(" \u00b7 ", style=_MUTED)
-        switcher.append(counted if counts else label, style=style)
+        segment = counted if counts else label
+        if isinstance(segment, Text):
+            switcher.append_text(segment)
+        else:
+            switcher.append(segment, style=style)
     return switcher
 
 
@@ -191,18 +218,25 @@ def deck_subtitle(
     width: int,
     accent_for: Mapping[DeckId, str],
     spread: bool = False,
+    status_segments: Mapping[DeckId, Text] | None = None,
 ) -> Text:
     """Render the deck switcher with an optional leading status.
 
     Tiers, widest first: status, spread tag and counted switcher; then drop the
     spread tag; then drop the switcher counts; then drop the switcher; and only
-    then truncate.
+    then truncate. ``status_segments`` carries pre-styled switcher entries
+    (the FINAL ``final <glyph>`` segment); they replace the count in both
+    tiers.
     """
     from .availability import DeckAvailability
 
-    parts: list[tuple[str, str, str]] = []
+    parts: list[tuple[str | Text, str | Text, str]] = []
     for deck in active_deck_cycle():
         label = deck.value
+        segment = status_segments.get(deck) if status_segments else None
+        if isinstance(segment, Text):
+            parts.append((segment, segment, ""))
+            continue
         avail = availability.get(deck)
         count: int | None = None
         has_content: bool | None = None

@@ -50,6 +50,18 @@ class AgentDetailDeckTargetsMixin:
             return None
         return None
 
+    def focused_final_view(self) -> Any | None:
+        """Return the FINAL view only when the focused deck is FINAL."""
+        try:
+            from .decks.model import DeckId
+
+            focused = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+            if focused.deck is DeckId.FINAL:
+                return focused.final_view
+        except Exception:
+            return None
+        return None
+
     def main_view_for_actions(self) -> tuple[Any, Any] | None:
         """Return the (panel, Main view) fold and E actions should use."""
         try:

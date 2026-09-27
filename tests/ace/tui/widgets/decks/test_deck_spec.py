@@ -22,6 +22,26 @@ def test_every_deck_id_has_exactly_one_spec() -> None:
         assert deck_spec(deck).deck_id is deck
 
 
+def test_final_deck_spec_identity_and_flagged_cycle() -> None:
+    from sase.feature_flags import override_flags
+
+    spec = deck_spec(DeckId.FINAL)
+    assert spec.name == "FINAL"
+    assert spec.glyph == "⊛"
+    assert spec.picker_key == "n"
+    assert spec.count_noun == ("finalizer", "finalizers")
+    assert spec.fallback_accent == "#FF87D7"
+    with override_flags(ace_final_deck=True):
+        assert active_deck_cycle() == (
+            DeckId.MAIN,
+            DeckId.FILES,
+            DeckId.TOOLS,
+            DeckId.FINAL,
+        )
+    with override_flags(ace_final_deck=False):
+        assert active_deck_cycle() == (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
+
+
 def test_picker_keys_unique_and_unreserved() -> None:
     keys = [s.picker_key for s in DECK_SPECS]
     assert all(len(k) == 1 and k.islower() for k in keys)
@@ -57,7 +77,7 @@ def test_derived_tables_match_specs() -> None:
 
 
 def test_unknown_deck_lookup_and_coercion() -> None:
-    unknown = cast(DeckId, "final")
+    unknown = cast(DeckId, "telemetry")
     with pytest.raises(KeyError):
         deck_spec(unknown)
     assert coerce_known_deck(unknown, context="test") is DeckId.MAIN

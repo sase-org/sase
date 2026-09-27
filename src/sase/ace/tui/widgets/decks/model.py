@@ -14,6 +14,7 @@ class DeckId(StrEnum):
     MAIN = "main"
     FILES = "files"
     TOOLS = "tools"
+    FINAL = "final"
 
 
 class RenderMode(StrEnum):
@@ -91,7 +92,11 @@ class DeckViewPolicies:
     files: DeckView = DeckView.AUTO
 
     def for_deck(self, deck: DeckId) -> DeckView:
-        """Return the policy for ``deck`` (Tools is always ``AUTO``)."""
+        """Return the policy for ``deck``.
+
+        Every deck other than Main/Files (Tools, FINAL) is permanently
+        ``AUTO``: no title badge, no ``P``, no persisted key.
+        """
         if deck is DeckId.MAIN:
             return self.main
         if deck is DeckId.FILES:
@@ -101,10 +106,11 @@ class DeckViewPolicies:
     def with_deck(self, deck: DeckId, view: DeckView) -> DeckViewPolicies:
         """Return a copy with ``deck`` set to ``view``.
 
-        Rejects Tools policies and Files ``PAGE_BLOCKS`` with ``ValueError``.
+        Rejects Tools/FINAL policies and Files ``PAGE_BLOCKS`` with
+        ``ValueError``.
         """
-        if deck is DeckId.TOOLS:
-            raise ValueError(f"Tools deck has no view policy: {view!r}")
+        if deck is DeckId.TOOLS or deck is DeckId.FINAL:
+            raise ValueError(f"{deck.value} deck has no view policy: {view!r}")
         if deck is DeckId.FILES and view is DeckView.PAGE_BLOCKS:
             raise ValueError("Files deck cannot use page_blocks")
         if deck is DeckId.MAIN:

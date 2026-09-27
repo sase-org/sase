@@ -29,10 +29,15 @@ RECEIPT_LABEL = "FINAL"
 def _final_deck_available() -> bool:
     """Whether the FINAL deck exists yet (plan 4.8 step 6).
 
-    ``final-deck-shell`` flips this guard when it registers the deck; until
-    then the ``p n`` hint line stays hidden.
+    ``final-deck-shell`` registered the deck, so the ``p n`` hint shows
+    while its beta flag is on.
     """
-    return False
+    from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
+
+    try:
+        return bool(final_deck_enabled())
+    except Exception:
+        return False
 
 
 def _started_at(agent: Agent) -> datetime | None:

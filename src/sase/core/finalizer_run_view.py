@@ -62,10 +62,6 @@ def _str_list(value: Any) -> list[str]:
     return [str(item) for item in value]
 
 
-def _mapping(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, dict) else {}
-
-
 @dataclass(frozen=True)
 class RunViewEvidence:
     """One typed evidence record (``evidence_type`` mirrors the Rust wire)."""

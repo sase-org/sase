@@ -1,0 +1,153 @@
+"""FINAL deck document builder (epic sase-1b2, ``final-deck-shell``).
+
+Assembles the ``overview`` plus ``instance:<id>`` cards from the typed
+node view. Card bodies are minimal here — one status header line each —
+and the next two phases (``final-overview-card``, ``final-instance-cards``)
+fill them in.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from rich.text import Text
+
+from sase.finalizers.view_vocabulary import FINAL_GLYPH, instance_style
+
+from ..main_document import MainDeckDocument
+from ..model import RenderMode
+
+#: Card id of the run-level Overview card (plan D3).
+FINAL_OVERVIEW_CARD_ID = "overview"
+
+#: Tab title of the Overview card (plan D3).
+FINAL_OVERVIEW_TITLE = "Overview"
+
+
+def final_instance_card_id(instance_id: str) -> str:
+    """Return the card id for one selected instance (plan D3)."""
+    return f"instance:{instance_id}"
+
+
+def final_instance_tab_title(instance_id: str, status: str | None) -> str:
+    """Return the tab title for one instance card (``<id> <glyph>``)."""
+    return f"{instance_id} {instance_style(status).glyph}"
+
+
+def final_default_card(
+    card_ids: tuple[str, ...] | list[str],
+    preferred: str | None,
+    *,
+    attention_instance_id: str | None,
+    run_level_trouble: bool,
+) -> str | None:
+    """Return the default FINAL card (plan §3.6).
+
+    In order: the panel's sticky FINAL preference when that card exists
+    for this node, else the attention instance, else ``overview`` when
+    the run is in trouble, else the first instance card.
+    """
+    ids = tuple(card_ids)
+    if not ids:
+        return None
+    if preferred is not None and preferred in ids:
+        return preferred
+    if attention_instance_id is not None:
+        attention = final_instance_card_id(attention_instance_id)
+        if attention in ids:
+            return attention
+    if run_level_trouble and FINAL_OVERVIEW_CARD_ID in ids:
+        return FINAL_OVERVIEW_CARD_ID
+    for card_id in ids:
+        if card_id != FINAL_OVERVIEW_CARD_ID:
+            return card_id
+    return ids[0]
+
+
+def decide_final_mode(card_count: int) -> RenderMode:
+    """Return the FINAL spread/paged mode for ``card_count``.
+
+    The deck stays automatic (no view policy): a lone card spreads, every
+    larger document pages. Block modes stay off until ``final-run-blocks``
+    adds one CardBlock per run.
+    """
+    if card_count <= 1:
+        return RenderMode.SPREAD
+    return RenderMode.PAGED
+
+
+def _overview_header(node_view: Any) -> Text:
+    instances = list(getattr(node_view, "instances", ()) or ())
+    status = getattr(node_view, "status", "") or ""
+    glyph = getattr(node_view, "glyph", "") or FINAL_GLYPH
+    selected = f"{len(instances)} selected" if instances else "nothing selected"
+    return Text(f"{glyph} {status or 'finalizers'} · {selected}".strip())
+
+
+def _instance_row(instance_id: str, status: str | None) -> Text:
+    style = instance_style(status)
+    return Text(f"{style.glyph} {instance_id} · {style.word}", style=style.color)
+
+
+def build_final_deck_document(
+    node_view: Any,
+    *,
+    subject: object | None,
+    digest: str | None,
+) -> MainDeckDocument:
+    """Build a FINAL deck document from the typed node view."""
+    from ..card_part import CardPart
+
+    if subject is None or node_view is None:
+        return MainDeckDocument(cards=(), subject=None, partial=False, digest=digest)
+    instances = list(getattr(node_view, "instances", ()) or ())
+    header = _overview_header(node_view)
+    rows = [
+        _instance_row(
+            str(getattr(item, "instance_id", "")),
+            getattr(item, "status", None),
+        )
+        for item in instances
+    ]
+    unselected = list(getattr(node_view, "unselected", ()) or ())
+    tail = (
+        [Text(f"{len(unselected)} configured but not selected", style="dim")]
+        if unselected
+        else []
+    )
+    overview = CardPart(
+        FINAL_OVERVIEW_CARD_ID, FINAL_OVERVIEW_TITLE, header, *rows, *tail
+    )
+    cards: list[CardPart] = [overview]
+    for item in instances:
+        instance_id = str(getattr(item, "instance_id", ""))
+        provider = getattr(item, "provider_ref", None) or instance_id
+        status = getattr(item, "status", None)
+        style = instance_style(status)
+        reason = getattr(item, "selection_reason", "") or ""
+        body = Text()
+        body.append(f"{provider}", style=f"bold {style.color}")
+        body.append(f"  {style.glyph} {style.word}", style=style.color)
+        if reason:
+            body.append(f"\n{reason}", style="dim")
+        cards.append(
+            CardPart(
+                final_instance_card_id(instance_id),
+                final_instance_tab_title(instance_id, status),
+                body,
+            )
+        )
+    return MainDeckDocument(
+        cards=tuple(cards), subject=subject, partial=False, digest=digest
+    )
+
+
+__all__ = [
+    "FINAL_OVERVIEW_CARD_ID",
+    "FINAL_OVERVIEW_TITLE",
+    "build_final_deck_document",
+    "decide_final_mode",
+    "final_default_card",
+    "final_instance_card_id",
+    "final_instance_tab_title",
+]

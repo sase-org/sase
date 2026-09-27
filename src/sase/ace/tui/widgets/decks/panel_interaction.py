@@ -131,6 +131,13 @@ class DeckPanelInteractionMixin:
         """Return the Tools deck view."""
         return self.query_one(AgentLLMCallsPanel)
 
+    @property
+    def final_view(self) -> Any:
+        """Return the FINAL deck view."""
+        from .final.view import FinalDeckView
+
+        return self.query_one(FinalDeckView)
+
     def active_main_card(self) -> str | None:
         """Return the active Main card id without reaching into privates."""
         try:

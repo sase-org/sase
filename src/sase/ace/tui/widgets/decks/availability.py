@@ -64,3 +64,80 @@ def probe_tools_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
     if count == 0:
         return DeckAvailability(False, 0)
     return DeckAvailability(True, count)
+
+
+def probe_final_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailability:
+    """Probe FINAL availability without I/O (plan §3.6).
+
+    The deck has content when the node's runs have at least one selected
+    instance — a handoff-skipped run counts too, since its Overview
+    explains the skip. Clans, tribes, proc nodes and legacy runs with no
+    summary stay unavailable. A pinned attempt (``D``) does not force the
+    deck empty: FINAL follows the pinned attempt's artifacts dir when it
+    resolves, so the probe still reads the summaries.
+    """
+    del attempt_number
+    try:
+        if agent.is_clan_container or agent.is_named_proc:
+            return DeckAvailability(False, 0)
+    except Exception:
+        return DeckAvailability(None, None)
+    try:
+        summaries = [agent.finalizer_status]
+    except Exception:
+        return DeckAvailability(None, None)
+    try:
+        from ...models.agent_session_members import (
+            concrete_agent_session_turn_rows,
+            is_sequential_agent_session_container,
+        )
+
+        if is_sequential_agent_session_container(agent):
+            for turn in concrete_agent_session_turn_rows(agent):
+                try:
+                    summaries.append(turn.finalizer_status)
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    known = [s for s in summaries if s is not None]
+    if not known:
+        try:
+            if agent.status in _ACTIVE_STATUSES:
+                return DeckAvailability(None, None)
+        except Exception:
+            pass
+        return DeckAvailability(False, 0)
+    ids: set[str] = set()
+    skipped = False
+    running = False
+    for summary in known:
+        try:
+            instances = list(summary.instances or ())
+        except Exception:
+            instances = []
+        for instance in instances:
+            try:
+                instance_id = instance.id
+            except Exception:
+                continue
+            if instance_id:
+                ids.add(str(instance_id))
+        try:
+            phase = summary.phase
+        except Exception:
+            phase = None
+        if phase == "skipped":
+            skipped = True
+        if phase in ("declaring", "executing"):
+            running = True
+    if ids or skipped:
+        return DeckAvailability(True, len(ids))
+    if running:
+        return DeckAvailability(None, None)
+    try:
+        if agent.status in _ACTIVE_STATUSES:
+            return DeckAvailability(None, None)
+    except Exception:
+        pass
+    return DeckAvailability(False, 0)

@@ -59,6 +59,17 @@ DECK_SPECS: tuple[DeckSpec, ...] = (
         accent_class="-deck-tools",
         picker_class="-deck-tools",
     ),
+    DeckSpec(
+        deck_id=DeckId.FINAL,
+        name="FINAL",
+        glyph="⊛",
+        picker_key="n",
+        blurb="how this node's turns landed",
+        count_noun=("finalizer", "finalizers"),
+        fallback_accent="#FF87D7",
+        accent_class="-deck-final",
+        picker_class="-deck-final",
+    ),
 )
 
 _SPECS_BY_DECK: dict[DeckId, DeckSpec] = {s.deck_id: s for s in DECK_SPECS}
@@ -70,8 +81,16 @@ def deck_spec(deck: DeckId) -> DeckSpec:
 
 
 def active_deck_cycle() -> tuple[DeckId, ...]:
-    """Return the decks in cycle order (Main, Files, Tools for now)."""
-    return tuple(s.deck_id for s in DECK_SPECS)
+    """Return the decks in cycle order (FINAL joins while its flag is on)."""
+    try:
+        from .final.flag import final_deck_enabled
+
+        flag_on = bool(final_deck_enabled())
+    except Exception:
+        flag_on = False
+    if flag_on:
+        return tuple(s.deck_id for s in DECK_SPECS)
+    return tuple(s.deck_id for s in DECK_SPECS if s.deck_id is not DeckId.FINAL)
 
 
 def coerce_known_deck(deck: DeckId, *, context: str) -> DeckId:

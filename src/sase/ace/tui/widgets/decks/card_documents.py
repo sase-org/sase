@@ -2,9 +2,9 @@
 
 A card-document deck renders its cards through a
 :class:`~sase.ace.tui.widgets.decks.document_view.CardDocumentView` with
-spread/paged modes, scroll anchors and card blocks. Main is the only
-card-document deck today; FINAL joins in ``final-deck-shell``. Membership
-is explicit (never "not Tools") per the shared deck-view rules.
+spread/paged modes, scroll anchors and card blocks. Main and FINAL are the
+card-document decks. Membership is explicit (never "not Tools") per the
+shared deck-view rules.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 #: Card-document decks in cycle order.
-CARD_DOCUMENT_DECKS: tuple[DeckId, ...] = (DeckId.MAIN,)
+CARD_DOCUMENT_DECKS: tuple[DeckId, ...] = (DeckId.MAIN, DeckId.FINAL)
 
 
 def is_card_document_deck(deck: DeckId) -> bool:
@@ -91,12 +91,16 @@ class DeckPanelCardDocumentsMixin:
         """Return the card-document view for ``deck`` (raises ``KeyError``)."""
         if deck is DeckId.MAIN:
             return self.main_view  # type: ignore[attr-defined]
+        if deck is DeckId.FINAL:
+            return self.final_view  # type: ignore[attr-defined]
         raise KeyError(f"no card-document view for deck: {deck!r}")
 
     def document_for(self, deck: DeckId) -> CardDocument:
         """Return the stored card document for ``deck`` (raises ``KeyError``)."""
         if deck is DeckId.MAIN:
             return self._main_document  # type: ignore[attr-defined]
+        if deck is DeckId.FINAL:
+            return self._final_document  # type: ignore[attr-defined]
         raise KeyError(f"no card document for deck: {deck!r}")
 
     def card_document_host(

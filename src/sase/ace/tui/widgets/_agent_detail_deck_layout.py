@@ -109,10 +109,12 @@ class AgentDetailDeckLayoutMixin:
                 except Exception:
                     shown = {current_deck}
                 try:
+                    from .decks.spec import active_deck_cycle
+
                     raw_avail = dict(getattr(current_panel, "_availability", {}))
                     has_content = {
                         d: (raw_avail[d].has_content if d in raw_avail else None)
-                        for d in (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
+                        for d in active_deck_cycle()
                     }
                 except Exception:
                     has_content = {}

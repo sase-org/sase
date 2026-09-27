@@ -339,6 +339,13 @@ class AgentFooterDisplayMixin:
                             deck_card_count = 0
                     elif focused.deck is _DeckId.TOOLS:
                         deck_card_count = 1
+                    elif focused.deck is _DeckId.FINAL:
+                        try:
+                            deck_card_count = len(
+                                focused._final_document.cards  # type: ignore[attr-defined]
+                            )
+                        except Exception:
+                            deck_card_count = 0
                     else:
                         log.warning(
                             "Unknown deck %r in footer card count; "

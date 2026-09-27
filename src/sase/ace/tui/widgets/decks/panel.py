@@ -1,4 +1,4 @@
-"""Pre-composed deck panel with Main, Files and Tools views."""
+"""Pre-composed deck panel with Main, Files, Tools and FINAL views."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from .block_rail import BlockRail
 from .card_documents import DeckPanelCardDocumentsMixin
 from .empty_state import deck_empty_state
 from .files_spread import FilesSpreadView
+from .final.view import FinalDeckLoaded, FinalDeckView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
 from .main_view import MainDeckView
 from .model import DeckId
@@ -73,6 +74,8 @@ class DeckPanel(  # type: ignore[misc]
         self._availability: dict[DeckId, DeckAvailability] = {}
         self._main_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
         self._main_active_card: str | None = None
+        self._final_document: MainDeckDocument = EMPTY_MAIN_DOCUMENT
+        self._final_switcher: Any | None = None
         self._file_count = 0
         self._file_index = 0
         self._file_source_label: str | None = None
@@ -105,7 +108,7 @@ class DeckPanel(  # type: ignore[misc]
         return self._accent_for()
 
     def compose(self) -> ComposeResult:
-        """Compose the pre-composed Main, Files and Tools scrolls."""
+        """Compose the pre-composed Main, Files, Tools and FINAL scrolls."""
         i = self._panel_index
         yield BlockRail(classes="deck-block-rail")
         with VerticalScroll(
@@ -121,6 +124,10 @@ class DeckPanel(  # type: ignore[misc]
             id=f"agent-deck-panel-{i}-tools-scroll", classes="deck-scroll -tools"
         ):
             yield AgentLLMCallsPanel()
+        with VerticalScroll(
+            id=f"agent-deck-panel-{i}-final-scroll", classes="deck-scroll -final"
+        ):
+            yield FinalDeckView()
         yield Static(classes="deck-empty-state")
         with VerticalScroll(
             id=f"agent-deck-panel-{i}-search-scroll",
@@ -237,6 +244,11 @@ class DeckPanel(  # type: ignore[misc]
                 return not bool(self.tools_view._has_displayed_content)
             except Exception:
                 return True
+        if deck is DeckId.FINAL:
+            try:
+                return not bool(self._final_document.cards)
+            except Exception:
+                return True
         raise AssertionError(f"unhandled deck: {deck!r}")
 
     def _update_empty_state(self) -> None:
@@ -293,6 +305,10 @@ class DeckPanel(  # type: ignore[misc]
         self, message: LLMCallsVisibilityChanged
     ) -> None:
         self.handle_deck_llm_calls_visibility_changed(message)
+
+    @on(FinalDeckLoaded)
+    def _on_final_deck_loaded(self, message: FinalDeckLoaded) -> None:
+        self.handle_final_deck_loaded(message)
 
 
 __all__ = ["DeckPanel", "DeckPanelFocusRequested"]

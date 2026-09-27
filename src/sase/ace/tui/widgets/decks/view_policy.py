@@ -105,9 +105,9 @@ def distinct_layouts(content: ViewContent) -> tuple[DeckView, ...]:
     """Return distinct layouts in depth order (shallowest first).
 
     Each signature class is represented by its shallowest member. Files
-    never offers ``PAGE_BLOCKS``; Tools offers nothing.
+    never offers ``PAGE_BLOCKS``; Tools and FINAL offer nothing.
     """
-    if content.deck is DeckId.TOOLS:
+    if content.deck is DeckId.TOOLS or content.deck is DeckId.FINAL:
         return ()
     if content.deck is DeckId.FILES:
         candidates: tuple[DeckView, ...] = (DeckView.SPREAD, DeckView.PAGE_CARDS)

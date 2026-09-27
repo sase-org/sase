@@ -19,6 +19,8 @@ class DeckPanelNavigationMixin:
     _deck: DeckId
     _main_document: MainDeckDocument
     _main_active_card: str | None
+    _final_document: MainDeckDocument
+    _final_switcher: Any | None
     _render_mode: dict[DeckId, RenderMode]
     _mode_subject: dict[DeckId, object]
 
@@ -80,6 +82,35 @@ class DeckPanelNavigationMixin:
             except Exception:
                 pass
             return None
+        if self._deck is DeckId.FINAL:
+            if self.is_spread(DeckId.FINAL):
+                return self._cycle_document_spread(DeckId.FINAL, direction)
+            try:
+                ids = [card.card_id for card in self._final_document.cards]
+            except Exception:
+                return None
+            try:
+                active = self.final_view.active_card_id
+            except Exception:
+                try:
+                    active = self._stored_document_active(DeckId.FINAL)
+                except Exception:
+                    active = None
+            next_id = cycle_card_id(ids, active, direction)
+            if next_id is None:
+                return None
+            try:
+                shown = self.final_view.show_card(next_id)
+            except Exception:
+                return None
+            if shown is None:
+                return None
+            try:
+                self._store_document_active(DeckId.FINAL, shown)
+            except Exception:
+                pass
+            self.refresh_chrome()
+            return shown
         return None
 
     def show_main_document(
@@ -243,6 +274,110 @@ class DeckPanelNavigationMixin:
         except Exception:
             pass
         return self._main_active_card
+
+    def handle_final_deck_loaded(self, message: Any) -> None:
+        """Store a freshly loaded FINAL document and refresh chrome.
+
+        The originating view already painted; this records the document
+        for tabs, the ``final <glyph>`` subtitle segment and the empty
+        state without disturbing the active card.
+        """
+        try:
+            document = message.document
+        except Exception:
+            return
+        self._final_document = document
+        try:
+            active = message.active_card
+        except Exception:
+            active = None
+        try:
+            self._store_document_active(DeckId.FINAL, active)
+        except Exception:
+            pass
+        try:
+            from .titles import final_switcher_segment
+
+            if document.cards:
+                self._final_switcher = final_switcher_segment(
+                    getattr(message, "status", None),
+                    getattr(message, "glyph", None),
+                )
+            else:
+                self._final_switcher = None
+        except Exception:
+            pass
+        if self._deck is DeckId.FINAL:
+            try:
+                self.set_deck(DeckId.FINAL)
+            except Exception:
+                try:
+                    self.refresh_chrome()
+                except Exception:
+                    pass
+        else:
+            try:
+                self.refresh_chrome()
+            except Exception:
+                pass
+        try:
+            message.stop()
+        except Exception:
+            pass
+
+    def show_final_document(
+        self,
+        document: MainDeckDocument,
+        preferred_card: str | None,
+        *,
+        status: str | None = None,
+        glyph: str | None = None,
+    ) -> str | None:
+        """Push ``document`` to the FINAL view; return the active card.
+
+        ``status``/``glyph`` feed the ``final <glyph>`` subtitle segment so
+        a landing failure shows in the border while reading other decks.
+        """
+        self._final_document = document
+        try:
+            active = self.final_view.show_final_document(document, preferred_card)
+        except Exception:
+            active = None
+        try:
+            self._store_document_active(DeckId.FINAL, active)
+        except Exception:
+            pass
+        try:
+            from .titles import final_switcher_segment
+
+            if document.cards:
+                self._final_switcher = final_switcher_segment(status, glyph)
+            else:
+                self._final_switcher = None
+        except Exception:
+            pass
+        if self._deck is DeckId.FINAL:
+            try:
+                self.set_deck(DeckId.FINAL)
+            except Exception:
+                try:
+                    self.refresh_chrome()
+                except Exception:
+                    pass
+        else:
+            try:
+                self.refresh_chrome()
+            except Exception:
+                pass
+        try:
+            self._sync_block_navigable()
+        except Exception:
+            pass
+        try:
+            self._sync_block_rail()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return active
 
 
 __all__ = ["DeckPanelNavigationMixin"]

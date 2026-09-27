@@ -25,6 +25,11 @@ _MESSAGES: dict[tuple[str, str], str] = {
     ("tools", "tribe"): "No LLM calls for this tribe",
     ("tools", "attempt"): "LLM calls are not shown for attempt views",
     ("tools", "none"): "No agent selected",
+    ("final", "agent"): "No finalizers for this agent",
+    ("final", "node"): "No finalizers for this node",
+    ("final", "tribe"): "No finalizers for tribes",
+    ("final", "attempt"): "No finalizers for this attempt",
+    ("final", "none"): "No agent selected",
 }
 
 

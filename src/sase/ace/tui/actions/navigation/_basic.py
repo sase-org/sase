@@ -74,14 +74,22 @@ class BasicNavigationMixin(NavigationMixinBase):
         return self.current_tab == "agents"
 
     def _release_focused_deck_bottom_pin(self) -> bool:
-        """Release the focused deck panel's Main bottom pin in deck mode."""
+        """Release the focused deck panel's card-document bottom pins."""
         if not self._decks_navigation_active():
             return False
         try:
             from ...widgets import AgentDetail
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-            agent_detail.deck_area.focused_panel().main_view.release_bottom_pin()
+            panel = agent_detail.deck_area.focused_panel()
+            try:
+                panel.main_view.release_bottom_pin()
+            except Exception:
+                pass
+            try:
+                panel.final_view.release_bottom_pin()
+            except Exception:
+                pass
         except Exception:
             pass
         return True
@@ -98,6 +106,8 @@ class BasicNavigationMixin(NavigationMixinBase):
             panel = agent_detail.deck_area.focused_panel()
             if panel.deck is DeckId.MAIN:
                 panel.main_view.pin_to_bottom()
+            elif panel.deck is DeckId.FINAL:
+                panel.final_view.pin_to_bottom()
             else:
                 panel.active_scroll().scroll_end(animate=False)
         except Exception:

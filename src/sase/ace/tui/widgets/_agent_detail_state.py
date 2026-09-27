@@ -247,6 +247,8 @@ class AgentDetailStateMixin:
                 )
             if panel.deck is _DeckId.TOOLS:
                 return (None, panel.tools_view.get_llm_calls_text(), ".md")
+            if panel.deck is _DeckId.FINAL:
+                return (None, panel.final_view.get_final_text(), ".md")
         except Exception:
             pass
         return (None, None, "")

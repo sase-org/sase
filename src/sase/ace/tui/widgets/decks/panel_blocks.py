@@ -76,10 +76,16 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
 
     def cycle_block(self, direction: int) -> bool:
         """Step the active card one block; False when a no-op."""
+        if self._deck is DeckId.FINAL:
+            # Shell cards carry no blocks; run blocks land in
+            # ``final-run-blocks`` (sase-1b2.17).
+            return False
         return self.cycle_document_block(DeckId.MAIN, direction)
 
     def select_block(self, block_id: str | None) -> bool:
         """Select ``block_id`` on the active card; False when a no-op."""
+        if self._deck is DeckId.FINAL:
+            return False
         return self.select_document_block(DeckId.MAIN, block_id)
 
     @property
