@@ -141,6 +141,7 @@ def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> Non
     from sase.ace.tui.models import agent as agent_module
     from sase.ace.tui.models import agent_time
     from sase.ace.tui.widgets.prompt_panel import _agent_queue_section
+    from sase.ace.tui.modals import node_finder_rendering
     from sase.core import time as core_time
 
     for module in (
@@ -152,6 +153,7 @@ def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> Non
         _display_panel_patches,
         _loading_compute_finalize,
         _loading_finalize,
+        node_finder_rendering,
     ):
         monkeypatch.setattr(module, "local_now", lambda: now)
 
