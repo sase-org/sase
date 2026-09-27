@@ -188,7 +188,7 @@ class _RailBuilder:
         self.append(label, self._style(_MUTED_STYLE))
 
     def append_key_hint(self, prev: str, next_key: str) -> None:
-        """Append the ``[ older · newer ]`` key hint."""
+        """Append the ``( older · newer )`` key hint."""
         key_style = f"bold {self._accent}"
         if not self._focused:
             key_style = _dim(key_style)

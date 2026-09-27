@@ -31,8 +31,7 @@ from tests.ace.tui.fleet_fixture import (
 class _FleetRefreshHarness(AgentFleetMixin):
     """Minimal Agents-tab host for exercising fleet refresh projection."""
 
-    def __init__(self, *, mode: str = "focus") -> None:
-        self.current_agents_subtab = mode
+    def __init__(self) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
         self._agents: list[Agent] = []
@@ -114,7 +113,7 @@ def _remote_row(
 
 
 def test_agents_fleet_problem_text_reports_only_actionable_problems() -> None:
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     app._agents_fleet_loading = False
     app._agents = [
         Agent(
@@ -159,13 +158,13 @@ def test_agents_fleet_problem_text_reports_only_actionable_problems() -> None:
 
 
 @pytest.mark.asyncio
-async def test_agents_refresh_hydrates_catalog_in_focus_mode(
+async def test_agents_refresh_hydrates_catalog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     summary = fleet_summary(agent_id="agent-a")
     response = fleet_host_response(summaries=(summary,))
     facade = OfflineFleetFacade(summary_response=response, catalog_response=response)
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     local = Agent(
         AgentType.RUNNING,
         "local-work",
@@ -182,7 +181,6 @@ async def test_agents_refresh_hydrates_catalog_in_focus_mode(
     await app._run_agents_fleet_refresh(generation=1, source="apply")
 
     assert facade.calls == ["summary", "catalog"]
-    assert app.current_agents_subtab == "focus"
     assert [row.cl_name for row in app._agents] == ["local-work", "sase-main"]
     assert [row.fleet_logical_key for row in app._agents_fleet_rows] == [
         summary["logical_key"]
@@ -191,7 +189,7 @@ async def test_agents_refresh_hydrates_catalog_in_focus_mode(
 
 
 def test_apply_fleet_projection_skips_unchanged_reproject() -> None:
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     local = Agent(
         AgentType.RUNNING,
         "local-work",
@@ -227,7 +225,7 @@ def test_apply_fleet_projection_skips_unchanged_reproject() -> None:
 
 
 def test_apply_fleet_projection_repaints_changed_row() -> None:
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     app._apply_fleet_projection(
         FleetRowsProjection(fleet_rows=(_remote_row(revision=1),)),
         config=fleet_config(),
@@ -247,7 +245,7 @@ def test_apply_fleet_projection_repaints_changed_row() -> None:
 
 
 def test_apply_fleet_projection_forced_remote_sources_repaint() -> None:
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     projection = FleetRowsProjection(fleet_rows=(_remote_row(),))
 
     app._apply_fleet_projection(
@@ -280,7 +278,7 @@ def test_apply_fleet_projection_forced_remote_sources_repaint() -> None:
 async def test_zero_machine_config_refresh_performs_no_remote_work(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     built_facades: list[FederationConfig] = []
     empty_config = FederationConfig(
         worker=FederationWorkerSettings(enabled=True),
@@ -297,7 +295,6 @@ async def test_zero_machine_config_refresh_performs_no_remote_work(
     await app._run_agents_fleet_refresh(generation=1, source="manual")
 
     assert built_facades == []
-    assert app.current_agents_subtab == "focus"
     assert app._agents_fleet_available is False
     assert app._agents_fleet_rows == []
     assert app._agents_fleet_focus_rows == []
@@ -327,7 +324,7 @@ async def test_fleet_refresh_preserves_feed_issues_with_config_diagnostics(
             ),
         ),
     )
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
 
     monkeypatch.setattr(fleet_mod, "load_federation_config", lambda: config)
     monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
@@ -354,7 +351,7 @@ async def test_fleet_refresh_apply_defers_behind_active_navigation(
     summary = fleet_summary(agent_id="agent-a")
     response = fleet_host_response(summaries=(summary,))
     facade = OfflineFleetFacade(summary_response=response, catalog_response=response)
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     app._nav_gate.record()
 
     monkeypatch.setattr(fleet_mod, "load_federation_config", fleet_config)
@@ -459,7 +456,7 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
     facade = _PagingFacade(
         summary_response=page_one,
     )
-    app = _FleetRefreshHarness(mode="focus")
+    app = _FleetRefreshHarness()
     monkeypatch.setattr(fleet_mod, "load_federation_config", fleet_config)
     monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
 

@@ -1303,7 +1303,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                     |
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
 | `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                          |
-| `[` / `]`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                               |
+| `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                               |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
 | `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                               |
 | `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
@@ -5441,7 +5441,7 @@ followup the same way. Every other card renders exactly as before.
 
 **Newest-block landing and the triage loop.** Selecting a node lands on its newest
 block, so the first thing you see is the latest turn's output. The working loop is: read
-the newest block, press `[` to step one turn older, repeat, and press `]` to walk back
+the newest block, press `(` to step one turn older, repeat, and press `)` to walk back
 toward the newest. Block state is ephemeral and panel-local (kept per deck panel for the
 current selection); changing nodes, toggling attempts, or losing a vanished block id
 re-lands on the newest. While you sit on an older block and a new turn starts, the view
@@ -5458,13 +5458,13 @@ mode.
 **The block rail.** Whenever a paged deck's active card has 2+ blocks, a one-row rail
 sits docked under the Main deck panel's top border showing the session timeline:
 roster-numbered entries with status colors, an accent pill on the active block, arrival
-dots on unseen newcomers, and a `[ ] blocks` key hint at wide widths. Clicking an entry
+dots on unseen newcomers, and a `( ) blocks` key hint at wide widths. Clicking an entry
 selects that block; in a spread deck the rail stays hidden because the phase dividers
 already mark each turn.
 
-**Keys.** `[` steps to the older block and `]` to the newer block (both wrap); in a
+**Keys.** `(` steps to the older block and `)` to the newer block (both wrap); in a
 spread deck they top-align the target turn's header, in a block-paged card they swap the
-page. The footer shows a `[/] blocks` entry and the help modal a matching
+page. The footer shows a `(/)` blocks entry and the help modal a matching
 `Older / newer card block` row only while the focused card has 2+ navigable blocks.
 `Ctrl+Shift+J` / `Ctrl+Shift+K` are not bound by default: in common terminal chains
 (tmux + kitty included) they arrive as plain `Ctrl+J` / `Ctrl+K` and would cycle cards,

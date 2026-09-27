@@ -23,7 +23,6 @@ from sase.dispatch.follow_store import (
 
 from ...models.fleet_agents import FleetRowsProjection
 from ._fleet_common import (
-    _AGENTS_SUBTABS,
     _FLEET_CATALOG_MAX_PAGES,
     _FLEET_CATALOG_PAGE_LIMIT,
 )
@@ -37,7 +36,6 @@ from ._fleet_projection import AgentFleetProjectionMixin
 from ._fleet_refresh import AgentFleetRefreshMixin
 
 if TYPE_CHECKING:
-    from ...app import AgentsSubTab
     from ...models import Agent
 
 _load_reconciled_follow_snapshot = load_reconciled_follow_snapshot
@@ -54,7 +52,6 @@ class AgentFleetMixin(
 ):
     """Remote fleet state, projection, and user actions."""
 
-    current_agents_subtab: AgentsSubTab
     current_tab: str
     current_idx: int
     _agents: list[Agent]
@@ -83,7 +80,6 @@ __all__ = [
     "FederationWorkerUnavailable",
     "FollowStoreError",
     "FollowStoreSnapshot",
-    "_AGENTS_SUBTABS",
     "_FLEET_CATALOG_MAX_PAGES",
     "_FLEET_CATALOG_PAGE_LIMIT",
     "_load_reconciled_follow_snapshot",

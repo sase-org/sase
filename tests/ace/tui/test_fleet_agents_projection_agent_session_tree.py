@@ -333,7 +333,6 @@ def test_project_mixed_agent_tree_matches_reproject_and_refilter_shapes() -> Non
 
     class _Harness(AgentFleetProjectionMixin):
         def __init__(self) -> None:
-            self.current_agents_subtab = "focus"
             self.current_tab = "agents"
             self.current_idx = 0
             self._agents = [local]

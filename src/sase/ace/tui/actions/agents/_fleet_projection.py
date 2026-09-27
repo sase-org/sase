@@ -9,7 +9,6 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from ...app import AgentsSubTab
     from ...models import Agent
     from ...models.agent import AgentType
 
@@ -68,7 +67,6 @@ class AgentFleetProjectionMixin:
     """Unified Agents row reprojection."""
 
     if TYPE_CHECKING:
-        current_agents_subtab: AgentsSubTab
         current_tab: str
         current_idx: int
         _agents: list[Agent]
@@ -79,23 +77,6 @@ class AgentFleetProjectionMixin:
         _agents_fleet_focus_rows: list[Agent]
         _agents_fleet_applied_projection_signature: object | None
         _agents_refresh_active_source: str
-
-    def watch_current_agents_subtab(
-        self,
-        old_mode: AgentsSubTab,
-        new_mode: AgentsSubTab,
-    ) -> None:
-        """Normalize restored legacy Agents mode state to the unified list."""
-        if old_mode == new_mode:
-            return
-        if new_mode == "fleet":
-            self.current_agents_subtab = "focus"
-            return
-        self._reproject_agents_from_current_mode(source="mode_switch")
-        self._schedule_agents_fleet_refresh(  # type: ignore[attr-defined]
-            source="mode_switch",
-            force=True,
-        )
 
     def action_connect_agent_machine(self) -> None:
         """Open the persistent Machines administration pane."""
@@ -127,10 +108,6 @@ class AgentFleetProjectionMixin:
             f"and verify. {visible_after_enrollment}",
             timeout=12,
         )
-
-    def _set_agents_subtab(self, mode: str) -> None:
-        del mode
-        self.current_agents_subtab = "focus"
 
     def _sync_agents_local_source_from_current(self) -> None:
         """Mirror local-only rows after existing in-memory mutations."""

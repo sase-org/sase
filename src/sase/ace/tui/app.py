@@ -105,10 +105,7 @@ from .tab_order import TabInput, TabName, normalize_tab_name
 
 log = logging.getLogger(__name__)
 
-AgentsSubTab = Literal["focus", "fleet"]
-
 __all__ = [
-    "AgentsSubTab",
     "AceApp",
     "_BGCMD_LIST_RESERVED_FOR_DASHBOARD",
     "_MAX_AGENT_LIST_WIDTH",
@@ -194,7 +191,6 @@ class AceApp(
     current_files_subtab: reactive[FilesSubTab] = reactive(
         DEFAULT_FILES_SUBTAB, recompose=False
     )
-    current_agents_subtab: reactive[AgentsSubTab] = reactive("focus", recompose=False)
     axe_running: reactive[bool] = reactive(False, recompose=False)
     axe_description_expanded: reactive[bool] = reactive(True, recompose=False)
     hide_reverted: reactive[bool] = reactive(True, recompose=False)
@@ -285,10 +281,6 @@ class AceApp(
     def validate_current_tab(self, value: TabInput) -> TabName:
         """Normalize legacy tab aliases before storing app state."""
         return normalize_tab_name(value)
-
-    def validate_current_agents_subtab(self, value: object) -> AgentsSubTab:
-        """Normalize legacy Agents mode state."""
-        return "fleet" if value == "fleet" else "focus"
 
     def __init__(
         self,

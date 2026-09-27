@@ -125,12 +125,7 @@ async def _open_agents(
 
 
 async def _show_fleet(page: AcePage) -> None:
-    await page.wait_for(
-        lambda _s: (
-            page.app.current_agents_subtab == "focus"
-            and not page.app._agents_fleet_loading
-        )
-    )
+    await page.wait_for(lambda _s: not page.app._agents_fleet_loading)
     await page.wait_for(
         lambda _s: any(
             bool(getattr(agent, "fleet_origin_alias", None))
@@ -256,7 +251,6 @@ async def test_agents_fleet_keyboard_focus_and_narrow_png_snapshot(
         await _show_fleet(page)
         await wait_for_visual_idle(page)
 
-        assert page.app.current_agents_subtab == "focus"
         assert_page_svg_contains(page, "apollo")
         assert_page_svg_contains(page, "mac")
         assert_page_svg_styled_text_absent(page, "here visual-plan")
@@ -330,7 +324,6 @@ async def test_agents_fleet_empty_without_enrolled_machine_png_snapshot(
         await page.expect_state("agent_count", 0)
         await wait_for_visual_idle(page)
 
-        assert page.app.current_agents_subtab == "focus"
         assert not page.app._agents_fleet_available
         assert_page_svg_contains(page, "Every agent you launch")
         ace_png_visual.assert_page_png(

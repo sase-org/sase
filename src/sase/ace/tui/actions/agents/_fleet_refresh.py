@@ -37,7 +37,6 @@ from ._fleet_follow import (
 )
 
 if TYPE_CHECKING:
-    from ...app import AgentsSubTab
     from ...models import Agent
 
 log = logging.getLogger(__name__)
@@ -47,7 +46,6 @@ class AgentFleetRefreshMixin:
     """Refresh remote fleet rows and apply their projections."""
 
     if TYPE_CHECKING:
-        current_agents_subtab: AgentsSubTab
         current_tab: str
         _agents_fleet_rows: list[Agent]
         _agents_fleet_focus_rows: list[Agent]
@@ -385,7 +383,6 @@ class AgentFleetRefreshMixin:
             config.hosts or config.diagnostics or projection.configured_host_count
         )
         self._agents_fleet_last_error = None
-        self.current_agents_subtab = "focus"
         self._reproject_agents_from_current_mode(  # type: ignore[attr-defined]
             source="fleet_refresh",
             force=source in {"remote_attention", "remote_mutation"},

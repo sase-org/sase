@@ -11,7 +11,6 @@ from ...models.fleet_agents import FleetRowsProjection
 
 _PUBLIC_FLEET_MODULE = "sase.ace.tui.actions.agents._fleet"
 
-_AGENTS_SUBTABS: tuple[str, str] = ("focus", "fleet")
 _FLEET_CATALOG_PAGE_LIMIT = 100
 _FLEET_CATALOG_MAX_PAGES = 16
 
@@ -75,7 +74,6 @@ def host_feed_issue_text(projection: FleetRowsProjection) -> str:
 
 
 __all__ = [
-    "_AGENTS_SUBTABS",
     "_FLEET_CATALOG_MAX_PAGES",
     "_FLEET_CATALOG_PAGE_LIMIT",
     "fleet_public_override",

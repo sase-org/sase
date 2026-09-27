@@ -146,9 +146,10 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # Tab-disjoint: Agents deck ratio vs Artifacts split cycling.
         frozenset({"grow_deck_panel", "cycle_artifacts_split"}),
         frozenset({"shrink_deck_panel", "cycle_artifacts_split_reverse"}),
-        # Tab-disjoint: Agents card-block stepping vs Artifacts sub-tab cycling.
-        frozenset({"next_card_block", "cycle_artifacts_subtab"}),
-        frozenset({"prev_card_block", "cycle_artifacts_subtab_reverse"}),
+        # Tab-disjoint: Agents card-block stepping vs Artifacts Files
+        # version stepping. Both use ( / ) on different main tabs.
+        frozenset({"next_card_block", "files_next_version"}),
+        frozenset({"prev_card_block", "files_prev_version"}),
     }
 )
 
@@ -424,6 +425,41 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         else:
             app_kwargs[fname] = normalize_key_binding(key)
 
+    _LEGACY_CARD_BLOCK_BRACKETS = frozenset(
+        {"left_square_bracket", "right_square_bracket", "[", "]"}
+    )
+    legacy_card_block_brackets = sorted(
+        fname
+        for fname in ("next_card_block", "prev_card_block")
+        if fname in user_overridden
+        and any(
+            part in _LEGACY_CARD_BLOCK_BRACKETS
+            for part in split_key_alternatives(app_kwargs[fname])
+        )
+    )
+    if legacy_card_block_brackets:
+        log.warning(
+            "Card-block stepping moved from [ / ] to ( / ); "
+            "explicit bracket override(s) for %s are honored, "
+            "but prefer left_parenthesis/right_parenthesis",
+            ", ".join(legacy_card_block_brackets),
+        )
+    legacy_bracket_pairs = frozenset(
+        {
+            frozenset({"next_card_block", "cycle_artifacts_subtab"}),
+            frozenset({"prev_card_block", "cycle_artifacts_subtab_reverse"}),
+        }
+    )
+
+    def _allowlisted(pair: frozenset[str]) -> bool:
+        if pair in _CONTEXTUAL_APP_DUPLICATES:
+            return True
+        # Legacy bracket overrides keep working alongside the Artifacts
+        # sub-tab cycle keys instead of reverting to the new defaults.
+        return pair in legacy_bracket_pairs and bool(
+            legacy_card_block_brackets and pair & frozenset(legacy_card_block_brackets)
+        )
+
     key_to_actions: dict[str, list[str]] = {}
     for fname, key_val in app_kwargs.items():
         if is_unbound_key(key_val):
@@ -441,8 +477,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             conflicts = [
                 action
                 for action in actions
-                if action != fname
-                and frozenset({fname, action}) not in _CONTEXTUAL_APP_DUPLICATES
+                if action != fname and not _allowlisted(frozenset({fname, action}))
             ]
             if not conflicts:
                 continue

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from textual.widgets import Static
 
 from ...models.fleet_agents import FleetRowsProjection
@@ -12,15 +10,9 @@ from ._fleet_common import (
     unified_diagnostic_text,
 )
 
-if TYPE_CHECKING:
-    from ...app import AgentsSubTab
-
 
 class AgentFleetHeaderMixin:
     """Update the Agents header for unified fleet state."""
-
-    if TYPE_CHECKING:
-        current_agents_subtab: AgentsSubTab
 
     def _update_agents_header(self) -> None:
         try:

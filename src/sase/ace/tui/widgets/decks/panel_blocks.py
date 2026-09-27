@@ -140,8 +140,7 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
     def _block_key_hint(self) -> tuple[str, str]:
         """Return the live ``(prev, next)`` block key display names.
 
-        Falls back to the ``[`` / ``]`` defaults until the card-block key
-        phase registers its keymap actions.
+        Falls back to the ``(`` / ``)`` defaults when no keymap is available.
         """
         return self.document_block_key_hint()
 

@@ -53,8 +53,8 @@ def _entries(count: int) -> list[BlockRailEntry]:
 
 def _hint() -> tuple[str, str]:
     return (
-        key_display_name("left_square_bracket"),
-        key_display_name("right_square_bracket"),
+        key_display_name("left_parenthesis"),
+        key_display_name("right_parenthesis"),
     )
 
 
@@ -208,7 +208,7 @@ def test_key_hint_only_at_widest_tier() -> None:
         key_hint=_hint(),
     )
     assert hint_tier == "full-hint"
-    assert "[ older · newer ]" in hint_text.plain
+    assert "( older · newer )" in hint_text.plain
     plain_text, _, plain_tier = _render_block_rail(
         entries,
         active_id="b2",

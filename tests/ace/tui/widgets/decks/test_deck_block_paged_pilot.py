@@ -413,7 +413,7 @@ async def test_block_spread_to_paged_keeps_scrollbar_in_sync() -> None:
             assert panel.block_mode_for_active_card() is RenderMode.PAGED
             assert scroller.scroll_y == 0
             assert scroller.vertical_scrollbar.position == scroller.scroll_y
-        # The reading anchor and [ / ] navigation survive the flip, and the
+        # The reading anchor and ( / ) navigation survive the flip, and the
         # split keeps independent cursors.
         assert left.main_view.active_block_id("reply") == "b11"
         assert left.cycle_block(-1) is True

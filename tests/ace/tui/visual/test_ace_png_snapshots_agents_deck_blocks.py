@@ -256,7 +256,7 @@ async def test_agents_deck_blocks_paged_older_png_snapshot(
         panel = detail.deck_area.panel(0)
         card = panel._main_document.card("reply")
         assert card is not None and card.has_block_navigation
-        await page.press("left_square_bracket")
+        await page.press("left_parenthesis")
         await wait_for_state(
             page,
             lambda: panel.main_view.active_block_id("reply") == card.block_ids[-2],
@@ -266,7 +266,7 @@ async def test_agents_deck_blocks_paged_older_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "agents_deck_blocks_paged_older_120x40",
-            title="ACE agents deck blocks paged after bracket",
+            title="ACE agents deck blocks paged after paren",
         )
 
 
@@ -354,7 +354,7 @@ async def test_agents_deck_blocks_split_rails_png_snapshot(
         right = detail.deck_area.panel(1)
         card = left._main_document.card("reply")
         assert card is not None and card.has_block_navigation
-        await page.press("left_square_bracket")
+        await page.press("left_parenthesis")
         await wait_for_state(
             page,
             lambda: left.main_view.active_block_id("reply") == card.block_ids[-2],
@@ -434,7 +434,7 @@ async def test_agents_deck_blocks_arrival_dot_png_snapshot(
         card = panel._main_document.card("reply")
         assert card is not None and card.has_block_navigation
         # Read history first: stepping back stops following.
-        await page.press("left_square_bracket")
+        await page.press("left_parenthesis")
         await wait_for_state(
             page,
             lambda: panel.main_view.active_block_id("reply") == card.block_ids[-2],

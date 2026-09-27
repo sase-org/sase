@@ -189,10 +189,9 @@ class DeckPanelDocumentRailMixin:
     def document_block_key_hint(self) -> tuple[str, str]:
         """Return the live ``(prev, next)`` block key display names.
 
-        Falls back to the ``[`` / ``]`` defaults until the card-block key
-        phase registers its keymap actions.
+        Falls back to the ``(`` / ``)`` defaults when no keymap is available.
         """
-        prev, next_key = "[", "]"
+        prev, next_key = "(", ")"
         try:
             from ...keymaps import key_display_name
         except Exception:
