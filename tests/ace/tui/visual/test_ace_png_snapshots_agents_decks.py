@@ -89,6 +89,10 @@ def _subtitle_plain(detail: AgentDetail, panel_index: int = 0) -> str:
     return detail.deck_area.panel(panel_index)._border_subtitle.plain
 
 
+def _title_plain(detail: AgentDetail, panel_index: int = 0) -> str:
+    return detail.deck_area.panel(panel_index)._border_title.plain
+
+
 async def _goto_agents(page: AcePage, count: int) -> None:
     await wait_for_startup(page)
     await page.press("shift+tab")
@@ -290,8 +294,8 @@ async def test_agents_decks_single_files_spread_png_snapshot(
     agent = zoom_multi_file_agent(tmp_path)
     agent.diff_path = None
     patch_startup_loaders(monkeypatch, agents=[agent])
-    # A wider terminal keeps the deck column wide enough for the ``spread`` tag;
-    # at 120 columns the subtitle drops it to fit.
+    # A wider terminal keeps the deck column wide enough for the long view
+    # badge; at 120 columns the title ladder drops to a shorter rung.
     async with AcePage(query='"visual"', size=(160, 40), patches=patches()) as page:
         await _goto_agents(page, 1)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
@@ -306,7 +310,8 @@ async def test_agents_decks_single_files_spread_png_snapshot(
         await wait_for_visual_idle(page)
         assert panel.deck is DeckId.FILES
         assert panel.is_spread(DeckId.FILES)
-        assert "spread" in _subtitle_plain(detail)
+        assert "spread" not in _subtitle_plain(detail)
+        assert "spread · auto" in _title_plain(detail)
         ace_png_visual.assert_page_png(
             page,
             "agents_decks_single_files_spread_160x40",

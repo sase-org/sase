@@ -39,7 +39,9 @@ RAIL_HORIZONTAL_PADDING = 2
 #: Windowed tiers try these neighbor counts, widest first.
 _WINDOW_NEIGHBORS = (3, 2, 1)
 
-BlockRailTier = Literal["full-hint", "full", "windowed", "compact", "micro"]
+BlockRailTier = Literal[
+    "full-cue-hint", "full-hint", "full", "windowed", "compact", "micro"
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +196,11 @@ class _RailBuilder:
         self.append(" older · newer ", self._style(_MUTED_STYLE))
         self.append(next_key, key_style)
 
+    def append_cue(self, cue: str) -> None:
+        """Append the muted ``page N/M`` / ``all N`` block-mode cue."""
+        self.append("  ", "")
+        self.append(cue, self._style(_MUTED_STYLE))
+
     def width(self) -> int:
         """Return the assembled cell width."""
         return self._column
@@ -283,6 +290,7 @@ def _render_block_rail(
     accent: str,
     focused: bool = True,
     key_hint: tuple[str, str] | None = None,
+    cue: str | None = None,
 ) -> tuple[Text, dict[str, tuple[int, int]], BlockRailTier | None]:
     """Render the rail at the widest tier that fits ``width`` cells.
 
@@ -317,11 +325,14 @@ def _render_block_rail(
                 compact=compact and index != active,
             )
 
-    # Tier 1: full entries plus the right-aligned key hint.
+    # Tier 1: full entries plus the block-mode cue and key hint. The cue
+    # drops before the key hint, so entries + hint is the next rung.
     if key_hint is not None:
 
-        def with_hint(builder: _RailBuilder) -> None:
+        def hinted(builder: _RailBuilder, _with_cue: bool) -> None:
             full_entries(builder)
+            if _with_cue and cue is not None:
+                builder.append_cue(cue)
             hint = Text()
             hint.append(key_hint[0], style="")
             hint.append(" older · newer ", style="")
@@ -334,9 +345,31 @@ def _render_block_rail(
             builder.append(" " * gap)
             builder.append_key_hint(key_hint[0], key_hint[1])
 
+        def with_hint(builder: _RailBuilder) -> None:
+            hinted(builder, True)
+
         hit = attempt(with_hint)
         if hit is not None:
-            return hit[0], hit[1], "full-hint"
+            return hit[0], hit[1], "full-cue-hint" if cue is not None else "full-hint"
+        if cue is not None:
+
+            def without_cue(builder: _RailBuilder) -> None:
+                hinted(builder, False)
+
+            hit = attempt(without_cue)
+            if hit is not None:
+                return hit[0], hit[1], "full-hint"
+
+    # Tier 1b: full entries plus the cue when there is no key hint.
+    if cue is not None and key_hint is None:
+
+        def with_cue(builder: _RailBuilder) -> None:
+            full_entries(builder)
+            builder.append_cue(cue)
+
+        hit = attempt(with_cue)
+        if hit is not None:
+            return hit[0], hit[1], "full"
 
     # Tier 2: full entries.
     hit = attempt(full_entries)
@@ -433,12 +466,14 @@ def _block_rail_text(
     accent: str,
     focused: bool = True,
     key_hint: tuple[str, str] | None = None,
+    cue: str | None = None,
 ) -> Text:
     """Render the one-row block rail, never wider than ``width`` cells.
 
-    The widest fitting tier wins: full entries plus key hint, full
-    entries, windowed neighbors with overflow counts, compact neighbors
-    with bare counts, then the micro pill with an ellipsized label.
+    The widest fitting tier wins: full entries plus cue and key hint,
+    full entries plus key hint, full entries, windowed neighbors with
+    overflow counts, compact neighbors with bare counts, then the micro
+    pill with an ellipsized label.
     """
     text, _, _ = _render_block_rail(
         entries,
@@ -448,6 +483,7 @@ def _block_rail_text(
         accent=accent,
         focused=focused,
         key_hint=key_hint,
+        cue=cue,
     )
     return text
 
@@ -473,6 +509,7 @@ class BlockRail(Static):
         self._accent = ""
         self._panel_focused = True
         self._key_hint: tuple[str, str] | None = None
+        self._cue: str | None = None
         self._width = 0
         self._ranges: dict[str, tuple[int, int]] = {}
 
@@ -485,6 +522,7 @@ class BlockRail(Static):
         accent: str,
         focused: bool = True,
         key_hint: tuple[str, str] | None = None,
+        cue: str | None = None,
         width: int,
     ) -> None:
         """Store the rail state and render it for ``width`` cells."""
@@ -494,6 +532,7 @@ class BlockRail(Static):
         self._accent = accent
         self._panel_focused = bool(focused)
         self._key_hint = key_hint
+        self._cue = cue
         self._width = max(0, int(width))
         self._render_stored()
 
@@ -502,6 +541,7 @@ class BlockRail(Static):
         self._entries = ()
         self._active_id = None
         self._arrived_ids = ()
+        self._cue = None
         self._ranges = {}
         try:
             self.update(Text(""))
@@ -550,6 +590,7 @@ class BlockRail(Static):
                 accent=self._accent,
                 focused=self._panel_focused,
                 key_hint=self._key_hint,
+                cue=self._cue,
             )
         except Exception:
             return

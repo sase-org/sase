@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from .model import DeckId, RenderMode
+from .model import DeckId, DeckView, RenderMode
 from .spec import DECK_SPECS
 from .titles import CardTab, deck_subtitle, deck_title
+from .view_policy import ResolvedView, ViewContent, resolve_view
 
 _BORDER_LABEL_RESERVED_CELLS = 4
 
@@ -19,6 +20,7 @@ class DeckPanelChromeMixin:
     _panel_index: int
     _deck: DeckId
     _focused: bool
+    _held_chrome_views: dict[DeckId, ResolvedView]
 
     def _resolve_accent(self, deck: DeckId) -> str:
         if deck is DeckId.MAIN:
@@ -183,8 +185,181 @@ class DeckPanelChromeMixin:
             pass
         return False
 
-    def _is_spread_active(self) -> bool:
-        return self._is_spread_active_for(self._deck)
+    def _chrome_policy(self, deck: DeckId) -> DeckView:
+        """Return the view policy for ``deck`` (AUTO until the engine lands).
+
+        The main-engine phase owns ``view_policy()``; chrome reads it when
+        present so fixed badges appear without a chrome change.
+        """
+        try:
+            policy_fn = getattr(self, "view_policy", None)
+            if callable(policy_fn):
+                policy = policy_fn(deck)
+                if isinstance(policy, DeckView):
+                    return policy
+        except Exception:
+            pass
+        return DeckView.AUTO
+
+    def _held_views(self) -> dict[DeckId, ResolvedView]:
+        """Return the held full-paint badge views, creating the store."""
+        held = getattr(self, "_held_chrome_views", None)
+        if not isinstance(held, dict):
+            held = {}
+            try:
+                self._held_chrome_views = held
+            except Exception:
+                pass
+        return held
+
+    def _main_chrome_view(self) -> ResolvedView | None:
+        """Return the fresh Main badge view, or None when not computable."""
+        try:
+            document = self._main_document  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        try:
+            cards = list(getattr(document, "cards", ()))
+        except Exception:
+            return None
+        if not cards:
+            return None
+        if bool(getattr(document, "partial", False)):
+            return None
+        try:
+            modes = getattr(self, "_render_mode", None)
+            if isinstance(modes, dict):
+                deck_mode = modes.get(DeckId.MAIN, RenderMode.PAGED)
+            else:
+                deck_mode = RenderMode.PAGED
+        except Exception:
+            deck_mode = RenderMode.PAGED
+        if deck_mode is RenderMode.SPREAD:
+            effective = DeckView.SPREAD
+        else:
+            try:
+                block_mode = self.block_mode_for_active_card()  # type: ignore[attr-defined]
+            except Exception:
+                block_mode = None
+            if block_mode is RenderMode.PAGED:
+                effective = DeckView.PAGE_BLOCKS
+            else:
+                effective = DeckView.PAGE_CARDS
+        try:
+            active = self._main_active_card  # type: ignore[attr-defined]
+        except Exception:
+            active = None
+        if active is None:
+            try:
+                active = self.main_view.active_card_id  # type: ignore[attr-defined]
+            except Exception:
+                active = None
+        active_blocks = 0
+        try:
+            card = document.card(active) if active is not None else None
+            if card is not None:
+                active_blocks = len(getattr(card, "blocks", ()))
+        except Exception:
+            active_blocks = 0
+        content = ViewContent(
+            deck=DeckId.MAIN,
+            card_count=len(cards),
+            active_block_count=active_blocks,
+            spread_blocked=False,
+        )
+        try:
+            return resolve_view(
+                DeckId.MAIN, self._chrome_policy(DeckId.MAIN), effective, content
+            )
+        except Exception:
+            return None
+
+    def _files_chrome_view(self) -> ResolvedView | None:
+        """Return the fresh Files badge view, or None when not computable."""
+        try:
+            view = self.file_view  # type: ignore[attr-defined]
+            file_list = list(getattr(view, "_file_list", []))
+        except Exception:
+            return None
+        if not file_list:
+            return None
+        try:
+            modes = getattr(self, "_render_mode", None)
+            if isinstance(modes, dict):
+                files_mode = modes.get(DeckId.FILES, RenderMode.PAGED)
+            else:
+                files_mode = RenderMode.PAGED
+        except Exception:
+            files_mode = RenderMode.PAGED
+        if files_mode is RenderMode.SPREAD:
+            effective = DeckView.SPREAD
+        else:
+            effective = DeckView.PAGE_CARDS
+        policy = self._chrome_policy(DeckId.FILES)
+        try:
+            probe_in_flight = getattr(self, "_files_pending_probe", None) is not None
+        except Exception:
+            probe_in_flight = False
+        # The in-flight cue belongs to a fixed-spread probe; an AUTO probe
+        # resolving in the background keeps the stable auto badge.
+        pending = bool(probe_in_flight and policy is DeckView.SPREAD)
+        # Media-blocked wiring belongs to the files-engine phase, which owns
+        # the spread-blocked probe states; until then the badge never claims
+        # ``spread unavailable``.
+        content = ViewContent(
+            deck=DeckId.FILES,
+            card_count=len(file_list),
+            active_block_count=0,
+            spread_blocked=False,
+        )
+        try:
+            return resolve_view(
+                DeckId.FILES, policy, effective, content, pending=pending
+            )
+        except Exception:
+            return None
+
+    def _chrome_view(self, deck: DeckId) -> ResolvedView | None:
+        """Return the badge view for ``deck``, held across partial paints.
+
+        Only Main and Files ever carry a badge; Tools and later decks keep
+        today's tab-only rungs. An empty deck clears its held view, while a
+        partial Main paint reuses the last full document's badge so fast
+        navigation never flickers between labels.
+        """
+        held = self._held_views()
+        if deck is DeckId.MAIN:
+            try:
+                document = self._main_document  # type: ignore[attr-defined]
+                empty = not bool(getattr(document, "cards", ()))
+                partial = bool(getattr(document, "partial", False))
+            except Exception:
+                return held.get(deck)
+            if empty:
+                held.pop(deck, None)
+                return None
+            if partial:
+                return held.get(deck)
+            fresh = self._main_chrome_view()
+            if fresh is None:
+                return held.get(deck)
+            held[deck] = fresh
+            return fresh
+        if deck is DeckId.FILES:
+            try:
+                view = self.file_view  # type: ignore[attr-defined]
+                empty = not bool(getattr(view, "_file_list", []))
+            except Exception:
+                return held.get(deck)
+            if empty:
+                held.pop(deck, None)
+                return None
+            fresh = self._files_chrome_view()
+            if fresh is None:
+                return held.get(deck)
+            held[deck] = fresh
+            return fresh
+        return None
 
     def refresh_chrome(self) -> None:
         """Recompute the border title and subtitle."""
@@ -208,6 +383,10 @@ class DeckPanelChromeMixin:
         if deck is DeckId.MAIN and not tabs:
             active_index = None
         try:
+            view = self._chrome_view(deck)
+        except Exception:
+            view = None
+        try:
             self.border_title = deck_title(  # type: ignore[attr-defined]
                 deck,
                 tabs,
@@ -215,6 +394,7 @@ class DeckPanelChromeMixin:
                 width=width,
                 accent=accent,
                 focused=self._focused,
+                view=view,
             )
         except Exception:
             pass
@@ -243,7 +423,6 @@ class DeckPanelChromeMixin:
                 status=status,
                 width=width,
                 accent_for=accent_for,
-                spread=self._is_spread_active(),
                 status_segments=status_segments,
             )
         except Exception:

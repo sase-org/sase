@@ -5,12 +5,18 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui.widgets.decks.availability import DeckAvailability
-from sase.ace.tui.widgets.decks.model import DeckId
+from sase.ace.tui.widgets.decks.model import DeckId, DeckView
 from sase.ace.tui.widgets.decks.titles import (
     CardTab,
     deck_subtitle,
     deck_title,
     file_line_status,
+)
+from sase.ace.tui.widgets.decks.view_policy import (
+    ResolvedView,
+    ViewContent,
+    ViewStatus,
+    resolve_view,
 )
 
 
@@ -119,23 +125,25 @@ _COUNTED = {
 _ACCENTS = {DeckId.MAIN: "red", DeckId.FILES: "green", DeckId.TOOLS: "#87D7FF"}
 
 
-def _subtitle(width: int, *, spread: bool = False, status: Text | None = None) -> str:
+def _subtitle(width: int, *, status: Text | None = None) -> str:
     return deck_subtitle(
         DeckId.MAIN,
         _COUNTED,
         status=status,
         width=width,
         accent_for=_ACCENTS,
-        spread=spread,
     ).plain
 
 
-def test_subtitle_drops_spread_tag_then_counts_before_slicing() -> None:
-    assert _subtitle(60, spread=True) == "spread  main 1 \u00b7 files 3 \u00b7 tools 2"
-    # Spread tag goes first, keeping the counts.
-    assert _subtitle(30, spread=True) == "main 1 \u00b7 files 3 \u00b7 tools 2"
+def test_subtitle_has_no_spread_tag() -> None:
+    assert _subtitle(60) == "main 1 \u00b7 files 3 \u00b7 tools 2"
+    assert "spread" not in _subtitle(60)
+
+
+def test_subtitle_drops_counts_before_slicing() -> None:
+    assert _subtitle(30) == "main 1 \u00b7 files 3 \u00b7 tools 2"
     # Then the counts, so no label is ever cut mid-word.
-    assert _subtitle(25, spread=True) == "main \u00b7 files \u00b7 tools"
+    assert _subtitle(25) == "main \u00b7 files \u00b7 tools"
     assert _subtitle(21) == "main \u00b7 files \u00b7 tools"
 
 
@@ -157,3 +165,113 @@ def test_file_line_status() -> None:
     assert capped is not None and "693" in capped.plain and "E" in capped.plain
     plain = file_line_status(10, 693, False, editor_key="E")
     assert plain is not None and plain.plain == "693 lines"
+
+
+def _main_view(
+    policy: DeckView = DeckView.AUTO,
+    shown: DeckView = DeckView.PAGE_BLOCKS,
+    status: ViewStatus = ViewStatus.OK,
+) -> ResolvedView:
+    return ResolvedView(deck=DeckId.MAIN, policy=policy, shown=shown, status=status)
+
+
+def _main_tabs() -> tuple[CardTab, ...]:
+    return (CardTab("context", "Context"), CardTab("reply", "Reply"))
+
+
+def test_badge_follows_deck_name_before_tabs() -> None:
+    rendered = deck_title(
+        DeckId.MAIN,
+        _main_tabs(),
+        1,
+        width=80,
+        accent="red",
+        focused=True,
+        view=_main_view(),
+    )
+    assert rendered.plain.startswith("◆ MAIN page blocks · auto ┃ ")
+    assert "Reply" in rendered.plain
+
+
+def test_badge_ladder_prefers_long_then_short_then_tiny() -> None:
+    tabs = _main_tabs()
+    view = _main_view()
+    long = deck_title(
+        DeckId.MAIN, tabs, 1, width=80, accent="red", focused=True, view=view
+    )
+    assert "page blocks · auto" in long.plain
+    short_width = len("◆ MAIN page blocks · auto ┃ Context │ Reply  2/2") - 1
+    short = deck_title(
+        DeckId.MAIN,
+        tabs,
+        1,
+        width=short_width,
+        accent="red",
+        focused=True,
+        view=view,
+    )
+    assert "blocks · auto" in short.plain
+    assert "page blocks" not in short.plain
+    tiny = deck_title(
+        DeckId.MAIN, tabs, 1, width=24, accent="red", focused=True, view=view
+    )
+    assert "B·A" in tiny.plain
+
+
+def test_badge_micro_tiny_form_keeps_text() -> None:
+    rendered = deck_title(
+        DeckId.MAIN,
+        _main_tabs(),
+        1,
+        width=12,
+        accent="red",
+        focused=True,
+        view=_main_view(),
+    )
+    assert rendered.plain == "MAIN B·A 2/2"
+
+
+def test_tools_keeps_tab_only_rungs_with_view() -> None:
+    tabs = (CardTab("llm-calls", "LLM Calls"),)
+    view = ResolvedView(
+        deck=DeckId.TOOLS,
+        policy=DeckView.AUTO,
+        shown=DeckView.PAGE_CARDS,
+        status=ViewStatus.OK,
+    )
+    rendered = deck_title(
+        DeckId.TOOLS, tabs, 0, width=80, accent="red", focused=True, view=view
+    )
+    assert rendered.plain == "λ TOOLS ┃ LLM Calls"
+
+
+def test_files_crowded_tabs_skip_full_rungs_with_badge() -> None:
+    tabs = tuple(CardTab(f"f-{i}", f"label-{i}") for i in range(6))
+    view = ResolvedView(
+        deck=DeckId.FILES,
+        policy=DeckView.AUTO,
+        shown=DeckView.PAGE_CARDS,
+        status=ViewStatus.OK,
+    )
+    rendered = deck_title(
+        DeckId.FILES, tabs, 2, width=80, accent="green", focused=True, view=view
+    )
+    assert "page cards · auto" in rendered.plain
+    assert "‹ 3/6 ›" in rendered.plain
+    assert "label-0" not in rendered.plain
+
+
+def test_resolved_fixed_badge_shows_requested_name() -> None:
+    content = ViewContent(deck=DeckId.MAIN, card_count=2, active_block_count=0)
+    view = resolve_view(DeckId.MAIN, DeckView.PAGE_BLOCKS, DeckView.PAGE_CARDS, content)
+    assert view.shown is DeckView.PAGE_BLOCKS
+    rendered = deck_title(
+        DeckId.MAIN,
+        _main_tabs(),
+        1,
+        width=80,
+        accent="red",
+        focused=True,
+        view=view,
+    )
+    assert "page blocks · fixed" in rendered.plain

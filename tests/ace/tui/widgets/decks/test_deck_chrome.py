@@ -11,7 +11,7 @@ from textual.app import App, ComposeResult
 from textual.theme import Theme
 
 from sase.ace.tui.widgets.agent_detail import AgentDetail
-from sase.ace.tui.widgets.decks.model import DeckId, RenderMode
+from sase.ace.tui.widgets.decks.model import DeckId, DeckView, RenderMode
 from sase.ace.tui.widgets.decks.panel_chrome import DeckPanelChromeMixin
 from sase.ace.tui.widgets.decks.titles import CardTab, deck_title
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
@@ -30,6 +30,39 @@ class _Chrome(DeckPanelChromeMixin):
     def __init__(self, app: object, width: int = 0) -> None:
         self.app = app
         self.size = SimpleNamespace(width=width)
+
+
+class _BadgeHost(DeckPanelChromeMixin):
+    """Mixin host with the document and mode state chrome reads."""
+
+    def __init__(self) -> None:
+        self._focused = True
+        self._main_document = SimpleNamespace(
+            cards=[], partial=False, card=lambda _cid: None
+        )
+        self._main_active_card: str | None = None
+        self._render_mode = {
+            DeckId.MAIN: RenderMode.PAGED,
+            DeckId.FILES: RenderMode.PAGED,
+        }
+        self.file_view = SimpleNamespace(_file_list=[])
+        self._files_pending_probe: Any | None = None
+
+    def set_main_cards(self, count: int, *, blocks: int = 0) -> None:
+        cards = [
+            SimpleNamespace(card_id=f"c{i}", blocks=[object()] * blocks)
+            for i in range(count)
+        ]
+        by_id = {card.card_id: card for card in cards}
+        self._main_document = SimpleNamespace(
+            cards=cards, partial=False, card=by_id.get
+        )
+
+    def set_partial(self, partial: bool) -> None:
+        document = self._main_document
+        self._main_document = SimpleNamespace(
+            cards=list(document.cards), partial=partial, card=document.card
+        )
 
 
 class _DetailApp(App[None]):
@@ -168,7 +201,10 @@ async def test_pilot_title_within_four_cells_of_width_drops_to_compact(
         title = _title_plain(panel)
         assert "…" not in title
         assert title != full
-        assert title.startswith("◆ MAIN ┃ ‹ 1/")
+        # The view badge adds ladder rungs, so this budget lands on the
+        # micro + tiny rung instead of the old compact tier.
+        assert title.startswith("MAIN ")
+        assert "·" in title
         assert len(title) <= panel.size.width - 4
 
 
@@ -191,3 +227,62 @@ async def test_pilot_subtitle_is_trimmed_to_the_label_budget(
         panel.refresh_chrome()
 
         assert len(_subtitle_plain(panel)) <= panel.size.width - 4
+
+
+def test_chrome_view_reports_effective_main_layout() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2, blocks=3)
+    host.block_mode_for_active_card = lambda: RenderMode.PAGED  # type: ignore[attr-defined]
+    view = host._chrome_view(DeckId.MAIN)
+    assert view is not None
+    assert (view.policy, view.shown) == (DeckView.AUTO, DeckView.PAGE_BLOCKS)
+
+
+def test_chrome_view_spread_main_reports_spread() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(3)
+    host._render_mode[DeckId.MAIN] = RenderMode.SPREAD
+    view = host._chrome_view(DeckId.MAIN)
+    assert view is not None
+    assert view.shown is DeckView.SPREAD
+
+
+def test_chrome_view_holds_badge_across_partial_paints() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2, blocks=3)
+    host.block_mode_for_active_card = lambda: RenderMode.PAGED  # type: ignore[attr-defined]
+    full = host._chrome_view(DeckId.MAIN)
+    assert full is not None
+    host.set_partial(True)
+    assert host._chrome_view(DeckId.MAIN) == full
+
+
+def test_chrome_view_empty_deck_clears_held_badge() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2)
+    assert host._chrome_view(DeckId.MAIN) is not None
+    host.set_main_cards(0)
+    assert host._chrome_view(DeckId.MAIN) is None
+
+
+def test_chrome_view_tools_and_unknown_decks_have_no_badge() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2)
+    assert host._chrome_view(DeckId.TOOLS) is None
+
+
+def test_chrome_view_fixed_policy_flows_through_view_policy_hook() -> None:
+    host = _BadgeHost()
+    host.set_main_cards(2)
+    host.view_policy = lambda _deck: DeckView.PAGE_CARDS  # type: ignore[attr-defined]
+    view = host._chrome_view(DeckId.MAIN)
+    assert view is not None
+    assert (view.policy, view.shown) == (DeckView.PAGE_CARDS, DeckView.PAGE_CARDS)
+
+
+def test_chrome_view_files_reports_paged_auto() -> None:
+    host = _BadgeHost()
+    host.file_view = SimpleNamespace(_file_list=["a", "b"])
+    view = host._chrome_view(DeckId.FILES)
+    assert view is not None
+    assert (view.policy, view.shown) == (DeckView.AUTO, DeckView.PAGE_CARDS)

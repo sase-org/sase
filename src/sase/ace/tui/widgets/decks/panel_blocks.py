@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .block_rail import BlockRail
+from .block_rail import BlockRail, BlockRailEntry
 from .card_documents import spread_block_card
 from .document_blocks import DeckPanelDocumentBlocksMixin
 from .model import DeckId, RenderMode
@@ -137,6 +137,16 @@ class DeckPanelBlocksMixin(DeckPanelDocumentBlocksMixin):
         nor the empty state is shown.
         """
         return self.document_block_rail_card(DeckId.MAIN)
+
+    def _block_rail_cue(
+        self, entries: list[BlockRailEntry], active_id: str | None
+    ) -> str | None:
+        """Return the rail's block-mode cue from the host's actual mode.
+
+        Main-only wrapper over
+        :meth:`~sase.ace.tui.widgets.decks.document_rail.DeckPanelDocumentRailMixin.document_block_rail_cue`.
+        """
+        return self.document_block_rail_cue(DeckId.MAIN, entries, active_id)
 
     def _sync_block_rail(self) -> None:
         """Show, refresh or hide the one-row block rail (never raises)."""

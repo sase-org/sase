@@ -255,7 +255,8 @@ def test_config_schema_agent_decks_parity() -> None:
             validator.validate({"ace": {"agent_decks": invalid}})
 
 
-def test_subtitle_spread_tag() -> None:
+def test_subtitle_has_no_spread_tag() -> None:
+    """The title badge names the view, so the subtitle never shows spread."""
     availability = {
         DeckId.MAIN: DeckAvailability(True, 2),
         DeckId.FILES: DeckAvailability(True, 1),
@@ -270,23 +271,14 @@ def test_subtitle_spread_tag() -> None:
         DeckId.MAIN, availability, status=None, width=80, accent_for=accent_for
     )
     assert "spread" not in plain.plain
-    spread = deck_subtitle(
-        DeckId.MAIN,
-        availability,
-        status=None,
-        width=80,
-        accent_for=accent_for,
-        spread=True,
-    )
-    assert "spread" in spread.plain
-    # Spread tag is dropped first when width is tight.
+    assert plain.plain == "main 2 \u00b7 files 1 \u00b7 tools 0"
+    # Tight widths drop the switcher counts, never the status.
     tight = deck_subtitle(
         DeckId.MAIN,
         availability,
         status=None,
         width=6,
         accent_for=accent_for,
-        spread=True,
     )
     assert "spread" not in tight.plain
     status = Text("ok")
@@ -296,16 +288,15 @@ def test_subtitle_spread_tag() -> None:
         status=status,
         width=80,
         accent_for=accent_for,
-        spread=True,
     )
-    assert "spread" in with_status.plain
-    # Tight with status drops the spread tag before the switcher.
+    assert with_status.plain.startswith("ok  main 2")
+    assert "spread" not in with_status.plain
+    # Tight with status drops the switcher before the status.
     tight_status = deck_subtitle(
         DeckId.MAIN,
         availability,
         status=Text("a very long status line that will not fit at all"),
         width=20,
         accent_for=accent_for,
-        spread=True,
     )
     assert "spread" not in tight_status.plain

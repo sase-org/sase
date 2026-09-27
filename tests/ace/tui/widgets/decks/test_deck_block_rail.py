@@ -222,6 +222,70 @@ def test_key_hint_only_at_widest_tier() -> None:
     assert "older · newer" not in plain_text.plain
 
 
+def test_cue_renders_before_key_hint_at_widest_tier() -> None:
+    """The ``page N/M`` cue shows with the hint, then drops first."""
+    entries = _entries(3)
+    cued, _, cued_tier = _render_block_rail(
+        entries,
+        active_id="b2",
+        arrived_ids=(),
+        width=200,
+        accent=_ACCENT,
+        focused=True,
+        key_hint=_hint(),
+        cue="page 3/3",
+    )
+    assert cued_tier == "full-cue-hint"
+    assert "page 3/3" in cued.plain
+    assert cued.plain.index("page 3/3") < cued.plain.index("older · newer")
+    hinted, _, hinted_tier = _render_block_rail(
+        entries,
+        active_id="b2",
+        arrived_ids=(),
+        width=100,
+        accent=_ACCENT,
+        focused=True,
+        key_hint=_hint(),
+        cue="page 3/3",
+    )
+    if hinted_tier == "full-hint":
+        assert "page 3/3" not in hinted.plain
+        assert "older · newer" in hinted.plain
+    else:
+        assert hinted_tier == "full-cue-hint"
+    plain, _, plain_tier = _render_block_rail(
+        entries,
+        active_id="b2",
+        arrived_ids=(),
+        width=60,
+        accent=_ACCENT,
+        focused=True,
+        key_hint=_hint(),
+        cue="page 3/3",
+    )
+    assert plain_tier == "full"
+    assert "page 3/3" not in plain.plain
+    assert "older · newer" not in plain.plain
+
+
+def test_cue_renders_without_key_hint() -> None:
+    """The ``all N`` cue shows on full entries when no hint is set."""
+    entries = _entries(3)
+    text, _, tier = _render_block_rail(
+        entries,
+        active_id="b0",
+        arrived_ids=(),
+        width=200,
+        accent=_ACCENT,
+        focused=True,
+        key_hint=None,
+        cue="all 3",
+    )
+    assert tier == "full"
+    assert "all 3" in text.plain
+    assert cell_len(text.plain) <= 200
+
+
 def test_micro_ellipsizes_label_as_last_resort() -> None:
     """A narrow rail keeps the pill plus counts, truncating the label."""
     entries = _entries(12)
@@ -339,6 +403,31 @@ async def test_rail_visible_in_paged_deck_and_follows_cycle() -> None:
         assert pill is not None
         assert rail.block_id_at(RAIL_HORIZONTAL_PADDING + start) == "b1"
         assert end > start
+
+
+async def test_rail_cue_names_block_mode_from_live_panel() -> None:
+    """The rail cue reads ``page N/M`` / ``all N`` from the decided mode."""
+    app = _DetailApp()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        _pin(app)
+        panel = await _panel(app)
+        panel.show_main_document(
+            _document("s1", _reply_card(3), digest="rail-cue"), "reply"
+        )
+        rail = _rail(panel)
+        await wait_for(pilot, lambda: rail._cue is not None)
+        assert rail._cue in ("page 3/3", "all 3")
+        wide = _block_rail_text(
+            rail._entries,
+            active_id=rail._active_id,
+            width=200,
+            accent=_ACCENT,
+            focused=True,
+            key_hint=rail._key_hint,
+            cue=rail._cue,
+        )
+        assert rail._cue in wide.plain
 
 
 async def test_rail_hidden_spread_partial_and_subject_change() -> None:

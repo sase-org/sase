@@ -11,6 +11,8 @@ from rich.text import Text
 from .model import DeckId
 from .spec import DECK_SPECS, active_deck_cycle
 
+from .view_policy import ResolvedView
+
 DECK_GLYPHS: dict[DeckId, str] = {s.deck_id: s.glyph for s in DECK_SPECS}
 
 DECK_NAMES: dict[DeckId, str] = {s.deck_id: s.name for s in DECK_SPECS}
@@ -44,6 +46,26 @@ def _plain_width(text: Text) -> int:
     return cell_len(text.plain)
 
 
+def _append_name(
+    text: Text,
+    deck: DeckId,
+    *,
+    accent: str,
+    focused: bool,
+    badge: Text | None,
+) -> None:
+    """Append ``glyph NAME`` plus the optional view badge after it."""
+    glyph = DECK_GLYPHS[deck]
+    name = DECK_NAMES[deck]
+    if focused:
+        text.append(f"{glyph} {name} ", style=f"bold {accent}")
+    else:
+        text.append(f"{glyph} {name} ", style="dim")
+    if badge is not None:
+        text.append_text(badge)
+        text.append(" ", style="")
+
+
 def _build_full(
     deck: DeckId,
     tabs: Sequence[CardTab],
@@ -51,14 +73,10 @@ def _build_full(
     *,
     accent: str,
     focused: bool,
+    badge: Text | None = None,
 ) -> Text:
     text = Text()
-    glyph = DECK_GLYPHS[deck]
-    name = DECK_NAMES[deck]
-    if focused:
-        text.append(f"{glyph} {name} ", style=f"bold {accent}")
-    else:
-        text.append(f"{glyph} {name} ", style="dim")
+    _append_name(text, deck, accent=accent, focused=focused, badge=badge)
     text.append("\u2503", style=_SEPARATOR)
     text.append(" ", style="")
     for i, tab in enumerate(tabs):
@@ -83,14 +101,10 @@ def _build_compact(
     *,
     accent: str,
     focused: bool,
+    badge: Text | None = None,
 ) -> Text:
     text = Text()
-    glyph = DECK_GLYPHS[deck]
-    name = DECK_NAMES[deck]
-    if focused:
-        text.append(f"{glyph} {name} ", style=f"bold {accent}")
-    else:
-        text.append(f"{glyph} {name} ", style="dim")
+    _append_name(text, deck, accent=accent, focused=focused, badge=badge)
     text.append("\u2503", style=_SEPARATOR)
     text.append(" ", style="")
     if active_index is not None and 0 <= active_index < len(tabs):
@@ -111,14 +125,41 @@ def _build_micro(
     *,
     accent: str,
     focused: bool,
+    badge: Text | None = None,
 ) -> Text:
     del accent
     del focused
     text = Text()
     text.append(DECK_NAMES[deck], style=_MUTED)
+    if badge is not None:
+        text.append(" ", style="")
+        text.append_text(badge)
     if active_index is not None and len(tabs) > 1:
         text.append(f" {active_index + 1}/{len(tabs)}", style=_MUTED)
     return text
+
+
+def _skips_full_tier(deck: DeckId, tab_count: int) -> bool:
+    """Return whether ``deck`` skips the full tab rungs when crowded.
+
+    Files and FINAL decks with more than 4 tabs skip the full rungs;
+    FINAL has no title badge, so it shares Files' compact-only rungs.
+    """
+    return deck in (DeckId.FILES, DeckId.FINAL) and tab_count > 4
+
+
+def _badge_variants(
+    deck: DeckId, view: ResolvedView | None, *, accent: str, focused: bool
+) -> tuple[Text | None, Text | None, Text | None]:
+    """Return the (long, short, tiny) badge, or Nones when deck has no badge."""
+    if view is None:
+        return (None, None, None)
+    if deck is DeckId.MAIN or deck is DeckId.FILES:
+        from .view_badge import badge_variants
+
+        long, short, tiny = badge_variants(view, accent=accent, focused=focused)
+        return (long, short, tiny)
+    return (None, None, None)
 
 
 def deck_title(
@@ -129,12 +170,25 @@ def deck_title(
     width: int,
     accent: str,
     focused: bool,
+    view: ResolvedView | None = None,
 ) -> Text:
-    """Render a deck title tab strip, picking the widest fitting tier."""
+    """Render a deck title tab strip, picking the widest fitting tier.
+
+    ``view`` adds the effective-view badge after the deck name for Main
+    and Files decks; every other deck (and ``None``) keeps the tab-only
+    rungs. The first rung that fits the chrome budget wins: full tabs +
+    long badge, full tabs + short badge, compact tabs + long badge,
+    compact tabs + short badge, compact tabs + tiny badge, micro + tiny
+    badge, then micro alone.
+    """
     tabs = tuple(tabs)
+    long_badge, short_badge, tiny_badge = _badge_variants(
+        deck, view, accent=accent, focused=focused
+    )
+    has_badge = long_badge is not None
     # Files and FINAL list full-tier tabs only when there are 4 or fewer;
     # FINAL has no badge, so it shares Files' compact-only rungs.
-    use_compact_full = deck in (DeckId.FILES, DeckId.FINAL) and len(tabs) > 4
+    use_compact_full = _skips_full_tier(deck, len(tabs))
     candidates: list[tuple[str, Text]]
     if use_compact_full:
         candidates = [
@@ -166,6 +220,127 @@ def deck_title(
                 _build_micro(deck, tabs, active_index, accent=accent, focused=focused),
             ),
         ]
+    if has_badge:
+        assert long_badge is not None and short_badge is not None
+        assert tiny_badge is not None
+        if use_compact_full:
+            candidates = [
+                (
+                    "compact-long",
+                    _build_compact(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=long_badge,
+                    ),
+                ),
+                (
+                    "compact-short",
+                    _build_compact(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=short_badge,
+                    ),
+                ),
+                (
+                    "compact-tiny",
+                    _build_compact(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=tiny_badge,
+                    ),
+                ),
+                (
+                    "micro-tiny",
+                    _build_micro(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=tiny_badge,
+                    ),
+                ),
+                candidates[1],
+            ]
+        else:
+            candidates = [
+                (
+                    "full-long",
+                    _build_full(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=long_badge,
+                    ),
+                ),
+                (
+                    "full-short",
+                    _build_full(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=short_badge,
+                    ),
+                ),
+                (
+                    "compact-long",
+                    _build_compact(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=long_badge,
+                    ),
+                ),
+                (
+                    "compact-short",
+                    _build_compact(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=short_badge,
+                    ),
+                ),
+                (
+                    "compact-tiny",
+                    _build_compact(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=tiny_badge,
+                    ),
+                ),
+                (
+                    "micro-tiny",
+                    _build_micro(
+                        deck,
+                        tabs,
+                        active_index,
+                        accent=accent,
+                        focused=focused,
+                        badge=tiny_badge,
+                    ),
+                ),
+                candidates[2],
+            ]
     if width <= 0:
         return candidates[0][1]
     for _tier, rendered in candidates:
@@ -217,14 +392,14 @@ def deck_subtitle(
     status: Text | None,
     width: int,
     accent_for: Mapping[DeckId, str],
-    spread: bool = False,
     status_segments: Mapping[DeckId, Text] | None = None,
 ) -> Text:
     """Render the deck switcher with an optional leading status.
 
-    Tiers, widest first: status, spread tag and counted switcher; then drop the
-    spread tag; then drop the switcher counts; then drop the switcher; and only
-    then truncate. ``status_segments`` carries pre-styled switcher entries
+    The title badge now names the effective view, so the old ``spread``
+    tag is gone. Tiers, widest first: status and counted switcher; then
+    drop the switcher counts; then drop the switcher; and only then
+    truncate. ``status_segments`` carries pre-styled switcher entries
     (the FINAL ``final <glyph>`` segment); they replace the count in both
     tiers.
     """
@@ -255,7 +430,6 @@ def deck_subtitle(
         parts.append((label, display, style))
     switcher = _build_switcher(parts, counts=True)
     bare_switcher = _build_switcher(parts, counts=False)
-    spread_tag = Text("spread", style="dim") if spread else None
 
     def _joined(*pieces: Text | None) -> Text:
         joined = Text()
@@ -267,9 +441,7 @@ def deck_subtitle(
 
     # Candidates in preference order; the first that fits the budget wins.
     candidates = [
-        _joined(status, spread_tag, switcher),
         _joined(status, switcher),
-        _joined(status, spread_tag, bare_switcher),
         _joined(status, bare_switcher),
     ]
     if width <= 0:

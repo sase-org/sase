@@ -162,6 +162,30 @@ class DeckPanelDocumentRailMixin:
         except Exception:
             return None
 
+    def document_block_rail_cue(
+        self, deck: DeckId, entries: list[BlockRailEntry], active_id: str | None
+    ) -> str | None:
+        """Return the rail's block-mode cue from the host's actual mode.
+
+        Reads the decided block mode (not the deck id) so the cue also
+        works on later block hosts: ``page N/M`` when blocks are paged,
+        ``all N`` when they are inline.
+        """
+        try:
+            mode = self.document_block_mode_for_active_card(deck)
+        except Exception:
+            mode = None
+        if mode is RenderMode.SPREAD:
+            return f"all {len(entries)}"
+        if mode is not RenderMode.PAGED:
+            return None
+        index = len(entries) - 1
+        for i, entry in enumerate(entries):
+            if entry.block_id == active_id:
+                index = i
+                break
+        return f"page {index + 1}/{len(entries)}"
+
     def document_block_key_hint(self) -> tuple[str, str]:
         """Return the live ``(prev, next)`` block key display names.
 
@@ -252,6 +276,10 @@ class DeckPanelDocumentRailMixin:
                 width = max(1, int(self._chrome_width()) - 2)  # type: ignore[attr-defined]
             except Exception:
                 width = 80
+            try:
+                cue = self.document_block_rail_cue(deck, entries, active)
+            except Exception:
+                cue = None
             rail.set_rail(
                 entries,
                 active_id=active,
@@ -259,6 +287,7 @@ class DeckPanelDocumentRailMixin:
                 accent=accent,
                 focused=focused,
                 key_hint=self.document_block_key_hint(),
+                cue=cue,
                 width=width,
             )
             try:
