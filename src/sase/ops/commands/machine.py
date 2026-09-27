@@ -132,7 +132,16 @@ def _lookup_snapshots(
             f"dispatch target {alias!r} is not enrolled in dispatch.machines"
         )
     response = build_federation_facade().catalog_sync(
-        {"schema_version": 1, "limit": 100, "query": names[0] if names else None},
+        {
+            "schema_version": 1,
+            "limit": 100,
+            "query": names[0] if names else None,
+            # Stop/retry/fork address settled rows too: a DONE or killed
+            # agent stays a valid retry/fork source and a stop target until
+            # the gateway refuses its stale locator. The terminal filter is
+            # a presentation default, not an addressing rule.
+            "include_terminal": True,
+        },
         timeout_seconds=timeout or config.request_timeout_seconds,
     )
     snapshots: list[dict[str, Any]] = []
@@ -153,10 +162,27 @@ def _lookup_snapshots(
                 continue
             locator = row.get("logical_locator")
             agent_id = None
+            agent_session_id = None
             if isinstance(locator, Mapping):
                 agent_id = locator.get("agent_id")
+                agent_session_id = locator.get("agent_session_id")
             agent_id = agent_id or row.get("agent_id")
-            if wanted and str(agent_id) not in wanted:
+            labels = row.get("labels")
+            agent_label = (
+                labels.get("agent_label") if isinstance(labels, Mapping) else None
+            )
+            # A settled receipt names the dispatch key (the agent session),
+            # while landed turn rows carry that key plus a turn suffix in
+            # agent_id (e.g. "<key>--0"). Accept any exact identity form so
+            # a settled row stays addressable; exact equality only, so
+            # cross-project rows and reused locators still miss here and the
+            # gateway refuses stale revisions at submit time.
+            candidates = {
+                str(value)
+                for value in (agent_id, agent_session_id, agent_label)
+                if isinstance(value, str) and value
+            }
+            if wanted and candidates.isdisjoint(wanted):
                 continue
             snapshots.append(
                 {
