@@ -140,6 +140,9 @@ def resume_owned_pending_checkpoint(
         matching,
         context,
         bead_action=_decision_bead_action(decision_payload),
+        instance_id=instance_id,
+        attempt=attempt_id,
+        label=f"{matching.name}-checkpoint-resume",
     )
     record_stitch_artifacts(
         context,
@@ -277,10 +280,28 @@ def _call_resume_runner(
     context: FinalizerExecutionContext,
     *,
     bead_action: str | None,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
 ) -> StitchCommandResult:
-    if _callable_accepts_keyword(resume_runner, "bead_action"):
+    accepted = {
+        name
+        for name in ("bead_action", "instance_id", "attempt", "label")
+        if _callable_accepts_keyword(resume_runner, name)
+    }
+    if accepted:
+        offered = {
+            "bead_action": bead_action,
+            "instance_id": instance_id,
+            "attempt": attempt,
+            "label": label,
+        }
         runner = cast(Callable[..., StitchCommandResult], resume_runner)
-        return runner(repo, context, bead_action=bead_action)
+        return runner(
+            repo,
+            context,
+            **{name: offered[name] for name in sorted(accepted)},
+        )
     return resume_runner(repo, context)
 
 

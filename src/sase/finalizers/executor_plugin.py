@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import replace
+from pathlib import Path
 import json
 import sys
 from typing import Any
@@ -27,14 +28,20 @@ from sase.finalizers.executor_protocol import (
     provider_request,
     validate_provider_result,
 )
+from sase.finalizers.bounded_subprocess import cleanup_live_sink
 from sase.finalizers.executor_support import (
     FinalizerExecutionContext,
     FinalizerExecutionError,
     ProviderOperationRunner,
     allowed_env_names,
+    op_channel_paths,
+    op_progress_tick,
+    op_steps_extra,
+    retain_live_sink,
     run_subprocess,
     sanitized_env,
 )
+from sase.finalizers.steps import live_file_for, steps_file_for
 from sase.finalizers.operation_records import OperationRecorder
 from sase.finalizers.ledger import InstanceLedger, run_budgeted_attempts
 from sase.finalizers.providers import FinalizerProviderRecord
@@ -92,20 +99,39 @@ def run_provider_operation(
     started_at = recorder.start(
         operation, kind=kind, label=operation, attempt=context.attempt
     )
+    if context.attempt is not None:
+        prefix = f"attempt-{context.attempt}.{operation}"
+    else:
+        prefix = operation
+    steps_path, live_path = op_channel_paths(context, instance.instance_id, prefix)
     payload = json.dumps(dict(request), sort_keys=True).encode("utf-8")
     if len(payload) > STDOUT_CAP_BYTES:
         raise FinalizerExecutionError("provider request exceeded size cap")
     completed = run_subprocess(
         argv,
         cwd=resolve_finalizer_project_dir(),
-        env=sanitized_env(allowed_env_names(instance.config)),
+        env=sanitized_env(
+            allowed_env_names(instance.config), extra=op_steps_extra(steps_path)
+        ),
         input_bytes=payload,
         timeout=min(
             PROVIDER_OPERATION_TIMEOUT_SECONDS, HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS
         ),
+        # Plugin stdout is the JSON result channel: tee stderr only.
+        live_path=live_path,
+        live_streams={"stderr"},
+        progress_tick=op_progress_tick(context, instance.instance_id, steps_path),
     )
     _write_provider_attempt_artifacts(
-        instance, operation, context, completed, recorder, started_at, argv
+        instance,
+        operation,
+        context,
+        completed,
+        recorder,
+        started_at,
+        argv,
+        steps_path=steps_path,
+        live_path=live_path,
     )
     if completed.timed_out:
         raise FinalizerExecutionError(
@@ -242,6 +268,8 @@ def _write_provider_attempt_artifacts(
     recorder: OperationRecorder | None = None,
     started_at: float | None = None,
     argv: list[str] | None = None,
+    steps_path: str | None = None,
+    live_path: str | None = None,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance.instance_id)
     if artifact_dir is None:
@@ -265,6 +293,19 @@ def _write_provider_attempt_artifacts(
         )
     except FileExistsError as exc:
         raise FinalizerExecutionError(str(exc)) from exc
+    if live_path is not None and not retain_live_sink(completed):
+        cleanup_live_sink(live_path)
+    logs = {
+        "stdout": f"{prefix}.stdout",
+        "stderr": f"{prefix}.stderr",
+    }
+    if live_path is not None and Path(live_path).is_file():
+        logs["live"] = live_file_for(prefix)
+    steps_ref = (
+        steps_file_for(prefix)
+        if steps_path is not None and Path(steps_path).is_file()
+        else None
+    )
     active = recorder or OperationRecorder.for_context(context, instance.instance_id)
     kind = "validation" if operation in {"describe", "validate"} else "subprocess"
     try:
@@ -280,10 +321,8 @@ def _write_provider_attempt_artifacts(
             timed_out=completed.timed_out,
             stdout_truncated=completed.stdout_truncated,
             stderr_truncated=completed.stderr_truncated,
-            logs={
-                "stdout": f"{prefix}.stdout",
-                "stderr": f"{prefix}.stderr",
-            },
+            logs=logs,
+            steps=steps_ref,
         )
     except FileExistsError as exc:
         raise FinalizerExecutionError(str(exc)) from exc

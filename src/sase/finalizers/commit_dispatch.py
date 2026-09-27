@@ -296,6 +296,9 @@ def dispatch_commit_decisions(
             protected,
             context,
             bead_action=bead_action,
+            instance_id=instance_id,
+            attempt=consumed_attempt,
+            label=repo.name,
         )
         record_stitch_artifacts(
             context,

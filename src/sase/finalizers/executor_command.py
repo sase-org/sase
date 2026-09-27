@@ -22,13 +22,19 @@ from sase.finalizers.bounded_subprocess import (
     clamp_timeout_seconds,
 )
 from sase.finalizers.config import ConfiguredFinalizerInstance
+from sase.finalizers.bounded_subprocess import cleanup_live_sink
 from sase.finalizers.executor_support import (
     FinalizerExecutionContext,
     FinalizerExecutionError,
     failed_result,
+    op_channel_paths,
+    op_progress_tick,
+    op_steps_extra,
+    retain_live_sink,
     run_subprocess,
     sanitized_env,
 )
+from sase.finalizers.steps import live_file_for, steps_file_for
 from sase.finalizers.ledger import InstanceLedger, run_budgeted_attempts
 from sase.finalizers.operation_records import OperationRecorder
 from sase.finalizers.providers import (
@@ -121,13 +127,17 @@ def _run_command_attempt(
     started_at = recorder.start(
         "command", kind="subprocess", label=label, attempt=attempt
     )
+    prefix = f"attempt-{attempt}.command"
+    steps_path, live_path = op_channel_paths(context, instance.instance_id, prefix)
     started = time.monotonic()
     completed = run_subprocess(
         list(command_config.command),
         cwd=_resolve_cwd(command_config),
-        env=sanitized_env(command_config.env),
+        env=sanitized_env(command_config.env, extra=op_steps_extra(steps_path)),
         input_bytes=None,
         timeout=clamp_timeout_seconds(command_config.timeout_seconds),
+        live_path=live_path,
+        progress_tick=op_progress_tick(context, instance.instance_id, steps_path),
     )
     duration = completed.duration_seconds or (time.monotonic() - started)
     _write_command_attempt_artifacts(
@@ -139,6 +149,8 @@ def _run_command_attempt(
         started_at,
         label,
         argv=list(command_config.command),
+        steps_path=steps_path,
+        live_path=live_path,
     )
     evidence = [
         FinalizerOutcomeEvidenceWire(kind="exit_code", value=str(completed.returncode)),
@@ -172,6 +184,8 @@ def _write_command_attempt_artifacts(
     started_at: float | None = None,
     label: str = "command",
     argv: list[str] | None = None,
+    steps_path: str | None = None,
+    live_path: str | None = None,
 ) -> None:
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance.instance_id)
     if artifact_dir is None:
@@ -199,6 +213,23 @@ def _write_command_attempt_artifacts(
         )
     except FileExistsError as exc:
         raise FinalizerExecutionError(str(exc)) from exc
+    # Terminal artifacts landed: drop the live sink unless the outcome
+    # needs its tail (timeout, kill, or a write failure, which raises
+    # above and retains the sink). Reference steps and live when present.
+    prefix = f"attempt-{attempt}.command"
+    if live_path is not None and not retain_live_sink(completed):
+        cleanup_live_sink(live_path)
+    logs = {
+        "stdout": f"attempt-{attempt}.stdout",
+        "stderr": f"attempt-{attempt}.stderr",
+    }
+    if live_path is not None and Path(live_path).is_file():
+        logs["live"] = live_file_for(prefix)
+    steps_ref = (
+        steps_file_for(prefix)
+        if steps_path is not None and Path(steps_path).is_file()
+        else None
+    )
     active = recorder or OperationRecorder.for_context(context, instance.instance_id)
     try:
         active.finish(
@@ -213,10 +244,8 @@ def _write_command_attempt_artifacts(
             timed_out=completed.timed_out,
             stdout_truncated=completed.stdout_truncated,
             stderr_truncated=completed.stderr_truncated,
-            logs={
-                "stdout": f"attempt-{attempt}.stdout",
-                "stderr": f"attempt-{attempt}.stderr",
-            },
+            logs=logs,
+            steps=steps_ref,
         )
     except FileExistsError as exc:
         raise FinalizerExecutionError(str(exc)) from exc

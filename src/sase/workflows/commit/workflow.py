@@ -118,6 +118,17 @@ def _unpushed_persistence_detail(record: _UnpushedCommitPersistence) -> str:
     )
 
 
+def _emit_stitch_step(step: str, *, state: str, detail: str | None = None) -> None:
+    """Emit a stitch step on the finalizer step channel; never raises."""
+
+    try:
+        from sase.finalizers.steps import emit_step
+
+        emit_step(step, state=state, detail=detail)
+    except Exception:  # noqa: BLE001 - observability is best-effort
+        pass
+
+
 class CommitWorkflow(BaseWorkflow):
     """A workflow that dispatches commit operations to VCS provider hooks."""
 
@@ -340,8 +351,14 @@ class CommitWorkflow(BaseWorkflow):
         checkpoint_save(cp)
 
         print_status(f"Dispatching {self._method} to VCS provider...", "progress")
+        _emit_stitch_step(self._method, state="start")
         ok, result = dispatch(self._payload, cwd)
         if not ok:
+            from sase.finalizers.commit_repair_common import bound_stream
+
+            _emit_stitch_step(self._method, state="fail", detail=bound_stream(result))
+            if _classify_dispatch_failure(result) == "push_failed":
+                _emit_stitch_step("push", state="fail", detail=bound_stream(result))
             if _is_conflict_state(provider, cwd):
                 if _classify_dispatch_failure(result) == "no_staged_changes":
                     cp.no_commit_dispatched = True
@@ -391,6 +408,9 @@ class CommitWorkflow(BaseWorkflow):
         cp.dispatch_result = result
         cp.completed_steps.append("dispatch")
         checkpoint_save(cp)
+        _emit_stitch_step(self._method, state="ok")
+        if self._method in ("create_commit", "create_pull_request"):
+            _emit_stitch_step("push", state="ok")
 
         self._run_file_hooks(cp, provider)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -20,15 +21,23 @@ from sase.finalizers.artifacts import (
 )
 from sase.finalizers.bounded_subprocess import (
     HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
+    cleanup_live_sink,
     run_bounded_subprocess,
 )
 from sase.finalizers.commit_repair_common import artifact_label, bound_stream
+from sase.finalizers.steps import (
+    STEPS_ENV_VAR,
+    live_file_for,
+    make_progress_tick,
+    steps_file_for,
+)
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
     StitchCommandResult,
     failed_result,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
+from sase.finalizers.executor_support import retain_live_sink
 from sase.finalizers.operation_records import (
     OPERATION_RECORD_SCHEMA_VERSION,
     OperationRecorder,
@@ -56,6 +65,9 @@ def run_stitch_create(
     context: FinalizerExecutionContext,
     *,
     bead_action: str | None = None,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
     subprocess_runner: _SubprocessRunner = run_bounded_subprocess,
 ) -> StitchCommandResult:
     """Run ``sase stitch create`` for one repository."""
@@ -79,6 +91,9 @@ def run_stitch_create(
         repo,
         context,
         subprocess_runner=subprocess_runner,
+        instance_id=instance_id,
+        attempt=attempt,
+        label=label,
     )
     return replace(result, argv=tuple(argv), message_file=str(message_file))
 
@@ -88,6 +103,9 @@ def run_stitch_resume(
     context: FinalizerExecutionContext,
     *,
     bead_action: str | None = None,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
     subprocess_runner: _SubprocessRunner = run_bounded_subprocess,
 ) -> StitchCommandResult:
     """Resume the checkpointed stitch for one repository."""
@@ -100,6 +118,9 @@ def run_stitch_resume(
         repo,
         context,
         subprocess_runner=subprocess_runner,
+        instance_id=instance_id,
+        attempt=attempt,
+        label=label,
     )
     return replace(result, argv=tuple(argv))
 
@@ -139,27 +160,39 @@ def record_stitch_artifacts(
             result.stderr,
             exclusive=True,
         )
+        # Terminal artifacts landed: drop the live sink unless the outcome
+        # needs its tail (timeout/kill; a write failure raises above and
+        # retains the sink). Reference steps and live when present.
+        live_candidate = artifact_dir / live_file_for(prefix)
+        if not retain_live_sink(result):
+            cleanup_live_sink(live_candidate)
+        logs = {
+            "stdout": f"{prefix}.stdout",
+            "stderr": f"{prefix}.stderr",
+        }
+        if live_candidate.is_file():
+            logs["live"] = live_file_for(prefix)
+        outcome: dict[str, Any] = {
+            "schema_version": OPERATION_RECORD_SCHEMA_VERSION,
+            "op": safe_label,
+            "kind": "subprocess",
+            "label": human_label,
+            "attempt": attempt,
+            "started_at": op_started_at,
+            "returncode": result.returncode,
+            "duration_seconds": result.duration_seconds,
+            "timed_out": result.timed_out,
+            "stdout_truncated": result.stdout_truncated,
+            "stderr_truncated": result.stderr_truncated,
+            "argv": list(result.argv),
+            "message_file": result.message_file,
+            "logs": logs,
+        }
+        if (artifact_dir / steps_file_for(prefix)).is_file():
+            outcome["steps"] = steps_file_for(prefix)
         write_json_atomic(
             artifact_dir / f"{prefix}.outcome.json",
-            {
-                "schema_version": OPERATION_RECORD_SCHEMA_VERSION,
-                "op": safe_label,
-                "kind": "subprocess",
-                "label": human_label,
-                "attempt": attempt,
-                "started_at": op_started_at,
-                "returncode": result.returncode,
-                "duration_seconds": result.duration_seconds,
-                "timed_out": result.timed_out,
-                "stdout_truncated": result.stdout_truncated,
-                "stderr_truncated": result.stderr_truncated,
-                "argv": list(result.argv),
-                "message_file": result.message_file,
-                "logs": {
-                    "stdout": f"{prefix}.stdout",
-                    "stderr": f"{prefix}.stderr",
-                },
-            },
+            outcome,
             exclusive=True,
         )
         if inputs is not None:
@@ -402,23 +435,79 @@ def _read_optional_json_artifact(path: Path) -> Mapping[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _stitch_channel_paths(
+    context: FinalizerExecutionContext,
+    instance_id: str | None,
+    attempt: int | None,
+    label: str | None,
+    repo: DirtyRepo,
+) -> tuple[str | None, str | None]:
+    """Return absolute ``(steps_path, live_path)`` for a stitch invocation."""
+
+    if instance_id is None or attempt is None:
+        return None, None
+    artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
+    if artifact_dir is None:
+        return None, None
+    prefix = f"attempt-{attempt}.{artifact_label(label or repo.name)}"
+    return (
+        str(artifact_dir / steps_file_for(prefix)),
+        str(artifact_dir / live_file_for(prefix)),
+    )
+
+
+def _runner_accepts_keyword(runner: _SubprocessRunner, name: str) -> bool:
+    try:
+        signature = inspect.signature(runner)
+    except (TypeError, ValueError):
+        return False
+    return any(
+        param.kind is inspect.Parameter.VAR_KEYWORD
+        or (
+            param.name == name
+            and param.kind
+            in {inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
+        )
+        for param in signature.parameters.values()
+    )
+
+
 def _run_stitch_argv(
     argv: list[str],
     repo: DirtyRepo,
     context: FinalizerExecutionContext,
     *,
     subprocess_runner: _SubprocessRunner,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
 ) -> StitchCommandResult:
     env = dict(os.environ)
     if context.artifacts_dir:
         env["SASE_ARTIFACTS_DIR"] = context.artifacts_dir
     _bind_assigned_bead_env(env, context)
+    steps_path, live_path = _stitch_channel_paths(
+        context, instance_id, attempt, label, repo
+    )
+    runner_kwargs: dict[str, Any] = {}
+    if steps_path is not None:
+        env[STEPS_ENV_VAR] = steps_path
+        tracker = getattr(context, "tracker", None)
+        if tracker is not None and instance_id is not None:
+            tick = make_progress_tick(tracker, instance_id, steps_path)
+            if _runner_accepts_keyword(subprocess_runner, "progress_tick"):
+                runner_kwargs["progress_tick"] = tick
+        if live_path is not None and _runner_accepts_keyword(
+            subprocess_runner, "live_path"
+        ):
+            runner_kwargs["live_path"] = live_path
     completed = subprocess_runner(
         argv,
         cwd=repo.path,
         env=env,
         input_bytes=None,
         timeout=HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
+        **runner_kwargs,
     )
     return StitchCommandResult(
         returncode=completed.returncode,

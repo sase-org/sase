@@ -233,14 +233,36 @@ def call_stitch_runner(
     context: FinalizerExecutionContext,
     *,
     bead_action: str | None,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
 ) -> StitchCommandResult:
-    if _callable_accepts_keyword(stitch_runner, "bead_action"):
+    """Invoke a stitch runner, forwarding channel kwargs it accepts.
+
+    Extra keywords (``bead_action``, ``instance_id``, ``attempt``, ``label``)
+    are passed only when the runner declares them, so test fakes with the
+    minimal ``(repo, message, protected, context)`` shape keep working. The
+    real runners use them to wire the step channel and live sink.
+    """
+
+    accepted = {
+        name
+        for name in ("bead_action", "instance_id", "attempt", "label")
+        if _callable_accepts_keyword(stitch_runner, name)
+    }
+    if accepted:
+        offered = {
+            "bead_action": bead_action,
+            "instance_id": instance_id,
+            "attempt": attempt,
+            "label": label,
+        }
         return cast(Callable[..., StitchCommandResult], stitch_runner)(
             repo,
             message,
             protected,
             context,
-            bead_action=bead_action,
+            **{name: offered[name] for name in sorted(accepted)},
         )
     return stitch_runner(repo, message, protected, context)
 

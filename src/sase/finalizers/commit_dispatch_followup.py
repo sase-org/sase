@@ -92,6 +92,7 @@ def attempt_post_repair_follow_up(
         assigned_bead_id=_context_assigned_bead_id(context),
     )
     attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
+    follow_up_label = f"{repo.name}.post-repair"
     stitch = _call_stitch_runner(
         stitch_runner,
         repo,
@@ -99,8 +100,10 @@ def attempt_post_repair_follow_up(
         protected,
         context,
         bead_action=bead_action,
+        instance_id=instance_id,
+        attempt=attempt_id,
+        label=follow_up_label,
     )
-    follow_up_label = f"{repo.name}.post-repair"
     record_stitch_artifacts(
         context,
         instance_id,
@@ -208,15 +211,29 @@ def _call_stitch_runner(
     context: FinalizerExecutionContext,
     *,
     bead_action: str | None,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
 ) -> StitchCommandResult:
-    if _callable_accepts_keyword(stitch_runner, "bead_action"):
+    accepted = {
+        name
+        for name in ("bead_action", "instance_id", "attempt", "label")
+        if _callable_accepts_keyword(stitch_runner, name)
+    }
+    if accepted:
+        offered = {
+            "bead_action": bead_action,
+            "instance_id": instance_id,
+            "attempt": attempt,
+            "label": label,
+        }
         runner = cast(Callable[..., StitchCommandResult], stitch_runner)
         return runner(
             repo,
             message,
             protected,
             context,
-            bead_action=bead_action,
+            **{name: offered[name] for name in sorted(accepted)},
         )
     return stitch_runner(repo, message, protected, context)
 

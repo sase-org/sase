@@ -49,6 +49,9 @@ def run_stitch_create(
     context: FinalizerExecutionContext,
     *,
     bead_action: str | None = None,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
 ) -> StitchCommandResult:
     """Run ``sase stitch create`` for one repository."""
 
@@ -58,6 +61,9 @@ def run_stitch_create(
         excludes,
         context,
         bead_action=bead_action,
+        instance_id=instance_id,
+        attempt=attempt,
+        label=label,
         subprocess_runner=run_bounded_subprocess,
     )
 
@@ -67,6 +73,9 @@ def run_stitch_resume(
     context: FinalizerExecutionContext,
     *,
     bead_action: str | None = None,
+    instance_id: str | None = None,
+    attempt: int | None = None,
+    label: str | None = None,
 ) -> StitchCommandResult:
     """Resume the checkpointed stitch for one repository."""
 
@@ -74,6 +83,9 @@ def run_stitch_resume(
         repo,
         context,
         bead_action=bead_action,
+        instance_id=instance_id,
+        attempt=attempt,
+        label=label,
         subprocess_runner=run_bounded_subprocess,
     )
 

@@ -58,8 +58,10 @@ def _run_commit_hook(phase: CommitHookPhase, cwd: str) -> bool:
         return True
     repo_root = get_repo_root(cwd) or cwd
     print_status(f"Running {phase} commit hook: {cmd}", "progress")
+    _emit_hook_step(phase, cmd, state="start", detail=cmd)
     result = _run_hook_command(cmd, phase=phase, repo_root=repo_root)
     if result.returncode != 0:
+        _emit_hook_step(phase, cmd, state="fail", detail=f"exit {result.returncode}")
         print_status(
             f"{phase.capitalize()} commit hook failed "
             f"(exit {result.returncode}): {cmd}",
@@ -75,7 +77,21 @@ def _run_commit_hook(phase: CommitHookPhase, cwd: str) -> bool:
             print(tail, file=sys.stderr)
             print(f"---- end {phase} commit hook output ----", file=sys.stderr)
         return False
+    _emit_hook_step(phase, cmd, state="ok")
     return True
+
+
+def _emit_hook_step(
+    phase: CommitHookPhase, cmd: str, *, state: str, detail: str | None = None
+) -> None:
+    """Emit a hook step on the finalizer step channel; never raises."""
+
+    try:
+        from sase.finalizers.steps import emit_step
+
+        emit_step(f"{phase} hook: {cmd}", state=state, detail=detail)
+    except Exception:  # noqa: BLE001 - observability is best-effort
+        pass
 
 
 def run_before_commit_hook(cwd: str) -> bool:

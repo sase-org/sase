@@ -1,4 +1,10 @@
-"""Small SDK helpers for external ``sase_finalizers`` providers."""
+"""Small SDK helpers for external ``sase_finalizers`` providers.
+
+Provider code reports structured progress with :func:`step`, which appends
+one record to the ``SASE_FINALIZER_STEPS_FILE`` channel owned by the host.
+It does nothing outside a finalizer attempt and never raises; stdout remains
+the JSON result channel.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +18,7 @@ from typing import Any, Literal, Protocol, cast
 from sase.finalizers.provider_protocol import (
     FINALIZER_PROVIDER_PROTOCOL_VERSION,
 )
+from sase.finalizers.steps import emit_step as step
 
 
 class FinalizerProvider(Protocol):
@@ -176,4 +183,5 @@ __all__ = [
     "ProviderShapeError",
     "dispatch_provider_request",
     "sdk_worker_main",
+    "step",
 ]

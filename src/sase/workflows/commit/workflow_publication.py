@@ -25,6 +25,36 @@ def run_agent_publication_step(
     """Publish generated bead pages and the committing agent hood."""
     if method not in ("create_commit", "create_pull_request"):
         return True
+    _emit_publication_step(state="start")
+    published = _run_agent_publication_inner(
+        cp,
+        method,
+        checkpoint_save=checkpoint_save,
+        get_vcs_provider=get_vcs_provider,
+    )
+    _emit_publication_step(state="ok" if published else "fail")
+    return published
+
+
+def _emit_publication_step(*, state: str) -> None:
+    """Emit a publication step on the finalizer step channel; never raises."""
+
+    try:
+        from sase.finalizers.steps import emit_step
+
+        emit_step("publication", state=state)
+    except Exception:  # noqa: BLE001 - observability is best-effort
+        pass
+
+
+def _run_agent_publication_inner(
+    cp: CommitCheckpoint,
+    method: str,
+    *,
+    checkpoint_save: Callable[[CommitCheckpoint], str | None],
+    get_vcs_provider: Callable[[str], object],
+) -> bool:
+    """Publish generated bead pages and the committing agent hood."""
     message = str(cp.payload.get("message") or "")
     from sase.sdd.checkout_anchor import resolve_checkout_anchor
 

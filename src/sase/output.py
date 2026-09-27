@@ -68,6 +68,23 @@ def print_status(message: str, status_type: str = "info") -> None:
     style = styles.get(status_type, "white")
 
     console.print(f"[{style}]{icon} {escape_markup(message)}[/{style}]")
+    if status_type == "warning":
+        _emit_warning_step(message)
+
+
+def _emit_warning_step(message: str) -> None:
+    """Record a ``warn`` step on the finalizer step channel, if configured.
+
+    Warnings reach the FINAL deck through this typed path only; readers
+    never scrape printed output. Best-effort and never raises.
+    """
+
+    try:
+        from sase.finalizers.steps import emit_step
+
+        emit_step(message, state="warn", detail=message)
+    except Exception:  # noqa: BLE001 - observability is best-effort
+        pass
 
 
 def print_artifact_created(artifact_path: str) -> None:
