@@ -22,6 +22,7 @@ from typing import Any, Literal, cast
 
 from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.axe.agent_meta import write_agent_meta_atomic
+from sase.xprompt.directive_edit import SASE_AGENT_TAB_ENV
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.bead.epic_launch_handoff import (
     MONITOR_ARTIFACTS_ENV,
@@ -205,6 +206,10 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
         else:
             command_env = os.environ.copy()
             scrub_agent_identity_env(command_env)
+            # The member re-derives the creator's tab from its own resolved
+            # meta (inherited at creation), so option commands and follow-up
+            # launches keep the planner's tab after the scrub above.
+            _reexport_member_agent_tab(command_env, meta)
             # SASE_ARTIFACTS_DIR does not carry the SASE_AGENT_ prefix the
             # scrubber matches on, but it still names the dead starter's
             # artifacts and must not leak into the monitored command.
@@ -321,6 +326,16 @@ def _execution_argv(meta: dict[str, Any]) -> list[str] | None:
     if not all(argv):
         return None
     return argv
+
+
+def _reexport_member_agent_tab(
+    command_env: dict[str, str],
+    meta: dict[str, Any],
+) -> None:
+    """Restore ``SASE_AGENT_TAB`` from the member's own resolved meta."""
+    tab = meta.get("agent_tab")
+    if isinstance(tab, str) and tab:
+        command_env[SASE_AGENT_TAB_ENV] = tab
 
 
 def _write_start_acknowledgement(artifacts_dir: str, meta: dict[str, Any]) -> None:

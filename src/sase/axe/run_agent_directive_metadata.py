@@ -353,6 +353,21 @@ def _apply_agent_tab_directive(
         agent_meta.pop("agent_tab_source", None)
 
 
+def export_agent_tab_env(agent_tab: str | None) -> None:
+    """Mirror the ``SASE_AGENT_NAME`` export for the presentation-root tab.
+
+    A turn whose root has a named tab runs with ``SASE_AGENT_TAB=<name>`` so
+    agent-initiated launches can inherit it. Turns without a stored tab pop
+    the variable so a stale parent value never leaks sideways. Spawn-time
+    scrubbing of ``SASE_AGENT_*`` stays correct: each child re-derives the
+    variable from its own resolved tab at startup.
+    """
+    if agent_tab:
+        os.environ["SASE_AGENT_TAB"] = agent_tab
+    else:
+        os.environ.pop("SASE_AGENT_TAB", None)
+
+
 def _invalid_queue_weight_message(source: str, value: object) -> str:
     return f"Invalid queue_weight in {source}: {QUEUE_WEIGHT_ERROR}; got {value!r}."
 

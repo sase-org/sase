@@ -211,6 +211,7 @@ def resolve_agent_identity(
                 user_explicit=request.user_explicit,
                 force_reuse=directives.name_force_reuse,
                 clan_membership_plan=clan_membership_plan,
+                agent_tab=agent_meta.get("agent_tab"),
             )
 
     return AgentIdentity(
@@ -278,6 +279,7 @@ def _claim_agent_identity(
     user_explicit: bool,
     force_reuse: bool,
     clan_membership_plan: ClanMembershipPlan | None,
+    agent_tab: str | None = None,
 ) -> None:
     from sase.agent.launch_validation import (
         internal_agent_name_bypass_enabled,
@@ -312,6 +314,10 @@ def _claim_agent_identity(
             artifacts_dir,
         )
     os.environ["SASE_AGENT_NAME"] = agent_name
+    from sase.axe.run_agent_directive_metadata import export_agent_tab_env
+
+    tab = agent_tab if isinstance(agent_tab, str) and agent_tab else None
+    export_agent_tab_env(tab)
 
 
 def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> bool:

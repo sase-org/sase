@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -204,6 +205,16 @@ def _handle_killed_iteration(
     return "killed"
 
 
+def _export_exec_agent_tab(
+    ctx: AgentExecContext,
+    export: Callable[[str | None], None],
+) -> None:
+    """Export ``SASE_AGENT_TAB`` for the execution loop's own resolved tab."""
+    meta = ctx.agent_meta if isinstance(ctx.agent_meta, dict) else {}
+    tab = meta.get("agent_tab")
+    export(tab if isinstance(tab, str) and tab else None)
+
+
 def _marker_predates_kill(
     marker_data: dict[str, Any],
     kill_time: float | None,
@@ -238,6 +249,9 @@ def _run_execution_loop_bound(
     _publish_root_timestamp(ctx)
     if ctx.agent_name:
         os.environ["SASE_AGENT_NAME"] = ctx.agent_name
+    from sase.axe.run_agent_directive_metadata import export_agent_tab_env
+
+    _export_exec_agent_tab(ctx, export_agent_tab_env)
 
     from sase.llm_provider.registry import (
         LLM_EXEC_PROVIDER_ENV,

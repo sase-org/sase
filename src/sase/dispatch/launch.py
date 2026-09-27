@@ -156,6 +156,8 @@ def maybe_dispatch_launch(
                 operation_key=preview.operation_key,
             )
         message = f"Dispatched launch to {preview.target} ({source_status})"
+        if preview.target_detail:
+            message = f"{message}; {preview.target_detail}"
         return _RemoteDispatchLaunchResult(
             target=preview.target,
             prompt=str(preview.intent["prompt"]),
@@ -195,6 +197,7 @@ def preview_dispatch_launch(
     _reject_local_only_payload(payload)
     config = load_dispatch_config()
     machine = _target_machine(config.machine_by_alias(), scan.target)
+    tab_warning = _tab_dispatch_preflight(query, machine)
     context = _portable_project_context(payload, machine)
     intent = _launch_intent(scan, payload, context)
     operation_key = _operation_key(payload, scan, intent)
@@ -235,7 +238,7 @@ def preview_dispatch_launch(
         source=scan.source,
         target_installation_id=machine.pinned_installation_id,
         target_status="ok",
-        target_detail="",
+        target_detail=tab_warning or "",
         portable_context=context,
         intent=intent,
         operation_key=operation_key,
@@ -260,6 +263,115 @@ def _target_machine(
             f"dispatch target {target!r} is quarantined: {reason}"
         )
     return machine
+
+
+#: Fleet contract version that carries ``agent_tab`` (contract 7). A target
+#: older than this renders every dispatched agent on a derived machine tab.
+_TAB_FLEET_CONTRACT_VERSION = 7
+
+
+def _tab_dispatch_preflight(query: str, machine: MachineRecord) -> str | None:
+    """Check a ``%tab`` + ``%dispatch`` launch against the target's version.
+
+    Returns a warning when the target's last-known contract version is
+    unknown, None when it is current, and raises
+    :class:`RemoteDispatchLaunchError` when it predates agent tabs. The
+    version comes from a no-network source only (a federation cache-only
+    host response); an unknown version warns and proceeds.
+    """
+    from sase.xprompt._tab_inheritance import (
+        segment_has_active_tab_directive,
+        split_prompt_segments,
+    )
+
+    segments, _ = split_prompt_segments(query)
+    if not any(segment_has_active_tab_directive(segment) for segment in segments):
+        return None
+    required = _required_tab_contract_version()
+    known = read_cached_target_contract_version(machine.alias)
+    if known is None:
+        return (
+            f"%tab travels with this dispatch, but {machine.alias!r} has no "
+            "cached contract version; proceeding and the target keeps the "
+            "tab when it runs fleet contract "
+            f"v{required}+ (controllers first, or the fleet in lockstep)"
+        )
+    if known < required:
+        raise RemoteDispatchLaunchError(
+            f"dispatch target {machine.alias!r} runs fleet contract v{known}, "
+            "which predates agent tabs "
+            f"(v{required}); upgrade sase on the target first (controllers "
+            "first, or the fleet in lockstep), or drop %tab"
+        )
+    return None
+
+
+def _required_tab_contract_version() -> int:
+    """Return the local fleet contract version, floored at the tab version."""
+    try:
+        version = require_rust_binding("fleet_contract_schema_version")()
+    except Exception:  # noqa: BLE001 - preflight degrades to the floor.
+        return _TAB_FLEET_CONTRACT_VERSION
+    if isinstance(version, int) and version >= _TAB_FLEET_CONTRACT_VERSION:
+        return version
+    return _TAB_FLEET_CONTRACT_VERSION
+
+
+def read_cached_target_contract_version(alias: str) -> int | None:
+    """Return the target's last-known fleet contract version, if cached.
+
+    No-network source: a federation cache-only hosts response. Any failure
+    (no federation config, worker unavailable, unknown shape) reads as
+    unknown rather than blocking the launch.
+    """
+    try:
+        from sase.dispatch.federation import build_federation_facade
+
+        facade = build_federation_facade()
+        if not facade.config.enabled:
+            return None
+        response = facade.catalog_hosts_sync(
+            ({"schema_version": 1, "query": {"schema_version": 1, "limit": 1}},),
+            cache_only=True,
+            timeout_seconds=5.0,
+        )
+    except Exception:  # noqa: BLE001 - unknown version warns, never blocks.
+        return None
+    return _contract_version_for_alias(response, alias)
+
+
+def _contract_version_for_alias(response: object, alias: str) -> int | None:
+    """Extract one host's contract version from a cache-only hosts response."""
+    if not isinstance(response, Mapping):
+        return None
+    hosts = response.get("hosts")
+    if not isinstance(hosts, Sequence) or isinstance(hosts, (str, bytes)):
+        return None
+    for host in hosts:
+        if not isinstance(host, Mapping):
+            continue
+        if host.get("alias") != alias:
+            continue
+        version = _coerce_contract_version(host.get("fleet_contract_schema_version"))
+        if version is not None:
+            return version
+        for nested_key in ("status", "hello", "host", "detail"):
+            nested = host.get(nested_key)
+            if isinstance(nested, Mapping):
+                version = _coerce_contract_version(
+                    nested.get("fleet_contract_schema_version")
+                )
+                if version is not None:
+                    return version
+    return None
+
+
+def _coerce_contract_version(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    return None
 
 
 def _reject_local_only_payload(payload: Mapping[str, Any]) -> None:
@@ -593,4 +705,5 @@ __all__ = [
     "RemoteDispatchLaunchPreview",
     "maybe_dispatch_launch",
     "preview_dispatch_launch",
+    "read_cached_target_contract_version",
 ]

@@ -146,8 +146,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Type: `reference`
 - Parent: `AGENTS.md`
 - Description: Read before dispatching agents to a remote machine with `%dispatch`.
-- Lines: 53
-- Approx. tokens: 586
+- Lines: 60
+- Approx. tokens: 731
 
 ### `sase/memory/generated_skills.md`
 
@@ -252,7 +252,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Lines: 166
-- Approx. tokens: 2853
+- Approx. tokens: 2969
 
 ## Statistics
 
@@ -260,8 +260,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 13
 - Web descriptor notes: 3
-- Total lines: 1499
-- Total approx. tokens: 20378
+- Total lines: 1506
+- Total approx. tokens: 20639
 
 ## Commands
 

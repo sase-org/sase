@@ -17,6 +17,13 @@ contract: `docs/remote_dispatch.md`. Directive grammar: [[xprompts.md]].
   cannot combine with `%dispatch`.
 - The controller strips only the dispatch selector; the remaining directives run on the
   target.
+- `%tab` travels with the prompt: an agent, gate, or monitor turn on a named tab runs
+  with `SASE_AGENT_TAB` set, and agent-initiated launches stamp `%tab:<name>` into each
+  launched prompt or segment (skipped for an existing `%tab` or a session attach), so
+  `sase run`, `sase bead work`, and gate option commands keep the planner's tab.
+- A `%tab` + `%dispatch` launch runs a no-network version preflight against the target's
+  last-known fleet contract version (federation cache-only host response): older than v7
+  refuses with an upgrade hint, unknown warns and proceeds.
 
 ## Source preflight
 

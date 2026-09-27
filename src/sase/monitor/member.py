@@ -19,6 +19,7 @@ from sase.turns.member import create_agent_session_turn_member
 _MONITOR_INHERITED_METADATA_FIELDS = (
     "agent_clan",
     "agent_clan_generation",
+    "agent_tab",
     "queue_weight",
     "queue_weight_explicit",
     "runner_claim_owner_key",

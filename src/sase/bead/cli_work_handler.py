@@ -335,17 +335,29 @@ def launch_epic_bead_work(
     rendered_segment_capacity = queue_capacities.segment_capacity or None
 
     def _render_prompt(*, launch_names: frozenset[str] | None = None) -> str:
-        return render_multi_prompt(
-            plan,
-            work_phase_xprompt=work_phase_xprompt,
-            land_epic_xprompt=land_epic_xprompt,
-            vcs_context=vcs_context,
-            patch_context=patch_context,
-            declare_clan=declare_clan,
-            launch_names=launch_names,
-            extra_waits=extra_waits,
-            capacity=rendered_capacity,
-            segment_capacity=rendered_segment_capacity,
+        from sase.xprompt.directive_edit import (
+            apply_inherited_agent_tab,
+            inherited_agent_tab,
+        )
+
+        # Lineage inheritance (R2): an EpicApproval approve runs
+        # ``sase bead work`` from the planner's tab, so every phase and land
+        # segment carries it. Session-attach and explicit-``%tab`` segments
+        # keep their own routing per the shared skip rules.
+        return apply_inherited_agent_tab(
+            render_multi_prompt(
+                plan,
+                work_phase_xprompt=work_phase_xprompt,
+                land_epic_xprompt=land_epic_xprompt,
+                vcs_context=vcs_context,
+                patch_context=patch_context,
+                declare_clan=declare_clan,
+                launch_names=launch_names,
+                extra_waits=extra_waits,
+                capacity=rendered_capacity,
+                segment_capacity=rendered_segment_capacity,
+            ),
+            inherited_agent_tab(),
         )
 
     with timer.stage("prompt_render"):

@@ -84,6 +84,18 @@ def create_launch_approval_request(
     normalized = _normalize_request_payload(payload)
     source = source_surface or _default_source_surface()
     prompt = str(normalized["prompt"])
+    # Lineage inheritance (R2): the approver reviews the prompt the child
+    # will actually run, so stamp the inherited tab before planning.
+    from sase.xprompt.directive_edit import (
+        apply_inherited_agent_tab,
+        inherited_agent_tab,
+    )
+
+    inherited = apply_inherited_agent_tab(prompt, inherited_agent_tab())
+    if inherited != prompt:
+        prompt = inherited
+        normalized = dict(normalized)
+        normalized["prompt"] = prompt
     max_slots = int(normalized["max_slots"])
     preview_prompt, plan = _build_preview_plan(prompt)
     slot_count = len(plan.slots)

@@ -100,6 +100,15 @@ def launch_agents_from_cwd_impl(
         record_failed_launch_prompt(query)
         raise
     submitted_query = query
+    # Lineage inheritance (R2): agent-initiated direct launches stamp the
+    # inherited tab here. Idempotent with the LaunchApproval stamping, which
+    # runs first when approval gates the launch.
+    from sase.xprompt.directive_edit import (
+        apply_inherited_agent_tab as _apply_inherited_tab,
+        inherited_agent_tab as _inherited_tab,
+    )
+
+    query = _apply_inherited_tab(query, _inherited_tab())
 
     from sase.main.utils import ensure_project_file_and_get_workspace_num
 

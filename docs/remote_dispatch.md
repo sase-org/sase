@@ -333,3 +333,19 @@ advertised fleet-contract schema versions differ, the line instead reads
 gateway is still serving the pre-upgrade binary. With `-j/--json`, each status row
 carries the same facts as `gateway_version`, `service_versions`,
 `capability_schema_version`, `fleet_contract_schema_version`, and a `version_skew` list.
+
+## Agent tabs (`%tab`) and dispatch
+
+`%tab:<name>` travels with the prompt: the target stores the tab and the agent renders
+on that named tab on every machine. Lineage inheritance applies too — an agent running
+on a named tab that launches through `%dispatch` stamps `%tab:<name>` into the
+dispatched prompt, unless the prompt already has a `%tab` or is a session attach.
+
+A `%tab` + `%dispatch` launch runs a version preflight with no network I/O: it reads the
+target's last-known fleet contract version from the federation cache-only host response.
+Agent tabs need fleet contract v7. When the cached version is older, the launch is
+refused with an upgrade hint; when it is unknown, the launch proceeds with a warning in
+the CLI result and a TUI toast. Upgrade controllers first, or the fleet in lockstep: an
+older controller reading a newer remote marks that host invalid, while a newer
+controller reading an older remote falls back to derived machine tabs and notes
+`<alias>: tab data unavailable (upgrade sase)`.

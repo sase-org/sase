@@ -110,6 +110,11 @@ class AgentFleetDispatchLaunchMixin:
             prompt=prompt,
             payload=payload,
         )
+        # A %tab+%dispatch version preflight warning travels on the preview;
+        # surface it as a toast so the submitter sees it next to the new row.
+        detail = getattr(preview, "target_detail", "")
+        if isinstance(detail, str) and detail:
+            self.notify(detail, severity="warning")
         operation_id = dispatch_operation_id(row)
         if operation_id is None:
             return
