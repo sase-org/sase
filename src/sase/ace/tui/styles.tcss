@@ -4168,6 +4168,23 @@ AgentList > .option-list--option-highlighted {
     padding: 0 1 0 0;
 }
 
+/* Node rail density: fixed-width paint-time projection (no scrollbar). */
+#agent-list-container AgentList.-rail {
+    padding: 0;
+    scrollbar-size-vertical: 0;
+    scrollbar-gutter: auto;
+    border-title-align: center;
+    border-subtitle-align: center;
+}
+
+#agent-list-container AgentList.-rail > .option-list--option {
+    padding: 0 0 0 1;
+}
+
+#agent-list-container AgentList.-rail > .option-list--option-highlighted {
+    padding: 0;
+}
+
 /* Prompt input bar styling (for agent workflow) */
 PromptInputBar {
     height: 3;

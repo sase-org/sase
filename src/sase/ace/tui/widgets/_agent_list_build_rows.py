@@ -263,6 +263,11 @@ class _TreeRows:
     highlighted_row: int | None
     # Widest banner, floored at the agent-row alignment width.
     max_emitted_width: int
+    # Every banner row (expanded and collapsed), plus the per-row banner
+    # hint and mark inputs the paint-time rail projection reads.
+    group_at_row: dict[int, GroupRow]
+    banner_hint_at_row: dict[int, str | None]
+    banner_mark_at_row: dict[int, BannerMarkState]
 
 
 def emit_tree_rows(
@@ -293,6 +298,9 @@ def emit_tree_rows(
         row_by_agent_idx={},
         highlighted_row=None,
         max_emitted_width=target_width,
+        group_at_row={},
+        banner_hint_at_row={},
+        banner_mark_at_row={},
     )
     banner_seq = 0
     spacer_seq = 0
@@ -338,6 +346,9 @@ def emit_tree_rows(
             row_index = len(rows.row_entries)
             rows.options.append(banner_option)
             rows.row_entries.append((_BANNER_ROW, None))
+            rows.group_at_row[row_index] = entry.group
+            rows.banner_hint_at_row[row_index] = banner_hint
+            rows.banner_mark_at_row[row_index] = mark_state
             if banner_selectable:
                 rows.banner_at_row[row_index] = entry.group
                 rows.banner_row_by_key[entry.group.group_key] = row_index

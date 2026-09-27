@@ -151,6 +151,9 @@ def try_remove_rows(
 
     new_row_entries: list[tuple[int, int | None]] = []
     new_banner_at_row: dict[int, GroupRow] = {}
+    new_group_at_row: dict[int, GroupRow] = {}
+    new_banner_hint_at_row: dict[int, str | None] = {}
+    new_banner_mark_at_row: dict[int, str] = {}
     new_row_by_agent_attempt: dict[tuple[int, int | None], int] = {}
     new_row_by_agent_idx: dict[int, int] = {}
     new_banner_row_by_key: dict[tuple[str, ...], int] = {}
@@ -168,6 +171,15 @@ def try_remove_rows(
             if banner is not None:
                 new_banner_at_row[new_row_idx] = banner
                 new_banner_row_by_key[banner.group_key] = new_row_idx
+            group = widget._group_at_row.get(old_row_idx)
+            if group is not None:
+                new_group_at_row[new_row_idx] = group
+                new_banner_hint_at_row[new_row_idx] = widget._banner_hint_at_row.get(
+                    old_row_idx
+                )
+                new_banner_mark_at_row[new_row_idx] = widget._banner_mark_at_row.get(
+                    old_row_idx, "none"
+                )
         else:
             new_li = old_to_new_local[local_idx]
             new_row_entries.append((new_li, attempt))
@@ -185,11 +197,16 @@ def try_remove_rows(
     widget._agents = new_agents
     widget._row_entries = new_row_entries
     widget._banner_at_row = new_banner_at_row
+    widget._group_at_row = new_group_at_row
+    widget._banner_hint_at_row = new_banner_hint_at_row
+    widget._banner_mark_at_row = new_banner_mark_at_row
     widget._row_by_agent_attempt = new_row_by_agent_attempt
     widget._row_by_agent_idx = new_row_by_agent_idx
     widget._banner_row_by_key = new_banner_row_by_key
     widget._row_render_ctx = new_row_render_ctx
     widget._row_tier_styles = new_row_tier_styles
+
+    widget._rail_rows_changed()
 
     return True
 
@@ -581,6 +598,9 @@ def try_insert_rows(
         widget._agents = agents
         widget._row_entries = rows.row_entries
         widget._banner_at_row = rows.banner_at_row
+        widget._group_at_row = rows.group_at_row
+        widget._banner_hint_at_row = rows.banner_hint_at_row
+        widget._banner_mark_at_row = rows.banner_mark_at_row
         widget._banner_row_by_key = rows.banner_row_by_key
         widget._row_by_agent_attempt = rows.row_by_agent_attempt
         widget._row_by_agent_idx = rows.row_by_agent_idx
@@ -594,6 +614,7 @@ def try_insert_rows(
         widget._programmatic_update = False
     if highlighted_row is not None:
         widget._set_highlighted_programmatically(highlighted_row)
+    widget._rail_rows_changed()
     return True
 
 

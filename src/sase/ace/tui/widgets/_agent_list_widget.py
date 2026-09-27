@@ -26,6 +26,7 @@ from ._agent_list_build import (
     resolve_row,
     try_remove_rows,
 )
+from ._agent_list_rail_mode import AgentListRailMixin
 from ._agent_list_rendering import (
     BannerMarkState,
     assemble_padded_option,
@@ -39,7 +40,7 @@ from ..util.trace import tui_trace
 __all__ = ["AgentList"]
 
 
-class AgentList(AgentListBase):
+class AgentList(AgentListRailMixin, AgentListBase):
     """List widget showing agents."""
 
     def install_options(self, options: list[Option]) -> None:
@@ -81,6 +82,9 @@ class AgentList(AgentListBase):
             self._tribe_identity_colors = {}
             self._row_entries = []
             self._banner_at_row = {}
+            self._group_at_row = {}
+            self._banner_hint_at_row = {}
+            self._banner_mark_at_row = {}
             self._row_render_ctx = {}
             self._row_tier_styles = {}
             self._row_by_agent_attempt = {}
@@ -97,6 +101,7 @@ class AgentList(AgentListBase):
             self._refresh_requested_width()
         finally:
             self._programmatic_update = False
+        self._rail_rows_changed()
 
     def update_border_title(self, title: Text | str) -> None:
         """Set the panel title and include it in dynamic width negotiation."""

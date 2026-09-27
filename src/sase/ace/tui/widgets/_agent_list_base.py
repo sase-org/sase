@@ -87,6 +87,17 @@ class AgentListBase(OptionList, inherit_bindings=False):
         # Expanded banners stay disabled and skip the map entirely so they
         # remain invisible to selection.
         self._banner_at_row: dict[int, GroupRow] = {}
+        # All-banner map (expanded and collapsed) plus the per-row banner
+        # hint and mark inputs for the paint-time rail projection.
+        self._group_at_row: dict[int, GroupRow] = {}
+        self._banner_hint_at_row: dict[int, str | None] = {}
+        self._banner_mark_at_row: dict[int, str] = {}
+        # Rail projection state: flag, last published overflow subtitle,
+        # and per-Option (prompt, visual) cache. See
+        # ``_agent_list_rail_mode``.
+        self._rail_enabled: bool = False
+        self._rail_overflow_plain: str = ""
+        self._rail_visual_cache: dict[Any, tuple[Any, Any]] = {}
         # Active grouping mode for the current render.  Updated on every
         # ``update_list`` call so the test/inspection helpers
         # (``_format_banner_option``) match the most recent render.

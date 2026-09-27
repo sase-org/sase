@@ -153,6 +153,9 @@ def build_list(
     )
     widget._row_entries = rows.row_entries
     widget._banner_at_row = rows.banner_at_row
+    widget._group_at_row = rows.group_at_row
+    widget._banner_hint_at_row = rows.banner_hint_at_row
+    widget._banner_mark_at_row = rows.banner_mark_at_row
     widget._banner_row_by_key = rows.banner_row_by_key
     widget._row_by_agent_attempt = rows.row_by_agent_attempt
     widget._row_by_agent_idx = rows.row_by_agent_idx
@@ -171,6 +174,7 @@ def build_list(
             widget._set_highlighted_programmatically(rows.highlighted_row)
     finally:
         widget._programmatic_update = False
+    widget._rail_rows_changed()
 
 
 __all__ = ["build_list"]
