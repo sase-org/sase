@@ -158,7 +158,9 @@ def test_toggle_mark_focused_group_is_scoped_to_focused_panel() -> None:
     app._current_group_key = ("Today", "10:00")
     app._group_fold_registry.collapse(app._current_group_key)
 
-    with patch("sase.ace.tui.models.agent_groups._tree.local_now", return_value=now):
+    with patch(
+        "sase.ace.tui.models.agent_groups._tree_build.local_now", return_value=now
+    ):
         assert app._toggle_mark_focused_group()
 
     assert app._marked_agents == {no_tribe_a.identity, no_tribe_b.identity}

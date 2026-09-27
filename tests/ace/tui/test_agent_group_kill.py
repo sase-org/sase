@@ -366,7 +366,9 @@ def test_group_kill_by_date_is_scoped_to_focused_panel() -> None:
     app._grouping_mode = GroupingMode.BY_DATE
     app._current_group_key = ("Today", "10:00")
 
-    with patch("sase.ace.tui.models.agent_groups._tree.local_now", return_value=now):
+    with patch(
+        "sase.ace.tui.models.agent_groups._tree_build.local_now", return_value=now
+    ):
         app.action_kill_agent()
 
     assert app.pushed_callbacks, "Modal callback not registered"
