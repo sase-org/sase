@@ -449,9 +449,8 @@ def test_invalid_legacy_card_still_fails_panel_open(tmp_path: Path) -> None:
     assert loaded.panels == (_DeckPanelSnapshot(deck=DeckId.MAIN),)
 
 
-def test_final_panel_decoded_to_main_keeps_views(tmp_path: Path) -> None:
-    from sase.feature_flags import override_flags
-
+def test_final_panel_keeps_views(tmp_path: Path) -> None:
+    """A FINAL panel round-trips as FINAL and keeps its Main/Files views."""
     path = tmp_path / "decks.json"
     path.write_text(
         json.dumps(
@@ -472,9 +471,8 @@ def test_final_panel_decoded_to_main_keeps_views(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
-    with override_flags(ace_final_deck=False):
-        loaded = load_agents_deck_state(path)
-    assert loaded.panels[0].deck is DeckId.MAIN
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].deck is DeckId.FINAL
     assert loaded.panels[0].preferred_cards == {DeckId.MAIN: "reply"}
     assert loaded.panels[0].views == DeckViewPolicies(
         main=DeckView.PAGE_CARDS, files=DeckView.SPREAD

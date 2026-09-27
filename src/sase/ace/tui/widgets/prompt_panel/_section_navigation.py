@@ -88,7 +88,7 @@ _section_strip_cache: OrderedDict[
 _volatile_visual_key_counter = count()
 
 
-def _textual_style_token(style: Style) -> str:
+def textual_style_token(style: Style) -> str:
     """Return a stable paint-style token independent of object identity."""
     return (
         f"{getattr(style, 'foreground', None)}|"
@@ -124,6 +124,7 @@ class SectionTrackingVisual(Visual):
         "_anchors_by_key",
         "_content_digest",
         "_generation",
+        "_last_base_style",
         "_owner",
         "_visual",
     )
@@ -148,6 +149,7 @@ class SectionTrackingVisual(Visual):
             tuple[int, int],
             tuple[PromptPanelSectionAnchor, ...],
         ] = {}
+        self._last_base_style: Style | None = None
 
     def render_strips(
         self,
@@ -156,7 +158,11 @@ class SectionTrackingVisual(Visual):
         style: Style,
         options: RenderOptions,
     ) -> list[Strip]:
-        style_token = _textual_style_token(style)
+        style_token = textual_style_token(style)
+        try:
+            self._last_base_style = style
+        except Exception:
+            pass
         strip_key = (self._content_digest, width, height, style_token)
         cached = _section_strip_cache.get(strip_key)
         if cached is not None and cached.strips is not None:
@@ -170,7 +176,7 @@ class SectionTrackingVisual(Visual):
             get_prebuilt = None  # type: ignore[assignment]
         if get_prebuilt is not None:
             try:
-                prebuilt = get_prebuilt(self._content_digest, width)
+                prebuilt = get_prebuilt(self._content_digest, width, style_token or "")
             except Exception:
                 prebuilt = None
             if prebuilt is not None:
@@ -351,17 +357,22 @@ class SectionTrackingVisual(Visual):
 
         try:
             from sase.ace.tui.widgets.decks.panel_view_deferred import (
-                get_prebuilt as _get_prebuilt,
+                get_prebuilt_anchors as _get_anchors,
+                get_prebuilt_height as _get_height,
             )
         except Exception:
-            _get_prebuilt = None  # type: ignore[assignment]
-        if _get_prebuilt is not None:
+            _get_height = None  # type: ignore[assignment]
+            _get_anchors = None  # type: ignore[assignment]
+        if _get_height is not None and _get_anchors is not None:
             try:
-                prebuilt = _get_prebuilt(self._content_digest, width)
+                pre_height = _get_height(self._content_digest, width)
             except Exception:
-                prebuilt = None
-            if prebuilt is not None:
-                _, pre_height, pre_anchors = prebuilt
+                pre_height = None
+            if pre_height is not None:
+                try:
+                    pre_anchors = _get_anchors(self._content_digest, width) or ()
+                except Exception:
+                    pre_anchors = ()
                 _store_layout(
                     _section_height_cache,
                     height_key,
@@ -483,4 +494,5 @@ __all__ = [
     "SECTION_MARKER_META_KEY",
     "SectionTrackingVisual",
     "segment_section_identity",
+    "textual_style_token",
 ]

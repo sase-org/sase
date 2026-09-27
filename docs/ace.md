@@ -5472,17 +5472,16 @@ Each Main and Files deck panel has a **deck view**: `spread` (every card on one
 scrollable page), `page cards` (one whole card per page), or `page blocks` (one card
 block per page). The view is normally **automatic** — resolved from the content through
 the `ace.agent_decks` spread thresholds — or **fixed** to one layout by you. The Tools
-and FINAL decks have no views: they always page automatically, show no badge, and `P`
-does not apply there. Deck views stay a Main-and-Files feature; FINAL's spread/paged and
-block paging resolve automatically from the `ace.agent_decks` thresholds like every
-other automatic deck.
+and FINAL decks have no views: they always lay out automatically and show no badge. Deck
+views stay a Main-and-Files feature; FINAL's spread/paged and block paging resolve
+automatically from the `ace.agent_decks` thresholds like every other automatic deck.
 
 **The badge.** The top border title shows the effective view right after the deck name,
 for example `◆ MAIN  page blocks · auto` or `◆ MAIN  spread · fixed`. The layout word
 uses the deck accent; `fixed` is bold accent while `auto` stays muted, so a fixed panel
 stands out at a glance. On narrow panels the badge shortens (`cards`, `blocks`, `B·A`)
-but never depends on color alone. No badge appears for the Tools deck, an empty deck, or
-a panel that has never painted a full Main document.
+but never depends on color alone. No badge appears for the Tools or FINAL deck, an empty
+deck, or a panel that has never painted a full Main document.
 
 **`P` cycles the view.** `P` steps the focused panel's Main or Files deck wider
 (`page blocks` → `page cards` → `spread`, wrapping) and pins the result as a fixed view.
@@ -5492,7 +5491,10 @@ skipped. `P` is unavailable when there is nothing to choose (a one-card deck, th
 or FINAL deck, an empty deck, or while a Main document is still partial). The footer
 shows a `P view` entry and the help modal an `Agents › Navigation` row only while the
 cycle is available. The first press that fixes a view posts one teaching toast naming
-the palette reset; routine presses stay silent because the badge changes in place.
+the palette reset; routine presses stay silent because the badge changes in place. The
+badge and panel chrome repaint on the first frame after `P`; the Main body for the new
+layout is built off the event loop and swapped in when ready, so on a very long Reply
+the badge can lead the body by a moment.
 
 **Palette.** The command palette offers `Cycle deck view` plus four direct choices:
 `Deck view: automatic`, `Deck view: spread (fixed)`, `Deck view: page cards (fixed)`,

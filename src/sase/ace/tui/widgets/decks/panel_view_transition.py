@@ -15,6 +15,7 @@ from textual.containers import VerticalScroll
 
 from .main_view_blocks import sync_scrollbar_position
 from .model import DeckId, DeckView, RenderMode
+from .panel_view_deferred import PrebuiltRenderContext
 from .view_policy import forced_block_mode
 
 __all__ = ["DeckPanelViewTransitionMixin"]
@@ -450,11 +451,32 @@ class DeckPanelViewTransitionMixin:
                 )
             except Exception:
                 renderable, dest_digest = None, None
+        # Fidelity capture (UI thread only): snapshot the console options,
+        # post-render wrap, and base-style token so the worker replicates
+        # RichVisual.render_strips. Without a capture, skip the prebuilt
+        # body and apply synchronously instead of painting stale pixels.
+        prebuilt_context: PrebuiltRenderContext | None = None
+        if width > 0 and renderable is not None and view is not None:
+            try:
+                from textual._context import active_app
+
+                from .panel_view_deferred import (
+                    capture_prebuilt_context as _capture,
+                )
+
+                prebuilt_context = _capture(active_app.get(), view, renderable)
+            except Exception:
+                prebuilt_context = None
         try:
             from ...util.pump_tasks import spawn_pump_free_task
         except Exception:
             spawn_pump_free_task = None  # type: ignore[assignment]
-        if spawn_pump_free_task is None or width <= 0 or renderable is None:
+        if (
+            spawn_pump_free_task is None
+            or width <= 0
+            or renderable is None
+            or prebuilt_context is None
+        ):
             try:
                 self._apply_deferred_main_body(
                     document, anchor, generation, new_mode, anchor_card, current
@@ -466,7 +488,7 @@ class DeckPanelViewTransitionMixin:
             task = spawn_pump_free_task(
                 self,
                 self._run_deferred_main_body(
-                    renderable,
+                    prebuilt_context,
                     dest_digest,
                     width,
                     document,
@@ -491,7 +513,7 @@ class DeckPanelViewTransitionMixin:
 
     async def _run_deferred_main_body(
         self,
-        renderable: Any,
+        prebuilt_context: PrebuiltRenderContext,
         dest_digest: str | None,
         width: int,
         document: Any,
@@ -507,7 +529,7 @@ class DeckPanelViewTransitionMixin:
             from .panel_view_deferred import build_prebuilt_offthread
 
             prebuilt = await asyncio.to_thread(
-                build_prebuilt_offthread, renderable, width
+                build_prebuilt_offthread, prebuilt_context, width
             )
         except Exception:
             prebuilt = None
@@ -515,7 +537,14 @@ class DeckPanelViewTransitionMixin:
             try:
                 from .panel_view_deferred import store_prebuilt as _store
 
-                _store(dest_digest, width, prebuilt[0], prebuilt[1], prebuilt[2])
+                _store(
+                    dest_digest,
+                    width,
+                    prebuilt[0],
+                    prebuilt[1],
+                    prebuilt[2],
+                    prebuilt_context.style_token,
+                )
             except Exception:
                 pass
         try:

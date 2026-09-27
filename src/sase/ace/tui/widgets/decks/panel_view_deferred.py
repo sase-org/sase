@@ -7,26 +7,93 @@ private ``rich.console.Console``. The UI thread then applies the prebuilt
 strips (generation-guarded) so the Rich walk never runs on the event loop
 and the stall watchdog stays quiet.
 
-Prebuilt bodies are keyed by ``(digest, width)`` for full paints only.
-Pixels, anchor rows, and scroll positions match the synchronous path because
-the same renderable, width, and full-strip anchor walk are used; Textual's
-post-render link walk still runs on the UI thread over the returned strips.
+Pixel guarantee: the off-thread render replicates Textual's
+``RichVisual.render_strips`` exactly. The UI thread snapshots
+:func:`capture_prebuilt_context` — the app console options, the widget's
+``post_render``-wrapped renderable under the current compositor base style,
+and that style's token — and the worker renders the wrapped renderable on a
+private console built with the same settings Textual's ``App`` uses
+(``markup=True, emoji=False, safe_box=False, force_terminal=True,
+soft_wrap=False``) with options derived the same way
+(``highlight=False``, full height, ``update_width``). Skipping either step
+drifts: without the mirror console, box/emoji/color output differs; without
+``post_render`` plus the base style, unstyled segments miss the panel
+background (and Textual's link-style pass drops them entirely).
+
+Prebuilt bodies are keyed by ``(digest, width, style_token)`` for full
+paints only. The style token keeps a focus or accent change from serving
+strips painted under another base style; a token miss falls back to the
+synchronous render. The widget link style is widget-CSS-fixed (it does not
+vary with focus), so it is captured inside the wrapped renderable rather
+than the key. Textual's post-render link walk still runs on the UI thread
+over the returned strips.
 """
 
 from __future__ import annotations
 
 from collections import OrderedDict
-from itertools import islice
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal, cast
 
-from rich.console import Console, Group
+from rich.console import Console, ConsoleOptions, Group
 from rich.segment import Segment
+from textual import constants as textual_constants
+from textual.app import _NullFile
 from textual.strip import Strip
 
 _PREBUILT_MAX_ENTRIES = 8
 _prebuilt_bodies: OrderedDict[
-    tuple[str, int], tuple[tuple[Strip, ...], int, tuple[Any, ...]]
+    tuple[str, int, str], tuple[tuple[Strip, ...], int, tuple[Any, ...]]
 ] = OrderedDict()
+
+
+@dataclass(frozen=True, slots=True)
+class PrebuiltRenderContext:
+    """UI-thread inputs for one faithful off-thread Main body render."""
+
+    options: ConsoleOptions
+    wrapped: Any
+    style_token: str
+
+
+def capture_prebuilt_context(
+    app: Any, view: Any, renderable: Any
+) -> PrebuiltRenderContext | None:
+    """Snapshot the inputs :func:`build_prebuilt_offthread` needs.
+
+    Runs on the UI thread: reads ``app.console_options``, the view's last
+    compositor base style, and wraps ``renderable`` with
+    ``view.post_render`` under that style. Returns None when the view has
+    never painted (no base style yet) so callers fall back to synchronous.
+    """
+    try:
+        options = app.console_options
+    except Exception:
+        return None
+    try:
+        tracking = view.render()
+        base_style = getattr(tracking, "_last_base_style", None)
+    except Exception:
+        return None
+    if base_style is None:
+        return None
+    try:
+        wrapped = view.post_render(renderable, base_style.rich_style)
+    except Exception:
+        return None
+    try:
+        from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+            textual_style_token,
+        )
+
+        style_token = textual_style_token(base_style)
+    except Exception:
+        return None
+    if not style_token:
+        return None
+    return PrebuiltRenderContext(
+        options=options, wrapped=wrapped, style_token=style_token
+    )
 
 
 def store_prebuilt(
@@ -35,11 +102,12 @@ def store_prebuilt(
     strips: tuple[Strip, ...],
     height: int,
     anchors: tuple[Any, ...],
+    style_token: str = "",
 ) -> None:
     """Store a full-document prebuilt body, capped at 8 entries."""
     if digest is None or width <= 0:
         return
-    key = (digest, int(width))
+    key = (digest, int(width), str(style_token))
     _prebuilt_bodies[key] = (strips, int(height), anchors)
     _prebuilt_bodies.move_to_end(key)
     if len(_prebuilt_bodies) > _PREBUILT_MAX_ENTRIES:
@@ -47,12 +115,12 @@ def store_prebuilt(
 
 
 def get_prebuilt(
-    digest: str | None, width: int
+    digest: str | None, width: int, style_token: str = ""
 ) -> tuple[tuple[Strip, ...], int, tuple[Any, ...]] | None:
-    """Return the prebuilt body for ``(digest, width)``, if present."""
+    """Return the prebuilt body for ``(digest, width, style_token)``."""
     if digest is None or width <= 0:
         return None
-    key = (digest, int(width))
+    key = (digest, int(width), str(style_token))
     entry = _prebuilt_bodies.get(key)
     if entry is None:
         return None
@@ -60,22 +128,70 @@ def get_prebuilt(
     return entry
 
 
-def build_prebuilt_offthread(
-    renderable: Any, width: int
-) -> tuple[tuple[Strip, ...], int, tuple[Any, ...]]:
-    """Render ``renderable`` to full strips/height/anchors off the loop.
+def get_prebuilt_height(digest: str | None, width: int) -> int | None:
+    """Return any stored full height for ``(digest, width)``.
 
-    Uses a private console and never touches widgets, the app console, or
+    Height does not vary with the base style, so every style variant
+    shares it.
+    """
+    if digest is None or width <= 0:
+        return None
+    for (entry_digest, entry_width, _), (_, height, _) in _prebuilt_bodies.items():
+        if entry_digest == digest and entry_width == int(width):
+            return int(height)
+    return None
+
+
+def get_prebuilt_anchors(digest: str | None, width: int) -> tuple[Any, ...] | None:
+    """Return stored anchors for ``(digest, width)``, any style variant."""
+    if digest is None or width <= 0:
+        return None
+    for (entry_digest, entry_width, _), (_, _, anchors) in _prebuilt_bodies.items():
+        if entry_digest == digest and entry_width == int(width):
+            return anchors
+    return None
+
+
+def _faithful_console(width: int) -> Console:
+    """Build a private console matching Textual's ``App.console`` settings."""
+    return Console(
+        color_system=cast(
+            "Literal['auto', 'standard', '256', 'truecolor', 'windows'] | None",
+            textual_constants.COLOR_SYSTEM,
+        ),
+        file=_NullFile(),  # type: ignore[arg-type]
+        markup=True,
+        highlight=False,
+        emoji=False,
+        legacy_windows=False,
+        force_terminal=True,
+        safe_box=False,
+        soft_wrap=False,
+        width=max(1, int(width)),
+    )
+
+
+def build_prebuilt_offthread(
+    context: PrebuiltRenderContext, width: int
+) -> tuple[tuple[Strip, ...], int, tuple[Any, ...]]:
+    """Render the captured body to full strips/height/anchors off the loop.
+
+    Uses a private mirror console plus the UI-thread ``ConsoleOptions``
+    snapshot, derived exactly like ``RichVisual.render_strips`` (full
+    height, ``update_width``). Never touches widgets, the app console, or
     shared caches. Callers store the result with :func:`store_prebuilt` on
-    the UI thread.
+    the UI thread under ``context.style_token``.
     """
     from sase.ace.tui.widgets.prompt_panel._section_navigation import (
         segment_section_identity,
     )
 
     render_width = max(1, int(width))
-    console = Console(width=render_width, highlight=False)
-    segments = console.render(renderable, console.options.update_width(render_width))
+    console = _faithful_console(render_width)
+    options = context.options.update(
+        highlight=False, width=render_width, height=None
+    ).update_width(render_width)
+    segments = console.render(context.wrapped, options)
     strips = [
         Strip(line)
         for line in Segment.split_and_crop_lines(
@@ -170,8 +286,12 @@ def build_destination_renderable(
 
 
 __all__ = [
+    "PrebuiltRenderContext",
     "build_destination_renderable",
     "build_prebuilt_offthread",
+    "capture_prebuilt_context",
     "get_prebuilt",
+    "get_prebuilt_anchors",
+    "get_prebuilt_height",
     "store_prebuilt",
 ]
