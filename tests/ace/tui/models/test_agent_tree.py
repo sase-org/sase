@@ -9,9 +9,9 @@ from sase.ace.tui.models._agent_tree import (
     presentation_anchor,
     presentation_anchor_lookup,
     project_clan_tree,
-    _tree_parent,
     tree_parent_lookup,
 )
+from sase.ace.tui.models._agent_tree_anchor import _tree_parent
 from sase.ace.tui.models.agent_groups import build_agent_tree
 
 from ._agent_tree_helpers import _GENERATION, _agent
