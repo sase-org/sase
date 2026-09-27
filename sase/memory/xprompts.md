@@ -48,6 +48,7 @@ grammar.
 | `%queue:<n>`              | `%q`   | Runner-queue admission: positional `capacity` (`N` or `<M>x`); `(capacity=, priority=/p=, weight=/w=)` |
 | `%hold:<sel>` / `%hold()` |        | Reverse-`%wait` admission hold on other queued agents and undispatched procs; running work immune      |
 | `%proc:<cmd>` / `%proc::` |        | Beta stand-alone process unit; `%queue` fields gate dispatch only, never held after dispatch           |
+| `%dispatch:<alias>`       |        | Remote launch on an enrolled machine; exactly one selector, `local` reserved; details: [[dispatch.md]] |
 | `%final[:ops]`            |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords                                |
 | `%repeat:<k>`             | `%r`   | k serial, auto-wait-chained runs                                                                       |
 | `%auto[:plan/tale/epic]`  | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                                 |

@@ -111,28 +111,30 @@ memory files directly.
 
 1. **`sase/memory/cli_rules.md`** - Read anytime new CLI subcommands or options are
    added.
-2. **`sase/memory/generated_skills.md`** - Read when working with sase agent skills (aka
+2. **`sase/memory/dispatch.md`** - Read before dispatching agents to a remote machine
+   with `%dispatch`.
+3. **`sase/memory/generated_skills.md`** - Read when working with sase agent skills (aka
    xprompt skills), which are generated from source templates in the
    `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for
    example).
-3. **`sase/memory/lint_and_test.md`** - If you changed any file tracked by git in the
+4. **`sase/memory/lint_and_test.md`** - If you changed any file tracked by git in the
    sase repo (excluding file changes in the separate repos contained in the sase/repos/
    directory), you MUST read this note before you finish your turn.
-4. **`sase/memory/sase_artifacts.md`** - Read before creating, consuming, resolving,
+5. **`sase/memory/sase_artifacts.md`** - Read before creating, consuming, resolving,
    linking, or managing retention for SASE artifact references and indexed files.
-5. **`sase/memory/sase_beads.md`** - Read before creating, updating, closing, or
+6. **`sase/memory/sase_beads.md`** - Read before creating, updating, closing, or
    querying sase beads — bead types and tiers, the status lifecycle agents must never
    hand-edit, task-bead triage, phase-bead description prefixes, and non-cascading
    close, resolution, and note semantics.
-6. **`sase/memory/sase_flags.md`** - Read before adding, deferring, or removing a SASE
+7. **`sase/memory/sase_flags.md`** - Read before adding, deferring, or removing a SASE
    feature flag or flag bead, and before deprecating user-reaching behavior or landing
    code whose old branch must stay reachable for backward compatibility.
-7. **`sase/memory/symvision.md`** - Read before fixing Symvision lint failures,
+8. **`sase/memory/symvision.md`** - Read before fixing Symvision lint failures,
    including unused symbols, private misuse, pragmas, and epic whitelists.
-8. **`sase/memory/tui.md`** - Read before changing the SASE TUI, its live screenshot
+9. **`sase/memory/tui.md`** - Read before changing the SASE TUI, its live screenshot
    tooling, visual snapshots, or performance-sensitive UI paths.
-9. **`sase/memory/xprompts.md`** - Read before xprompts, prompt directives, or launching
-   agents with git/gh VCS workflow blocks.
+10. **`sase/memory/xprompts.md`** - Read before xprompts, prompt directives, or
+    launching agents with git/gh VCS workflow blocks.
 
 ## 3. Memory Webs
 
