@@ -13,8 +13,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.events import Key, Resize
 from textual.screen import ModalScreen
-from textual.widgets import Input, OptionList, Static
-from textual.widgets.option_list import Option
+from textual.widgets import OptionList, Static
 
 from ..actions.navigation.jump_hints import (
     JUMP_HINT_CHARS,
@@ -22,37 +21,25 @@ from ..actions.navigation.jump_hints import (
     match_jump_hint,
     normalize_jump_key,
 )
-from ..models.node_finder import (
-    NodeFinderRow,
-    NodeFinderSnapshot,
-    NodeFinderView,
-    filter_node_finder,
-    next_jumpable_index,
-)
+from ..models.node_finder import NodeFinderSnapshot, NodeFinderView
 from ..util.debounce import DetailPanelDebouncer
-from ..util.pump_tasks import cancel_pump_free_tasks, spawn_pump_free_task
+from ..util.pump_tasks import cancel_pump_free_tasks
 from ..util.trace import tui_trace
+from ._node_finder_modal_filtering import NodeFinderFilteringMixin
+from ._node_finder_modal_options import NodeFinderOptionsMixin
+from ._node_finder_modal_preview import NodeFinderPreviewMixin
 from .base import FilterInput
-from .node_finder_preview import render_node_finder_preview
 from .node_finder_preview_loader import (
     NodeFinderPreviewCache,
     NodeFinderPreviewPayload,
     load_node_finder_preview,
-    render_tier1,
-    tier1_source,
 )
 from .node_finder_rendering import (
-    EMPTY_PREVIEW,
-    empty_match_label,
-    hint_column_width,
-    last_child_indices,
     layout_class_for_width,
     render_flash_slot,
     render_legend,
     render_mode_pill,
-    render_row_prompt,
     render_scope_strip,
-    show_status_column,
 )
 
 if TYPE_CHECKING:
@@ -64,19 +51,6 @@ _FLASH_S = 1.2
 _PREVIEW_DELAY_S = 0.15
 _PreviewLoader = Callable[["Agent"], NodeFinderPreviewPayload]
 
-#: Maximum rows materialized in the ``OptionList``. Broad results keep
-#: every row in the view (hints, cursor, and jump targets span the whole
-#: list) while only this window around the highlight becomes widgets, so
-#: a 2,000-row rebuild stays inside the refilter budget. Cursor motion
-#: re-centers the window when it steps outside.
-_OPTION_WINDOW_SIZE = 64
-
-#: Maximum memoized filtered views per modal. Repeated refilters of the
-#: same query (the common case is a handful of recent queries) hit; the
-#: bound keeps a broad whole-tree view plus a few narrow ones resident
-#: without growing across opens, since the cache dies with the modal.
-_VIEW_CACHE_SIZE = 8
-
 
 @dataclass(frozen=True, slots=True)
 class NodeFinderResult:
@@ -87,7 +61,12 @@ class NodeFinderResult:
     back: bool = False
 
 
-class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
+class NodeFinderModal(
+    NodeFinderFilteringMixin,
+    NodeFinderOptionsMixin,
+    NodeFinderPreviewMixin,
+    ModalScreen[NodeFinderResult | None],
+):
     """Large responsive Node Finder. Snapshot is fixed for the modal lifetime."""
 
     # Focus the list during compose so the open never transiently focuses
@@ -274,95 +253,6 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
     def action_preview_up(self) -> None:
         self._preview_scroll().scroll_relative(y=-1, animate=False)
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id != "node-finder-query":
-            return
-        self._schedule_refilter(event.value)
-
-    def _schedule_refilter(self, value: str) -> None:
-        """Arm a latest-wins refilter; the keystroke callback stays thin.
-
-        Rapid keystrokes supersede one another via the generation guard, so a
-        burst collapses to a single list rebuild for the final query. Tab and
-        Enter flush through :meth:`_flush_pending_refilter` first. The worker
-        runs on the next message tick (no added delay); staleness is decided
-        by generation, so no timer handle needs cancelling.
-        """
-        self._refilter_generation += 1
-        generation = self._refilter_generation
-        self._pending_refilter_query = value
-        self.call_next(self._fire_scheduled_refilter, value, generation)
-
-    def _fire_scheduled_refilter(self, query: str, generation: int) -> None:
-        if self._pending_refilter_query == query:
-            self._pending_refilter_query = None
-        self._apply_refilter(query, generation)
-
-    def _filtered_view(
-        self, query: str, previous: NodeFinderView | None
-    ) -> NodeFinderView:
-        """Return the filtered view for *query*, reusing a memoized one.
-
-        Views are never mutated after construction (refilters replace
-        ``self._view`` and every row tuple is frozen), so sharing one
-        across repeated refilters is exact. The previous view's tokens
-        join the key so a refinement-narrowed evaluation and a full one
-        for the same query never collide.
-        """
-        key = (query, previous.tokens if previous is not None else None)
-        hit = self._view_cache.get(key)
-        if hit is None:
-            hit = filter_node_finder(self._snapshot, query, previous=previous)
-            if len(self._view_cache) >= _VIEW_CACHE_SIZE:
-                self._view_cache.pop(next(iter(self._view_cache)))
-            self._view_cache[key] = hit
-        return hit
-
-    def _apply_refilter(self, query: str, generation: int) -> None:
-        if generation != self._refilter_generation:
-            return  # Superseded by a newer keystroke; latest wins.
-        if not self.is_mounted:
-            return
-        with tui_trace("node_finder.filter"):
-            self._view = self._filtered_view(query, self._view)
-            self._pending = ""
-            self._rebuild_options(highlight=self._view.best_index)
-            self._paint_chrome()
-            self._paint_preview()
-
-    def _flush_pending_refilter(self) -> None:
-        """Run any coalesced refilter now so Tab/Enter see the latest list.
-
-        Bumping the generation first drops the still-queued scheduled worker
-        when it fires.
-        """
-        if self._pending_refilter_query is None:
-            return
-        query = self._pending_refilter_query
-        self._pending_refilter_query = None
-        self._refilter_generation += 1
-        self._apply_refilter(query, self._refilter_generation)
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id != "node-finder-query":
-            return
-        self._jump_highlighted()
-
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        if event.option_list.id != "node-finder-list":
-            return
-        if event.option_index is None:
-            self._set_flash("No matching node")
-            return
-        self._jump_index(event.option_index + self._window_base)
-
-    def on_option_list_option_highlighted(
-        self, event: OptionList.OptionHighlighted
-    ) -> None:
-        if self._highlighting or event.option_list.id != "node-finder-list":
-            return
-        self._paint_preview()
-
     def _enter_search(self) -> None:
         self._search_mode = True
         self._pending = ""
@@ -390,23 +280,6 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
             self._paint_chrome()
             return
         self._set_flash(f"no hint ‹{key}›")
-
-    def _highlighted_view_index(self) -> int | None:
-        """Return the highlighted view row, translating the option offset."""
-        highlighted = self._list().highlighted
-        if highlighted is None:
-            return None
-        return self._window_base + highlighted
-
-    def _move_cursor(self, direction: int) -> None:
-        if not self._view.rows:
-            return
-        current = self._highlighted_view_index()
-        if current is None or not (0 <= current < len(self._view.rows)):
-            current = self._view.best_index if self._view.best_index is not None else 0
-        nxt = next_jumpable_index(self._view, current, direction)
-        self._set_highlighted(nxt)
-        self._paint_preview()
 
     def _jump_back(self) -> None:
         if self._has_back:
@@ -439,129 +312,6 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
                 return
         self._set_flash("No matching node")
 
-    def _window_for(self, highlight: int | None) -> tuple[int, int]:
-        """Return the ``[base, end)`` view range materialized as options.
-
-        The window centers on the highlight when the view overflows it;
-        small views materialize whole. Every view row stays reachable:
-        hints span the full view and cursor motion re-centers the window.
-        """
-        total = len(self._view.rows)
-        if total <= _OPTION_WINDOW_SIZE:
-            return (0, total)
-        target = highlight
-        if target is None or not (0 <= target < total):
-            target = self._view.best_index if self._view.best_index is not None else 0
-        start = min(
-            max(0, target - _OPTION_WINDOW_SIZE // 2), total - _OPTION_WINDOW_SIZE
-        )
-        return (start, start + _OPTION_WINDOW_SIZE)
-
-    def _rebuild_options(self, *, highlight: int | None) -> None:
-        view = self._view
-        resolved: int | None
-        if highlight is not None and 0 <= highlight < len(view.rows):
-            resolved = highlight
-        else:
-            resolved = view.best_index
-        if view.rows:
-            base, end = self._window_for(resolved)
-        else:
-            base, end = 0, 0
-        # Skip when the list already shows exactly what this rebuild would
-        # produce: the same view object with the same render parameters,
-        # window, and highlight. Repeated refilters of one query memoize to
-        # the same view, so the clear/add churn and the window's row renders
-        # are skipped without changing any pixel. The live highlight check
-        # matters: cursor motion sets it directly without rebuilding, so a
-        # refilter that resolves elsewhere must still rebuild to reset it.
-        # ``resolved`` always lands inside ``(base, end)`` by construction,
-        # so the ``_set_highlighted`` below never re-centers (and never
-        # re-enters this method) from here.
-        key = (
-            id(view),
-            self._search_mode,
-            self._pending,
-            self._layout_class,
-            base,
-            end,
-            resolved,
-        )
-        if (
-            key == self._last_options_key
-            and self._window_base == base
-            and self._window_end == end
-            and (resolved is None or self._highlighted_view_index() == resolved)
-        ):
-            return
-        option_list = self._list()
-        hint_width = hint_column_width(view)
-        status = show_status_column(self._layout_class)
-        # One sibling-closure pass shared by every row's tree guides; computing
-        # it per row would make a rebuild O(rows^2). Guides span the full
-        # view even though only the window becomes widgets.
-        guide_ends = last_child_indices(view.rows)
-        options: list[Option] = []
-        if not view.rows:
-            options.append(
-                Option(
-                    empty_match_label(view.query),
-                    id="__empty__",
-                    disabled=True,
-                )
-            )
-            self._window_base = 0
-            self._window_end = 0
-        else:
-            self._window_base = base
-            self._window_end = end
-            for index in range(base, end):
-                row = view.rows[index]
-                disabled = (
-                    not row.jumpable or index in view.context or row.identity is None
-                )
-                options.append(
-                    Option(
-                        render_row_prompt(
-                            view,
-                            index,
-                            search_mode=self._search_mode,
-                            pending=self._pending,
-                            show_status=status,
-                            hint_width=hint_width,
-                            last_child=guide_ends,
-                        ),
-                        id=f"nf-{index}",
-                        disabled=disabled,
-                    )
-                )
-        # A fresh list holds no options, so clearing it would only post
-        # another refresh cycle for no visible change.
-        if option_list.option_count:
-            option_list.clear_options()
-        option_list.add_options(options)
-        if resolved is not None and self._window_base <= resolved < self._window_end:
-            self._set_highlighted(resolved)
-        self._last_options_key = key
-
-    def _refresh_hint_gutters(self) -> None:
-        if not self.is_mounted:
-            return
-        self._rebuild_options(highlight=self._highlighted_view_index())
-
-    def _set_highlighted(self, index: int) -> None:
-        if not (self._window_base <= index < self._window_end):
-            # Outside the materialized window: re-center first so every
-            # cursor step stays reachable.
-            self._rebuild_options(highlight=index)
-            return
-        option_list = self._list()
-        self._highlighting = True
-        try:
-            option_list.highlighted = index - self._window_base
-        finally:
-            self._highlighting = False
-
     def _paint_chrome(self) -> None:
         if not self.is_mounted:
             return
@@ -579,104 +329,6 @@ class NodeFinderModal(ModalScreen[NodeFinderResult | None]):
         self.query_one("#node-finder-flash", Static).update(
             render_flash_slot(pending=self._pending, flash=self._flash)
         )
-
-    def _paint_preview(self) -> None:
-        with tui_trace("node_finder.preview"):
-            preview = self.query_one("#node-finder-preview", Static)
-            row = self._current_row()
-            if row is None:
-                preview.update(Text(EMPTY_PREVIEW, style="dim"))
-                return
-            payload = None
-            source = tier1_source(row, self._snapshot)
-            if source is not None:
-                payload = self._cache.get(source.identity)
-            preview.update(self._compose_preview(row, payload))
-            self._schedule_tier1(row)
-
-    def _tier0_cache_key(self, row: NodeFinderRow) -> tuple[object, ...]:
-        """Return the Tier 0 cache key for *row*.
-
-        The snapshot (and its query) is fixed for the modal lifetime and
-        reasons never change within it, so the Tier 0 text depends only on
-        which node or header the row shows.
-        """
-        identity = row.identity
-        if identity is not None:
-            return ("node", identity)
-        return (
-            "header",
-            row.role.value,
-            row.name,
-            row.group_label,
-            row.panel_key,
-        )
-
-    def _compose_preview(
-        self,
-        row: NodeFinderRow,
-        payload: NodeFinderPreviewPayload | None,
-    ) -> Text:
-        key = self._tier0_cache_key(row)
-        base = self._tier0_cache.get(key)
-        if base is None:
-            base = render_node_finder_preview(row, self._snapshot, self._snapshot.query)
-            self._tier0_cache[key] = base
-        if payload is None:
-            return base
-        cutoff = base.plain.rfind("PROMPT")
-        combined = Text()
-        if cutoff > 0:
-            combined.append_text(base[:cutoff])
-        combined.append_text(render_tier1(payload))
-        return combined
-
-    def _schedule_tier1(self, row: NodeFinderRow) -> None:
-        source = tier1_source(row, self._snapshot)
-        self._preview_generation += 1
-        generation = self._preview_generation
-        if source is None or self._debouncer is None:
-            return
-        identity = source.identity
-
-        def _kick() -> None:
-            spawn_pump_free_task(
-                self,
-                self._load_tier1(identity, generation),
-                name="node-finder-preview",
-                registry_attr="_node_finder_preview_tasks",
-            )
-
-        self._debouncer.schedule(_kick)
-
-    async def _load_tier1(self, identity: AgentIdentity, generation: int) -> None:
-        agent = self._agent_for(identity)
-        if agent is None:
-            return
-        payload = await asyncio.to_thread(self._preview_loader, agent)
-        if generation != self._preview_generation:
-            return
-        current = self._current_row()
-        if current is None or current.identity != identity:
-            return
-        self._cache.put(payload)
-        self.query_one("#node-finder-preview", Static).update(
-            self._compose_preview(current, payload)
-        )
-
-    def _agent_for(self, identity: AgentIdentity) -> Agent | None:
-        for row in self._snapshot.rows:
-            if row.identity == identity:
-                return row.agent
-        return None
-
-    def _current_row(self) -> NodeFinderRow | None:
-        if not self.is_mounted:
-            return None
-        highlighted = self._highlighted_view_index()
-        if highlighted is None or not (0 <= highlighted < len(self._view.rows)):
-            return None
-        return self._view.rows[highlighted]
 
     def _set_flash(self, message: str) -> None:
         self._flash = message
