@@ -102,6 +102,9 @@ from sase.core.agent_scan_wire_agent_session_turn import (
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
     DoneMarkerWire,
+    FinalizerStatusInstanceWire,
+    FinalizerStatusRunnerWire,
+    FinalizerStatusSummaryWire,
     PendingQuestionMarkerWire,
     PlanPathMarkerWire,
     PromptStepMarkerWire,
@@ -110,6 +113,7 @@ from sase.core.agent_scan_wire_markers import (
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
+    finalizer_status_from_mapping,
 )
 from sase.core.agent_scan_wire_records import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
@@ -159,6 +163,10 @@ __all__ = [
     "AgentClanContextWire",
     "AgentMetaWire",
     "DoneMarkerWire",
+    "FinalizerStatusInstanceWire",
+    "FinalizerStatusRunnerWire",
+    "FinalizerStatusSummaryWire",
+    "finalizer_status_from_mapping",
     "AgentSessionTurnGateWire",
     "AgentSessionTurnMonitorWire",
     "AgentSessionTurnWire",

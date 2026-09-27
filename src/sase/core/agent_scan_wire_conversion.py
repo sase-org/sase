@@ -26,6 +26,7 @@ from sase.core.agent_scan_wire_markers import (
     WaitingMarkerWire,
     WorkflowStateWire,
     WorkflowStepStateWire,
+    finalizer_status_from_mapping,
 )
 from sase.core.agent_scan_wire_records import (
     SUPPORTED_AGENT_SCAN_WIRE_SCHEMA_VERSIONS,
@@ -434,6 +435,11 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     # Member kind: prefer new then legacy, normalizing proc to monitor.
     kwargs["turn_kind"] = turn_kind_value(payload)
     kwargs.pop("shell_kind", None)
+    # Tolerant nested converter: the raw dict never reaches the dataclass, so
+    # a malformed summary degrades to None instead of failing the whole meta.
+    kwargs["finalizer_status"] = finalizer_status_from_mapping(
+        payload.get("finalizer_status")
+    )
     return AgentMetaWire(**kwargs)
 
 

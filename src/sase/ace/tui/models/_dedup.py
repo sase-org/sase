@@ -167,6 +167,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.reviewer = source.reviewer
     if target.stitch_id is None and source.stitch_id is not None:
         target.stitch_id = source.stitch_id
+    if target.finalizer_status is None and source.finalizer_status is not None:
+        target.finalizer_status = source.finalizer_status
 
 
 def dedup_axe_spawned_agents(agents: list[Agent]) -> list[Agent]:

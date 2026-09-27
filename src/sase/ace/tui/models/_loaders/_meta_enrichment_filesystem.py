@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.output_variable_values import coerce_var_map
 from sase.plan_chain import (
@@ -37,6 +38,7 @@ from ._meta_enrichment_monitor import apply_monitor_meta
 from ._meta_enrichment_status import (
     ACTIVE_ENRICHMENT_STATUSES,
     append_timestamp_field,
+    apply_finalizer_status,
     has_plan_submission_marker,
     parse_utc_to_local,
     pending_question_status_from_marker,
@@ -599,6 +601,11 @@ def enrich_agent_from_meta(
             agent.agent_session_role,
             data.get("gate_id") if isinstance(data.get("gate_id"), str) else None,
         ),
+    )
+
+    apply_finalizer_status(
+        agent,
+        finalizer_status_from_mapping(data.get("finalizer_status")),
     )
 
     agent.refresh_raw_presented_agent_name()

@@ -2232,6 +2232,102 @@ def _validate_capacity_only_scan_contract(module: ModuleType) -> bool:
     return True
 
 
+def _validate_finalizer_status_scan_contract(module: ModuleType) -> bool:
+    """Confirm a ``finalizer_status`` summary survives the Rust scan wire.
+
+    A wheel built before sase-core ``f4f2e96`` drops the
+    ``agent_meta.json["finalizer_status"]`` summary off ``AgentMetaWire``,
+    so the Agents tab would silently lose the row hint even though the
+    summary is present on disk. Only checking the resolved field, not the
+    option's acceptance, can see the gap.
+    """
+    timestamp = "20260427110600"
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-probe-") as tmp:
+        projects_root = Path(tmp) / "projects"
+        project_dir = projects_root / "probe"
+        artifact_dir = project_dir / "artifacts" / "ace-run" / timestamp
+        artifact_dir.mkdir(parents=True)
+        (project_dir / "probe.sase").write_text("", encoding="utf-8")
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "probe",
+                    "finalizer_status": {
+                        "schema_version": 1,
+                        "phase": "executing",
+                        "status": "failed",
+                        "instances": [
+                            {
+                                "id": "commit",
+                                "status": "running",
+                                "op": "stitch main",
+                            }
+                        ],
+                        "instance_count": 1,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        try:
+            snapshot = module.scan_agent_artifacts(
+                str(projects_root), _scan_probe_options()
+            )
+        except Exception as exc:
+            _error(f"scan_agent_artifacts(finalizer_status) probe failed: {exc}")
+            return False
+
+    if not isinstance(snapshot, dict):
+        _error(
+            "scan_agent_artifacts(finalizer_status) probe returned a non-dict payload"
+        )
+        return False
+    records = [
+        record
+        for record in snapshot.get("records", [])
+        if isinstance(record, dict) and record.get("timestamp") == timestamp
+    ]
+    if len(records) != 1:
+        _error(
+            "scan_agent_artifacts(finalizer_status) probe did not return "
+            f"exactly one record for timestamp {timestamp}"
+        )
+        return False
+
+    agent_meta = records[0].get("agent_meta")
+    if not isinstance(agent_meta, dict):
+        _error(
+            "scan_agent_artifacts(finalizer_status) probe record has no agent_meta dict"
+        )
+        return False
+    status = agent_meta.get("finalizer_status")
+    if not isinstance(status, dict):
+        _error(
+            "finalizer_status(...) does not survive a scan: "
+            f"got {status!r}"
+        )
+        return False
+    if status.get("phase") != "executing":
+        _error(
+            "finalizer_status(...) phase did not survive a scan: "
+            f"got {status.get('phase')!r}"
+        )
+        return False
+    instances = status.get("instances")
+    if (
+        not isinstance(instances, list)
+        or len(instances) != 1
+        or not isinstance(instances[0], dict)
+        or instances[0].get("id") != "commit"
+    ):
+        _error(
+            "finalizer_status(...) instances did not survive a scan: "
+            f"got {instances!r}"
+        )
+        return False
+    return True
+
+
 _FLEET_WEIGHT_SUMMARY_INSTALLATION_ID = "sase_inst_v1_" + "a" * 64
 
 
@@ -3138,6 +3234,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_runner_capacity_contract(module):
         return 1
     if not _validate_capacity_only_scan_contract(module):
+        return 1
+    if not _validate_finalizer_status_scan_contract(module):
         return 1
     if not _validate_weighted_fleet_summary_contract(module):
         return 1

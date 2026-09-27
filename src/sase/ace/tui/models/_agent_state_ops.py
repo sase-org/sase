@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from sase.core.agent_scan_wire_markers import FinalizerStatusSummaryWire
+
 
 @dataclass
 class AgentStateOperationsFields:
@@ -107,3 +109,10 @@ class AgentStateOperationsFields:
 
     # Runner stdout/stderr output file path (for debugging failed agents)
     output_path: str | None = None
+
+    # Tolerant finalizer-execution row summary from
+    # ``agent_meta.json["finalizer_status"]`` (plan §3.3 C5). A per-turn hint
+    # for glance surfaces; session containers never carry it (they aggregate
+    # members in memory), so later readers must not treat a set value as a
+    # container aggregate.
+    finalizer_status: FinalizerStatusSummaryWire | None = None

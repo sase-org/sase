@@ -514,3 +514,113 @@ def test_rehydration_ignores_unknown_marker_keys() -> None:
     assert not hasattr(record.done, "added_by_newer_writer")
     payload = agent_scan_wire_to_json_dict(snapshot)
     assert payload["records"][0]["done"]["source_machine"] == "apollo"
+
+
+def _agent_meta_with_status(raw: object) -> AgentMetaWire | None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "records": [
+                {
+                    "project_name": "proj",
+                    "project_dir": "/tmp/projects/proj",
+                    "project_file": "/tmp/projects/proj/proj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/proj/artifacts/ace-run/1",
+                    "timestamp": "1",
+                    "agent_meta": {"finalizer_status": raw},
+                }
+            ],
+        }
+    )
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    return record.agent_meta
+
+
+def test_finalizer_status_is_trailing_wire_field() -> None:
+    """`finalizer_status` stays last so older payloads keep their key order."""
+    names = [field.name for field in fields(AgentMetaWire)]
+    assert names[-2:] == ["proc_id", "finalizer_status"]
+    assert AgentMetaWire().finalizer_status is None
+
+
+def test_finalizer_status_round_trip() -> None:
+    meta = _agent_meta_with_status(
+        {
+            "schema_version": 1,
+            "phase": "executing",
+            "status": "failed",
+            "run_id": "abc123",
+            "started_at": 1727440000.0,
+            "runner": {"pid": 1234, "identity": "tok"},
+            "instances": [{"id": "commit", "status": "running", "op": "stitch main"}],
+            "instance_count": 1,
+        }
+    )
+    assert meta is not None
+    status = meta.finalizer_status
+    assert status is not None
+    assert status.phase == "executing"
+    assert status.status == "failed"
+    assert status.run_id == "abc123"
+    assert status.started_at == 1727440000.0
+    assert status.runner is not None
+    assert status.runner.pid == 1234
+    assert [entry.id for entry in status.instances] == ["commit"]
+    assert status.instance_count == 1
+    payload = agent_scan_wire_to_json_dict(meta)
+    assert payload["finalizer_status"]["phase"] == "executing"
+    assert payload["finalizer_status"]["instances"][0]["id"] == "commit"
+
+
+def test_finalizer_status_tolerance_table() -> None:
+    # Valid summary with extra keys survives; unknown keys are ignored.
+    meta = _agent_meta_with_status(
+        {"phase": "settled", "status": "success", "future_key": "x"}
+    )
+    assert meta is not None
+    assert meta.finalizer_status is not None
+    assert meta.finalizer_status.phase == "settled"
+    # Malformed nested values degrade instead of failing the meta.
+    meta = _agent_meta_with_status(
+        {
+            "phase": "executing",
+            "started_at": "not-a-number",
+            "attempt": None,
+            "instances": [
+                {"id": "commit", "attempt": -1, "max_attempts": float("nan")},
+                {"no_id": True},
+                "not-a-mapping",
+            ],
+        }
+    )
+    assert meta is not None
+    status = meta.finalizer_status
+    assert status is not None
+    assert status.started_at is None
+    assert [entry.id for entry in status.instances] == ["commit"]
+    assert status.instances[0].attempt is None
+    assert status.instances[0].max_attempts is None
+    # Oversize strings are capped at 120 characters.
+    meta = _agent_meta_with_status({"phase": "x" * 200})
+    assert meta is not None
+    assert meta.finalizer_status is not None
+    assert meta.finalizer_status.phase == "x" * 120
+    # At most 16 instances are kept.
+    meta = _agent_meta_with_status(
+        {
+            "phase": "executing",
+            "instances": [{"id": f"i{n}"} for n in range(17)],
+        }
+    )
+    assert meta is not None
+    assert meta.finalizer_status is not None
+    assert len(meta.finalizer_status.instances) == 16
+    # A non-object value gives None.
+    assert _agent_meta_with_status("executing") is not None
+    assert _agent_meta_with_status("executing").finalizer_status is None  # type: ignore[union-attr]
+    # A missing or empty phase gives None.
+    assert _agent_meta_with_status({}).finalizer_status is None  # type: ignore[union-attr]
+    assert _agent_meta_with_status({"phase": ""}).finalizer_status is None  # type: ignore[union-attr]

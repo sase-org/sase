@@ -27,6 +27,7 @@ from ._meta_enrichment_monitor import apply_monitor_meta
 from ._meta_enrichment_status import (
     ACTIVE_ENRICHMENT_STATUSES,
     append_timestamp_values,
+    apply_finalizer_status,
     parse_utc_to_local,
     pending_question_status_for_request_path,
     pending_review_window_active,
@@ -506,5 +507,7 @@ def enrich_agent_from_meta_wire(
             gate_turn.id if gate_turn is not None else None,
         ),
     )
+
+    apply_finalizer_status(agent, meta.finalizer_status)
 
     agent.refresh_raw_presented_agent_name()

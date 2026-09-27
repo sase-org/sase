@@ -26,7 +26,7 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 10
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 33
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 34
 # Wire schemas the sase-turn contract flip (sase-1ab.7) may emit. The mirrors
 # above still name the pre-flip versions until pin-bump (sase-1ab.8) moves
 # them; readers accept both so one sase tree works against either core.

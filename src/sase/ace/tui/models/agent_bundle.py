@@ -111,6 +111,9 @@ def agent_state_to_bundle_dict(agent: Agent) -> dict[str, Any]:
                 key.isoformat() if isinstance(key, datetime) else key: entry
                 for key, entry in value.items()
             }
+        elif item.name == "finalizer_status" and value is not None:
+            if dataclasses.is_dataclass(value):
+                value = dataclasses.asdict(value)
         result[item.name] = value
     return result
 
@@ -223,6 +226,12 @@ def from_bundle_dict(
             )
 
             value = parse_linked_repos(value)
+        elif f.name == "finalizer_status" and value is not None:
+            from sase.core.agent_scan_wire_markers import (
+                finalizer_status_from_mapping,
+            )
+
+            value = finalizer_status_from_mapping(value)
         elif f.name == "runner_capacity_blockers" and isinstance(value, list):
             value = tuple(item for item in value if isinstance(item, dict))
         elif f.name == "feedback_plan_paths" and isinstance(value, dict):

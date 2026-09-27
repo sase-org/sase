@@ -7,12 +7,14 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.agent.status_buckets import pending_plan_status_for_tier
+from sase.core.agent_scan_wire_markers import FinalizerStatusSummaryWire
 from sase.core.artifact_file_helpers import select_canonical_plan_path
 from sase.core.time import to_local
 
 from ....hooks.processes import is_process_running
 from ._json_cache import load_json_cached
 from ..agent import Agent
+from ..agent_session_members import _root_represents_member
 
 
 ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
@@ -179,3 +181,28 @@ def pending_question_status_from_marker(marker_path: Path) -> str:
         return "QUESTION"
     request_path = marker.get("request_path") if isinstance(marker, dict) else None
     return pending_question_status_for_request_path(request_path)
+
+
+def apply_finalizer_status(
+    agent: Agent,
+    status: FinalizerStatusSummaryWire | None,
+) -> None:
+    """Mirror a tolerant finalizer row summary onto the agent row.
+
+    Both enrichment paths share this helper so snapshot and filesystem loads
+    agree. Containers are never mirrored: clan, imported, and remote session
+    containers are synthetic rows, and a session root that does not represent
+    a member (see ``_root_represents_member``) would double-count its members'
+    summaries. Session views aggregate members in memory instead.
+    """
+    if status is None or not isinstance(status, FinalizerStatusSummaryWire):
+        return
+    if (
+        agent.is_clan_container
+        or agent.is_imported_agent_session_container
+        or agent.is_remote_agent_session_container
+    ):
+        return
+    if agent.is_agent_session_root_entry and not _root_represents_member(agent):
+        return
+    agent.finalizer_status = status
