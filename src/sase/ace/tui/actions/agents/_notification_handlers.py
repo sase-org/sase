@@ -44,7 +44,10 @@ def handle_jump_to_agent(app: object, notification: Notification) -> bool:
     def _matches(agent: object) -> bool:
         if getattr(agent, "cl_name", None) != cl_name:
             return False
-        if agent_type and agent.agent_type.value != agent_type:  # type: ignore[attr-defined]
+        if (
+            agent_type
+            and getattr(getattr(agent, "agent_type", None), "value", None) != agent_type
+        ):
             return False
         if raw_suffix and getattr(agent, "raw_suffix", None) != raw_suffix:
             return False
@@ -55,6 +58,13 @@ def handle_jump_to_agent(app: object, notification: Notification) -> bool:
         message = f"Agent '{humanize_cl_name(str(cl_name))}' not found"
         app.notify(message, severity="warning")  # type: ignore[attr-defined]
         return False
+    ensure = getattr(app, "_ensure_agent_tab_for", None)
+    if callable(ensure):
+        ensure(target.identity)
+    else:
+        from ._agent_tab_jump import ensure_agent_tab_for_identity
+
+        ensure_agent_tab_for_identity(app, target.identity)
     return jump_to_loaded_agent(app, target)
 
 

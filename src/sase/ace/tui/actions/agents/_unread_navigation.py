@@ -167,6 +167,12 @@ class AgentUnreadNavigationMixin(
                 predicate=predicate,
                 after_select=after_select,
             )
+        if target.visible_idx is None and target.tab_key is not None:
+            return self._jump_to_off_tab_timed_candidate(
+                target,
+                predicate=predicate,
+                after_select=after_select,
+            )
 
         target_idx = target.visible_idx
         if target_idx is None or not (0 <= target_idx < len(self._agents)):
@@ -227,6 +233,78 @@ class AgentUnreadNavigationMixin(
             )
         return True
 
+    def _jump_to_off_tab_timed_candidate(
+        self,
+        target: TimedAgentJumpCandidate,
+        *,
+        predicate: Callable[[Agent], bool],
+        after_select: Callable[[Agent, bool, bool], None] | None,
+    ) -> bool:
+        """Switch to an off-tab candidate's tab, then select it by identity."""
+        from ._agent_tab_jump import (
+            ensure_agent_tab_for_identity,
+            restore_agent_tab,
+        )
+
+        save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if callable(save_jump_anchor):
+            save_jump_anchor()
+        previous_tab = ensure_agent_tab_for_identity(self, target.identity)
+        target_idx = next(
+            (
+                idx
+                for idx, agent in enumerate(self._agents)
+                if agent.identity == target.identity
+            ),
+            None,
+        )
+        if target_idx is None:
+            restore_agent_tab(self, previous_tab)
+            return False
+        target_agent = self._agents[target_idx]
+        if not predicate(target_agent):
+            restore_agent_tab(self, previous_tab)
+            return False
+        visible = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
+            include_collapsed_panels=True
+        )
+        if target_idx not in visible:
+            restore_agent_tab(self, previous_tab)
+            return False
+        panel_group = getattr(self, "_panel_group", None)
+        target_panel_idx = visible[target_idx]
+        target_panel_key = None
+        if panel_group is not None:
+            if target_panel_idx is None or not (
+                0 <= target_panel_idx < len(panel_group.panel_keys)
+            ):
+                restore_agent_tab(self, previous_tab)
+                return False
+            target_panel_key = panel_group.panel_keys[target_panel_idx]
+        panel_expanded = False
+        if panel_group is not None and panel_is_collapsed(self, target_panel_key):
+            expand_panel = getattr(self, "_expand_agent_panel", None)
+            if callable(expand_panel):
+                panel_expanded = bool(expand_panel(target_panel_key))
+        if panel_group is not None and target_panel_idx != panel_group.focused_idx:
+            panel_group.focused_idx = target_panel_idx
+        self._expanded_panel_focus = False
+        self._current_group_key = None
+        self.current_idx = target_idx
+        if hasattr(self, "current_attempt_number"):
+            self.current_attempt_number = None  # type: ignore[attr-defined]
+        if after_select is not None:
+            after_select(target_agent, True, panel_expanded)
+        elif panel_expanded:
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True, defer_detail=True
+            )
+        else:
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=False, defer_detail=True
+            )
+        return True
+
     def _reveal_and_select_timed_jump_candidate(
         self,
         target: TimedAgentJumpCandidate,
@@ -235,14 +313,22 @@ class AgentUnreadNavigationMixin(
         after_select: Callable[[Agent, bool, bool], None] | None,
     ) -> bool:
         """Expand one target clan, refilter, resolve by identity, and select."""
+        from ._agent_tab_jump import (
+            ensure_agent_tab_for_identity,
+            restore_agent_tab,
+        )
+
         save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
         if callable(save_jump_anchor):
             save_jump_anchor()
+        previous_tab = ensure_agent_tab_for_identity(self, target.identity)
 
         fold_manager = getattr(self, "_fold_manager", None)
         if fold_manager is None or target.clan_fold_key is None:
+            restore_agent_tab(self, previous_tab)
             return False
         if not fold_manager.expand(target.clan_fold_key):
+            restore_agent_tab(self, previous_tab)
             return False
 
         # Expand an already-known collapsed tribe panel before the structural
@@ -256,6 +342,7 @@ class AgentUnreadNavigationMixin(
             invalidate()
         refilter = getattr(self, "_refilter_agents", None)
         if not callable(refilter):
+            restore_agent_tab(self, previous_tab)
             return False
         self._expanded_panel_focus = False
         try:
@@ -272,18 +359,21 @@ class AgentUnreadNavigationMixin(
             None,
         )
         if target_idx is None:
+            restore_agent_tab(self, previous_tab)
             return False
         target_agent = self._agents[target_idx]
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
         if target_agent.identity not in unread_ids or not predicate(target_agent):
+            restore_agent_tab(self, previous_tab)
             return False
 
         visible = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
             include_collapsed_panels=True
         )
         if target_idx not in visible:
+            restore_agent_tab(self, previous_tab)
             return False
 
         panel_group = getattr(self, "_panel_group", None)
@@ -293,6 +383,7 @@ class AgentUnreadNavigationMixin(
             if target_panel_idx is None or not (
                 0 <= target_panel_idx < len(panel_group.panel_keys)
             ):
+                restore_agent_tab(self, previous_tab)
                 return False
             target_panel_key = panel_group.panel_keys[target_panel_idx]
 

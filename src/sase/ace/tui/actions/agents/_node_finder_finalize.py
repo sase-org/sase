@@ -119,10 +119,12 @@ def apply_snapshot_omission(
 
     Dismissed rows, rows whose hider is unknown (not rendered and no
     computed reason), and non-jumpable steps without a jumpable descendant
-    never get a hint, so they stay out. ``descendant_of_jumpable`` was
-    collected in the row loop. Returns ``(rows, index_by_identity,
-    counts_chains)`` where ``counts_chains`` carries the memoized ancestor
-    chains when positions are stable and ``None`` after a remap.
+    never get a hint, so they stay out. Rows carrying an off-tab chip stay:
+    their hider is the inactive tab, and jumping to them switches tabs
+    first. ``descendant_of_jumpable`` was collected in the row loop.
+    Returns ``(rows, index_by_identity, counts_chains)`` where
+    ``counts_chains`` carries the memoized ancestor chains when positions
+    are stable and ``None`` after a remap.
     """
     # Omission pass: dismissed rows, rows whose hider is unknown (not
     # rendered and no computed reason), and non-jumpable steps without a
@@ -136,6 +138,8 @@ def apply_snapshot_omission(
             keep[pos] = False
         elif not row.jumpable and row.identity not in descendant_of_jumpable:
             keep[pos] = False
+        elif row.tab_label:
+            continue
         elif not row.reasons and row.identity not in rendered:
             keep[pos] = False
 

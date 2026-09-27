@@ -408,7 +408,11 @@ class ArtifactsFilesActionsMixin:
 
         if entry.agent_artifacts_dir is None and entry.agent_name is None:
             return None
-        live_agents = tuple(getattr(self, "_agents", ()))
+        live_agents = tuple(
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", None)
+            or ()
+        )
         dismissed_agents = tuple(getattr(self, "_dismissed_agent_objects", ()))
         pools = ((live_agents, False), (dismissed_agents, True))
         artifact_dir = entry.agent_artifacts_dir
@@ -478,6 +482,19 @@ class ArtifactsFilesActionsMixin:
         target_identity: object,
         target_raw_suffix: str | None,
     ) -> bool:
+        ensure = getattr(self, "_ensure_agent_tab_for", None)
+        if callable(ensure):
+            try:
+                ensure(target_identity)  # type: ignore[arg-type]
+            except Exception:
+                pass
+        else:
+            try:
+                from .agents._agent_tab_jump import ensure_agent_tab_for_identity
+
+                ensure_agent_tab_for_identity(self, target_identity)  # type: ignore[arg-type]
+            except Exception:
+                pass
         for index, agent in enumerate(getattr(self, "_agents", ())):
             if getattr(agent, "identity", None) == target_identity:
                 self.current_idx = index  # type: ignore[attr-defined]

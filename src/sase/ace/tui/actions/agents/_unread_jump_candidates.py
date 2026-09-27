@@ -11,6 +11,8 @@ from ...models.agent_nodes import is_agents_tab_agent_node
 from ...models.agent_status import is_unread_completed_status
 
 if TYPE_CHECKING:
+    from sase.core.agent_tab import AgentTabKey
+
     from ...models import Agent
     from ...models.agent import AgentType
     from ._prospective_clan import ProspectiveClanMember
@@ -25,6 +27,7 @@ class TimedAgentJumpCandidate:
     jump_time: datetime | None
     visible_idx: int | None
     clan_fold_key: str | None = None
+    tab_key: AgentTabKey | None = None
 
 
 class AgentUnreadJumpCandidatesMixin:
@@ -62,6 +65,8 @@ class AgentUnreadJumpCandidatesMixin:
             for agent in complete
             if not agent.is_clan_container
         )
+        from ._tab_scope import current_agent_tab_scope_token
+
         cache_key = (
             id(self._agents),
             id(complete),
@@ -75,6 +80,7 @@ class AgentUnreadJumpCandidatesMixin:
             id(getattr(self, "_agents_live_query_facade", None)),
             id(getattr(self, "_agent_content_search_index", None)),
             status_signature,
+            current_agent_tab_scope_token(self),
         )
         cached = getattr(self, "_unread_jump_candidates_cache", None)
         if cached is not None and cached[0] == cache_key:
@@ -142,10 +148,73 @@ class AgentUnreadJumpCandidatesMixin:
                 )
             )
 
+        candidates.extend(
+            self._off_tab_jump_candidates(
+                predicate=predicate,
+                time_for_agent=time_for_agent,
+                seen=seen,
+            )
+        )
+
         candidates.sort(
             key=lambda candidate: candidate.jump_time or datetime.min,
             reverse=True,
         )
+        return candidates
+
+    def _off_tab_jump_candidates(
+        self,
+        *,
+        predicate: Callable[[Agent], bool],
+        time_for_agent: Callable[[Agent], datetime | None] | None,
+        seen: set[tuple[AgentType, str, str | None]],
+    ) -> list[TimedAgentJumpCandidate]:
+        """Return matching rows on agent tabs other than the active one.
+
+        With the ``agent_tabs`` flag on, ``,j``/``,J`` jump across tabs, so
+        candidates come from the tab-independent ``_agents_query_result``
+        instead of only the active tab's ``_agents``. Off the flag (or
+        without an index) there are no off-tab rows and this stays empty.
+        Rows already seen as visible or collapsed-clan candidates keep
+        their existing entry.
+        """
+        from ...agent_tabs_flag import agent_tabs_enabled
+
+        if not agent_tabs_enabled():
+            return []
+        index = getattr(self, "_agent_tab_index", None)
+        if index is None:
+            return []
+        active = getattr(self, "_active_agent_tab", None)
+        query_result = list(getattr(self, "_agents_query_result", None) or ())
+        if not query_result:
+            return []
+        candidates: list[TimedAgentJumpCandidate] = []
+        for agent in query_result:
+            if agent.identity in seen:
+                continue
+            if agent.is_clan_container or not predicate(agent):
+                continue
+            try:
+                tab_key = index.key_for(agent)
+            except Exception:
+                continue
+            if tab_key == active:
+                continue
+            candidates.append(
+                TimedAgentJumpCandidate(
+                    identity=agent.identity,
+                    panel_key=None,
+                    jump_time=(
+                        time_for_agent(agent)
+                        if time_for_agent is not None
+                        else agent.stop_time or agent.start_time
+                    ),
+                    visible_idx=None,
+                    tab_key=tab_key,
+                )
+            )
+            seen.add(agent.identity)
         return candidates
 
     def _collapsed_clan_jump_candidates(

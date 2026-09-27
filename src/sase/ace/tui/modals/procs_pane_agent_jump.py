@@ -29,7 +29,12 @@ def _is_command_line_row(task: Any) -> bool:
 
 def _monitor_jump_agent(app: Any, proc_id: str) -> Agent | None:
     """Return the loaded Agent row whose ``monitor_id`` names this proc."""
-    for agent in getattr(app, "_agents", ()):
+    complete = list(
+        getattr(app, "_agents_with_children", None)
+        or getattr(app, "_agents", None)
+        or ()
+    )
+    for agent in complete:
         if getattr(agent, "monitor_id", None) == proc_id:
             return agent
     return None

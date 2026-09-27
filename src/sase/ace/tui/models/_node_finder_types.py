@@ -72,6 +72,7 @@ class NodeFinderRow:
     is_here: bool = False
     jumpable_count: int = 0
     hidden_count: int = 0
+    tab_label: str = ""
 
 
 @dataclass(frozen=True, slots=True)

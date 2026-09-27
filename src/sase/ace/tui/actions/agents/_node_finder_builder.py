@@ -306,6 +306,12 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         # row ever records a missing fold: the walk would return ``{}``.
         unmet = {}
 
+    from ._agent_tab_jump import off_tab_labels_for_owner
+
+    try:
+        off_tab_labels = off_tab_labels_for_owner(owner)
+    except Exception:
+        off_tab_labels = {}
     (
         rows,
         index_by_identity,
@@ -335,6 +341,7 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         describe_facts,
         is_monitor_map,
         is_gate_map,
+        off_tab_labels,
     )
 
     clean_keep = (

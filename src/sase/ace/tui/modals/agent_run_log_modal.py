@@ -502,6 +502,19 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
         app._save_current_tab_position()  # type: ignore[attr-defined]
         app.current_tab = "agents"  # type: ignore[attr-defined]
 
+        ensure = getattr(app, "_ensure_agent_tab_for", None)
+        if callable(ensure):
+            ensure(target_identity)
+        else:
+            try:
+                from ..actions.agents._agent_tab_jump import (
+                    ensure_agent_tab_for_identity,
+                )
+
+                ensure_agent_tab_for_identity(app, target_identity)
+            except Exception:
+                pass
+
         # Find and select the matching agent
         for idx, a in enumerate(app._agents):  # type: ignore[attr-defined]
             if a.identity == target_identity:

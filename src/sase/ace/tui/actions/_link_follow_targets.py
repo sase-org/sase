@@ -257,6 +257,10 @@ class LinkFollowTargetsMixin:
 
     def _reveal_loaded_agent(self, match: Any) -> bool:
         """Reveal *match* on the Agents tab; ``False`` falls through."""
+        from .agents._agent_tab_jump import (
+            ensure_agent_tab_for_identity,
+            restore_agent_tab,
+        )
         from .navigation._agent_reveal import (
             AgentRevealFailure,
             prepare_agent_navigation_target,
@@ -274,16 +278,19 @@ class LinkFollowTargetsMixin:
             return False
         if plan is None:
             return False
+        previous_tab = ensure_agent_tab_for_identity(self, match.identity)
         try:
             outcome = reveal_agent_navigation_target(self, plan)
         except Exception:  # noqa: BLE001 - degrade to the visible select below
             log.debug("agents-tab link reveal unavailable", exc_info=True)
+            restore_agent_tab(self, previous_tab)
             return False
         result = outcome.result
         if result is None:
             self._link_follow_agents_tab_filtered = (
                 outcome.failure is AgentRevealFailure.TARGET_FILTERED
             )
+            restore_agent_tab(self, previous_tab)
             return False
         self._save_current_tab_position()  # type: ignore[attr-defined]
         self.current_tab = "agents"

@@ -46,8 +46,11 @@ PanelJumpTarget = tuple[Literal["panel"], PanelKey]
 JumpTarget = AgentJumpTarget | BannerJumpTarget | PanelJumpTarget
 AgentJumpAnchor = (
     tuple[Literal["agent"], int, PanelKey]
+    | tuple[Literal["agent"], int, PanelKey, str]
     | tuple[Literal["banner"], PanelKey, tuple[str, ...]]
+    | tuple[Literal["banner"], PanelKey, tuple[str, ...], str]
     | PanelJumpTarget
+    | tuple[Literal["panel"], PanelKey, str]
 )
 PatchBannerJumpAnchor = tuple[
     Literal[

@@ -7,6 +7,7 @@ tree and emits panel/group/node rows with hidden-reason classification.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ...models._agent_tree import agent_parent_fold_key, agent_tree_depth
@@ -109,6 +110,7 @@ def build_snapshot_rows(
     describe_facts: dict[int, tuple[Any, ...]],
     is_monitor_map: dict[int, bool],
     is_gate_map: dict[int, bool],
+    off_tab_labels: Mapping[AgentIdentity, str] | None = None,
 ) -> tuple[
     list[NodeFinderRow],
     dict[AgentIdentity, int],
@@ -125,6 +127,9 @@ def build_snapshot_rows(
     The flags after the index are the clean-keep witnesses the omission
     pass consumes: no row can be omitted when nothing is dismissed, every
     node is jumpable, and no reasonless row is unrendered.
+    *off_tab_labels* maps identities on another agent tab to their tab
+    label; those jumpable rows stay reachable with an off-tab chip instead
+    of counting as bare unrendered.
     """
     from ...models.agent_groups import build_agent_tree
     from ...models.agent_panels import agents_for_panel
@@ -453,6 +458,16 @@ def build_snapshot_rows(
                 row_depth = depths[agent_key]
             except KeyError:
                 row_depth = agent_tree_depth(agent)
+            if (
+                jumpable
+                and reason_mask == 0
+                and identity not in rendered
+                and off_tab_labels
+                and identity in off_tab_labels
+            ):
+                tab_label = off_tab_labels[identity]
+            else:
+                tab_label = ""
             rows.append(
                 # Positional construction in ``NodeFinderRow`` field order:
                 # node rows are the hottest allocation in the snapshot.
@@ -481,11 +496,15 @@ def build_snapshot_rows(
                     len(missing),
                     nearest_collapsed,
                     group_label,
+                    False,
+                    0,
+                    0,
+                    tab_label,
                 )
             )
             if not jumpable:
                 all_jumpable = False
-            elif reason_mask == 0 and identity not in rendered:
+            elif reason_mask == 0 and identity not in rendered and not tab_label:
                 has_bare_unrendered = True
             # Fold ancestors of jumpable rows were marked during the
             # fused parent climb above, so the omission pass below needs

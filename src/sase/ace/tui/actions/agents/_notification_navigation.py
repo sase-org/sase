@@ -248,6 +248,13 @@ def navigate_to_agent_tab(app: object, cl_name: str, pid: int | None = None) -> 
     if target is None:
         app.notify(f"Agent '{humanize_cl_name(cl_name)}' not found", severity="warning")  # type: ignore[attr-defined]
         return False
+    ensure = getattr(app, "_ensure_agent_tab_for", None)
+    if callable(ensure):
+        ensure(target.identity)
+    else:
+        from ._agent_tab_jump import ensure_agent_tab_for_identity
+
+        ensure_agent_tab_for_identity(app, target.identity)
     return jump_to_loaded_agent(app, target)
 
 

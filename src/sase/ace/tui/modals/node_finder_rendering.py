@@ -276,6 +276,8 @@ def _render_node_body(
             text.append(status, style=_STATUS_STYLE.get(status, "dim"))
         if age:
             text.append(f" {age}", style="dim")
+    if row.tab_label:
+        text.append(f"  [{row.tab_label}]", style="dim")
     return text
 
 

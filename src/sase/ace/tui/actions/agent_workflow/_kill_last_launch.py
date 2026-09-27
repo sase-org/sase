@@ -280,14 +280,21 @@ class KillAndEditLastLaunchMixin:
         to the action itself, so failures are swallowed rather than raised.
         """
         try:
+            from ..agents._agent_tab_jump import (
+                ensure_agent_tab_for_identity,
+                restore_agent_tab,
+            )
+
             plan, _failure = prepare_agent_navigation_target(
                 self, target_identity, require_current=False
             )
             if plan is None:
                 return
+            previous_tab = ensure_agent_tab_for_identity(self, target_identity)
             outcome = reveal_agent_navigation_target(self, plan)
             reveal = outcome.result
             if reveal is None:
+                restore_agent_tab(self, previous_tab)
                 return
             panel_group = getattr(self, "_panel_group", None)
             if panel_group is not None:

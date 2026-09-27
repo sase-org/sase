@@ -59,12 +59,12 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             if forward_stack and callable(guard) and guard():
                 return
 
+            current_agent_anchor = self._current_agents_jump_anchor()
             agent_anchor = self._pop_agents_jump_anchor(forward_stack)
             if agent_anchor is None:
                 self._notify_no_next_jump_point()
                 return
 
-            current_agent_anchor = self._current_agents_jump_anchor()
             if current_agent_anchor is not None:
                 self._push_agents_jump_anchor(
                     self._entry_jump_agents_anchor_stack,

@@ -131,6 +131,29 @@ class LinkTrailMixin:
         )
         if not name:
             return False
+        complete = list(
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", None)
+            or ()
+        )
+        match = next(
+            (agent for agent in complete if getattr(agent, "agent_name", None) == name),
+            None,
+        )
+        if match is not None:
+            ensure = getattr(self, "_ensure_agent_tab_for", None)
+            if callable(ensure):
+                try:
+                    ensure(match.identity)
+                except Exception:
+                    pass
+            else:
+                try:
+                    from .agents._agent_tab_jump import ensure_agent_tab_for_identity
+
+                    ensure_agent_tab_for_identity(self, match.identity)
+                except Exception:
+                    pass
         agents = getattr(self, "_agents", ())
         for idx, agent in enumerate(agents):
             if getattr(agent, "agent_name", None) != name:

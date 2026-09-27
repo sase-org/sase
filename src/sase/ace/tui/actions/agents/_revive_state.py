@@ -23,6 +23,19 @@ class AgentReviveStateMixin:
 
     def _select_revived_agent(self, agent: Agent) -> bool:
         """Select *agent* after a revive reload, including its tribe panel."""
+        ensure = getattr(self, "_ensure_agent_tab_for", None)
+        if callable(ensure):
+            try:
+                ensure(agent.identity)
+            except Exception:
+                pass
+        else:
+            try:
+                from ._agent_tab_jump import ensure_agent_tab_for_identity
+
+                ensure_agent_tab_for_identity(self, agent.identity)
+            except Exception:
+                pass
         target_idx: int | None = None
         for idx, candidate in enumerate(getattr(self, "_agents", [])):
             if candidate.identity == agent.identity or (

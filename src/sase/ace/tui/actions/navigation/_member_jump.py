@@ -408,6 +408,13 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if plan is None:
             return failure
 
+        from ..agents._agent_tab_jump import (
+            ensure_agent_tab_for_identity,
+            restore_agent_tab,
+        )
+
+        previous_tab = ensure_agent_tab_for_identity(self, target_identity)
+
         old_idx = self.current_idx
         old_group_key = getattr(self, "_current_group_key", None)
         old_agent = (
@@ -427,6 +434,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         reveal = outcome.result
         if reveal is None:
             self._restore_member_jump_history(back_stack, forward_stack)
+            restore_agent_tab(self, previous_tab)
             return outcome.failure
         if old_agent is not None and reveal.tree_changed:
             rebase_anchor = getattr(self, "_rebase_latest_agents_jump_anchor", None)
