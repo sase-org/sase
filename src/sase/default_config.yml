@@ -711,6 +711,11 @@ ace:
       # Tab switching
       next_tab: "tab"
       prev_tab: "shift+tab"
+      # Agent tabs (beta flag agent_tabs): ]/[ cycle agent tabs on the
+      # Agents tab while the tab strip is visible; the picker is unbound.
+      next_agents_tab: "right_square_bracket"
+      prev_agents_tab: "left_square_bracket"
+      pick_agents_tab: "unbound"
       cycle_artifacts_subtab: "right_square_bracket"
       cycle_artifacts_subtab_reverse: "left_square_bracket"
       # Artifacts split

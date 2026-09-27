@@ -170,6 +170,12 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         "app.pick_deck",
     }:
         return True
+    if spec.id in {
+        "app.next_agents_tab",
+        "app.prev_agents_tab",
+        "app.pick_agents_tab",
+    }:
+        return bool(ctx.agent_tab_strip_visible)
     if spec.id.startswith(("agents.show_deck.", "agents.show_deck_other.")):
         return True
     if spec.id in {

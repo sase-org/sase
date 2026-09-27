@@ -3758,6 +3758,13 @@ HintInputBar #hint-escape-hint {
     padding-left: 1;
 }
 
+/* Minimal agent-tab strip (tab-state-keys phase): labels only, sized to
+   content at the left of #agents-header. The tab-strip phase restyles it. */
+#agents-tab-strip {
+    width: auto;
+    height: 1;
+}
+
 #agent-list-container {
     width: 60;
     height: 100%;

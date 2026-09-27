@@ -128,6 +128,21 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.toggle_node_panel)}",
                     "Collapse/expand node panel",
                 ),
+                *(
+                    [
+                        (
+                            f"{d(a.prev_agents_tab)} / {d(a.next_agents_tab)}",
+                            "Prev / next agent tab (beta)",
+                        )
+                    ]
+                    if d(a.prev_agents_tab) and d(a.next_agents_tab)
+                    else []
+                ),
+                *(
+                    [(d(a.pick_agents_tab), "Go to agent tab… (beta)")]
+                    if d(a.pick_agents_tab)
+                    else []
+                ),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
                     "Scroll detail top / bottom; deck follows",

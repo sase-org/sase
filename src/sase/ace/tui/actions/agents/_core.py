@@ -33,6 +33,7 @@ from ._query_persistence import AgentQueryPersistenceMixin
 from ._revert import AgentRevertMixin
 from ._revive import AgentRevivalMixin
 from ._selection import AgentSelectionMixin
+from ._agent_tabs import AgentTabsMixin
 from ._tab_scope import AgentTabScopeMixin
 from ._tribe_assignment import AgentTribeAssignmentMixin
 from ._unread import AgentUnreadMixin
@@ -86,6 +87,7 @@ class AgentsMixinCore(
     AgentNavigationOrderMixin,
     AgentSelectionMixin,
     AgentTabScopeMixin,
+    AgentTabsMixin,
     AgentUnreadMixin,
     AgentEnterActionMixin,
     AgentPatchNavigationMixin,

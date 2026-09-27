@@ -9,6 +9,7 @@ tab.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, TYPE_CHECKING
 
 from sase.core.agent_tab import DEFAULT_AGENT_TAB_KEY, AgentTabKey
@@ -20,6 +21,8 @@ from ...models.agent_tab_index import (
     agent_tab_scope_token,
     scope_agents_to_tab,
 )
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -71,6 +74,15 @@ def refresh_agent_tab_index(owner: Any, roster: list[Agent] | None = None) -> An
         return None
     index = cached_agent_tab_index(roster, view_config)
     owner._agent_tab_index = index
+    # Tab-state-keys maintenance (startup selection, latch, machine
+    # fallback). The hook only moves `_active_agent_tab` bookkeeping; the
+    # caller re-applies the scope right after, so no rescope happens here.
+    reconcile = getattr(owner, "_reconcile_active_agent_tab", None)
+    if callable(reconcile):
+        try:
+            reconcile()
+        except Exception:
+            log.exception("Agent tab reconcile failed")
     return index
 
 

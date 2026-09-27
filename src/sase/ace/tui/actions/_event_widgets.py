@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from textual import events
 
 from ..widgets import AgentList, BgCmdList, PatchList, TabBar
@@ -225,6 +227,37 @@ class EventWidgetHandlersMixin(EventHandlersBase):
                     refresh = getattr(self, "_refresh_agents_display", None)
                     if callable(refresh):
                         refresh(list_changed=True, defer_detail=True)
+
+    def on_panel_tab_strip_tab_clicked(self, event: Any) -> None:
+        """Handle clicks on the Agents-tab minimal tab strip.
+
+        Other ``PanelTabStrip`` owners (help, config hub, statistics,
+        plugins) live on modal screens and handle their own clicks, so
+        modal-screen messages and unknown tab ids are ignored here.
+        """
+        try:
+            from textual.screen import ModalScreen
+
+            if isinstance(getattr(self, "screen", None), ModalScreen):
+                return
+        except Exception:
+            pass
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        try:
+            from ..widgets.panel_tab_strip import PanelTabStrip
+
+            strip = self.query_one("#agents-tab-strip", PanelTabStrip)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        del strip
+        handler = getattr(self, "_on_agents_tab_strip_clicked", None)
+        if not callable(handler):
+            return
+        try:
+            handler(event.tab_id)
+        except Exception:
+            return
 
     def on_tab_bar_tab_clicked(self, event: TabBar.TabClicked) -> None:
         """Handle tab clicks from the tab bar."""

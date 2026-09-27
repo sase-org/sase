@@ -115,6 +115,10 @@ class KeymapRegistry:
     snippets: SnippetPanelKeymaps = field(default_factory=SnippetPanelKeymaps)
     projects: ProjectsPaneKeymaps = field(default_factory=ProjectsPaneKeymaps)
     modes: dict[str, ModeKeymaps] = field(default_factory=dict)
+    # Card-block actions explicitly bound to [ / ] (tab-state-keys legacy
+    # bracket yield). Agent tab cycling unbinds its colliding ]/[ defaults
+    # unless the user explicitly bound them too.
+    legacy_card_block_brackets: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
         # Ensure built-in modes exist with defaults if not provided.

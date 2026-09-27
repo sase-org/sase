@@ -249,6 +249,7 @@ class CommandContext:
     deck_view_cycle_available: bool = False
     fleet_enabled: bool = False
     selected_agent_remote: bool = False
+    agent_tab_strip_visible: bool = False
     # Axe tab state
     axe_running: bool = False
     selected_axe_slot_done: bool = False

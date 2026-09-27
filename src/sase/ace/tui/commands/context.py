@@ -215,6 +215,20 @@ def _card_blocks_navigable(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
         return False
 
 
+def _agent_tab_strip_visible(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
+    """Return whether the Agents-tab minimal tab strip is visible."""
+    if app.current_tab != "agents":
+        return False
+    try:
+        from sase.ace.tui.actions.agents._agent_tabs import strip_visible_for_owner
+    except Exception:
+        return False
+    try:
+        return bool(strip_visible_for_owner(app))
+    except Exception:
+        return False
+
+
 def _deck_view_state(app: AceApp) -> tuple[str | None, str | None, bool]:  # type: ignore[no-untyped-def]
     """Return ``(deck, policy, cycle_available)`` for deck-view commands.
 
@@ -469,6 +483,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         deck_view_cycle_available=deck_view_cycle,
         fleet_enabled=bool(fleet_available()) if callable(fleet_available) else False,
         selected_agent_remote=selected_remote,
+        agent_tab_strip_visible=_agent_tab_strip_visible(app),
         link_edges_present=link_edges_present,
         axe_running=bool(getattr(app, "axe_running", False)),
         selected_axe_slot_done=done and isinstance(axe_item, BgCmdItem),

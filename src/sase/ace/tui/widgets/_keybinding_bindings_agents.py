@@ -66,6 +66,7 @@ class AgentBindingsMixin:
         deck_card_count: int = 0,
         card_blocks_navigable: bool = False,
         deck_view_cycle_available: bool = False,
+        agent_tab_strip_visible: bool = False,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -466,6 +467,13 @@ class AgentBindingsMixin:
             )
         if deck_view_cycle_available:
             bindings.append((self._kd("cycle_deck_view"), "view"))
+        if agent_tab_strip_visible:
+            bindings.append(
+                (
+                    f"{self._kd('prev_agents_tab')}/{self._kd('next_agents_tab')}",
+                    "tabs",
+                )
+            )
         if deck_split:
             bindings.append((self._kd("toggle_deck_focus"), "other panel"))
             bindings.append(

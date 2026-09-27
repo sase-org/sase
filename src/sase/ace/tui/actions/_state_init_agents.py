@@ -50,6 +50,26 @@ def init_agent_state(self: Any) -> None:
 
     self._active_agent_tab = DEFAULT_AGENT_TAB_KEY
     self._agent_tab_index = None
+    # Per-tab memory plus the tab-state-keys switch state (phase
+    # sase-1bc.6.1.3): selection/panel/scroll memory keyed by tab, the
+    # emptied-tab latch, known strip labels, the previous catalog keys for
+    # latch detection, startup/persisted selection gates, and the
+    # coalesced off-thread persistence writer.
+    self._agent_tab_memory = {}
+    self._agent_tab_latched_key = None
+    self._agent_tab_known_labels = {}
+    self._agent_tab_prev_catalog_keys = ()
+    self._agent_tabs_reconciled_once = False
+    self._agent_tabs_user_switched = False
+    self._agent_tab_load_started = False
+    self._agent_tab_load_resolved = False
+    self._agent_tab_loaded_key = None
+    self._agent_tab_load_worker = None
+    self._agent_tab_save_pending = None
+    self._agent_tab_save_task = None
+    self._agent_tab_save_generation = 0
+    self._agent_tab_save_completed_generation = 0
+    self._agent_tab_strip_signature = None
     self._agents_capacity_with_children = []
     self._agents_local_with_children = []
     self._agents_local_visible = []

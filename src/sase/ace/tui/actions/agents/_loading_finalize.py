@@ -278,7 +278,30 @@ def _apply_finalize_plan(
     # stage (scope-stage phase), then prune the content cache to match.
     app._agents_query_result = list(plan.agents_query_result)
     app._agent_tab_index = plan.tab_index
-    app._agents = list(plan.scoped_agents)
+    # Tab-state-keys maintenance on the worker path: the plan's scope may
+    # predate a startup selection or machine fallback, so reconcile first
+    # and re-scope from the query result when the active key moved.
+    _reconciled = getattr(app, "_reconcile_active_agent_tab", None)
+    _rescope_needed = False
+    if callable(_reconciled):
+        try:
+            _rescope_needed = bool(_reconciled())
+        except Exception:
+            _rescope_needed = False
+    if _rescope_needed:
+        from ...models.agent_tab_index import scope_agents_to_tab
+
+        from ...agent_tabs_flag import agent_tabs_enabled
+        from ._tab_scope import current_agent_tab_scope
+
+        app._agents = scope_agents_to_tab(
+            list(plan.agents_query_result),
+            plan.tab_index,
+            current_agent_tab_scope(app),
+            enabled=bool(agent_tabs_enabled()),
+        )
+    else:
+        app._agents = list(plan.scoped_agents)
     app._agent_content_search_cache.prune(app._agents)
 
     # Apply status overrides + clean stale entries based on the worker plan.

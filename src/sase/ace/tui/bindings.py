@@ -90,6 +90,18 @@ DEFAULT_BINDINGS: list[BindingType] = [
         show=False,
     ),
     Binding(
+        "right_square_bracket",
+        "next_agents_tab",
+        "Next Agent Tab",
+        show=False,
+    ),
+    Binding(
+        "left_square_bracket",
+        "prev_agents_tab",
+        "Previous Agent Tab",
+        show=False,
+    ),
+    Binding(
         "right_curly_bracket",
         "cycle_artifacts_split",
         "Wider Artifact List",

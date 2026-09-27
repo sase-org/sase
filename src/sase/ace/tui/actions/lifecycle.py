@@ -244,6 +244,9 @@ class LifecycleMixin:
             flush_decks = getattr(self, "_flush_agents_deck_state", None)
             if callable(flush_decks):
                 flushes.append(flush_decks())
+            flush_tabs = getattr(self, "_flush_agent_tab_state", None)
+            if callable(flush_tabs):
+                flushes.append(flush_tabs())
             flush_admin_center = getattr(self, "_flush_admin_center_tab_state", None)
             if callable(flush_admin_center):
                 flushes.append(flush_admin_center())
@@ -282,6 +285,7 @@ class LifecycleMixin:
             for name in (
                 "_flush_agents_fold_state",
                 "_flush_agents_deck_state",
+                "_flush_agent_tab_state",
                 "_flush_admin_center_tab_state",
                 "_flush_agents_query_state",
                 "_flush_pending_launch_stashes",

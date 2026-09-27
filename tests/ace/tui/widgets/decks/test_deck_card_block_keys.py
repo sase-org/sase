@@ -175,14 +175,38 @@ def test_card_block_gating_needs_agents_tab_and_navigable_panel() -> None:
     )
 
 
+def _two_tab_gating_app(**kwargs: object) -> object:
+    """Return an Agents-tab gating app whose strip shows two tabs."""
+    from types import SimpleNamespace
+
+    from sase.core.agent_tab import AgentTabCatalogEntry, AgentTabKey
+
+    entries = (
+        AgentTabCatalogEntry(AgentTabKey.default(), "default", "main", 1),
+        AgentTabCatalogEntry(AgentTabKey.named("sase"), "named", "sase", 2),
+    )
+    app = _gating_app(tab="agents", navigable=True, **kwargs)  # type: ignore[arg-type]
+    app._agent_tab_index = SimpleNamespace(catalog=entries)
+    app._agent_tab_latched_key = None
+    return app
+
+
 def test_bracket_keys_do_nothing_on_agents() -> None:
+    from sase.feature_flags import override_flags
+
     reg = load_keymap_registry({})
     owners = keymap_actions_by_key(reg.app)
-    assert set(owners["right_square_bracket"]) == {"cycle_artifacts_subtab"}
-    assert set(owners["left_square_bracket"]) == {"cycle_artifacts_subtab_reverse"}
+    assert set(owners["right_square_bracket"]) == {
+        "cycle_artifacts_subtab",
+        "next_agents_tab",
+    }
+    assert set(owners["left_square_bracket"]) == {
+        "cycle_artifacts_subtab_reverse",
+        "prev_agents_tab",
+    }
 
     agents = _gating_app(tab="agents", navigable=True)
-    # Neither bracket owner reaches the Agents tab until tab-scope binds them.
+    # Neither Artifacts bracket owner reaches the Agents tab.
     assert (
         check_app_action(agents, "cycle_artifacts_subtab", (), lambda _a, _p: None)
         is False
@@ -193,6 +217,84 @@ def test_bracket_keys_do_nothing_on_agents() -> None:
         )
         is False
     )
+    # With the flag off the tab-cycle brackets still do nothing.
+    with override_flags(agent_tabs=False):
+        assert (
+            check_app_action(
+                _two_tab_gating_app(), "next_agents_tab", (), lambda _a, _p: None
+            )
+            is False
+        )
+        assert (
+            check_app_action(
+                _two_tab_gating_app(), "prev_agents_tab", (), lambda _a, _p: None
+            )
+            is False
+        )
+    # With the flag on and two tabs they cycle tabs.
+    with override_flags(agent_tabs=True):
+        assert (
+            check_app_action(
+                _two_tab_gating_app(), "next_agents_tab", (), lambda _a, _p: None
+            )
+            is not False
+        )
+        assert (
+            check_app_action(
+                _two_tab_gating_app(), "prev_agents_tab", (), lambda _a, _p: None
+            )
+            is not False
+        )
+        assert (
+            check_app_action(
+                _two_tab_gating_app(), "pick_agents_tab", (), lambda _a, _p: None
+            )
+            is not False
+        )
+
+
+def test_legacy_bracket_yield_unbinds_tab_cycling(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Explicit card-block brackets yield tab cycling off the brackets."""
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "app": {
+                        "prev_card_block": "left_square_bracket",
+                        "next_card_block": "right_square_bracket",
+                    }
+                }
+            }
+        )
+    assert reg.app.prev_card_block == "left_square_bracket"
+    assert reg.app.next_card_block == "right_square_bracket"
+    assert reg.app.next_agents_tab == "unbound"
+    assert reg.app.prev_agents_tab == "unbound"
+    assert reg.legacy_card_block_brackets == frozenset(
+        {"next_card_block", "prev_card_block"}
+    )
+    assert "yields the brackets" in caplog.text or "yielded the brackets" in caplog.text
+
+
+def test_legacy_bracket_yield_keeps_explicit_tab_bindings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An explicit tab-cycle binding survives the legacy bracket yield."""
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "app": {
+                        "next_card_block": "right_square_bracket",
+                        "next_agents_tab": "f11",
+                    }
+                }
+            }
+        )
+    assert reg.app.next_agents_tab == "f11"
+    assert reg.app.prev_agents_tab == "unbound"
 
 
 def test_paren_keys_resolve_per_tab() -> None:

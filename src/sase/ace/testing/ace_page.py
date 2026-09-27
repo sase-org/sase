@@ -92,6 +92,21 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
     # Tab-specific state
     if app.current_tab == "agents":
         state["agent_count"] = len(app._agents)
+        try:
+            from sase.core.agent_tab import agent_tab_key_token
+
+            _active_tab = getattr(app, "_active_agent_tab", None)
+            state["active_agent_tab"] = (
+                agent_tab_key_token(_active_tab) if _active_tab is not None else None
+            )
+        except Exception:
+            state["active_agent_tab"] = None
+        try:
+            _tab_index = getattr(app, "_agent_tab_index", None)
+            _catalog = getattr(_tab_index, "catalog", ()) or ()
+            state["agent_tabs"] = [entry.label for entry in _catalog]
+        except Exception:
+            state["agent_tabs"] = []
         if app._agents and 0 <= app._agents_last_idx < len(app._agents):
             agent = app._agents[app._agents_last_idx]
             state["selected_agent"] = {

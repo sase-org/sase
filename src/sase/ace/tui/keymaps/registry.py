@@ -150,6 +150,10 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # version stepping. Both use ( / ) on different main tabs.
         frozenset({"next_card_block", "files_next_version"}),
         frozenset({"prev_card_block", "files_prev_version"}),
+        # Tab-disjoint: Agents tab cycling shares ]/[ with the Artifacts
+        # sub-tab cycle on different main tabs.
+        frozenset({"next_agents_tab", "cycle_artifacts_subtab"}),
+        frozenset({"prev_agents_tab", "cycle_artifacts_subtab_reverse"}),
     }
 )
 
@@ -441,9 +445,24 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         log.warning(
             "Card-block stepping moved from [ / ] to ( / ); "
             "explicit bracket override(s) for %s are honored, "
-            "but prefer left_parenthesis/right_parenthesis",
+            "but prefer left_parenthesis/right_parenthesis; "
+            "agent tab cycling yields the brackets",
             ", ".join(legacy_card_block_brackets),
         )
+    # Legacy bracket yield (tab-state-keys phase): when card blocks are
+    # explicitly bound to [ / ], unbind whichever next/prev_agents_tab
+    # defaults collide, unless the user explicitly bound those too.
+    for _agents_tab_action, _bracket in (
+        ("next_agents_tab", "right_square_bracket"),
+        ("prev_agents_tab", "left_square_bracket"),
+    ):
+        if (
+            legacy_card_block_brackets
+            and _agents_tab_action not in user_overridden
+            and _bracket
+            in split_key_alternatives(app_kwargs.get(_agents_tab_action, ""))
+        ):
+            app_kwargs[_agents_tab_action] = "unbound"
     legacy_bracket_pairs = frozenset(
         {
             frozenset({"next_card_block", "cycle_artifacts_subtab"}),
@@ -615,6 +634,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         snippets=snippets_km,
         projects=projects_km,
         modes=modes,
+        legacy_card_block_brackets=frozenset(legacy_card_block_brackets),
     )
 
     for mode_name, action_name in _MODE_PREFIX_ACTIONS.items():

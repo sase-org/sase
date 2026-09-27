@@ -314,6 +314,27 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("agents_next", "Agents: next row", "Navigation", CL_ONLY, ("agent down",)),
     ("agents_prev", "Agents: previous row", "Navigation", CL_ONLY, ("agent up",)),
     (
+        "next_agents_tab",
+        "Agents: next tab",
+        "Tabs",
+        AGENTS_ONLY,
+        ("agent tab", "next tab", "]"),
+    ),
+    (
+        "prev_agents_tab",
+        "Agents: previous tab",
+        "Tabs",
+        AGENTS_ONLY,
+        ("agent tab", "previous tab", "["),
+    ),
+    (
+        "pick_agents_tab",
+        "Agents: go to tab…",
+        "Tabs",
+        AGENTS_ONLY,
+        ("agent tab", "pick", "go to"),
+    ),
+    (
         "connect_agent_machine",
         "Agents: show remote machine status",
         "Agents",

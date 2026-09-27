@@ -372,6 +372,13 @@ class AgentFooterDisplayMixin:
                 deck_card_count = 0
                 card_blocks_navigable = False
                 deck_view_cycle_available = False
+            _tab_strip_visible = False
+            _tab_visible_fn = getattr(self, "_agent_tab_strip_visible", None)
+            if callable(_tab_visible_fn):
+                try:
+                    _tab_strip_visible = bool(_tab_visible_fn())
+                except Exception:
+                    _tab_strip_visible = False
             footer_widget.update_agent_bindings(
                 current_agent,
                 completed_count=completed_count,
@@ -418,6 +425,7 @@ class AgentFooterDisplayMixin:
                 deck_card_count=deck_card_count,
                 card_blocks_navigable=card_blocks_navigable,
                 deck_view_cycle_available=deck_view_cycle_available,
+                agent_tab_strip_visible=_tab_strip_visible,
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:
