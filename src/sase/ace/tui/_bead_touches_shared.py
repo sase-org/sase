@@ -21,6 +21,8 @@ class BeadTouchDisplayEvent:
     ``agent_label`` is ``None`` for ordinary (single-member) rows so the
     existing per-agent shape is preserved; session rows set it to the
     producing member's compact role label (e.g. ``plan``, ``coder``).
+    ``None`` on a session row also means a session-level touch recorded
+    under the container name, which could not be credited to one turn.
     """
 
     touch: BeadTouch

@@ -9,6 +9,13 @@ returns no rows, never an error.
 
 The legacy, no-longer-written ``bead_views.jsonl`` log is folded in
 behind the durable index rows as ``viewed``-only synthetic touches.
+
+Bead mutations record ``$SASE_AGENT_NAME`` as the event actor, which holds
+the session container name for pre-rename roots and in-process continuation
+turns. The loader therefore accepts the container name as an actor alias
+wherever the whole session is in view (a session row, or a session root
+with no visible followups). Member matchers keep precedence, alias touches
+stay unlabeled, and non-root turn rows never take the alias.
 """
 
 from __future__ import annotations
@@ -27,7 +34,6 @@ from sase.bead.bead_views import (
     BeadViewEvent,
     bead_views_log_path,
     read_bead_view_events,
-    view_touches_for_agent,
     views_to_touches,
 )
 from sase.core.agent_identity_facade import (
@@ -41,7 +47,6 @@ from sase.core.bead_touch_index_facade import (
     query_touch_index,
     touch_index_path,
     touch_matches_agent,
-    touches_for_agent,
 )
 from sase.main.init_memory.config import project_memory_name
 
@@ -172,6 +177,39 @@ def _globalized_name_for_agent(
     return _member_match_params(
         agent.agent_name or agent.presented_agent_name, identity
     )
+
+
+def _session_container_alias(agent: Agent) -> str | None:
+    """Return the session-container actor alias for a session root row.
+
+    Bead mutations record ``$SASE_AGENT_NAME`` as the event actor, and for a
+    pre-rename root or an in-process continuation turn that variable holds
+    the session container name (``agent_meta.json``'s ``agent_session``),
+    not a concrete ``--plan``/``--code`` turn name. The container name is
+    therefore a legitimate identity spelling for the whole session, and the
+    loader accepts it as an actor alias wherever the whole session is in
+    view. Members keep precedence (callers test them first), alias touches
+    are unlabeled, and non-root turn rows never take the alias. Returns
+    ``None`` when there is no usable alias: non-root rows, a blank session
+    name, or a never-renamed root whose container name already equals its
+    own ``agent_name`` (exact matching covers that case). Never raises.
+    """
+    try:
+        if not agent.is_agent_session_root_entry:
+            return None
+        alias = agent.agent_session_reference_name()
+    except Exception:
+        return None
+    if not isinstance(alias, str) or not alias.strip():
+        return None
+    text = alias.strip()
+    try:
+        own = agent.agent_name or agent.presented_agent_name
+    except Exception:
+        own = None
+    if isinstance(own, str) and text == own.strip():
+        return None
+    return text
 
 
 def _load_touch_index_snapshot(
@@ -307,8 +345,12 @@ def _load_bead_touches_for_agent(
 ) -> tuple[BeadTouchDisplayEvent, ...]:
     """Return indexed touches attributed to ``agent``, newest first.
 
-    Uses an mtime-keyed cache + throttle to make repeated calls cheap on the
-    j/k navigation hot path. Never raises: any failure is an empty answer.
+    A session root entry with no visible followups also matches its
+    session-container alias (see :func:`_session_container_alias`), so a
+    root renamed to ``--plan`` still credits touches recorded under the
+    container name. Uses an mtime-keyed cache + throttle to make repeated
+    calls cheap on the j/k navigation hot path. Never raises: any failure
+    is an empty answer.
     """
     try:
         return _load_bead_touches_for_agent_inner(agent, limit=limit)
@@ -335,19 +377,26 @@ def _load_bead_touches_for_agent_inner(
             return cached.events[:limit]
 
     identity = AgentIdentitySnapshot.current()
-    globalized_name, local_name = _globalized_name_for_agent(agent, identity)
-    filtered = touches_for_agent(
-        all_touches,
-        globalized_name=globalized_name,
-        local_name=local_name,
-        identity=identity,
-    )
-    view_hits = view_touches_for_agent(
-        view_events,
-        globalized_name=globalized_name,
-        local_name=local_name,
-        identity=identity,
-    )
+    pairs = [_globalized_name_for_agent(agent, identity)]
+    alias = _session_container_alias(agent)
+    if alias is not None:
+        pairs.append(_member_match_params(alias, identity))
+
+    def _matches(actor: str) -> bool:
+        return any(
+            touch_matches_agent(
+                actor,
+                globalized_name=globalized_name,
+                local_name=local_name,
+                identity=identity,
+            )
+            for globalized_name, local_name in pairs
+        )
+
+    filtered = [touch for touch in all_touches if _matches(touch.actor)]
+    view_hits = [
+        touch for touch in views_to_touches(view_events) if _matches(touch.actor)
+    ]
     ordered = sorted(
         merge_view_touches(filtered, view_hits), key=_touch_sort_key, reverse=True
     )
@@ -375,9 +424,12 @@ def load_bead_touches_for_agent_context(
     single-agent shape. For a session row it reads the index once, attributes
     each touch to the first member whose identity matches its actor, sorts
     newest first, caps to ``MAX_KEPT_TOUCHES``, and labels each kept touch
-    with its producer's compact role. Touches carry only an actor string
-    (no artifacts dir), so attribution is name-based through the facade's
-    shared matcher. Never raises.
+    with its producer's compact role. Touches recorded under the session
+    container name match a trailing alias matcher (see
+    :func:`_session_container_alias`) and stay unlabeled, because one
+    ``(actor, bead)`` row can merge several turns' events. Touches carry
+    only an actor string (no artifacts dir), so attribution is name-based
+    through the facade's shared matcher. Never raises.
     """
     try:
         return _load_bead_touches_for_agent_context_inner(agent, limit=limit)
@@ -413,10 +465,13 @@ def _load_bead_touches_for_agent_context_inner(
             return cached.events[:limit]
 
     identity = AgentIdentitySnapshot.current()
-    matchers = [
+    matchers: list[tuple[str | None, str, str | None]] = [
         (member.label, *_member_match_params(member.agent_name, identity))
         for member in members
     ]
+    alias = _session_container_alias(agent)
+    if alias is not None:
+        matchers.append((None, *_member_match_params(alias, identity)))
     matched: list[BeadTouchDisplayEvent] = []
     for touch in all_touches:
         for label, globalized_name, local_name in matchers:
