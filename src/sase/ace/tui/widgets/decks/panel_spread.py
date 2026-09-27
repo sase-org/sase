@@ -13,6 +13,7 @@ from .render_mode import (
     measure_main_rows,
     spread_budget_rows,
 )
+from .view_policy import forced_deck_mode
 
 
 class DeckPanelSpreadMixin:
@@ -101,6 +102,17 @@ class DeckPanelSpreadMixin:
     ) -> RenderMode:
         previous = self._render_mode.get(DeckId.MAIN, RenderMode.PAGED)
         card_count = len(document.cards)
+        try:
+            policy = self.view_policy(DeckId.MAIN)  # type: ignore[attr-defined]
+        except Exception:
+            policy = None
+        if policy is not None:
+            try:
+                forced = forced_deck_mode(policy, card_count)
+            except Exception:
+                forced = None
+            if forced is not None:
+                return forced
         spread_max = self._spread_settings_max_screens()
         if card_count <= 1:
             return RenderMode.SPREAD

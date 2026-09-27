@@ -32,6 +32,7 @@ from .panel_interaction import DeckPanelInteractionMixin
 from .panel_navigation import DeckPanelNavigationMixin
 from .panel_spread import DeckPanelSpreadMixin
 from .panel_transitions import DeckPanelTransitionsMixin
+from .panel_view import DeckPanelViewMixin
 
 _DECK_ACCENT_CLASS = {s.deck_id: s.accent_class for s in DECK_SPECS}
 
@@ -48,6 +49,7 @@ class DeckPanelFocusRequested(Message):
 
 
 class DeckPanel(  # type: ignore[misc]
+    DeckPanelViewMixin,
     DeckPanelBlocksMixin,
     DeckPanelChromeMixin,
     DeckPanelSpreadMixin,
@@ -78,6 +80,7 @@ class DeckPanel(  # type: ignore[misc]
         self._tools_has_content = False
         self._init_spread_state()
         self._init_block_panel_state()
+        self._init_view_state()
 
     @property
     def panel_index(self) -> int:

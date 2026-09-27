@@ -15,6 +15,7 @@ from .block_model import decide_block_mode
 from .block_rail import BlockRail, BlockRailEntry
 from .model import DeckId, RenderMode, resolve_active_card
 from .render_mode import measure_main_rows, spread_budget_rows
+from .view_policy import forced_block_mode
 
 
 class DeckPanelBlocksMixin:
@@ -44,6 +45,20 @@ class DeckPanelBlocksMixin:
         """Decide the block mode for ``card`` shown alone (§3.3)."""
         block_count = len(card.blocks)
         key = (document.subject, card.card_id)
+        try:
+            policy = self.view_policy(DeckId.MAIN)  # type: ignore[attr-defined]
+        except Exception:
+            policy = None
+        if policy is not None:
+            try:
+                forced = forced_block_mode(policy, block_count)
+            except Exception:
+                forced = None
+            if forced is not None:
+                self._block_mode = forced
+                self._block_mode_key = key
+                self._block_mode_measured = True
+                return forced
         previous = self._block_mode if self._block_mode_key == key else None
         same_card = previous is not None
         max_screens = self._block_settings_max_screens()

@@ -11,6 +11,7 @@ from textual.widgets import Static
 
 from ._agent_detail_deck_layout import AgentDetailDeckLayoutMixin
 from ._agent_detail_deck_targets import AgentDetailDeckTargetsMixin
+from ._agent_detail_deck_view import AgentDetailDeckViewMixin
 from ._agent_detail_decks import AgentDetailDeckMixin
 from ._agent_detail_display import AgentDetailDisplayMixin
 from ._agent_detail_helpers import agent_prompt_panel_type
@@ -33,6 +34,7 @@ class AgentMetadataIdentityChanged(Message):
 class AgentDetail(
     AgentDetailDeckLayoutMixin,
     AgentDetailDeckTargetsMixin,
+    AgentDetailDeckViewMixin,
     AgentDetailDeckMixin,
     AgentDetailDisplayMixin,
     AgentDetailStateMixin,

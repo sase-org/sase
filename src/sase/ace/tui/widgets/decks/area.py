@@ -14,7 +14,9 @@ from .model import (
     DeckAreaState,
     DeckId,
     DeckLayout,
+    DeckView,
     with_panel_deck,
+    with_panel_view,
     with_preferred_card,
 )
 from .panel import DeckPanel, DeckPanelFocusRequested
@@ -48,6 +50,7 @@ class DeckArea(Vertical):
     def apply_state(self, new_state: DeckAreaState) -> None:
         """Store ``new_state`` and sync CSS classes only."""
         self._state = new_state
+        self._sync_panel_views(new_state)
         layout = new_state.layout
         for existing in list(self.classes):
             if existing in (
@@ -137,6 +140,35 @@ class DeckArea(Vertical):
         """Update state and the panel's deck."""
         self._state = with_panel_deck(self._state, index, deck)
         self.panel(index).set_deck(deck)
+
+    def set_panel_view(self, index: int, deck: DeckId, view: DeckView) -> None:
+        """Update state via ``with_panel_view``, then apply it on the panel."""
+        self._state = with_panel_view(self._state, index, deck, view)
+        self.panel(index).set_view_policy(deck, view)
+
+    def _sync_panel_views(self, new_state: DeckAreaState) -> None:
+        """Sync stored view policies; apply only when changed (never raises)."""
+        for index, panel_state in enumerate(new_state.panels):
+            try:
+                panel = self.panel(index)
+            except Exception:
+                continue
+            try:
+                changed = bool(panel.sync_view_policies(panel_state.views))
+            except Exception:
+                continue
+            if not changed:
+                continue
+            try:
+                if panel.deck is DeckId.MAIN:
+                    document = panel._main_document
+                    if not document.partial and document.cards:
+                        panel._apply_main_view_change()
+                        continue
+                # FILES applies in files-engine; other decks need chrome only.
+                panel.refresh_chrome()
+            except Exception:
+                pass
 
     def set_preferred_card(
         self, index: int, card_id: str | None, deck: DeckId | None = None
