@@ -491,13 +491,48 @@ def _run_appearances(node_item: Any, runs: Any) -> list[tuple[str | None, Any]]:
     return pairs
 
 
-def build_instance_card_renderables(
+def build_instance_run_lines(
+    run_item: Any,
+    *,
+    instance_id: str,
+    width: int = INSTANCE_CARD_WIDTH,
+) -> list[Text]:
+    """Return one run's body lines for an instance card block (plan §4.17).
+
+    The lines are the attempt sections, typed evidence, deduped
+    diagnostics, terminal-state lines, and log/protocol hint lines for
+    that run's appearance of the instance. The block header carries the
+    run label, so no per-run separator is emitted here.
+    """
+    lines: list[Text] = []
+    lines.extend(_build_attempt_sections(run_item, width=width))
+    evidence = list(getattr(run_item, "evidence", ()) or ())
+    headline = getattr(run_item, "headline", None)
+    lines.extend(_build_evidence_lines(evidence, headline=headline, width=width))
+    lines.extend(
+        _build_diagnostic_lines(getattr(run_item, "diagnostics", ()), width=width)
+    )
+    lines.extend(_build_terminal_state_lines(run_item, width=width))
+    lines.extend(
+        _build_log_lines(instance_id, getattr(run_item, "operations", ()), width=width)
+    )
+    lines.extend(
+        _build_protocol_lines(getattr(run_item, "protocol_files", ()), width=width)
+    )
+    return lines
+
+
+#: Card-level hint line pointing at export and search (plan §4.16).
+INSTANCE_EXPORT_HINT = f"  {FINAL_GLYPH} export with E · search with ,/"
+
+
+def build_instance_preamble_lines(
     node_item: Any,
     runs: Any,
     *,
     width: int = INSTANCE_CARD_WIDTH,
 ) -> tuple[Any, ...]:
-    """Return the generic provider-neutral body for one instance card."""
+    """Return the header plus why/trigger/declared lines for one card."""
     instance_id = str(getattr(node_item, "instance_id", "") or "")
     provider_ref = getattr(node_item, "provider_ref", None)
     provider_ref = str(provider_ref) if provider_ref else None
@@ -554,6 +589,22 @@ def build_instance_card_renderables(
             width=width,
         )
     )
+    return tuple(renderables)
+
+
+def build_instance_card_renderables(
+    node_item: Any,
+    runs: Any,
+    *,
+    width: int = INSTANCE_CARD_WIDTH,
+) -> tuple[Any, ...]:
+    """Return the generic provider-neutral body for one instance card."""
+    instance_id = str(getattr(node_item, "instance_id", "") or "")
+    status = getattr(node_item, "status", None)
+    pairs = _run_appearances(node_item, runs)
+    renderables: list[Any] = list(
+        build_instance_preamble_lines(node_item, runs, width=width)
+    )
     if not pairs:
         glyph, word, _ = _status_glyph_word(status)
         renderables.append(Text(f"  {glyph} {word}", style="dim"))
@@ -562,30 +613,18 @@ def build_instance_card_renderables(
     for label, item in pairs:
         if multi_run and label:
             renderables.append(Text(f"  ── {label} ──", style="dim"))
-        renderables.extend(_build_attempt_sections(item, width=width))
-        evidence = list(getattr(item, "evidence", ()) or ())
-        headline = getattr(item, "headline", None)
         renderables.extend(
-            _build_evidence_lines(evidence, headline=headline, width=width)
+            build_instance_run_lines(item, instance_id=instance_id, width=width)
         )
-        renderables.extend(
-            _build_diagnostic_lines(getattr(item, "diagnostics", ()), width=width)
-        )
-        renderables.extend(_build_terminal_state_lines(item, width=width))
-        renderables.extend(
-            _build_log_lines(instance_id, getattr(item, "operations", ()), width=width)
-        )
-        renderables.extend(
-            _build_protocol_lines(getattr(item, "protocol_files", ()), width=width)
-        )
-    renderables.append(
-        Text(f"  {FINAL_GLYPH} export with E · search with ,/", style="dim")
-    )
+    renderables.append(Text(INSTANCE_EXPORT_HINT, style="dim"))
     return tuple(renderables)
 
 
 __all__ = [
     "DEFERRAL_PATHS_SHOWN",
     "INSTANCE_CARD_WIDTH",
+    "INSTANCE_EXPORT_HINT",
     "build_instance_card_renderables",
+    "build_instance_preamble_lines",
+    "build_instance_run_lines",
 ]

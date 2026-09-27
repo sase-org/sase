@@ -149,6 +149,21 @@ class DeckPanelInteractionMixin:
         except Exception:
             return None
 
+    def active_deck_card(self) -> str | None:
+        """Return the shown deck's active card id (block navigation owner)."""
+        try:
+            from .model import DeckId
+
+            if self._deck is DeckId.MAIN:  # type: ignore[attr-defined]
+                return self.active_main_card()
+            return self.active_document_card(self._deck)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            return self.active_main_card()
+        except Exception:
+            return None
+
     def active_scroll(self) -> VerticalScroll:
         """Return the displayed scroll container."""
         return self.query_one(

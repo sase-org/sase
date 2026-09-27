@@ -145,16 +145,32 @@ class FinalDeckView(CardDocumentView):
         self,
         document: MainDeckDocument,
         preferred_card: str | None,
+        block_mode: RenderMode | None = None,
     ) -> str | None:
-        """Push ``document`` to the FINAL view; return the active card."""
+        """Push ``document`` to the FINAL view; return the active card.
+
+        ``block_mode`` carries the panel's decided block mode for the
+        active card (always automatic: FINAL has no deck-view policy, so
+        ``P`` never forces it). ``None`` renders the legacy whole card.
+        """
         try:
             mode = decide_final_mode(len(document.cards))
         except Exception:
             mode = RenderMode.PAGED
         try:
             return self.show_document(
-                document, preferred_card=preferred_card, mode=mode
+                document,
+                preferred_card=preferred_card,
+                mode=mode,
+                block_mode=block_mode,
             )
+        except TypeError:
+            try:
+                return self.show_document(
+                    document, preferred_card=preferred_card, mode=mode
+                )
+            except Exception:
+                return None
         except Exception:
             return None
 

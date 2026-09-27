@@ -476,6 +476,162 @@ def _unavailable_lines(node_view: Any, *, width: int) -> list[Text]:
     return [_fit_line(line, width)]
 
 
+def render_overview_preamble(node_view: Any, *, width: int = 120) -> list[Text]:
+    """Render the Overview card preamble for a run-blocked card (plan §4.17).
+
+    The preamble holds the node-level lines that belong above every run
+    block: the header, the DAG-order plan rows, the controller line, and
+    the CLI-pointer footer. Per-run declarations, drift, diagnostics and
+    the runs ledger live inside each run's block instead.
+    """
+    width = max(20, int(width))
+    durations = _instance_durations(node_view)
+    lines = [_header_line(node_view, durations, width=width)]
+    lines.extend(_plan_rows(node_view, durations, width=width))
+    lines.extend(_controller_lines(node_view, width=width))
+    return lines
+
+
+def render_overview_ledger_lines(node_view: Any, *, width: int = 120) -> list[Text]:
+    """Render the runs-ledger lines for runs without blocks (plan §4.17).
+
+    In a run-blocked Overview card, ``active``/``ran``/``interrupted``
+    runs live inside blocks; skipped, not-reached and unavailable runs
+    appear only here, in the ledger, with the calm skipped explanation.
+    """
+    from .run_blocks import is_final_block_run
+
+    width = max(20, int(width))
+    runs = [run for run in _runs(node_view) if not is_final_block_run(run)]
+    if not runs:
+        return []
+    entries = [
+        f"{label} {glyph} {word}"
+        for label, glyph, word in (_run_ledger_entry(run) for run in runs)
+    ]
+    line = Text("RUNS          ", style="dim")
+    line.append(" · ".join(entries), style="dim")
+    lines = [_fit_line(line, width)]
+    for run in runs:
+        if str(getattr(run, "disposition", "") or "").strip().lower() != "skipped":
+            continue
+        label = str(getattr(run, "label", "") or getattr(run, "run_id", ""))
+        explanation = Text(
+            f"  ○ {label} skipped · handoff — {SKIPPED_EXPLANATION}"
+            if label
+            else f"  ○ skipped · handoff — {SKIPPED_EXPLANATION}",
+            style="dim",
+        )
+        lines.append(_fit_line(explanation, width))
+    return lines
+
+
+def render_overview_run_lines(run: Any, *, width: int = 120) -> list[Text]:
+    """Render one run's Overview block body (plan §4.17).
+
+    The body holds that run's ledger entry, its declaration timeline and
+    recovery turn, its drift, and its run-level diagnostics. Skipped runs
+    never earn blocks; their calm explanation stays in the node ledger.
+    """
+    width = max(20, int(width))
+    label, glyph, word = _run_ledger_entry(run)
+    lines = [_fit_line(Text(f"{label} {glyph} {word}", style="dim"), width)]
+    lines.extend(_one_run_declaration_lines(run, width=width))
+    lines.extend(_one_run_drift_lines(run, width=width))
+    lines.extend(_one_run_diagnostic_lines(run, width=width))
+    return lines
+
+
+def _one_run_declaration_lines(run: Any, *, width: int) -> list[Text]:
+    """Return the declaration timeline lines for one run."""
+    lines: list[Text] = []
+    for entry in getattr(run, "declarations", ()) or ():
+        status = str(getattr(entry, "status", "") or "")
+        style = _declaration_style(status)
+        head = Text("DECLARATION   " if not lines else "              ", style="dim")
+        head.append(f"{_clock_text(getattr(entry, 't', None))} ", style="dim")
+        head.append(f"{style.glyph} {status}", style=style.color)
+        code = getattr(entry, "code", None)
+        if code:
+            head.append(f"  {code}", style="dim")
+        payload_count = getattr(entry, "payload_count", None)
+        if isinstance(payload_count, bool):
+            payload_count = None
+        if payload_count is not None:
+            try:
+                head.append(f"  {int(payload_count)} payloads", style="dim")
+            except (TypeError, ValueError):
+                pass
+        lines.append(_fit_line(head, width))
+        first_line = getattr(entry, "first_line", None)
+        if first_line:
+            budget = max(8, min(_FREE_TEXT_CAP, width - 16))
+            continuation = Text("              ", style="dim")
+            continuation.append(_shorten(str(first_line), budget), style="dim")
+            lines.append(_fit_line(continuation, width))
+    recovery = getattr(run, "recovery_turn", None)
+    if recovery is not None:
+        ok = getattr(recovery, "ok", None)
+        code = getattr(recovery, "code", None) or ""
+        if ok is True:
+            glyph, word, color = "✓", "recovery ok", STATE_STYLES["success"].color
+        elif ok is False:
+            glyph, word, color = (
+                "✗",
+                "recovery failed",
+                STATE_STYLES["failed"].color,
+            )
+        else:
+            glyph, word, color = "·", "recovery turn", "dim"
+        tail = Text("              ", style="dim")
+        tail.append(f"{glyph} {word}", style=color)
+        if code:
+            tail.append(f"  {code}", style="dim")
+        lines.append(_fit_line(tail, width))
+    return lines
+
+
+def _one_run_drift_lines(run: Any, *, width: int) -> list[Text]:
+    """Return the drift lines for one run."""
+    seen: set[str] = set()
+    lines: list[Text] = []
+    for entry in getattr(run, "drift", ()) or ():
+        message = str(getattr(entry, "message", "") or "")
+        if not message or message in seen:
+            continue
+        seen.add(message)
+        budget = max(8, min(_FREE_TEXT_CAP, width - 4))
+        line = Text("⚠ ", style=WARNING_COLOR)
+        line.append(_shorten(message, budget), style=WARNING_COLOR)
+        lines.append(_fit_line(line, width))
+    return lines
+
+
+def _one_run_diagnostic_lines(run: Any, *, width: int) -> list[Text]:
+    """Return the run-level diagnostic lines for one run."""
+    seen: set[tuple[str, str]] = set()
+    lines: list[Text] = []
+    for entry in getattr(run, "diagnostics", ()) or ():
+        code = str(getattr(entry, "code", "") or "")
+        message = str(getattr(entry, "message", "") or "")
+        if not message or (code, message) in seen:
+            continue
+        seen.add((code, message))
+        severity = str(getattr(entry, "severity", "") or "").lower()
+        if severity == "error":
+            color = STATE_STYLES["failed"].color
+        elif severity in ("warning", "warn"):
+            color = WARNING_COLOR
+        else:
+            color = "dim"
+        budget = max(8, min(_FREE_TEXT_CAP, width - 4))
+        line = Text("! " if severity == "error" else "· ", style=color)
+        detail = f"{code} {message}".strip()
+        line.append(_shorten(detail, budget), style=color)
+        lines.append(_fit_line(line, width))
+    return lines
+
+
 def render_overview_lines(node_view: Any, *, width: int = 120) -> list[Text]:
     """Render the Overview card body for *node_view* (plan §4.15).
 
@@ -504,5 +660,8 @@ def render_overview_lines(node_view: Any, *, width: int = 120) -> list[Text]:
 __all__ = [
     "OVERVIEW_FOOTER",
     "SKIPPED_EXPLANATION",
+    "render_overview_ledger_lines",
     "render_overview_lines",
+    "render_overview_preamble",
+    "render_overview_run_lines",
 ]

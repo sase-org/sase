@@ -100,7 +100,16 @@ class DeckPanelNavigationMixin:
             if next_id is None:
                 return None
             try:
-                shown = self.final_view.show_card(next_id)
+                block_mode = self.document_block_mode_for_card(
+                    DeckId.FINAL, self._final_document, next_id
+                )
+            except Exception:
+                block_mode = None
+            try:
+                try:
+                    shown = self.final_view.show_card(next_id, block_mode=block_mode)
+                except TypeError:
+                    shown = self.final_view.show_card(next_id)
             except Exception:
                 return None
             if shown is None:
@@ -340,7 +349,23 @@ class DeckPanelNavigationMixin:
         """
         self._final_document = document
         try:
-            active = self.final_view.show_final_document(document, preferred_card)
+            from .model import resolve_active_card
+
+            pending = resolve_active_card(
+                document.card_ids, preferred_card, partial=document.partial
+            )
+            block_mode = self.document_block_mode_for_card(
+                DeckId.FINAL, document, pending
+            )
+        except Exception:
+            block_mode = None
+        try:
+            try:
+                active = self.final_view.show_final_document(
+                    document, preferred_card, block_mode=block_mode
+                )
+            except TypeError:
+                active = self.final_view.show_final_document(document, preferred_card)
         except Exception:
             active = None
         try:

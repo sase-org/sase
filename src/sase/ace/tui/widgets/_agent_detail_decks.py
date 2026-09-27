@@ -562,9 +562,12 @@ class AgentDetailDeckMixin:
         except Exception:
             return True
         try:
-            active = panel.active_main_card()
+            active = panel.active_deck_card()
         except Exception:
-            active = None
+            try:
+                active = panel.active_main_card()
+            except Exception:
+                active = None
         self._remember_deck_preferred_card(index, active)
         return True
 
@@ -586,9 +589,12 @@ class AgentDetailDeckMixin:
         except Exception:
             return True
         try:
-            active = panel.active_main_card()
+            active = panel.active_deck_card()
         except Exception:
-            active = None
+            try:
+                active = panel.active_main_card()
+            except Exception:
+                active = None
         self._remember_deck_preferred_card(index, active)
         return True
 
