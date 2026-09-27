@@ -1753,7 +1753,9 @@ Source: `src/sase/ace/config.py`, `src/sase/core/prompt_stash_facade.py`,
 #### `ace.agent_decks`
 
 Controls whether a multi-card agent data deck renders spread (every card on one
-scrollable page) or paged (one card at a time) on the Agents tab deck panels.
+scrollable page) or paged (one card at a time) on the Agents tab deck panels, under the
+automatic deck view (see [Deck Views](ace.md#deck-views)). A fixed deck view bypasses
+these thresholds entirely.
 
 ```yaml
 ace:
@@ -1762,10 +1764,10 @@ ace:
     block_spread_max_screens: 1.5
 ```
 
-| Field                      | Type   | Default | Description                                                                                                                                                                                                                                           |
-| -------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spread_max_screens`       | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged.                                                                                                 |
-| `block_spread_max_screens` | number | `1.5`   | A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel heights, and paged (one block per page) otherwise. `0` means always one block per page. Applies to the session Reply card's per-turn blocks. |
+| Field                      | Type   | Default | Description                                                                                                                                                                                                                                                                                                                       |
+| -------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spread_max_screens`       | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged. Applies to the automatic deck view only; a fixed view bypasses measurement.                                                                                                 |
+| `block_spread_max_screens` | number | `1.5`   | A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel heights, and paged (one block per page) otherwise. `0` means always one block per page. Applies to the session Reply card's per-turn blocks. Applies to the automatic deck view only; a fixed view bypasses measurement. |
 
 Source: `src/sase/ace/tui/agent_decks_settings.py`
 

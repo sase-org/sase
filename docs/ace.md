@@ -1304,6 +1304,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                      |
 | `Ctrl+J` / `Ctrl+K`       | Next / previous card in the focused deck panel (wraps; sets the panel's preferred card)                                                                          |
 | `(` / `)`                 | Older / newer card block in the focused deck panel (wraps; only when the shown card has 2+ blocks)                                                               |
+| `P`                       | Cycle the focused panel's deck view wider, pinning it fixed (wraps; Main and Files only, only when there is more than one distinct layout)                       |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                            |
 | `"`                       | Find and jump to any node, including hidden ones (see [Node Finder](#node-finder))                                                                               |
 | `0`–`9`                   | Jump from a selected clan, agent node, session member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
@@ -5425,11 +5426,57 @@ A multi-card deck renders **spread** — every card on one scrollable page separ
 titled rules — when its cards fit within `ace.agent_decks.spread_max_screens` panel
 viewport heights (default `1.5`; `0` means always paged), and **paged** — one card at a
 time — otherwise. In spread mode `Ctrl+J` / `Ctrl+K` scroll the next / previous card's
-header to the top. The deck panel's border title names the deck and its cards with the
+header to the top. The deck panel's border title names the deck, its
+[deck view](#deck-views) badge (Main and Files decks only), and its cards with the
 active card highlighted (and an `N/M` position when there is more than one card); the
 border subtitle is a `main · files · tools` switcher showing each deck's card, file, or
 LLM-call count when known, dimming decks with no content. A deck with no content for the
 selection shows an empty-state card instead, so the layout never jumps.
+
+#### Deck Views
+
+Each Main and Files deck panel has a **deck view**: `spread` (every card on one
+scrollable page), `page cards` (one whole card per page), or `page blocks` (one card
+block per page). The view is normally **automatic** — resolved from the content through
+the `ace.agent_decks` spread thresholds — or **fixed** to one layout by you. The Tools
+deck has no views: it always pages automatically and shows no badge.
+
+**The badge.** The top border title shows the effective view right after the deck name,
+for example `◆ MAIN  page blocks · auto` or `◆ MAIN  spread · fixed`. The layout word
+uses the deck accent; `fixed` is bold accent while `auto` stays muted, so a fixed panel
+stands out at a glance. On narrow panels the badge shortens (`cards`, `blocks`, `B·A`)
+but never depends on color alone. No badge appears for the Tools deck, an empty deck, or
+a panel that has never painted a full Main document.
+
+**`P` cycles the view.** `P` steps the focused panel's Main or Files deck wider
+(`page blocks` → `page cards` → `spread`, wrapping) and pins the result as a fixed view.
+The first press from automatic starts after the effective layout, so it always changes
+what is on screen; layouts that would render identically for the current content are
+skipped. `P` is unavailable when there is nothing to choose (a one-card deck, the Tools
+deck, an empty deck, or while a Main document is still partial). The footer shows a
+`P view` entry and the help modal an `Agents › Navigation` row only while the cycle is
+available. The first press that fixes a view posts one teaching toast naming the palette
+reset; routine presses stay silent because the badge changes in place.
+
+**Palette.** The command palette offers `Cycle deck view` plus four direct choices:
+`Deck view: automatic`, `Deck view: spread (fixed)`, `Deck view: page cards (fixed)`,
+and `Deck view: page blocks (fixed)` (Main only — Files never pages blocks). Only
+`automatic` returns a panel to automatic; `P` cycles just the three fixed layouts. The
+choice equal to the current policy is hidden. A direct choice applies to the focused
+panel's deck even when it changes nothing for the current card, since it also covers
+future cards.
+
+**Persistence.** Each panel keeps one view per deck (Main and Files), surviving card and
+deck switches, splits, zoom, and restarts in `~/.sase/ace_agents_deck_state.json`. New
+panels start automatic. A view change keeps the reader's place: the same card, block,
+scroll offset, and pin survive in every direction.
+
+**Files specifics.** A fixed `spread` on Files reads every page fully (capped per page,
+with truncation hints, so nothing is silently dropped). While that read runs the deck
+stays paged and the badge reads `page cards · spreading…`. Files with an image or video
+can never spread: the deck stays paged with `page cards · spread unavailable`, keeps the
+fixed preference for the next compatible selection, and toasts once when you caused the
+change.
 
 #### Card Blocks
 
@@ -5458,9 +5505,10 @@ mode.
 **The block rail.** Whenever a paged deck's active card has 2+ blocks, a one-row rail
 sits docked under the Main deck panel's top border showing the session timeline:
 roster-numbered entries with status colors, an accent pill on the active block, arrival
-dots on unseen newcomers, and a `( ) blocks` key hint at wide widths. Clicking an entry
-selects that block; in a spread deck the rail stays hidden because the phase dividers
-already mark each turn.
+dots on unseen newcomers, and a `( ) blocks` key hint at wide widths. At its widest tier
+the rail names the block mode just before the key hint: `page N/M` when blocks are
+paged, `all N` when they are inline. Clicking an entry selects that block; in a spread
+deck the rail stays hidden because the phase dividers already mark each turn.
 
 **Keys.** `(` steps to the older block and `)` to the newer block (both wrap); in a
 spread deck they top-align the target turn's header, in a block-paged card they swap the
@@ -5482,9 +5530,9 @@ moves focus to the other panel (split layouts only) and every deck, card, scroll
 search, and fold key acts on the focused panel. `}` / `{` grow / shrink the focused
 panel (split layouts only). `Ctrl+B` has no Agents behavior.
 
-The layout, split ratio, focus, node-panel collapse, and each panel's deck and preferred
-card persist across restarts in `~/.sase/ace_agents_deck_state.json`. See the
-[key tables](#navigation) for the full deck keymap and
+The layout, split ratio, focus, node-panel collapse, and each panel's deck, preferred
+card, and deck views persist across restarts in `~/.sase/ace_agents_deck_state.json`.
+See the [key tables](#navigation) for the full deck keymap and
 [configuration](configuration.md#aceagent_decks) for the spread setting.
 
 ## Agents Tab Main Deck
