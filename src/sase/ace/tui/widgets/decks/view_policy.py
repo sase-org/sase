@@ -12,7 +12,7 @@ from enum import StrEnum
 from .model import DeckId, DeckView, RenderMode
 
 
-class BlockState(StrEnum):
+class _BlockState(StrEnum):
     """Block paging state for the active card."""
 
     NONE = "none"
@@ -56,9 +56,9 @@ _LAYOUT_DEPTH: tuple[DeckView, ...] = (
 )
 
 
-def layout_signature(
+def _layout_signature(
     layout: DeckView, content: ViewContent
-) -> tuple[RenderMode, BlockState]:
+) -> tuple[RenderMode, _BlockState]:
     """Return the ``(deck_mode, block_state)`` signature for ``layout``."""
     if layout is DeckView.AUTO:
         raise ValueError("AUTO has no layout signature")
@@ -69,13 +69,13 @@ def layout_signature(
     else:
         deck_mode = RenderMode.PAGED
     if content.active_block_count < 2:
-        block_state = BlockState.NONE
+        block_state = _BlockState.NONE
     elif deck_mode is RenderMode.SPREAD:
-        block_state = BlockState.INLINE
+        block_state = _BlockState.INLINE
     elif layout is DeckView.PAGE_BLOCKS:
-        block_state = BlockState.PAGED
+        block_state = _BlockState.PAGED
     else:
-        block_state = BlockState.INLINE
+        block_state = _BlockState.INLINE
     return (deck_mode, block_state)
 
 
@@ -101,22 +101,23 @@ def forced_block_mode(policy: DeckView, block_count: int) -> RenderMode | None:
     return RenderMode.SPREAD
 
 
-def distinct_layouts(content: ViewContent) -> tuple[DeckView, ...]:
+def _distinct_layouts(content: ViewContent) -> tuple[DeckView, ...]:
     """Return distinct layouts in depth order (shallowest first).
 
     Each signature class is represented by its shallowest member. Files
-    never offers ``PAGE_BLOCKS``; Tools and FINAL offer nothing.
+    never offers ``PAGE_BLOCKS``; every other deck (Tools, FINAL) offers
+    nothing.
     """
-    if content.deck is DeckId.TOOLS or content.deck is DeckId.FINAL:
-        return ()
-    if content.deck is DeckId.FILES:
-        candidates: tuple[DeckView, ...] = (DeckView.SPREAD, DeckView.PAGE_CARDS)
+    if content.deck is DeckId.MAIN:
+        candidates: tuple[DeckView, ...] = _LAYOUT_DEPTH
+    elif content.deck is DeckId.FILES:
+        candidates = (DeckView.SPREAD, DeckView.PAGE_CARDS)
     else:
-        candidates = _LAYOUT_DEPTH
-    seen: set[tuple[RenderMode, BlockState]] = set()
+        return ()
+    seen: set[tuple[RenderMode, _BlockState]] = set()
     distinct: list[DeckView] = []
     for layout in candidates:
-        signature = layout_signature(layout, content)
+        signature = _layout_signature(layout, content)
         if signature not in seen:
             seen.add(signature)
             distinct.append(layout)
@@ -131,16 +132,16 @@ def next_view(current_layout: DeckView, content: ViewContent) -> DeckView | None
     the distinct class that contains ``current_layout``. Returns ``None``
     when fewer than two distinct layouts exist.
     """
-    distinct = distinct_layouts(content)
+    distinct = _distinct_layouts(content)
     if len(distinct) < 2:
         return None
     try:
-        signature = layout_signature(current_layout, content)
+        signature = _layout_signature(current_layout, content)
     except ValueError:
         return None
     start: int | None = None
     for index, representative in enumerate(distinct):
-        if layout_signature(representative, content) == signature:
+        if _layout_signature(representative, content) == signature:
             start = index
             break
     if start is None:
@@ -186,8 +187,8 @@ def resolve_view(
             status=ViewStatus.OK,
         )
     try:
-        requested_signature = layout_signature(policy, content)
-        effective_signature = layout_signature(effective_layout, content)
+        requested_signature = _layout_signature(policy, content)
+        effective_signature = _layout_signature(effective_layout, content)
     except ValueError:
         return ResolvedView(
             deck=deck,
@@ -203,14 +204,11 @@ def resolve_view(
 
 
 __all__ = [
-    "BlockState",
     "ResolvedView",
     "ViewContent",
     "ViewStatus",
-    "distinct_layouts",
     "forced_block_mode",
     "forced_deck_mode",
-    "layout_signature",
     "next_view",
     "resolve_view",
 ]

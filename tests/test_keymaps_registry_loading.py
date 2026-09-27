@@ -235,8 +235,8 @@ def test_deck_picker_shares_p_with_project_scope_but_rejects_a_third_owner() -> 
 
 def test_partial_app_override() -> None:
     """Overriding one app key preserves all other defaults."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "P"}}})
-    assert reg.app.next_patch == "P"
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "B"}}})
+    assert reg.app.next_patch == "B"
     assert reg.app.prev_patch == "k"  # unchanged
     assert reg.app.quit == "q"  # unchanged
 

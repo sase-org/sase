@@ -125,13 +125,6 @@ def test_host_rejects_non_document_decks() -> None:
     assert stub.card_document_host(DeckId.MAIN) is None
 
 
-def test_view_policy_defaults_to_auto() -> None:
-    stub = _StubHost()
-    assert stub.view_policy(DeckId.MAIN) is DeckView.AUTO
-    assert stub.view_policy(DeckId.FILES) is DeckView.AUTO
-    assert stub.view_policy(DeckId.TOOLS) is DeckView.AUTO
-
-
 def test_document_view_rejects_unknown_deck() -> None:
     stub = _StubHost()
     try:

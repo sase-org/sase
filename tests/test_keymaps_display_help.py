@@ -62,14 +62,14 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
 
 
 def test_agents_help_uses_configured_direct_visible_fold_selector_key() -> None:
-    reg = load_keymap_registry({"keymaps": {"app": {"expand_all_folds": "P"}}})
+    reg = load_keymap_registry({"keymaps": {"app": {"expand_all_folds": "B"}}})
     pairs = {
         (key, label)
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
 
-    assert ("P", "Toggle tribe fold by hint key") in pairs
+    assert ("B", "Toggle tribe fold by hint key") in pairs
     assert not any(
         key.startswith(",") and "tribe fold" in label.lower() for key, label in pairs
     )

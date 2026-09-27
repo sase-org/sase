@@ -6,14 +6,14 @@ from sase.ace.tui.widgets.decks.model import DeckId, DeckView
 from sase.ace.tui.widgets.decks.render_mode import RenderMode
 from sase.ace.tui.widgets.decks.view_badge import badge_variants
 from sase.ace.tui.widgets.decks.view_policy import (
-    BlockState,
+    _BlockState,
     ResolvedView,
     ViewContent,
     ViewStatus,
-    distinct_layouts,
+    _distinct_layouts,
     forced_block_mode,
     forced_deck_mode,
-    layout_signature,
+    _layout_signature,
     next_view,
     resolve_view,
 )
@@ -29,45 +29,45 @@ def _context() -> ViewContent:
 
 def test_signature_table_reply() -> None:
     content = _reply()
-    assert layout_signature(DeckView.SPREAD, content) == (
+    assert _layout_signature(DeckView.SPREAD, content) == (
         RenderMode.SPREAD,
-        BlockState.INLINE,
+        _BlockState.INLINE,
     )
-    assert layout_signature(DeckView.PAGE_CARDS, content) == (
+    assert _layout_signature(DeckView.PAGE_CARDS, content) == (
         RenderMode.PAGED,
-        BlockState.INLINE,
+        _BlockState.INLINE,
     )
-    assert layout_signature(DeckView.PAGE_BLOCKS, content) == (
+    assert _layout_signature(DeckView.PAGE_BLOCKS, content) == (
         RenderMode.PAGED,
-        BlockState.PAGED,
+        _BlockState.PAGED,
     )
 
 
 def test_signature_collapses_blockless() -> None:
     content = _context()
-    assert layout_signature(DeckView.SPREAD, content) == (
+    assert _layout_signature(DeckView.SPREAD, content) == (
         RenderMode.SPREAD,
-        BlockState.NONE,
+        _BlockState.NONE,
     )
-    page_cards = layout_signature(DeckView.PAGE_CARDS, content)
-    assert page_cards == (RenderMode.PAGED, BlockState.NONE)
-    assert layout_signature(DeckView.PAGE_BLOCKS, content) == page_cards
+    page_cards = _layout_signature(DeckView.PAGE_CARDS, content)
+    assert page_cards == (RenderMode.PAGED, _BlockState.NONE)
+    assert _layout_signature(DeckView.PAGE_BLOCKS, content) == page_cards
 
 
 def test_signature_single_card_collapses_all() -> None:
     content = ViewContent(deck=DeckId.MAIN, card_count=1, active_block_count=0)
-    spread = layout_signature(DeckView.SPREAD, content)
-    assert spread == (RenderMode.SPREAD, BlockState.NONE)
-    assert layout_signature(DeckView.PAGE_CARDS, content) == spread
-    assert layout_signature(DeckView.PAGE_BLOCKS, content) == spread
+    spread = _layout_signature(DeckView.SPREAD, content)
+    assert spread == (RenderMode.SPREAD, _BlockState.NONE)
+    assert _layout_signature(DeckView.PAGE_CARDS, content) == spread
+    assert _layout_signature(DeckView.PAGE_BLOCKS, content) == spread
 
 
 def test_signature_single_card_with_blocks_stays_inline() -> None:
     content = ViewContent(deck=DeckId.MAIN, card_count=1, active_block_count=4)
-    spread = layout_signature(DeckView.SPREAD, content)
-    assert spread == (RenderMode.SPREAD, BlockState.INLINE)
-    assert layout_signature(DeckView.PAGE_CARDS, content) == spread
-    assert layout_signature(DeckView.PAGE_BLOCKS, content) == spread
+    spread = _layout_signature(DeckView.SPREAD, content)
+    assert spread == (RenderMode.SPREAD, _BlockState.INLINE)
+    assert _layout_signature(DeckView.PAGE_CARDS, content) == spread
+    assert _layout_signature(DeckView.PAGE_BLOCKS, content) == spread
 
 
 def test_signature_blocked_spread_collapses_into_page_cards() -> None:
@@ -77,29 +77,29 @@ def test_signature_blocked_spread_collapses_into_page_cards() -> None:
         active_block_count=0,
         spread_blocked=True,
     )
-    assert layout_signature(DeckView.SPREAD, content) == (
+    assert _layout_signature(DeckView.SPREAD, content) == (
         RenderMode.PAGED,
-        BlockState.NONE,
+        _BlockState.NONE,
     )
-    assert layout_signature(DeckView.SPREAD, content) == layout_signature(
+    assert _layout_signature(DeckView.SPREAD, content) == _layout_signature(
         DeckView.PAGE_CARDS, content
     )
 
 
 def test_d3_examples() -> None:
-    assert distinct_layouts(_reply()) == (
+    assert _distinct_layouts(_reply()) == (
         DeckView.SPREAD,
         DeckView.PAGE_CARDS,
         DeckView.PAGE_BLOCKS,
     )
-    assert distinct_layouts(_context()) == (
+    assert _distinct_layouts(_context()) == (
         DeckView.SPREAD,
         DeckView.PAGE_CARDS,
     )
     single = ViewContent(deck=DeckId.MAIN, card_count=1, active_block_count=0)
-    assert distinct_layouts(single) == (DeckView.SPREAD,)
+    assert _distinct_layouts(single) == (DeckView.SPREAD,)
     files_text = ViewContent(deck=DeckId.FILES, card_count=3, active_block_count=0)
-    assert distinct_layouts(files_text) == (
+    assert _distinct_layouts(files_text) == (
         DeckView.SPREAD,
         DeckView.PAGE_CARDS,
     )
@@ -109,9 +109,9 @@ def test_d3_examples() -> None:
         active_block_count=0,
         spread_blocked=True,
     )
-    assert distinct_layouts(files_media) == (DeckView.SPREAD,)
+    assert _distinct_layouts(files_media) == (DeckView.SPREAD,)
     tools = ViewContent(deck=DeckId.TOOLS, card_count=5, active_block_count=5)
-    assert distinct_layouts(tools) == ()
+    assert _distinct_layouts(tools) == ()
 
 
 def test_distinct_is_shallowest_representative() -> None:
@@ -123,7 +123,7 @@ def test_distinct_is_shallowest_representative() -> None:
         active_block_count=3,
         spread_blocked=True,
     )
-    assert distinct_layouts(content) == (
+    assert _distinct_layouts(content) == (
         DeckView.SPREAD,
         DeckView.PAGE_BLOCKS,
     )

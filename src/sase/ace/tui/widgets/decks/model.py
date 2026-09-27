@@ -106,16 +106,16 @@ class DeckViewPolicies:
     def with_deck(self, deck: DeckId, view: DeckView) -> DeckViewPolicies:
         """Return a copy with ``deck`` set to ``view``.
 
-        Rejects Tools/FINAL policies and Files ``PAGE_BLOCKS`` with
-        ``ValueError``.
+        Rejects every deck other than Main/Files (Tools, FINAL) and Files
+        ``PAGE_BLOCKS`` with ``ValueError``.
         """
-        if deck is DeckId.TOOLS or deck is DeckId.FINAL:
-            raise ValueError(f"{deck.value} deck has no view policy: {view!r}")
-        if deck is DeckId.FILES and view is DeckView.PAGE_BLOCKS:
-            raise ValueError("Files deck cannot use page_blocks")
         if deck is DeckId.MAIN:
             return dataclasses.replace(self, main=view)
-        return dataclasses.replace(self, files=view)
+        if deck is DeckId.FILES:
+            if view is DeckView.PAGE_BLOCKS:
+                raise ValueError("Files deck cannot use page_blocks")
+            return dataclasses.replace(self, files=view)
+        raise ValueError(f"{deck.value} deck has no view policy: {view!r}")
 
 
 @dataclass(frozen=True)

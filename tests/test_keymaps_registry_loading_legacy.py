@@ -155,8 +155,8 @@ def test_legacy_commits_action_override_migrates_to_stitches(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        reg = load_keymap_registry({"keymaps": {"app": {"commits_next": "P"}}})
-    assert reg.app.stitches_next == "P"
+        reg = load_keymap_registry({"keymaps": {"app": {"commits_next": "B"}}})
+    assert reg.app.stitches_next == "B"
     assert "deprecated" in caplog.text
 
 

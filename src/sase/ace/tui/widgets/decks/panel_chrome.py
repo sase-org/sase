@@ -186,10 +186,10 @@ class DeckPanelChromeMixin:
         return False
 
     def _chrome_policy(self, deck: DeckId) -> DeckView:
-        """Return the view policy for ``deck`` (AUTO until the engine lands).
+        """Return the panel's view policy for ``deck`` (AUTO on failure).
 
-        The main-engine phase owns ``view_policy()``; chrome reads it when
-        present so fixed badges appear without a chrome change.
+        ``DeckPanelViewMixin.view_policy()`` owns the stored policies;
+        chrome reads it defensively so a chrome refresh never raises.
         """
         try:
             policy_fn = getattr(self, "view_policy", None)

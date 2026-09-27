@@ -447,3 +447,35 @@ def test_invalid_legacy_card_still_fails_panel_open(tmp_path: Path) -> None:
     )
     loaded = load_agents_deck_state(path)
     assert loaded.panels == (_DeckPanelSnapshot(deck=DeckId.MAIN),)
+
+
+def test_final_panel_decoded_to_main_keeps_views(tmp_path: Path) -> None:
+    from sase.feature_flags import override_flags
+
+    path = tmp_path / "decks.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "single",
+                "ratio": 50,
+                "focused": 0,
+                "nodes_collapsed": False,
+                "panels": [
+                    {
+                        "deck": "final",
+                        "preferred_cards": {"main": "reply"},
+                        "views": {"main": "page_cards", "files": "spread"},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with override_flags(ace_final_deck=False):
+        loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].deck is DeckId.MAIN
+    assert loaded.panels[0].preferred_cards == {DeckId.MAIN: "reply"}
+    assert loaded.panels[0].views == DeckViewPolicies(
+        main=DeckView.PAGE_CARDS, files=DeckView.SPREAD
+    )

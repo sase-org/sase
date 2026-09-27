@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .model import DeckId, DeckView
+from .model import DeckId
 
 if TYPE_CHECKING:
     from .document_view import CardDocumentView
@@ -59,33 +59,6 @@ class DeckPanelCardDocumentsMixin:
 
     def _init_document_host_state(self) -> None:
         self._document_active_cards = {}
-
-    def view_policy(self, deck: DeckId) -> DeckView:
-        """Return the deck-view policy for ``deck`` (AUTO when unknown).
-
-        Non-Main/Files decks are permanently AUTO: no badge, no ``P``.
-        """
-        if deck is DeckId.MAIN or deck is DeckId.FILES:
-            try:
-                node: Any | None = getattr(self, "parent", None)
-                for _ in range(5):
-                    if node is None:
-                        break
-                    state = getattr(node, "_state", None)
-                    if state is not None:
-                        try:
-                            views = state.panels[self._panel_index].views
-                        except Exception:
-                            return DeckView.AUTO
-                        try:
-                            return views.for_deck(deck)
-                        except Exception:
-                            return DeckView.AUTO
-                    node = getattr(node, "parent", None)
-            except Exception:
-                pass
-            return DeckView.AUTO
-        return DeckView.AUTO
 
     def document_view(self, deck: DeckId) -> CardDocumentView:
         """Return the card-document view for ``deck`` (raises ``KeyError``)."""

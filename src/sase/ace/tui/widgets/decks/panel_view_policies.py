@@ -85,7 +85,8 @@ class DeckPanelViewPoliciesMixin:
         except Exception:
             self._init_view_state()
             policies = self._view_policies
-        # Raises ValueError for Tools and Files PAGE_BLOCKS, like the model.
+        # Rejects every deck other than Main/Files (Tools, FINAL) and
+        # Files PAGE_BLOCKS with ValueError, like the model.
         self._view_policies = policies.with_deck(deck, view)
         if deck is not self._deck:
             self._refresh_view_chrome()

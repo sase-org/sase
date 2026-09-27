@@ -181,9 +181,9 @@ def test_final_has_no_view_policy() -> None:
 
 
 def test_final_offers_no_view_layouts() -> None:
-    from sase.ace.tui.widgets.decks.view_policy import ViewContent, distinct_layouts
+    from sase.ace.tui.widgets.decks.view_policy import ViewContent, _distinct_layouts
 
-    assert distinct_layouts(ViewContent(DeckId.FINAL, 3, 2)) == ()
+    assert _distinct_layouts(ViewContent(DeckId.FINAL, 3, 2)) == ()
 
 
 def test_headless_final_panel_reports_no_view_cycle() -> None:
