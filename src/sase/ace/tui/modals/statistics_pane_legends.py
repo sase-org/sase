@@ -32,7 +32,7 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
     "runners": (
         _MetricLegend(
             "Runner",
-            "the live shell holding a sase agent's slot -- root, serial "
+            "the live turn holding a sase agent's slot -- root, serial "
             "child, monitor, or follow-up -- plus each live parallel member",
         ),
         _MetricLegend(

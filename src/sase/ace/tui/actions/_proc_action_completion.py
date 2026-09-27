@@ -152,7 +152,7 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
             self._proc_generation = int(getattr(self, "_proc_generation", 0)) + 1
         projection = self._effective_proc_projection()
         if not getattr(self, "_agents_loading", False):
-            self._sync_proc_shell_agents_from_projection(projection)
+            self._sync_named_proc_agents_from_projection(projection)
         self._update_proc_indicator()
         for completion in snapshot.completions:
             self._deliver_observed_completion(completion, projection)
@@ -168,15 +168,15 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         except Exception:  # noqa: BLE001 - exit delivery never breaks snapshots.
             log.debug("command line exit delivery failed", exc_info=True)
 
-    def _sync_proc_shell_agents_from_projection(
+    def _sync_named_proc_agents_from_projection(
         self,
         projection: ProcProjection | None = None,
     ) -> None:
-        """Merge observer-cached proc-shell rows into the Agents-tab roster."""
-        from ..models.agent_proc_shells import (
-            merge_proc_shell_agents,
-            proc_shell_agent_signature,
-            proc_shell_agents_from_observed,
+        """Merge observer-cached named-proc rows into the Agents-tab roster."""
+        from ..models.agent_named_procs import (
+            merge_named_proc_agents,
+            named_proc_agent_signature,
+            named_proc_agents_from_observed,
         )
 
         if getattr(self, "_agents_loading", False):
@@ -184,22 +184,22 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         if projection is None:
             projection = self._effective_proc_projection()
         current_unfiltered = list(getattr(self, "_agents_with_children", []) or [])
-        current_proc_shells = [
-            agent for agent in current_unfiltered if agent.is_proc_shell
+        current_named_procs = [
+            agent for agent in current_unfiltered if agent.is_named_proc
         ]
-        proc_shells = proc_shell_agents_from_observed(
+        named_procs = named_proc_agents_from_observed(
             projection.rows,
-            dismissed_proc_ids=getattr(self, "_dismissed_proc_shells", ()),
+            dismissed_proc_ids=getattr(self, "_dismissed_named_procs", ()),
         )
-        if proc_shell_agent_signature(
-            current_proc_shells
-        ) == proc_shell_agent_signature(proc_shells):
+        if named_proc_agent_signature(
+            current_named_procs
+        ) == named_proc_agent_signature(named_procs):
             return
 
         previous_agents = list(getattr(self, "_agents", []) or [])
-        self._agents_with_children = merge_proc_shell_agents(
+        self._agents_with_children = merge_named_proc_agents(
             current_unfiltered,
-            proc_shells,
+            named_procs,
         )
         self._agents = list(self._agents_with_children)
         invalidate = getattr(self, "_invalidate_agent_panel_cache", None)

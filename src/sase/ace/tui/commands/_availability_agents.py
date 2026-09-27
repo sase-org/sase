@@ -24,8 +24,8 @@ from sase.ace.tui.models.fold_scale import (
 
 # Agent actions that require a focused agent (not a group banner).
 # ``app.edit_hooks`` (fork) is deliberately excluded: unlike the rest of this
-# set it also applies to proc-shell/monitor rows, which the generic
-# ``is_proc_shell`` guard below would otherwise block. Its own predicate
+# set it also applies to named-proc/monitor rows, which the generic
+# ``is_named_proc`` guard below would otherwise block. Its own predicate
 # branch handles every row kind, including ``agent is None``.
 _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
@@ -154,7 +154,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
 
-    if getattr(agent, "is_proc_shell", False) and spec.id in _REQUIRES_AGENT:
+    if getattr(agent, "is_named_proc", False) and spec.id in _REQUIRES_AGENT:
         return False
 
     if spec.id == "app.agents_retry" and (
@@ -283,7 +283,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return False
         if getattr(agent, "is_clan_container", False):
             return bool(getattr(agent, "agent_clan", None))
-        if getattr(agent, "is_proc_shell", False):
+        if getattr(agent, "is_named_proc", False):
             return bool(getattr(agent, "proc_id", None))
         if getattr(agent, "is_monitor", False):
             return bool(getattr(agent, "monitor_id", None))

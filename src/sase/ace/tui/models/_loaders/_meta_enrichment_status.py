@@ -126,7 +126,7 @@ def pending_review_window_active(
     """Whether a finalized ``DONE`` row is still in the propose-to-gate window.
 
     A planner's runner rewrites its workflow markers to ``completed`` (hence
-    ``DONE``) the moment a plan is submitted, before the review gate shell
+    ``DONE``) the moment a plan is submitted, before the review gate turn
     exists to carry the pending status itself. This predicate reopens
     pending-review enrichment for that row while the handoff is still in
     flight. It is self-healing: any settled row (approved, actioned,

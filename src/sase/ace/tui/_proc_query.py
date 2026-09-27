@@ -37,7 +37,7 @@ from sase.project_display_names import project_display_name_for
 
 from ._proc_observer_models import (
     ObservedProc,
-    is_monitor_shell_row,
+    is_monitor_turn_row,
     is_service_row,
     monitor_row_agent_name,
     proc_status_is_active,
@@ -73,7 +73,7 @@ def _proc_query_row(
         "name": name_text,
         "status": proc.status,
         "kind": proc.proc_type,
-        "monitor": is_monitor_shell_row(proc),
+        "monitor": is_monitor_turn_row(proc),
         "service": is_service_row(proc),
         "running": is_running,
         "failed": proc.status in _FAILED_STATUSES,

@@ -243,7 +243,7 @@ class AgentState:
     gate_followup_degraded_reason: str | None = None
     gate_followup_prompt_path: str | None = None
 
-    # Stand-alone proc-shell projection. These rows come from the durable proc
+    # Stand-alone named-proc projection. These rows come from the durable proc
     # store and are presentation-only: they are not SASE agents, do not own
     # artifacts, and must not flow into ordinary agent cleanup/dismiss paths.
     proc_id: str | None = None
@@ -489,7 +489,7 @@ class AgentState:
         repr=False,
     )
 
-    # Session container row whose SESSION SHELLS roster lists this row. Runtime
+    # Session container row whose SESSION TURNS roster lists this row. Runtime
     # presentation plumbing; not serialized. ``compare``/``repr`` must stay off:
     # this pointer closes a cycle with ``followup_agents``/``runtime_children``
     # and dataclass eq/repr (and the repr-based hint digest) would recurse.

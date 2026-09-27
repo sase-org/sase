@@ -1,8 +1,8 @@
 """Durable member-stop intents for bulk agent cleanup transactions.
 
-Active proc shells and pending gates cannot be killed or dismissed like
+Active named procs and pending gates cannot be killed or dismissed like
 ordinary agents. The TUI removes their rows optimistically and the durable
-persist-cleanup proc stops each proc shell through its canonical stop and
+persist-cleanup proc stops each named proc through its canonical stop and
 cancels each gate through its canonical cancel, in the same bulk transaction
 as the surrounding kills and dismissals.
 """
@@ -39,7 +39,7 @@ class MemberStopError(RuntimeError):
 
 
 def execute_proc_stop_intents(proc_stops: list[Agent]) -> set[AgentIdentity]:
-    """Stop every proc shell in *proc_stops* and record its dismissal.
+    """Stop every named proc in *proc_stops* and record its dismissal.
 
     Returns the identities that failed to stop. A missing or already-terminal
     proc record is an idempotent success: the row is still gone, so its
@@ -54,7 +54,7 @@ def execute_proc_stop_intents(proc_stops: list[Agent]) -> set[AgentIdentity]:
         if not proc_id:
             continue
         try:
-            _stop_one_proc_shell(proc_id)
+            _stop_one_named_proc(proc_id)
         except Exception:
             failed.add(agent.identity)
             continue
@@ -66,8 +66,8 @@ def execute_proc_stop_intents(proc_stops: list[Agent]) -> set[AgentIdentity]:
     return failed
 
 
-def _stop_one_proc_shell(proc_id: str) -> None:
-    """Stop one proc shell through its canonical stop path."""
+def _stop_one_named_proc(proc_id: str) -> None:
+    """Stop one named proc through its canonical stop path."""
     from sase.procs.models import TERMINAL_PROC_STATUSES
     from sase.procs.store import get_proc
     from sase.procs.submission import stop_named_proc
@@ -90,15 +90,15 @@ def execute_gate_cancel_intents(gate_cancels: list[Agent]) -> set[AgentIdentity]
     failed: set[AgentIdentity] = set()
     for agent in gate_cancels:
         try:
-            if not _cancel_one_gate_shell(agent):
+            if not _cancel_one_gate_turn(agent):
                 failed.add(agent.identity)
         except Exception:
             failed.add(agent.identity)
     return failed
 
 
-def _cancel_one_gate_shell(agent: Agent) -> bool:
-    """Cancel one pending gate shell; True when the cancel settled."""
+def _cancel_one_gate_turn(agent: Agent) -> bool:
+    """Cancel one pending gate turn; True when the cancel settled."""
     from sase.gate_turn.cancel import cancel_gate_turn
     from sase.gate_turn.store import list_gate_turns
 

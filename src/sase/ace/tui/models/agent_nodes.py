@@ -18,7 +18,7 @@ AgentCompletionKey = tuple[str, str | None]
 
 @dataclass(frozen=True, slots=True)
 class _AgentNodeProjection:
-    """One Agents-tab agent node and the concrete shells it owns."""
+    """One Agents-tab agent node and the concrete turns it owns."""
 
     node: Agent
     owned_rows: tuple[Agent, ...]
@@ -51,8 +51,8 @@ def is_agents_tab_agent_node(agent: Agent) -> bool:
     """Return whether *agent* is an Agents-tab agent node.
 
     Agent nodes are standalone root rows and sequential-agent-session containers.
-    Clan containers, session-member shells, workflow/step children, and durable
-    shell rows are rendered nodes but not unread/countable agent nodes.
+    Clan containers, session-member turns, workflow/step children, and durable
+    turn rows are rendered nodes but not unread/countable agent nodes.
     The decision intentionally ignores visual tree depth: a standalone agent
     nested under a clan remains a direct agent node.
     """
@@ -62,7 +62,7 @@ def is_agents_tab_agent_node(agent: Agent) -> bool:
         return False
     if getattr(agent, "is_gate", False):
         return False
-    if getattr(agent, "is_proc_shell", False):
+    if getattr(agent, "is_named_proc", False):
         return False
     if getattr(agent, "is_workflow_step_child", False):
         return False
@@ -113,8 +113,8 @@ def _agent_node_completion_rows(
     deliberately swaps a plan-session root for its concrete ``main`` workflow
     step, and step rows carry the step name as ``cl_name``.
 
-    A node contains every shell on its ``parent_timestamp`` chain, not only
-    direct children: a gate shell's launch monitor, or a session member's
+    A node contains every turn on its ``parent_timestamp`` chain, not only
+    direct children: a gate turn's launch monitor, or a session member's
     monitor, is owned by the nearest agent node reachable by following
     ``parent_timestamp`` links.
 
@@ -150,10 +150,10 @@ def agent_node_projection_index(
 ) -> _AgentNodeProjectionIndex:
     """Build an ownership index from a complete loaded roster.
 
-    A non-node row (a gate, monitor, or session-member shell) is owned by the
+    A non-node row (a gate, monitor, or session-member turn) is owned by the
     nearest agent node on its ``parent_timestamp`` chain, not only by a direct
-    parent: a gate shell's launch monitor, or a session member's monitor, still
-    reaches the session node through the intermediate shell.
+    parent: a gate turn's launch monitor, or a session member's monitor, still
+    reaches the session node through the intermediate turn.
     """
     roster = tuple(agents)
     node_agents: list[Agent] = []

@@ -16,7 +16,7 @@ from sase.project_display_names import humanize_cl_name
 from ._agent_tree import agent_tree_title
 from .agent import Agent, AgentType
 from .agent_panels import agent_panel_label
-from .agent_proc_shells import proc_shell_command_title
+from .agent_named_procs import named_proc_command_title
 
 if TYPE_CHECKING:
     AgentIdentity = tuple[AgentType, str, str | None]
@@ -127,7 +127,7 @@ def node_finder_name(agent: Agent) -> str:
             or agent.display_name
             or humanize_cl_name(agent.cl_name)
         )
-    if agent.is_proc_shell:
+    if agent.is_named_proc:
         return (
             agent.proc_label
             or agent.presented_agent_name
@@ -178,12 +178,12 @@ def kind_styles() -> dict[str, Any]:
             _AGENT_NAME_ANNOTATION_STYLE,
             _GATE_ROW_STYLE,
             _MONITOR_ROW_STYLE,
-            _PROC_SHELL_ROW_STYLE,
+            _NAMED_PROC_ROW_STYLE,
         )
 
         styles = {
             "session": SESSION_IDENTITY_COLOR,
-            "proc": _PROC_SHELL_ROW_STYLE,
+            "proc": _NAMED_PROC_ROW_STYLE,
             "agent_entry": _AGENT_NAME_ANNOTATION_STYLE,
             "gate": _GATE_ROW_STYLE,
             "monitor": _MONITOR_ROW_STYLE,
@@ -262,7 +262,7 @@ def describe_node_finder_row_from_facts(
         step_title = step_name or display_name
         raw_title = step_title or None
     elif is_proc:
-        raw_title = proc_label or proc_shell_command_title(proc_safe_preview)
+        raw_title = proc_label or named_proc_command_title(proc_safe_preview)
     elif (
         not is_clan
         and not is_session_container
@@ -289,13 +289,13 @@ def describe_node_finder_row_from_facts(
     elif is_session_container:
         kind_label, kind_accent = "SESSION", resolved_styles["session"]
     elif is_proc:
-        kind_label, kind_accent = "PROC SHELL", resolved_styles["proc"]
+        kind_label, kind_accent = "NAMED PROC", resolved_styles["proc"]
     elif is_agent_entry:
-        kind_label, kind_accent = "AGENT SHELL", resolved_styles["agent_entry"]
+        kind_label, kind_accent = "AGENT TURN", resolved_styles["agent_entry"]
     elif is_gate:
-        kind_label, kind_accent = "GATE", resolved_styles["gate"]
+        kind_label, kind_accent = "GATE TURN", resolved_styles["gate"]
     elif is_monitor:
-        kind_label, kind_accent = "MONITOR", resolved_styles["monitor"]
+        kind_label, kind_accent = "MONITOR TURN", resolved_styles["monitor"]
     elif is_wf_step and step_type:
         kind_label = "STEP"
         step_colors = resolved_styles["step_colors"]
@@ -330,7 +330,7 @@ def _describe_node_finder_row_for_snapshot(
     resolved_monitor = agent.is_monitor if is_monitor is None else is_monitor
     resolved_gate = agent.is_gate if is_gate is None else is_gate
     is_clan = agent.is_clan_container
-    is_proc = agent.is_proc_shell
+    is_proc = agent.is_named_proc
     is_wf_step = agent.is_workflow_step_child
     step_type = agent.step_type
     presented = agent.presented_agent_name
@@ -359,7 +359,7 @@ def _describe_node_finder_row_for_snapshot(
         step_title = agent.step_name or display_name
         raw_title = step_title or None
     elif is_proc:
-        raw_title = agent.proc_label or proc_shell_command_title(
+        raw_title = agent.proc_label or named_proc_command_title(
             agent.proc_safe_preview
         )
     elif (
@@ -390,13 +390,13 @@ def _describe_node_finder_row_for_snapshot(
     elif is_session_container:
         kind_label, kind_accent = "SESSION", resolved_styles["session"]
     elif is_proc:
-        kind_label, kind_accent = "PROC SHELL", resolved_styles["proc"]
+        kind_label, kind_accent = "NAMED PROC", resolved_styles["proc"]
     elif is_agent_entry:
-        kind_label, kind_accent = "AGENT SHELL", resolved_styles["agent_entry"]
+        kind_label, kind_accent = "AGENT TURN", resolved_styles["agent_entry"]
     elif resolved_gate:
-        kind_label, kind_accent = "GATE", resolved_styles["gate"]
+        kind_label, kind_accent = "GATE TURN", resolved_styles["gate"]
     elif resolved_monitor:
-        kind_label, kind_accent = "MONITOR", resolved_styles["monitor"]
+        kind_label, kind_accent = "MONITOR TURN", resolved_styles["monitor"]
     elif is_wf_step and step_type:
         kind_label = "STEP"
         step_colors = resolved_styles["step_colors"]

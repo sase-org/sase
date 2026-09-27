@@ -217,7 +217,7 @@ async def test_tasks_tab_marks_monitor_rows_and_names_their_agent() -> None:
         age_seconds=3,
         live_output="ruff .... Passed\n",
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
     plain = task("run", label="sync sase-42", status="running", age_seconds=1)
     agents = (_agent(monitor_id="mon-1", presented_agent_name="acme--mon"),)
@@ -246,7 +246,7 @@ async def test_tasks_tab_enter_on_monitor_row_dismisses_and_reveals_agent() -> N
         status="running",
         age_seconds=3,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
     agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")
 
@@ -270,7 +270,7 @@ async def test_tasks_tab_enter_on_monitor_row_without_agent_notifies_once() -> N
         status="running",
         age_seconds=3,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
 
     async with ProcsTestApp(queue(monitor)).run_test() as pilot:
@@ -309,7 +309,7 @@ async def test_tasks_tab_enter_during_jump_mode_is_consumed_by_jump_mode() -> No
         status="running",
         age_seconds=3,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
     agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")
 
@@ -335,7 +335,7 @@ async def test_tasks_tab_click_selection_reaches_agent_jump_action() -> None:
         status="running",
         age_seconds=3,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
     agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")
 
@@ -363,7 +363,7 @@ async def test_tasks_tab_hints_show_agent_token_only_for_resolvable_monitor_rows
         status="running",
         age_seconds=1,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
     unresolvable = task(
         "mon-2",
@@ -371,7 +371,7 @@ async def test_tasks_tab_hints_show_agent_token_only_for_resolvable_monitor_rows
         status="running",
         age_seconds=2,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="hotfix--mon",
+        proc_name="hotfix--mon",
     )
     plain = task("run", label="sync sase-42", status="running", age_seconds=3)
     agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")

@@ -23,11 +23,12 @@ from ._agent_monitor_section import (
     build_monitor_output,
     build_monitor_section,
 )
-from ._agent_proc_shell_section import (
-    PROC_SHELL_SECTION_ID,
-    build_proc_shell_output,
-    build_proc_shell_preview,
-    build_proc_shell_section,
+from ._agent_named_proc_section import (
+    NAMED_PROC_SECTION_ID,
+    resolve_named_proc_fold_level,
+    build_named_proc_output,
+    build_named_proc_preview,
+    build_named_proc_section,
 )
 from ..decks.card_part import card_document, context_card, output_card
 from ._helpers import append_section_heading, format_output
@@ -177,7 +178,7 @@ class AgentStepDisplayMixin:
             )
         )
 
-    def _update_proc_shell_display(
+    def _update_named_proc_display(
         self,
         agent: Agent,
         header_text: AgentHeader,
@@ -186,18 +187,18 @@ class AgentStepDisplayMixin:
         panel_level: FoldLevel = FoldLevel.COLLAPSED,
         section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     ) -> None:
-        """Display one stand-alone proc shell without probing agent artifacts."""
+        """Display one stand-alone named proc without probing agent artifacts."""
         overrides = section_fold_overrides or {}
-        section_level = overrides.get(PROC_SHELL_SECTION_ID, panel_level)
+        section_level = resolve_named_proc_fold_level(dict(overrides), panel_level)
 
         context_parts = [
             header_text,
-            *build_proc_shell_preview(agent),
-            *build_proc_shell_section(agent, panel_level=section_level),
+            *build_named_proc_preview(agent),
+            *build_named_proc_section(agent, panel_level=section_level),
         ]
         output_parts: list[Any] = [
             *build_traceback_block(error_tb_syntax),
-            *build_proc_shell_output(agent),
+            *build_named_proc_output(agent),
         ]
 
         self.update(  # type: ignore[attr-defined]

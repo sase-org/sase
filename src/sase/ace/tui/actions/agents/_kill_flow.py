@@ -26,13 +26,13 @@ log = logging.getLogger(__name__)
 
 def _member_stop_summary(member_agents: list[Agent]) -> str:
     """Return the completion message for stopped member rows."""
-    from ._proc_shell_dismiss import proc_shell_count_phrase
+    from ._named_proc_dismiss import named_proc_count_phrase
 
-    procs = sum(1 for agent in member_agents if agent.is_proc_shell)
+    procs = sum(1 for agent in member_agents if agent.is_named_proc)
     gates = sum(1 for agent in member_agents if agent.is_gate)
     parts: list[str] = []
     if procs:
-        parts.append(f"stopped {proc_shell_count_phrase(procs, running=True)}")
+        parts.append(f"stopped {named_proc_count_phrase(procs, running=True)}")
     if gates:
         noun = "gate" if gates == 1 else "gates"
         parts.append(f"cancelled {gates} {noun}")
@@ -183,7 +183,7 @@ class AgentKillFlowMixin:
 
         Used when the bulk persistence proc is rejected on submission: the
         optimistic removal already happened but no durable proc will stop the
-        proc shells or cancel the gates, so the rows must come back instead
+        named procs or cancel the gates, so the rows must come back instead
         of staying tombstoned.
         """
         agents = list(agents)
@@ -196,9 +196,9 @@ class AgentKillFlowMixin:
         dismissed = getattr(self, "_dismissed_agents", None)
         if isinstance(dismissed, set):
             dismissed.difference_update(identities)
-        dismissed_shells = getattr(self, "_dismissed_proc_shells", None)
-        if isinstance(dismissed_shells, set):
-            dismissed_shells.difference_update(
+        dismissed_ids = getattr(self, "_dismissed_named_procs", None)
+        if isinstance(dismissed_ids, set):
+            dismissed_ids.difference_update(
                 {agent.proc_id for agent in agents if agent.proc_id}
             )
         for roster in ("_agents_with_children", "_agents"):
@@ -227,7 +227,7 @@ class AgentKillFlowMixin:
     ) -> bool:
         """Kill/dismiss marked agents as one optimistic UI transaction.
 
-        *proc_stops* (active proc shells) and *gate_cancels* (pending gates)
+        *proc_stops* (active named procs) and *gate_cancels* (pending gates)
         are removed optimistically with the rest and ride the same durable
         bulk transaction, which stops/cancels them out of process.
 
@@ -331,11 +331,13 @@ class AgentKillFlowMixin:
 
         member_proc_ids = [agent.proc_id for agent in member_agents if agent.proc_id]
         if member_proc_ids:
-            dismissed_shells = getattr(self, "_dismissed_proc_shells", None)
-            if isinstance(dismissed_shells, set):
-                dismissed_shells.update(member_proc_ids)
+            # NOTE: kept distinct from the ``dismissed_ids`` identity set
+            # above; these are proc-id strings for ``_dismissed_named_procs``.
+            dismissed_procs = getattr(self, "_dismissed_named_procs", None)
+            if isinstance(dismissed_procs, set):
+                dismissed_procs.update(member_proc_ids)
             else:
-                self._dismissed_proc_shells = set(member_proc_ids)  # type: ignore[attr-defined]
+                self._dismissed_named_procs = set(member_proc_ids)  # type: ignore[attr-defined]
 
         member_ids = {agent.identity for agent in member_agents}
         self._dismissed_agents.update(member_ids)

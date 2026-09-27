@@ -96,7 +96,7 @@ def test_agent_row_falls_back_to_quiet_context(tmp_path: Path) -> None:
     assert "START" in second or "WAIT" in second
 
 
-def test_agent_session_rows_summarize_shells_and_fold(tmp_path: Path) -> None:
+def test_agent_session_rows_summarize_turns_and_fold(tmp_path: Path) -> None:
     root, _child = make_agent_session(tmp_path)
     compact = build_agent_compact_lines(
         agent=root,
@@ -104,19 +104,19 @@ def test_agent_session_rows_summarize_shells_and_fold(tmp_path: Path) -> None:
         fold_scale=AGENT_SESSION_FOLD_SCALE,
     )
     first, second = _rows(compact)
-    assert "shells" in first
+    assert "turns" in first
     assert "▸" in second
 
 
-def test_proc_shell_rows_show_project_and_cwd() -> None:
+def test_named_proc_rows_show_project_and_cwd() -> None:
     agent = make_agent(
-        agent_type=AgentType.PROC_SHELL,
-        agent_name="shell-1",
+        agent_type=AgentType.NAMED_PROC,
+        agent_name="turn-1",
         cl_name="demo",
         monitor_cwd="/tmp/work/checkout",
     )
     first, second = _rows(build_agent_compact_lines(agent=agent))
-    assert "shell-1" in first
+    assert "turn-1" in first
     assert "demo" in first
     assert "checkout" in second
 

@@ -16,9 +16,9 @@ from sase.ace.tui.models.agent_time import (
 from .agent_list_runtime_helpers import (
     agent,
     agent_session_container,
-    gate_shell,
+    gate_turn,
     linked_followup_workflow,
-    monitor_shell,
+    monitor_turn,
     workflow_child,
 )
 
@@ -264,7 +264,7 @@ def test_compute_row_runtime_settled_starter_ignores_running_monitor() -> None:
         role_suffix="--code",
     )
     starter.runtime_children.append(
-        monitor_shell(start=datetime(2026, 4, 25, 14, 34, 0))
+        monitor_turn(start=datetime(2026, 4, 25, 14, 34, 0))
     )
 
     expected = compute_leaf_row_runtime(starter, now=now)
@@ -285,7 +285,7 @@ def test_compute_row_runtime_settled_starter_ignores_settled_monitor() -> None:
         role_suffix="--code",
     )
     starter.runtime_children.append(
-        monitor_shell(
+        monitor_turn(
             status="DONE",
             start=datetime(2026, 4, 25, 14, 34, 0),
             stop=datetime(2026, 4, 25, 14, 42, 0),
@@ -309,7 +309,7 @@ def test_compute_row_runtime_agent_session_container_spans_running_monitor() -> 
         raw_suffix="20260425143100",
     )
     starter.runtime_children.append(
-        monitor_shell(start=datetime(2026, 4, 25, 14, 34, 0))
+        monitor_turn(start=datetime(2026, 4, 25, 14, 34, 0))
     )
     container = agent_session_container(starter)
 
@@ -328,7 +328,7 @@ def _planner_and_pending_gate() -> tuple[Agent, Agent]:
         role_suffix="--plan",
         raw_suffix="20260425140000",
     )
-    gate = gate_shell(
+    gate = gate_turn(
         status="PLAN",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=None,
@@ -353,7 +353,7 @@ def test_agent_session_container_excludes_pending_gate_review_window() -> None:
 
 def test_agent_session_container_excludes_settled_gate_after_coder_starts() -> None:
     planner, _pending = _planner_and_pending_gate()
-    gate = gate_shell(
+    gate = gate_turn(
         status="ANSWERED",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=datetime(2026, 4, 25, 16, 0, 0),
@@ -380,7 +380,7 @@ def test_agent_session_container_excludes_settled_gate_after_coder_starts() -> N
 
 def test_agent_session_container_finish_timestamp_ignores_settled_gate() -> None:
     planner, _pending = _planner_and_pending_gate()
-    gate = gate_shell(
+    gate = gate_turn(
         status="ANSWERED",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=datetime(2026, 4, 25, 16, 0, 0),
@@ -397,8 +397,8 @@ def test_agent_session_container_finish_timestamp_ignores_settled_gate() -> None
     assert ts == ("", "14:30:00")
 
 
-def test_gate_shell_own_row_still_reports_leaf_runtime() -> None:
-    gate = gate_shell(
+def test_gate_turn_own_row_still_reports_leaf_runtime() -> None:
+    gate = gate_turn(
         status="ANSWERED",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=datetime(2026, 4, 25, 16, 0, 0),
@@ -442,9 +442,9 @@ def test_agent_session_container_includes_monitor_but_not_gate() -> None:
         raw_suffix="20260425143100",
     )
     starter.runtime_children.append(
-        monitor_shell(start=datetime(2026, 4, 25, 14, 34, 0))
+        monitor_turn(start=datetime(2026, 4, 25, 14, 34, 0))
     )
-    gate = gate_shell(
+    gate = gate_turn(
         status="PLAN",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=None,
@@ -471,7 +471,7 @@ def test_agent_session_container_counts_monitor_starter_and_monitor() -> None:
         role_suffix="--plan",
         raw_suffix="20260425140000",
     )
-    gate = gate_shell(
+    gate = gate_turn(
         status="ANSWERED",
         start=datetime(2026, 4, 25, 14, 10, 0),
         stop=datetime(2026, 4, 25, 14, 20, 0),
@@ -487,7 +487,7 @@ def test_agent_session_container_counts_monitor_starter_and_monitor() -> None:
         raw_suffix="20260425142000",
     )
     coder.runtime_children.append(
-        monitor_shell(
+        monitor_turn(
             start=datetime(2026, 4, 25, 14, 50, 0),
             raw_suffix="20260425145000",
         )
@@ -513,7 +513,7 @@ def test_monitor_only_agent_session_container_counts_own_interval() -> None:
         raw_suffix="20260425140000",
     )
     root.agent_session_role = "root"
-    settled_monitor = monitor_shell(
+    settled_monitor = monitor_turn(
         status="DONE",
         start=datetime(2026, 4, 25, 14, 20, 0),
         stop=datetime(2026, 4, 25, 14, 40, 0),
@@ -521,7 +521,7 @@ def test_monitor_only_agent_session_container_counts_own_interval() -> None:
         cl_name="demo--mon-1",
         monitor_state="completed",
     )
-    running_monitor = monitor_shell(
+    running_monitor = monitor_turn(
         start=datetime(2026, 4, 25, 14, 45, 0),
         raw_suffix="20260425144500",
         cl_name="demo--mon-2",
@@ -564,7 +564,7 @@ def test_workflow_aggregate_runtime_uses_steps_not_parent_interval() -> None:
 
 def test_agent_session_container_chained_gates_do_not_resurrect_intervals() -> None:
     planner, outer = _planner_and_pending_gate()
-    inner = gate_shell(
+    inner = gate_turn(
         status="PLAN",
         start=datetime(2026, 4, 25, 14, 45, 0),
         stop=None,

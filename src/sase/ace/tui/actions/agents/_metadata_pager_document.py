@@ -22,7 +22,7 @@ from ...widgets._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _AGENT_SESSION_NAME_STYLE,
     _OWNER_BADGE_STYLE,
-    _PROC_SHELL_ID_STYLE,
+    _NAMED_PROC_ID_STYLE,
 )
 from ...widgets.prompt_panel._agent_bead_section import ResponsiveBeadSection
 from ...widgets.prompt_panel._agent_context import append_agent_context_section
@@ -49,8 +49,8 @@ def _label(text: Text, label: str) -> None:
 def _name_style(agent: Agent) -> str:
     if agent.is_agent_session_container_row:
         return _AGENT_SESSION_NAME_STYLE
-    if agent.is_proc_shell:
-        return _PROC_SHELL_ID_STYLE
+    if agent.is_named_proc:
+        return _NAMED_PROC_ID_STYLE
     return _AGENT_NAME_ANNOTATION_STYLE
 
 

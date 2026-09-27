@@ -159,7 +159,7 @@ def _monitor_row() -> ObservedProc:
         status="running",
         message="monitoring",
         started_at=datetime(2026, 9, 15, 12, 0, 0),
-        display_name="monitor shell",
+        display_name="monitor turn",
         origin=MONITOR_PROC_ORIGIN,
     )
 

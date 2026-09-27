@@ -22,7 +22,7 @@ class AgentInfoPanel(Static):
         """The rendered filter-query segment was clicked; open the editor."""
 
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
-    _PROC_SHELL_BADGE_STYLE = "bold #5FD7FF"
+    _NAMED_PROC_BADGE_STYLE = "bold #5FD7FF"
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the info panel."""
@@ -37,7 +37,7 @@ class AgentInfoPanel(Static):
         self._failed_count = 0
         self._read_count = 0
         self._sase_agent_count = 0
-        self._proc_shell_count = 0
+        self._named_proc_count = 0
         self._runner_queue_count = 0
         self._countdown = 0
         self._interval = 0
@@ -113,7 +113,7 @@ class AgentInfoPanel(Static):
         total: int,
         *,
         starting: int = 0,
-        proc_shells: int = 0,
+        named_procs: int = 0,
     ) -> None:
         """Compatibility adapter for the headline and concrete metric strip.
 
@@ -135,7 +135,7 @@ class AgentInfoPanel(Static):
         self._failed_count = failed
         self._read_count = read
         self._sase_agent_count = total
-        self._proc_shell_count = proc_shells
+        self._named_proc_count = named_procs
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -210,7 +210,7 @@ class AgentInfoPanel(Static):
         read: int,
         sase_agent_count: int,
         starting: int,
-        proc_shell_count: int = 0,
+        named_proc_count: int = 0,
         countdown: int,
         interval: int,
         grouping_mode: str,
@@ -241,7 +241,7 @@ class AgentInfoPanel(Static):
             failed,
             read,
             sase_agent_count,
-            proc_shell_count,
+            named_proc_count,
             runner_queue_count,
             grouping_mode,
             search_query,
@@ -263,7 +263,7 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._sase_agent_count,
-            self._proc_shell_count,
+            self._named_proc_count,
             self._runner_queue_count,
             self._grouping_mode,
             self._search_query,
@@ -294,7 +294,7 @@ class AgentInfoPanel(Static):
             self._failed_count,
             self._read_count,
             self._sase_agent_count,
-            self._proc_shell_count,
+            self._named_proc_count,
             self._runner_queue_count,
             self._grouping_mode,
             self._search_query,
@@ -406,11 +406,11 @@ class AgentInfoPanel(Static):
             text.append(suffix, style=label_style)
         text.append("]", style="dim")
 
-    def _append_proc_shell_badge(self, text: Text) -> None:
-        if self._proc_shell_count <= 0:
+    def _append_named_proc_badge(self, text: Text) -> None:
+        if self._named_proc_count <= 0:
             return
         text.append(" ")
-        text.append(f"⚙{self._proc_shell_count}", style=self._PROC_SHELL_BADGE_STYLE)
+        text.append(f"⚙{self._named_proc_count}", style=self._NAMED_PROC_BADGE_STYLE)
 
     def _build_display_text(self) -> Text:
         """Build the full Rich ``Text`` for the current panel state."""
@@ -421,10 +421,10 @@ class AgentInfoPanel(Static):
             text.append("…", style="dim italic")
             return text
         text.append(f"{self._sase_agent_count}", style=self._TOTAL_COUNT_STYLE)
-        if self._proc_shell_count:
+        if self._named_proc_count:
             text.append(" agents", style="dim")
         self._append_status_strip(text)
-        self._append_proc_shell_badge(text)
+        self._append_named_proc_badge(text)
         self._search_query_click_span = None
         if self._search_query_rich is not None:
             self._append_separator(text)

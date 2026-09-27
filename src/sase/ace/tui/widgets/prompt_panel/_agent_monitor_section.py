@@ -264,7 +264,7 @@ def build_monitor_section(
     heading = Text(end="")
     append_fold_section_heading(
         heading,
-        "MONITOR",
+        "MONITOR TURN",
         section_id=MONITOR_SECTION_ID,
         level=level,
         scale=scale,

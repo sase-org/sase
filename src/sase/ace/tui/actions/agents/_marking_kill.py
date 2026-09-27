@@ -172,7 +172,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 proc_stops = [
                     agent
                     for agent in exact_agents
-                    if getattr(agent, "is_proc_shell", False)
+                    if getattr(agent, "is_named_proc", False)
                     and agent.proc_status in ACTIVE_PROC_STATUSES
                 ]
                 gate_cancels = [
@@ -258,7 +258,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         """Show the kill/dismiss confirmation modal for an arbitrary agent set.
 
         Partitions *agents* into killable (live PID + non-dismissable
-        status), dismissable, active proc-shell stops, and pending gate
+        status), dismissable, active named-proc stops, and pending gate
         cancels, builds the per-agent description, and pushes the matching
         ``ConfirmKillAllModal`` / ``ConfirmDismissAllModal``.  On confirm,
         routes through *on_confirm* (called with all four buckets),
@@ -311,12 +311,12 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             self._confirm_remote_stop(remote_agents)  # type: ignore[attr-defined]
             agents = local_agents
 
-        from ._proc_shell_dismiss import (
-            partition_proc_shells,
-            proc_shell_count_phrase,
+        from ._named_proc_dismiss import (
+            partition_named_procs,
+            named_proc_count_phrase,
         )
 
-        agents, proc_dismissable, active_proc_shells = partition_proc_shells(agents)
+        agents, proc_dismissable, active_named_procs = partition_named_procs(agents)
         waiting_gates = [agent for agent in agents if gate_is_waiting(agent)]
         agents = [agent for agent in agents if agent not in waiting_gates]
 
@@ -356,11 +356,11 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             desc_parts.extend(dismiss_summary.subject_lines("Dismiss"))
         if proc_dismissable:
             desc_parts.append(
-                f"Dismiss {proc_shell_count_phrase(len(proc_dismissable))}"
+                f"Dismiss {named_proc_count_phrase(len(proc_dismissable))}"
             )
-        if active_proc_shells:
+        if active_named_procs:
             desc_parts.append(
-                "Kill " + proc_shell_count_phrase(len(active_proc_shells), running=True)
+                "Kill " + named_proc_count_phrase(len(active_named_procs), running=True)
             )
         if waiting_gates:
             desc_parts.append(_gate_cancel_phrase(len(waiting_gates)))
@@ -368,7 +368,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             {agent.identity for agent in killable}
             | {agent.identity for agent in dismissable}
             | {agent.identity for agent in proc_dismissable}
-            | {agent.identity for agent in active_proc_shells}
+            | {agent.identity for agent in active_named_procs}
             | {agent.identity for agent in waiting_gates}
         )
         leftover = [
@@ -390,7 +390,7 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
             not killable
             and not dismissable
             and not proc_dismissable
-            and not active_proc_shells
+            and not active_named_procs
             and not waiting_gates
         ):
             if leftover_line:
@@ -404,12 +404,12 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
                 if on_cancel is not None:
                     on_cancel()
                 return
-            if killable or dismissable or active_proc_shells or waiting_gates:
-                confirm(killable, dismissable, active_proc_shells, waiting_gates)
+            if killable or dismissable or active_named_procs or waiting_gates:
+                confirm(killable, dismissable, active_named_procs, waiting_gates)
             if proc_dismissable:
-                self._dismiss_proc_shell_rows(proc_dismissable)  # type: ignore[attr-defined]
+                self._dismiss_named_proc_rows(proc_dismissable)  # type: ignore[attr-defined]
 
-        if killable or active_proc_shells or waiting_gates:
+        if killable or active_named_procs or waiting_gates:
             self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
         else:
             self.push_screen(ConfirmDismissAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

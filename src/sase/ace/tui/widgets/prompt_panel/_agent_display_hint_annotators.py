@@ -11,7 +11,7 @@ from ._agent_display_content import render_timestamp_divider
 from ._agent_display_header import AgentHeader
 from ._agent_gate_section import GateTextAnnotator
 from ._agent_monitor_section import MonitorTextAnnotator
-from ._agent_proc_shell_section import ProcShellTextAnnotator
+from ._agent_named_proc_section import NamedProcTextAnnotator
 from ._hint_caps import append_bounded_text_with_file_hints
 
 
@@ -109,12 +109,12 @@ def hint_gate_annotator(
     return annotate, lambda: hint_counter
 
 
-def hint_proc_shell_annotator(
+def hint_named_proc_annotator(
     hint_counter: int,
     hint_mappings: dict[int, str],
     workspace_dir: str | None,
-) -> tuple[ProcShellTextAnnotator, Callable[[], int]]:
-    """Annotate free-form proc-shell text and expose the updated hint counter."""
+) -> tuple[NamedProcTextAnnotator, Callable[[], int]]:
+    """Annotate free-form named-proc text and expose the updated hint counter."""
 
     def annotate(content: str | Text) -> Text:
         nonlocal hint_counter

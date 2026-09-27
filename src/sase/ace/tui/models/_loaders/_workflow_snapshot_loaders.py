@@ -25,8 +25,8 @@ from ._diff_path import diff_path_from_step_output
 from ._meta_enrichment import enrich_agent_from_meta, enrich_agent_from_meta_wire
 from ._workflow_loaders import (
     ACTIVE_STATUSES,
-    SETTLED_AGENT_SESSION_SHELL_DONE_OUTCOMES,
-    agent_session_shell_member_from_meta,
+    SETTLED_AGENT_SESSION_TURN_DONE_OUTCOMES,
+    agent_session_turn_member_from_meta,
 )
 from ._workflow_failure_fallback import (
     build_workflow_failure_fallback,
@@ -47,16 +47,16 @@ def _is_workflow_state_record(record: AgentArtifactRecordWire) -> bool:
     return any(name.startswith(p) for p in WORKFLOW_STATE_DIR_PREFIXES)
 
 
-def _snapshot_record_is_agent_session_shell_member(
+def _snapshot_record_is_agent_session_turn_member(
     record: AgentArtifactRecordWire,
 ) -> bool:
-    """Return whether *record* is a durable agent-session-shell member."""
+    """Return whether *record* is a durable agent-session-turn member."""
     meta = record.agent_meta
     if meta is None:
         return False
-    shell = meta.agent_session_turn
-    gate_id = shell.id if shell is not None and shell.kind == "gate" else None
-    return agent_session_shell_member_from_meta(
+    turn = meta.agent_session_turn
+    gate_id = turn.id if turn is not None and turn.kind == "gate" else None
+    return agent_session_turn_member_from_meta(
         agent_session_role=meta.agent_session_role,
         role_suffix=meta.role_suffix,
         gate_id=gate_id,
@@ -124,7 +124,7 @@ def load_workflow_states_from_snapshot(
             has_in_progress = any(s.status == StepStatus.IN_PROGRESS for s in steps)
             if (
                 not has_in_progress
-                and not _snapshot_record_is_agent_session_shell_member(record)
+                and not _snapshot_record_is_agent_session_turn_member(record)
             ):
                 display_status = "FAILED"
 
@@ -219,9 +219,9 @@ def load_workflow_agents_from_snapshot(
         if (
             record is not None
             and record.done is not None
-            and record.done.outcome in SETTLED_AGENT_SESSION_SHELL_DONE_OUTCOMES
+            and record.done.outcome in SETTLED_AGENT_SESSION_TURN_DONE_OUTCOMES
         ):
-            # A settled session-shell member's workflow_state.json is vestigial
+            # A settled session-turn member's workflow_state.json is vestigial
             # launch scaffolding; the done marker owns the terminal row.
             continue
 

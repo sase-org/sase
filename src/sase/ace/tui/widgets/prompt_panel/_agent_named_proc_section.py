@@ -1,4 +1,4 @@
-"""PROC SHELL detail section rendering for the agent prompt panel."""
+"""NAMED PROC detail section rendering for the agent prompt panel."""
 
 from __future__ import annotations
 
@@ -19,12 +19,33 @@ from ._agent_context_common import COLOR_EMPTY, COLOR_REASON, COLOR_SUMMARY
 from ._fold_language import append_fold_section_heading
 from ._helpers import append_section_heading
 
-PROC_SHELL_SECTION_ID = "proc-shell"
+NAMED_PROC_SECTION_ID = "named-proc"
+#: Pre-rename fold-section id (``proc-shell``). Read for compatibility, never written.
+LEGACY_NAMED_PROC_SECTION_ID = "proc-shell"
+
+
+def resolve_named_proc_fold_level(
+    overrides: dict[str, FoldLevel] | None,
+    panel_level: FoldLevel,
+) -> FoldLevel:
+    """Return the named-proc fold level, reading the legacy id when needed.
+
+    Writers emit only :data:`NAMED_PROC_SECTION_ID`; pre-rename persisted
+    overrides carrying ``proc-shell`` still apply.
+    """
+    if not overrides:
+        return panel_level
+    return overrides.get(
+        NAMED_PROC_SECTION_ID,
+        overrides.get(LEGACY_NAMED_PROC_SECTION_ID, panel_level),
+    )
+
+
 _COLOR_HEADER = "bold #5FD7FF underline"
 _FIELD_LABEL_WIDTH = 15
 _DIAGNOSTIC_LEVELS = frozenset({FoldLevel.FULLY_EXPANDED, FoldLevel.EXHAUSTIVE})
 
-ProcShellTextAnnotator = Callable[[str | Text], Text]
+NamedProcTextAnnotator = Callable[[str | Text], Text]
 
 
 def _field_label(label: str) -> str:
@@ -58,7 +79,7 @@ def _append_label_value(
 
 
 def _proc_output_source_id(agent: Agent) -> str:
-    return f"proc-shell:{agent.proc_id or agent.identity}"
+    return f"named-proc:{agent.proc_id or agent.identity}"
 
 
 def _show_proc_phase(agent: Agent) -> bool:
@@ -88,7 +109,7 @@ def _proc_field_parts(
     agent: Agent,
     *,
     include_diagnostics: bool,
-    annotate: ProcShellTextAnnotator | None = None,
+    annotate: NamedProcTextAnnotator | None = None,
     prefix: Text | None = None,
 ) -> list[object]:
     parts: list[object] = []
@@ -162,14 +183,14 @@ def _proc_field_parts(
     return parts
 
 
-def build_proc_shell_section(
+def build_named_proc_section(
     agent: Agent,
     *,
     panel_level: FoldLevel = FoldLevel.COLLAPSED,
     scale: FoldScale = AGENT_FOLD_SCALE,
-    annotate: ProcShellTextAnnotator | None = None,
+    annotate: NamedProcTextAnnotator | None = None,
 ) -> list[object]:
-    """Return the foldable proc-shell metadata section."""
+    """Return the foldable named-proc metadata section."""
     text = Text(end="")
     level = effective_fold_level(panel_level, scale)
     include_diagnostics = level in _DIAGNOSTIC_LEVELS
@@ -177,7 +198,7 @@ def build_proc_shell_section(
     append_fold_section_heading(
         heading,
         "PROC DETAILS",
-        section_id=PROC_SHELL_SECTION_ID,
+        section_id=NAMED_PROC_SECTION_ID,
         level=level,
         scale=scale,
         summary=None if include_diagnostics else _diagnostic_summary(agent),
@@ -192,12 +213,12 @@ def build_proc_shell_section(
     )
 
 
-def build_proc_shell_preview(
+def build_named_proc_preview(
     agent: Agent,
     *,
-    annotate: ProcShellTextAnnotator | None = None,
+    annotate: NamedProcTextAnnotator | None = None,
 ) -> list[object]:
-    """Return the safe source preview block for one proc shell."""
+    """Return the safe source preview block for one named proc."""
     if not agent.proc_safe_preview:
         return []
     header = Text()
@@ -211,12 +232,12 @@ def build_proc_shell_preview(
     return [header, lazy_renderable(agent.proc_safe_preview, language)]
 
 
-def build_proc_shell_output(
+def build_named_proc_output(
     agent: Agent,
     *,
-    annotate: ProcShellTextAnnotator | None = None,
+    annotate: NamedProcTextAnnotator | None = None,
 ) -> list[object]:
-    """Return the bounded combined-log tail for one proc shell."""
+    """Return the bounded combined-log tail for one named proc."""
     header = Text()
     append_section_heading(header, "LOG TAIL")
     output = agent.proc_log_tail
@@ -239,9 +260,11 @@ def build_proc_shell_output(
 
 
 __all__ = [
-    "PROC_SHELL_SECTION_ID",
-    "ProcShellTextAnnotator",
-    "build_proc_shell_output",
-    "build_proc_shell_preview",
-    "build_proc_shell_section",
+    "NAMED_PROC_SECTION_ID",
+    "LEGACY_NAMED_PROC_SECTION_ID",
+    "resolve_named_proc_fold_level",
+    "NamedProcTextAnnotator",
+    "build_named_proc_output",
+    "build_named_proc_preview",
+    "build_named_proc_section",
 ]

@@ -326,15 +326,15 @@ def expanded_roster_keep_all(
 
     Snapshot-local fast path for :func:`filter_agents_by_fold_state`, whose
     fold counts this caller discards. With no hidden step, no monitor/gate
-    shell, every parent key owned, and no collapsed level on any owner's
+    turn, every parent key owned, and no collapsed level on any owner's
     chain, every row is visible: hidden-only parents need a hidden child,
-    shell gating needs a shell, and the remaining visibility rule is one
+    turn gating needs a turn, and the remaining visibility rule is one
     non-collapsed owner chain per row. Owner chains resolve over distinct
     fold keys with memoization; a cycle falls back to the exact filter.
     ``None`` means the fast path does not apply. The facet tables cover
-    every roster id by construction, except the shell/child maps, which
+    every roster id by construction, except the turn/child maps, which
     only hold non-plain rows and fall back to the same live read for a
-    missing id (a plain row is never a shell or a child row).
+    missing id (a plain row is never a turn or a child row).
     """
     from ...models.fold_state import FoldLevel
 

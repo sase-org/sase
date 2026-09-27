@@ -569,7 +569,7 @@ async def test_agents_fleet_production_sessions_png_snapshot(
 
         assert_page_svg_contains(page, "apollo")
         # The completed root-less plan-chain session renders as a session row
-        # with its rich status, nested shells and the shell/neighbor chips.
+        # with its rich status, nested turns and the turn/neighbor chips.
         assert_page_svg_contains(page, "chain")
         assert_page_svg_contains(page, "TALE DONE")
         assert_page_svg_contains(page, "EPIC CREATED")

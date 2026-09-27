@@ -241,7 +241,7 @@ def test_panel_title_projects_parallel_agent_session_member_statuses_per_panel()
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    # Session roots count once as agent nodes. Loaded member shells and serial
+    # Session roots count once as agent nodes. Loaded member turns and serial
     # descendants do not widen panel title totals or chips.
     assert _title_text(_pw(app, "apple")).plain == ("@apple · 2 [R1 W1]")
     assert _title_text(_pw(app, "banana")).plain == ("@banana · 1 [R1]")

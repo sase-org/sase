@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.widgets import OptionList
 
-from ..proc_observer import ObservedProc, is_monitor_shell_row
+from ..proc_observer import ObservedProc, is_monitor_turn_row
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -55,7 +55,7 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
     def _monitor_jump_hint(self) -> str | None:
         """Return the conditional hints-line token for the selected row."""
         task = self._get_selected_task()
-        if task is None or not is_monitor_shell_row(task):
+        if task is None or not is_monitor_turn_row(task):
             return None
         if _monitor_jump_agent(self.app, task.proc_id) is None:
             return None
@@ -95,7 +95,7 @@ class ProcsPaneAgentJumpMixin(_MixinBase):
         if self.jump_mode_active:  # type: ignore[attr-defined]
             return
         task = self._get_selected_task()
-        if task is None or not is_monitor_shell_row(task):
+        if task is None or not is_monitor_turn_row(task):
             return
 
         agent = _monitor_jump_agent(self.app, task.proc_id)

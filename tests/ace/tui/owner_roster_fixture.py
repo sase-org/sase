@@ -62,7 +62,7 @@ def write_owner_roster_fixture(
     _write_alive(
         artifacts / root_ts, "lane", agent_session="lane", role="root", pid=pid
     )
-    _write_plan_shell(artifacts / plan_ts, "lane--plan", agent_session="lane")
+    _write_plan_turn(artifacts / plan_ts, "lane--plan", agent_session="lane")
     _write_alive(
         artifacts / code_ts,
         "lane--code",
@@ -207,7 +207,7 @@ def _write_dead(artifact: Path, name: str) -> None:
     _write_json(artifact / "running.json", {"pid": 0})
 
 
-def _write_plan_shell(artifact: Path, name: str, *, agent_session: str) -> None:
+def _write_plan_turn(artifact: Path, name: str, *, agent_session: str) -> None:
     artifact.mkdir(parents=True, exist_ok=True)
     _write_json(
         artifact / "agent_meta.json",
@@ -371,7 +371,7 @@ def _sync_stopped_at(artifacts: Path) -> None:
 
 
 def _gate_meta(gate_id: str, state: str, label: str) -> dict[str, object]:
-    """Persisted flat ``gate_*`` keys; the scanner folds them into ``agent_session_shell``."""
+    """Persisted flat ``gate_*`` keys; the scanner folds them into ``agent_session_turn``."""
     return {
         "gate_id": gate_id,
         "gate_kind": "approval",
@@ -473,9 +473,7 @@ def _write_fact_agent_sessions(
             _write_json(artifact / "running.json", {"pid": pid})
             _write_workflow_state(artifact, name, pid=pid, status="running")
 
-    def plan_shell(
-        ts_value: str, name: str, *, agent_session: str, parent: str
-    ) -> None:
+    def plan_turn(ts_value: str, name: str, *, agent_session: str, parent: str) -> None:
         member(
             ts_value,
             name,
@@ -488,21 +486,21 @@ def _write_fact_agent_sessions(
     # 0n: tale plan chain, settled.
     t_root, t_plan, t_code = stamp(90), stamp(89), stamp(88)
     agent_session_root(t_root, "tale-fam", action="tale", done=True)
-    plan_shell(t_plan, "tale-fam--plan", agent_session="tale-fam", parent=t_root)
+    plan_turn(t_plan, "tale-fam--plan", agent_session="tale-fam", parent=t_root)
     member(
         t_code, "tale-fam--code", agent_session="tale-fam", role="code", parent=t_root
     )
     # 0k: epic plan chain, settled.
     e_root, e_plan, e_epic = stamp(87), stamp(86), stamp(85)
     agent_session_root(e_root, "epic-fam", action="epic", done=True)
-    plan_shell(e_plan, "epic-fam--plan", agent_session="epic-fam", parent=e_root)
+    plan_turn(e_plan, "epic-fam--plan", agent_session="epic-fam", parent=e_root)
     member(
         e_epic, "epic-fam--epic", agent_session="epic-fam", role="epic", parent=e_root
     )
     # Active session whose coder is still running.
     a_root, a_plan, a_code = stamp(84), stamp(83), stamp(82)
     agent_session_root(a_root, "active-fam", action="tale", done=False, alive=True)
-    plan_shell(a_plan, "active-fam--plan", agent_session="active-fam", parent=a_root)
+    plan_turn(a_plan, "active-fam--plan", agent_session="active-fam", parent=a_root)
     member(
         a_code,
         "active-fam--code",
@@ -562,8 +560,8 @@ def _write_fact_agent_sessions(
     _write_json(ask_session / "question_response.json", {})
     member(s_code, "asker--code", agent_session="asker", role="code", parent=s_root)
     # Production shape of a completed plan-chain agent_session: no separate root
-    # record exists. The plan shell is its own session root (role "root", no
-    # parent) and every later shell points back at it.
+    # record exists. The plan turn is its own session root (role "root", no
+    # parent) and every later turn points back at it.
     c_plan, c_mon, c_one = stamp(75), stamp(74), stamp(73)
     member(c_plan, "chain--plan", agent_session="chain", role="root", parent=None)
     member(

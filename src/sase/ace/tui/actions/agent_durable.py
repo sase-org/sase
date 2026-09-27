@@ -113,7 +113,7 @@ def submit_agent_launch(
     ``%id(!name)`` marker a kill-and-edit relaunch writes), so every launch it
     submits authorizes the child ``sase run`` to consume that marker via the
     ``allow_force_reuse`` payload field. A plain ``sase run`` invoked without a
-    request sidecar (a shell, an agent skill) has no such field and keeps the
+    request sidecar (a turn, an agent skill) has no such field and keeps the
     default unauthorized behavior. The field is placed last so it can never be
     overridden by *extra_payload*.
     """

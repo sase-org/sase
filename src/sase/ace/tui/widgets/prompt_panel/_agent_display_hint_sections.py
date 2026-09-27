@@ -1,4 +1,4 @@
-"""Whole-document hint renderers for proc-shell, monitor, and gate agents."""
+"""Whole-document hint renderers for named-proc, monitor, and gate agents."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from ._agent_display_header_summary import detail_header_summary_is_complete
 from ._agent_display_hint_annotators import (
     hint_gate_annotator,
     hint_monitor_annotator,
-    hint_proc_shell_annotator,
+    hint_named_proc_annotator,
 )
 from ..decks.card_part import card_document, context_card, output_card
 from ._agent_display_state import AgentHintRender, DetailHeaderSummary, HeaderHintState
@@ -26,11 +26,12 @@ from ._agent_monitor_section import (
     build_monitor_output,
     build_monitor_section,
 )
-from ._agent_proc_shell_section import (
-    PROC_SHELL_SECTION_ID,
-    build_proc_shell_output,
-    build_proc_shell_preview,
-    build_proc_shell_section,
+from ._agent_named_proc_section import (
+    NAMED_PROC_SECTION_ID,
+    resolve_named_proc_fold_level,
+    build_named_proc_output,
+    build_named_proc_preview,
+    build_named_proc_section,
 )
 
 
@@ -49,7 +50,7 @@ def _publish_hint_cards(
     return panel._prepare_cached_hint_renderable(document)  # type: ignore[attr-defined]
 
 
-def render_proc_shell_hint_document(
+def render_named_proc_hint_document(
     panel: object,
     agent: Agent,
     header_text: AgentHeader,
@@ -61,21 +62,23 @@ def render_proc_shell_hint_document(
     header_hint_state: HeaderHintState,
     tool_call_reports: dict[str, SlowToolCallReportSpec],
 ) -> AgentHintRender:
-    """Render a proc-shell agent's hint document and publish it to *panel*."""
-    annotate, hint_count = hint_proc_shell_annotator(
+    """Render a named-proc agent's hint document and publish it to *panel*."""
+    annotate, hint_count = hint_named_proc_annotator(
         hint_counter,
         hint_mappings,
         workspace_dir,
     )
-    section_level = (
-        lane_fold_overrides.get(PROC_SHELL_SECTION_ID, lane_fold_level)
-        if isinstance(lane_fold_overrides, Mapping)
-        else lane_fold_level
-    )
-    for part in build_proc_shell_preview(agent, annotate=annotate):
+    if isinstance(lane_fold_overrides, Mapping):
+        section_level = lane_fold_overrides.get(
+            NAMED_PROC_SECTION_ID,
+            lane_fold_overrides.get(LEGACY_NAMED_PROC_SECTION_ID, lane_fold_level),
+        )
+    else:
+        section_level = lane_fold_level
+    for part in build_named_proc_preview(agent, annotate=annotate):
         if isinstance(part, Text):
             header_text.append_text(part)
-    for part in build_proc_shell_section(
+    for part in build_named_proc_section(
         agent,
         panel_level=section_level,
         annotate=annotate,
@@ -92,12 +95,12 @@ def render_proc_shell_hint_document(
             hint_mappings,
             workspace_dir,
         )
-    annotate_out, hint_count_out = hint_proc_shell_annotator(
+    annotate_out, hint_count_out = hint_named_proc_annotator(
         hint_counter,
         hint_mappings,
         workspace_dir,
     )
-    for part in build_proc_shell_output(agent, annotate=annotate_out):
+    for part in build_named_proc_output(agent, annotate=annotate_out):
         if isinstance(part, Text):
             reply_text.append_text(part)
     hint_counter = hint_count_out()

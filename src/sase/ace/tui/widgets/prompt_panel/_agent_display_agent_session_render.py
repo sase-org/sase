@@ -20,8 +20,8 @@ from ._agent_display_content import (
 )
 from ._agent_display_agent_session import (
     effective_agent_session_fold_level,
-    agent_session_shell_facts,
-    agent_session_shell_rows,
+    agent_session_turn_facts,
+    agent_session_turn_rows,
 )
 from ._agent_session_reply_blocks import build_session_reply_blocks
 from ._agent_display_header import AgentHeader
@@ -190,7 +190,7 @@ class AgentSessionDisplayMixin:
                 )
             rendered_content_section = True
 
-        phases = agent_session_shell_rows(agent)
+        phases = agent_session_turn_rows(agent)
         if hint_state is None:
 
             def render_phase(phase: Agent, block_id: str) -> list[Any]:
@@ -260,7 +260,7 @@ class AgentSessionDisplayMixin:
 
         reply_heading, reply_blocks = build_session_reply_blocks(
             phases,
-            agent_session_shell_facts(agent),
+            agent_session_turn_facts(agent),
             render_phase=render_phase,
         )
         reply_parts: list[Any] = [

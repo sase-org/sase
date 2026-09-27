@@ -2,7 +2,7 @@
 
 Reproduces the incident where a planner's ``workflow_state.json`` is
 rewritten to ``completed`` (hence ``DONE``) at plan-submission time, before
-the review gate shell exists to carry the pending ``TALE``/``PLAN``/``EPIC``
+the review gate turn exists to carry the pending ``TALE``/``PLAN``/``EPIC``
 status. Both the wire-snapshot and filesystem loader paths must surface the
 pending tier status while the handoff window is open, and fall back to plain
 ``DONE`` once the gate has taken over (or the plan file's tier can't be

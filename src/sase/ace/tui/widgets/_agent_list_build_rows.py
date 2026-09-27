@@ -74,7 +74,7 @@ def _agent_row_chrome_mode(agents: list[Agent]) -> bool:
 
     Chips turn on whenever any loaded row has a fleet origin, including
     under ``BY_MACHINE`` group headers. Local rows and indented member
-    shells still render none; only rows with ``fleet_origin_alias`` do.
+    turns still render none; only rows with ``fleet_origin_alias`` do.
     """
     return any(getattr(agent, "fleet_origin_alias", None) for agent in agents)
 

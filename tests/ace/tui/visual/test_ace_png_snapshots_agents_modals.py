@@ -259,8 +259,8 @@ async def test_agent_action_chooser_modal_png_snapshot(
             AgentActionChoice,
             AgentActionChooserModal,
         )
-        from sase.gate_shell.state import GATE_GLYPH
-        from sase.gate_shell.status import gate_status_pair, gate_status_style
+        from sase.gate_turn.state import GATE_GLYPH
+        from sase.gate_turn.status import gate_status_pair, gate_status_style
 
         gate_style = gate_status_style(
             gate_status_pair("TALE", None), gate_state="pending"

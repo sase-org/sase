@@ -57,8 +57,8 @@ def test_files_probe_empty_kinds() -> None:
     clan = make_agent(status="RUNNING", is_clan_container=True)
     assert clan.is_clan_container
     assert probe_files_deck(clan, attempt_number=None) == DeckAvailability(False, 0)
-    proc = make_agent(status="RUNNING", agent_type=AgentType.PROC_SHELL)
-    assert proc.is_proc_shell
+    proc = make_agent(status="RUNNING", agent_type=AgentType.NAMED_PROC)
+    assert proc.is_named_proc
     assert probe_files_deck(proc, attempt_number=None) == DeckAvailability(False, 0)
 
 

@@ -113,7 +113,7 @@ def append_lane_neighbors_section(
         numbering=numbering,
         hidden_tail_label="neighbors",
         extra_tail=(
-            f"… +{suppressed_count} also listed under SESSION SHELLS"
+            f"… +{suppressed_count} also listed under SESSION TURNS"
             if suppressed_count
             else None
         ),

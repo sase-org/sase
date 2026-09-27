@@ -126,7 +126,7 @@ def add_loaded_agent_session_chain_artifact_dirs(
     root_suffix: str | None,
     add_agent_artifact_dir: Callable[[Agent], bool],
 ) -> set[str]:
-    """Add the loaded settled shell and ancestor session dirs, returning suffixes."""
+    """Add the loaded settled turn and ancestor session dirs, returning suffixes."""
     resolved: set[str] = set()
     current_suffix: str | None = raw_suffix
     visited: set[str] = set()

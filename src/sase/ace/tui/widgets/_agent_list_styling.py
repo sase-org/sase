@@ -97,7 +97,7 @@ _STATUS_BUCKET_GLYPHS: dict[str, str] = {
 _AGENT_TYPE_COLORS: dict[AgentType, str] = {
     AgentType.RUNNING: "#87AFFF",  # Blue
     AgentType.WORKFLOW: "#FF87D7",  # Pink for workflow agent steps
-    AgentType.NAMED_PROC: "#5FD7FF",  # Cyan for stand-alone proc shells
+    AgentType.NAMED_PROC: "#5FD7FF",  # Cyan for stand-alone named procs
 }
 
 # Per-step-type colors for workflow child entries
@@ -109,7 +109,7 @@ _STEP_TYPE_COLORS: dict[str, str] = {
 }
 
 # Per-step-type glyphs for workflow child entries. Only python/bash get
-# a glyph: that step name is their identity (sase shells use the
+# a glyph: that step name is their identity (sase turns use the
 # right-hand %id annotation instead, so a glyph would be noise), parallel
 # uses its accent + structural fan-out children, and prompt_part is
 # invisible by default.
@@ -165,10 +165,10 @@ _GATE_FAILURE_GLYPH_STYLE = f"bold {GATE_FAILURE_GLYPH_COLOR}"
 _GATE_FOLLOWUP_ERROR_GLYPH = _MONITOR_FOLLOWUP_ERROR_GLYPH
 _GATE_FOLLOWUP_ERROR_GLYPH_STYLE = _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE
 
-_PROC_SHELL_GLYPH = "⚙"
-_PROC_SHELL_GLYPH_STYLE = "bold #5FD7FF"
-_PROC_SHELL_ROW_STYLE = "#5FD7FF"
-_PROC_SHELL_ID_STYLE = "dim #87D7FF"
+_NAMED_PROC_GLYPH = "⚙"
+_NAMED_PROC_GLYPH_STYLE = "bold #5FD7FF"
+_NAMED_PROC_ROW_STYLE = "#5FD7FF"
+_NAMED_PROC_ID_STYLE = "dim #87D7FF"
 
 # Icon for auto-approve agents. Rendered bare for a normal-plan approval and
 # suffixed ``E``/``T`` for epic/tale plan actions in
@@ -240,7 +240,7 @@ _TYPE_GLYPHS: dict[str, str] = {
     "workflow": "≡",
     "cl": "❑",
     "patch": "❑",
-    "proc": _PROC_SHELL_GLYPH,
+    "proc": _NAMED_PROC_GLYPH,
 }
 
 

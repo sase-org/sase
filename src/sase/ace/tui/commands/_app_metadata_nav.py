@@ -44,14 +44,14 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         "Newer card block",
         "Navigation",
         AGENTS_ONLY,
-        ("block", "shell", "reply", "card", "]"),
+        ("block", "turn", "reply", "card", "]"),
     ),
     (
         "prev_card_block",
         "Older card block",
         "Navigation",
         AGENTS_ONLY,
-        ("block", "shell", "reply", "card", "["),
+        ("block", "turn", "reply", "card", "["),
     ),
     (
         "next_deck",

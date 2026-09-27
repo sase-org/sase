@@ -1,4 +1,4 @@
-"""Tests for responsive per-shell lanes in the agent detail header."""
+"""Tests for responsive per-turn lanes in the agent detail header."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from rich.console import Console
 from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.widgets.prompt_panel._agent_shell_section import (
-    SHELL_LANE_LIMIT,
-    ResponsiveShellSection,
-    _AgentShellLane,
-    _GateShellLane,
-    _MonitorShellLane,
-    build_agent_session_shell_lanes,
+from sase.ace.tui.widgets.prompt_panel._agent_turn_section import (
+    TURN_LANE_LIMIT,
+    ResponsiveTurnSection,
+    _AgentTurnLane,
+    _GateTurnLane,
+    _MonitorTurnLane,
+    build_agent_session_turn_lanes,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
@@ -89,7 +89,7 @@ def _agent_session(root: Agent, *members: Agent) -> Agent:
     return root
 
 
-def _render(section: ResponsiveShellSection, *, width: int) -> str:
+def _render(section: ResponsiveTurnSection, *, width: int) -> str:
     stream = StringIO()
     console = Console(
         file=stream,
@@ -109,7 +109,7 @@ def _styles_covering(text: Text, substring: str) -> set[str]:
     }
 
 
-def test_mixed_agent_shell_agent_session_renders_one_lane_per_shell_aligned() -> None:
+def test_mixed_agent_turn_agent_session_renders_one_lane_per_turn_aligned() -> None:
     agent = _agent_session(
         _agent_session_root(
             model="opus", llm_provider="claude", reasoning_effort="xhigh"
@@ -130,13 +130,13 @@ def test_mixed_agent_shell_agent_session_renders_one_lane_per_shell_aligned() ->
         ),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
-    lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
+    lanes = build_agent_session_turn_lanes(agent)
+    lines = ResponsiveTurnSection(lanes).logical_text.plain.splitlines()
 
     assert lines == [
-        "Shells: --plan     · CLAUDE(opus) @ xhigh",
-        "        --code     · CLAUDE(sonnet) @ high",
-        "        --reviewer · CODEX(gpt-5.2) @ medium",
+        "Turns: --plan     · CLAUDE(opus) @ xhigh",
+        "       --code     · CLAUDE(sonnet) @ high",
+        "       --reviewer · CODEX(gpt-5.2) @ medium",
     ]
     dot_positions = {line.index("·") for line in lines}
     assert len(dot_positions) == 1
@@ -167,45 +167,43 @@ def test_mixed_alias_agent_session_keeps_separator_column_aligned() -> None:
         ),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
-    lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
+    lanes = build_agent_session_turn_lanes(agent)
+    lines = ResponsiveTurnSection(lanes).logical_text.plain.splitlines()
 
     assert lines == [
-        "Shells: --plan     · CLAUDE(opus) @ xhigh ← @large",
-        "        --code     · CLAUDE(sonnet) @ high ← @medium",
-        "        --reviewer · CODEX(gpt-5.2) @ medium",
+        "Turns: --plan     · CLAUDE(opus) @ xhigh ← @large",
+        "       --code     · CLAUDE(sonnet) @ high ← @medium",
+        "       --reviewer · CODEX(gpt-5.2) @ medium",
     ]
     dot_positions = {line.index("·") for line in lines}
     assert len(dot_positions) == 1
 
 
-def test_mixed_agent_and_monitor_agent_session_keeps_shell_order_and_alignment() -> (
-    None
-):
+def test_mixed_agent_and_monitor_agent_session_keeps_turn_order_and_alignment() -> None:
     agent = _agent_session(
         _agent_session_root(model="opus", llm_provider="claude"),
         _monitor_member(),
         _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
-    lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
+    lanes = build_agent_session_turn_lanes(agent)
+    lines = ResponsiveTurnSection(lanes).logical_text.plain.splitlines()
 
     assert [type(lane) for lane in lanes] == [
-        _AgentShellLane,
-        _MonitorShellLane,
-        _AgentShellLane,
+        _AgentTurnLane,
+        _MonitorTurnLane,
+        _AgentTurnLane,
     ]
     assert lines == [
-        "Shells: --plan · CLAUDE(opus)",
-        "        --mon  · ⚙ just check",
-        "        --code · CLAUDE(sonnet)",
+        "Turns: --plan · CLAUDE(opus)",
+        "       --mon  · ⚙ just check",
+        "       --code · CLAUDE(sonnet)",
     ]
     dot_positions = {line.index("·") for line in lines}
     assert len(dot_positions) == 1
 
 
-def test_mixed_agent_monitor_and_gate_agent_session_keeps_shell_order_and_alignment() -> (
+def test_mixed_agent_monitor_and_gate_agent_session_keeps_turn_order_and_alignment() -> (
     None
 ):
     agent = _agent_session(
@@ -215,26 +213,26 @@ def test_mixed_agent_monitor_and_gate_agent_session_keeps_shell_order_and_alignm
         _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
-    lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
+    lanes = build_agent_session_turn_lanes(agent)
+    lines = ResponsiveTurnSection(lanes).logical_text.plain.splitlines()
 
     assert [type(lane) for lane in lanes] == [
-        _AgentShellLane,
-        _MonitorShellLane,
-        _GateShellLane,
-        _AgentShellLane,
+        _AgentTurnLane,
+        _MonitorTurnLane,
+        _GateTurnLane,
+        _AgentTurnLane,
     ]
     assert lines == [
-        "Shells: --plan · CLAUDE(opus)",
-        "        --mon  · ⚙ just check",
-        "        --gate · ⋔ Approve deploy · pending due in 0s",
-        "        --code · CLAUDE(sonnet)",
+        "Turns: --plan · CLAUDE(opus)",
+        "       --mon  · ⚙ just check",
+        "       --gate · ⋔ Approve deploy · pending due in 0s",
+        "       --code · CLAUDE(sonnet)",
     ]
     dot_positions = {line.index("·") for line in lines}
     assert len(dot_positions) == 1
 
 
-def test_nested_monitor_appears_after_its_starter_in_shell_lanes() -> None:
+def test_nested_monitor_appears_after_its_starter_in_turn_lanes() -> None:
     root = _agent_session_root(model="opus", llm_provider="claude")
     coder = _agent_session_member(
         "--code", "code", model="sonnet", llm_provider="claude"
@@ -249,13 +247,13 @@ def test_nested_monitor_appears_after_its_starter_in_shell_lanes() -> None:
     coder.followup_agents = [monitor]
     coder.runtime_children = [monitor]
 
-    lanes = build_agent_session_shell_lanes(root)
+    lanes = build_agent_session_turn_lanes(root)
 
     assert [type(lane) for lane in lanes] == [
-        _AgentShellLane,
-        _AgentShellLane,
-        _MonitorShellLane,
-        _AgentShellLane,
+        _AgentTurnLane,
+        _AgentTurnLane,
+        _MonitorTurnLane,
+        _AgentTurnLane,
     ]
     assert [lane.label for lane in lanes] == [
         "--plan",
@@ -279,8 +277,8 @@ def test_monitor_lane_never_renders_stale_model_metadata() -> None:
         ),
     )
 
-    lines = ResponsiveShellSection(
-        build_agent_session_shell_lanes(agent)
+    lines = ResponsiveTurnSection(
+        build_agent_session_turn_lanes(agent)
     ).logical_text.plain
 
     assert "CLAUDE(sonnet)" not in lines
@@ -297,12 +295,10 @@ def test_uniform_model_agent_session_still_renders_one_lane_per_member() -> None
         ),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
+    lanes = build_agent_session_turn_lanes(agent)
 
     assert len(lanes) == 3
-    assert [
-        lane.value.plain for lane in lanes if isinstance(lane, _AgentShellLane)
-    ] == [
+    assert [lane.value.plain for lane in lanes if isinstance(lane, _AgentTurnLane)] == [
         "CLAUDE(opus)",
         "CLAUDE(opus)",
         "CLAUDE(opus)",
@@ -315,10 +311,10 @@ def test_member_with_no_model_renders_default_lane() -> None:
         _agent_session_member("--code", "code", model=None, llm_provider=None),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
+    lanes = build_agent_session_turn_lanes(agent)
 
     assert len(lanes) == 2
-    assert isinstance(lanes[1], _AgentShellLane)
+    assert isinstance(lanes[1], _AgentTurnLane)
     assert lanes[1].value.plain == "default"
 
 
@@ -330,10 +326,10 @@ def test_member_with_effort_renders_suffix_member_without_does_not() -> None:
         _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
+    lanes = build_agent_session_turn_lanes(agent)
 
-    assert isinstance(lanes[0], _AgentShellLane)
-    assert isinstance(lanes[1], _AgentShellLane)
+    assert isinstance(lanes[0], _AgentTurnLane)
+    assert isinstance(lanes[1], _AgentTurnLane)
     assert lanes[0].value.plain == "CLAUDE(opus) @ xhigh"
     assert lanes[1].value.plain == "CLAUDE(sonnet)"
 
@@ -349,16 +345,16 @@ def test_cap_renders_twelve_lanes_plus_tail() -> None:
         _agent_session_root(model="opus", llm_provider="claude"), *members
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
+    lanes = build_agent_session_turn_lanes(agent)
     assert len(lanes) == 15
-    section = ResponsiveShellSection(
-        lanes=lanes[:SHELL_LANE_LIMIT],
-        hidden_count=len(lanes) - SHELL_LANE_LIMIT,
+    section = ResponsiveTurnSection(
+        lanes=lanes[:TURN_LANE_LIMIT],
+        hidden_count=len(lanes) - TURN_LANE_LIMIT,
     )
     lines = section.logical_text.plain.splitlines()
 
-    assert len(lines) == SHELL_LANE_LIMIT + 1
-    assert lines[-1].strip() == "… +3 more shells (see SESSION SHELLS)"
+    assert len(lines) == TURN_LANE_LIMIT + 1
+    assert lines[-1].strip() == "… +3 more turns (see SESSION TURNS)"
 
 
 def test_gutter_tracks_widest_label_only() -> None:
@@ -367,13 +363,13 @@ def test_gutter_tracks_widest_label_only() -> None:
         _agent_session_member("--bb", "code", model="sonnet", llm_provider="claude"),
     )
 
-    lanes = build_agent_session_shell_lanes(agent)
-    lines = ResponsiveShellSection(lanes).logical_text.plain.splitlines()
+    lanes = build_agent_session_turn_lanes(agent)
+    lines = ResponsiveTurnSection(lanes).logical_text.plain.splitlines()
 
     gutter = max(len("--a"), len("--bb"))
     assert gutter == 4
-    assert lines[0] == f"Shells: {'--a'.ljust(gutter)} · CLAUDE(opus)"
-    assert lines[1] == f"        {'--bb'.ljust(gutter)} · CLAUDE(sonnet)"
+    assert lines[0] == f"Turns: {'--a'.ljust(gutter)} · CLAUDE(opus)"
+    assert lines[1] == f"       {'--bb'.ljust(gutter)} · CLAUDE(sonnet)"
 
 
 def test_responsive_narrow_width_folds_value_column() -> None:
@@ -388,8 +384,8 @@ def test_responsive_narrow_width_folds_value_column() -> None:
             llm_provider="claude",
         ),
     )
-    lanes = build_agent_session_shell_lanes(agent)
-    section = ResponsiveShellSection(lanes)
+    lanes = build_agent_session_turn_lanes(agent)
+    section = ResponsiveTurnSection(lanes)
 
     lines = _render(section, width=40).splitlines()
 
@@ -409,8 +405,8 @@ def test_responsive_long_alias_chip_folds_under_value_column() -> None:
         ),
         _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
-    lanes = build_agent_session_shell_lanes(agent)
-    section = ResponsiveShellSection(lanes)
+    lanes = build_agent_session_turn_lanes(agent)
+    section = ResponsiveTurnSection(lanes)
 
     lines = _render(section, width=48).splitlines()
 
@@ -425,39 +421,37 @@ def test_responsive_wide_width_matches_logical_text() -> None:
         _agent_session_root(model="opus", llm_provider="claude"),
         _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
-    lanes = build_agent_session_shell_lanes(agent)
-    section = ResponsiveShellSection(lanes)
+    lanes = build_agent_session_turn_lanes(agent)
+    section = ResponsiveTurnSection(lanes)
 
     assert _render(section, width=200) == section.logical_text.plain
 
 
 def test_monitor_command_that_exactly_fits_stays_on_one_line() -> None:
     command = "just check"
-    lane = _MonitorShellLane("--mon", command=command, reason="Should not render")
-    section = ResponsiveShellSection((lane,))
+    lane = _MonitorTurnLane("--mon", command=command, reason="Should not render")
+    section = ResponsiveTurnSection((lane,))
     width = (
-        cell_len("Shells: ")
+        cell_len("Turns: ")
         + cell_len("--mon")
         + cell_len(" · ")
         + cell_len("⚙ ")
         + cell_len(command)
     )
 
-    assert _render(section, width=width).splitlines() == [
-        "Shells: --mon · ⚙ just check"
-    ]
+    assert _render(section, width=width).splitlines() == ["Turns: --mon · ⚙ just check"]
 
 
 def test_monitor_command_one_cell_too_wide_uses_reason_continuation() -> None:
     command = "just check"
-    lane = _MonitorShellLane(
+    lane = _MonitorTurnLane(
         "--mon",
         command=command,
         reason="Full-suite verification before landing",
     )
-    section = ResponsiveShellSection((lane,))
+    section = ResponsiveTurnSection((lane,))
     exact_width = (
-        cell_len("Shells: ")
+        cell_len("Turns: ")
         + cell_len("--mon")
         + cell_len(" · ")
         + cell_len("⚙ ")
@@ -466,24 +460,24 @@ def test_monitor_command_one_cell_too_wide_uses_reason_continuation() -> None:
 
     lines = _render(section, width=exact_width - 1).splitlines()
 
-    assert lines[0] == "Shells: --mon · ⚙ why"
-    assert lines[1].startswith("          ↳ Full-suite")
+    assert lines[0] == "Turns: --mon · ⚙ why"
+    assert lines[1].startswith("         ↳ Full-suite")
     assert "just check" not in "\n".join(lines)
 
 
 def test_monitor_multiline_command_uses_reason_even_when_short() -> None:
-    lane = _MonitorShellLane(
+    lane = _MonitorTurnLane(
         "--mon",
         command="just check\njust test",
         reason="Two commands run under the monitor",
     )
-    section = ResponsiveShellSection((lane,))
+    section = ResponsiveTurnSection((lane,))
 
     lines = _render(section, width=120).splitlines()
 
     assert lines == [
-        "Shells: --mon · ⚙ why",
-        "          ↳ Two commands run under the monitor",
+        "Turns: --mon · ⚙ why",
+        "         ↳ Two commands run under the monitor",
     ]
 
 
@@ -492,39 +486,39 @@ def test_monitor_reason_wraps_with_hanging_indent_and_no_overflow() -> None:
         "Full-suite verification before landing so the final report can cite the "
         "combined check result without hiding a failed narrow render"
     )
-    lane = _MonitorShellLane(
+    lane = _MonitorTurnLane(
         "--mon",
         command="just check-full --include visual --include slow --include all",
         reason=reason,
     )
-    section = ResponsiveShellSection((lane,))
+    section = ResponsiveTurnSection((lane,))
     width = 52
 
     lines = _render(section, width=width).splitlines()
 
-    assert lines[0] == "Shells: --mon · ⚙ why"
-    assert lines[1].startswith("          ↳ Full-suite verification")
-    assert all(line.startswith("            ") for line in lines[2:])
+    assert lines[0] == "Turns: --mon · ⚙ why"
+    assert lines[1].startswith("         ↳ Full-suite verification")
+    assert all(line.startswith("           ") for line in lines[2:])
     assert all(cell_len(line) <= width for line in lines)
 
 
 def test_monitor_without_reason_wraps_long_command_as_diagnostic() -> None:
     command = "just check-full --include visual --include slow"
-    lane = _MonitorShellLane("--mon", command=command, reason="  ")
-    section = ResponsiveShellSection((lane,))
+    lane = _MonitorTurnLane("--mon", command=command, reason="  ")
+    section = ResponsiveTurnSection((lane,))
 
     lines = _render(section, width=40).splitlines()
 
-    assert lines[0] == "Shells: --mon · ⚙ cmd"
+    assert lines[0] == "Turns: --mon · ⚙ cmd"
     assert "just check-full --include" in lines[1]
     assert "visual --include slow" in lines[2]
 
 
 def test_monitor_empty_command_and_reason_renders_unavailable_placeholder() -> None:
-    lane = _MonitorShellLane("--mon", command="  ", reason=None)
-    section = ResponsiveShellSection((lane,))
+    lane = _MonitorTurnLane("--mon", command="  ", reason=None)
+    section = ResponsiveTurnSection((lane,))
 
-    assert _render(section, width=80).splitlines() == ["Shells: --mon · ⚙ unavailable"]
+    assert _render(section, width=80).splitlines() == ["Turns: --mon · ⚙ unavailable"]
 
 
 def test_styles_label_and_member_label() -> None:
@@ -532,8 +526,8 @@ def test_styles_label_and_member_label() -> None:
         _agent_session_root(model="opus", llm_provider="claude"),
         _agent_session_member("--code", "code", model="sonnet", llm_provider="claude"),
     )
-    lanes = build_agent_session_shell_lanes(agent)
-    text = ResponsiveShellSection(lanes).logical_text
+    lanes = build_agent_session_turn_lanes(agent)
+    text = ResponsiveTurnSection(lanes).logical_text
 
     assert "#FFD700" in _styles_covering(text, "--plan")
-    assert "bold #87D7FF" in _styles_covering(text, "Shells: ")
+    assert "bold #87D7FF" in _styles_covering(text, "Turns: ")

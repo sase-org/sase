@@ -25,8 +25,8 @@ _ORIGINAL_RUN_AXE_STARTUP = AceApp._run_axe_startup_init
 _ORIGINAL_LOAD_AXE_STATUS_ASYNC = AceApp._load_axe_status_async
 _ORIGINAL_SCHEDULE_FOLD_STATE_LOAD = AceApp._schedule_agents_fold_state_load
 _ORIGINAL_SCHEDULE_DISMISSED_INDEX_SYNC = AceApp._schedule_dismissed_index_startup_sync
-_ORIGINAL_SCHEDULE_DISMISSED_PROC_SHELLS_PRUNE = (
-    AceApp._schedule_dismissed_proc_shells_startup_prune
+_ORIGINAL_SCHEDULE_DISMISSED_NAMED_PROCS_PRUNE = (
+    AceApp._schedule_dismissed_named_procs_startup_prune
 )
 _ORIGINAL_START_ARTIFACT_WATCHER = AceApp._start_artifact_watcher
 _ORIGINAL_START_PROMPT_SOURCE_WATCHER = AceApp._start_prompt_source_watcher
@@ -296,8 +296,8 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
             _ORIGINAL_SCHEDULE_DISMISSED_INDEX_SYNC,
         ),
         (
-            "_schedule_dismissed_proc_shells_startup_prune",
-            _ORIGINAL_SCHEDULE_DISMISSED_PROC_SHELLS_PRUNE,
+            "_schedule_dismissed_named_procs_startup_prune",
+            _ORIGINAL_SCHEDULE_DISMISSED_NAMED_PROCS_PRUNE,
         ),
         ("_start_artifact_watcher", _ORIGINAL_START_ARTIFACT_WATCHER),
         (

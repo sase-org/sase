@@ -349,7 +349,7 @@ def test_plan_agent_session_root_dismissal_includes_its_own_notification_key() -
     assert {"cl_name": root.cl_name, "raw_suffix": root.raw_suffix} in key_dicts
 
 
-def test_manual_toggle_rejects_agent_session_member_shell() -> None:
+def test_manual_toggle_rejects_agent_session_member_turn() -> None:
     agent_session = make_agent(name="build", status="DONE", raw_suffix="session")
     agent_session.agent_name = "build"
     agent_session.agent_session = "build"

@@ -72,7 +72,7 @@ def _tree_shape(agents: list[Agent]) -> list[tuple[object, ...]]:
     ]
 
 
-def test_project_fleet_agents_builds_a_remote_agent_session_container_with_shells() -> (
+def test_project_fleet_agents_builds_a_remote_agent_session_container_with_turns() -> (
     None
 ):
     response = fleet_host_response(
@@ -100,7 +100,7 @@ def test_project_fleet_agents_builds_a_remote_agent_session_container_with_shell
     assert code.is_agent_session_member_child is True
     assert monitor.is_monitor is True
     assert gate.is_gate is True
-    assert proc.is_proc_shell is True
+    assert proc.is_named_proc is True
     assert all(
         child.parent_timestamp == root.raw_suffix for child in root.followup_agents
     )

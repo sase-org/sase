@@ -32,9 +32,9 @@ def _monitor() -> Agent:
     )
 
 
-def _proc_shell(*, proc_id: str = "abc123def456", active: bool = True) -> Agent:
+def _named_proc(*, proc_id: str = "abc123def456", active: bool = True) -> Agent:
     return Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status="RUNNING" if active else "DONE",
@@ -109,7 +109,7 @@ class _App(AgentsMixin):  # type: ignore[misc]
         self._agents_with_children = list(agents)
         self._dismissed_agents: set[Any] = set()
         self._dismissed_agent_objects: list[Agent] = []
-        self._dismissed_proc_shells: set[str] = set()
+        self._dismissed_named_procs: set[str] = set()
         self._marked_agents: set[Any] = set()
         self._kill_persistence_inflight: set[Any] = set()
         self._dismiss_persistence_inflight: set[Any] = set()
@@ -203,17 +203,17 @@ def test_focused_x_on_running_monitor_removes_row_in_one_step() -> None:
     assert payload["kind"] == "monitor"
 
 
-def test_focused_x_on_active_proc_shell_removes_row_in_one_step() -> None:
-    shell = _proc_shell()
+def test_focused_x_on_active_named_proc_removes_row_in_one_step() -> None:
+    shell = _named_proc()
     app = _App([shell])
 
     app.action_kill_agent()
 
     assert len(app.pushed) == 1
-    assert app.pushed[0][0].__class__.__name__ == "ConfirmKillProcShellModal"
+    assert app.pushed[0][0].__class__.__name__ == "ConfirmKillNamedProcModal"
     assert [a.identity for a in app._agents_with_children] == []
     assert shell.identity in app._explicit_removals
-    assert shell.proc_id in app._dismissed_proc_shells
+    assert shell.proc_id in app._dismissed_named_procs
     assert len(app.cleanup_payloads) == 1
     payload = app.cleanup_payloads[0]
     assert payload["transaction"] == "bulk_kill"
@@ -257,11 +257,11 @@ def test_focused_x_on_settling_gate_keeps_warning() -> None:
     assert ("Gate is waiting for a decision", "warning") in app.notifications
 
 
-def test_clan_kill_with_proc_shell_and_gate_removes_container() -> None:
+def test_clan_kill_with_named_proc_and_gate_removes_container() -> None:
     from sase.ace.tui.models._agent_tree import project_clan_tree
 
     done = _done_member()
-    shell = _proc_shell()
+    shell = _named_proc()
     gate = _gate()
     roster = project_clan_tree([done, shell, gate])
     container = next(a for a in roster if a.is_clan_container)
@@ -272,7 +272,7 @@ def test_clan_kill_with_proc_shell_and_gate_removes_container() -> None:
 
     assert len(app.pushed) == 1
     description = app.pushed[0][0].agent_description
-    assert "Kill 1 running proc shell" in description
+    assert "Kill 1 running named proc" in description
     assert "Cancel 1 gate" in description
     assert "Skipping" not in description
     remaining = {a.identity for a in app._agents_with_children}
@@ -311,7 +311,7 @@ def test_durable_bulk_transaction_runs_member_intents(monkeypatch: Any) -> None:
         persist_bulk_kill_transaction,
     )
 
-    shell = _proc_shell()
+    shell = _named_proc()
     gate = _gate()
     stopped: list[list[Agent]] = []
     cancelled: list[list[Agent]] = []

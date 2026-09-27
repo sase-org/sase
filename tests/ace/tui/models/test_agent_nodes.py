@@ -87,7 +87,7 @@ def _agent(name: str, **overrides: object) -> Agent:
             False,
         ),
         (
-            "monitor proc shell",
+            "monitor named proc",
             _agent(
                 "build--monitor",
                 parent_timestamp="suffix-build--plan",

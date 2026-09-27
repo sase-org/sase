@@ -131,11 +131,11 @@ class CleanupProcMixin:
         dismissed = getattr(self, "_dismissed_agents", None)
         if isinstance(dismissed, set):
             dismissed.difference_update(identities)
-        dismissed_shells = getattr(self, "_dismissed_proc_shells", None)
-        if isinstance(dismissed_shells, set):
+        dismissed_ids = getattr(self, "_dismissed_named_procs", None)
+        if isinstance(dismissed_ids, set):
             from sase.core.agent_types import AgentType
 
-            dismissed_shells.difference_update(
+            dismissed_ids.difference_update(
                 {
                     suffix
                     for agent_type, _cl_name, suffix in identities

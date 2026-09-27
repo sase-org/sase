@@ -110,7 +110,7 @@ async def test_running_clan_runtime_png_snapshots(
         assert_page_svg_contains(page, "38m")
         assert_page_svg_contains(page, "45m")
         # The collapsed clan lane must show the session's total (38m), never
-        # the running coder shell's own runtime (35m) -- that single
+        # the running coder turn's own runtime (35m) -- that single
         # absence is what fails loudly if the clan lane regresses. Scoped to
         # the live-marker-prefixed form so it doesn't false-positive on the
         # session roster detail panel, which legitimately lists the coder

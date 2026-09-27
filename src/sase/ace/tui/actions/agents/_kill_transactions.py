@@ -145,7 +145,7 @@ def persist_bulk_kill_transaction(
     """Persist all side effects for one optimistic bulk kill/dismiss operation.
 
     Follows the same order as :func:`persist_single_kill_transaction`:
-    publish the dismissal, stop member proc shells, cancel member gates,
+    publish the dismissal, stop member named procs, cancel member gates,
     terminate and verify, then release workspaces and delete artifacts for
     every agent that is verifiably dead. A member stop or cancel that does
     not settle fails the transaction with the identities to resurface.
@@ -210,7 +210,7 @@ def _execute_member_stop_intents(
     proc_stops: list[Agent] | None,
     gate_cancels: list[Agent] | None,
 ) -> None:
-    """Stop member proc shells and cancel member gates, failing on leftovers.
+    """Stop member named procs and cancel member gates, failing on leftovers.
 
     Raises :class:`MemberStopError` naming the identities whose rows must
     resurface when any stop or cancel does not settle.

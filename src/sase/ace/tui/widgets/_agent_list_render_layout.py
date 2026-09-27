@@ -20,7 +20,7 @@ from ..models.agent import (
     compute_row_runtime,
     format_compact_duration,
 )
-from ..models.agent_session_members import current_agent_session_shell_row
+from ..models.agent_session_members import current_agent_session_turn_row
 from ._agent_list_styling import _TIER_GUIDE_SEGMENT
 
 # Timestamp half: muted lavender-steel.  No `dim` attribute so the color
@@ -93,10 +93,10 @@ def build_runtime_suffix(
     is_ticking = agent_time_model.runtime_suffix_ticks(agent)
     leading_elapsed: str | None = None
     if elapsed is not None and is_ticking:
-        current_shell = current_agent_session_shell_row(agent)
-        if current_shell is not None:
-            _shell_ts_pair, leading_elapsed = agent_time_model.compute_leaf_row_runtime(
-                current_shell,
+        current_turn = current_agent_session_turn_row(agent)
+        if current_turn is not None:
+            _turn_ts_pair, leading_elapsed = agent_time_model.compute_leaf_row_runtime(
+                current_turn,
                 now=reference,
             )
         elif agent.is_clan_container:

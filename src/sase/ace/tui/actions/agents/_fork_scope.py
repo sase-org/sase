@@ -169,11 +169,11 @@ def proc_prompt_target_scope(
     label: str,
     history_fallback: str = "fork",
 ) -> AgentPromptTargetScope:
-    """Build a stand-alone proc-shell or monitor prompt target scope.
+    """Build a stand-alone named-proc or monitor prompt target scope.
 
     The reference is the exact durable proc ID so name reuse can never drift
-    the eventual fork/wait target; the label stays the friendly shell name.
-    A proc shell has no launch xprompt, so it never contributes to VCS
+    the eventual fork/wait target; the label stays the friendly turn name.
+    A named proc has no launch xprompt, so it never contributes to VCS
     consensus (``vcs_members`` stays empty).
     """
     return AgentPromptTargetScope(

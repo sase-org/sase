@@ -41,7 +41,7 @@ def _monitor_task(
 ) -> ProcInfo:
     row = task(proc_id, label=label, status=status, age_seconds=age_seconds)
     row.origin = MONITOR_PROC_ORIGIN
-    row.shell_name = "acme--mon"
+    row.proc_name = "acme--mon"
     return row
 
 

@@ -29,7 +29,7 @@ pytestmark = pytest.mark.visual
 _STARTED = datetime(2026, 9, 24, 10, 0, 0)
 
 
-def _block_shell(
+def _block_turn(
     tmp_path: Path,
     session: str,
     role: str,
@@ -41,7 +41,7 @@ def _block_shell(
     tiny_content: bool = False,
     **overrides: object,
 ) -> Agent:
-    """Build one concrete shell member with deterministic content and times."""
+    """Build one concrete turn member with deterministic content and times."""
     directory = tmp_path / f"{session}-{suffix.strip('-')}"
     directory.mkdir(parents=True, exist_ok=True)
     write_phase_content(directory, role)
@@ -86,15 +86,15 @@ def _block_session(
     tmp_path: Path,
     *,
     session: str = "alpha",
-    code_shells: int = 1,
+    code_turns: int = 1,
     extra_reply_lines: int = 0,
     extra_context_lines: int = 0,
     tiny_content: bool = False,
     include_gate_monitor: bool = True,
     running_last: bool = False,
 ) -> Agent:
-    """Build a deterministic session: plan, gate, monitor, then code shells."""
-    plan = _block_shell(
+    """Build a deterministic session: plan, gate, monitor, then code turns."""
+    plan = _block_turn(
         tmp_path,
         session,
         "plan",
@@ -108,7 +108,7 @@ def _block_session(
     members = [plan]
     base = 1
     if include_gate_monitor:
-        gate = _block_shell(
+        gate = _block_turn(
             tmp_path,
             session,
             "gate",
@@ -126,7 +126,7 @@ def _block_session(
             gate_accent="#0BCDEC",
             gate_label="Approve deploy",
         )
-        monitor = _block_shell(
+        monitor = _block_turn(
             tmp_path,
             session,
             "monitor",
@@ -143,12 +143,12 @@ def _block_session(
         )
         members.extend([gate, monitor])
         base = 3
-    for shell in range(code_shells):
-        index = base + shell
-        suffix = "--code" if code_shells == 1 else f"--code-{shell}"
-        last = shell == code_shells - 1
+    for turn in range(code_turns):
+        index = base + turn
+        suffix = "--code" if code_turns == 1 else f"--code-{turn}"
+        last = turn == code_turns - 1
         members.append(
-            _block_shell(
+            _block_turn(
                 tmp_path,
                 session,
                 "code",
@@ -310,7 +310,7 @@ async def test_agents_deck_blocks_split_rails_png_snapshot(
     patch_startup_loaders(
         monkeypatch,
         agents=[
-            _block_session(tmp_path, session="split", code_shells=9),
+            _block_session(tmp_path, session="split", code_turns=9),
         ],
     )
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -380,7 +380,7 @@ async def test_agents_deck_blocks_spread_deck_sticky_png_snapshot(
             _block_session(
                 tmp_path,
                 session="tiny",
-                code_shells=1,
+                code_turns=1,
                 include_gate_monitor=False,
                 tiny_content=True,
                 extra_reply_lines=4,
@@ -437,8 +437,8 @@ async def test_agents_deck_blocks_arrival_dot_png_snapshot(
             lambda: panel.main_view.active_block_id("reply") == card.block_ids[-2],
             description="Second-to-last block is active after [",
         )
-        # A new shell starts while not following: the rail gains an arrival dot.
-        late = _block_shell(
+        # A new turn starts while not following: the rail gains an arrival dot.
+        late = _block_turn(
             tmp_path,
             "arrive",
             "code",
@@ -452,12 +452,12 @@ async def test_agents_deck_blocks_arrival_dot_png_snapshot(
         root.followup_agents = [*root.followup_agents, late]
         # Re-render through the hidden prompt source, the same sink a live
         # streaming update takes: same subject, so the cursor is kept by id
-        # and the new shell gains an arrival dot.
+        # and the new turn gains an arrival dot.
         detail._deck_source_panel().update_display(root)
         await wait_for_state(
             page,
             lambda: bool(panel.arrived_block_ids("reply")),
-            description="New shell arrives while reading history",
+            description="New turn arrives while reading history",
         )
         await wait_for_visual_idle(page)
         assert panel.main_view.active_block_id("reply") == card.block_ids[-2]
@@ -478,7 +478,7 @@ async def test_agents_deck_blocks_micro_png_snapshot(
     patch_startup_loaders(
         monkeypatch,
         agents=[
-            _block_session(tmp_path, session="micro", code_shells=9),
+            _block_session(tmp_path, session="micro", code_turns=9),
         ],
     )
     async with AcePage(query='"visual"', patches=patches()) as page:

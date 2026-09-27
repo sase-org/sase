@@ -1,4 +1,4 @@
-"""Loader tests: a pending gate shell remains visible with a dead pid.
+"""Loader tests: a pending gate turn remains visible with a dead pid.
 
 Coverage starts from artifact markers and calls the public loader. The
 claim-only counterpart is
@@ -20,7 +20,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_session_members import (
     agent_row_is_in_flight,
     row_is_agent_session_turn,
-    shell_lane_counts,
+    turn_lane_counts,
 )
 from sase.ace.tui.models.agent_groups import GroupingMode, grouping_keys_for_agents
 from sase.ace.tui.models.agent_loader import load_all_agents
@@ -182,7 +182,7 @@ def test_pending_gate_with_dead_pid_yields_gate_row(
     assert agent_row_is_in_flight(gate) is False
     assert root.status == start_status
     assert root.gate_state == "pending"
-    lanes = shell_lane_counts(root)
+    lanes = turn_lane_counts(root)
     assert lanes.gate.running == 1
     assert lanes.gate.settled == 0
     assert lanes.gate.failed == 0
@@ -300,7 +300,7 @@ def test_running_monitor_with_dead_workflow_pid_merges_to_one_live_row() -> None
 
 
 def test_normalization_keeps_agent_session_turn_rows_keyed_on_state_not_pid() -> None:
-    """No normalization step drops an agent-session shell row because its pid is dead."""
+    """No normalization step drops an agent-session turn row because its pid is dead."""
     gate = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name=f"{_AGENT_SESSION}--gate",

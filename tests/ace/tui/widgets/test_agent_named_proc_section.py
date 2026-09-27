@@ -1,4 +1,4 @@
-"""Proc-shell prompt-panel section rendering."""
+"""Named-proc prompt-panel section rendering."""
 
 from __future__ import annotations
 
@@ -8,9 +8,12 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets.prompt_panel._agent_proc_shell_section import (
-    build_proc_shell_preview,
-    build_proc_shell_section,
+from sase.ace.tui.widgets.prompt_panel._agent_named_proc_section import (
+    LEGACY_NAMED_PROC_SECTION_ID,
+    NAMED_PROC_SECTION_ID,
+    build_named_proc_preview,
+    build_named_proc_section,
+    resolve_named_proc_fold_level,
 )
 
 
@@ -21,7 +24,7 @@ def _agent(
     proc_phase: str = "running",
 ) -> Agent:
     return Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status=status,
@@ -63,9 +66,9 @@ def _plain(parts: list[object]) -> str:
     return "".join(rendered)
 
 
-def test_proc_shell_details_hide_diagnostics_at_default_fold() -> None:
+def test_named_proc_details_hide_diagnostics_at_default_fold() -> None:
     plain = _plain(
-        build_proc_shell_section(
+        build_named_proc_section(
             _agent(),
             panel_level=FoldLevel.COLLAPSED,
             annotate=_annotate,
@@ -92,9 +95,9 @@ def test_proc_shell_details_hide_diagnostics_at_default_fold() -> None:
     assert "Command:" not in plain
 
 
-def test_proc_shell_details_omit_stale_terminal_phase() -> None:
+def test_named_proc_details_omit_stale_terminal_phase() -> None:
     plain = _plain(
-        build_proc_shell_section(
+        build_named_proc_section(
             _agent(status="DONE", proc_status="success", proc_phase="running"),
             panel_level=FoldLevel.COLLAPSED,
             annotate=_annotate,
@@ -105,9 +108,9 @@ def test_proc_shell_details_omit_stale_terminal_phase() -> None:
     assert "Phase:" not in plain
 
 
-def test_proc_shell_details_show_diagnostics_when_fully_expanded() -> None:
+def test_named_proc_details_show_diagnostics_when_fully_expanded() -> None:
     plain = _plain(
-        build_proc_shell_section(
+        build_named_proc_section(
             _agent(),
             panel_level=FoldLevel.FULLY_EXPANDED,
             annotate=_annotate,
@@ -124,10 +127,10 @@ def test_proc_shell_details_show_diagnostics_when_fully_expanded() -> None:
     assert "/bin/bash --noprofile --norc /tmp/script.sh" in plain
 
 
-def test_proc_shell_command_preview_heading() -> None:
-    preview = _plain(build_proc_shell_preview(_agent(), annotate=_annotate))
+def test_named_proc_command_preview_heading() -> None:
+    preview = _plain(build_named_proc_preview(_agent(), annotate=_annotate))
     detail = _plain(
-        build_proc_shell_section(
+        build_named_proc_section(
             _agent(),
             panel_level=FoldLevel.COLLAPSED,
             annotate=_annotate,
@@ -138,3 +141,35 @@ def test_proc_shell_command_preview_heading() -> None:
     assert "COMMAND" in preview
     assert "SAFE PREVIEW" not in preview
     assert combined.index("COMMAND") < combined.index("PROC DETAILS")
+
+
+def test_named_proc_fold_level_reads_legacy_section_id() -> None:
+    """Pre-rename ``proc-shell`` fold overrides still apply to the named-proc section."""
+    assert LEGACY_NAMED_PROC_SECTION_ID == "proc-shell"
+    assert NAMED_PROC_SECTION_ID == "named-proc"
+    # New id wins when both are present; writers emit only the new id.
+    assert (
+        resolve_named_proc_fold_level(
+            {NAMED_PROC_SECTION_ID: FoldLevel.FULLY_EXPANDED},
+            FoldLevel.COLLAPSED,
+        )
+        is FoldLevel.FULLY_EXPANDED
+    )
+    assert (
+        resolve_named_proc_fold_level(
+            {LEGACY_NAMED_PROC_SECTION_ID: FoldLevel.FULLY_EXPANDED},
+            FoldLevel.COLLAPSED,
+        )
+        is FoldLevel.FULLY_EXPANDED
+    )
+    assert (
+        resolve_named_proc_fold_level(
+            {
+                NAMED_PROC_SECTION_ID: FoldLevel.COLLAPSED,
+                LEGACY_NAMED_PROC_SECTION_ID: FoldLevel.FULLY_EXPANDED,
+            },
+            FoldLevel.EXHAUSTIVE,
+        )
+        is FoldLevel.COLLAPSED
+    )
+    assert resolve_named_proc_fold_level({}, FoldLevel.COLLAPSED) is FoldLevel.COLLAPSED

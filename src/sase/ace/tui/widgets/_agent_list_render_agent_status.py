@@ -109,7 +109,7 @@ def append_agent_row_status(
         text.append(display_status, style=style)
         if glyph:
             text.append(f" {glyph}", style=style)
-    elif agent.is_proc_shell and agent.status == "SETTLING":
+    elif agent.is_named_proc and agent.status == "SETTLING":
         text.append(display_status, style="bold #FFAF5F")
     elif agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue

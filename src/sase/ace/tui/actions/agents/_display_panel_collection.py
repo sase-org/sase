@@ -251,7 +251,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
     ) -> set[PanelKey]:
         """Drop explicitly removed identities and retire keys left with none.
 
-        Only user-driven removals (dismiss, kill, proc-shell dismiss) call this.
+        Only user-driven removals (dismiss, kill, named-proc dismiss) call this.
         A tribe's agents merely being absent from the roster never retires its
         key: an incomplete or bounded load is not proof that a row is gone.
         Clan containers retire through their backing: removing a clan's last

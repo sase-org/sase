@@ -240,7 +240,7 @@ def test_start_post_mount_background_loads_starts_visible_agents_first() -> None
         assert scheduled.count(app._run_agents_fold_state_load) == 1
         assert app._run_axe_startup_init not in scheduled
         assert app._run_deferred_mount_state_loads not in scheduled
-        assert app._run_dismissed_proc_shells_startup_prune not in scheduled
+        assert app._run_dismissed_named_procs_startup_prune not in scheduled
         assert app._run_startup_update_toast_check not in scheduled
         post_paint_services.assert_called_once_with()
         link_refresh.assert_not_called()
@@ -262,7 +262,7 @@ def test_start_post_mount_background_loads_starts_visible_agents_first() -> None
     assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
     assert scheduled.count(app._run_deferred_mount_state_loads) == 1
-    assert scheduled.count(app._run_dismissed_proc_shells_startup_prune) == 1
+    assert scheduled.count(app._run_dismissed_named_procs_startup_prune) == 1
     assert scheduled.count(app._run_startup_update_toast_check) == 1
     timers[0][3].stop.assert_called_once()
     assert app._startup_deferred_loads_released is True
@@ -307,7 +307,7 @@ def test_startup_fallback_releases_deferred_without_visible_ready() -> None:
     assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
     assert scheduled.count(app._run_deferred_mount_state_loads) == 1
-    assert scheduled.count(app._run_dismissed_proc_shells_startup_prune) == 1
+    assert scheduled.count(app._run_dismissed_named_procs_startup_prune) == 1
 
 
 def test_initial_axe_startup_starts_axe_before_agents() -> None:

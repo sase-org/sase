@@ -31,9 +31,9 @@ from ._agent_list_styling import (
     _MONITOR_GLYPH_STYLE,
     _MONITOR_ROW_STYLE,
     _MONITOR_SETTLED_GLYPH_STYLE,
-    _PROC_SHELL_GLYPH,
-    _PROC_SHELL_GLYPH_STYLE,
-    _PROC_SHELL_ROW_STYLE,
+    _NAMED_PROC_GLYPH,
+    _NAMED_PROC_GLYPH_STYLE,
+    _NAMED_PROC_ROW_STYLE,
     _REVERTED_GLYPH,
     _REVERTED_GLYPH_STYLE,
     _STEP_TYPE_COLORS,
@@ -52,11 +52,11 @@ def _should_render_reverted_badge(agent: Agent) -> bool:
     return agent.reverted and not agent_is_tree_child(agent)
 
 
-def _is_indented_member_shell(agent: Agent) -> bool:
-    """Return whether *agent* is a shell nested under an already-chipped node.
+def _is_indented_member_turn(agent: Agent) -> bool:
+    """Return whether *agent* is a turn nested under an already-chipped node.
 
     Session and clan containers still carry a host chip even when they nest
-    under another container. Member shells (session children, workflow
+    under another container. Member turns (session children, workflow
     steps, monitors, gates, procs) do not repeat the parent's chip.
     """
     if agent.is_clan_container or agent.is_agent_session_container_row:
@@ -64,19 +64,19 @@ def _is_indented_member_shell(agent: Agent) -> bool:
     if not agent_is_tree_child(agent):
         return False
     return (
-        agent.is_child_row or agent.is_monitor or agent.is_gate or agent.is_proc_shell
+        agent.is_child_row or agent.is_monitor or agent.is_gate or agent.is_named_proc
     )
 
 
 def _append_machine_chip(text: Text, agent: Agent) -> None:
     alias = agent.fleet_origin_alias
-    if not alias or _is_indented_member_shell(agent):
+    if not alias or _is_indented_member_turn(agent):
         return
     text.append(f"{alias} ", style="bold #5FD7FF")
 
 
 def _monitor_glyph_style(agent: Agent) -> str:
-    """Return the row gear style for a monitor shell.
+    """Return the row gear style for a monitor turn.
 
     Shares ``monitor_row_is_settled`` with the ``⚙N`` lane counts so a grey
     gear on a row and the grey count it feeds can never disagree.
@@ -89,7 +89,7 @@ def _monitor_glyph_style(agent: Agent) -> str:
 
 
 def _gate_glyph_style(agent: Agent) -> str:
-    """Return the row glyph style for a gate shell."""
+    """Return the row glyph style for a gate turn."""
     if agent.gate_state in {"failed", "timeout", "lost"}:
         return _GATE_FAILED_COUNT_GLYPH_STYLE
     if gate_row_is_settled(agent):
@@ -197,8 +197,8 @@ def append_agent_row_prefix(
         text.append(f"{_MONITOR_GLYPH} ", style=_monitor_glyph_style(agent))
     elif agent.is_gate:
         text.append(f"{_GATE_GLYPH} ", style=_gate_glyph_style(agent))
-    elif agent.is_proc_shell:
-        text.append(f"{_PROC_SHELL_GLYPH} ", style=_PROC_SHELL_GLYPH_STYLE)
+    elif agent.is_named_proc:
+        text.append(f"{_NAMED_PROC_GLYPH} ", style=_NAMED_PROC_GLYPH_STYLE)
 
     # Hidden icon for agents that are normally hidden
     if agent.hidden:
@@ -227,8 +227,8 @@ def append_agent_row_prefix(
         color = _MONITOR_ROW_STYLE
     elif agent.is_gate:
         color = _gate_glyph_style(agent).removeprefix("bold ")
-    elif agent.is_proc_shell:
-        color = _PROC_SHELL_ROW_STYLE
+    elif agent.is_named_proc:
+        color = _NAMED_PROC_ROW_STYLE
     elif is_appears_as_agent:
         color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
     elif agent.is_workflow_step_child and agent.step_type in _STEP_TYPE_COLORS:
@@ -246,7 +246,7 @@ def append_agent_row_prefix(
         or agent_is_tree_child(agent)
         or agent.is_monitor
         or agent.is_gate
-        or agent.is_proc_shell
+        or agent.is_named_proc
     ):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:
@@ -262,7 +262,7 @@ def append_agent_row_prefix(
 
     if not agent.is_clan_container:
         is_reverted_root = _should_render_reverted_badge(agent)
-        if agent.is_proc_shell:
+        if agent.is_named_proc:
             name_style = f"bold {color}" if is_selected else color
         elif is_reverted_root:
             text.append(_REVERTED_GLYPH, style=_REVERTED_GLYPH_STYLE)
@@ -272,7 +272,7 @@ def append_agent_row_prefix(
             name_style = "bold #00D7AF" if is_selected else "#00D7AF"
 
         # Bash/python workflow steps keep their step name as identity. Sase
-        # shells (session members, monitors, workflow agent steps) omit the
+        # turns (session members, monitors, workflow agent steps) omit the
         # left-side title; identity is the right-hand %id annotation.
         title = agent_tree_title(agent)
         if title:

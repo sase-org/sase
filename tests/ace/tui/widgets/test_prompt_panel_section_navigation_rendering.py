@@ -296,13 +296,13 @@ def test_agent_session_kind_header_is_not_a_section_title(tmp_path: Path) -> Non
     assert identities[0] == "members"
 
 
-def test_agent_shell_kind_header_is_not_a_section_title(tmp_path: Path) -> None:
+def test_agent_proc_role_header_is_not_a_section_title(tmp_path: Path) -> None:
     _root, child = make_agent_session(tmp_path)
     header, _ = build_header_text(child, cheap=True, lane_fold_level=FoldLevel.EXPANDED)
 
     identities = rendered_section_ids(header, width=80)
 
-    assert header.plain.startswith("AGENT SHELL\n")
+    assert header.plain.startswith("AGENT TURN\n")
     assert "agent-shell" not in identities
     assert "session" not in identities
     assert identities[0] == "members"

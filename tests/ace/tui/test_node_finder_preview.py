@@ -68,9 +68,9 @@ def _monitor() -> Agent:
 def test_tier0_is_pure_for_every_node_kind(monkeypatch: pytest.MonkeyPatch) -> None:
     """Rendering never opens or stats an artifact, even for output previews."""
 
-    shell = make_agent("session--code", session="session", role="code")
+    turn = make_agent("session--code", session="session", role="code")
     session = make_agent("session--plan", session="session", role="plan")
-    session.followup_agents = [shell]
+    session.followup_agents = [turn]
     clan_member = make_agent("research.0", clan="research")
     (clan,) = project_clan_tree([clan_member])[:1]
     gate = make_agent("gate", role="gate")
@@ -108,7 +108,7 @@ def test_tier0_is_pure_for_every_node_kind(monkeypatch: pytest.MonkeyPatch) -> N
         step_name="code",
         step_type="agent",
     )
-    agents = [session, shell, clan, _monitor(), gate, proc, workflow, step]
+    agents = [session, turn, clan, _monitor(), gate, proc, workflow, step]
     rows = tuple(
         _row(agent, parent_row=6 if agent is step else None) for agent in agents
     )
@@ -132,16 +132,16 @@ def test_tier0_is_pure_for_every_node_kind(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_tier0_renders_session_clan_and_monitor_sections() -> None:
-    shell = make_agent("session--code", session="session", role="code")
+    turn = make_agent("session--code", session="session", role="code")
     session = make_agent("session--plan", session="session", role="plan")
-    session.followup_agents = [shell]
+    session.followup_agents = [turn]
     clan_member = make_agent("research.0", clan="research")
     (clan,) = project_clan_tree([clan_member])[:1]
     monitor = _monitor()
-    rows = (_row(session), _row(shell, parent_row=0), _row(clan), _row(monitor))
+    rows = (_row(session), _row(turn, parent_row=0), _row(clan), _row(monitor))
     snapshot = _snapshot(*rows)
 
-    assert "SHELLS" in render_node_finder_preview(rows[0], snapshot, "").plain
+    assert "TURNS" in render_node_finder_preview(rows[0], snapshot, "").plain
     clan_text = render_node_finder_preview(rows[2], snapshot, "").plain
     assert "MEMBERS" in clan_text
     assert ".0" in clan_text
@@ -151,7 +151,7 @@ def test_tier0_renders_session_clan_and_monitor_sections() -> None:
     assert "three" in monitor_text
 
 
-def test_tier1_source_uses_newest_session_shell() -> None:
+def test_tier1_source_uses_newest_session_turn() -> None:
     first = make_agent("session--first", session="session", role="code")
     first.start_time = _started(1)
     newest = make_agent("session--newest", session="session", role="code")

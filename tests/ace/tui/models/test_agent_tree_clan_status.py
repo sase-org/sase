@@ -72,7 +72,7 @@ def _format(agent: Agent, index: int = 0) -> Text:
     return text
 
 
-def _assert_shell_presentation_cleared(agent: Agent) -> None:
+def _assert_turn_presentation_cleared(agent: Agent) -> None:
     assert agent.monitor_start_status is None
     assert agent.monitor_stop_status is None
     assert agent.monitor_state is None
@@ -185,7 +185,7 @@ def test_clan_stays_running_when_two_members_are_running() -> None:
     container, *_ = project_clan_tree(members)
 
     assert container.status == "RUNNING"
-    _assert_shell_presentation_cleared(container)
+    _assert_turn_presentation_cleared(container)
 
 
 def test_clan_stays_running_for_lone_plain_running_member() -> None:
@@ -212,7 +212,7 @@ def test_clan_status_preserves_precedence_over_lone_running_member(
     container, *_ = project_clan_tree(members)
 
     assert container.status == higher
-    _assert_shell_presentation_cleared(container)
+    _assert_turn_presentation_cleared(container)
 
 
 def test_clan_stays_running_for_lone_starting_member() -> None:
@@ -315,7 +315,7 @@ def test_clan_multiple_relevant_members_keep_canonical_aggregate(
     container, *_ = project_clan_tree(members)
 
     assert container.status == expected_status
-    _assert_shell_presentation_cleared(container)
+    _assert_turn_presentation_cleared(container)
 
 
 def test_clan_honors_effective_bucket_override() -> None:
@@ -342,7 +342,7 @@ def test_clan_all_waiting_members_keep_existing_fallback() -> None:
         ]
     )
     assert waiting.status == "QUEUED"
-    _assert_shell_presentation_cleared(waiting)
+    _assert_turn_presentation_cleared(waiting)
 
 
 def test_clan_status_reprojection_clears_stale_monitor_fields() -> None:
@@ -358,7 +358,7 @@ def test_clan_status_reprojection_clears_stale_monitor_fields() -> None:
     reprojection, *_ = project_clan_tree([container, *members])
 
     assert reprojection.status == "DONE"
-    _assert_shell_presentation_cleared(reprojection)
+    _assert_turn_presentation_cleared(reprojection)
 
 
 def test_clan_status_reprojection_clears_failed_source_after_second_member() -> None:
@@ -380,7 +380,7 @@ def test_clan_status_reprojection_clears_failed_source_after_second_member() -> 
 
     assert reprojection.status == "FAILED"
     assert agent_status_bucket(reprojection) == "Failed"
-    _assert_shell_presentation_cleared(reprojection)
+    _assert_turn_presentation_cleared(reprojection)
 
 
 def test_clan_status_reprojection_replaces_failed_label_with_later_running_member() -> (
@@ -547,9 +547,9 @@ def test_clan_queued_rank_reprojection_clears_wait_display_source() -> None:
     assert "#" not in _format(reprojection).plain
 
 
-def test_clan_mirrors_lone_queued_agent_session_shell_rank() -> None:
+def test_clan_mirrors_lone_queued_agent_session_turn_rank() -> None:
     agent_session_root = _member("research.session", "session", status="QUEUED")
-    shell = _agent(
+    turn = _agent(
         "research.session--code",
         "session-code",
         status="QUEUED",
@@ -557,12 +557,12 @@ def test_clan_mirrors_lone_queued_agent_session_shell_rank() -> None:
         clan=None,
         generation=None,
     )
-    shell.runner_slot_queue_position = 3
-    shell.runner_slot_queue_size = 4
-    agent_session_root.wait_display_source = shell
+    turn.runner_slot_queue_position = 3
+    turn.runner_slot_queue_size = 4
+    agent_session_root.wait_display_source = turn
     members = [
         agent_session_root,
-        shell,
+        turn,
         _member("research.one", "one", status="DONE"),
         _member("research.two", "two", status="DONE"),
         _member("research.three", "three", status="DONE"),
@@ -571,12 +571,12 @@ def test_clan_mirrors_lone_queued_agent_session_shell_rank() -> None:
     container, *_ = project_clan_tree(members)
 
     assert container.status == "QUEUED"
-    assert container.wait_display_source is shell
+    assert container.wait_display_source is turn
     container_text = _format(container)
-    shell_text = _format(shell, 1)
+    turn_text = _format(turn, 1)
     assert "(QUEUED #3/4)" in container_text.plain
     assert _style_at(container_text, container_text.plain.index("#3/4")) == (
-        _style_at(shell_text, shell_text.plain.index("#3/4"))
+        _style_at(turn_text, turn_text.plain.index("#3/4"))
     )
 
 

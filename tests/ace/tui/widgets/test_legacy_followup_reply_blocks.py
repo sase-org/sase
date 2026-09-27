@@ -164,7 +164,7 @@ def test_legacy_reply_plain_text_keeps_every_phase(tmp_path: Path) -> None:
     assert "Approve deploy" in plain
 
 
-def test_legacy_followup_shell_facts_use_role_suffix_labels(
+def test_legacy_followup_turn_facts_use_role_suffix_labels(
     tmp_path: Path,
 ) -> None:
     root = _legacy_root(tmp_path)

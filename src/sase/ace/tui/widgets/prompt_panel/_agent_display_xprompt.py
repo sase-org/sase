@@ -40,7 +40,7 @@ def _agent_may_show_xprompt(
     """Return whether a regular full paint could render an agent xprompt."""
     if attempt_pinned or agent.is_clan_container:
         return False
-    if agent.is_proc_shell or agent.is_monitor or agent.is_gate:
+    if agent.is_named_proc or agent.is_monitor or agent.is_gate:
         return False
     if agent.is_workflow_child and agent.step_type in {"bash", "python", "parallel"}:
         return False

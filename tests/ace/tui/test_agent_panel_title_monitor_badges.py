@@ -11,7 +11,7 @@ from sase.ace.tui.actions.agents._display_panels import (
     _PANEL_COUNT_STYLE,
     _PANEL_METRIC_STYLES,
 )
-from sase.gate_shell.state import GATE_FAILURE_GLYPH_COLOR, GATE_SETTLED_GLYPH_COLOR
+from sase.gate_turn.state import GATE_FAILURE_GLYPH_COLOR, GATE_SETTLED_GLYPH_COLOR
 from sase.monitor_state import MONITOR_GLYPH_COLOR, MONITOR_SETTLED_GLYPH_COLOR
 
 from ._agent_panel_title_helpers import (

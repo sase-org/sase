@@ -7,9 +7,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from ...models.agent_session_members import (
-    concrete_agent_session_shell_rows,
+    concrete_agent_session_turn_rows,
     agent_session_roster_container,
-    row_is_agent_session_shell,
+    row_is_agent_session_turn,
 )
 from ._agent_enter_builders import (
     gate_row_target,
@@ -100,9 +100,7 @@ def _newest_member_patch(
     best_project: str | None = None
     best_time = float("-inf")
     for row in rows:
-        if row_is_agent_session_shell(row) or bool(
-            getattr(row, "is_proc_shell", False)
-        ):
+        if row_is_agent_session_turn(row) or bool(getattr(row, "is_named_proc", False)):
             continue
         try:
             name = patch_name_for(row)
@@ -184,7 +182,7 @@ def resolve_agent_enter_targets(
 
     roster: tuple[Agent, ...] = ()
     if scope == "container":
-        roster = concrete_agent_session_shell_rows(agent)
+        roster = concrete_agent_session_turn_rows(agent)
         pending_rows = [row for row in roster if is_pending_gate_row(row)]
         seen_gate_ids: set[str] = set()
         for row in pending_rows:
@@ -213,11 +211,11 @@ def resolve_agent_enter_targets(
             for row in roster
             if is_settled_gate_row(row) and getattr(row, "gate_id", None)
         }
-        member_shells: list[Agent] = [agent] + [
-            row for row in roster if not row_is_agent_session_shell(row)
+        member_turns: list[Agent] = [agent] + [
+            row for row in roster if not row_is_agent_session_turn(row)
         ]
         candidates = identity_matched_gate_notifications(
-            member_shells, gate_notifications
+            member_turns, gate_notifications
         )
         gate_targets.extend(
             _dedupe_notification_targets(
@@ -244,7 +242,7 @@ def resolve_agent_enter_targets(
         if scope == "member":
             container = agent_session_roster_container(agent)
             roster = (
-                concrete_agent_session_shell_rows(container)
+                concrete_agent_session_turn_rows(container)
                 if container is not None
                 else ()
             )

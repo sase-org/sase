@@ -10,7 +10,7 @@ from sase.ace.tui.models._agent_clan import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_session_members import (
     is_sequential_agent_session_container,
-    shell_lane_counts,
+    turn_lane_counts,
 )
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets._agent_list_styling import (
@@ -25,11 +25,11 @@ from ._agent_list_monitor_rows_helpers import make_agent_session_container, styl
 
 
 def _monitor_lane_counts(agent: Agent):
-    return shell_lane_counts(agent).monitor
+    return turn_lane_counts(agent).monitor
 
 
 def _gate_lane_counts(agent: Agent):
-    return shell_lane_counts(agent).gate
+    return turn_lane_counts(agent).gate
 
 
 def test_agent_session_container_with_running_monitor_renders_badge() -> None:

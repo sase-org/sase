@@ -51,7 +51,7 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
 
         Returns:
             The row's owned descendant key, the gating session/workflow key
-            when selected as a durable session shell, its immediate parent's
+            when selected as a durable session turn, its immediate parent's
             key when selected as any other child, or ``None`` when no edge is
             foldable.
         """

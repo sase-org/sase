@@ -99,7 +99,7 @@ def linked_followup_workflow(
     return result
 
 
-def monitor_shell(
+def monitor_turn(
     *,
     status: str = "MONITORING",
     start: datetime | None = datetime(2026, 4, 25, 14, 35, 0),
@@ -124,7 +124,7 @@ def monitor_shell(
     return result
 
 
-def gate_shell(
+def gate_turn(
     *,
     status: str = "GATE",
     start: datetime | None = datetime(2026, 4, 25, 14, 35, 0),

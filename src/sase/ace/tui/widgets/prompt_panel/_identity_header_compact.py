@@ -20,12 +20,12 @@ from ...models.tribe_display import tribe_identity_style
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _AGENT_SESSION_NAME_STYLE,
-    _PROC_SHELL_ID_STYLE,
+    _NAMED_PROC_ID_STYLE,
 )
 from ._agent_display_header_metadata import _UNASSIGNED_AGENT_NAME_DISPLAY
 from ._agent_display_state import DetailHeaderSummary
 from ._agent_display_tribe_common import STATUS_STYLES as _TRIBE_STATUS_STYLES
-from ._agent_shell_section import ResponsiveShellSection
+from ._agent_turn_section import ResponsiveTurnSection
 from ._agent_wait_section import ResponsiveWaitSection
 from ._fold_language import FOLD_CHARS, FOLD_STYLES
 from ._workflow_render import WORKFLOW_STATUS_STYLES
@@ -79,8 +79,8 @@ def _name_chip(agent: Agent) -> Text:
         return chip
     if agent.is_agent_session_container_row:
         style = _AGENT_SESSION_NAME_STYLE
-    elif agent.is_proc_shell:
-        style = _PROC_SHELL_ID_STYLE
+    elif agent.is_named_proc:
+        style = _NAMED_PROC_ID_STYLE
     else:
         style = _AGENT_NAME_ANNOTATION_STYLE
     chip.append(presented_name, style=style)
@@ -117,13 +117,13 @@ def _machine_chip(agent: Agent) -> Text | None:
     return chip
 
 
-def _shell_count_chip(shell_section: ResponsiveShellSection | None) -> Text:
-    """Return the agent_session ``N shells`` row-1 summary chip."""
+def _turn_count_chip(turn_section: ResponsiveTurnSection | None) -> Text:
+    """Return the agent_session ``N turns`` row-1 summary chip."""
     total = 0
-    if shell_section is not None:
-        total = len(shell_section.lanes) + shell_section.hidden_count
+    if turn_section is not None:
+        total = len(turn_section.lanes) + turn_section.hidden_count
     chip = Text()
-    chip.append(f"{total} shells", style=CHIP_SEPARATOR_STYLE)
+    chip.append(f"{total} turns", style=CHIP_SEPARATOR_STYLE)
     return chip
 
 
@@ -264,16 +264,16 @@ def build_agent_compact_lines(
     agent: Agent,
     summary: DetailHeaderSummary | None = None,
     wait_section: ResponsiveWaitSection | None = None,
-    shell_section: ResponsiveShellSection | None = None,
+    turn_section: ResponsiveTurnSection | None = None,
     fold_level: FoldLevel | None = None,
     fold_scale: FoldScale | None = None,
 ) -> Text:
     """Build the two-row compact identity for one agent document."""
-    if agent.is_proc_shell:
-        return _build_proc_shell_compact_lines(agent)
+    if agent.is_named_proc:
+        return _build_named_proc_compact_lines(agent)
     first: list[Text] = [_name_chip(agent)]
     if agent.is_agent_session_container_row:
-        first.append(_shell_count_chip(shell_section))
+        first.append(_turn_count_chip(turn_section))
     else:
         model_value = model_value_text(
             agent.model,
@@ -318,8 +318,8 @@ def build_agent_compact_lines(
     return compact_text(chips_row(first), second_row)
 
 
-def _build_proc_shell_compact_lines(agent: Agent) -> Text:
-    """Build the two-row compact identity for one proc-shell document."""
+def _build_named_proc_compact_lines(agent: Agent) -> Text:
+    """Build the two-row compact identity for one named-proc document."""
     first: list[Text] = [_name_chip(agent)]
     if agent.cl_name and agent.cl_name != "proc":
         project = Text()

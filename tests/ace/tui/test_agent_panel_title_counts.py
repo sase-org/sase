@@ -6,18 +6,18 @@ from sase.ace.tui.actions.agents._display_panel_titles import agent_panel_counts
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_session_members import (
-    shell_lane_counts,
+    turn_lane_counts,
 )
 
 from ._agent_panel_title_helpers import _agent
 
 
 def _monitor_lane_counts(agent: Agent):
-    return shell_lane_counts(agent).monitor
+    return turn_lane_counts(agent).monitor
 
 
 def _gate_lane_counts(agent: Agent):
-    return shell_lane_counts(agent).gate
+    return turn_lane_counts(agent).gate
 
 
 def _monitor_agent(name: str, *, session: str, state: str | None) -> Agent:

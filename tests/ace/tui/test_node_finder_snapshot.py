@@ -121,7 +121,7 @@ def test_collapsed_clan_member_is_fold_hidden() -> None:
     assert snap.hidden_count == 3
 
 
-def test_collapsed_session_shells_name_the_session() -> None:
+def test_collapsed_session_turns_name_the_session() -> None:
     started = _started()
     root = Agent(
         agent_type=AgentType.RUNNING,
@@ -876,7 +876,7 @@ def _describe_shapes() -> list[Agent]:
         status="RUNNING",
         start_time=started,
         raw_suffix="ts-proc",
-        agent_name="proc-shell",
+        agent_name="named-proc",
         proc_label="shell",
         proc_safe_preview="echo hi",
         proc_id="proc-1",
@@ -937,7 +937,7 @@ def test_batched_description_matches_single_row() -> None:
         expected = describe_node_finder_row(agent)
         from_facts = describe_node_finder_row_from_facts(
             is_clan=agent.is_clan_container,
-            is_proc=agent.is_proc_shell,
+            is_proc=agent.is_named_proc,
             is_wf_step=agent.is_workflow_step_child,
             step_type=agent.step_type,
             presented=agent.presented_agent_name,
@@ -1008,7 +1008,7 @@ def test_plain_row_describer_matches_single_row() -> None:
     ]
     for agent in shapes:
         assert not agent.is_clan_container
-        assert not agent.is_proc_shell
+        assert not agent.is_named_proc
         assert not agent.is_workflow_step_child
         assert not agent.is_agent_session_container_row
         assert not agent.is_monitor

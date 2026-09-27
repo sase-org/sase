@@ -18,8 +18,8 @@ Not every live claim is an agent: hook processes and machine-owned
 operational leases (``lease(<workflow>)`` labels) hold workspaces without
 being agent runs, so they are excluded before a row is built. Dead claims of
 either kind are still reaped by the stale-release path first -- except a
-pending gate shell's claim, which carries its killed creator's PID by design
-and is held until the shell settles.
+pending gate turn's claim, which carries its killed creator's PID by design
+and is held until the turn settles.
 """
 
 from collections import OrderedDict
@@ -226,9 +226,9 @@ def _release_stale_running_claim(project_file: str, claim: WorkspaceClaim) -> No
 def _stale_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bool:
     """Return whether a dead-PID claim's workspace is genuinely free.
 
-    A pending gate shell keeps its killed creator's PID in the RUNNING row
+    A pending gate turn keeps its killed creator's PID in the RUNNING row
     on purpose, so for that one workflow a dead PID proves nothing and the
-    gate shell's own markers decide. Imported lazily: this is only reached
+    gate turn's own markers decide. Imported lazily: this is only reached
     for a claim that already failed the liveness check.
     """
     from sase.gate_turn.claims import (
@@ -317,8 +317,8 @@ def resolve_running_field_claims(
             if not _claim_pid_is_live(claim.pid):
                 if _stale_claim_is_releasable(project_file, claim):
                     _release_stale_running_claim(project_file, claim)
-                # A held pending gate-shell claim still contributes no row:
-                # the gate-shell member renders from its own artifact record.
+                # A held pending gate-turn claim still contributes no row:
+                # the gate-turn member renders from its own artifact record.
                 continue
 
             # Skip hook processes - they're not agents

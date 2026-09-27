@@ -125,8 +125,8 @@ class AgentLoadingApplySnapshotMixin(AgentLoadingStateMixin):
             ),
             proc_projection=proc_projection,
             proc_generation=int(getattr(self, "_proc_generation", 0)),
-            dismissed_proc_shells=frozenset(
-                getattr(self, "_dismissed_proc_shells", ()) or ()
+            dismissed_named_procs=frozenset(
+                getattr(self, "_dismissed_named_procs", ()) or ()
             ),
             cache_query_matches=cache_query_matches_load(self, load_state),
             fleet_rows=self._fleet_rows_for_prepared_snapshot(),

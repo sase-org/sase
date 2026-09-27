@@ -33,8 +33,8 @@ _PHASE_SUFFIX_TOKENS = {
     PLAN_CHAIN_COMMIT_SUFFIX: "commit",
 }
 
-MONITOR_PHASE_LABEL = "MONITOR"
-GATE_PHASE_LABEL = "GATE"
+MONITOR_PHASE_LABEL = "MONITOR TURN"
+GATE_PHASE_LABEL = "GATE TURN"
 PHASE_DIVIDER_ACCENT = "#AF87FF"
 
 
@@ -61,8 +61,8 @@ def render_timestamp_divider(iso_timestamp: str) -> Text:
 def get_phase_label(agent: Agent) -> str:
     """Map a member's agent_session role to its phase header.
 
-    Agent shells render as ``AGENT (<role>)``. Monitor and gate shells keep
-    their shell-kind labels.
+    Agent turns render as ``AGENT (<role>)``. Monitor and gate turns keep
+    their turn-kind labels.
     """
     suffix = canonical_plan_chain_suffix(agent.role_suffix)
     role = agent_session_role_for_suffix(

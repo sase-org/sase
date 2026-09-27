@@ -27,7 +27,7 @@ from ._agent_display_hint_annotators import (
 from ._agent_gate_section import gate_phase_text
 from ._agent_monitor_section import monitor_phase_text
 from ._agent_session_reply_blocks import (
-    block_meta_for_session_shell,
+    block_meta_for_session_turn,
     phase_card_block,
     session_reply_heading,
 )
@@ -179,7 +179,7 @@ def render_agent_prompt_hint_body(
                     phase_card_block(
                         phase,
                         [segment],
-                        meta=block_meta_for_session_shell(phase_facts, number),
+                        meta=block_meta_for_session_turn(phase_facts, number),
                     )
                 )
             return hint_counter, reply_blocks

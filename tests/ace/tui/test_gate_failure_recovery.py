@@ -16,7 +16,7 @@ from sase.ace.tui.actions.agents._notification_polling import (
     AgentNotificationPollingMixin,
 )
 from sase.ace.tui.modals.gate_retry_modal import GateRetryModal
-from sase.shells.settlement import touch_agent_refresh_pulse
+from sase.turns.settlement import touch_agent_refresh_pulse
 
 
 class _App:

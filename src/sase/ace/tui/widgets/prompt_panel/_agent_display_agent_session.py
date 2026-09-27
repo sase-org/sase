@@ -16,7 +16,7 @@ from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
 from ...models.agent_owner_badge import agent_owner_badge_label
 from ...models.agent_session_members import (
-    concrete_agent_session_shell_rows as agent_session_shell_rows,
+    concrete_agent_session_turn_rows as agent_session_turn_rows,
     agent_session_member_status_buckets,
     gate_row_is_settled,
     monitor_row_is_settled,
@@ -45,7 +45,7 @@ from ._member_roster import (
 from ._member_roster_digest import agent_roster_digest, agent_roster_duration
 
 SESSION_IDENTITY_COLOR = "#00AFFF"
-_AGENT_SESSION_ROSTER_TITLE = "SESSION SHELLS"
+_AGENT_SESSION_ROSTER_TITLE = "SESSION TURNS"
 _MONITOR_DESCRIPTOR_MAX_CHARS = 40
 _MONITOR_FAILURE_STATES = frozenset({"failed", "timeout", "lost"})
 _MONITOR_COMMAND_FALLBACK = "command"
@@ -134,8 +134,8 @@ def _gate_roster_bucket(member: Agent) -> str:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentSessionShellFacts:
-    """Per-shell display facts shared by the JUMP roster and card blocks."""
+class AgentSessionTurnFacts:
+    """Per-turn display facts shared by the JUMP roster and card blocks."""
 
     member: Agent
     label: str
@@ -145,30 +145,28 @@ class AgentSessionShellFacts:
     status_bucket: str
 
 
-def agent_session_shell_facts(agent: Agent) -> tuple[AgentSessionShellFacts, ...]:
-    """Return one facts row per concrete shell, in chronological shell order.
+def agent_session_turn_facts(agent: Agent) -> tuple[AgentSessionTurnFacts, ...]:
+    """Return one facts row per concrete turn, in chronological turn order.
 
-    The JUMP roster numbers shells by chronological index, so card blocks
+    The JUMP roster numbers turns by chronological index, so card blocks
     built from these facts match the roster by construction.
     """
     agent_session_name = agent.presented_agent_name or ""
-    shells = agent_session_shell_rows(agent)
-    agent_shells = tuple(
-        shell for shell in shells if not (shell.is_monitor or shell.is_gate)
-    )
+    turns = agent_session_turn_rows(agent)
+    agent_turns = tuple(turn for turn in turns if not (turn.is_monitor or turn.is_gate))
     agent_buckets = {
-        shell.identity: bucket
-        for shell, bucket in zip(
-            agent_shells,
-            agent_session_member_status_buckets(agent_shells),
+        turn.identity: bucket
+        for turn, bucket in zip(
+            agent_turns,
+            agent_session_member_status_buckets(agent_turns),
             strict=True,
         )
     }
-    facts: list[AgentSessionShellFacts] = []
-    for member in shells:
+    facts: list[AgentSessionTurnFacts] = []
+    for member in turns:
         if member.is_monitor:
             facts.append(
-                AgentSessionShellFacts(
+                AgentSessionTurnFacts(
                     member=member,
                     label=agent_session_member_label(member, agent_session_name),
                     kind="monitor",
@@ -179,7 +177,7 @@ def agent_session_shell_facts(agent: Agent) -> tuple[AgentSessionShellFacts, ...
             )
         elif member.is_gate:
             facts.append(
-                AgentSessionShellFacts(
+                AgentSessionTurnFacts(
                     member=member,
                     label=agent_session_member_label(member, agent_session_name),
                     kind="gate",
@@ -190,7 +188,7 @@ def agent_session_shell_facts(agent: Agent) -> tuple[AgentSessionShellFacts, ...
             )
         else:
             facts.append(
-                AgentSessionShellFacts(
+                AgentSessionTurnFacts(
                     member=member,
                     label=agent_session_member_label(member, agent_session_name),
                     kind="agent",
@@ -210,7 +208,7 @@ def agent_session_roster_entries(
 ) -> tuple[MemberRosterEntry, ...]:
     """Adapt an agent-session chain into shared numbered roster entries."""
     entries: list[MemberRosterEntry] = []
-    for facts in agent_session_shell_facts(agent):
+    for facts in agent_session_turn_facts(agent):
         member = facts.member
         if exclude is not None and (
             member is exclude or member.identity == exclude.identity
@@ -276,7 +274,7 @@ def append_agent_session_member_roster(
         section_fold_overrides=section_fold_overrides,
         fold_scale=fold_scale,
         numbering=numbering,
-        hidden_tail_label="shells",
+        hidden_tail_label="turns",
         heading_suffix=heading_suffix,
     )
 
@@ -307,7 +305,7 @@ def agent_session_member_label(member: Agent, agent_session_name: str) -> str:
 
 def legacy_followup_shell_facts(
     agent: Agent,
-) -> tuple[AgentSessionShellFacts, ...]:
+) -> tuple[AgentSessionTurnFacts, ...]:
     """Return one facts row per legacy ``followup_agents`` phase.
 
     The legacy non-session Reply path has no session roster, so labels fall
@@ -315,11 +313,11 @@ def legacy_followup_shell_facts(
     agent status bucket. Chronological order is root first, then followups,
     which is also the card-block numbering.
     """
-    facts: list[AgentSessionShellFacts] = []
+    facts: list[AgentSessionTurnFacts] = []
     for member in (agent, *agent.followup_agents):
         if member.is_monitor:
             facts.append(
-                AgentSessionShellFacts(
+                AgentSessionTurnFacts(
                     member=member,
                     label=get_phase_label(member),
                     kind="monitor",
@@ -330,7 +328,7 @@ def legacy_followup_shell_facts(
             )
         elif member.is_gate:
             facts.append(
-                AgentSessionShellFacts(
+                AgentSessionTurnFacts(
                     member=member,
                     label=get_phase_label(member),
                     kind="gate",
@@ -341,7 +339,7 @@ def legacy_followup_shell_facts(
             )
         else:
             facts.append(
-                AgentSessionShellFacts(
+                AgentSessionTurnFacts(
                     member=member,
                     label=get_phase_label(member),
                     kind="agent",
@@ -355,14 +353,14 @@ def legacy_followup_shell_facts(
 
 __all__ = [
     "SESSION_IDENTITY_COLOR",
-    "AgentSessionShellFacts",
+    "AgentSessionTurnFacts",
     "append_agent_session_fold_heading",
     "append_agent_session_member_roster",
     "effective_agent_session_fold_level",
     "agent_session_member_label",
     "agent_session_roster_entries",
     "agent_session_roster_heading_suffix",
-    "agent_session_shell_facts",
-    "agent_session_shell_rows",
+    "agent_session_turn_facts",
+    "agent_session_turn_rows",
     "legacy_followup_shell_facts",
 ]

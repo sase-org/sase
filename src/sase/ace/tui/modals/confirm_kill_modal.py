@@ -68,15 +68,15 @@ class ConfirmStopMonitorModal(ConfirmDialog):
         )
 
 
-class ConfirmKillProcShellModal(ConfirmDialog):
-    """Modal for confirming a stand-alone proc shell should be killed."""
+class ConfirmKillNamedProcModal(ConfirmDialog):
+    """Modal for confirming a stand-alone named proc should be killed."""
 
     def __init__(self, proc_description: str) -> None:
-        """Initialize the confirm kill-proc-shell modal."""
+        """Initialize the confirm kill-named-proc modal."""
         self.proc_description = proc_description
         super().__init__(
-            "Kill Proc Shell",
-            "Kill this proc shell? Running command will stop immediately.",
+            "Kill Named Proc",
+            "Kill this named proc? Running command will stop immediately.",
             subject=proc_description,
             kind=ConfirmKind.DANGER,
             confirm_label="Kill proc",
@@ -86,7 +86,7 @@ class ConfirmKillProcShellModal(ConfirmDialog):
 
 
 class ConfirmCancelGateModal(ConfirmDialog):
-    """Modal for confirming a pending gate shell should be cancelled."""
+    """Modal for confirming a pending gate turn should be cancelled."""
 
     def __init__(self, gate_description: str) -> None:
         """Initialize the confirm cancel-gate modal.
@@ -142,6 +142,6 @@ __all__ = [
     "ConfirmDismissAllModal",
     "ConfirmKillAllModal",
     "ConfirmKillModal",
-    "ConfirmKillProcShellModal",
+    "ConfirmKillNamedProcModal",
     "ConfirmStopMonitorModal",
 ]

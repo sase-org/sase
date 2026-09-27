@@ -381,22 +381,22 @@ def _agent_from_summary(
         monitor_state=monitor_state,
         monitor_command=optional_str(fact("monitor_command")),
         monitor_label=optional_str(fact("monitor_label")),
-        monitor_start_status=_shell_status(
+        monitor_start_status=_turn_status(
             fact("turn_start_status")
             if fact("turn_start_status") is not None
             else fact("shell_start_status"),
-            is_shell=is_monitor,
-            fallback=_shell_pair_status(
-                status, is_shell=is_monitor, active=monitor_state == "running"
+            is_turn=is_monitor,
+            fallback=_turn_pair_status(
+                status, is_turn=is_monitor, active=monitor_state == "running"
             ),
         ),
-        monitor_stop_status=_shell_status(
+        monitor_stop_status=_turn_status(
             fact("turn_stop_status")
             if fact("turn_stop_status") is not None
             else fact("shell_stop_status"),
-            is_shell=is_monitor,
-            fallback=_shell_pair_status(
-                status, is_shell=is_monitor, active=monitor_state != "running"
+            is_turn=is_monitor,
+            fallback=_turn_pair_status(
+                status, is_turn=is_monitor, active=monitor_state != "running"
             ),
         ),
         gate_id=gate_id,
@@ -404,22 +404,22 @@ def _agent_from_summary(
         gate_state=gate_state,
         gate_label=optional_str(fact("gate_label")),
         gate_accent=optional_str(fact("gate_accent")),
-        gate_start_status=_shell_status(
+        gate_start_status=_turn_status(
             fact("turn_start_status")
             if fact("turn_start_status") is not None
             else fact("shell_start_status"),
-            is_shell=is_gate,
-            fallback=_shell_pair_status(
-                status, is_shell=is_gate, active=gate_state == "pending"
+            is_turn=is_gate,
+            fallback=_turn_pair_status(
+                status, is_turn=is_gate, active=gate_state == "pending"
             ),
         ),
-        gate_stop_status=_shell_status(
+        gate_stop_status=_turn_status(
             fact("turn_stop_status")
             if fact("turn_stop_status") is not None
             else fact("shell_stop_status"),
-            is_shell=is_gate,
-            fallback=_shell_pair_status(
-                status, is_shell=is_gate, active=gate_state != "pending"
+            is_turn=is_gate,
+            fallback=_turn_pair_status(
+                status, is_turn=is_gate, active=gate_state != "pending"
             ),
         ),
         proc_id=proc_id,
@@ -467,17 +467,15 @@ def _apply_gate_member_status(agent: Agent, *, shipped_gate_id: str | None) -> N
     agent.status_bucket = gate_member_status_bucket(state, agent.status)
 
 
-def _shell_pair_status(status: str, *, is_shell: bool, active: bool) -> str | None:
-    if not is_shell or not active or status in _COARSE_REMOTE_STATUSES:
+def _turn_pair_status(status: str, *, is_turn: bool, active: bool) -> str | None:
+    if not is_turn or not active or status in _COARSE_REMOTE_STATUSES:
         return None
     return status
 
 
-def _shell_status(
-    shipped: object, *, is_shell: bool, fallback: str | None
-) -> str | None:
-    """Prefer the owner's shipped shell status; keep the derived degraded path."""
-    if not is_shell:
+def _turn_status(shipped: object, *, is_turn: bool, fallback: str | None) -> str | None:
+    """Prefer the owner's shipped turn status; keep the derived degraded path."""
+    if not is_turn:
         return None
     return optional_str(shipped) or fallback
 

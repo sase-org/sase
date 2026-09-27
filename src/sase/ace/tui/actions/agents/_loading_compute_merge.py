@@ -160,8 +160,8 @@ def _terminal_artifact_projection_replaces(cached: Agent, incoming: Agent) -> bo
     return agent_status_bucket(incoming) in {"Done", "Failed"}
 
 
-def _terminal_shell_state_replaces(cached: Agent, incoming: Agent) -> bool:
-    """Return whether terminal shell state should replace a stale shell row."""
+def _terminal_turn_state_replaces(cached: Agent, incoming: Agent) -> bool:
+    """Return whether terminal turn state should replace a stale turn row."""
     if cached.project_file != incoming.project_file:
         return False
     if cached.raw_suffix is None or cached.raw_suffix != incoming.raw_suffix:
@@ -194,7 +194,7 @@ def _stable_replacement_wins(
         return True
     if _terminal_artifact_projection_replaces(cached, incoming):
         return True
-    if _terminal_shell_state_replaces(cached, incoming):
+    if _terminal_turn_state_replaces(cached, incoming):
         return True
     return is_artifact_delta and cached.agent_type == incoming.agent_type
 

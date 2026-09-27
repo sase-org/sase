@@ -82,28 +82,28 @@ NO_GATE_LANES = _GateLaneCounts()
 
 
 @dataclass(frozen=True, slots=True)
-class ShellLaneCounts:
-    """Per-kind shell lane counts for one container row's subtree."""
+class TurnLaneCounts:
+    """Per-kind turn lane counts for one container row's subtree."""
 
     monitor: _MonitorLaneCounts = NO_MONITOR_LANES
     gate: _GateLaneCounts = NO_GATE_LANES
 
 
-NO_SHELL_LANES = ShellLaneCounts()
+NO_TURN_LANES = TurnLaneCounts()
 
 
-def row_is_agent_session_shell(row: Agent) -> bool:
-    """Return whether *row* is a non-agent session shell."""
+def row_is_agent_session_turn(row: Agent) -> bool:
+    """Return whether *row* is a non-agent session turn."""
     return row.is_monitor or row.is_gate
 
 
-class _ShellLaneTally:
-    """Shared traversal state for partitioning shell rows into two lanes.
+class _TurnLaneTally:
+    """Shared traversal state for partitioning turn rows into two lanes.
 
     ``Agent`` is mutable and unhashable, and ``runtime_children`` /
     ``followup_agents`` overlap, so traversal cycle-guards on ``id(row)``
     while the count itself dedupes by ``row.identity``. Every distinct
-    shell row increments exactly one lane, never both, never neither.
+    turn row increments exactly one lane, never both, never neither.
     """
 
     def __init__(self) -> None:
@@ -136,8 +136,8 @@ class _ShellLaneTally:
         for child in (*row.runtime_children, *row.followup_agents):
             self.visit(child)
 
-    def shell_counts(self) -> ShellLaneCounts:
-        return ShellLaneCounts(
+    def turn_counts(self) -> TurnLaneCounts:
+        return TurnLaneCounts(
             monitor=_MonitorLaneCounts(
                 running=self.monitor_running,
                 settled=self.monitor_settled,
@@ -150,35 +150,35 @@ class _ShellLaneTally:
         )
 
     def counts(self) -> _MonitorLaneCounts:
-        return self.shell_counts().monitor
+        return self.turn_counts().monitor
 
 
-def shell_lane_counts(agent: Agent) -> ShellLaneCounts:
-    """Partition monitor and gate shells beneath one container row."""
-    tally = _ShellLaneTally()
+def turn_lane_counts(agent: Agent) -> TurnLaneCounts:
+    """Partition monitor and gate turns beneath one container row."""
+    tally = _TurnLaneTally()
     for child in (*agent.runtime_children, *agent.followup_agents):
         tally.visit(child)
-    return tally.shell_counts()
+    return tally.turn_counts()
 
 
-def panel_shell_lane_counts(rows: Iterable[Agent]) -> ShellLaneCounts:
-    """Partition shell rows reachable from a whole panel's top-level rows.
+def panel_turn_lane_counts(rows: Iterable[Agent]) -> TurnLaneCounts:
+    """Partition turn rows reachable from a whole panel's top-level rows.
 
-    Differs from :func:`shell_lane_counts` in two ways, both required to
+    Differs from :func:`turn_lane_counts` in two ways, both required to
     make a panel-level total rather than a per-container one: each row in
     ``rows`` is itself visited rather than excluded, so a top-level row that
-    is itself a shell is counted (a shell nests under its starter today,
+    is itself a turn is counted (a turn nests under its starter today,
     so this should never fire, but it keeps the partition total honest
     instead of silently dropping a row if that projection ever changes); and
     dedupe spans all roots in one shared tally rather than one tally per
-    root, so a shell reachable from two different top-level rows (a clan
-    container and a member agent session can both reach the same shell) is
+    root, so a turn reachable from two different top-level rows (a clan
+    container and a member agent session can both reach the same turn) is
     counted exactly once.
     """
-    tally = _ShellLaneTally()
+    tally = _TurnLaneTally()
     for row in rows:
         tally.visit(row)
-    return tally.shell_counts()
+    return tally.turn_counts()
 
 
 def is_sequential_agent_session_container(agent: Agent) -> bool:
@@ -214,13 +214,13 @@ def _is_workflow_aggregate_row(agent: Agent) -> bool:
     )
 
 
-def _shell_links(row: Agent) -> tuple[Agent, ...]:
+def _turn_links(row: Agent) -> tuple[Agent, ...]:
     """Return both loaded child collections in their already-normalized order."""
     return (*row.runtime_children, *row.followup_agents)
 
 
-def _is_excluded_agent_session_shell(row: Agent) -> bool:
-    """Return whether *row* is scaffolding rather than a concrete session shell."""
+def _is_excluded_agent_session_turn(row: Agent) -> bool:
+    """Return whether *row* is scaffolding rather than a concrete session turn."""
     return row.agent_session_parallel
 
 
@@ -235,13 +235,13 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
         if (
             agent.step_type == "agent"
             and not agent.agent_session_parallel
-            and not row_is_agent_session_shell(agent)
+            and not row_is_agent_session_turn(agent)
         ):
             return (agent,)
         return ()
-    if row_is_agent_session_shell(agent):
+    if row_is_agent_session_turn(agent):
         return ()
-    if agent.is_proc_shell:
+    if agent.is_named_proc:
         return ()
 
     if _is_workflow_aggregate_row(agent):
@@ -252,7 +252,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
                 if child.is_workflow_step_child
                 and child.step_type == "agent"
                 and not child.agent_session_parallel
-                and not row_is_agent_session_shell(child)
+                and not row_is_agent_session_turn(child)
             )
         )
         if agent_steps:
@@ -261,10 +261,10 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
 
 
 @dataclass(frozen=True, slots=True)
-class _AgentSessionShellAnchors:
-    """Ordered agent-shell anchors plus the anchor standing in for the root.
+class _AgentSessionTurnAnchors:
+    """Ordered agent-turn anchors plus the anchor standing in for the root.
 
-    ``container_proxy`` is the shell that represents the container row's own
+    ``container_proxy`` is the turn that represents the container row's own
     agent process: the concrete planner step when one is loaded (same
     ``raw_suffix`` and artifacts dir as the container, different
     ``identity``), the container itself when it represents a member, and
@@ -275,8 +275,8 @@ class _AgentSessionShellAnchors:
     container_proxy: Agent | None
 
 
-def _agent_session_shell_anchors(agent: Agent) -> _AgentSessionShellAnchors:
-    """Return the ordered agent-shell chain before nested monitors are inserted."""
+def _agent_session_turn_anchors(agent: Agent) -> _AgentSessionTurnAnchors:
+    """Return the ordered agent-turn chain before nested monitors are inserted."""
     planner = _concrete_planner_child(agent)
     candidates: list[Agent] = []
     container_proxy: Agent | None = None
@@ -289,26 +289,26 @@ def _agent_session_shell_anchors(agent: Agent) -> _AgentSessionShellAnchors:
 
     candidates.extend(_concrete_continuations(agent.runtime_children, planner))
     candidates.extend(_concrete_continuations(agent.followup_agents, planner))
-    return _AgentSessionShellAnchors(
+    return _AgentSessionTurnAnchors(
         anchors=_dedupe_by_identity(candidates),
         container_proxy=container_proxy,
     )
 
 
-def _expand_nested_agent_session_shells(
+def _expand_nested_agent_session_turns(
     container: Agent,
     anchors: Sequence[Agent],
     container_proxy: Agent | None,
 ) -> tuple[Agent, ...]:
-    """Insert nested non-agent shells immediately after their causal starter.
+    """Insert nested non-agent turns immediately after their causal starter.
 
-    A shell attached to the container row is emitted after the anchor that
+    A turn attached to the container row is emitted after the anchor that
     represents that container (its planner step when one is loaded). Traverses
     both ``runtime_children`` and ``followup_agents`` because loaded shapes
     expose overlapping but not always identical links. Dedupes by durable row
     identity, cycle-guards by object identity, and keeps each collection's
     already-normalized order rather than sorting by timestamp. Later
-    agent-shell continuations stay in the anchor sequence; their shells are
+    agent-turn continuations stay in the anchor sequence; their turns are
     not stolen while walking an earlier starter.
     """
     result: list[Agent] = []
@@ -320,37 +320,37 @@ def _expand_nested_agent_session_shells(
         if id(row) in walked_ids:
             return
         walked_ids.add(id(row))
-        if row.identity in emitted or _is_excluded_agent_session_shell(row):
+        if row.identity in emitted or _is_excluded_agent_session_turn(row):
             return
         emitted.add(row.identity)
         result.append(row)
-        walk_shells(row)
+        walk_turns(row)
 
-    def walk_shells(row: Agent) -> None:
-        for child in _shell_links(row):
+    def walk_turns(row: Agent) -> None:
+        for child in _turn_links(row):
             child_id = id(child)
             if child_id in walked_ids:
                 continue
             if child.identity in emitted:
                 walked_ids.add(child_id)
                 continue
-            if _is_excluded_agent_session_shell(child):
+            if _is_excluded_agent_session_turn(child):
                 walked_ids.add(child_id)
                 continue
-            if row_is_agent_session_shell(child):
+            if row_is_agent_session_turn(child):
                 emit(child)
                 continue
             if child.identity in anchor_identities:
                 continue
             walked_ids.add(child_id)
-            walk_shells(child)
+            walk_turns(child)
 
     proxy = container_proxy
     if proxy is not None and proxy.identity == container.identity:
-        proxy = None  # emit(container) already walks the container's shells
+        proxy = None  # emit(container) already walks the container's turns
     pending_container_walk = proxy is not None
     if proxy is None and container.identity not in anchor_identities:
-        walk_shells(container)  # nothing represents the container
+        walk_turns(container)  # nothing represents the container
     for anchor in anchors:
         emit(anchor)
         if (
@@ -358,63 +358,63 @@ def _expand_nested_agent_session_shells(
             and proxy is not None
             and anchor.identity == proxy.identity
         ):
-            walk_shells(container)
+            walk_turns(container)
             pending_container_walk = False
     if pending_container_walk:
-        walk_shells(container)  # proxy absent from anchors: never drop a row
+        walk_turns(container)  # proxy absent from anchors: never drop a row
     return tuple(result)
 
 
-def concrete_agent_session_shell_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return ordered concrete session shells: agent shells and nested non-agent shells.
+def concrete_agent_session_turn_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return ordered concrete session turns: agent turns and nested non-agent turns.
 
     Plan workflow roots are aggregate rows. When their concrete main agent
     step is loaded, that step owns the planner phase; otherwise the root stays
     as the compatibility fallback. Rename-on-attach roots remain the first
-    real shell for agent sessions that do not have a concrete planner step.
+    real turn for agent sessions that do not have a concrete planner step.
 
-    A non-agent shell is emitted immediately after the shell that started it. A
-    shell attached to the container row is emitted after the anchor that
+    A non-agent turn is emitted immediately after the turn that started it. A
+    turn attached to the container row is emitted after the anchor that
     represents that container (its planner step when one is loaded). Synthetic
     planners, non-agent workflow steps, and parallel-agent-session rows stay
     excluded. The walk is a pure in-memory projection: linear in the loaded
     agent session subtree, cycle-safe, identity-deduped, and ordered by causal
     placement rather than timestamp.
     """
-    projection = _agent_session_shell_anchors(agent)
-    return _expand_nested_agent_session_shells(
+    projection = _agent_session_turn_anchors(agent)
+    return _expand_nested_agent_session_turns(
         agent,
         projection.anchors,
         projection.container_proxy,
     )
 
 
-def current_agent_session_shell_row(agent: Agent) -> Agent | None:
-    """Return the current in-flight concrete shell for a sequential agent session."""
+def current_agent_session_turn_row(agent: Agent) -> Agent | None:
+    """Return the current in-flight concrete turn for a sequential agent session."""
     if agent.is_clan_container or not is_sequential_agent_session_container(agent):
         return None
-    for row in reversed(concrete_agent_session_shell_rows(agent)):
+    for row in reversed(concrete_agent_session_turn_rows(agent)):
         if agent_row_is_in_flight(row):
             return row
     return None
 
 
 def concrete_agent_session_member_rows(agent: Agent) -> tuple[Agent, ...]:
-    """Return ordered concrete agent shells represented by a session container.
+    """Return ordered concrete agent turns represented by a session container.
 
-    Monitor proc shells are omitted so agent, runner, status, and completion
-    counts stay agent-only. See :func:`concrete_agent_session_shell_rows` for the
+    Monitor named procs are omitted so agent, runner, status, and completion
+    counts stay agent-only. See :func:`concrete_agent_session_turn_rows` for the
     roster sequence that includes them.
     """
     return tuple(
         row
-        for row in concrete_agent_session_shell_rows(agent)
-        if not row_is_agent_session_shell(row)
+        for row in concrete_agent_session_turn_rows(agent)
+        if not row_is_agent_session_turn(row)
     )
 
 
 def agent_session_roster_container(agent: Agent) -> Agent | None:
-    """Return the container row whose SESSION SHELLS roster lists ``agent``.
+    """Return the container row whose SESSION TURNS roster lists ``agent``.
 
     Container rows render their own roster and are never members of another
     row's roster, so they resolve to ``None``.
@@ -512,7 +512,7 @@ def concrete_agent_statuses(agent: Agent) -> tuple[ConcreteAgentStatus, ...]:
     pairs = tuple(
         (row, bucket)
         for row, bucket in zip(rows, buckets, strict=True)
-        if not row_is_agent_session_shell(row)
+        if not row_is_agent_session_turn(row)
     )
     return tuple(ConcreteAgentStatus(agent=row, bucket=bucket) for row, bucket in pairs)
 
@@ -555,8 +555,8 @@ def _concrete_continuations(
         for row in rows
         if row is not planner
         and not row.is_workflow_step_child
-        and not _is_excluded_agent_session_shell(row)
-        and not row_is_agent_session_shell(row)
+        and not _is_excluded_agent_session_turn(row)
+        and not row_is_agent_session_turn(row)
     )
 
 
@@ -587,21 +587,21 @@ __all__ = [
     "ConcreteAgentStatus",
     "NO_GATE_LANES",
     "NO_MONITOR_LANES",
-    "NO_SHELL_LANES",
-    "ShellLaneCounts",
+    "NO_TURN_LANES",
+    "TurnLaneCounts",
     "agent_row_is_in_flight",
     "agent_session_lane_status_entries",
     "concrete_agent_statuses",
     "concrete_agent_session_member_rows",
-    "concrete_agent_session_shell_rows",
-    "current_agent_session_shell_row",
+    "concrete_agent_session_turn_rows",
+    "current_agent_session_turn_row",
     "agent_session_member_status_buckets",
     "agent_session_roster_container",
     "gate_row_is_settled",
     "is_sequential_agent_session_container",
     "monitor_row_is_settled",
     "monitor_row_lane_bucket",
-    "panel_shell_lane_counts",
-    "row_is_agent_session_shell",
-    "shell_lane_counts",
+    "panel_turn_lane_counts",
+    "row_is_agent_session_turn",
+    "turn_lane_counts",
 ]

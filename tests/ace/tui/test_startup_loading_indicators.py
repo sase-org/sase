@@ -54,10 +54,10 @@ def test_agent_info_panel_loading_clears() -> None:
 
 
 def test_agent_info_panel_renders_proc_count_after_status_strip() -> None:
-    """Proc shell rows are surfaced after the concrete agent metrics."""
+    """Named proc rows are surfaced after the concrete agent metrics."""
     panel = AgentInfoPanel()
     panel._sase_agent_count = 3
-    panel._proc_shell_count = 2
+    panel._named_proc_count = 2
     panel._loading = False
 
     plain = _collect_text(panel)

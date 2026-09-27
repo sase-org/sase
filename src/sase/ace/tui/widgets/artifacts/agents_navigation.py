@@ -309,7 +309,7 @@ class AgentsNavigationMixin(_MixinBase):
         """Return the Agent hood/session context query for *target*.
 
         Hood members land on ``name:<hood>.*`` (plus ``OR name:<hood>``
-        when the hood root itself is a catalog row), agent-session shells
+        when the hood root itself is a catalog row), agent-session turns
         on ``session:<agent-session>``, a hood root with members on both
         its own name and the hood glob, and a lone agent on its own name.
         ``member_count`` comes from one pass over the unfiltered

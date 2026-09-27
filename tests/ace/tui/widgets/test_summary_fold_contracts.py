@@ -200,8 +200,8 @@ def _agent_session_case(tmp_path: Path) -> _FoldContractCase:
             for level in AGENT_SESSION_FOLD_SCALE
         },
         unloaded=populated,
-        roster_title="SESSION SHELLS",
-        content_section="SESSION SHELLS",
+        roster_title="SESSION TURNS",
+        content_section="SESSION TURNS",
         empty_sections=(
             "AGENT XPROMPT",
             "AGENT PROMPT",

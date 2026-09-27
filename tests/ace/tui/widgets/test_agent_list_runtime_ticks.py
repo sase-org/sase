@@ -18,9 +18,9 @@ from sase.ace.tui.models.agent_time import (
 from .agent_list_runtime_helpers import (
     agent,
     agent_session_container,
-    gate_shell,
+    gate_turn,
     linked_followup_workflow,
-    monitor_shell,
+    monitor_turn,
     workflow_child,
 )
 
@@ -113,7 +113,7 @@ def test_settled_starter_with_running_monitor_does_not_tick(
         cl_name="demo--code",
         role_suffix="--code",
     )
-    child = monitor_shell()
+    child = monitor_turn()
     starter.runtime_children.append(child)
 
     assert ticks(starter) is False
@@ -131,7 +131,7 @@ def test_agent_session_container_ticks_through_settled_starter_to_monitor(
         role_suffix="--code",
         raw_suffix="20260425143100",
     )
-    starter.runtime_children.append(monitor_shell())
+    starter.runtime_children.append(monitor_turn())
     container = agent_session_container(starter)
 
     assert container.is_agent_session_container_row is True
@@ -150,7 +150,7 @@ def test_clan_container_ticks_with_running_monitor_descendant(
         role_suffix="--code",
         raw_suffix="20260425143100",
     )
-    starter.runtime_children.append(monitor_shell())
+    starter.runtime_children.append(monitor_turn())
     clan = agent(status="DONE", stop=datetime(2026, 4, 25, 14, 35, 0), cl_name="clan")
     clan.is_clan_container = True
     clan.runtime_children.append(starter)
@@ -189,7 +189,7 @@ def test_agent_session_container_does_not_tick_for_gate(
         role_suffix="--plan",
         raw_suffix="20260425140000",
     )
-    gate = gate_shell(
+    gate = gate_turn(
         status="PLAN",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=None,
@@ -206,8 +206,8 @@ def test_agent_session_container_does_not_tick_for_gate(
 def test_gate_row_ticks_while_settling_not_pending(
     ticks: Callable[[Agent], bool],
 ) -> None:
-    pending = gate_shell(status="PLAN", gate_state="pending")
-    settling = gate_shell(status="PLAN", gate_state="settling")
+    pending = gate_turn(status="PLAN", gate_state="pending")
+    settling = gate_turn(status="PLAN", gate_state="settling")
 
     assert ticks(pending) is False
     assert ticks(settling) is True

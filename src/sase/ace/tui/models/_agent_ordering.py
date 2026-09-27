@@ -1,7 +1,7 @@
 """Final agent ordering helpers for the TUI agent list."""
 
 from .agent import Agent, AgentType
-from .agent_session_members import concrete_agent_session_shell_rows
+from .agent_session_members import concrete_agent_session_turn_rows
 
 
 def get_status_priority(status: str) -> int:
@@ -240,7 +240,7 @@ def _attach_runtime_children(
 
 
 def _attach_agent_session_containers(rows: list[Agent]) -> None:
-    """Point each concrete session shell at the container row that lists it.
+    """Point each concrete session turn at the container row that lists it.
 
     Nested monitors keep their immediate rendered-tree parent (the starter)
     and only gain this roster back-pointer.
@@ -248,6 +248,6 @@ def _attach_agent_session_containers(rows: list[Agent]) -> None:
     for row in rows:
         if not row.is_agent_session_container_row:
             continue
-        for member in concrete_agent_session_shell_rows(row):
+        for member in concrete_agent_session_turn_rows(row):
             if member is not row:
                 member.agent_session_container = row

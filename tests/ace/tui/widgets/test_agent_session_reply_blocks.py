@@ -1,4 +1,4 @@
-"""Session Reply card blocks: one CardBlock per concrete shell."""
+"""Session Reply card blocks: one CardBlock per concrete turn."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from rich.console import Group
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_session_members import (
-    concrete_agent_session_shell_rows as agent_session_shell_rows,
+    concrete_agent_session_turn_rows as agent_session_turn_rows,
 )
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.util.renderable_digest import renderable_content_digest
@@ -43,13 +43,13 @@ _SUFFIXES = {
 }
 
 
-def _shell(
+def _turn(
     tmp_path: Path,
     role: str,
     suffix: str,
     **overrides: object,
 ) -> Agent:
-    directory = tmp_path / f"shell-{suffix.strip('-')}"
+    directory = tmp_path / f"turn-{suffix.strip('-')}"
     directory.mkdir(exist_ok=True)
     write_phase_content(directory, role)
     values: dict[str, object] = {
@@ -71,9 +71,9 @@ def _shell(
     return Agent(**values)  # type: ignore[arg-type]
 
 
-def _four_shell_session(tmp_path: Path) -> Agent:
-    plan = _shell(tmp_path, "plan", "--plan", plan_chain_root=True)
-    gate = _shell(
+def _four_turn_session(tmp_path: Path) -> Agent:
+    plan = _turn(tmp_path, "plan", "--plan", plan_chain_root=True)
+    gate = _turn(
         tmp_path,
         "gate",
         "--gate",
@@ -86,7 +86,7 @@ def _four_shell_session(tmp_path: Path) -> Agent:
         gate_accent="#0BCDEC",
         gate_label="Approve deploy",
     )
-    monitor = _shell(
+    monitor = _turn(
         tmp_path,
         "monitor",
         "--mon",
@@ -96,12 +96,12 @@ def _four_shell_session(tmp_path: Path) -> Agent:
         monitor_label="just check",
         monitor_command="just check",
     )
-    code = _shell(tmp_path, "code", "--code")
+    code = _turn(tmp_path, "code", "--code")
     plan.followup_agents = [gate, monitor, code]
     for member in (gate, monitor, code):
         member.agent_session_container = plan
     assert plan.is_agent_session_container_row is True
-    assert len(agent_session_shell_rows(plan)) == 4
+    assert len(agent_session_turn_rows(plan)) == 4
     return plan
 
 
@@ -138,19 +138,19 @@ def _reply_card(renderable: object) -> CardPart:
     return replies[0]
 
 
-def test_session_reply_builds_one_block_per_shell(tmp_path: Path) -> None:
-    root = _four_shell_session(tmp_path)
+def test_session_reply_builds_one_block_per_turn(tmp_path: Path) -> None:
+    root = _four_turn_session(tmp_path)
     reply = _reply_card(_render_session(root))
-    shells = agent_session_shell_rows(root)
+    turns = agent_session_turn_rows(root)
     entries = agent_session_roster_entries(root)
 
-    assert [shell.agent_session_role for shell in shells] == [
+    assert [turn.agent_session_role for turn in turns] == [
         "plan",
         "gate",
         "monitor",
         "code",
     ]
-    assert reply.block_ids == tuple(card_block_id(shell.identity) for shell in shells)
+    assert reply.block_ids == tuple(card_block_id(turn.identity) for turn in turns)
     assert [block.meta.number for block in reply.blocks] == ["0", "1", "2", "3"]
     assert [block.meta.kind for block in reply.blocks] == [
         "agent",
@@ -171,7 +171,7 @@ def test_session_reply_builds_one_block_per_shell(tmp_path: Path) -> None:
 
 
 def test_session_reply_heading_is_block_spread_only(tmp_path: Path) -> None:
-    root = _four_shell_session(tmp_path)
+    root = _four_turn_session(tmp_path)
     reply = _reply_card(_render_session(root))
 
     assert len(reply.preamble) == 1
@@ -182,7 +182,7 @@ def test_session_reply_heading_is_block_spread_only(tmp_path: Path) -> None:
 def test_session_reply_hint_mode_keeps_block_ids_and_hint_order(
     tmp_path: Path,
 ) -> None:
-    root = _four_shell_session(tmp_path)
+    root = _four_turn_session(tmp_path)
     plain_renderable = _render_session(root)
     expected_ids = _reply_card(plain_renderable).block_ids
 
@@ -202,7 +202,7 @@ def test_session_reply_hint_mode_keeps_block_ids_and_hint_order(
 def test_session_reply_plain_text_matches_legacy_modulo_d8(
     tmp_path: Path,
 ) -> None:
-    root = _four_shell_session(tmp_path)
+    root = _four_turn_session(tmp_path)
     plain = plain_of(_render_session(root))
 
     assert "AGENT REPLY · 4\n" in plain
@@ -217,10 +217,10 @@ def test_session_reply_plain_text_matches_legacy_modulo_d8(
     assert not (lines[heading - 1] == "" and lines[heading - 2] == "─" * 50)
 
 
-def test_session_reply_digest_changes_when_shell_status_changes(
+def test_session_reply_digest_changes_when_turn_status_changes(
     tmp_path: Path,
 ) -> None:
-    root = _four_shell_session(tmp_path)
+    root = _four_turn_session(tmp_path)
     before = renderable_content_digest(_render_session(root))
 
     root.followup_agents[1].monitor_state = "failed"
@@ -230,7 +230,7 @@ def test_session_reply_digest_changes_when_shell_status_changes(
 
 
 def test_session_reply_blocks_are_card_blocks(tmp_path: Path) -> None:
-    root = _four_shell_session(tmp_path)
+    root = _four_turn_session(tmp_path)
     reply = _reply_card(_render_session(root))
 
     assert all(isinstance(block, CardBlock) for block in reply.blocks)

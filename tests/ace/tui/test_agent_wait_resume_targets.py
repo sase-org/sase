@@ -18,9 +18,9 @@ from tests.ace.tui._agent_wait_resume_helpers import (
 )
 
 
-def _proc_shell_agent(**overrides: object) -> Agent:
+def _named_proc_agent(**overrides: object) -> Agent:
     defaults: dict[str, object] = {
-        "agent_type": AgentType.PROC_SHELL,
+        "agent_type": AgentType.NAMED_PROC,
         "cl_name": "sase",
         "project_file": "",
         "status": "RUNNING",
@@ -463,8 +463,8 @@ def test_wait_prompt_scheduling_failure_is_user_visible() -> None:
     assert app.prompt_bar_calls == []
 
 
-def test_fork_proc_shell_uses_exact_proc_id_with_friendly_label() -> None:
-    agent = _proc_shell_agent()
+def test_fork_named_proc_uses_exact_proc_id_with_friendly_label() -> None:
+    agent = _named_proc_agent()
     app = FakeResumeActionApp([agent])
 
     app.action_fork_agent()
@@ -479,8 +479,8 @@ def test_fork_proc_shell_uses_exact_proc_id_with_friendly_label() -> None:
     ]
 
 
-def test_fork_settled_proc_shell_is_still_a_valid_target() -> None:
-    agent = _proc_shell_agent(status="DONE", proc_status="success")
+def test_fork_settled_named_proc_is_still_a_valid_target() -> None:
+    agent = _named_proc_agent(status="DONE", proc_status="success")
     app = FakeResumeActionApp([agent])
 
     app.action_fork_agent()
@@ -489,8 +489,8 @@ def test_fork_settled_proc_shell_is_still_a_valid_target() -> None:
     assert app.prompt_bar_calls[0]["initial_text"] == "#fork:abc123def456 "
 
 
-def test_fork_proc_shell_without_proc_id_warns() -> None:
-    agent = _proc_shell_agent(proc_id=None)
+def test_fork_named_proc_without_proc_id_warns() -> None:
+    agent = _named_proc_agent(proc_id=None)
     app = FakeResumeActionApp([agent])
 
     app.action_fork_agent()
@@ -525,16 +525,16 @@ def test_fork_terminal_monitor_is_still_a_valid_target() -> None:
     assert app.prompt_bar_calls[0]["initial_text"] == "#fork:m-123 "
 
 
-def test_wait_for_proc_shell_is_rejected() -> None:
-    # `#fork` resolves a proc shell, but an ordinary `%wait` resolves agent
+def test_wait_for_named_proc_is_rejected() -> None:
+    # `#fork` resolves a named proc, but an ordinary `%wait` resolves agent
     # artifacts only, so `%w:<proc_id>` would never release.
-    agent = _proc_shell_agent()
+    agent = _named_proc_agent()
     app = FakeResumeActionApp([agent])
 
     app.action_wait_for_agent()
 
     assert app.notifications == [
-        ("A proc shell can be forked but not used as a wait target", "warning")
+        ("A named proc can be forked but not used as a wait target", "warning")
     ]
     assert app.prompt_bar_calls == []
 
@@ -546,13 +546,13 @@ def test_wait_for_monitor_is_rejected() -> None:
     app.action_wait_for_agent()
 
     assert app.notifications == [
-        ("A proc shell can be forked but not used as a wait target", "warning")
+        ("A named proc can be forked but not used as a wait target", "warning")
     ]
     assert app.prompt_bar_calls == []
 
 
-def test_proc_shell_scope_has_no_vcs_members() -> None:
-    agent = _proc_shell_agent()
+def test_named_proc_scope_has_no_vcs_members() -> None:
+    agent = _named_proc_agent()
     app = FakeResumeActionApp([agent])
 
     scope, warning = _resolve_agent_prompt_target_scope(app, action="fork")

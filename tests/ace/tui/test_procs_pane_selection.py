@@ -53,7 +53,7 @@ def test_resolve_monitor_agent_names_prefers_the_matched_agent_row() -> None:
         status="running",
         age_seconds=1,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
     agents = [_agent(monitor_id="mon-1", presented_agent_name="acme--mon-renamed")]
 
@@ -62,14 +62,14 @@ def test_resolve_monitor_agent_names_prefers_the_matched_agent_row() -> None:
     assert names == {"mon-1": "acme--mon-renamed"}
 
 
-def test_resolve_monitor_agent_names_falls_back_to_shell_name_without_a_match() -> None:
+def test_resolve_monitor_agent_names_falls_back_to_proc_name_without_a_match() -> None:
     monitor = task(
         "mon-1",
         label="just check-full",
         status="running",
         age_seconds=1,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
 
     names = _resolve_monitor_agent_names([monitor], [])
@@ -91,17 +91,17 @@ def test_resolve_monitor_agent_names_omits_rows_with_neither_source() -> None:
     assert names == {}
 
 
-def test_resolve_monitor_agent_names_ignores_non_monitor_rows_with_a_shell_name() -> (
+def test_resolve_monitor_agent_names_ignores_non_monitor_rows_with_a_proc_name() -> (
     None
 ):
-    # A plain ``sase proc run --shell NAME`` row also carries ``shell_name``;
+    # A plain ``sase proc run --shell NAME`` row also carries ``proc_name``;
     # only ``origin == MONITOR_PROC_ORIGIN`` rows may show an agent name.
     plain = task(
         "proc-1",
         label="sase proc run",
         status="running",
         age_seconds=1,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
 
     names = _resolve_monitor_agent_names([plain], [])

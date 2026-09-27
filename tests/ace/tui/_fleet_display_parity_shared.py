@@ -93,7 +93,7 @@ def _tree_signature(rows: list[Agent]) -> list[tuple[object, ...]]:
             row.is_agent_session_container_row,
             row.is_monitor,
             row.is_gate,
-            row.is_proc_shell,
+            row.is_named_proc,
             tuple(_row_key(child) for child in row.followup_agents),
             tuple(_row_key(child) for child in row.runtime_children),
         )

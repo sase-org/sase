@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.models._agent_session_shell_membership import (
-    _is_concrete_agent_session_shell,
+from sase.ace.tui.models._agent_session_turn_membership import (
+    _is_concrete_agent_session_turn,
 )
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent
@@ -101,7 +101,7 @@ def _owner_signatures(
 
 
 def _owner_is_nested(agent: Agent) -> bool:
-    return bool(agent.parent_timestamp) or _is_concrete_agent_session_shell(agent)
+    return bool(agent.parent_timestamp) or _is_concrete_agent_session_turn(agent)
 
 
 def _agent_label(agent: Agent) -> str:
@@ -127,7 +127,7 @@ def _assert_equal_signatures(
         f"{path} visible-node mismatch extra={extra_visible} missing={missing_visible}"
     )
     assert extra_nested == () and missing_nested == (), (
-        f"{path} nested-shell mismatch extra={extra_nested} missing={missing_nested}"
+        f"{path} nested-turn mismatch extra={extra_nested} missing={missing_nested}"
     )
     assert owner_group == catalog_group, (
         f"{path} grouping mismatch owner={owner_group} catalog={catalog_group}"
@@ -147,7 +147,7 @@ def _assert_required_fixture_identities(
     assert "lane--plan" in nested
     assert "lane--gate-pending" in nested
     assert visible.count("lane") == 1
-    # A completed plan-chain session has no root record: its shells nest under
+    # A completed plan-chain session has no root record: its turns nest under
     # the session on both sides and no standalone row is invented for it.
     assert {"chain--plan", "chain--mon", "chain--1"} <= set(nested)
     assert "chain" not in visible

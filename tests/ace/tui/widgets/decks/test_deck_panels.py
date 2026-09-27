@@ -92,7 +92,7 @@ async def test_preferred_card_and_partial_empty_body() -> None:
         # A node without Reply falls back to Context.
         from sase.ace.tui.models.agent import AgentType
 
-        node = _agent(status="RUNNING", agent_type=AgentType.PROC_SHELL)
+        node = _agent(status="RUNNING", agent_type=AgentType.NAMED_PROC)
         detail.update_display(node)
         await pilot.pause()
         assert detail.deck_area.panel(0).main_view.active_card_id in (

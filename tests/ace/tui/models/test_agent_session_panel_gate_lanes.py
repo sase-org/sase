@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 from sase.ace.tui.models.agent_session_members import (
-    ShellLaneCounts,
+    TurnLaneCounts,
     _GateLaneCounts,
     _MonitorLaneCounts,
-    panel_shell_lane_counts,
+    panel_turn_lane_counts,
 )
 
 from ._agent_session_members_helpers import _agent, _gate_member, _monitor_member
 
 
 def _panel_monitor_lane_counts(rows):
-    return panel_shell_lane_counts(rows).monitor
+    return panel_turn_lane_counts(rows).monitor
 
 
-def test_panel_shell_lane_counts_partitions_gates_across_top_level_rows() -> None:
+def test_panel_turn_lane_counts_partitions_gates_across_top_level_rows() -> None:
     root_a = _agent("alpha--0", role="root")
     root_a.followup_agents = [
         _gate_member(
@@ -44,14 +44,14 @@ def test_panel_shell_lane_counts_partitions_gates_across_top_level_rows() -> Non
         )
     ]
 
-    assert panel_shell_lane_counts([root_a, root_b, root_c]).gate == _GateLaneCounts(
+    assert panel_turn_lane_counts([root_a, root_b, root_c]).gate == _GateLaneCounts(
         running=1,
         settled=1,
         failed=1,
     )
 
 
-def test_panel_shell_lane_counts_keeps_monitor_compatibility_helper() -> None:
+def test_panel_turn_lane_counts_keeps_monitor_compatibility_helper() -> None:
     root = _agent("alpha--0", role="root")
     monitor = _monitor_member(
         "alpha--mon", root=root, monitor_id="m1", monitor_state="running"
@@ -59,7 +59,7 @@ def test_panel_shell_lane_counts_keeps_monitor_compatibility_helper() -> None:
     gate = _gate_member("alpha--gate", root=root, gate_id="g1", gate_state="pending")
     root.followup_agents = [monitor, gate]
 
-    assert panel_shell_lane_counts([root]) == ShellLaneCounts(
+    assert panel_turn_lane_counts([root]) == TurnLaneCounts(
         monitor=_MonitorLaneCounts(running=1, settled=0),
         gate=_GateLaneCounts(running=1, settled=0, failed=0),
     )

@@ -19,7 +19,7 @@ def test_agents_retry_excludes_proc_monitor_and_gate_rows() -> None:
     catalog = catalog_by_id()
     spec = catalog["app.agents_retry"]
     proc = Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status="RUNNING",
@@ -39,7 +39,7 @@ def test_agents_retry_excludes_proc_monitor_and_gate_rows() -> None:
     gate.gate_id = "g1"
     gate.gate_state = "pending"
 
-    assert proc.is_proc_shell is True
+    assert proc.is_named_proc is True
     assert monitor.is_monitor is True
     assert gate.is_gate is True
     assert not is_command_available(spec, CommandContext(tab="agents", agent=proc))

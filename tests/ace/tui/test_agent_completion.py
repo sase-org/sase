@@ -409,10 +409,10 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
     assert by_name["review.old"].kind == "agent"
 
 
-def test_proc_shell_completion_candidate_uses_exact_proc_id(tmp_path: Path) -> None:
-    proc_shell = _agent(
+def test_named_proc_completion_candidate_uses_exact_proc_id(tmp_path: Path) -> None:
+    named_proc = _agent(
         tmp_path,
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         agent_name="build-docs",
         raw_suffix="abc123def456",
         proc_id="abc123def456",
@@ -420,7 +420,7 @@ def test_proc_shell_completion_candidate_uses_exact_proc_id(tmp_path: Path) -> N
         proc_safe_preview="just docs-build --release",
     )
 
-    candidates = build_agent_completion_candidates([proc_shell])
+    candidates = build_agent_completion_candidates([named_proc])
 
     assert [candidate.name for candidate in candidates] == ["abc123def456"]
     candidate = candidates[0]
@@ -431,24 +431,24 @@ def test_proc_shell_completion_candidate_uses_exact_proc_id(tmp_path: Path) -> N
     assert candidate.prompt_snippet == "just docs-build --release"
 
 
-def test_proc_shell_is_not_also_offered_as_a_plain_agent_candidate(
+def test_named_proc_is_not_also_offered_as_a_plain_agent_candidate(
     tmp_path: Path,
 ) -> None:
-    proc_shell = _agent(
+    named_proc = _agent(
         tmp_path,
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         agent_name="build-docs",
         raw_suffix="abc123def456",
         proc_id="abc123def456",
         proc_status="running",
     )
 
-    candidates = build_agent_completion_candidates([proc_shell])
+    candidates = build_agent_completion_candidates([named_proc])
 
     assert [candidate.kind for candidate in candidates] == ["proc"]
 
 
-def test_agent_session_completion_candidate_counts_monitor_shell_member(
+def test_agent_session_completion_candidate_counts_monitor_turn_member(
     tmp_path: Path,
 ) -> None:
     agent_session_root = _agent(

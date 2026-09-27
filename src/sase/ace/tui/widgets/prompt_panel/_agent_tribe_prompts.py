@@ -106,7 +106,7 @@ def build_tribe_prompts(
     ordered: dict[str, tuple[PromptDigest, list[TribePromptMember]]] = {}
     for source in sources:
         for row in source.rows:
-            if row.is_monitor or row.is_gate or row.is_proc_shell:
+            if row.is_monitor or row.is_gate or row.is_named_proc:
                 continue
             snapshot = member_snapshots.get(row.identity)
             if snapshot is None:

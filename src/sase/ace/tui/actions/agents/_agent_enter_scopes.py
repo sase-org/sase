@@ -34,7 +34,7 @@ def classify_scope(agent: Agent) -> str:
     if bool(getattr(agent, "is_clan_container", False)):
         return "clan"
     if bool(getattr(agent, "is_monitor", False)) or bool(
-        getattr(agent, "is_proc_shell", False)
+        getattr(agent, "is_named_proc", False)
     ):
         return "monitor_proc"
     if bool(getattr(agent, "is_gate", False)):

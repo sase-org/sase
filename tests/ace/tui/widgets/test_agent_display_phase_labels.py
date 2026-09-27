@@ -49,15 +49,15 @@ class TestGetPhaseLabel:
 
     def test_monitor(self) -> None:
         agent = make_agent(role_suffix="--mon")
-        assert get_phase_label(agent) == "MONITOR"
+        assert get_phase_label(agent) == "MONITOR TURN"
 
     def test_monitor_numbered_suffix(self) -> None:
         agent = make_agent(role_suffix="--mon-1")
-        assert get_phase_label(agent) == "MONITOR"
+        assert get_phase_label(agent) == "MONITOR TURN"
 
     def test_monitor_stored_role_unrecognized_suffix(self) -> None:
         agent = make_agent(role_suffix="--weird", agent_session_role="monitor")
-        assert get_phase_label(agent) == "MONITOR"
+        assert get_phase_label(agent) == "MONITOR TURN"
 
     def test_gate(self) -> None:
         agent = make_agent(
@@ -65,7 +65,7 @@ class TestGetPhaseLabel:
             agent_session_role="gate",
             gate_id="g123",
         )
-        assert get_phase_label(agent) == "GATE"
+        assert get_phase_label(agent) == "GATE TURN"
 
     def test_sudo_gate_pending_uses_typed_status_label(self) -> None:
         agent = make_agent(

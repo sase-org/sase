@@ -345,7 +345,7 @@ def test_group_key_is_stable_across_rebuilds() -> None:
     ]
 
 
-def test_monitors_gates_and_proc_shells_are_skipped() -> None:
+def test_monitors_gates_and_named_procs_are_skipped() -> None:
     monitor = _agent(
         "fam--mon",
         "mon",
@@ -360,8 +360,8 @@ def test_monitors_gates_and_proc_shells_are_skipped() -> None:
         agent_session_role="gate",
         gate_id="gate-visual-123",
     )
-    proc = _agent("shell", "shell", agent_type=AgentType.PROC_SHELL)
-    assert monitor.is_monitor and gate.is_gate and proc.is_proc_shell
+    proc = _agent("shell", "shell", agent_type=AgentType.NAMED_PROC)
+    assert monitor.is_monitor and gate.is_gate and proc.is_named_proc
     snapshot = build_tribe_prompts(
         (
             _source(monitor, "monitor"),

@@ -18,13 +18,13 @@ if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
 
-def aggregates_agent_session_shells(agent: "Agent") -> bool:
-    """Return whether *agent*'s aggregate owns durable session-shell runtime.
+def aggregates_agent_session_turns(agent: "Agent") -> bool:
+    """Return whether *agent*'s aggregate owns durable session-turn runtime.
 
     This is container-ness, not ``stop_time``. A settled session container
     still records ``stopped_at`` on the root artifacts dir, but it must keep
-    spanning a running shell grandchild. Concrete agent shells only own their
-    own interval; the shell already has its own roster row.
+    spanning a running turn grandchild. Concrete agent turns only own their
+    own interval; the turn already has its own roster row.
     """
     return agent.is_clan_container or agent.is_agent_session_container_row
 
@@ -32,7 +32,7 @@ def aggregates_agent_session_shells(agent: "Agent") -> bool:
 def _represented_by_descendants(agent: "Agent", eligible: tuple["Agent", ...]) -> bool:
     """Return whether *agent*'s runtime is carried by descendant rows."""
     if not (
-        aggregates_agent_session_shells(agent)
+        aggregates_agent_session_turns(agent)
         or any(
             child.is_workflow_step_child
             for child in getattr(agent, "runtime_children", ())
@@ -45,15 +45,15 @@ def _represented_by_descendants(agent: "Agent", eligible: tuple["Agent", ...]) -
 def runtime_child_rows(
     agent: "Agent",
     *,
-    include_monitor_shells: bool,
+    include_monitor_turns: bool,
     _seen: set[int] | None = None,
 ) -> tuple["Agent", ...]:
     """Return the child rows whose runtime an ancestor row may absorb.
 
-    A gate shell owns a human decision window rather than agent runtime, so
+    A gate turn owns a human decision window rather than agent runtime, so
     it never contributes its own interval to an ancestor at any level. Its
     own children are yielded in its place, so an agent a gate started is not
-    dropped along with the gate. Monitor shells still contribute, but only to
+    dropped along with the gate. Monitor turns still contribute, but only to
     agent session and clan container rows.
     """
     if _seen is None:
@@ -68,12 +68,12 @@ def runtime_child_rows(
             rows.extend(
                 runtime_child_rows(
                     child,
-                    include_monitor_shells=include_monitor_shells,
+                    include_monitor_turns=include_monitor_turns,
                     _seen=_seen,
                 )
             )
             continue
-        if child.is_monitor and not include_monitor_shells:
+        if child.is_monitor and not include_monitor_turns:
             continue
         rows.append(child)
     return tuple(rows)
@@ -87,7 +87,7 @@ def _aggregate_runtime(
     if not children:
         return None
 
-    include_monitor_shells = aggregates_agent_session_shells(agent)
+    include_monitor_turns = aggregates_agent_session_turns(agent)
     runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
     saw_non_monitor_member = False
@@ -144,7 +144,7 @@ def _aggregate_runtime(
             return
         seen.add(child_id)
         eligible = runtime_child_rows(
-            child, include_monitor_shells=include_monitor_shells
+            child, include_monitor_turns=include_monitor_turns
         )
         for grandchild in eligible:
             append_runtime_member(grandchild)
@@ -154,9 +154,7 @@ def _aggregate_runtime(
             return
         append_member_wire(child)
 
-    for child in runtime_child_rows(
-        agent, include_monitor_shells=include_monitor_shells
-    ):
+    for child in runtime_child_rows(agent, include_monitor_turns=include_monitor_turns):
         append_runtime_member(child)
 
     if runtime_members and not saw_non_monitor_member and not agent.is_clan_container:

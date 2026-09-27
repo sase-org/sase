@@ -121,7 +121,7 @@ class AgentDetailRenderMixin:
             return False
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        self._sync_selected_proc_shell_detail_proc(current_agent)
+        self._sync_selected_named_proc_detail_proc(current_agent)
         if current_agent is None:
             agent_detail.show_empty()
             return False
@@ -239,7 +239,7 @@ class AgentDetailRenderMixin:
             return
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        self._sync_selected_proc_shell_detail_proc(current_agent)
+        self._sync_selected_named_proc_detail_proc(current_agent)
         if current_agent is not None:
             from ._loading_helpers import hydrate_agent_attempt_history
 
@@ -327,31 +327,31 @@ class AgentDetailRenderMixin:
             return
         self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
 
-    def _sync_selected_proc_shell_detail_proc(
+    def _sync_selected_named_proc_detail_proc(
         self, current_agent: Agent | None
     ) -> None:
-        """Ask the proc observer to hydrate log output for the selected proc shell."""
+        """Ask the proc observer to hydrate log output for the selected named proc."""
         proc_id = (
             current_agent.proc_id
-            if current_agent is not None and current_agent.is_proc_shell
+            if current_agent is not None and current_agent.is_named_proc
             else None
         )
-        if getattr(self, "_selected_proc_shell_detail_proc_id", None) == proc_id:
+        if getattr(self, "_selected_named_proc_detail_proc_id", None) == proc_id:
             return
-        self._selected_proc_shell_detail_proc_id = proc_id  # type: ignore[attr-defined]
+        self._selected_named_proc_detail_proc_id = proc_id  # type: ignore[attr-defined]
         observer = getattr(self, "_proc_observer", None)
-        old_token = getattr(self, "_selected_proc_shell_tail_token", None)
+        old_token = getattr(self, "_selected_named_proc_tail_token", None)
         if old_token is not None:
             unsubscribe = getattr(observer, "unsubscribe_tail", None)
             if callable(unsubscribe):
                 unsubscribe(old_token)
-            self._selected_proc_shell_tail_token = None  # type: ignore[attr-defined]
+            self._selected_named_proc_tail_token = None  # type: ignore[attr-defined]
         if observer is None:
             return
         if proc_id is not None:
             subscribe = getattr(observer, "subscribe_tail", None)
             if callable(subscribe):
-                self._selected_proc_shell_tail_token = subscribe(proc_id)  # type: ignore[attr-defined]
+                self._selected_named_proc_tail_token = subscribe(proc_id)  # type: ignore[attr-defined]
                 return
         set_detail_proc = getattr(observer, "set_detail_proc", None)
         request_poll = getattr(observer, "request_poll", None)

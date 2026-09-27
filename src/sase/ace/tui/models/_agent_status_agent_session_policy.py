@@ -89,24 +89,24 @@ def is_completed_epic_followup_child(agent: Agent) -> bool:
     )
 
 
-def _decision_published_by_gate_shell(agent: Agent) -> bool:
-    """Return True when a gate shell, not this row, publishes its decision.
+def _decision_published_by_gate_turn(agent: Agent) -> bool:
+    """Return True when a gate turn, not this row, publishes its decision.
 
-    An agent that creates a gate shell records the gate's id in its own
+    An agent that creates a gate turn records the gate's id in its own
     ``agent_meta.json`` before handing off, so a creator row carries
     ``gate_id`` without being the gate member (``is_gate`` is role-based).
-    From that point the gate shell owns the decision status for its whole
-    settled/pending pair, and the creating agent shell keeps its own terminal
-    status. Legacy pre-gate-shell agent sessions record no ``gate_id`` and keep the
+    From that point the gate turn owns the decision status for its whole
+    settled/pending pair, and the creating agent turn keeps its own terminal
+    status. Legacy pre-gate-turn agent sessions record no ``gate_id`` and keep the
     historical planner label, because they have no gate node to carry it.
     """
     return bool(agent.gate_id) and not agent.is_gate
 
 
 def approved_followup_planner_status(agent: Agent) -> str | None:
-    """Return the legacy approved status for a no-gate-shell planner."""
+    """Return the legacy approved status for a no-gate-turn planner."""
     if (
-        _decision_published_by_gate_shell(agent)
+        _decision_published_by_gate_turn(agent)
         or agent.parent_timestamp is None
         or agent.agent_session_parallel
         or agent_session_role(agent) not in PLANNER_AGENT_SESSION_ROLES
@@ -145,7 +145,7 @@ def is_answered_root_asker_step(
     A rename-on-attach root's own work renders as its concrete ``main``
     workflow step, which is a workflow-step child rather than a session-member
     child, so :func:`is_answered_continuation_asker` skips it. Plan-chain roots
-    are excluded because their question state is now owned by gate-shell rows.
+    are excluded because their question state is now owned by gate-turn rows.
     """
     if agent.status != "DONE":
         return False

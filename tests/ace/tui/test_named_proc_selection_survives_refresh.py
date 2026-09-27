@@ -1,4 +1,4 @@
-"""Agents-tab proc-shell selection restoration across loader refreshes."""
+"""Agents-tab named-proc selection restoration across loader refreshes."""
 
 from __future__ import annotations
 
@@ -23,9 +23,9 @@ from sase.ace.tui.actions.agents._loading_compute import (
 from sase.ace.tui.models._agent_loader_artifacts import AgentLoadState
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import panel_keys_for
-from sase.ace.tui.models.agent_proc_shells import proc_shell_agents_from_observed
+from sase.ace.tui.models.agent_named_procs import named_proc_agents_from_observed
 from sase.ace.tui.proc_observer import ProcObserverSnapshot
-from sase.procs import PROC_LIFECYCLE_PROC_SHELL, XPROMPT_PROC_ORIGIN
+from sase.procs import PROC_LIFECYCLE_NAMED_PROC, XPROMPT_PROC_ORIGIN
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
@@ -33,14 +33,14 @@ from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 _NOW = datetime(2026, 8, 23, 12, 0, 0)
 
 
-class ProcShellFakeApp(ProcCompletionActionsMixin, FakeAgentApp):
-    """Headless app with the production proc-shell roster reconcile."""
+class NamedProcFakeApp(ProcCompletionActionsMixin, FakeAgentApp):
+    """Headless app with the production named-proc roster reconcile."""
 
     def __init__(self) -> None:
         super().__init__()
         self._proc_projection = ProcProjection()
         self._proc_generation = 0
-        self._dismissed_proc_shells: set[str] = set()
+        self._dismissed_named_procs: set[str] = set()
         self._session_completion_callbacks: dict[
             str, tuple[Callable[..., Any], Any]
         ] = {}
@@ -110,27 +110,27 @@ def _observed_proc(
         display_name="background job",
         command=["python", "-m", "sase", "demo"],
         origin=XPROMPT_PROC_ORIGIN,
-        lifecycle=PROC_LIFECYCLE_PROC_SHELL,
+        lifecycle=PROC_LIFECYCLE_NAMED_PROC,
         project=project,
-        shell_name="background-job",
+        proc_name="background-job",
     )
 
 
-def _seed_roster_with_proc_shell(
-    app: ProcShellFakeApp,
+def _seed_roster_with_named_proc(
+    app: NamedProcFakeApp,
     disk_agents: list[Agent],
     row: ObservedProc,
 ) -> Agent:
     app._agents = list(disk_agents)
     app._agents_with_children = list(disk_agents)
     app._proc_projection = ProcProjection(rows=(row,), active_count=1)
-    app._sync_proc_shell_agents_from_projection()
-    proc_shell = next(agent for agent in app._agents if agent.is_proc_shell)
-    return proc_shell
+    app._sync_named_proc_agents_from_projection()
+    named_proc = next(agent for agent in app._agents if agent.is_named_proc)
+    return named_proc
 
 
 def _apply_disk_refresh(
-    app: ProcShellFakeApp,
+    app: NamedProcFakeApp,
     disk_agents: list[Agent],
     *,
     on_agents_tab: bool,
@@ -152,14 +152,14 @@ def _apply_disk_refresh(
     )
 
 
-def test_focused_proc_shell_keeps_selection_across_loader_apply() -> None:
+def test_focused_named_proc_keeps_selection_across_loader_apply() -> None:
     alpha = _make_agent(cl_name="alpha", raw_suffix="alpha")
     beta = _make_agent(cl_name="beta", raw_suffix="beta")
-    app = ProcShellFakeApp()
-    proc_shell = _seed_roster_with_proc_shell(app, [alpha, beta], _observed_proc())
-    proc_identity = proc_shell.identity
+    app = NamedProcFakeApp()
+    named_proc = _seed_roster_with_named_proc(app, [alpha, beta], _observed_proc())
+    proc_identity = named_proc.identity
     app.current_tab = "agents"
-    app.current_idx = app._agents.index(proc_shell)
+    app.current_idx = app._agents.index(named_proc)
 
     _apply_disk_refresh(
         app,
@@ -171,14 +171,14 @@ def test_focused_proc_shell_keeps_selection_across_loader_apply() -> None:
     assert app._agents[app.current_idx].identity == proc_identity
 
 
-def test_loader_apply_keeps_proc_shell_rows_in_roster_before_finalize() -> None:
+def test_loader_apply_keeps_named_proc_rows_in_roster_before_finalize() -> None:
     alpha = _make_agent(cl_name="alpha", raw_suffix="alpha")
     beta = _make_agent(cl_name="beta", raw_suffix="beta")
-    app = ProcShellFakeApp()
-    proc_shell = _seed_roster_with_proc_shell(app, [alpha, beta], _observed_proc())
-    proc_identity = proc_shell.identity
+    app = NamedProcFakeApp()
+    named_proc = _seed_roster_with_named_proc(app, [alpha, beta], _observed_proc())
+    proc_identity = named_proc.identity
     app.current_tab = "agents"
-    app.current_idx = app._agents.index(proc_shell)
+    app.current_idx = app._agents.index(named_proc)
     rosters_at_finalize: list[
         tuple[
             list[tuple[AgentType, str, str | None]],
@@ -212,10 +212,10 @@ def test_loader_apply_keeps_proc_shell_rows_in_roster_before_finalize() -> None:
 def test_unchanged_proc_projection_runs_one_finalize_pass() -> None:
     alpha = _make_agent(cl_name="alpha", raw_suffix="alpha")
     beta = _make_agent(cl_name="beta", raw_suffix="beta")
-    app = ProcShellFakeApp()
-    proc_shell = _seed_roster_with_proc_shell(app, [alpha, beta], _observed_proc())
+    app = NamedProcFakeApp()
+    named_proc = _seed_roster_with_named_proc(app, [alpha, beta], _observed_proc())
     app.current_tab = "agents"
-    app.current_idx = app._agents.index(proc_shell)
+    app.current_idx = app._agents.index(named_proc)
     calls = 0
     original_finalize = app._finalize_agent_list
 
@@ -230,19 +230,19 @@ def test_unchanged_proc_projection_runs_one_finalize_pass() -> None:
         app,
         [alpha, beta],
         on_agents_tab=True,
-        selected_identity=proc_shell.identity,
+        selected_identity=named_proc.identity,
     )
 
     assert calls == 1
 
 
-def test_empty_disk_load_publishes_projection_proc_shell_on_first_finalize() -> None:
-    app = ProcShellFakeApp()
+def test_empty_disk_load_publishes_projection_named_proc_on_first_finalize() -> None:
+    app = NamedProcFakeApp()
     row = replace(_observed_proc(), xprompt_proc={"tribe": "epic"})
     app._proc_projection = ProcProjection(rows=(row,), active_count=1)
     app._proc_generation = 1
     app.current_tab = "agents"
-    assert all(not agent.is_proc_shell for agent in app._agents_with_children)
+    assert all(not agent.is_named_proc for agent in app._agents_with_children)
     rosters_at_finalize: list[list[Agent]] = []
     original_finalize = app._finalize_agent_list
 
@@ -262,13 +262,13 @@ def test_empty_disk_load_publishes_projection_proc_shell_on_first_finalize() -> 
 
     assert len(rosters_at_finalize) == 1
     first_roster = rosters_at_finalize[0]
-    proc_shell = next(agent for agent in first_roster if agent.is_proc_shell)
-    assert proc_shell.identity == proc_shell_agents_from_observed([row])[0].identity
+    named_proc = next(agent for agent in first_roster if agent.is_named_proc)
+    assert named_proc.identity == named_proc_agents_from_observed([row])[0].identity
     assert "epic" in panel_keys_for(first_roster)
 
 
 def test_proc_generation_move_rebases_prepared_roster_before_finalize() -> None:
-    app = ProcShellFakeApp()
+    app = NamedProcFakeApp()
     old_row = _observed_proc(proc_id="oldprocoldprocold")
     new_row = replace(
         _observed_proc(proc_id="newprocnewprocnew"),
@@ -320,14 +320,14 @@ def test_proc_generation_move_rebases_prepared_roster_before_finalize() -> None:
 
     assert len(rosters_at_finalize) == 1
     published = rosters_at_finalize[0]
-    new_identity = proc_shell_agents_from_observed([new_row])[0].identity
-    old_identity = proc_shell_agents_from_observed([old_row])[0].identity
+    new_identity = named_proc_agents_from_observed([new_row])[0].identity
+    old_identity = named_proc_agents_from_observed([old_row])[0].identity
     assert new_identity in published
     assert old_identity not in published
 
 
 def test_observer_snapshot_during_disk_apply_does_not_finalize() -> None:
-    app = ProcShellFakeApp()
+    app = NamedProcFakeApp()
     app._agents_loading = True
     finalize_calls = 0
     original_finalize = app._finalize_agent_list
@@ -349,17 +349,17 @@ def test_observer_snapshot_during_disk_apply_does_not_finalize() -> None:
     assert finalize_calls == 0
     assert app._proc_generation == 1
     assert app._proc_projection.rows == (row,)
-    assert all(not agent.is_proc_shell for agent in app._agents_with_children)
+    assert all(not agent.is_named_proc for agent in app._agents_with_children)
 
 
-def test_off_tab_refresh_preserves_saved_proc_shell_selection() -> None:
+def test_off_tab_refresh_preserves_saved_named_proc_selection() -> None:
     alpha = _make_agent(cl_name="alpha", raw_suffix="alpha")
     beta = _make_agent(cl_name="beta", raw_suffix="beta")
-    app = ProcShellFakeApp()
-    proc_shell = _seed_roster_with_proc_shell(app, [alpha, beta], _observed_proc())
-    proc_identity = proc_shell.identity
+    app = NamedProcFakeApp()
+    named_proc = _seed_roster_with_named_proc(app, [alpha, beta], _observed_proc())
+    proc_identity = named_proc.identity
     app.current_tab = "patches"
-    app._agents_last_idx = app._agents.index(proc_shell)
+    app._agents_last_idx = app._agents.index(named_proc)
     app._agents_last_identity = proc_identity
 
     _apply_disk_refresh(
@@ -376,28 +376,28 @@ def test_off_tab_refresh_preserves_saved_proc_shell_selection() -> None:
 def test_settled_proc_removed_from_projection_leaves_roster() -> None:
     alpha = _make_agent(cl_name="alpha", raw_suffix="alpha")
     beta = _make_agent(cl_name="beta", raw_suffix="beta")
-    app = ProcShellFakeApp()
-    proc_shell = _seed_roster_with_proc_shell(app, [alpha, beta], _observed_proc())
+    app = NamedProcFakeApp()
+    named_proc = _seed_roster_with_named_proc(app, [alpha, beta], _observed_proc())
     app.current_tab = "agents"
-    app.current_idx = app._agents.index(proc_shell)
+    app.current_idx = app._agents.index(named_proc)
     app._proc_projection = ProcProjection()
 
     _apply_disk_refresh(
         app,
         [alpha, beta],
         on_agents_tab=True,
-        selected_identity=proc_shell.identity,
+        selected_identity=named_proc.identity,
     )
 
-    assert all(not agent.is_proc_shell for agent in app._agents)
-    assert all(not agent.is_proc_shell for agent in app._agents_with_children)
+    assert all(not agent.is_named_proc for agent in app._agents)
+    assert all(not agent.is_named_proc for agent in app._agents_with_children)
 
 
 def test_observed_proc_identity_is_stable_when_durable_row_replaces_overlay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_proc_shells.project_display_name_for",
+        "sase.ace.tui.models.agent_named_procs.project_display_name_for",
         lambda project: project,
     )
     overlay = _observed_proc(proc_id="proc-stable", project="gh_sase-org__sase")
@@ -407,7 +407,7 @@ def test_observed_proc_identity_is_stable_when_durable_row_replaces_overlay(
         store_backed=True,
         durable_proc_id=overlay.proc_id,
     )
-    overlay_identity = proc_shell_agents_from_observed([overlay])[0].identity
+    overlay_identity = named_proc_agents_from_observed([overlay])[0].identity
 
     projection = compose_proc_projection(
         ProcProjection(rows=(durable,)),
@@ -416,22 +416,22 @@ def test_observed_proc_identity_is_stable_when_durable_row_replaces_overlay(
 
     assert projection.rows == (durable,)
     assert (
-        proc_shell_agents_from_observed(projection.rows)[0].identity == overlay_identity
+        named_proc_agents_from_observed(projection.rows)[0].identity == overlay_identity
     )
 
 
-def test_dismissed_terminal_proc_shell_does_not_return_on_projection_sync() -> None:
-    from sase.ace.tui.actions.agents._proc_shell_dismiss import ProcShellDismissMixin
+def test_dismissed_terminal_named_proc_does_not_return_on_projection_sync() -> None:
+    from sase.ace.tui.actions.agents._named_proc_dismiss import NamedProcDismissMixin
 
-    class _App(ProcShellDismissMixin, ProcShellFakeApp):
+    class _App(NamedProcDismissMixin, NamedProcFakeApp):
         pass
 
     alpha = _make_agent(cl_name="alpha", raw_suffix="alpha")
     beta = _make_agent(cl_name="beta", raw_suffix="beta")
     app = _App()
     row = _observed_proc(status="success")
-    proc_shell = _seed_roster_with_proc_shell(app, [alpha, beta], row)
-    proc_identity = proc_shell.identity
+    named_proc = _seed_roster_with_named_proc(app, [alpha, beta], row)
+    proc_identity = named_proc.identity
     finalize_calls = 0
     original_finalize = app._finalize_agent_list
 
@@ -441,14 +441,14 @@ def test_dismissed_terminal_proc_shell_does_not_return_on_projection_sync() -> N
         original_finalize(*args, **kwargs)
 
     app._finalize_agent_list = _counting_finalize  # type: ignore[method-assign]
-    app._dismiss_proc_shell_rows([proc_shell])
+    app._dismiss_named_proc_rows([named_proc])
     finalize_calls = 0
-    app._sync_proc_shell_agents_from_projection()
+    app._sync_named_proc_agents_from_projection()
 
     assert finalize_calls == 0
     assert all(agent.identity != proc_identity for agent in app._agents)
     assert all(agent.identity != proc_identity for agent in app._agents_with_children)
-    assert proc_shell.proc_id in app._dismissed_proc_shells
+    assert named_proc.proc_id in app._dismissed_named_procs
 
     _apply_disk_refresh(
         app,

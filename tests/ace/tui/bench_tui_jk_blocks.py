@@ -28,8 +28,8 @@ pytest_plugins = ("tests.ace.tui._bench_tui_jk_helpers",)
 pytestmark = pytest.mark.slow
 
 _SESSION_COUNT = 3
-_SHELLS_PER_SESSION = 10
-_REPLY_LINES_PER_SHELL = 500
+_TURNS_PER_SESSION = 10
+_REPLY_LINES_PER_TURN = 500
 # Generous ceiling (large-list precedent): catches an order-of-magnitude
 # regression without flaking under host contention. The printed table
 # carries the tight 16 ms number for the bead record.
@@ -41,11 +41,11 @@ _BLOCK_CYCLE_P95_BUDGET_MS = 100.0
 _STARTED = datetime(2026, 7, 18, 12, 0, 0)
 
 
-def _write_shell_content(directory: Path, label: str) -> None:
+def _write_turn_content(directory: Path, label: str) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "response.md").write_text(
         "\n".join(
-            f"{label} reply line {index}" for index in range(_REPLY_LINES_PER_SHELL)
+            f"{label} reply line {index}" for index in range(_REPLY_LINES_PER_TURN)
         )
         + "\n",
         encoding="utf-8",
@@ -54,11 +54,11 @@ def _write_shell_content(directory: Path, label: str) -> None:
 
 def _make_session(tmp_path: Path, index: int) -> Agent:
     members: list[Agent] = []
-    for shell in range(_SHELLS_PER_SESSION):
-        role = "plan" if shell == 0 else "code"
-        suffix = "--plan" if shell == 0 else f"--code-{shell}"
+    for turn in range(_TURNS_PER_SESSION):
+        role = "plan" if turn == 0 else "code"
+        suffix = "--plan" if turn == 0 else f"--code-{turn}"
         directory = tmp_path / f"bench-s{index}-{suffix.strip('-')}"
-        _write_shell_content(directory, f"s{index}{suffix}")
+        _write_turn_content(directory, f"s{index}{suffix}")
         members.append(
             Agent(
                 agent_type=AgentType.RUNNING,
@@ -66,7 +66,7 @@ def _make_session(tmp_path: Path, index: int) -> Agent:
                 project_file="/tmp/bench-blocks.sase",
                 status="DONE",
                 start_time=_STARTED,
-                raw_suffix=f"2026071812{index:02d}{shell:02d}",
+                raw_suffix=f"2026071812{index:02d}{turn:02d}",
                 artifacts_dir=str(directory),
                 response_path=str(directory / "response.md"),
                 agent_name=f"bench{index}{suffix}",
@@ -74,7 +74,7 @@ def _make_session(tmp_path: Path, index: int) -> Agent:
                 agent_session_role=role,
                 role_suffix=suffix,
                 model="claude/opus",
-                **({"plan_chain_root": True} if shell == 0 else {}),
+                **({"plan_chain_root": True} if turn == 0 else {}),
             )
         )
     root = members[0]
@@ -175,7 +175,7 @@ async def test_bench_sticky_reply_heavy_sessions(
 
 
 async def test_bench_block_cycle_paged(tmp_path: Path, _perf_jsonl: Path) -> None:
-    """Time paged block cycling over a 10-shell sticky Reply."""
+    """Time paged block cycling over a 10-turn sticky Reply."""
     from sase.ace.tui.agent_decks_settings import AgentDecksSettings
 
     app = AceApp(query="!!!", auto_start_axe=False, refresh_interval=0)

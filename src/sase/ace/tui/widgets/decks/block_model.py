@@ -1,6 +1,6 @@
 """Pure card-block cursor and block-mode decision helpers.
 
-A session Reply card is split into one card block per concrete sase shell.
+A session Reply card is split into one card block per concrete sase turn.
 Each deck panel keeps one :class:`BlockCursor` per card for the current
 subject; the cursor names the active block, whether the panel follows the
 newest block, and which block ids the reader has already seen (for arrival

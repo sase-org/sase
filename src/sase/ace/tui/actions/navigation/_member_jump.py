@@ -8,7 +8,7 @@ from textual.screen import ModalScreen
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_session_members import (
-    concrete_agent_session_shell_rows,
+    concrete_agent_session_turn_rows,
     agent_session_roster_container,
 )
 from ...models.agent_hoods import agent_owns_sase_agent
@@ -109,7 +109,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             container.is_agent_session_container_row
             or agent_session_roster_container(container) is not None
         ):
-            return "shell"
+            return "turn"
         return "neighbor"
 
     def _roster_jump_label(
@@ -228,14 +228,14 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if container.is_agent_session_container_row:
             return any(
                 member.identity == target_identity
-                for member in concrete_agent_session_shell_rows(container)
+                for member in concrete_agent_session_turn_rows(container)
             )
         roster_container = agent_session_roster_container(container)
         if roster_container is None:
             return False
         return any(
             member.identity == target_identity and member.identity != container.identity
-            for member in concrete_agent_session_shell_rows(roster_container)
+            for member in concrete_agent_session_turn_rows(roster_container)
         )
 
     def _member_jump_target(

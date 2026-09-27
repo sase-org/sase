@@ -1,4 +1,4 @@
-"""Regression repros for session-shell status convergence after settlement."""
+"""Regression repros for session-turn status convergence after settlement."""
 
 from __future__ import annotations
 
@@ -209,7 +209,7 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
             "run_started_at": "2026-09-15T13:05:30Z",
             "monitor_id": "mon-1",
             "proc_id": "mon-1",
-            "shell_kind": "proc",
+            "proc_role": "proc",
             "monitor_state": "running",
             "monitor_start_status": "EPIC APPROVED",
             "monitor_stop_status": "EPIC CREATED",
@@ -281,7 +281,7 @@ def _settle_monitor(tree: _IncidentTree) -> list[dict[str, Any]]:
             _write_done_marker_without_index,
         ),
         patch(
-            "sase.shells.settlement.update_agent_artifact_index_for_marker_mutation",
+            "sase.turns.settlement.update_agent_artifact_index_for_marker_mutation",
             lambda _artifacts_dir: None,
         ),
         patch(

@@ -16,7 +16,7 @@ from .agent_list_runtime_helpers import (
     agent,
     agent_row_index,
     agent_session_container,
-    gate_shell,
+    gate_turn,
     workflow_child,
 )
 
@@ -201,7 +201,7 @@ def test_format_agent_option_clan_agent_session_lane_contributes_agent_session_t
 
     assert agent_session_suffix.plain == "🏃‍♂️ 1m05s / 3m05s"
     assert clan_suffix.plain == "🏃‍♂️ 3m05s / 5m05s"
-    assert "1m05s" not in clan_suffix.plain  # the coder shell's own runtime
+    assert "1m05s" not in clan_suffix.plain  # the coder turn's own runtime
 
 
 def test_format_agent_option_clan_agent_session_lane_falls_back_when_total_is_not_live() -> (
@@ -372,7 +372,7 @@ def test_clan_excludes_pending_gate_and_does_not_pin_lowest_lane() -> None:
         role_suffix="--plan",
         raw_suffix="20260425140000",
     )
-    gate = gate_shell(
+    gate = gate_turn(
         status="PLAN",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=None,

@@ -1,4 +1,4 @@
-"""ACE PNG snapshots for session panel gate shell metadata and output."""
+"""ACE PNG snapshots for session panel gate turn metadata and output."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.models.agent_session_members import concrete_agent_session_shell_rows
+from sase.ace.tui.models.agent_session_members import concrete_agent_session_turn_rows
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_panel_fixtures import (
     _gate_agent_session_agents,
@@ -34,7 +34,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_agent_session_gate_shells_png_snapshots(
+async def test_agent_session_gate_turns_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -58,8 +58,8 @@ async def test_agent_session_gate_shells_png_snapshots(
 
         container = page.app._agents[page.app.current_idx]
         assert container.is_agent_session_container_row is True
-        shells = concrete_agent_session_shell_rows(container)
-        assert [shell.is_gate for shell in shells] == [
+        turns = concrete_agent_session_turn_rows(container)
+        assert [turn.is_gate for turn in turns] == [
             False,
             False,
             True,
@@ -67,13 +67,13 @@ async def test_agent_session_gate_shells_png_snapshots(
             True,
             True,
         ]
-        assert [shell.gate_state for shell in shells if shell.is_gate] == [
+        assert [turn.gate_state for turn in turns if turn.is_gate] == [
             "pending",
             "settling",
             "answered",
             "failed",
         ]
-        assert_page_svg_contains(page, "6 shells")
+        assert_page_svg_contains(page, "6 turns")
         combined = prompt_header_and_body_text(
             page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         )
@@ -83,12 +83,12 @@ async def test_agent_session_gate_shells_png_snapshots(
         assert "failed" in combined
         ace_png_visual.assert_page_png(
             page,
-            "agents_session_panel_shells_gate_120x40",
-            title="ACE session panel shell metadata with gate rows",
+            "agents_session_panel_turns_gate_120x40",
+            title="ACE session panel turn metadata with gate rows",
         )
 
 
-async def test_agent_session_gate_shells_narrow_png_snapshot(
+async def test_agent_session_gate_turns_narrow_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -114,12 +114,12 @@ async def test_agent_session_gate_shells_narrow_png_snapshot(
         assert_page_svg_contains(page, "⋔")
         ace_png_visual.assert_page_png(
             page,
-            "agents_session_panel_shells_gate_90x40",
-            title="ACE session panel gate shells narrow",
+            "agents_session_panel_turns_gate_90x40",
+            title="ACE session panel gate turns narrow",
         )
 
 
-async def test_selected_gate_shell_output_png_snapshot(
+async def test_selected_gate_turn_output_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -164,5 +164,5 @@ async def test_selected_gate_shell_output_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "agents_session_gate_output_120x40",
-            title="ACE selected gate shell with long output",
+            title="ACE selected gate turn with long output",
         )

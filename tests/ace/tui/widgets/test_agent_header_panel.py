@@ -128,7 +128,7 @@ async def test_header_collapsed_by_default_with_title_and_hint() -> None:
         assert not panel.is_expanded
         assert detail.header_toggle_available() is True
         assert panel.border_title is not None
-        assert "AGENT SHELL" in str(panel.border_title)
+        assert "AGENT TURN" in str(panel.border_title)
         assert "more" in str(panel.border_subtitle)
         assert "d" in str(panel.border_subtitle)
         rows = _header_text(panel).splitlines()
@@ -160,9 +160,9 @@ async def test_body_excludes_identity_lines() -> None:
         await _show_agent(detail, _solo(), pilot)
         prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
         body = renderable_to_text(prompt.content) or ""
-        assert "AGENT SHELL" not in body
+        assert "AGENT TURN" not in body
         combined = renderable_to_text(prompt.inline_document_renderable()) or ""
-        assert "AGENT SHELL" in combined
+        assert "AGENT TURN" in combined
         assert "Name:" in combined
 
 

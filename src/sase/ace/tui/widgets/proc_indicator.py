@@ -9,10 +9,10 @@ from .top_bar_group import TopBarGroup
 
 
 class ProcIndicator(TopBarGroup):
-    """Shows running procs and monitor shells in the top-bar.
+    """Shows running procs and monitor turns in the top-bar.
 
     Renders as ``procs: ⚙ N`` with the blue chip for ACE-owned procs and
-    appends the orange chip for running monitor shells
+    appends the orange chip for running monitor turns
     (``sase monitor start``), the same pair the Procs tab header shows.
     Hidden only when both counts are zero; clicking opens the Procs tab.
     """
@@ -32,7 +32,7 @@ class ProcIndicator(TopBarGroup):
 
         Args:
             proc_count: Number of currently running background procs.
-            monitor_count: Number of currently running monitor shells.
+            monitor_count: Number of currently running monitor turns.
         """
         if self._count == proc_count and self._monitor_count == monitor_count:
             return

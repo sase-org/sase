@@ -394,7 +394,7 @@ class KillAndEditLastLaunchMixin:
                 proc_stops = [
                     agent
                     for agent in exact_agents
-                    if getattr(agent, "is_proc_shell", False)
+                    if getattr(agent, "is_named_proc", False)
                     and agent.proc_status in ACTIVE_PROC_STATUSES
                 ]
                 gate_cancels = [

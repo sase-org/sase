@@ -23,7 +23,7 @@ from sase.monitor.no_new_receipt import (
     verify_no_new_receipt,
 )
 from sase.monitor.output import OutputCapture
-from sase.shells.followup import FollowupLaunchResult
+from sase.turns.followup import FollowupLaunchResult
 
 from ..finalizer_declaration_channel_test_helpers import (
     prepare_dirty_declaration,

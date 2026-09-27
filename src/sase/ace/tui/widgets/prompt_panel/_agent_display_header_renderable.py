@@ -12,7 +12,7 @@ from ._agent_page_section import ResponsiveAgentPageSection
 from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_bead_touches import ResponsiveBeadTouchesSection
 from ._agent_plan_section import ResponsivePlanSection
-from ._agent_shell_section import ResponsiveShellSection
+from ._agent_turn_section import ResponsiveTurnSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._agent_wait_section import ResponsiveWaitSection
 
@@ -25,7 +25,7 @@ type ResponsiveHeaderSection = (
     | ResponsiveBeadSection
     | ResponsiveBeadTouchesSection
     | ResponsivePlanSection
-    | ResponsiveShellSection
+    | ResponsiveTurnSection
     | ResponsiveSlowToolCallsSection
     | ResponsiveWaitSection
 )

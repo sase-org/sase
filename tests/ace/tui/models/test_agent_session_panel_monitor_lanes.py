@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from sase.ace.tui.models.agent_session_members import (
     _MonitorLaneCounts,
-    panel_shell_lane_counts,
+    panel_turn_lane_counts,
 )
 
 from ._agent_session_members_helpers import _agent, _monitor_member
 
 
 def _panel_monitor_lane_counts(rows):
-    return panel_shell_lane_counts(rows).monitor
+    return panel_turn_lane_counts(rows).monitor
 
 
 def test_panel_monitor_lane_counts_partitions_across_top_level_rows() -> None:

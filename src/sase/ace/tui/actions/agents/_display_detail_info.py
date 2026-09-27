@@ -106,8 +106,8 @@ class AgentInfoDisplayMixin:
         hidden_starting_agents = [
             self._agents[i] for i in panel_index.hidden_starting_indices
         ]
-        proc_shell_count = sum(
-            1 for agent in visible_top_level_agents if agent.is_proc_shell
+        named_proc_count = sum(
+            1 for agent in visible_top_level_agents if agent.is_named_proc
         )
         projected = sase_agent_status_counts(
             visible_top_level_agents,
@@ -124,7 +124,7 @@ class AgentInfoDisplayMixin:
             projected.done,
             lane_total,
             starting_count,
-            proc_shell_count,
+            named_proc_count,
         )
         self._agent_info_metrics_cache = (cache_key, metrics)
         return metrics
@@ -230,7 +230,7 @@ class AgentInfoDisplayMixin:
             read_count,
             sase_agent_count,
             starting_count,
-            proc_shell_count,
+            named_proc_count,
         ) = self._agent_info_metrics()
         from ._grouping import _MODE_LABELS
 
@@ -282,7 +282,7 @@ class AgentInfoDisplayMixin:
                 read=read_count,
                 sase_agent_count=sase_agent_count,
                 starting=starting_count,
-                proc_shell_count=proc_shell_count,
+                named_proc_count=named_proc_count,
                 countdown=self._countdown_remaining,
                 interval=self.refresh_interval,
                 search_query=display_query,
@@ -307,8 +307,8 @@ class AgentInfoDisplayMixin:
         if callable(update_runner_queue_count):
             update_runner_queue_count(runner_capacity.queued_count)
         update_count_kwargs: dict[str, int] = {"starting": starting_count}
-        if "proc_shells" in signature(agent_info_panel.update_agent_counts).parameters:
-            update_count_kwargs["proc_shells"] = proc_shell_count
+        if "named_procs" in signature(agent_info_panel.update_agent_counts).parameters:
+            update_count_kwargs["named_procs"] = named_proc_count
         agent_info_panel.update_agent_counts(
             unread_count,
             asking_count,

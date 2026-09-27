@@ -20,7 +20,7 @@ from sase.ace.tui.widgets._agent_list_rendering import (
 )
 from sase.ace.tui.widgets._agent_list_styling import _FOLD_RESTORE_GLYPH_STYLE
 
-from .agent_list_runtime_helpers import agent_session_container, gate_shell
+from .agent_list_runtime_helpers import agent_session_container, gate_turn
 from ._agent_render_cache_helpers import agent as _agent
 from ._agent_render_cache_helpers import bead_key as _bead_key
 from ._agent_render_cache_helpers import style_at as _style_at
@@ -300,7 +300,7 @@ def test_cached_agent_session_root_ignores_member_unread_count_changes() -> None
         is_selected=False,
         unread_agent_ids=(),
     )
-    stale_shell_unread = cached_format_agent_option(
+    stale_turn_unread = cached_format_agent_option(
         cache,
         root,
         0,
@@ -308,12 +308,12 @@ def test_cached_agent_session_root_ignores_member_unread_count_changes() -> None
         unread_agent_ids={member.identity},
     )
 
-    assert read[0] is stale_shell_unread[0]
-    assert read[1] is stale_shell_unread[1]
-    assert "[U1]" not in stale_shell_unread[0].plain
+    assert read[0] is stale_turn_unread[0]
+    assert read[1] is stale_turn_unread[1]
+    assert "[U1]" not in stale_turn_unread[0].plain
 
 
-def test_cached_agent_session_runtime_invalidates_when_active_shell_changes() -> None:
+def test_cached_agent_session_runtime_invalidates_when_active_turn_changes() -> None:
     cache = AgentRenderCache()
     root, child = _running_agent_session_for_cache()
     now = datetime(2026, 4, 25, 14, 35, 0)
@@ -344,7 +344,7 @@ def test_cached_agent_session_runtime_invalidates_when_active_shell_changes() ->
     assert before[1] is not after[1]
 
 
-def test_cached_agent_session_runtime_invalidates_when_active_shell_timing_changes() -> (
+def test_cached_agent_session_runtime_invalidates_when_active_turn_timing_changes() -> (
     None
 ):
     cache = AgentRenderCache()
@@ -370,7 +370,7 @@ def test_cached_agent_session_row_invalidates_when_gate_settles() -> None:
     planner.start_time = datetime(2026, 4, 25, 14, 0, 0)
     planner.run_start_time = datetime(2026, 4, 25, 14, 0, 0)
     planner.stop_time = datetime(2026, 4, 25, 14, 30, 0)
-    gate = gate_shell(
+    gate = gate_turn(
         status="PLAN",
         start=datetime(2026, 4, 25, 14, 30, 0),
         stop=None,

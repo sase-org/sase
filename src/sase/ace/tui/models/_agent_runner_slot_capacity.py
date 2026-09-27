@@ -62,7 +62,7 @@ def capacity_record_from_agent(
         ),
         "tribes": list(membership),
         "created_at": candidate_created_at_from_timestamp(_capacity_timestamp(agent)),
-        "has_agent_meta": not (agent.is_clan_container or agent.is_proc_shell),
+        "has_agent_meta": not (agent.is_clan_container or agent.is_named_proc),
         "has_done_marker": agent.stop_time is not None
         or agent.status in {"DONE", "FAILED", "FAILED (RETRIED)"},
         "appears_as_agent": _appears_as_agent(agent),
@@ -75,9 +75,9 @@ def capacity_record_from_agent(
             agent_session=_capacity_agent_session(agent),
             agent_session_role=agent.agent_session_role,
             agent_session_parallel=agent.agent_session_parallel,
-            shell_kind=_agent_session_shell_kind(agent),
-            shell_id=_agent_session_shell_id(agent),
-            shell_state=_agent_session_shell_state(agent),
+            turn_kind=_agent_session_turn_kind(agent),
+            turn_id=_agent_session_turn_id(agent),
+            turn_state=_agent_session_turn_state(agent),
         ),
         "queue_weight": None
         if agent.queue_weight_invalid
@@ -179,7 +179,7 @@ def _capacity_timestamp(agent: Agent) -> str:
 
 
 def _appears_as_agent(agent: Agent) -> bool:
-    return not (agent.is_clan_container or agent.is_proc_shell) and (
+    return not (agent.is_clan_container or agent.is_named_proc) and (
         agent.appears_as_agent or is_ace_run_root(agent) or agent.is_child_row
     )
 
@@ -206,19 +206,19 @@ def _capacity_agent_session(agent: Agent) -> str | None:
     )
 
 
-def _agent_session_shell_kind(agent: Agent) -> str | None:
+def _agent_session_turn_kind(agent: Agent) -> str | None:
     if agent.is_gate:
         return "gate"
     return "monitor" if agent.is_monitor else None
 
 
-def _agent_session_shell_id(agent: Agent) -> str | None:
+def _agent_session_turn_id(agent: Agent) -> str | None:
     if agent.is_gate:
         return agent.gate_id
     return agent.monitor_id if agent.is_monitor else None
 
 
-def _agent_session_shell_state(agent: Agent) -> str | None:
+def _agent_session_turn_state(agent: Agent) -> str | None:
     if agent.is_gate:
         return agent.gate_state
     return agent.monitor_state if agent.is_monitor else None

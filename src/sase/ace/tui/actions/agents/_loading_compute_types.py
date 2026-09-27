@@ -107,7 +107,7 @@ class PreparedApplySnapshot:
     unread_agent_ids: frozenset[tuple[AgentType, str, str | None]] = frozenset()
     proc_projection: ProcProjection | None = None
     proc_generation: int = 0
-    dismissed_proc_shells: frozenset[str] = frozenset()
+    dismissed_named_procs: frozenset[str] = frozenset()
     # False only when the cached roster was applied under a different committed
     # query than this load covers; bounded loads may not patch across that.
     cache_query_matches: bool = True

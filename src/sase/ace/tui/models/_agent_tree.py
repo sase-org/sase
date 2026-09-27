@@ -11,7 +11,7 @@ from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 from ._agent_clan import apply_clan_container_status, clan_member_status_priority
 from .agent import Agent, AgentType
-from .agent_proc_shells import proc_shell_command_title
+from .agent_named_procs import named_proc_command_title
 
 ClanKey = tuple[str, str | None]
 
@@ -46,11 +46,11 @@ def agent_gating_fold_key(
 ) -> str | None:
     """Return the fold key whose expansion reveals *agent*.
 
-    Non-shell rows are gated by their own immediate parent, same as
-    :func:`agent_parent_fold_key`. A session shell row instead climbs its
+    Non-turn rows are gated by their own immediate parent, same as
+    :func:`agent_parent_fold_key`. A session turn row instead climbs its
     immediate-parent chain to the nearest ancestor that is not itself a
     child row -- the agent session/workflow container whose fold actually reveals
-    the shell, skipping past any mid-agent session starter that owns no fold of
+    the turn, skipping past any mid-agent session starter that owns no fold of
     its own. Returns ``None`` when a link in that chain is missing or the
     chain does not resolve within the number of known fold owners.
     """
@@ -92,9 +92,9 @@ _NAMED_WORKFLOW_STEP_TYPES = frozenset({"bash", "python"})
 
 
 def agent_tree_title(agent: Agent) -> str | None:
-    """Return the Agents-tab left-side title, or ``None`` for sase shells.
+    """Return the Agents-tab left-side title, or ``None`` for sase turns.
 
-    Bash/python workflow steps use their step name as identity. Sase shells
+    Bash/python workflow steps use their step name as identity. Sase turns
     (agent session members, monitors, workflow ``agent`` steps) keep identity on the
     right-hand ``%id`` annotation. Clan containers, session containers, and
     standalone roots keep ``display_name``.
@@ -102,14 +102,14 @@ def agent_tree_title(agent: Agent) -> str | None:
     if agent.is_workflow_step_child and agent.step_type in _NAMED_WORKFLOW_STEP_TYPES:
         title = agent.step_name or agent.display_name
         return title or None
-    if agent.is_proc_shell:
-        return agent.proc_label or proc_shell_command_title(agent.proc_safe_preview)
-    if _is_untitled_sase_shell(agent):
+    if agent.is_named_proc:
+        return agent.proc_label or named_proc_command_title(agent.proc_safe_preview)
+    if _is_untitled_sase_turn(agent):
         return None
     return agent.display_name or None
 
 
-def _is_untitled_sase_shell(agent: Agent) -> bool:
+def _is_untitled_sase_turn(agent: Agent) -> bool:
     if agent.is_clan_container or agent.is_agent_session_container_row:
         return False
     if agent.is_monitor or agent.is_gate:

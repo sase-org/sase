@@ -216,7 +216,7 @@ def _resolve_host_parent_lineage(
 
 
 def _attach_same_logical_history(summary_pairs: list[_SummaryPair]) -> None:
-    """Nest historical/non-current shells under the same logical agent node."""
+    """Nest historical/non-current turns under the same logical agent node."""
     suffixes = {
         agent.raw_suffix for _summary, agent in summary_pairs if agent.raw_suffix
     }

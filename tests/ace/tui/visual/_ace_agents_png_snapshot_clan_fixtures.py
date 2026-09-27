@@ -123,8 +123,8 @@ def running_clan_runtime_agents() -> list[Agent]:
 
     ``solo`` and the session lane are both live at snapshot time with
     different run starts, so the clan's live suffix carries the lower of
-    the two. The session lane has a settled ``agent_session_review`` shell in
-    addition to the running ``agent_session_coder`` shell, so the session's
+    the two. The session lane has a settled ``agent_session_review`` turn in
+    addition to the running ``agent_session_coder`` turn, so the session's
     total runtime diverges from the coder's own runtime -- this is what makes
     the clan lane's contribution (the session *total*) distinguishable from the
     bug this fixture regression-tests (the coder's own runtime).

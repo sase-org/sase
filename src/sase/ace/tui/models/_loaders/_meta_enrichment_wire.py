@@ -335,7 +335,7 @@ def enrich_agent_from_meta_wire(
         eligible = agent.status in ACTIVE_ENRICHMENT_STATUSES
         if not eligible and agent.status == "DONE":
             # The wire projection only exposes gate_id/gate_member_agent_name
-            # for shell rows, not the creator's own record, so those two
+            # for turn rows, not the creator's own record, so those two
             # window conditions are tolerantly treated as absent here; the
             # stopped_at/done-marker/pid-liveness conditions still bound the
             # window (see pending_review_window_active docstring).
@@ -368,51 +368,51 @@ def enrich_agent_from_meta_wire(
             if plan_status is not None:
                 agent.status = plan_status
 
-    shell = meta.agent_session_turn
-    monitor_shell = shell if shell is not None and shell.kind == "monitor" else None
-    monitor = monitor_shell.monitor if monitor_shell is not None else None
-    gate_shell = shell if shell is not None and shell.kind == "gate" else None
-    gate = gate_shell.gate if gate_shell is not None else None
+    turn = meta.agent_session_turn
+    monitor_turn = turn if turn is not None and turn.kind == "monitor" else None
+    monitor = monitor_turn.monitor if monitor_turn is not None else None
+    gate_turn = turn if turn is not None and turn.kind == "gate" else None
+    gate = gate_turn.gate if gate_turn is not None else None
 
     apply_monitor_meta(
         agent,
-        monitor_id=monitor_shell.id if monitor_shell is not None else None,
-        monitor_state=monitor_shell.state if monitor_shell is not None else None,
+        monitor_id=monitor_turn.id if monitor_turn is not None else None,
+        monitor_state=monitor_turn.state if monitor_turn is not None else None,
         monitor_command=monitor.command if monitor is not None else None,
-        monitor_label=monitor_shell.label if monitor_shell is not None else None,
+        monitor_label=monitor_turn.label if monitor_turn is not None else None,
         monitor_start_status=(
-            monitor_shell.start_status if monitor_shell is not None else None
+            monitor_turn.start_status if monitor_turn is not None else None
         ),
         monitor_stop_status=(
-            monitor_shell.stop_status if monitor_shell is not None else None
+            monitor_turn.stop_status if monitor_turn is not None else None
         ),
         monitor_exit_code=monitor.exit_code if monitor is not None else None,
         monitor_cwd=monitor.cwd if monitor is not None else None,
-        monitor_reason=monitor_shell.reason if monitor_shell is not None else None,
+        monitor_reason=monitor_turn.reason if monitor_turn is not None else None,
         monitor_next_action=(
-            monitor_shell.next_action if monitor_shell is not None else None
+            monitor_turn.next_action if monitor_turn is not None else None
         ),
         monitor_next_output=(
-            monitor_shell.next_output if monitor_shell is not None else None
+            monitor_turn.next_output if monitor_turn is not None else None
         ),
         monitor_next_model=(
-            monitor_shell.next_model if monitor_shell is not None else None
+            monitor_turn.next_model if monitor_turn is not None else None
         ),
         monitor_completion_ref=(
-            monitor_shell.completion_ref if monitor_shell is not None else None
+            monitor_turn.completion_ref if monitor_turn is not None else None
         ),
-        monitor_profile=(monitor_shell.profile if monitor_shell is not None else None),
+        monitor_profile=(monitor_turn.profile if monitor_turn is not None else None),
         monitor_policy_digest=(
-            monitor_shell.policy_digest if monitor_shell is not None else None
+            monitor_turn.policy_digest if monitor_turn is not None else None
         ),
         monitor_timeout_seconds=(
-            monitor_shell.timeout_seconds if monitor_shell is not None else None
+            monitor_turn.timeout_seconds if monitor_turn is not None else None
         ),
         monitor_idle_timeout_seconds=(
             monitor.idle_timeout_seconds if monitor is not None else None
         ),
         monitor_output_truncated=(
-            monitor_shell.output_truncated if monitor_shell is not None else None
+            monitor_turn.output_truncated if monitor_turn is not None else None
         ),
         monitor_diagnostic_manifest_ref=meta.monitor_diagnostic_manifest_ref,
         monitor_retained_log_ref=meta.monitor_retained_log_ref,
@@ -426,30 +426,28 @@ def enrich_agent_from_meta_wire(
             or meta.monitor_followup_budget_decision_path
         ),
         monitor_followup_outcome=(
-            monitor_shell.followup_outcome if monitor_shell is not None else None
+            monitor_turn.followup_outcome if monitor_turn is not None else None
         ),
         monitor_followup_error=(
-            monitor_shell.followup_error if monitor_shell is not None else None
+            monitor_turn.followup_error if monitor_turn is not None else None
         ),
         monitor_followup_agent=(
-            monitor_shell.followup_agent if monitor_shell is not None else None
+            monitor_turn.followup_agent if monitor_turn is not None else None
         ),
         monitor_followup_degraded_reason=(
-            monitor_shell.followup_degraded_reason
-            if monitor_shell is not None
-            else None
+            monitor_turn.followup_degraded_reason if monitor_turn is not None else None
         ),
         monitor_followup_prompt_path=(
-            monitor_shell.followup_prompt_path if monitor_shell is not None else None
+            monitor_turn.followup_prompt_path if monitor_turn is not None else None
         ),
         monitor_host_completion_status=(
-            monitor_shell.host_completion_status if monitor_shell is not None else None
+            monitor_turn.host_completion_status if monitor_turn is not None else None
         ),
         monitor_host_completion_message=(
-            monitor_shell.host_completion_message if monitor_shell is not None else None
+            monitor_turn.host_completion_message if monitor_turn is not None else None
         ),
         monitor_host_completion_reason=(
-            monitor_shell.host_completion_reason if monitor_shell is not None else None
+            monitor_turn.host_completion_reason if monitor_turn is not None else None
         ),
         monitor_member=is_monitor_member_role(
             agent.agent_session_role,
@@ -458,46 +456,46 @@ def enrich_agent_from_meta_wire(
     )
     apply_gate_meta(
         agent,
-        gate_id=gate_shell.id if gate_shell is not None else None,
+        gate_id=gate_turn.id if gate_turn is not None else None,
         gate_kind=gate.kind if gate is not None else None,
-        gate_state=gate_shell.state if gate_shell is not None else None,
-        gate_start_status=(gate_shell.start_status if gate_shell is not None else None),
-        gate_stop_status=gate_shell.stop_status if gate_shell is not None else None,
+        gate_state=gate_turn.state if gate_turn is not None else None,
+        gate_start_status=(gate_turn.start_status if gate_turn is not None else None),
+        gate_stop_status=gate_turn.stop_status if gate_turn is not None else None,
         gate_accent=gate.accent if gate is not None else None,
-        gate_output_path=gate_shell.output_path if gate_shell is not None else None,
+        gate_output_path=gate_turn.output_path if gate_turn is not None else None,
         gate_output_truncated=(
-            gate_shell.output_truncated if gate_shell is not None else None
+            gate_turn.output_truncated if gate_turn is not None else None
         ),
         gate_creator_agent=gate.creator_agent if gate is not None else None,
         gate_followup_agent=(
-            gate_shell.followup_agent if gate_shell is not None else None
+            gate_turn.followup_agent if gate_turn is not None else None
         ),
-        gate_next_action=gate_shell.next_action if gate_shell is not None else None,
+        gate_next_action=gate_turn.next_action if gate_turn is not None else None,
         gate_next_fork=gate.next_fork if gate is not None else None,
-        gate_next_output=gate_shell.next_output if gate_shell is not None else None,
-        gate_next_model=gate_shell.next_model if gate_shell is not None else None,
+        gate_next_output=gate_turn.next_output if gate_turn is not None else None,
+        gate_next_model=gate_turn.next_model if gate_turn is not None else None,
         gate_followup_outcome=(
-            gate_shell.followup_outcome if gate_shell is not None else None
+            gate_turn.followup_outcome if gate_turn is not None else None
         ),
         gate_followup_error=(
-            gate_shell.followup_error if gate_shell is not None else None
+            gate_turn.followup_error if gate_turn is not None else None
         ),
         gate_followup_degraded_reason=(
-            gate_shell.followup_degraded_reason if gate_shell is not None else None
+            gate_turn.followup_degraded_reason if gate_turn is not None else None
         ),
         gate_followup_prompt_path=(
-            gate_shell.followup_prompt_path if gate_shell is not None else None
+            gate_turn.followup_prompt_path if gate_turn is not None else None
         ),
         gate_elapsed_seconds=(
-            gate_shell.elapsed_seconds if gate_shell is not None else None
+            gate_turn.elapsed_seconds if gate_turn is not None else None
         ),
-        gate_label=gate_shell.label if gate_shell is not None else None,
-        gate_reason=gate_shell.reason if gate_shell is not None else None,
+        gate_label=gate_turn.label if gate_turn is not None else None,
+        gate_reason=gate_turn.reason if gate_turn is not None else None,
         gate_timeout_seconds=(
-            gate_shell.timeout_seconds if gate_shell is not None else None
+            gate_turn.timeout_seconds if gate_turn is not None else None
         ),
         gate_request_fingerprint=(
-            gate_shell.request_fingerprint if gate_shell is not None else None
+            gate_turn.request_fingerprint if gate_turn is not None else None
         ),
         gate_workspace_policy=gate.workspace_policy if gate is not None else None,
         gate_bundle_path=gate.bundle_path if gate is not None else None,
@@ -505,7 +503,7 @@ def enrich_agent_from_meta_wire(
         gate_decision_path=gate.decision_path if gate is not None else None,
         gate_member=is_real_gate_member(
             agent.agent_session_role,
-            gate_shell.id if gate_shell is not None else None,
+            gate_turn.id if gate_turn is not None else None,
         ),
     )
 

@@ -67,12 +67,12 @@ def _detached(agent: Agent, **kwargs: Any) -> IdentityHeader:
 def test_identity_kinds_cover_every_node_kind(tmp_path: Path) -> None:
     root, child = make_agent_session(tmp_path)
     cases = [
-        (make_agent(agent_name="solo"), "AGENT SHELL", "#FFD700"),
+        (make_agent(agent_name="solo"), "AGENT TURN", "#FFD700"),
         (root, "SESSION", "#00AFFF"),
-        (child, "AGENT SHELL", "#FFD700"),
+        (child, "AGENT TURN", "#FFD700"),
         (
-            make_agent(agent_name="proc", agent_type=AgentType.PROC_SHELL),
-            "PROC SHELL",
+            make_agent(agent_name="proc", agent_type=AgentType.NAMED_PROC),
+            "NAMED PROC",
             "#5FD7FF",
         ),
         (
@@ -82,7 +82,7 @@ def test_identity_kinds_cover_every_node_kind(tmp_path: Path) -> None:
                 role_suffix="--gate",
                 gate_id="g123abc456def",
             ),
-            "GATE",
+            "GATE TURN",
             "#0BCDEC",
         ),
         (
@@ -91,7 +91,7 @@ def test_identity_kinds_cover_every_node_kind(tmp_path: Path) -> None:
                 agent_session_role="monitor",
                 role_suffix="--mon",
             ),
-            "MONITOR",
+            "MONITOR TURN",
             "#FFAF5F",
         ),
         (
@@ -162,7 +162,7 @@ def test_detached_body_excludes_identity_lines() -> None:
     plain, _ = build_header_text(agent, cheap=True)
     document, _ = build_header_text(agent, cheap=True, detach_identity=True)
     assert isinstance(document, AgentHeaderRenderable)
-    assert "AGENT SHELL" not in document.plain
+    assert "AGENT TURN" not in document.plain
     assert "Name:" not in document.plain
     assert "Timestamps:" not in document.plain
     assert not document.plain.startswith("\n")
@@ -235,19 +235,19 @@ def test_agent_session_fold_line_moves_into_identity(tmp_path: Path) -> None:
     assert "1/2" in identity.compact.plain
 
 
-def test_proc_shell_compact_rows(tmp_path: Path) -> None:
+def test_named_proc_compact_rows(tmp_path: Path) -> None:
     del tmp_path
     agent = make_agent(
-        agent_type=AgentType.PROC_SHELL,
-        agent_name="shell-1",
+        agent_type=AgentType.NAMED_PROC,
+        agent_name="turn-1",
         cl_name="demo",
         monitor_cwd="/tmp/work/checkout",
         activity="idling",
     )
     identity = _detached(agent, cheap=True)
-    assert (identity.kind_label, identity.accent) == ("PROC SHELL", "#5FD7FF")
+    assert (identity.kind_label, identity.accent) == ("NAMED PROC", "#5FD7FF")
     first, second = identity.compact.plain.splitlines()
-    assert "shell-1" in first
+    assert "turn-1" in first
     assert "checkout" in second
     assert "idling" in second
 
@@ -485,7 +485,7 @@ async def test_panel_sink_receives_identity_before_digest_return() -> None:
         assert len(received) == 1
         identity = received[0]
         assert identity is not None
-        assert identity.kind_label == "AGENT SHELL"
+        assert identity.kind_label == "AGENT TURN"
 
         panel.update(document)
         assert len(received) == 2
@@ -494,7 +494,7 @@ async def test_panel_sink_receives_identity_before_digest_return() -> None:
         inline = panel.inline_document_renderable()
         assert isinstance(inline, Group)
         inline_lines = _render_lines(inline, width=60)
-        assert inline_lines[0] == "AGENT SHELL"
+        assert inline_lines[0] == "AGENT TURN"
 
         panel.update(Text("No agent selected", style="dim italic"))
         assert received[-1] is None

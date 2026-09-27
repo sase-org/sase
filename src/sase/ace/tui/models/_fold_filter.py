@@ -21,10 +21,10 @@ def filter_agents_by_fold_state(
     ``fold_counts`` maps each owning row's fold key to the rows that fold
     reveals: its immediate ordinary and hidden child counts. Synthetic clan
     folds own only their direct members; each member independently owns its
-    workflow/session children. A session shell row is instead counted and gated by
+    workflow/session children. A session turn row is instead counted and gated by
     its *gating* fold key (see :func:`agent_gating_fold_key`) -- the agent
     agent session or workflow that reveals it -- rather than its immediate starter,
-    so a mid-agent session starter never owns a shell's fold.
+    so a mid-agent session starter never owns a turn's fold.
 
     The optional *fold_keys*, *parent_keys*, and *hidden_steps* carry one
     per-open read of :func:`agent_fold_key`, :func:`agent_parent_fold_key`,
@@ -108,7 +108,7 @@ def filter_agents_by_fold_state(
         if _is_monitor(agent, agent_id) or _is_gate(agent, agent_id):
             parent_key = _gating_key(agent, agent_id)
         else:
-            # Non-shell rows are gated by their immediate parent, which the
+            # Non-turn rows are gated by their immediate parent, which the
             # facet table already holds.
             parent_key = _parent_key(agent, agent_id)
         if parent_key is None or parent_key not in owners_by_key:
@@ -117,7 +117,7 @@ def filter_agents_by_fold_state(
             _is_monitor(agent, agent_id) or _is_gate(agent, agent_id)
         ) and parent_key.startswith("clan:"):
             # A clan's counts are direct-member counts and clan_members
-            # already excludes session shell rows. A shell whose gating chain
+            # already excludes session turn rows. A turn whose gating chain
             # collapses onto the clan fold (a malformed/disk-shaped
             # projection with no loaded session root) stays out too.
             continue
@@ -175,8 +175,8 @@ def filter_agents_by_fold_state(
             return False
 
         # The hidden-step/FULLY_EXPANDED rule below stays keyed on the
-        # immediate parent; a session shell is never a hidden step, so only the
-        # COLLAPSED gate needs its own key for shell rows.
+        # immediate parent; a session turn is never a hidden step, so only the
+        # COLLAPSED gate needs its own key for turn rows.
         level = fold_manager.get(parent_key)
         if _is_monitor(agent, agent_id) or _is_gate(agent, agent_id):
             gating_key = _gating_key(agent, agent_id)

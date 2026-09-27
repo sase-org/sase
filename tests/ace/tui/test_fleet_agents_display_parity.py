@@ -47,7 +47,7 @@ def test_project_fleet_agents_render_like_local_rows_modulo_host_chip() -> None:
             row.is_agent_session_member_child
             or row.is_monitor
             or row.is_gate
-            or row.is_proc_shell
+            or row.is_named_proc
         ):
             assert f"{_PARITY_REMOTE_ALIAS} " not in rendered
         else:
@@ -119,7 +119,7 @@ def _local_parity_rows() -> list[Agent]:
             role="proc",
             agent_session="parity-session",
             role_suffix="--proc",
-            agent_type=AgentType.PROC_SHELL,
+            agent_type=AgentType.NAMED_PROC,
             proc_id="proc",
             start_time=_at(_PARITY_STARTED_AT + 200),
             run_start_time=_at(_PARITY_STARTED_AT + 200),

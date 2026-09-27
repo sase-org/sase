@@ -98,7 +98,7 @@ from .confirm_kill_modal import ConfirmDismissAllModal as ConfirmDismissAllModal
 from .confirm_kill_modal import ConfirmKillAllModal as ConfirmKillAllModal
 from .confirm_kill_modal import ConfirmKillModal as ConfirmKillModal
 from .confirm_kill_modal import (
-    ConfirmKillProcShellModal as ConfirmKillProcShellModal,
+    ConfirmKillNamedProcModal as ConfirmKillNamedProcModal,
 )
 from .confirm_dialog import ConfirmKind as ConfirmKind
 from .confirm_rerun_modal import ConfirmRerunModal as ConfirmRerunModal

@@ -32,7 +32,7 @@ from ._notification_delta_dirs import (
     prepare_pending_gate_notification_refresh,
 )
 from ._notification_gate_refresh import (
-    accepted_gate_shell_artifact_dir,
+    accepted_gate_turn_artifact_dir,
     apply_disappeared_plan_notification_refresh,
     gate_decision_exact_artifact_dirs,
     gate_decision_is_visible,
@@ -76,7 +76,7 @@ __all__ = [
     "TabName",
     "_agent_settlement_notification_matches_agent",
     "_request_gate_decision_refresh",
-    "accepted_gate_shell_artifact_dir",
+    "accepted_gate_turn_artifact_dir",
     "active_completion_agent_keys",
     "active_row_owned_notification_keys",
     "add_loaded_agent_session_chain_artifact_dirs",

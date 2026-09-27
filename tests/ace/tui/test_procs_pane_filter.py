@@ -325,7 +325,7 @@ def _monitor_and_plain() -> tuple[ObservedProc, ObservedProc]:
         status="running",
         age_seconds=1,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
     )
     plain = task("plain", label="sync sase-1", status="running", age_seconds=2)
     return monitor, plain

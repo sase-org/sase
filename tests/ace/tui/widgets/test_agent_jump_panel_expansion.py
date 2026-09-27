@@ -34,7 +34,7 @@ async def test_toggle_expands_to_every_target_and_back(tmp_path: Path) -> None:
         assert "less" in str(panel.border_subtitle)
         body = _jump_text(panel)
         assert "--plan" in body and "--code" in body
-        assert "❖ SESSION SHELLS" in body
+        assert "❖ SESSION TURNS" in body
         # Expanded content equals the carried roster verbatim.
         assert panel._member_roster is not None  # noqa: SLF001
         assert body.strip() == panel._member_roster.plain.strip()  # noqa: SLF001
@@ -64,7 +64,7 @@ async def test_expanded_roster_matches_carried_text_and_metadata_has_no_roster(
         roster = find_member_roster(content)
         assert roster is not None
         metadata_text = to_text(content) or ""
-        assert "❖ SESSION SHELLS" not in metadata_text
+        assert "❖ SESSION TURNS" not in metadata_text
         assert detail.toggle_jump_panel_expanded() is True
         await pilot.pause()
         assert _jump_text(panel).strip() == roster.plain.strip()

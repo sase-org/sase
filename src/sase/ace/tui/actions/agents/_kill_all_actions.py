@@ -42,12 +42,12 @@ class AgentKillAllActionsMixin:
         if remote_agents:
             self._confirm_remote_stop(remote_agents)  # type: ignore[attr-defined]
 
-        from ._proc_shell_dismiss import (
-            partition_proc_shells,
-            proc_shell_count_phrase,
+        from ._named_proc_dismiss import (
+            partition_named_procs,
+            named_proc_count_phrase,
         )
 
-        others, proc_shells, _active = partition_proc_shells(agents)
+        others, named_procs, _active = partition_named_procs(agents)
         killable = [
             a
             for a in others
@@ -59,7 +59,7 @@ class AgentKillAllActionsMixin:
             if a.status in DISMISSABLE_STATUSES and a.raw_suffix is not None
         ]
 
-        if not killable and not dismissable and not proc_shells:
+        if not killable and not dismissable and not named_procs:
             if remote_agents:
                 return
             self.notify(empty_message, severity="warning")  # type: ignore[attr-defined]
@@ -85,8 +85,8 @@ class AgentKillAllActionsMixin:
                     loaded_agents,
                 ).subject_lines("Dismiss")
             )
-        if proc_shells:
-            desc_parts.append(f"Dismiss {proc_shell_count_phrase(len(proc_shells))}")
+        if named_procs:
+            desc_parts.append(f"Dismiss {named_proc_count_phrase(len(named_procs))}")
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmKillAllModal
@@ -96,7 +96,7 @@ class AgentKillAllActionsMixin:
                 return
             if killable or dismissable:
                 self._do_bulk_kill_agents(killable, dismissable)  # type: ignore[attr-defined]
-            if proc_shells:
-                self._dismiss_proc_shell_rows(proc_shells)  # type: ignore[attr-defined]
+            if named_procs:
+                self._dismiss_named_proc_rows(named_procs)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]

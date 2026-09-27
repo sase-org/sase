@@ -100,7 +100,7 @@ async def test_agent_session_container_shows_collapsed_panel(tmp_path: Path) -> 
         assert not panel.is_expanded
         assert detail.jump_panel_toggle_available() is True
         assert "JUMP" in str(panel.border_title)
-        assert "SESSION SHELLS" in str(panel.border_title)
+        assert "SESSION TURNS" in str(panel.border_title)
         assert "more" in str(panel.border_subtitle)
         assert len(_jump_text(panel).splitlines()) <= 2
 

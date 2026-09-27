@@ -198,7 +198,7 @@ def test_panel_title_renders_proc_chip_before_monitor_chips() -> None:
         counts=AgentPanelCounts(
             running=1,
             read=15,
-            proc_shells=1,
+            named_procs=1,
             running_monitors=10,
             settled_monitors=1,
         ),

@@ -1,4 +1,4 @@
-"""ACE PNG snapshots for session panel monitor shell metadata and conversation."""
+"""ACE PNG snapshots for session panel monitor turn metadata and conversation."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_session_members import concrete_agent_session_shell_rows
+from sase.ace.tui.models.agent_session_members import concrete_agent_session_turn_rows
 from sase.ace.tui.widgets import AgentList
 from sase.ace.tui.widgets.agent_jump_panel import AgentJumpPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -22,6 +22,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_agent_session_panel_fixtures 
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    page_svg_text,
     pin_agents_visual_now,
     pin_decks_paged,
     prompt_header_and_body_text,
@@ -242,7 +243,7 @@ async def test_monitor_state_detail_png_snapshots(
         )
 
 
-async def test_agent_session_panel_shells_monitor_metadata_png_snapshot(
+async def test_agent_session_panel_turns_monitor_metadata_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -258,10 +259,10 @@ async def test_agent_session_panel_shells_monitor_metadata_png_snapshot(
             with_monitor=True,
             monitor_command=(
                 "just check-full --include visual --include slow "
-                "--include every-family-shell-metadata-case"
+                "--include every-family-turn-metadata-case"
             ),
             monitor_reason=(
-                "Full-suite verification before landing the family shell "
+                "Full-suite verification before landing the family turn "
                 "metadata renderer"
             ),
         ),
@@ -280,16 +281,16 @@ async def test_agent_session_panel_shells_monitor_metadata_png_snapshot(
 
         container = page.app._agents[page.app.current_idx]
         assert container.is_agent_session_container_row is True
-        shells = concrete_agent_session_shell_rows(container)
-        assert [shell.is_monitor for shell in shells] == [False, False, True]
-        monitor = shells[2]
+        turns = concrete_agent_session_turn_rows(container)
+        assert [turn.is_monitor for turn in turns] == [False, False, True]
+        monitor = turns[2]
         assert monitor.parent_timestamp != container.raw_suffix
         jump_map = page.app._member_jump_maps[container.identity]
         assert [target.number for target in jump_map.targets] == ["0", "1", "2"]
         assert jump_map.targets[2].member_identity == monitor.identity
-        assert_page_svg_contains(page, "3 shells")
+        assert_page_svg_contains(page, "3 turns")
         assert_page_svg_contains(page, "⚙")
-        assert_page_svg_contains(page, "SESSION SHELLS")
+        assert_page_svg_contains(page, "SESSION TURNS")
         combined = prompt_header_and_body_text(
             page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         )
@@ -298,8 +299,8 @@ async def test_agent_session_panel_shells_monitor_metadata_png_snapshot(
         assert "just check-full --include visual" in combined
         ace_png_visual.assert_page_png(
             page,
-            "agents_session_panel_shells_monitor_120x40",
-            title="ACE session panel shell metadata with monitor",
+            "agents_session_panel_turns_monitor_120x40",
+            title="ACE session panel turn metadata with monitor",
         )
 
         await page.press(".")
@@ -310,15 +311,21 @@ async def test_agent_session_panel_shells_monitor_metadata_png_snapshot(
             animate=False, immediate=True
         )
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "SESSION SHELLS")
+        assert_page_svg_contains(page, "SESSION TURNS")
         assert_page_svg_contains(page, "--plan")
         assert_page_svg_contains(page, "--mon")
         assert_page_svg_contains(page, "⚙ MONITOR")
-        assert_page_svg_contains(page, "just check")
+        # The longer MONITOR TURN label wraps the lane's command descriptor
+        # across rows, so match it insensitive to the wrap boundary.
+        roster_text = page_svg_text(page, title="ACE session turns roster scroll check")
+        # Neighboring panels' │ border runs interleave the wrapped lane
+        # text in SVG reading order, so drop them before matching.
+        lane_text = " ".join(roster_text.replace("│", " ").split())
+        assert "just check" in lane_text
         ace_png_visual.assert_page_png(
             page,
-            "agents_session_panel_shells_monitor_roster_120x40",
-            title="ACE session panel SESSION SHELLS roster with monitor",
+            "agents_session_panel_turns_monitor_roster_120x40",
+            title="ACE session panel SESSION TURNS roster with monitor",
         )
 
         await page.press("2")
@@ -356,7 +363,10 @@ async def test_agent_session_conversation_monitor_phase_png_snapshot(
         assert container.is_agent_session_container_row is True
         await select_main_card(page, "reply")
         assert_page_svg_contains(page, "MONITOR")
-        assert_page_svg_contains(page, "AGENT REPLY")
+        # Paged decks project one block page without the spread-only
+        # AGENT REPLY heading, so assert the landed monitor block's
+        # turn-kind label instead.
+        assert_page_svg_contains(page, "MONITOR TURN")
         panel = page.app.query_one("#agent-list-panel", AgentList)
         assert "⚙1" in Text.from_markup(panel.border_title).plain
         ace_png_visual.assert_page_png(

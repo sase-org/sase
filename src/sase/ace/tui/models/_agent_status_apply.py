@@ -37,7 +37,7 @@ from .agent import Agent, AgentType
 from .agent_session_members import (
     agent_row_is_in_flight,
     monitor_row_lane_bucket,
-    row_is_agent_session_shell,
+    row_is_agent_session_turn,
 )
 
 
@@ -75,7 +75,7 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
         parent.monitor_stop_status = None
         parent.monitor_state = None
     else:
-        # A later non-shell child must not keep a previously mirrored pair
+        # A later non-turn child must not keep a previously mirrored pair
         # on the container; agents-tab styling keys off status matching a
         # half of that pair.
         parent.monitor_start_status = None
@@ -101,11 +101,11 @@ def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
     return True
 
 
-def _descendant_agent_session_shells(
+def _descendant_agent_session_turns(
     roots: list[Agent],
     children_by_parent: dict[str, list[Agent]],
 ) -> list[Agent]:
-    """Return non-agent shell rows beneath *roots*, walking parent links.
+    """Return non-agent turn rows beneath *roots*, walking parent links.
 
     ``Agent`` is mutable and unhashable, so traversal cycle-guards on
     ``id(row)`` while the collected list dedupes by ``row.identity``.
@@ -118,7 +118,7 @@ def _descendant_agent_session_shells(
         if id(row) in seen_ids:
             return
         seen_ids.add(id(row))
-        if row_is_agent_session_shell(row) and row.identity not in seen_identities:
+        if row_is_agent_session_turn(row) and row.identity not in seen_identities:
             seen_identities.add(row.identity)
             found.append(row)
         suffix = row.raw_suffix
@@ -145,10 +145,10 @@ def apply_status_overrides(
     """Normalize agent session presentation state based on concrete child rows.
 
     Agent-session roots act as containers: their visible status mirrors the
-    active, waiting, or newest concrete child/shell row.  This pass propagates
+    active, waiting, or newest concrete child/turn row.  This pass propagates
     child timestamps, plan metadata, diff paths, and meta_* fields back to the
     root for detail panels, labels concrete post-gate handoff rows, and leaves
-    pending plan/question status publication to gate-shell rows.  A mirrored
+    pending plan/question status publication to gate-turn rows.  A mirrored
     settled monitor keeps its label but contributes its lane (handoff) bucket.
     """
     all_agents = [*agents, *(workflow_agent_steps or [])]
@@ -213,7 +213,7 @@ def apply_status_overrides(
 
     # Legacy concrete follow-up planner rows keep their post-approval status
     # even when loaded without the session root that accepted their plan. Gate-
-    # shell creator rows are excluded because the gate shell now publishes the
+    # turn creator rows are excluded because the gate turn now publishes the
     # decision status for both pending and settled states.
     for agent in all_agents:
         if agent.status in {"DONE", "QUESTION"}:
@@ -306,7 +306,7 @@ def apply_status_overrides(
     # Agent-session roots summarize live child activity first. Plan-workflow
     # roots keep the historical newest-child fallback when no child is active
     # or queued. Plain-agent roots keep their own terminal status in that case
-    # unless the newest shell is a monitor, which they then mirror.
+    # unless the newest turn is a monitor, which they then mirror.
     for parent in parent_by_suffix.values():
         if not parent.raw_suffix:
             continue
@@ -349,9 +349,7 @@ def apply_status_overrides(
             continue
 
         is_plan_root = is_root_plan_workflow(parent)
-        descendant_shells = _descendant_agent_session_shells(
-            children, children_by_parent
-        )
+        descendant_turns = _descendant_agent_session_turns(children, children_by_parent)
         candidates = list(children)
         if not is_plan_root and parent.agent_type == AgentType.RUNNING:
             candidates.append(parent)
@@ -361,30 +359,30 @@ def apply_status_overrides(
             for agent in candidates
             if _is_active_root_mirror_candidate(parent, agent)
         ]
-        settled_shell_time: datetime | None = None
-        settled_descendant_shells = [
-            shell for shell in descendant_shells if not agent_row_is_in_flight(shell)
+        settled_turn_time: datetime | None = None
+        settled_descendant_turns = [
+            turn for turn in descendant_turns if not agent_row_is_in_flight(turn)
         ]
-        if settled_descendant_shells:
-            newest_settled_shell = max(
-                settled_descendant_shells,
+        if settled_descendant_turns:
+            newest_settled_turn = max(
+                settled_descendant_turns,
                 key=child_launch_time,
             )
-            settled_shell_time = child_launch_time(newest_settled_shell)
+            settled_turn_time = child_launch_time(newest_settled_turn)
             active = [
                 agent
                 for agent in active
-                if not row_is_agent_session_shell(agent)
-                or child_launch_time(agent) > settled_shell_time
+                if not row_is_agent_session_turn(agent)
+                or child_launch_time(agent) > settled_turn_time
             ]
-        for shell in descendant_shells:
+        for turn in descendant_turns:
             if (
-                settled_shell_time is not None
-                and child_launch_time(shell) <= settled_shell_time
+                settled_turn_time is not None
+                and child_launch_time(turn) <= settled_turn_time
             ):
                 continue
-            if shell not in active and _is_active_root_mirror_candidate(parent, shell):
-                active.append(shell)
+            if turn not in active and _is_active_root_mirror_candidate(parent, turn):
+                active.append(turn)
         if active:
             newest_active = max(active, key=child_launch_time)
             if newest_active is not parent:
@@ -403,9 +401,9 @@ def apply_status_overrides(
                 copy_missing_display_metadata(parent, next_waiting)
             continue
 
-        newest_pool = [*children, *descendant_shells]
+        newest_pool = [*children, *descendant_turns]
         newest = max(newest_pool, key=child_launch_time)
-        if is_plan_root or row_is_agent_session_shell(newest):
+        if is_plan_root or row_is_agent_session_turn(newest):
             _mirror_root_from_child(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a

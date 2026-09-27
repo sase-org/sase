@@ -188,7 +188,7 @@ def task(
     error: str | None = None,
     live_output: str | None = None,
     origin: str = "",
-    shell_name: str | None = None,
+    proc_name: str | None = None,
 ) -> ProcInfo:
     started_at = datetime.now() - timedelta(seconds=age_seconds)
     info = ProcInfo(
@@ -206,7 +206,7 @@ def task(
         output=output,
         error=error,
         origin=origin,
-        shell_name=shell_name,
+        proc_name=proc_name,
     )
     if live_output is not None:
         info._live_buffer = io.StringIO(live_output)
@@ -303,7 +303,7 @@ def _store_task_row(
         session_live=bool(record.session_id and record.session_id in live_session_ids),
         origin=record.origin,
         log_path=record.log_path,
-        shell_name=record.proc_name,
+        proc_name=record.proc_name,
     )
 
 

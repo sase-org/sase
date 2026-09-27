@@ -397,13 +397,13 @@ async def test_agents_session_lane_neighbors_png_snapshot(
         await wait_for_visual_idle(page)
 
         page.app.current_idx = _agent_session_container_index(page)
-        await wait_for_svg_contains(page, "SESSION SHELLS")
+        await wait_for_svg_contains(page, "SESSION TURNS")
         # Expanding inserts member rows above the container, so the selection
         # has to be re-resolved before the lane panel is captured.
         await page.press("l")
         page.app.current_idx = _agent_session_container_index(page)
         await page.press(".")
-        await wait_for_svg_contains(page, "also listed under SESSION SHELLS")
+        await wait_for_svg_contains(page, "also listed under SESSION TURNS")
         await wait_for_visual_idle(page)
 
         lane = page.app._agents[page.app.current_idx]
@@ -418,7 +418,7 @@ async def test_agents_session_lane_neighbors_png_snapshot(
         ]
         assert [target.number for target in jump_map.targets] == list("01234")
         assert_page_svg_contains(page, "NEIGHBORS")
-        assert_page_svg_contains(page, "also listed under SESSION SHELLS")
+        assert_page_svg_contains(page, "also listed under SESSION TURNS")
 
         ace_png_visual.assert_page_png(
             page,

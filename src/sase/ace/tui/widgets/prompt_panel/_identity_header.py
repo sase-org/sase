@@ -14,7 +14,7 @@ from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _GATE_ROW_STYLE,
     _MONITOR_ROW_STYLE,
-    _PROC_SHELL_ROW_STYLE,
+    _NAMED_PROC_ROW_STYLE,
     _STEP_TYPE_COLORS,
 )
 from ._agent_display_agent_session import SESSION_IDENTITY_COLOR
@@ -91,14 +91,14 @@ def identity_kind_for_agent(agent: Agent) -> tuple[str, str]:
     """Return the panel kind label and accent color for ``agent``."""
     if agent.is_agent_session_container_row:
         return ("SESSION", SESSION_IDENTITY_COLOR)
-    if agent.is_proc_shell:
-        return ("PROC SHELL", _PROC_SHELL_ROW_STYLE)
+    if agent.is_named_proc:
+        return ("NAMED PROC", _NAMED_PROC_ROW_STYLE)
     if agent.is_agent_entry:
-        return ("AGENT SHELL", _AGENT_NAME_ANNOTATION_STYLE)
+        return ("AGENT TURN", _AGENT_NAME_ANNOTATION_STYLE)
     if agent.is_gate:
-        return ("GATE", _GATE_ROW_STYLE)
+        return ("GATE TURN", _GATE_ROW_STYLE)
     if agent.is_monitor:
-        return ("MONITOR", _MONITOR_ROW_STYLE)
+        return ("MONITOR TURN", _MONITOR_ROW_STYLE)
     if agent.is_workflow_step_child and agent.step_type:
         return (
             "STEP",

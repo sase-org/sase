@@ -147,7 +147,7 @@ __all__ = [
     "ConfirmKind",
     "ConfirmKillAllModal",
     "ConfirmKillModal",
-    "ConfirmKillProcShellModal",
+    "ConfirmKillNamedProcModal",
     "ConfirmRerunModal",
     "ConfirmRevertAgentModal",
     "ConfirmStopMonitorModal",

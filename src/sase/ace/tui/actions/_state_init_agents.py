@@ -298,7 +298,7 @@ def init_agent_state(self: Any) -> None:
     # Tribe widgets mounted this session, reused when occupancy hits zero
     # under the same committed query. Never pre-mounts unseen tribes. Each key
     # maps to the agent identities that mounted it: a key retires only when
-    # explicit user removals (dismiss, kill, proc-shell dismiss) drop its last
+    # explicit user removals (dismiss, kill, named-proc dismiss) drop its last
     # identity, never because the roster merely stopped reporting the tribe.
     self._session_mounted_panel_identities = {}
     self._session_sticky_query = ""
@@ -359,7 +359,7 @@ def init_agent_state(self: Any) -> None:
         dismissed_agents_file_signature,
         load_dismissed_agents,
     )
-    from ...dismissed_procs import load_dismissed_procs as load_dismissed_proc_shells
+    from ...dismissed_procs import load_dismissed_procs as load_dismissed_named_procs
 
     self._last_unread_ids = set()
     self._delivered_notification_activity_cursors = set()
@@ -388,7 +388,7 @@ def init_agent_state(self: Any) -> None:
     self._dismissed_agents_disk_signature_initialized = True
     # Single small JSON read. Do not prune here: ``_init_app_state`` runs
     # before first paint. StartupLoadsMixin prunes off the paint path.
-    self._dismissed_proc_shells = load_dismissed_proc_shells()
+    self._dismissed_named_procs = load_dismissed_named_procs()
     # The artifact-index dismissed-projection sync is deliberately NOT
     # run here: it is O(archive) on signature drift (and unbounded on
     # a corrupt index), and __init__ runs before Textual ever paints.

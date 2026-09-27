@@ -167,7 +167,7 @@ def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:
     assert row.session_live is True
     assert row.origin == "ace"
     assert row.log_path == "/tmp/proc-1.log"
-    assert row.shell_name == "demo--build"
+    assert row.proc_name == "demo--build"
     assert monitor_row_agent_name(row) is None
 
 

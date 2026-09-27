@@ -238,7 +238,7 @@ def test_session_worker_appears_in_effective_projection_and_counts() -> None:
     assert running_background_procs(host) == [submitted]
 
 
-def test_running_background_procs_excludes_monitor_shells() -> None:
+def test_running_background_procs_excludes_monitor_turns() -> None:
     durable = _durable_row(scope="sase-update")
     monitor_row = ObservedProc(
         proc_id="monitor-1",

@@ -44,7 +44,7 @@ def test_init_app_state_performs_no_sync_and_no_bundle_reads(
     app = AceApp()
 
     assert app._dismissed_agents_disk_signature_initialized is True
-    assert isinstance(app._dismissed_proc_shells, set)
+    assert isinstance(app._dismissed_named_procs, set)
 
 
 def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> None:

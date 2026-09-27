@@ -140,12 +140,12 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             return
 
         from ._confirmation_sase_agents import confirmation_sase_agent_summary
-        from ._proc_shell_dismiss import (
-            partition_proc_shells,
-            proc_shell_count_phrase,
+        from ._named_proc_dismiss import (
+            partition_named_procs,
+            named_proc_count_phrase,
         )
 
-        agents_only, proc_shells, _active = partition_proc_shells(dismissable)
+        agents_only, named_procs, _active = partition_named_procs(dismissable)
 
         desc_parts: list[str] = []
         if agents_only:
@@ -155,8 +155,8 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
                     self._agents_with_children,
                 ).subject_lines("Dismiss")
             )
-        if proc_shells:
-            desc_parts.append(f"Dismiss {proc_shell_count_phrase(len(proc_shells))}")
+        if named_procs:
+            desc_parts.append(f"Dismiss {named_proc_count_phrase(len(named_procs))}")
         agent_description = "\n".join(desc_parts)
 
         from ...modals import ConfirmDismissAllModal
@@ -166,8 +166,8 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
                 return
             if agents_only:
                 self._do_dismiss_all(agents_only)
-            if proc_shells:
-                self._dismiss_proc_shell_rows(proc_shells)  # type: ignore[attr-defined]
+            if named_procs:
+                self._dismiss_named_proc_rows(named_procs)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmDismissAllModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
 

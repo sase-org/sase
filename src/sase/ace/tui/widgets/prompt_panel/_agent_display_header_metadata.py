@@ -28,7 +28,7 @@ from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _AGENT_SESSION_NAME_STYLE,
     _OWNER_BADGE_STYLE,
-    _PROC_SHELL_ID_STYLE,
+    _NAMED_PROC_ID_STYLE,
 )
 from .._queue_weight_badge import (
     format_queue_capacity_badge_value,
@@ -50,11 +50,11 @@ from ._helpers import (
     project_display_label,
     should_render_agent_detail_model,
 )
-from ._agent_shell_section import (
-    SHELL_LANE_LIMIT,
-    SHELL_SECTION_ID,
-    ResponsiveShellSection,
-    build_agent_session_shell_lanes,
+from ._agent_turn_section import (
+    TURN_LANE_LIMIT,
+    TURN_SECTION_ID,
+    ResponsiveTurnSection,
+    build_agent_session_turn_lanes,
 )
 from ._agent_wait_section import (
     WAIT_SECTION_ID,
@@ -89,7 +89,7 @@ class _AgentMetadataFields:
     meta_fields: list[tuple[str, str]]
     page_section: ResponsiveAgentPageSection | None
     wait_section: ResponsiveWaitSection | None
-    shell_section: ResponsiveShellSection | None
+    turn_section: ResponsiveTurnSection | None
 
 
 def _append_auto_approve_field(text: Text, agent: Agent) -> None:
@@ -118,8 +118,8 @@ def _append_identity_fields(
         name_style = (
             _AGENT_SESSION_NAME_STYLE
             if agent.is_agent_session_container_row
-            else _PROC_SHELL_ID_STYLE
-            if agent.is_proc_shell
+            else _NAMED_PROC_ID_STYLE
+            if agent.is_named_proc
             else _AGENT_NAME_ANNOTATION_STYLE
         )
         text.append(f"{presented_name}\n", style=name_style)
@@ -173,7 +173,7 @@ def _append_identity_fields(
 def _suppress_capacity_fields(agent: Agent) -> bool:
     return bool(
         agent.is_clan_container
-        or agent.is_proc_shell
+        or agent.is_named_proc
         or agent.is_gate
         or agent.is_monitor
         or (agent.is_child_row and not agent.agent_session_parallel)
@@ -251,7 +251,7 @@ def _append_project_fields(
     meta_patch: object,
 ) -> None:
     """Append project, workspace, and workflow identity fields."""
-    if agent.is_proc_shell:
+    if agent.is_named_proc:
         if agent.cl_name and agent.cl_name != "proc":
             text.append("Project: ", style="bold #87D7FF")
             label = agent.project_display_name or humanize_cl_name(agent.cl_name)
@@ -461,22 +461,22 @@ def _append_wait_field(
     return section
 
 
-def _append_shell_or_model_fields(
+def _append_turn_or_model_fields(
     text: Text,
     agent: Agent,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
-) -> ResponsiveShellSection | None:
-    """Append agent_session ``Shells:`` lanes or a concrete-shell ``Model:`` field."""
+) -> ResponsiveTurnSection | None:
+    """Append agent_session ``Turns:`` lanes or a concrete-turn ``Model:`` field."""
     if agent.is_agent_session_container_row:
-        lanes = build_agent_session_shell_lanes(agent)
-        section = ResponsiveShellSection(
-            lanes=lanes[:SHELL_LANE_LIMIT],
-            hidden_count=max(0, len(lanes) - SHELL_LANE_LIMIT),
+        lanes = build_agent_session_turn_lanes(agent)
+        section = ResponsiveTurnSection(
+            lanes=lanes[:TURN_LANE_LIMIT],
+            hidden_count=max(0, len(lanes) - TURN_LANE_LIMIT),
         )
         start = len(text)
         text.append_text(section.logical_text)
         if responsive_ranges is not None:
-            responsive_ranges[SHELL_SECTION_ID] = (start, len(text))
+            responsive_ranges[TURN_SECTION_ID] = (start, len(text))
         return section
     if should_render_agent_detail_model(agent):
         append_model_field(
@@ -579,10 +579,10 @@ def append_agent_metadata_fields(
     _append_fleet_fields(text, agent)
 
     _append_auto_approve_field(text, agent)
-    shell_section = _append_shell_or_model_fields(text, agent, responsive_ranges)
+    turn_section = _append_turn_or_model_fields(text, agent, responsive_ranges)
 
     if (
-        not agent.is_proc_shell
+        not agent.is_named_proc
         and summary is not None
         and (not cheap or detach_identity)
     ):
@@ -608,7 +608,7 @@ def append_agent_metadata_fields(
         text.append("BUG: ", style="bold #87D7FF")
         text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
-    if agent.is_proc_shell:
+    if agent.is_named_proc:
         wait_section = None
     else:
         wait_section = _append_wait_field(
@@ -623,7 +623,7 @@ def append_agent_metadata_fields(
         )
         _append_retry_fields(text, agent)
     _append_timestamp_fields(text, agent, hint_state)
-    return _AgentMetadataFields(meta_fields, page_section, wait_section, shell_section)
+    return _AgentMetadataFields(meta_fields, page_section, wait_section, turn_section)
 
 
 def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:

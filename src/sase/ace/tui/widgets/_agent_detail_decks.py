@@ -161,7 +161,7 @@ class AgentDetailDeckMixin:
                     if (
                         attempt_number is None
                         and not agent.is_clan_container
-                        and not agent.is_proc_shell
+                        and not agent.is_named_proc
                         and supports_slow_tool_sources(agent)
                     ):
                         panel.tools_view.update_display(agent)
@@ -391,7 +391,7 @@ class AgentDetailDeckMixin:
                 if (
                     attempt_number is None
                     and not agent.is_clan_container
-                    and not agent.is_proc_shell
+                    and not agent.is_named_proc
                     and supports_slow_tool_sources(agent)
                 ):
                     panel.tools_view.update_display(agent)

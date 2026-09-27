@@ -76,14 +76,14 @@ class StartupLoadsMaintenanceMixin:
 
     def _schedule_deferred_startup_maintenance(self: Any, *, reason: str) -> None:
         """Start hidden warmups and maintenance after visible-ready/fallback."""
-        schedule_proc_shell_prune = getattr(
-            self, "_schedule_dismissed_proc_shells_startup_prune", None
+        schedule_named_proc_prune = getattr(
+            self, "_schedule_dismissed_named_procs_startup_prune", None
         )
-        if callable(schedule_proc_shell_prune):
+        if callable(schedule_named_proc_prune):
             try:
-                schedule_proc_shell_prune()
+                schedule_named_proc_prune()
             except Exception:
-                log.exception("Failed to schedule startup dismissed-proc-shell prune")
+                log.exception("Failed to schedule startup dismissed-named-proc prune")
         schedule_prompt_catalog_rebuild = getattr(
             self, "_schedule_prompt_catalog_rebuild", None
         )
@@ -192,20 +192,20 @@ class StartupLoadsMaintenanceMixin:
         if callable(schedule):
             schedule(source=source)
 
-    def _schedule_dismissed_proc_shells_startup_prune(self: Any) -> None:
-        """Schedule dismissed-proc-shell retention prune after first paint."""
+    def _schedule_dismissed_named_procs_startup_prune(self: Any) -> None:
+        """Schedule dismissed-named-proc retention prune after first paint."""
         try:
             self.run_worker(
-                cast(Any, self._run_dismissed_proc_shells_startup_prune),
+                cast(Any, self._run_dismissed_named_procs_startup_prune),
                 thread=False,
                 exclusive=False,
                 group="startup-loads",
             )
         except Exception:
-            log.exception("Failed to schedule startup dismissed-proc-shell prune")
+            log.exception("Failed to schedule startup dismissed-named-proc prune")
 
-    async def _run_dismissed_proc_shells_startup_prune(self: Any) -> None:
-        """Bound the dismissed-proc-shell set to ids still in the proc store.
+    async def _run_dismissed_named_procs_startup_prune(self: Any) -> None:
+        """Bound the dismissed-named-proc set to ids still in the proc store.
 
         ``_init_app_state`` only loads the JSON; intersecting with ``read_procs()``
         is store I/O and must not run before first paint.
@@ -215,7 +215,7 @@ class StartupLoadsMaintenanceMixin:
         from sase.ace.dismissed_procs import prune_dismissed_procs
         from sase.procs import read_procs
 
-        before = set(getattr(self, "_dismissed_proc_shells", ()))
+        before = set(getattr(self, "_dismissed_named_procs", ()))
 
         def _prune() -> set[str]:
             live_ids = {proc.proc_id for proc in read_procs()}
@@ -224,7 +224,7 @@ class StartupLoadsMaintenanceMixin:
         try:
             pruned = await asyncio.to_thread(_prune)
         except Exception:
-            log.exception("Startup dismissed-proc-shell prune failed")
+            log.exception("Startup dismissed-named-proc prune failed")
             return
-        added_during = set(getattr(self, "_dismissed_proc_shells", ())) - before
-        self._dismissed_proc_shells = pruned | added_during
+        added_during = set(getattr(self, "_dismissed_named_procs", ())) - before
+        self._dismissed_named_procs = pruned | added_during

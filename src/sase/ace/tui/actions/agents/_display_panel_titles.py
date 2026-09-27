@@ -27,7 +27,7 @@ from ...agent_count_chip import (
 )
 from ...models._agent_clan import sase_agent_status_counts
 from ...models._agent_tree import agent_is_tree_child
-from ...models.agent_session_members import panel_shell_lane_counts
+from ...models.agent_session_members import panel_turn_lane_counts
 from ...models.agent_panels import agent_panel_label
 from ...models.tribe_display import compose_tribe_identity_style
 
@@ -65,7 +65,7 @@ _PANEL_PROC_STYLE = "bold #5FD7FF"
 class AgentPanelCounts:
     """Lane total and status counts for one rendered panel.
 
-    Durable shell counts are intentionally absent from :meth:`metric_items`:
+    Durable turn counts are intentionally absent from :meth:`metric_items`:
     monitors and gates are not agents, so folding them in would break the
     disjoint-status invariant that the metric counts sum to ``lane_count``.
     """
@@ -83,7 +83,7 @@ class AgentPanelCounts:
     running_gates: int = 0
     settled_gates: int = 0
     failed_gates: int = 0
-    proc_shells: int = 0
+    named_procs: int = 0
 
     def metric_items(self) -> list[tuple[str, int]]:
         return [
@@ -105,8 +105,8 @@ def agent_panel_counts(
         visible_top_level_agents,
         unread_ids,
     )
-    shell_lanes = panel_shell_lane_counts(visible_top_level_agents)
-    proc_shells = sum(1 for agent in visible_top_level_agents if agent.is_proc_shell)
+    turn_lanes = panel_turn_lane_counts(visible_top_level_agents)
+    named_procs = sum(1 for agent in visible_top_level_agents if agent.is_named_proc)
     return AgentPanelCounts(
         lane_count=projected.total,
         asking=projected.stopped,
@@ -116,12 +116,12 @@ def agent_panel_counts(
         failed=projected.failed,
         unread=projected.unread,
         read=projected.done,
-        running_monitors=shell_lanes.monitor.running,
-        settled_monitors=shell_lanes.monitor.settled,
-        running_gates=shell_lanes.gate.running,
-        settled_gates=shell_lanes.gate.settled,
-        failed_gates=shell_lanes.gate.failed,
-        proc_shells=proc_shells,
+        running_monitors=turn_lanes.monitor.running,
+        settled_monitors=turn_lanes.monitor.settled,
+        running_gates=turn_lanes.gate.running,
+        settled_gates=turn_lanes.gate.settled,
+        failed_gates=turn_lanes.gate.failed,
+        named_procs=named_procs,
     )
 
 
@@ -185,10 +185,10 @@ def agent_panel_border_title(
         if chip:
             title.append(" ", style=_PANEL_COUNT_STYLE)
             title.append_text(chip)
-        if counts.proc_shells:
+        if counts.named_procs:
             title.append(" ", style=_PANEL_COUNT_STYLE)
             title.append(
-                f"{_PANEL_PROC_GLYPH}{counts.proc_shells}", style=_PANEL_PROC_STYLE
+                f"{_PANEL_PROC_GLYPH}{counts.named_procs}", style=_PANEL_PROC_STYLE
             )
         if counts.running_monitors:
             title.append(" ", style=_PANEL_COUNT_STYLE)

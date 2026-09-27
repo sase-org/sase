@@ -45,7 +45,7 @@ from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_agent_session_render import AgentSessionDisplayMixin
 from ._agent_display_agent_session import legacy_followup_shell_facts
 from ._agent_session_reply_blocks import (
-    block_meta_for_session_shell,
+    block_meta_for_session_turn,
     phase_card_block,
     session_reply_heading,
 )
@@ -395,8 +395,8 @@ class AgentDisplayRenderMixin(
             )
             return
 
-        if agent.is_proc_shell:
-            self._update_proc_shell_display(
+        if agent.is_named_proc:
+            self._update_named_proc_display(
                 agent,
                 header_text,
                 error_tb_syntax,
@@ -501,7 +501,7 @@ class AgentDisplayRenderMixin(
                         phase_card_block(
                             phase,
                             render_legacy_phase(phase, block_id),
-                            meta=block_meta_for_session_shell(phase_facts, number),
+                            meta=block_meta_for_session_turn(phase_facts, number),
                         )
                     )
                 reply_parts: list[Any] = [

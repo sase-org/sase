@@ -158,65 +158,63 @@ def build_done_agent_from_record(
     )
     apply_imported_source_owner(agent, done.imported_source_owner)
     apply_archive_source_machine(agent, done.source_machine)
-    done_shell = done.agent_session_turn
-    done_monitor_shell = (
-        done_shell if done_shell is not None and done_shell.kind == "monitor" else None
+    done_turn = done.agent_session_turn
+    done_monitor_turn = (
+        done_turn if done_turn is not None and done_turn.kind == "monitor" else None
     )
-    done_monitor = (
-        done_monitor_shell.monitor if done_monitor_shell is not None else None
+    done_monitor = done_monitor_turn.monitor if done_monitor_turn is not None else None
+    done_gate_turn = (
+        done_turn if done_turn is not None and done_turn.kind == "gate" else None
     )
-    done_gate_shell = (
-        done_shell if done_shell is not None and done_shell.kind == "gate" else None
-    )
-    done_gate = done_gate_shell.gate if done_gate_shell is not None else None
+    done_gate = done_gate_turn.gate if done_gate_turn is not None else None
     if outcome == "monitored":
         apply_monitor_done(
             agent,
             monitor_state=(
-                done_monitor_shell.state if done_monitor_shell is not None else None
+                done_monitor_turn.state if done_monitor_turn is not None else None
             ),
             monitor_exit_code=(
                 done_monitor.exit_code if done_monitor is not None else None
             ),
             status_label=done.status_label,
             monitor_followup_outcome=(
-                done_monitor_shell.followup_outcome
-                if done_monitor_shell is not None
+                done_monitor_turn.followup_outcome
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_followup_error=(
-                done_monitor_shell.followup_error
-                if done_monitor_shell is not None
+                done_monitor_turn.followup_error
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_followup_agent=(
-                done_monitor_shell.followup_agent
-                if done_monitor_shell is not None
+                done_monitor_turn.followup_agent
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_followup_degraded_reason=(
-                done_monitor_shell.followup_degraded_reason
-                if done_monitor_shell is not None
+                done_monitor_turn.followup_degraded_reason
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_followup_prompt_path=(
-                done_monitor_shell.followup_prompt_path
-                if done_monitor_shell is not None
+                done_monitor_turn.followup_prompt_path
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_host_completion_status=(
-                done_monitor_shell.host_completion_status
-                if done_monitor_shell is not None
+                done_monitor_turn.host_completion_status
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_host_completion_message=(
-                done_monitor_shell.host_completion_message
-                if done_monitor_shell is not None
+                done_monitor_turn.host_completion_message
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_host_completion_reason=(
-                done_monitor_shell.host_completion_reason
-                if done_monitor_shell is not None
+                done_monitor_turn.host_completion_reason
+                if done_monitor_turn is not None
                 else None
             ),
             monitor_diagnostic_manifest_ref=done.monitor_diagnostic_manifest_ref,
@@ -234,19 +232,17 @@ def build_done_agent_from_record(
     elif outcome == "gated":
         apply_gate_done(
             agent,
-            gate_id=done_gate_shell.id if done_gate_shell is not None else None,
+            gate_id=done_gate_turn.id if done_gate_turn is not None else None,
             gate_kind=done_gate.kind if done_gate is not None else None,
-            gate_state=done_gate_shell.state if done_gate_shell is not None else None,
+            gate_state=done_gate_turn.state if done_gate_turn is not None else None,
             gate_elapsed_seconds=(
-                done_gate_shell.elapsed_seconds if done_gate_shell is not None else None
+                done_gate_turn.elapsed_seconds if done_gate_turn is not None else None
             ),
             gate_output_path=(
-                done_gate_shell.output_path if done_gate_shell is not None else None
+                done_gate_turn.output_path if done_gate_turn is not None else None
             ),
             gate_output_truncated=(
-                done_gate_shell.output_truncated
-                if done_gate_shell is not None
-                else None
+                done_gate_turn.output_truncated if done_gate_turn is not None else None
             ),
             gate_bundle_path=done_gate.bundle_path if done_gate is not None else None,
             gate_notification_id=(
@@ -254,21 +250,19 @@ def build_done_agent_from_record(
             ),
             status_label=done.status_label,
             gate_followup_outcome=(
-                done_gate_shell.followup_outcome
-                if done_gate_shell is not None
-                else None
+                done_gate_turn.followup_outcome if done_gate_turn is not None else None
             ),
             gate_followup_error=(
-                done_gate_shell.followup_error if done_gate_shell is not None else None
+                done_gate_turn.followup_error if done_gate_turn is not None else None
             ),
             gate_followup_degraded_reason=(
-                done_gate_shell.followup_degraded_reason
-                if done_gate_shell is not None
+                done_gate_turn.followup_degraded_reason
+                if done_gate_turn is not None
                 else None
             ),
             gate_followup_prompt_path=(
-                done_gate_shell.followup_prompt_path
-                if done_gate_shell is not None
+                done_gate_turn.followup_prompt_path
+                if done_gate_turn is not None
                 else None
             ),
         )

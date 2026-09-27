@@ -87,7 +87,7 @@ def date_anchor_time(agent: Agent) -> datetime | None:
 
     Terminal agents anchor on ``stop_time`` (falling back to
     ``start_time`` when missing); everything else anchors on ``start_time``.
-    Durable shell rows key terminality on their shell state rather than the
+    Durable turn rows key terminality on their turn state rather than the
     displayed status label, so a custom stop label such as ``TESTED`` still
     anchors on ``stop_time``. The same anchor decides the L0 bucket, L1
     subgroup label, and sort position so the BY_DATE tree remains internally

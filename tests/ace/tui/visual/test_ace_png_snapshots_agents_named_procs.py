@@ -1,10 +1,10 @@
-"""sase's TUI PNG visual snapshots for stand-alone proc shells in the Agents tab.
+"""sase's TUI PNG visual snapshots for stand-alone named procs in the Agents tab.
 
 Stand-alone `%proc` launch units are top-level work rows backed only by the proc
 store: they never indent under a session, never take an agent slot, and never
 change agent counts. These goldens pin that presentation for mixed agent/proc
 rosters, both code languages, every active and terminal state, a long label, a
-narrow terminal, and the proc-shell detail composition.
+narrow terminal, and the named-proc detail composition.
 """
 
 from __future__ import annotations
@@ -19,11 +19,11 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     pin_agents_visual_now,
     prompt_header_and_body_text,
 )
-from tests.ace.tui.visual._ace_agents_proc_shell_png_fixtures import (
-    PROC_SHELL_VISUAL_NOW,
-    patch_proc_shell_project_names,
-    proc_shell_visual_agents,
-    seed_proc_shell_projection,
+from tests.ace.tui.visual._ace_agents_named_proc_png_fixtures import (
+    PROC_TURN_VISUAL_NOW,
+    patch_named_proc_project_names,
+    named_proc_visual_agents,
+    seed_named_proc_projection,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -37,25 +37,25 @@ pytestmark = pytest.mark.visual
 
 
 async def _seeded_agents_tab(page: AcePage) -> None:
-    """Open the Agents tab with the deterministic proc-shell projection."""
+    """Open the Agents tab with the deterministic named-proc projection."""
     await wait_for_startup(page)
     await page.press("shift+tab")
     await page.expect_state("tab", "agents")
-    seed_proc_shell_projection(page.app)
+    seed_named_proc_projection(page.app)
     page.app._refresh_agents_display(list_changed=True)
     await wait_for_visual_idle(page)
 
 
-def _proc_shell_index(page: AcePage, label: str) -> int:
+def _named_proc_index(page: AcePage, label: str) -> int:
     for index, agent in enumerate(page.app._agents):
-        if agent.is_proc_shell and agent.display_name == label:
+        if agent.is_named_proc and agent.display_name == label:
             return index
-    raise AssertionError(f"no proc-shell row labelled {label!r}")
+    raise AssertionError(f"no named-proc row labelled {label!r}")
 
 
 def _assert_procs_are_top_level_rows(page: AcePage) -> None:
     """Procs must be their own kind, not agents wearing a proc costume."""
-    proc_rows = [agent for agent in page.app._agents if agent.is_proc_shell]
+    proc_rows = [agent for agent in page.app._agents if agent.is_named_proc]
     assert len(proc_rows) == 7
     for row in proc_rows:
         assert row.is_agent_entry is False
@@ -77,19 +77,19 @@ def _assert_info_header_proc_badge(page: AcePage) -> None:
 @pytest.mark.parametrize(
     ("size", "snapshot_name"),
     [
-        ((120, 40), "agents_proc_shells_120x40"),
-        ((90, 30), "agents_proc_shells_90x30"),
+        ((120, 40), "agents_named_procs_120x40"),
+        ((90, 30), "agents_named_procs_90x30"),
     ],
 )
-async def test_agents_proc_shell_list_png_snapshot(
+async def test_agents_named_proc_list_png_snapshot(
     size: tuple[int, int],
     snapshot_name: str,
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pin_agents_visual_now(monkeypatch, PROC_SHELL_VISUAL_NOW)
-    patch_proc_shell_project_names(monkeypatch)
-    patch_startup_loaders(monkeypatch, agents=proc_shell_visual_agents())
+    pin_agents_visual_now(monkeypatch, PROC_TURN_VISUAL_NOW)
+    patch_named_proc_project_names(monkeypatch)
+    patch_startup_loaders(monkeypatch, agents=named_proc_visual_agents())
 
     async with AcePage(query='"visual"', patches=patches(), size=size) as page:
         await _seeded_agents_tab(page)
@@ -104,47 +104,47 @@ async def test_agents_proc_shell_list_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             snapshot_name,
-            title="ACE agents stand-alone proc shells",
+            title="ACE agents stand-alone named procs",
         )
 
 
-async def test_agents_proc_shell_detail_png_snapshot(
+async def test_agents_named_proc_detail_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pin_agents_visual_now(monkeypatch, PROC_SHELL_VISUAL_NOW)
-    patch_proc_shell_project_names(monkeypatch)
-    patch_startup_loaders(monkeypatch, agents=proc_shell_visual_agents())
+    pin_agents_visual_now(monkeypatch, PROC_TURN_VISUAL_NOW)
+    patch_named_proc_project_names(monkeypatch)
+    patch_startup_loaders(monkeypatch, agents=named_proc_visual_agents())
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _seeded_agents_tab(page)
 
         label = "Scoped verification for the typed launch matrix"
-        page.app.current_idx = _proc_shell_index(page, label)
+        page.app.current_idx = _named_proc_index(page, label)
         page.app._refresh_agents_display(list_changed=True)
         await wait_for_visual_idle(page)
 
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         assert detail._current_agent is not None
-        assert detail._current_agent.is_proc_shell
+        assert detail._current_agent.is_named_proc
         rendered = prompt_header_and_body_text(prompt)
-        assert "PROC SHELL" in rendered
+        assert "NAMED PROC" in rendered
         assert "COMMAND" in rendered
         assert "SAFE PREVIEW" not in rendered
         assert rendered.index("COMMAND") < rendered.index("PROC DETAILS")
         assert "just check" in rendered
 
         # Zoom the focused deck in place so the golden shows the complete
-        # proc-shell detail composition.
+        # named-proc detail composition.
         await page.press("Z")
         await page.expect_no_modal()
         await wait_for_visual_idle(page)
         assert detail.is_deck_zoomed is True
-        assert_page_svg_contains(page, "PROC SHELL")
+        assert_page_svg_contains(page, "NAMED PROC")
 
         ace_png_visual.assert_page_png(
             page,
-            "agents_proc_shell_detail_120x40",
-            title="ACE agents proc-shell detail",
+            "agents_named_proc_detail_120x40",
+            title="ACE agents named-proc detail",
         )

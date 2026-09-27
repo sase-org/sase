@@ -56,7 +56,7 @@ def test_identity_xprompt_is_inline_after_expanded_fields() -> None:
         attached.inline_renderable(), end=""
     )
     plain = output.getvalue()
-    assert plain.index("AGENT SHELL") < plain.index("Name:")
+    assert plain.index("AGENT TURN") < plain.index("Name:")
     assert plain.index("Name:") < plain.index("AGENT XPROMPT")
     assert plain.index("AGENT XPROMPT") < plain.index("Review #plan")
     assert plain.index("Review #plan") < plain.index("─" * 50)
@@ -163,7 +163,7 @@ def test_header_only_uses_xprompt_memo_or_pending_state(tmp_path: Path) -> None:
 
 def test_agent_may_show_xprompt_excludes_non_prompt_kinds() -> None:
     assert _agent_may_show_xprompt(make_agent()) is True
-    assert _agent_may_show_xprompt(make_agent(agent_type=AgentType.PROC_SHELL)) is False
+    assert _agent_may_show_xprompt(make_agent(agent_type=AgentType.NAMED_PROC)) is False
     assert (
         _agent_may_show_xprompt(
             make_agent(

@@ -24,7 +24,7 @@ from .agent_session_members import (
     ConcreteAgentStatus,
     agent_row_is_in_flight,
     concrete_agent_statuses,
-    current_agent_session_shell_row,
+    current_agent_session_turn_row,
     is_sequential_agent_session_container,
 )
 from .agent_nodes import is_agents_tab_agent_node
@@ -80,7 +80,7 @@ class _ProjectedSummaryAgent:
     is_unread: bool
 
 
-_SHELL_STATUS_PRESENTATION_FIELDS: tuple[str, ...] = (
+_TURN_STATUS_PRESENTATION_FIELDS: tuple[str, ...] = (
     "monitor_start_status",
     "monitor_stop_status",
     "monitor_state",
@@ -105,9 +105,9 @@ def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
     return aggregate_agent_group_status(statuses)
 
 
-def _copy_shell_status_presentation(target: Agent, source: Agent | None) -> None:
+def _copy_turn_status_presentation(target: Agent, source: Agent | None) -> None:
     """Copy or clear the monitor/gate fields that style a clan status label."""
-    for field_name in _SHELL_STATUS_PRESENTATION_FIELDS:
+    for field_name in _TURN_STATUS_PRESENTATION_FIELDS:
         if source is None and field_name == "gate_execution_active":
             setattr(target, field_name, False)
             continue
@@ -134,7 +134,7 @@ def apply_clan_container_status(
     When exactly one member is outside the queued/waiting/done buckets and
     its effective bucket is the canonical aggregate bucket, the clan can
     inherit that member's refined display label, effective bucket, and the
-    monitor/gate presentation fields. This preserves authored shell labels
+    monitor/gate presentation fields. This preserves authored turn labels
     such as ``TESTING``/``TESTED`` and gate labels while keeping the
     aggregate's outcome bucket, ``BY_STATUS`` grouping, member ordering,
     count chips, and summary counts unchanged. ``Starting`` is a competing
@@ -144,7 +144,7 @@ def apply_clan_container_status(
 
     When the aggregate bucket is Queued and exactly one unique member is
     queued, the clan attaches that member through ``wait_display_source``
-    (dereferencing a sequential-agent-session root to its queued shell) so list-row
+    (dereferencing a sequential-agent-session root to its queued turn) so list-row
     and CLAN ``Status:`` extras can show the member's admission rank. Any
     other aggregate, including two queued members, clears the pointer so
     repeated projections cannot leave a stale rank after a companion queues
@@ -184,11 +184,11 @@ def apply_clan_container_status(
     ):
         container.status = source.status
         container.status_bucket = source_bucket
-        _copy_shell_status_presentation(container, source)
+        _copy_turn_status_presentation(container, source)
     else:
         container.status = fallback if aggregate is None else aggregate
         container.status_bucket = None
-        _copy_shell_status_presentation(container, None)
+        _copy_turn_status_presentation(container, None)
     _set_clan_queued_wait_display_source(container, unique_members, aggregate_bucket)
 
 
@@ -254,11 +254,11 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
 def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     """Return the clan's own in-flight member rows, one per running lane.
 
-    Each row is a direct clan member, never a shell nested inside one of the
+    Each row is a direct clan member, never a turn nested inside one of the
     clan's sequential agent sessions: a session lane is represented by the agent session
     row itself so it contributes the session total rather than the runtime of
-    whichever shell is currently executing. A session lane counts as in
-    flight while any of its shells is executing, which outlives the agent session
+    whichever turn is currently executing. A session lane counts as in
+    flight while any of its turns is executing, which outlives the agent session
     root row's own status and ``stop_time``. Nested clan containers are not
     clan members (matching :func:`clan_members` and
     ``_lane_summary_projections``), so they are not walked.
@@ -268,7 +268,7 @@ def clan_running_lane_rows(agent: Agent) -> tuple[Agent, ...]:
     rows: list[Agent] = []
     seen: set[tuple[AgentType, str, str | None]] = set()
     for member in clan_members(agent):
-        if current_agent_session_shell_row(
+        if current_agent_session_turn_row(
             member
         ) is None and not agent_row_is_in_flight(member):
             continue

@@ -212,25 +212,25 @@ def _filter_agents_by_fold_snapshot(
     )
 
 
-def _proc_shells_from_apply_snapshot(
+def _named_procs_from_apply_snapshot(
     snapshot: PreparedApplySnapshot,
 ) -> list[Agent]:
-    """Return proc-shell rows the prepared apply should publish.
+    """Return named-proc rows the prepared apply should publish.
 
     A captured projection is the source of truth, including an empty one.
-    Snapshots that never saw an observer fall back to cached roster shells.
+    Snapshots that never saw an observer fall back to cached roster turns.
     """
-    from ...models.agent_proc_shells import proc_shell_agents_from_observed
+    from ...models.agent_named_procs import named_proc_agents_from_observed
 
     if snapshot.proc_projection is None:
         return [
             agent
             for agent in snapshot.cached_agents_with_children
-            if agent.is_proc_shell
+            if agent.is_named_proc
         ]
-    return proc_shell_agents_from_observed(
+    return named_proc_agents_from_observed(
         snapshot.proc_projection.rows,
-        dismissed_proc_ids=snapshot.dismissed_proc_shells,
+        dismissed_proc_ids=snapshot.dismissed_named_procs,
     )
 
 
@@ -238,26 +238,26 @@ def rebase_prepared_apply_boundary_on_proc_projection(
     boundary: PreparedApplyBoundary,
     snapshot: PreparedApplySnapshot,
 ) -> PreparedApplyBoundary:
-    """Replace proc-shell rows on a prepared boundary with *snapshot*'s projection.
+    """Replace named-proc rows on a prepared boundary with *snapshot*'s projection.
 
-    Only proc-shell rows are refreshed. The local roster is still the one the
+    Only named-proc rows are refreshed. The local roster is still the one the
     worker prepared, so the boundary keeps the removal generation and dismissed
     snapshot it was prepared under; the apply-time recheck compares the live
     ones against those to drop rows removed since.
     """
-    from ...models.agent_proc_shells import merge_proc_shell_agents
+    from ...models.agent_named_procs import merge_named_proc_agents
 
-    proc_shells = _proc_shells_from_apply_snapshot(snapshot)
+    named_procs = _named_procs_from_apply_snapshot(snapshot)
     prep = boundary.prep
-    prep.filtered_agents = merge_proc_shell_agents(prep.filtered_agents, proc_shells)
+    prep.filtered_agents = merge_named_proc_agents(prep.filtered_agents, named_procs)
     if prep.capacity_agents:
-        prep.capacity_agents = merge_proc_shell_agents(
-            prep.capacity_agents, proc_shells
+        prep.capacity_agents = merge_named_proc_agents(
+            prep.capacity_agents, named_procs
         )
-    if proc_shells:
+    if named_procs:
         prep.has_always_visible = True
-    local_unfiltered = merge_proc_shell_agents(
-        boundary.fold.local_unfiltered_agents, proc_shells
+    local_unfiltered = merge_named_proc_agents(
+        boundary.fold.local_unfiltered_agents, named_procs
     )
     unfiltered_agents, visible_agents, fold_counts = project_and_fold_rosters(
         local_unfiltered,
@@ -290,7 +290,7 @@ def prepare_loaded_agents_apply_boundary(
     """Prepare pure post-load apply data from an explicit app-state snapshot.
 
     Cached UI rows are detached here unless the caller already took ownership
-    (``graphs_owned=True``), so slot annotation and proc-shell carryover cannot
+    (``graphs_owned=True``), so slot annotation and named-proc carryover cannot
     mutate the displayed graph.
     """
     from ...util.trace import tui_trace
@@ -314,17 +314,17 @@ def prepare_loaded_agents_apply_boundary(
                 graphs_owned=graphs_owned,
             )
 
-    # The disk loader has no proc-shell source; stand-alone proc rows come
+    # The disk loader has no named-proc source; stand-alone proc rows come
     # from the proc-observer projection captured on the snapshot. Merge that
-    # projection (not only cached roster shells) before slot, fold, and
-    # selection work so a projection-only shell is present at the first
+    # projection (not only cached roster turns) before slot, fold, and
+    # selection work so a projection-only turn is present at the first
     # finalize.
-    from ...models.agent_proc_shells import merge_proc_shell_agents
+    from ...models.agent_named_procs import merge_named_proc_agents
 
-    proc_shells = _proc_shells_from_apply_snapshot(snapshot)
-    prep.filtered_agents = merge_proc_shell_agents(prep.filtered_agents, proc_shells)
-    if proc_shells:
-        # Proc-shell rows are never workflow children and never hidden, so the
+    named_procs = _named_procs_from_apply_snapshot(snapshot)
+    prep.filtered_agents = merge_named_proc_agents(prep.filtered_agents, named_procs)
+    if named_procs:
+        # Named-proc rows are never workflow children and never hidden, so the
         # hideable partition and hidden count remain correct as captured from
         # the loader payload; only the visible-presence flag needs widening.
         prep.has_always_visible = True
@@ -575,7 +575,7 @@ def prepare_loaded_agents_worker_boundary(
     """Prepare async-loaded agents through the fold-filter boundary.
 
     Detaches the captured UI graph once on this worker, then keeps that
-    ownership through merge, proc-shell carryover, and slot annotation.
+    ownership through merge, named-proc carryover, and slot annotation.
     """
     from sase.config.core import get_max_running_agents
 

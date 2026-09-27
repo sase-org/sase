@@ -5,14 +5,14 @@ from __future__ import annotations
 from sase.ace.tui.models.agent_session_members import (
     _MonitorLaneCounts,
     monitor_row_is_settled,
-    shell_lane_counts,
+    turn_lane_counts,
 )
 
 from ._agent_session_members_helpers import _agent, _monitor_member
 
 
 def _monitor_lane_counts(agent):
-    return shell_lane_counts(agent).monitor
+    return turn_lane_counts(agent).monitor
 
 
 def test_monitor_row_is_settled_matches_lane_partition() -> None:

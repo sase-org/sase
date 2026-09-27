@@ -162,7 +162,7 @@ def test_merged_map_concatenates_sections_in_order() -> None:
         agent_session_text,
         container_identity=identity,
         entries=tuple(_entry(index, label=f"--plan-{index}") for index in range(2)),
-        title="SESSION SHELLS",
+        title="SESSION TURNS",
         accent="#00AFFF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=MemberJumpNumbering(total=5),
@@ -180,7 +180,7 @@ def test_merged_map_concatenates_sections_in_order() -> None:
     # Exhaust the shared ladder manually: session took 0-1, neighbors continue.
     assert [t.number for t in agent_session_map.targets] == ["0", "1"]
     merged = merged_member_jump_map(identity, agent_session_map, neighbors_map)
-    assert [s.title for s in merged.sections] == ["SESSION SHELLS", "NEIGHBORS"]
+    assert [s.title for s in merged.sections] == ["SESSION TURNS", "NEIGHBORS"]
     assert sum(s.numbered_count for s in merged.sections) == len(merged.targets)
 
 
@@ -198,7 +198,7 @@ def test_agent_session_container_map_has_labels_and_sections(tmp_path: Path) -> 
     assert jump_map.targets
     assert all(target.label for target in jump_map.targets)
     assert all(target.status_bucket for target in jump_map.targets)
-    assert [s.title for s in jump_map.sections] == ["SESSION SHELLS"]
+    assert [s.title for s in jump_map.sections] == ["SESSION TURNS"]
     assert sum(s.numbered_count for s in jump_map.sections) == len(jump_map.targets)
 
 
@@ -387,7 +387,7 @@ def test_non_detached_documents_carry_no_map(tmp_path: Path) -> None:
 
 def _assert_no_roster_in_body(body_plain: str) -> None:
     for token in (
-        "❖ SESSION SHELLS",
+        "❖ SESSION TURNS",
         "❖ NEIGHBORS",
         "❖ CLAN MEMBERS",
         "❖ TRIBE MEMBERS",
@@ -424,22 +424,22 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     _assert_no_roster_in_body(container_doc.plain)
     container_roster = find_member_roster(container_doc)
     assert container_roster is not None
-    assert "❖ SESSION SHELLS" in container_roster.plain
+    assert "❖ SESSION TURNS" in container_roster.plain
     assert not container_roster.plain.startswith("\n")
     assert not container_roster.plain.endswith("\n")
 
-    # Session member shell.
-    shell_doc, _ = build_header_text(
+    # Session member turn.
+    turn_doc, _ = build_header_text(
         child,
         cheap=True,
         lane_fold_level=FoldLevel.COLLAPSED,
         detach_identity=True,
     )
-    assert isinstance(shell_doc, AgentHeaderRenderable)
-    _assert_no_roster_in_body(shell_doc.plain)
-    shell_roster = find_member_roster(shell_doc)
-    assert shell_roster is not None
-    assert "❖ SESSION SHELLS" in shell_roster.plain
+    assert isinstance(turn_doc, AgentHeaderRenderable)
+    _assert_no_roster_in_body(turn_doc.plain)
+    turn_roster = find_member_roster(turn_doc)
+    assert turn_roster is not None
+    assert "❖ SESSION TURNS" in turn_roster.plain
 
     # Agent with neighbors, including dismissed and suppressed-sibling tail.
     lane = make_agent(agent_name="lane")
@@ -466,7 +466,7 @@ def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
     assert neighbor_roster is not None
     assert "❖ NEIGHBORS" in neighbor_roster.plain
     assert "⊘" in neighbor_roster.plain
-    assert "also listed under SESSION SHELLS" in neighbor_roster.plain
+    assert "also listed under SESSION TURNS" in neighbor_roster.plain
 
     collapsed_doc, _ = build_header_text(
         lane,

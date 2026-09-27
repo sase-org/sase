@@ -92,7 +92,7 @@ def test_running_task_count_includes_session_overlay() -> None:
     assert _OverlayQuitApp()._count_running_tasks() == 1
 
 
-def test_running_task_count_excludes_monitor_shells() -> None:
+def test_running_task_count_excludes_monitor_turns() -> None:
     class _MonitorOverlayQuitApp(LifecycleMixin):
         def __init__(self) -> None:
             self._proc_projection = ProcProjection()

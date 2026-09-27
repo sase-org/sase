@@ -205,7 +205,7 @@ class TestAgentListFleetMarker:
 
         assert "apollo" not in remote_left.plain
 
-    def test_agent_session_container_keeps_host_chip_member_shell_does_not(
+    def test_agent_session_container_keeps_host_chip_member_turn_does_not(
         self,
     ) -> None:
         child = make_agent(

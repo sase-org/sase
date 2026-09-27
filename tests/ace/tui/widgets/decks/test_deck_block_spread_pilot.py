@@ -242,7 +242,7 @@ async def test_scroll_derived_cursor_and_streaming_stays() -> None:
         # stays put with an arrival announced.
         panel.show_main_document(
             _document(
-                "s1", _reply_card(4, lines_per_block=10), digest="spread-new-shell"
+                "s1", _reply_card(4, lines_per_block=10), digest="spread-new-block"
             ),
             "reply",
         )

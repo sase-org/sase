@@ -37,7 +37,7 @@ from ._agent_display_content import get_phase_label, render_phase_divider
 from ._fold_language import append_fold_section_heading
 from ._helpers import append_section_heading
 
-GATE_PHASE_LABEL = "GATE"
+GATE_PHASE_LABEL = "GATE TURN"
 GATE_SECTION_ID = "gate"
 _COLOR_HEADER = "bold #0BCDEC underline"
 _FIELD_LABEL_WIDTH = 15

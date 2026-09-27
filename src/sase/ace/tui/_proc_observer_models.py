@@ -64,15 +64,15 @@ class ObservedProc:
     # Authoritative combined-log path (``Proc.log_path``). Store-owned rows
     # repeat the store path; a monitor carries ``<artifacts_dir>/live_reply.md``.
     log_path: str = ""
-    # Named proc shell (``Proc.shell_name``). For a monitor row
+    # Named named proc (``Proc.proc_name``). For a monitor row
     # (``origin == MONITOR_PROC_ORIGIN``) this is the monitor's member agent
     # name (``acme--mon``).
-    shell_name: str | None = None
+    proc_name: str | None = None
     lifecycle: str = ""
     project: str | None = None
     workspace_num: int | None = None
     cwd: str = ""
-    shell_kind: str | None = None
+    proc_role: str | None = None
     request_fingerprint: str | None = None
     reserved_at: datetime | None = None
     supervisor_id: str | None = None
@@ -105,8 +105,8 @@ class ObservedProc:
         return self.output
 
 
-def is_monitor_shell_row(row: ObservedProc) -> bool:
-    """Return whether an observed row is a ``sase monitor start`` proc shell."""
+def is_monitor_turn_row(row: ObservedProc) -> bool:
+    """Return whether an observed row is a ``sase monitor start`` named proc."""
     return row.origin == MONITOR_PROC_ORIGIN
 
 
@@ -142,7 +142,7 @@ def is_service_daemon_row(row: ObservedProc) -> bool:
 
     Without a ``service`` block the host origin still identifies a daemon: the
     host reserves daemons and nothing else under it, and a transient oneshot is
-    never one. ``shell_kind == "service"`` is deliberately not a third signal;
+    never one. ``proc_role == "service"`` is deliberately not a third signal;
     it is redundant with the origin on every row the host writes.
     """
     if row.service is not None:
@@ -153,12 +153,12 @@ def is_service_daemon_row(row: ObservedProc) -> bool:
 def is_gear_eligible_row(row: ObservedProc) -> bool:
     """Return whether an active row counts toward the blue proc gear.
 
-    Monitor shells and service rows have their own surfaces (see
+    Monitor turns and service rows have their own surfaces (see
     :func:`is_service_row` for how a service row is recognized); ownership is
     never inferred from ``session_id``. Callers still gate on the row being
     active.
     """
-    return not is_monitor_shell_row(row) and not is_service_row(row)
+    return not is_monitor_turn_row(row) and not is_service_row(row)
 
 
 # Proc types that plan or apply a change to the installed SASE stack
@@ -203,11 +203,11 @@ def is_update_row(row: ObservedProc) -> bool:
 def proc_gear_lane(row: ObservedProc) -> GearLane | None:
     """Return the gear lane for one row.
 
-    Monitor shells read as ``"monitor"``, service rows read as ``None``,
+    Monitor turns read as ``"monitor"``, service rows read as ``None``,
     update-lane rows read as ``"update"``, and everything else reads as
     ``"proc"``. Callers still gate on the row being active.
     """
-    if is_monitor_shell_row(row):
+    if is_monitor_turn_row(row):
         return "monitor"
     if is_service_row(row):
         return None
@@ -272,13 +272,13 @@ def gear_eligible_count(
 def monitor_row_agent_name(row: ObservedProc) -> str | None:
     """Return a monitor row's member agent name, or ``None``.
 
-    For ``origin == MONITOR_PROC_ORIGIN`` this is ``ObservedProc.shell_name``
-    (the named proc shell, e.g. ``acme--mon``). Non-monitor rows — even ones
-    that carry a ``shell_name`` — return ``None``.
+    For ``origin == MONITOR_PROC_ORIGIN`` this is ``ObservedProc.proc_name``
+    (the named named proc, e.g. ``acme--mon``). Non-monitor rows — even ones
+    that carry a ``proc_name`` — return ``None``.
     """
-    if not is_monitor_shell_row(row):
+    if not is_monitor_turn_row(row):
         return None
-    return row.shell_name or None
+    return row.proc_name or None
 
 
 @dataclass(frozen=True)
@@ -312,11 +312,11 @@ class ProcProjection:
         ]
 
     def active_monitor_rows(self, *, all_sessions: bool = False) -> list[ObservedProc]:
-        """Return active rows that are ``sase monitor start`` proc shells."""
+        """Return active rows that are ``sase monitor start`` named procs."""
         return [
             row
             for row in self.active_rows(all_sessions=all_sessions)
-            if is_monitor_shell_row(row)
+            if is_monitor_turn_row(row)
         ]
 
     def scope_conflict(self, exclusive_scopes: Collection[str]) -> ObservedProc | None:
@@ -430,7 +430,7 @@ __all__ = [
     "UPDATE_PROC_TYPES",
     "compose_proc_projection",
     "is_gear_eligible_row",
-    "is_monitor_shell_row",
+    "is_monitor_turn_row",
     "is_service_daemon_row",
     "is_service_row",
     "is_update_row",

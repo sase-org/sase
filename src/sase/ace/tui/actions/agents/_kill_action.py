@@ -12,7 +12,7 @@ from ._kill_action_flow import AgentKillActionFlowMixin
 from ._kill_cleanup_panel import AgentCleanupPanelMixin
 from ._kill_cleanup_selection import AgentCleanupSelectionMixin
 from ._monitor_stop_flow import MonitorStopActionFlowMixin
-from ._proc_shell_dismiss import ProcShellDismissMixin
+from ._named_proc_dismiss import NamedProcDismissMixin
 from sase.project_display_names import humanize_cl_name as humanize_cl_name
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ TabName = Literal["artifacts", "agents", "services"]
 class AgentKillMixin(
     AgentCleanupPanelMixin,
     AgentCleanupSelectionMixin,
-    ProcShellDismissMixin,
+    NamedProcDismissMixin,
     MonitorStopActionFlowMixin,
     AgentKillActionFlowMixin,
 ):

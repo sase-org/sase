@@ -161,9 +161,9 @@ class AgentCleanupSelectionMixin:
         for agent in self._agents_with_children:
             if agent.identity not in selected:
                 continue
-            if agent.is_proc_shell:
+            if agent.is_named_proc:
                 # Custom selection goes through the Rust cleanup planner,
-                # which has no proc-shell concept.
+                # which has no named-proc concept.
                 continue
             candidates = (
                 clan_members_for_container(agent, self._agents_with_children)

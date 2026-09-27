@@ -120,8 +120,8 @@ def test_name_mirrors_agents_row_across_kinds() -> None:
     # Presented session base name wins per the naming formula.
     assert node_finder_name(session) == session.presented_agent_name == "alpha"
 
-    shell = make_agent("sess--code", session="sess", role="code")
-    assert node_finder_name(shell) == "sess--code"
+    turn = make_agent("sess--code", session="sess", role="code")
+    assert node_finder_name(turn) == "sess--code"
 
     monitor = make_agent("sess--mon-1", session="sess", role="monitor")
     assert node_finder_name(monitor) == "sess--mon-1"
@@ -176,9 +176,9 @@ def test_kind_delegates_with_clan_special_case() -> None:
     assert node_finder_kind(session_root)[0] == "SESSION"
     monitor = make_agent("sess--mon-1", session="sess", role="monitor")
     assert node_finder_kind(monitor) == identity_kind_for_agent(monitor)
-    assert node_finder_kind(monitor)[0] == "MONITOR"
+    assert node_finder_kind(monitor)[0] == "MONITOR TURN"
     agent_step = _workflow_step("agent")
-    assert node_finder_kind(agent_step)[0] == "AGENT SHELL"
+    assert node_finder_kind(agent_step)[0] == "AGENT TURN"
     bash_step = _workflow_step("bash")
     assert node_finder_kind(bash_step) == identity_kind_for_agent(bash_step)
     assert node_finder_kind(bash_step)[0] == "STEP"

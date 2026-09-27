@@ -20,10 +20,10 @@ from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_session_members import (
-    NO_SHELL_LANES,
-    ShellLaneCounts,
+    NO_TURN_LANES,
+    TurnLaneCounts,
     is_sequential_agent_session_container,
-    shell_lane_counts,
+    turn_lane_counts,
 )
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
@@ -202,7 +202,7 @@ def agent_render_key(
     clan_counts: ClanStatusCounts | None = None,
     clan_unknown_wait_count: int = 0,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
-    shell_lanes: ShellLaneCounts | None = None,
+    turn_lanes: TurnLaneCounts | None = None,
     show_machine_chip: bool = False,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
@@ -246,9 +246,9 @@ def agent_render_key(
         agent
     )
     lanes = (
-        (shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES)
-        if shell_lanes is None
-        else shell_lanes
+        (turn_lane_counts(agent) if is_container_row else NO_TURN_LANES)
+        if turn_lanes is None
+        else turn_lanes
     )
     return (
         agent.identity,

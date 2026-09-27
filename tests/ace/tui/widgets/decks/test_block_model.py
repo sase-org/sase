@@ -61,7 +61,7 @@ def test_reconcile_parked_keeps_cursor_unchanged() -> None:
     parked = BlockCursor(
         block_id="b0", following=False, known_ids=frozenset(("b0", "b1"))
     )
-    # A new shell arrived, but the reader stays put (object identity kept).
+    # A new block arrived, but the reader stays put (object identity kept).
     assert reconcile_cursor(("b0", "b1", "b2"), parked, new_subject=False) is parked
 
 

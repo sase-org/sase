@@ -189,7 +189,7 @@ def test_project_clan_tree_keeps_tagged_and_disk_shaped_monitors_identical() -> 
     assert disk_monitor.tree_depth == tagged_monitor.tree_depth == 3
 
 
-def test_agent_tree_title_names_bash_python_and_roots_not_shells() -> None:
+def test_agent_tree_title_names_bash_python_and_roots_not_turns() -> None:
     bash = _agent(
         "setup",
         "setup",

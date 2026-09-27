@@ -30,7 +30,7 @@ def probe_files_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
     """Probe Files availability without I/O."""
     if attempt_number is not None:
         return DeckAvailability(False, 0)
-    if agent.is_clan_container or agent.is_proc_shell:
+    if agent.is_clan_container or agent.is_named_proc:
         return DeckAvailability(False, 0)
     if agent.is_workflow_child and agent.step_type in ("bash", "python"):
         return DeckAvailability(False, 0)
@@ -54,7 +54,7 @@ def probe_tools_deck(agent: Agent, *, attempt_number: int | None) -> DeckAvailab
 
     if attempt_number is not None:
         return DeckAvailability(False, 0)
-    if agent.is_clan_container or agent.is_proc_shell:
+    if agent.is_clan_container or agent.is_named_proc:
         return DeckAvailability(False, 0)
     if not supports_slow_tool_sources(agent):
         return DeckAvailability(False, 0)

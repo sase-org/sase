@@ -152,7 +152,7 @@ async def test_select_block_targets_oldest() -> None:
         assert panel.main_view.active_block_id("reply") == "b0"
 
 
-async def test_streaming_new_shell_following_advances() -> None:
+async def test_streaming_new_block_following_advances() -> None:
     app = _DetailApp()
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
@@ -169,7 +169,7 @@ async def test_streaming_new_shell_following_advances() -> None:
         assert view.arrived_block_ids("reply") == ()
 
 
-async def test_streaming_new_shell_not_following_stays() -> None:
+async def test_streaming_new_block_not_following_stays() -> None:
     app = _DetailApp()
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()

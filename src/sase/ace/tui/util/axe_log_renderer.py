@@ -75,7 +75,7 @@ _TAIL_HASH_BYTES = 1024
 # Including source_type in the key keeps semantic and ANSI renders from
 # colliding even when their numeric identity overlaps.
 #
-# A completed/dismissed gate, monitor, proc-shell, or bgcmd's slot was
+# A completed/dismissed gate, monitor, named-proc, or bgcmd's slot was
 # previously never popped, so this grew by one permanent entry per distinct
 # entity ever rendered (sase-zn.9.3 heap attribution). It is now a bounded
 # LRU: a still-running entity keeps rewriting (and thus refreshing the

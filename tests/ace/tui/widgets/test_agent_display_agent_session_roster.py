@@ -42,12 +42,12 @@ def test_agent_session_roster_numbers_real_chain_rows_in_order(
     assert [entry.identity for entry in entries] == [root.identity, child.identity]
     assert [entry.label for entry in entries] == ["--plan", "--code"]
     assert [entry.kind for entry in entries] == ["AGENT (plan)", "AGENT (code)"]
-    assert_kind_header(header, "SESSION", "#00AFFF", before="SESSION SHELLS")
+    assert_kind_header(header, "SESSION", "#00AFFF", before="SESSION TURNS")
     assert header.plain.startswith("SESSION\nName:")
     assert header.plain.index("Name:") < header.plain.index("Fold: 1/2\n")
-    assert header.plain.index("Fold: 1/2\n") < header.plain.index("SESSION SHELLS")
-    assert "▾ ❖ SESSION SHELLS · 2\n" in header.plain
-    assert header.plain.index("SESSION SHELLS") < header.plain.index("OUTPUT VARIABLES")
+    assert header.plain.index("Fold: 1/2\n") < header.plain.index("SESSION TURNS")
+    assert "▾ ❖ SESSION TURNS · 2\n" in header.plain
+    assert header.plain.index("SESSION TURNS") < header.plain.index("OUTPUT VARIABLES")
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         child.identity,

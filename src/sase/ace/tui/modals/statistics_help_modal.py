@@ -276,7 +276,7 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "A standalone agent or a live parallel session member each hold "
                 "one runner slot; a serial session — root, live serial child, "
                 "monitor, or post-handoff follow-up — holds one slot for as "
-                "long as any of its shells is live. Non-agent workflow steps "
+                "long as any of its turns is live. Non-agent workflow steps "
                 "do not.",
             ),
             (

@@ -76,7 +76,7 @@ class TestAgentNameMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert header.plain.count("Name: ") == 1
-        assert_metadata_prefix(header, "AGENT SHELL", "Name: unassigned")
+        assert_metadata_prefix(header, "AGENT TURN", "Name: unassigned")
         assert_span_covers(header, "unassigned", "dim")
         assert header.plain.index("Name: unassigned\n") < header.plain.index("Patch:")
         assert "Bead:" not in header.plain
@@ -87,7 +87,7 @@ class TestAgentNameMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert header.plain.count("Name: ") == 1
-        assert_metadata_prefix(header, "AGENT SHELL", "Name: reviewer")
+        assert_metadata_prefix(header, "AGENT TURN", "Name: reviewer")
         assert_span_covers(header, "reviewer", "#FFD700")
         assert header.plain.index("Name: reviewer\n") < header.plain.index("Patch:")
 
@@ -100,7 +100,7 @@ class TestAgentNameMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert_metadata_prefix(header, "AGENT SHELL", "Name: reviewer")
+        assert_metadata_prefix(header, "AGENT TURN", "Name: reviewer")
         assert "Retry chain: ↻ attempt #2 (rate_limit)\n" in header.plain
         assert header.plain.index("Name: reviewer\n") < header.plain.index(
             "Retry chain:"
@@ -176,8 +176,8 @@ class TestAgentModelMetadata:
         assert "Model: CLAUDE(opus) @ xhigh ← @medium\n" in header.plain
 
 
-class TestAgentSessionShellMetadata:
-    def test_agent_session_container_header_shows_one_lane_per_shell_in_order(
+class TestAgentSessionTurnMetadata:
+    def test_agent_session_container_header_shows_one_lane_per_turn_in_order(
         self,
     ) -> None:
         agent = _agent_session(
@@ -195,11 +195,11 @@ class TestAgentSessionShellMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Model:" not in header.plain
-        assert header.plain.count("Shells: ") == 1
-        assert "Shells: --plan     · CLAUDE(opus) @ xhigh\n" in header.plain
-        assert "        --code     · CLAUDE(sonnet)\n" in header.plain
-        assert "        --reviewer · CODEX(gpt-5.2)\n" in header.plain
-        model_index = header.plain.index("Shells:")
+        assert header.plain.count("Turns: ") == 1
+        assert "Turns: --plan     · CLAUDE(opus) @ xhigh\n" in header.plain
+        assert "       --code     · CLAUDE(sonnet)\n" in header.plain
+        assert "       --reviewer · CODEX(gpt-5.2)\n" in header.plain
+        model_index = header.plain.index("Turns:")
         code_index = header.plain.index("--code")
         reviewer_index = header.plain.index("--reviewer")
         assert model_index < code_index < reviewer_index
@@ -227,11 +227,11 @@ class TestAgentSessionShellMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "Shells: --plan     · CLAUDE(opus) @ xhigh ← @large\n" in header.plain
-        assert "        --code     · CLAUDE(sonnet) @ high ← @medium\n" in header.plain
-        assert "        --reviewer · CODEX(gpt-5.2)\n" in header.plain
+        assert "Turns: --plan     · CLAUDE(opus) @ xhigh ← @large\n" in header.plain
+        assert "       --code     · CLAUDE(sonnet) @ high ← @medium\n" in header.plain
+        assert "       --reviewer · CODEX(gpt-5.2)\n" in header.plain
 
-    def test_mixed_agent_session_header_shows_monitor_shell_without_model_leak(
+    def test_mixed_agent_session_header_shows_monitor_turn_without_model_leak(
         self,
     ) -> None:
         agent = _agent_session(
@@ -241,12 +241,12 @@ class TestAgentSessionShellMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "Shells: --plan · CLAUDE(opus)\n" in header.plain
-        assert "        --mon  · ⚙ why\n" in header.plain
-        assert "          ↳ Full-suite verification before landing\n" in header.plain
+        assert "Turns: --plan · CLAUDE(opus)\n" in header.plain
+        assert "       --mon  · ⚙ why\n" in header.plain
+        assert "         ↳ Full-suite verification before landing\n" in header.plain
         assert "CLAUDE(sonnet)" not in header.plain
 
-    def test_shells_still_sits_between_auto_and_xprompts_for_agent_session_row(
+    def test_turns_still_sits_between_auto_and_xprompts_for_agent_session_row(
         self,
     ) -> None:
         agent = _agent_session(
@@ -262,7 +262,7 @@ class TestAgentSessionShellMetadata:
         header, _ = build_header_text(agent, cheap=False, summary=summary)
 
         auto_index = header.plain.index("Auto:")
-        model_index = header.plain.index("Shells:")
+        model_index = header.plain.index("Turns:")
         xprompts_index = header.plain.index("Xprompts:")
         assert auto_index < model_index < xprompts_index
 
@@ -274,7 +274,7 @@ class TestAgentSessionShellMetadata:
         assert header.plain.count("Model: ") == 1
         assert "Model: CLAUDE(opus)\n" in header.plain
 
-    def test_agent_session_partial_projection_still_uses_shells_label(
+    def test_agent_session_partial_projection_still_uses_turns_label(
         self,
     ) -> None:
         agent = _agent_session(
@@ -285,9 +285,9 @@ class TestAgentSessionShellMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "Model:" not in header.plain
-        assert header.plain.count("Shells: ") == 1
-        assert "Shells: --plan · CLAUDE(opus)\n" in header.plain
-        assert "        --code · default\n" in header.plain
+        assert header.plain.count("Turns: ") == 1
+        assert "Turns: --plan · CLAUDE(opus)\n" in header.plain
+        assert "       --code · default\n" in header.plain
 
     def test_agent_session_header_is_renderable_with_full_lane_block_in_plain(
         self,
@@ -302,8 +302,8 @@ class TestAgentSessionShellMetadata:
         header, _ = build_header_text(agent, cheap=True)
 
         assert isinstance(header, AgentHeaderRenderable)
-        assert "Shells: --plan · CLAUDE(opus)\n" in header.plain
-        assert "        --code · CLAUDE(sonnet)\n" in header.plain
+        assert "Turns: --plan · CLAUDE(opus)\n" in header.plain
+        assert "       --code · CLAUDE(sonnet)\n" in header.plain
 
 
 class TestAgentAutoApproveMetadata:

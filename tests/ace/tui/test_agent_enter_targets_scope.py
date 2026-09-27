@@ -183,7 +183,7 @@ def test_monitor_and_proc_rows_are_silent() -> None:
 
     proc = replace(
         make_agent(name="proc", raw_suffix="20260918010102"),
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
     )
-    assert proc.is_proc_shell is True
+    assert proc.is_named_proc is True
     assert _resolve(proc).targets == ()

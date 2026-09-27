@@ -328,7 +328,7 @@ def build_snapshot_rows(
                     else _plain_display
                 )
                 jumpable = not facts[4]
-                kind_label = "AGENT SHELL"
+                kind_label = "AGENT TURN"
                 kind_accent = _describe_styles["agent_entry"]
             elif facts is not None and len(facts) != 5:
                 # The facet pass stores a short 5-tuple exactly for ordinary

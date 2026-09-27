@@ -23,7 +23,7 @@ from ...models.fold_scale import (
     lane_fold_scale,
 )
 from ...models.fold_state import FoldLevel
-from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _PROC_SHELL_ROW_STYLE
+from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _NAMED_PROC_ROW_STYLE
 from ._agent_bead_section import (
     BEAD_SECTION_ID,
     ResponsiveBeadSection,
@@ -55,7 +55,7 @@ from ._agent_page_section import (
     ResponsiveAgentPageSection,
 )
 from ._agent_plan_section import ResponsivePlanSection
-from ._agent_shell_section import SHELL_SECTION_ID, ResponsiveShellSection
+from ._agent_turn_section import TURN_SECTION_ID, ResponsiveTurnSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._agent_wait_section import (
     WAIT_SECTION_ID,
@@ -206,10 +206,10 @@ def build_header_text(
     else:
         if agent.is_agent_session_container_row:
             append_kind_header(header_text, "SESSION", SESSION_IDENTITY_COLOR)
-        elif agent.is_proc_shell:
-            append_kind_header(header_text, "PROC SHELL", _PROC_SHELL_ROW_STYLE)
+        elif agent.is_named_proc:
+            append_kind_header(header_text, "NAMED PROC", _NAMED_PROC_ROW_STYLE)
         elif agent.is_agent_entry:
-            append_kind_header(header_text, "AGENT SHELL", _AGENT_NAME_ANNOTATION_STYLE)
+            append_kind_header(header_text, "AGENT TURN", _AGENT_NAME_ANNOTATION_STYLE)
         metadata = append_agent_metadata_fields(
             header_text,
             agent,
@@ -230,7 +230,7 @@ def build_header_text(
     meta_fields = metadata.meta_fields
     page_section = metadata.page_section
     wait_section = metadata.wait_section
-    shell_section = metadata.shell_section
+    turn_section = metadata.turn_section
 
     append_runner_queue_section(header_text, agent, queue_selection)
 
@@ -457,7 +457,7 @@ def build_header_text(
             identity_ranges,
             page_section,
             wait_section,
-            shell_section,
+            turn_section,
             None,
             None,
             None,
@@ -476,7 +476,7 @@ def build_header_text(
                 agent=agent,
                 summary=summary,
                 wait_section=wait_section,
-                shell_section=shell_section,
+                turn_section=turn_section,
                 fold_level=resolved_lane_fold_level
                 if agent_session_fold_enabled
                 else None,
@@ -525,7 +525,7 @@ def build_header_text(
         responsive_ranges,
         page_section,
         wait_section,
-        shell_section,
+        turn_section,
         bead_section,
         plan_section,
         slow_tool_section,
@@ -546,7 +546,7 @@ def _assemble_responsive_sections(
     responsive_ranges: dict[str, tuple[int, int]],
     page_section: ResponsiveAgentPageSection | None,
     wait_section: ResponsiveWaitSection | None,
-    shell_section: ResponsiveShellSection | None,
+    turn_section: ResponsiveTurnSection | None,
     bead_section: ResponsiveBeadSection | None,
     plan_section: ResponsivePlanSection | None,
     slow_tool_section: ResponsiveSlowToolCallsSection | None,
@@ -558,7 +558,7 @@ def _assemble_responsive_sections(
         ResponsiveAgentPageSection
         | ResponsiveBeadSection
         | ResponsiveBeadTouchesSection
-        | ResponsiveShellSection
+        | ResponsiveTurnSection
         | ResponsivePlanSection
         | ResponsiveSlowToolCallsSection
         | ResponsiveWaitSection,
@@ -573,7 +573,7 @@ def _assemble_responsive_sections(
             ResponsiveAgentPageSection
             | ResponsiveBeadSection
             | ResponsiveBeadTouchesSection
-            | ResponsiveShellSection
+            | ResponsiveTurnSection
             | ResponsivePlanSection
             | ResponsiveSlowToolCallsSection
             | ResponsiveWaitSection,
@@ -585,9 +585,9 @@ def _assemble_responsive_sections(
     if wait_section is not None and WAIT_SECTION_ID in responsive_ranges:
         start, end = responsive_ranges[WAIT_SECTION_ID]
         responsive_sections.append((start, end, wait_section))
-    if shell_section is not None and SHELL_SECTION_ID in responsive_ranges:
-        start, end = responsive_ranges[SHELL_SECTION_ID]
-        responsive_sections.append((start, end, shell_section))
+    if turn_section is not None and TURN_SECTION_ID in responsive_ranges:
+        start, end = responsive_ranges[TURN_SECTION_ID]
+        responsive_sections.append((start, end, turn_section))
     if bead_section is not None and "BEAD" in responsive_ranges:
         start, end = responsive_ranges["BEAD"]
         responsive_sections.append((start, end, bead_section))

@@ -231,7 +231,7 @@ class Agent(AgentState):
             return self.workflow if self.workflow else "agent"
         if self.is_gate:
             return "gate"
-        if self.is_proc_shell:
+        if self.is_named_proc:
             return "proc"
         if self.is_workflow_child and self.step_type:
             return self.step_type
@@ -253,13 +253,13 @@ class Agent(AgentState):
         """
         if self.is_clan_container and self.agent_clan:
             return self.presented_agent_name or self.agent_clan
-        if self.is_proc_shell:
+        if self.is_named_proc:
             return (
                 self.proc_label
                 or self.presented_agent_name
                 or self.agent_name
                 or self.proc_id
-                or "proc shell"
+                or "named proc"
             )
         if self.is_gate:
             return (
@@ -268,7 +268,7 @@ class Agent(AgentState):
                 or self.presented_agent_name
                 or self.agent_name
                 or self.gate_id
-                or "gate shell"
+                or "gate turn"
             )
         if (
             self.agent_type == AgentType.WORKFLOW
@@ -298,12 +298,12 @@ class Agent(AgentState):
 
     @property
     def is_gate(self) -> bool:
-        """Whether this row is the durable gate-shell member."""
+        """Whether this row is the durable gate-turn member."""
         return is_real_gate_member(self.agent_session_role, self.gate_id)
 
     @property
-    def is_proc_shell(self) -> bool:
-        """Whether this row projects one stand-alone durable proc shell."""
+    def is_named_proc(self) -> bool:
+        """Whether this row projects one stand-alone durable named proc."""
         return self.agent_type == AgentType.NAMED_PROC
 
     @property
@@ -505,7 +505,7 @@ class Agent(AgentState):
             return False
         if self.is_gate:
             return False
-        if self.is_proc_shell:
+        if self.is_named_proc:
             return False
         if self.agent_type == AgentType.RUNNING:
             return True

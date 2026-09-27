@@ -17,8 +17,8 @@ from ._dedup import (
     remove_vcs_workspace_claims,
 )
 from .agent import Agent
-from ._agent_session_shell_membership import attach_unparented_agent_session_shells
-from .agent_session_members import row_is_agent_session_shell
+from ._agent_session_turn_membership import attach_unparented_agent_session_turns
+from .agent_session_members import row_is_agent_session_turn
 
 
 _LIVE_PLAN_AGENT_BUCKETS = frozenset(
@@ -51,15 +51,15 @@ def _filter_dead_pids(
 ) -> list[Agent]:
     """Drop agent rows whose recorded PID is dead.
 
-    OS process liveness gates *agent* rows. A session shell's own
-    ``gate_state`` / ``monitor_state`` gates shell rows — a pending gate
-    shell has no process at all, and may inherit its creator's dead pid.
+    OS process liveness gates *agent* rows. A session turn's own
+    ``gate_state`` / ``monitor_state`` gates turn rows — a pending gate
+    turn has no process at all, and may inherit its creator's dead pid.
     """
 
     verified_agents: list[Agent] = []
     completed_statuses = ("DONE", "FAILED")
     for agent in agents:
-        if row_is_agent_session_shell(agent):
+        if row_is_agent_session_turn(agent):
             verified_agents.append(agent)
         elif agent.status in completed_statuses:
             verified_agents.append(agent)
@@ -91,7 +91,7 @@ def normalize_loaded_agents(
     agents = _filter_dead_pids(agents, is_process_running=is_process_running)
     agents = _deduplicate(agents)
     agents = materialize_imported_agent_session_containers(agents)
-    attach_unparented_agent_session_shells(agents)
+    attach_unparented_agent_session_turns(agents)
     # Persisted diff-badge classification reads every referenced diff file and
     # dominates startup (~0.4 s over 213 rows). It is display enrichment that
     # nothing downstream depends on, so it is deferred to a background pass

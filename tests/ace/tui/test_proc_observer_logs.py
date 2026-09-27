@@ -70,7 +70,7 @@ def test_monitor_detail_row_reads_artifacts_log_including_rotated_sibling(
     assert row.output == "rotated-only\nolder-current\ncurrent-tail\n"
     assert "rotated-only" in row.output
     assert row.log_path == str(log_path)
-    assert row.shell_name == "acme--mon"
+    assert row.proc_name == "acme--mon"
     assert monitor_row_agent_name(row) == "acme--mon"
 
 
@@ -107,7 +107,7 @@ def test_store_owned_detail_row_reads_store_log(monkeypatch, tmp_path: Path) -> 
 
     assert row.output == "store-only\n"
     assert row.log_path == str(store_log)
-    assert row.shell_name == "demo--build"
+    assert row.proc_name == "demo--build"
 
 
 def test_monitor_missing_log_yields_empty_output(monkeypatch, tmp_path: Path) -> None:
@@ -124,10 +124,10 @@ def test_monitor_missing_log_yields_empty_output(monkeypatch, tmp_path: Path) ->
 
     assert row.output == ""
     assert row.log_path == str(log_path)
-    assert row.shell_name == "acme--mon"
+    assert row.proc_name == "acme--mon"
 
 
-def test_monitor_row_without_shell_name_round_trips_none(
+def test_monitor_row_without_proc_name_round_trips_none(
     monkeypatch, tmp_path: Path
 ) -> None:
     log_path = tmp_path / "artifacts" / "live_reply.md"
@@ -142,7 +142,7 @@ def test_monitor_row_without_shell_name_round_trips_none(
     row = observer._build_snapshot().projection.rows[0]
 
     assert row.output == "alive\n"
-    assert row.shell_name is None
+    assert row.proc_name is None
     assert monitor_row_agent_name(row) is None
 
 

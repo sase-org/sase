@@ -110,7 +110,7 @@ class AgentFleetProjectionMixin:
             self.notify(  # type: ignore[attr-defined]
                 "Remote machines are already enrolled; run 'sase machine init' "
                 "to rescan, or 'sase machine list' / 'sase machine status' "
-                "from a shell for details"
+                "from a turn for details"
             )
             return
         opener = getattr(self, "_open_config_center", None)

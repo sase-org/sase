@@ -243,7 +243,7 @@ class AgentBindingsMixin:
                 and not group_focused
                 and agent_session_roster_container(agent) is not None
             ):
-                bindings.append(("0-9", "shell"))
+                bindings.append(("0-9", "turn"))
             if completed_count > 0:
                 bindings.append(
                     (
@@ -253,7 +253,7 @@ class AgentBindingsMixin:
                 )
             return bindings
 
-        if getattr(agent, "is_proc_shell", False):
+        if getattr(agent, "is_named_proc", False):
             if marked_count == 0 and not panel_focused and not group_focused:
                 if agent.proc_status in ACTIVE_PROC_STATUSES:
                     bindings.append((x, "kill proc"))
@@ -283,7 +283,7 @@ class AgentBindingsMixin:
                 and not group_focused
                 and agent_session_roster_container(agent) is not None
             ):
-                bindings.append(("0-9", "shell"))
+                bindings.append(("0-9", "turn"))
             if completed_count > 0:
                 bindings.append(
                     (
@@ -333,7 +333,7 @@ class AgentBindingsMixin:
                 agent.is_agent_session_container_row
                 or agent_session_roster_container(agent) is not None
             ):
-                bindings.append(("0-9", "shell"))
+                bindings.append(("0-9", "turn"))
             elif lane_neighbor_jump_available:
                 bindings.append(("0-9", "neighbor"))
 

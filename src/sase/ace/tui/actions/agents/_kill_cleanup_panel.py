@@ -1,4 +1,4 @@
-"""Cleanup-panel shell and shared cleanup helpers for agent kill actions."""
+"""Cleanup-panel turn and shared cleanup helpers for agent kill actions."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ class AgentCleanupPanelMixin:
         )
 
     def _build_agent_cleanup_panel_state(self) -> AgentCleanupPanelState:
-        """Build count state for the cleanup panel shell."""
+        """Build count state for the cleanup panel turn."""
         from ._core import DISMISSABLE_STATUSES
         from ...modals import AgentCleanupPanelState
 
@@ -166,9 +166,9 @@ class AgentCleanupPanelMixin:
                 return
             if agent.identity in seen:
                 return
-            if agent.is_proc_shell:
-                # Planner-backed cleanup has no proc-shell concept. Dismiss
-                # those rows through the Agents-tab proc-shell path instead.
+            if agent.is_named_proc:
+                # Planner-backed cleanup has no named-proc concept. Dismiss
+                # those rows through the Agents-tab named-proc path instead.
                 return
             seen.add(agent.identity)
             targets.append(agent)

@@ -145,8 +145,8 @@ async def test_agent_session_member_panel_shows_sibling_roster_png_snapshot(
         member_targets = {target.member_identity for target in member_jump_map.targets}
         assert member.identity not in member_targets
 
-        assert_page_svg_contains(page, "SESSION SHELLS")
-        assert_page_svg_contains(page, "AGENT SHELL")
+        assert_page_svg_contains(page, "SESSION TURNS")
+        assert_page_svg_contains(page, "AGENT TURN")
         ace_png_visual.assert_page_png(
             page,
             "agents_session_panel_member_roster_120x40",
@@ -186,12 +186,12 @@ async def test_agent_session_two_digit_roster_and_pending_footer_png_snapshots(
         await page.press("1")
         assert page.app._member_jump_pending_digit == "1"
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "shell 1▁")
+        assert_page_svg_contains(page, "turn 1▁")
         assert_page_svg_contains(page, "second digit")
         ace_png_visual.assert_page_png(
             page,
             "agents_session_panel_pending_digit_120x40",
-            title="ACE session panel pending shell digit",
+            title="ACE session panel pending turn digit",
         )
 
         await page.press("0")

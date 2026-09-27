@@ -210,7 +210,7 @@ class LifecycleMixin:
                 return
 
     def _count_running_tasks(self) -> int:
-        """Return the count of running procs, excluding detached monitor shells."""
+        """Return the count of running procs, excluding detached monitor turns."""
         from .._proc_observer_models import gear_eligible_count
         from ..proc_observer import proc_projection_for
 

@@ -353,7 +353,7 @@ async def test_rail_hidden_spread_partial_and_subject_change() -> None:
         )
         await wait_for(pilot, lambda: bool(_rail(panel)._ranges))
         assert _rail(panel).has_class("-shown")
-        # Partial paint clears the rail so it never shows stale shells.
+        # Partial paint clears the rail so it never shows stale blocks.
         panel.show_main_document(
             _document("s2", _reply_card(3), digest="rail-partial", partial=True),
             "reply",

@@ -42,7 +42,7 @@ class AgentCleanupCustomResult:
 
 @dataclass(frozen=True)
 class AgentCleanupPanelState:
-    """Counts and availability for the cleanup panel shell."""
+    """Counts and availability for the cleanup panel turn."""
 
     focused_panel_label: str
     panel_running_count: int

@@ -286,7 +286,7 @@ def _type_glyph(agent: Agent | None) -> str:
         return f"{MONITOR_GLYPH} "
     if agent.is_gate:
         return f"{GATE_GLYPH} "
-    if agent.is_proc_shell:
+    if agent.is_named_proc:
         return f"{_PROC_GLYPH} "
     if agent.agent_type is AgentType.WORKFLOW and not agent.is_workflow_step_child:
         return f"{_WORKFLOW_GLYPH} "

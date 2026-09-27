@@ -175,7 +175,7 @@ def build_node_finder_snapshot(owner: Any) -> NodeFinderSnapshot:
         projection = FoldStateProjection(levels)
         # Same keep-all outcome through distinct owner chains instead of
         # the filter's per-agent walk; falls back to the exact filter for
-        # hidden steps, shells, gaps, collapsed levels, and cycles.
+        # hidden steps, turns, gaps, collapsed levels, and cycles.
         keep_all = expanded_roster_keep_all(
             complete,
             projection,

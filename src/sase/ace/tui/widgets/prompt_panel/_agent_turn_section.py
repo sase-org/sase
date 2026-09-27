@@ -1,4 +1,4 @@
-"""Responsive per-shell lanes for agent_session container detail panels."""
+"""Responsive per-turn lanes for agent_session container detail panels."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sase.llm_provider.model_label import model_value_text
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
 from ...models.agent import Agent
-from ...models.agent_session_members import concrete_agent_session_shell_rows
+from ...models.agent_session_members import concrete_agent_session_turn_rows
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _STEP_TYPE_COLORS
 from ._agent_context_common import (
     COLOR_EMPTY,
@@ -29,41 +29,43 @@ from ._agent_context_common import (
 from ._agent_display_agent_session import agent_session_member_label
 from ._helpers import PROMPT_PANEL_LINE_CELL_LIMIT, wrap_text_by_cells
 
-SHELL_SECTION_ID = "shells"
-SHELL_FIELD_LABEL = "Shells: "
-SHELL_FIELD_LABEL_STYLE = "bold #87D7FF"
-SHELL_LANE_LIMIT = 12
-_SHELL_LANE_LABEL_STYLE = _AGENT_NAME_ANNOTATION_STYLE
-_SHELL_LANE_SEPARATOR = " · "
-_SHELL_LANE_SEPARATOR_STYLE = "dim"
-_SHELL_LANE_DEFAULT_STYLE = "dim #AF87D7"
-_SHELL_LANE_TAIL_STYLE = "dim italic"
-_SHELL_MONITOR_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
-_SHELL_MONITOR_COMMAND_STYLE = _STEP_TYPE_COLORS["bash"]
-_SHELL_MONITOR_REASON_MARKER_STYLE = f"bold {COLOR_REASON}"
-_SHELL_MONITOR_COMMAND_MARKER_STYLE = f"bold {_SHELL_MONITOR_COMMAND_STYLE}"
-_SHELL_MONITOR_PLACEHOLDER = "unavailable"
-_SHELL_GATE_GLYPH_STYLE = "bold #0BCDEC"
-_SHELL_GATE_SETTLED_GLYPH_STYLE = "#9E9E9E"
-_SHELL_GATE_FAILED_GLYPH_STYLE = f"bold {GATE_FAILURE_GLYPH_COLOR}"
-_SHELL_GATE_TITLE_STYLE = "#0BCDEC"
-_SHELL_GATE_STATE_STYLE = "dim #9E9E9E"
-_SHELL_GATE_DEADLINE_STYLE = "#D7D7AF"
-_SHELL_GATE_PLACEHOLDER = "decision"
-_SHELL_CONTINUATION_INDENT = 2
+TURN_SECTION_ID = "turns"
+#: Pre-rename fold-section id (``turns``). Read for compatibility, never written.
+LEGACY_TURN_SECTION_ID = "shells"
+TURN_FIELD_LABEL = "Turns: "
+TURN_FIELD_LABEL_STYLE = "bold #87D7FF"
+TURN_LANE_LIMIT = 12
+_TURN_LANE_LABEL_STYLE = _AGENT_NAME_ANNOTATION_STYLE
+_TURN_LANE_SEPARATOR = " · "
+_TURN_LANE_SEPARATOR_STYLE = "dim"
+_TURN_LANE_DEFAULT_STYLE = "dim #AF87D7"
+_TURN_LANE_TAIL_STYLE = "dim italic"
+_TURN_MONITOR_GLYPH_STYLE = f"bold {MONITOR_GLYPH_COLOR}"
+_TURN_MONITOR_COMMAND_STYLE = _STEP_TYPE_COLORS["bash"]
+_TURN_MONITOR_REASON_MARKER_STYLE = f"bold {COLOR_REASON}"
+_TURN_MONITOR_COMMAND_MARKER_STYLE = f"bold {_TURN_MONITOR_COMMAND_STYLE}"
+_TURN_MONITOR_PLACEHOLDER = "unavailable"
+_TURN_GATE_GLYPH_STYLE = "bold #0BCDEC"
+_TURN_GATE_SETTLED_GLYPH_STYLE = "#9E9E9E"
+_TURN_GATE_FAILED_GLYPH_STYLE = f"bold {GATE_FAILURE_GLYPH_COLOR}"
+_TURN_GATE_TITLE_STYLE = "#0BCDEC"
+_TURN_GATE_STATE_STYLE = "dim #9E9E9E"
+_TURN_GATE_DEADLINE_STYLE = "#D7D7AF"
+_TURN_GATE_PLACEHOLDER = "decision"
+_TURN_CONTINUATION_INDENT = 2
 
 
 @dataclass(frozen=True, slots=True)
-class _AgentShellLane:
-    """One concrete LLM agent shell in a agent_session metadata lane."""
+class _AgentTurnLane:
+    """One concrete LLM agent turn in a agent_session metadata lane."""
 
     label: str
     value: Text
 
 
 @dataclass(frozen=True, slots=True)
-class _MonitorShellLane:
-    """One proc-shell monitor lane in a agent_session metadata lane."""
+class _MonitorTurnLane:
+    """One named-proc monitor lane in a agent_session metadata lane."""
 
     label: str
     command: str | None
@@ -71,8 +73,8 @@ class _MonitorShellLane:
 
 
 @dataclass(frozen=True, slots=True)
-class _GateShellLane:
-    """One human-decision gate lane in a agent_session metadata lane."""
+class _GateTurnLane:
+    """One human-decision gate-turn lane in a agent_session metadata lane."""
 
     label: str
     title: str | None
@@ -81,7 +83,7 @@ class _GateShellLane:
     start_time: datetime | None
 
 
-type ShellLane = _AgentShellLane | _MonitorShellLane | _GateShellLane
+type TurnLane = _AgentTurnLane | _MonitorTurnLane | _GateTurnLane
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,15 +94,15 @@ class _MonitorSelection:
     continuation_style: str
 
 
-def build_agent_session_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
-    """Build one labelled shell lane per concrete agent_session shell."""
+def build_agent_session_turn_lanes(agent: Agent) -> tuple[TurnLane, ...]:
+    """Build one labelled turn lane per concrete agent_session turn."""
     agent_session_name = agent.presented_agent_name or ""
-    lanes: list[ShellLane] = []
-    for member in concrete_agent_session_shell_rows(agent):
+    lanes: list[TurnLane] = []
+    for member in concrete_agent_session_turn_rows(agent):
         label = agent_session_member_label(member, agent_session_name)
         if member.is_monitor:
             lanes.append(
-                _MonitorShellLane(
+                _MonitorTurnLane(
                     label=label,
                     command=member.monitor_command,
                     reason=member.monitor_reason,
@@ -109,7 +111,7 @@ def build_agent_session_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
             continue
         if member.is_gate:
             lanes.append(
-                _GateShellLane(
+                _GateTurnLane(
                     label=label,
                     title=member.gate_label or member.gate_kind or member.gate_id,
                     gate_state=member.gate_state,
@@ -126,8 +128,8 @@ def build_agent_session_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
             member.model_alias,
         )
         if value is None:
-            value = Text("default", style=_SHELL_LANE_DEFAULT_STYLE)
-        lanes.append(_AgentShellLane(label=label, value=value))
+            value = Text("default", style=_TURN_LANE_DEFAULT_STYLE)
+        lanes.append(_AgentTurnLane(label=label, value=value))
     if not lanes and agent.is_agent_session_container_row:
         value = model_value_text(
             agent.model,
@@ -136,17 +138,17 @@ def build_agent_session_shell_lanes(agent: Agent) -> tuple[ShellLane, ...]:
             agent.model_alias,
         )
         if value is None:
-            value = Text("default", style=_SHELL_LANE_DEFAULT_STYLE)
+            value = Text("default", style=_TURN_LANE_DEFAULT_STYLE)
         lanes.append(
-            _AgentShellLane(
+            _AgentTurnLane(
                 label=agent_session_member_label(agent, agent_session_name), value=value
             )
         )
     return tuple(lanes)
 
 
-def _shell_gutter_width(lanes: Sequence[ShellLane]) -> int:
-    """Return the padded width of the widest present shell label."""
+def _turn_gutter_width(lanes: Sequence[TurnLane]) -> int:
+    """Return the padded width of the widest present turn label."""
     if not lanes:
         return 0
     return max(cell_len(lane.label) for lane in lanes)
@@ -155,17 +157,17 @@ def _shell_gutter_width(lanes: Sequence[ShellLane]) -> int:
 def _lane_prefix(index: int, label: str, gutter_width: int) -> Text:
     prefix = Text(end="")
     if index == 0:
-        prefix.append(SHELL_FIELD_LABEL, style=SHELL_FIELD_LABEL_STYLE)
+        prefix.append(TURN_FIELD_LABEL, style=TURN_FIELD_LABEL_STYLE)
     else:
-        prefix.append(" " * cell_len(SHELL_FIELD_LABEL))
-    prefix.append(label, style=_SHELL_LANE_LABEL_STYLE)
+        prefix.append(" " * cell_len(TURN_FIELD_LABEL))
+    prefix.append(label, style=_TURN_LANE_LABEL_STYLE)
     prefix.append(" " * (gutter_width - cell_len(label)))
-    prefix.append(_SHELL_LANE_SEPARATOR, style=_SHELL_LANE_SEPARATOR_STYLE)
+    prefix.append(_TURN_LANE_SEPARATOR, style=_TURN_LANE_SEPARATOR_STYLE)
     return prefix
 
 
 def _lane_prefix_width(gutter_width: int) -> int:
-    return cell_len(SHELL_FIELD_LABEL) + gutter_width + cell_len(_SHELL_LANE_SEPARATOR)
+    return cell_len(TURN_FIELD_LABEL) + gutter_width + cell_len(_TURN_LANE_SEPARATOR)
 
 
 def _squeeze_safe_gutter_width(
@@ -174,7 +176,7 @@ def _squeeze_safe_gutter_width(
     own_label_width: int,
     total_width: int,
 ) -> int:
-    """Return a gutter width that keeps ``SHELL_FIELD_LABEL`` legible.
+    """Return a gutter width that keeps ``TURN_FIELD_LABEL`` legible.
 
     ``gutter_width`` is shared across every lane (agent, monitor, gate) so
     their ``·`` separators stay column-aligned. Rich's ``Table.grid`` cannot
@@ -183,7 +185,7 @@ def _squeeze_safe_gutter_width(
     label at its natural size, Rich falls back to shrinking every column
     (including the label) evenly, mangling it into an ellipsis. Drop back to
     this lane's own label width in that case — misaligned separators read
-    better than a truncated ``Shells:`` prefix.
+    better than a truncated ``Turns:`` prefix.
     """
     if _lane_prefix_width(gutter_width) + 1 <= total_width:
         return gutter_width
@@ -206,27 +208,27 @@ def _monitor_command_width(total_width: int, gutter_width: int) -> int:
 
 def _monitor_reason_payload_width(total_width: int) -> int:
     payload_prefix_width = (
-        cell_len(SHELL_FIELD_LABEL)
-        + _SHELL_CONTINUATION_INDENT
+        cell_len(TURN_FIELD_LABEL)
+        + _TURN_CONTINUATION_INDENT
         + cell_len(REASON_GLYPH)
         + 1
     )
     return max(1, total_width - payload_prefix_width)
 
 
-def _gate_glyph_style(lane: _GateShellLane) -> str:
+def _gate_glyph_style(lane: _GateTurnLane) -> str:
     if lane.gate_state in {"failed", "timeout", "lost"}:
-        return _SHELL_GATE_FAILED_GLYPH_STYLE
+        return _TURN_GATE_FAILED_GLYPH_STYLE
     if lane.gate_state in {"answered", "completed", "stopped"}:
-        return _SHELL_GATE_SETTLED_GLYPH_STYLE
-    return _SHELL_GATE_GLYPH_STYLE
+        return _TURN_GATE_SETTLED_GLYPH_STYLE
+    return _TURN_GATE_GLYPH_STYLE
 
 
-def _gate_status_label(lane: _GateShellLane) -> str:
+def _gate_status_label(lane: _GateTurnLane) -> str:
     return lane.gate_state or "pending"
 
 
-def _gate_deadline_label(lane: _GateShellLane) -> str | None:
+def _gate_deadline_label(lane: _GateTurnLane) -> str | None:
     if _gate_row_is_settled_like(lane) or lane.timeout_seconds is None:
         return None
     if lane.start_time is None:
@@ -239,7 +241,7 @@ def _gate_deadline_label(lane: _GateShellLane) -> str | None:
     return f"due in {format_duration(remaining)}"
 
 
-def _gate_row_is_settled_like(lane: _GateShellLane) -> bool:
+def _gate_row_is_settled_like(lane: _GateTurnLane) -> bool:
     return lane.gate_state in {
         "answered",
         "completed",
@@ -263,7 +265,7 @@ def _bounded_gate_title(
     total_width: int,
     gutter_width: int,
 ) -> str:
-    normalized = normalize_context_display(title or "") or _SHELL_GATE_PLACEHOLDER
+    normalized = normalize_context_display(title or "") or _TURN_GATE_PLACEHOLDER
     width = _gate_title_width(total_width, gutter_width)
     if cell_len(normalized) <= width:
         return normalized
@@ -272,7 +274,7 @@ def _bounded_gate_title(
 
 
 def _monitor_selection(
-    lane: _MonitorShellLane,
+    lane: _MonitorTurnLane,
     *,
     total_width: int,
     gutter_width: int,
@@ -285,7 +287,7 @@ def _monitor_selection(
     ):
         return _MonitorSelection(
             marker=command,
-            marker_style=_SHELL_MONITOR_COMMAND_STYLE,
+            marker_style=_TURN_MONITOR_COMMAND_STYLE,
             continuation=None,
             continuation_style=COLOR_REASON,
         )
@@ -294,7 +296,7 @@ def _monitor_selection(
     if reason:
         return _MonitorSelection(
             marker="why",
-            marker_style=_SHELL_MONITOR_REASON_MARKER_STYLE,
+            marker_style=_TURN_MONITOR_REASON_MARKER_STYLE,
             continuation=reason,
             continuation_style=COLOR_REASON,
         )
@@ -303,13 +305,13 @@ def _monitor_selection(
     if diagnostic:
         return _MonitorSelection(
             marker="cmd",
-            marker_style=_SHELL_MONITOR_COMMAND_MARKER_STYLE,
+            marker_style=_TURN_MONITOR_COMMAND_MARKER_STYLE,
             continuation=diagnostic,
-            continuation_style=_SHELL_MONITOR_COMMAND_STYLE,
+            continuation_style=_TURN_MONITOR_COMMAND_STYLE,
         )
 
     return _MonitorSelection(
-        marker=_SHELL_MONITOR_PLACEHOLDER,
+        marker=_TURN_MONITOR_PLACEHOLDER,
         marker_style=COLOR_EMPTY,
         continuation=None,
         continuation_style=COLOR_EMPTY,
@@ -320,7 +322,7 @@ def _append_monitor_lane(
     text: Text,
     *,
     index: int,
-    lane: _MonitorShellLane,
+    lane: _MonitorTurnLane,
     gutter_width: int,
     total_width: int,
 ) -> None:
@@ -330,7 +332,7 @@ def _append_monitor_lane(
         gutter_width=gutter_width,
     )
     text.append_text(_lane_prefix(index, lane.label, gutter_width))
-    text.append(MONITOR_GLYPH, style=_SHELL_MONITOR_GLYPH_STYLE)
+    text.append(MONITOR_GLYPH, style=_TURN_MONITOR_GLYPH_STYLE)
     text.append(" ")
     text.append(selection.marker, style=selection.marker_style)
     text.append("\n")
@@ -341,7 +343,7 @@ def _append_monitor_lane(
     wrapped = wrap_text_by_cells(selection.continuation, payload_width)
     if not wrapped:
         return
-    arrow_indent = cell_len(SHELL_FIELD_LABEL) + _SHELL_CONTINUATION_INDENT
+    arrow_indent = cell_len(TURN_FIELD_LABEL) + _TURN_CONTINUATION_INDENT
     payload_indent = arrow_indent + cell_len(REASON_GLYPH) + 1
     text.append(" " * arrow_indent)
     text.append(REASON_GLYPH, style=selection.continuation_style)
@@ -358,7 +360,7 @@ def _append_gate_lane(
     text: Text,
     *,
     index: int,
-    lane: _GateShellLane,
+    lane: _GateTurnLane,
     gutter_width: int,
     total_width: int,
 ) -> None:
@@ -371,13 +373,13 @@ def _append_gate_lane(
             total_width=total_width,
             gutter_width=gutter_width,
         ),
-        style=_SHELL_GATE_TITLE_STYLE,
+        style=_TURN_GATE_TITLE_STYLE,
     )
-    text.append(" · ", style=_SHELL_LANE_SEPARATOR_STYLE)
-    text.append(_gate_status_label(lane), style=_SHELL_GATE_STATE_STYLE)
+    text.append(" · ", style=_TURN_LANE_SEPARATOR_STYLE)
+    text.append(_gate_status_label(lane), style=_TURN_GATE_STATE_STYLE)
     deadline = _gate_deadline_label(lane)
     if deadline:
-        text.append(f" {deadline}", style=_SHELL_GATE_DEADLINE_STYLE)
+        text.append(f" {deadline}", style=_TURN_GATE_DEADLINE_STYLE)
     text.append("\n")
 
 
@@ -385,7 +387,7 @@ def _append_agent_lane(
     text: Text,
     *,
     index: int,
-    lane: _AgentShellLane,
+    lane: _AgentTurnLane,
     gutter_width: int,
 ) -> None:
     text.append_text(_lane_prefix(index, lane.label, gutter_width))
@@ -393,23 +395,23 @@ def _append_agent_lane(
     text.append("\n")
 
 
-def _logical_shell_text(
-    lanes: Sequence[ShellLane],
+def _logical_turn_text(
+    lanes: Sequence[TurnLane],
     *,
     hidden_count: int,
     total_width: int,
 ) -> Text:
-    gutter_width = _shell_gutter_width(lanes)
+    gutter_width = _turn_gutter_width(lanes)
     text = Text(end="")
     for index, lane in enumerate(lanes):
-        if isinstance(lane, _AgentShellLane):
+        if isinstance(lane, _AgentTurnLane):
             _append_agent_lane(
                 text,
                 index=index,
                 lane=lane,
                 gutter_width=gutter_width,
             )
-        elif isinstance(lane, _MonitorShellLane):
+        elif isinstance(lane, _MonitorTurnLane):
             _append_monitor_lane(
                 text,
                 index=index,
@@ -426,26 +428,26 @@ def _logical_shell_text(
                 total_width=total_width,
             )
     if hidden_count > 0:
-        text.append(" " * cell_len(SHELL_FIELD_LABEL))
+        text.append(" " * cell_len(TURN_FIELD_LABEL))
         text.append(
-            f"… +{hidden_count} more shells (see SESSION SHELLS)",
-            style=_SHELL_LANE_TAIL_STYLE,
+            f"… +{hidden_count} more turns (see SESSION TURNS)",
+            style=_TURN_LANE_TAIL_STYLE,
         )
         text.append("\n")
     return text
 
 
 @dataclass(slots=True)
-class ResponsiveShellSection:
-    """Per-shell agent_session lanes that wrap beneath aligned shell metadata."""
+class ResponsiveTurnSection:
+    """Per-turn agent_session lanes that wrap beneath aligned turn metadata."""
 
-    lanes: tuple[ShellLane, ...]
+    lanes: tuple[TurnLane, ...]
     hidden_count: int = 0
 
     @property
     def logical_text(self) -> Text:
-        """Return the styled shell block used for inspection."""
-        return _logical_shell_text(
+        """Return the styled turn block used for inspection."""
+        return _logical_turn_text(
             self.lanes,
             hidden_count=self.hidden_count,
             total_width=PROMPT_PANEL_LINE_CELL_LIMIT,
@@ -456,9 +458,9 @@ class ResponsiveShellSection:
         console: Console,
         options: ConsoleOptions,
     ) -> RenderResult:
-        gutter_width = _shell_gutter_width(self.lanes)
+        gutter_width = _turn_gutter_width(self.lanes)
         for index, lane in enumerate(self.lanes):
-            if isinstance(lane, _MonitorShellLane):
+            if isinstance(lane, _MonitorTurnLane):
                 text = Text(end="")
                 _append_monitor_lane(
                     text,
@@ -469,7 +471,7 @@ class ResponsiveShellSection:
                 )
                 yield text
                 continue
-            if isinstance(lane, _GateShellLane):
+            if isinstance(lane, _GateTurnLane):
                 text = Text(end="")
                 _append_gate_lane(
                     text,
@@ -490,47 +492,48 @@ class ResponsiveShellSection:
                 total_width=options.max_width,
             )
             table = Table.grid(padding=0)
-            table.add_column(width=cell_len(SHELL_FIELD_LABEL), no_wrap=True)
+            table.add_column(width=cell_len(TURN_FIELD_LABEL), no_wrap=True)
             table.add_column(
-                width=row_gutter_width + cell_len(_SHELL_LANE_SEPARATOR),
+                width=row_gutter_width + cell_len(_TURN_LANE_SEPARATOR),
                 no_wrap=True,
             )
             table.add_column(overflow="fold")
             label_text = (
-                Text(SHELL_FIELD_LABEL, style=SHELL_FIELD_LABEL_STYLE)
+                Text(TURN_FIELD_LABEL, style=TURN_FIELD_LABEL_STYLE)
                 if index == 0
                 else Text()
             )
             gutter_text = Text()
-            gutter_text.append(lane.label, style=_SHELL_LANE_LABEL_STYLE)
+            gutter_text.append(lane.label, style=_TURN_LANE_LABEL_STYLE)
             gutter_text.append(" " * (row_gutter_width - cell_len(lane.label)))
             gutter_text.append(
-                _SHELL_LANE_SEPARATOR,
-                style=_SHELL_LANE_SEPARATOR_STYLE,
+                _TURN_LANE_SEPARATOR,
+                style=_TURN_LANE_SEPARATOR_STYLE,
             )
             table.add_row(label_text, gutter_text, value)
             yield from console.render(table, options)
         if self.hidden_count > 0:
             table = Table.grid(padding=0)
-            table.add_column(width=cell_len(SHELL_FIELD_LABEL), no_wrap=True)
+            table.add_column(width=cell_len(TURN_FIELD_LABEL), no_wrap=True)
             table.add_column(
-                width=gutter_width + cell_len(_SHELL_LANE_SEPARATOR),
+                width=gutter_width + cell_len(_TURN_LANE_SEPARATOR),
                 no_wrap=True,
             )
             table.add_column(overflow="fold")
             tail = Text(
-                f"… +{self.hidden_count} more shells (see SESSION SHELLS)",
-                style=_SHELL_LANE_TAIL_STYLE,
+                f"… +{self.hidden_count} more turns (see SESSION TURNS)",
+                style=_TURN_LANE_TAIL_STYLE,
             )
             table.add_row(Text(), Text(), tail)
             yield from console.render(table, options)
 
 
 __all__ = [
-    "SHELL_FIELD_LABEL",
-    "SHELL_LANE_LIMIT",
-    "SHELL_SECTION_ID",
-    "ResponsiveShellSection",
-    "ShellLane",
-    "build_agent_session_shell_lanes",
+    "TURN_FIELD_LABEL",
+    "TURN_LANE_LIMIT",
+    "TURN_SECTION_ID",
+    "LEGACY_TURN_SECTION_ID",
+    "ResponsiveTurnSection",
+    "TurnLane",
+    "build_agent_session_turn_lanes",
 ]

@@ -60,7 +60,7 @@ def _visual_task(
     error: str | None = None,
     live_output: str | None = None,
     origin: str = "",
-    shell_name: str | None = None,
+    proc_name: str | None = None,
     command: list[str] | None = None,
     message: str | None = None,
 ) -> ObservedProc:
@@ -78,7 +78,7 @@ def _visual_task(
         output=output,
         error=error,
         origin=origin,
-        shell_name=shell_name,
+        proc_name=proc_name,
         command=command,
     )
     if live_output is not None:
@@ -95,7 +95,7 @@ def _running_monitor_row() -> ObservedProc:
         status="running",
         age_seconds=12,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="acme--mon",
+        proc_name="acme--mon",
         command=["/bin/sh", "-c", "just check-full"],
         live_output=(
             "ruff .................. Passed\n"
@@ -113,7 +113,7 @@ def _finished_monitor_row() -> ObservedProc:
         status="killed",
         age_seconds=14 * 60,
         origin=MONITOR_PROC_ORIGIN,
-        shell_name="hotfix--mon-0",
+        proc_name="hotfix--mon-0",
         command=["/bin/sh", "-c", "pytest -x"],
         message="Killed",
         output="collected 12 items\nF\n",

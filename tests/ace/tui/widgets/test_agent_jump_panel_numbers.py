@@ -65,7 +65,7 @@ def test_panel_numbers_land_through_real_jump_path() -> None:
         Text(),
         container_identity=root.identity,
         entries=entries,
-        title="SESSION SHELLS",
+        title="SESSION TURNS",
         accent="#00AFFF",
         panel_level=FoldLevel.COLLAPSED,
         numbering=MemberJumpNumbering(total=len(entries)),

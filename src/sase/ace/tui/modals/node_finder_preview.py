@@ -202,12 +202,12 @@ def _append_kind_section(
     agent = row.agent
     assert agent is not None
     if agent.is_agent_session_container_row:
-        _append_session_shells(text, row, snapshot)
+        _append_session_turns(text, row, snapshot)
     elif agent.is_clan_container:
         if clan_rows is None:
             clan_rows = clan_section_member_rows(agent)
         _append_clan_members(text, agent, clan_rows=clan_rows)
-    elif agent.is_monitor or agent.is_proc_shell:
+    elif agent.is_monitor or agent.is_named_proc:
         _append_proc_details(text, agent)
     elif agent.is_gate:
         _append_gate_details(text, agent)
@@ -223,26 +223,26 @@ def _append_section_header(
     text.append("\n")
 
 
-def _append_session_shells(
+def _append_session_turns(
     text: Text,
     row: NodeFinderRow,
     snapshot: NodeFinderSnapshot,
 ) -> None:
-    _append_section_header(text, "SHELLS", row.kind_accent)
+    _append_section_header(text, "TURNS", row.kind_accent)
     children = _child_rows(snapshot, row)
     if not children:
-        text.append("No loaded shells.", style="dim")
+        text.append("No loaded turns.", style="dim")
         text.append("\n")
         return
     for child in children:
         if child.agent is None:
             continue
-        shell = child.agent
+        turn = child.agent
         text.append("• ", style="dim")
         text.append(child.name, style=f"bold {child.kind_accent}")
         text.append(f" · {child.kind_label.lower()} · ", style="dim")
-        text.append(shell.display_status, style=_STATUS_STYLE)
-        runtime = shell.duration_display
+        text.append(turn.display_status, style=_STATUS_STYLE)
+        runtime = turn.duration_display
         if runtime and runtime != "?":
             text.append(f" · {runtime}", style="dim")
         text.append("\n")
@@ -307,7 +307,7 @@ def _append_proc_details(text: Text, agent: Agent) -> None:
 
 
 def _append_gate_details(text: Text, agent: Agent) -> None:
-    _append_section_header(text, "GATE", "#AF87FF")
+    _append_section_header(text, "GATE TURN", "#AF87FF")
     text.append(
         agent.gate_label or agent.gate_kind or agent.gate_id or "gate", style="bold"
     )
@@ -361,15 +361,15 @@ def _has_tier1_source(row: NodeFinderRow) -> bool:
         agent.is_clan_container
         or agent.is_monitor
         or agent.is_gate
-        or agent.is_proc_shell
+        or agent.is_named_proc
     ):
         return False
     if agent.is_agent_session_container_row:
-        return any(_is_agent_shell(member) for member in agent.followup_agents)
-    return _is_agent_shell(agent)
+        return any(_is_agent_turn(member) for member in agent.followup_agents)
+    return _is_agent_turn(agent)
 
 
-def _is_agent_shell(agent: Agent) -> bool:
+def _is_agent_turn(agent: Agent) -> bool:
     return agent.is_agent_entry
 
 

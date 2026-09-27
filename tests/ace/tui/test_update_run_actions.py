@@ -179,10 +179,10 @@ def _telegram_receiver_row() -> ObservedProc:
     )
 
 
-def _monitor_shell_row() -> ObservedProc:
+def _monitor_turn_row() -> ObservedProc:
     row = _telegram_receiver_row()
     row.origin = MONITOR_PROC_ORIGIN
-    row.proc_id = "monitor-shell"
+    row.proc_id = "monitor-turn"
     row.display_name = "SASE monitor"
     return row
 
@@ -403,7 +403,7 @@ def test_code_changed_result_restarts(
     assert harness.messages == []
 
 
-def test_code_changed_result_restarts_immediately_with_monitor_shell(
+def test_code_changed_result_restarts_immediately_with_monitor_turn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     written: list[object] = []
@@ -417,7 +417,7 @@ def test_code_changed_result_restarts_immediately_with_monitor_shell(
         written.append,
     )
     monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
-    harness = _ProductionRestartHarness(_monitor_shell_row())
+    harness = _ProductionRestartHarness(_monitor_turn_row())
     result = ComprehensiveUpdateResult(
         sase=ComprehensiveSaseUpdateResult(
             SaseUpdateResultStatus.UPDATED,

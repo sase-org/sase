@@ -6,7 +6,7 @@ fields. The ``Agent`` rows in ``cached_agents_with_children`` and
 boundary copies them first.
 
 Call this before any mutating preparation (incomplete merge, status
-overrides, relationship rebuild, runner-slot annotation, or proc-shell
+overrides, relationship rebuild, runner-slot annotation, or named-proc
 carryover that will be published). Incoming loader rows that are not in
 the live graph stay as-is so the current worker keeps exclusive ownership
 of them.

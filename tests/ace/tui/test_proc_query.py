@@ -31,7 +31,7 @@ def _proc(
     display_name: str | None = None,
     output: str = "",
     origin: str = "",
-    shell_name: str | None = None,
+    proc_name: str | None = None,
     session_id: str | None = None,
     session_live: bool = True,
     exit_code: int | None = None,
@@ -52,7 +52,7 @@ def _proc(
         output=output,
         command=command,
         origin=origin,
-        shell_name=shell_name,
+        proc_name=proc_name,
         session_id=session_id,
         session_live=session_live,
         exit_code=exit_code,
@@ -81,7 +81,7 @@ def test_empty_query_returns_all_rows_unfiltered() -> None:
 
 def test_monitor_bare_and_negated_spellings_select_by_origin() -> None:
     procs = [
-        _proc("mon", origin=MONITOR_PROC_ORIGIN, shell_name="acme--mon"),
+        _proc("mon", origin=MONITOR_PROC_ORIGIN, proc_name="acme--mon"),
         _proc("plain"),
     ]
     filt = ProcQueryFilter()
@@ -245,8 +245,8 @@ def test_output_tail_is_capped_at_32kb() -> None:
 
 def test_agent_field_matches_only_a_monitor_rows_member_agent_name() -> None:
     procs = [
-        _proc("mon", origin=MONITOR_PROC_ORIGIN, shell_name="acme--mon"),
-        _proc("plain", shell_name="acme--mon"),
+        _proc("mon", origin=MONITOR_PROC_ORIGIN, proc_name="acme--mon"),
+        _proc("plain", proc_name="acme--mon"),
     ]
     filt = ProcQueryFilter()
     assert _ids(filt.matching("agent:acme", procs, now=_NOW)) == ["mon"]
@@ -372,7 +372,7 @@ def test_worked_example_just_check_excludes_monitor_and_long_procs() -> None:
             "monitor-row",
             command=["just", "check"],
             origin=MONITOR_PROC_ORIGIN,
-            shell_name="acme--mon",
+            proc_name="acme--mon",
             started_at=_NOW - timedelta(seconds=100),
             finished_at=_NOW,
         ),

@@ -252,13 +252,13 @@ def resolve_agent_prompt_target_scope(
             return None, f"Clan '{label}' has no agents"
         return scope, None
 
-    if agent.is_proc_shell or agent.is_monitor:
-        # A proc shell is a `#fork` source only. An ordinary `%wait` resolves
+    if agent.is_named_proc or agent.is_monitor:
+        # A named proc is a `#fork` source only. An ordinary `%wait` resolves
         # agent/session/clan/tribe artifacts and has no proc branch, so offering
         # one here would hand the user a dependency that can never release.
         if action != "fork":
-            return None, "A proc shell can be forked but not used as a wait target"
-        proc_id = agent.proc_id if agent.is_proc_shell else agent.monitor_id
+            return None, "A named proc can be forked but not used as a wait target"
+        proc_id = agent.proc_id if agent.is_named_proc else agent.monitor_id
         if not proc_id:
             return None, "No proc ID found"
         label = action_agent_prompt_name(agent) or proc_id

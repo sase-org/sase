@@ -98,10 +98,10 @@ class AgentLoadingApplyMixin(
                 trace_extra=extra,
             )
             extra["proc_generation"] = int(getattr(self, "_proc_generation", 0))
-            extra["proc_shell_count"] = sum(
+            extra["named_proc_count"] = sum(
                 1
                 for agent in getattr(self, "_agents_with_children", [])
-                if getattr(agent, "is_proc_shell", False)
+                if getattr(agent, "is_named_proc", False)
             )
 
     def _apply_loaded_agents_prepared_inner(

@@ -92,7 +92,7 @@ class TestConfirmedBeadMetadata:
 
         # Cold cache: cheap header omits the Bead row entirely.
         cheap_header, _ = build_header_text(agent, cheap=True)
-        assert cheap_header.plain.splitlines()[0] == "AGENT SHELL"
+        assert cheap_header.plain.splitlines()[0] == "AGENT TURN"
         assert cheap_header.plain.splitlines()[1] == "Name: sase-x.3"
         assert "Bead:" not in cheap_header.plain
 
@@ -104,7 +104,7 @@ class TestConfirmedBeadMetadata:
         full_header, _ = _full_header(agent)
         assert_metadata_prefix(
             full_header,
-            "AGENT SHELL",
+            "AGENT TURN",
             "Name: sase-x.3",
             "Bead: sase-x.3 - First line",
         )
@@ -359,13 +359,13 @@ class TestConfirmedBeadMetadata:
 
         assert_metadata_prefix(
             cheap_header,
-            "AGENT SHELL",
+            "AGENT TURN",
             "Name: sase-x.3",
             "Bead: sase-x.3 - stale description",
         )
         assert_metadata_prefix(
             full_header,
-            "AGENT SHELL",
+            "AGENT TURN",
             "Name: sase-x.3",
             "Bead: sase-x.3 - stale description",
         )

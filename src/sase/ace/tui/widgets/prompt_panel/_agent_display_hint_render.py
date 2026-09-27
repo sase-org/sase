@@ -30,7 +30,7 @@ from ._agent_display_hint_body import render_agent_prompt_hint_body
 from ._agent_display_hint_sections import (
     render_gate_hint_document,
     render_monitor_hint_document,
-    render_proc_shell_hint_document,
+    render_named_proc_hint_document,
 )
 from ..decks.card_part import card_document, context_card, reply_card, summary_card
 from ._agent_display_state import AgentHintRender, HeaderHintState
@@ -180,8 +180,8 @@ class AgentHintRenderMixin:
                 ),
             )
 
-        if agent.is_proc_shell:
-            return render_proc_shell_hint_document(
+        if agent.is_named_proc:
+            return render_named_proc_hint_document(
                 self,
                 agent,
                 header_text,

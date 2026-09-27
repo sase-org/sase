@@ -35,10 +35,10 @@ def test_sase_agent_headline_renders_before_concrete_metrics() -> None:
     assert "Agents: 2/12" not in plain
 
 
-def test_proc_shell_badge_renders_after_status_strip_with_light_blue_style() -> None:
+def test_named_proc_badge_renders_after_status_strip_with_light_blue_style() -> None:
     panel = AgentInfoPanel()
     panel._sase_agent_count = 21
-    panel._proc_shell_count = 23
+    panel._named_proc_count = 23
     panel._running_count = 6
     panel._waiting_count = 8
     panel._read_count = 7
@@ -57,10 +57,10 @@ def test_proc_shell_badge_renders_after_status_strip_with_light_blue_style() -> 
     assert style_at_plain_index(text, badge_start + 2) == "bold #5FD7FF"
 
 
-def test_proc_shell_badge_hidden_at_zero_keeps_agent_only_prefix() -> None:
+def test_named_proc_badge_hidden_at_zero_keeps_agent_only_prefix() -> None:
     panel = AgentInfoPanel()
     panel._sase_agent_count = 5
-    panel._proc_shell_count = 0
+    panel._named_proc_count = 0
 
     plain = collect_text(panel)
     counts_prefix = plain.split(" · group:", 1)[0]

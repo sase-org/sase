@@ -73,13 +73,13 @@ class AgentKillActionFlowMixin:
             self._handle_monitor_kill_action(agent)  # type: ignore[attr-defined]
             return
 
-        if agent.is_proc_shell:
+        if agent.is_named_proc:
             from sase.procs import ACTIVE_PROC_STATUSES
 
             if agent.proc_status in ACTIVE_PROC_STATUSES:
-                self._handle_active_proc_shell_kill_action(agent)  # type: ignore[attr-defined]
+                self._handle_active_named_proc_kill_action(agent)  # type: ignore[attr-defined]
             else:
-                self._dismiss_proc_shell_rows([agent])  # type: ignore[attr-defined]
+                self._dismiss_named_proc_rows([agent])  # type: ignore[attr-defined]
             return
 
         if agent.is_gate:
@@ -199,23 +199,23 @@ class AgentKillActionFlowMixin:
         from ._marking_kill import gate_is_waiting
 
         targets = self._agent_cleanup_targets_from_candidates(panel_agents)  # type: ignore[attr-defined]
-        proc_shells = [
+        named_procs = [
             agent
             for agent in panel_agents
-            if getattr(agent, "is_proc_shell", False)
+            if getattr(agent, "is_named_proc", False)
             and agent.proc_status not in ACTIVE_PROC_STATUSES
         ]
-        active_proc_shells = [
+        active_named_procs = [
             agent
             for agent in panel_agents
-            if getattr(agent, "is_proc_shell", False)
+            if getattr(agent, "is_named_proc", False)
             and agent.proc_status in ACTIVE_PROC_STATUSES
         ]
         waiting_gates = [agent for agent in panel_agents if gate_is_waiting(agent)]
         if (
             not targets
-            and not proc_shells
-            and not active_proc_shells
+            and not named_procs
+            and not active_named_procs
             and not waiting_gates
         ) or self._resolve_panel_cleanup_focus() != focus:
             self.notify(  # type: ignore[attr-defined]
@@ -228,7 +228,7 @@ class AgentKillActionFlowMixin:
 
         label = agent_panel_label(focus.panel_key)
         self._present_bulk_kill_modal(  # type: ignore[attr-defined]
-            [*targets, *proc_shells, *active_proc_shells, *waiting_gates],
+            [*targets, *named_procs, *active_named_procs, *waiting_gates],
             header=f"Panel: {label}",
         )
 

@@ -63,21 +63,21 @@ class MonitorStopActionFlowMixin:
             ConfirmStopMonitorModal(description), on_dismiss
         )
 
-    def _handle_active_proc_shell_kill_action(self, agent: Agent) -> None:
-        """Confirm and remove an active proc-shell row in one step.
+    def _handle_active_named_proc_kill_action(self, agent: Agent) -> None:
+        """Confirm and remove an active named-proc row in one step.
 
         The row is tombstoned at once and the durable bulk transaction stops
         it through the canonical proc stop.
         """
         if agent.proc_status not in ACTIVE_PROC_STATUSES:
-            self._dismiss_proc_shell_rows([agent])  # type: ignore[attr-defined]
+            self._dismiss_named_proc_rows([agent])  # type: ignore[attr-defined]
             return
         proc_id = agent.proc_id
         if not proc_id:
-            self.notify("Cannot resolve proc shell id", severity="error")  # type: ignore[attr-defined]
+            self.notify("Cannot resolve named proc id", severity="error")  # type: ignore[attr-defined]
             return
 
-        from ...modals import ConfirmKillProcShellModal
+        from ...modals import ConfirmKillNamedProcModal
 
         description = agent.proc_label or agent.agent_name or short_proc_id(proc_id)
 
@@ -86,7 +86,7 @@ class MonitorStopActionFlowMixin:
                 self._do_bulk_kill_agents([], [], proc_stops=[agent])  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
-            ConfirmKillProcShellModal(description), on_dismiss
+            ConfirmKillNamedProcModal(description), on_dismiss
         )
 
     def _handle_pending_gate_kill_action(self, agent: Agent) -> None:
@@ -102,7 +102,7 @@ class MonitorStopActionFlowMixin:
             or agent.gate_kind
             or agent.agent_name
             or agent.gate_id
-            or "gate shell"
+            or "gate turn"
         )
 
         def on_dismiss(confirmed: bool | None) -> None:
@@ -113,35 +113,35 @@ class MonitorStopActionFlowMixin:
             ConfirmCancelGateModal(description), on_dismiss
         )
 
-    def _handle_proc_shell_kill_action(self, agent: Agent) -> None:
-        """Confirm and kill a stand-alone proc shell through the proc service."""
+    def _handle_named_proc_kill_action(self, agent: Agent) -> None:
+        """Confirm and kill a stand-alone named proc through the proc service."""
         if agent.proc_status not in ACTIVE_PROC_STATUSES:
             self.notify(  # type: ignore[attr-defined]
-                "Proc shell has already finished", severity="warning"
+                "Named proc has already finished", severity="warning"
             )
             return
         proc_id = agent.proc_id
         if not proc_id:
-            self.notify("Cannot resolve proc shell id", severity="error")  # type: ignore[attr-defined]
+            self.notify("Cannot resolve named proc id", severity="error")  # type: ignore[attr-defined]
             return
 
-        from ...modals import ConfirmKillProcShellModal
+        from ...modals import ConfirmKillNamedProcModal
 
         description = agent.proc_label or agent.agent_name or short_proc_id(proc_id)
 
         def on_dismiss(confirmed: bool | None) -> None:
             if confirmed:
-                self._do_kill_proc_shell(agent)  # type: ignore[attr-defined]
+                self._do_kill_named_proc(agent)  # type: ignore[attr-defined]
 
         self.push_screen(  # type: ignore[attr-defined]
-            ConfirmKillProcShellModal(description), on_dismiss
+            ConfirmKillNamedProcModal(description), on_dismiss
         )
 
-    def _do_kill_proc_shell(self, agent: Agent) -> None:
+    def _do_kill_named_proc(self, agent: Agent) -> None:
         """Submit ``sase proc kill`` as a durable proc operation."""
         proc_id = agent.proc_id
         if not proc_id:
-            self.notify("Cannot resolve proc shell id", severity="error")  # type: ignore[attr-defined]
+            self.notify("Cannot resolve named proc id", severity="error")  # type: ignore[attr-defined]
             return
         label = agent.proc_label or agent.agent_name or short_proc_id(proc_id)
         proc_ref = proc_id

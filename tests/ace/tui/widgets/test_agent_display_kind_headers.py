@@ -47,10 +47,10 @@ def _section_ids(text: Text) -> list[str]:
 
 def test_append_kind_header_does_not_mark_a_section() -> None:
     text = Text()
-    append_kind_header(text, "AGENT SHELL", "#FFD700")
+    append_kind_header(text, "AGENT TURN", "#FFD700")
 
-    assert text.plain == "AGENT SHELL\n"
-    assert_kind_header(text, "AGENT SHELL", "#FFD700")
+    assert text.plain == "AGENT TURN\n"
+    assert_kind_header(text, "AGENT TURN", "#FFD700")
     assert _section_ids(text) == []
 
 
@@ -71,15 +71,15 @@ def test_agent_session_container_header_opens_with_agent_session_kind_line(
     )
 
     for header in (cheap, full):
-        assert_kind_header(header, "SESSION", "#00AFFF", before="SESSION SHELLS")
+        assert_kind_header(header, "SESSION", "#00AFFF", before="SESSION TURNS")
         assert header.plain.startswith("SESSION\nName:")
         assert header.plain.index("Name:") < header.plain.index("Fold:")
-        assert header.plain.index("Fold:") < header.plain.index("SESSION SHELLS")
+        assert header.plain.index("Fold:") < header.plain.index("SESSION TURNS")
         assert "session" not in _section_ids(header)
         assert _section_ids(header)[0] == "members"
 
 
-def test_agent_session_member_header_opens_with_agent_shell(
+def test_agent_session_member_header_opens_with_agent_turn(
     tmp_path: Path,
 ) -> None:
     _root, child = make_agent_session(tmp_path)
@@ -90,25 +90,25 @@ def test_agent_session_member_header_opens_with_agent_shell(
         lane_fold_level=FoldLevel.EXPANDED,
     )
 
-    assert_kind_header(header, "AGENT SHELL", "#FFD700")
-    assert header.plain.startswith("AGENT SHELL\nName:")
-    assert "SESSION SHELLS · 1 · alpha" in header.plain
-    prefix, _, _ = header.plain.partition("SESSION SHELLS")
+    assert_kind_header(header, "AGENT TURN", "#FFD700")
+    assert header.plain.startswith("AGENT TURN\nName:")
+    assert "SESSION TURNS · 1 · alpha" in header.plain
+    prefix, _, _ = header.plain.partition("SESSION TURNS")
     assert "SESSION\n" not in prefix
     assert "session" not in _section_ids(header)
     assert "agent-shell" not in _section_ids(header)
     assert _section_ids(header)[0] == "members"
 
 
-def test_standalone_agent_header_opens_with_agent_shell() -> None:
+def test_standalone_agent_header_opens_with_agent_turn() -> None:
     agent = make_agent(agent_name="solo")
 
     cheap, _ = build_header_text(agent, cheap=True)
     full, _ = build_header_text(agent, cheap=False)
 
     for header in (cheap, full):
-        assert_kind_header(header, "AGENT SHELL", "#FFD700")
-        assert header.plain.startswith("AGENT SHELL\nName: solo\n")
+        assert_kind_header(header, "AGENT TURN", "#FFD700")
+        assert header.plain.startswith("AGENT TURN\nName: solo\n")
         assert "agent-shell" not in _section_ids(header)
 
 
@@ -119,10 +119,10 @@ def test_update_header_only_includes_kind_heading_on_first_paint() -> None:
     panel.update_header_only(agent)
 
     plain = plain_of(panel.captured[-1])
-    assert plain.startswith("AGENT SHELL\nName: solo\n")
+    assert plain.startswith("AGENT TURN\nName: solo\n")
 
 
-def test_unattached_agent_session_root_opens_with_agent_shell() -> None:
+def test_unattached_agent_session_root_opens_with_agent_turn() -> None:
     root = make_agent(
         agent_name="alpha--plan",
         agent_session="alpha",
@@ -135,7 +135,7 @@ def test_unattached_agent_session_root_opens_with_agent_shell() -> None:
 
     header, _ = build_header_text(root, cheap=True)
 
-    assert_kind_header(header, "AGENT SHELL", "#FFD700")
+    assert_kind_header(header, "AGENT TURN", "#FFD700")
     assert not header.plain.startswith("SESSION\n")
 
 
@@ -162,7 +162,7 @@ def test_monitor_member_has_no_kind_heading() -> None:
 
     header, _ = build_header_text(agent, cheap=True)
 
-    assert not header.plain.startswith("AGENT SHELL")
+    assert not header.plain.startswith("AGENT TURN")
     assert not header.plain.startswith("SESSION")
     assert header.plain.startswith("Name:")
 
@@ -182,7 +182,7 @@ def test_workflow_step_has_no_kind_heading(step_type: str) -> None:
 
     header, _ = build_header_text(agent, cheap=True)
 
-    assert not header.plain.startswith("AGENT SHELL")
+    assert not header.plain.startswith("AGENT TURN")
     assert not header.plain.startswith("SESSION")
     # Cheap headers keep a Step: line only for bash/python workflow children.
     if step_type in {"bash", "python"}:
@@ -191,7 +191,7 @@ def test_workflow_step_has_no_kind_heading(step_type: str) -> None:
         assert "Step:" not in header.plain
 
 
-def test_workflow_agent_step_opens_with_agent_shell() -> None:
+def test_workflow_agent_step_opens_with_agent_turn() -> None:
     agent = make_agent(
         agent_type=AgentType.WORKFLOW,
         parent_workflow="wf",
@@ -205,7 +205,7 @@ def test_workflow_agent_step_opens_with_agent_shell() -> None:
 
     header, _ = build_header_text(agent, cheap=True)
 
-    assert_kind_header(header, "AGENT SHELL", "#FFD700")
+    assert_kind_header(header, "AGENT TURN", "#FFD700")
 
 
 def test_clan_header_still_opens_with_clan() -> None:

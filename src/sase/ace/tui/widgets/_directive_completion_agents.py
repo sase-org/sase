@@ -171,7 +171,7 @@ def _derived_tribe_entries(
 def _derived_hood_entries(
     entries: Sequence[AgentCompletionCandidate],
 ) -> list[AgentCompletionCandidate]:
-    """Derive aggregate hood rows from visible agent and proc shell names."""
+    """Derive aggregate hood rows from visible agent and named proc names."""
     explicit = {entry.name for entry in entries if entry.kind == "hood"}
     members_by_hood: dict[str, list[AgentCompletionCandidate]] = {}
     for entry in entries:

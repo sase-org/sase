@@ -1,4 +1,4 @@
-"""Agents-tab projection for stand-alone proc-shell records."""
+"""Agents-tab projection for stand-alone named-proc records."""
 
 from __future__ import annotations
 
@@ -13,14 +13,14 @@ from sase.ace.tui.actions.agents._display_panel_titles import agent_panel_counts
 from sase.ace.tui.actions.agents._monitor_stop_flow import MonitorStopActionFlowMixin
 from sase.ace.tui.models._agent_clan import sase_agent_status_counts
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_proc_shells import (
-    proc_shell_agents_from_observed,
-    proc_shell_command_title,
+from sase.ace.tui.models.agent_named_procs import (
+    named_proc_agents_from_observed,
+    named_proc_command_title,
 )
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets._agent_list_render_cache import agent_render_key
 from sase.ops.names import PROC_KILL
-from sase.procs import PROC_LIFECYCLE_PROC_SHELL, XPROMPT_PROC_ORIGIN
+from sase.procs import PROC_LIFECYCLE_NAMED_PROC, XPROMPT_PROC_ORIGIN
 
 
 def _dt(value: str) -> datetime:
@@ -31,16 +31,16 @@ def _proc(
     proc_id: str = "abc123def456",
     *,
     status: str = "running",
-    lifecycle: str = PROC_LIFECYCLE_PROC_SHELL,
+    lifecycle: str = PROC_LIFECYCLE_NAMED_PROC,
     origin: str = XPROMPT_PROC_ORIGIN,
     label: str | None = "Build docs",
-    shell_name: str | None = "agent--build",
+    proc_name: str | None = "agent--build",
     xprompt_proc: dict[str, Any] | None = None,
 ) -> ObservedProc:
     meta = {
         "logical_id": "unit-1",
         "label": label,
-        "shell_name": shell_name,
+        "proc_name": proc_name,
         "code_digest": "sha256:code",
         "code_language": "bash",
         "safe_preview": "echo ok\napi_key=hidden",
@@ -64,8 +64,8 @@ def _proc(
         project="sase",
         workspace_num=12,
         phase="execute",
-        shell_name=shell_name,
-        shell_kind="bash",
+        proc_name=proc_name,
+        proc_role="bash",
         timeout_seconds=600,
         idle_timeout_seconds=120,
         request_fingerprint="sha256:proc",
@@ -77,17 +77,17 @@ def _proc(
 
 def _patch_projection_io(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.models.agent_proc_shells.project_display_name_for",
+        "sase.ace.tui.models.agent_named_procs.project_display_name_for",
         lambda key: f"{key} display",
     )
 
 
-def test_proc_shell_projection_selects_standalone_xprompt_procs_and_dedupes(
+def test_named_proc_projection_selects_standalone_xprompt_procs_and_dedupes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
 
-    agents = proc_shell_agents_from_observed(
+    agents = named_proc_agents_from_observed(
         [
             _proc(),
             _proc(label="duplicate"),
@@ -98,8 +98,8 @@ def test_proc_shell_projection_selects_standalone_xprompt_procs_and_dedupes(
 
     assert len(agents) == 1
     agent = agents[0]
-    assert agent.agent_type is AgentType.PROC_SHELL
-    assert agent.is_proc_shell
+    assert agent.agent_type is AgentType.NAMED_PROC
+    assert agent.is_named_proc
     assert agent.is_agent_entry is False
     assert agent.pid is None
     assert agent.proc_id == "abc123def456"
@@ -115,11 +115,11 @@ def test_proc_shell_projection_selects_standalone_xprompt_procs_and_dedupes(
     assert "password" not in (agent.proc_log_tail or "")
 
 
-def test_proc_shell_projection_skips_dismissed_proc_ids(
+def test_named_proc_projection_skips_dismissed_proc_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
-    skipped = proc_shell_agents_from_observed(
+    skipped = named_proc_agents_from_observed(
         [_proc()],
         dismissed_proc_ids={"abc123def456"},
     )
@@ -137,7 +137,7 @@ def test_proc_shell_projection_skips_dismissed_proc_ids(
         ("killed", "STOPPED", "Done"),
     ],
 )
-def test_proc_shell_projection_maps_proc_statuses(
+def test_named_proc_projection_maps_proc_statuses(
     monkeypatch: pytest.MonkeyPatch,
     proc_status: str,
     agent_status: str,
@@ -145,14 +145,14 @@ def test_proc_shell_projection_maps_proc_statuses(
 ) -> None:
     _patch_projection_io(monkeypatch)
 
-    [agent] = proc_shell_agents_from_observed([_proc(status=proc_status)])
+    [agent] = named_proc_agents_from_observed([_proc(status=proc_status)])
 
     assert agent.status == agent_status
     assert agent.status_bucket == bucket
     assert agent.proc_status == proc_status
 
 
-def test_proc_shell_projection_resolves_explicit_label_provenance(
+def test_named_proc_projection_resolves_explicit_label_provenance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
@@ -161,7 +161,7 @@ def test_proc_shell_projection_resolves_explicit_label_provenance(
         _proc(
             "label123456",
             label="Chosen label",
-            shell_name="named-shell",
+            proc_name="named-shell",
             xprompt_proc={
                 "logical_id": "unit-1",
                 "label": "Chosen label",
@@ -171,24 +171,24 @@ def test_proc_shell_projection_resolves_explicit_label_provenance(
         _proc(
             "shell123456",
             label="unit-1",
-            shell_name="named-shell",
+            proc_name="named-shell",
             xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo shell"},
         ),
         _proc(
             "compat123456",
             label="Old display",
-            shell_name=None,
+            proc_name=None,
             xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo compat"},
         ),
         _proc(
             "unit123456",
             label="unit-1",
-            shell_name=None,
+            proc_name=None,
             xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo synthetic"},
         ),
     ]
 
-    agents = proc_shell_agents_from_observed(rows)
+    agents = named_proc_agents_from_observed(rows)
 
     assert [agent.proc_label for agent in agents] == [
         "Chosen label",
@@ -208,15 +208,15 @@ def test_proc_shell_projection_resolves_explicit_label_provenance(
         ("   \n\t", None),
     ],
 )
-def test_proc_shell_command_title_compacts_preview(
+def test_named_proc_command_title_compacts_preview(
     preview: str,
     expected: str | None,
 ) -> None:
-    assert proc_shell_command_title(preview) == expected
+    assert named_proc_command_title(preview) == expected
 
 
-def test_proc_shell_command_title_truncates_to_cell_budget() -> None:
-    title = proc_shell_command_title("echo " + ("x" * 80))
+def test_named_proc_command_title_truncates_to_cell_budget() -> None:
+    title = named_proc_command_title("echo " + ("x" * 80))
 
     assert title is not None
     assert title.startswith("❯ echo ")
@@ -224,11 +224,11 @@ def test_proc_shell_command_title_truncates_to_cell_budget() -> None:
     assert cell_len(title) <= 48
 
 
-def test_proc_shell_row_renders_explicit_identity_status_and_language(
+def test_named_proc_row_renders_explicit_identity_status_and_language(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
-    [agent] = proc_shell_agents_from_observed([_proc()])
+    [agent] = named_proc_agents_from_observed([_proc()])
 
     left, _suffix, _option_id = format_agent_option(agent, 0, is_selected=False)
 
@@ -240,15 +240,15 @@ def test_proc_shell_row_renders_explicit_identity_status_and_language(
     assert "abc123" not in left.plain
 
 
-def test_proc_shell_row_renders_derived_command_title(
+def test_named_proc_row_renders_derived_command_title(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
-    [agent] = proc_shell_agents_from_observed(
+    [agent] = named_proc_agents_from_observed(
         [
             _proc(
                 label="unit-1",
-                shell_name=None,
+                proc_name=None,
                 xprompt_proc={
                     "logical_id": "unit-1",
                     "code_language": "bash",
@@ -269,24 +269,24 @@ def test_proc_shell_row_renders_derived_command_title(
     assert "[bash]" in left.plain
 
 
-def test_proc_shell_render_key_tracks_derived_title_inputs(
+def test_named_proc_render_key_tracks_derived_title_inputs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
-    [first] = proc_shell_agents_from_observed(
+    [first] = named_proc_agents_from_observed(
         [
             _proc(
                 label="unit-1",
-                shell_name=None,
+                proc_name=None,
                 xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo one"},
             )
         ]
     )
-    [second] = proc_shell_agents_from_observed(
+    [second] = named_proc_agents_from_observed(
         [
             _proc(
                 label="unit-1",
-                shell_name=None,
+                proc_name=None,
                 xprompt_proc={"logical_id": "unit-1", "safe_preview": "echo two"},
             )
         ]
@@ -309,11 +309,11 @@ def test_proc_shell_render_key_tracks_derived_title_inputs(
     )
 
 
-def test_proc_shell_counts_stay_out_of_agent_lanes(
+def test_named_proc_counts_stay_out_of_agent_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
-    [proc_agent] = proc_shell_agents_from_observed([_proc()])
+    [proc_agent] = named_proc_agents_from_observed([_proc()])
     running_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase",
@@ -329,13 +329,13 @@ def test_proc_shell_counts_stay_out_of_agent_lanes(
     assert summary.total == 1
     assert summary.running == 1
     assert panel_counts.lane_count == 1
-    assert panel_counts.proc_shells == 1
+    assert panel_counts.named_procs == 1
 
 
-def test_proc_shell_groups_under_its_selected_project(
+def test_named_proc_groups_under_its_selected_project(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A proc shell has a project but no agent ``.sase`` project file."""
+    """A named proc has a project but no agent ``.sase`` project file."""
     from sase.ace.tui.models.agent_groups import (
         GroupingMode,
         _grouping_keys_for_agents,
@@ -343,7 +343,7 @@ def test_proc_shell_groups_under_its_selected_project(
     from sase.ace.tui.models.agent_groups._buckets import NO_PROJECT
 
     _patch_projection_io(monkeypatch)
-    [proc_agent] = proc_shell_agents_from_observed([_proc()])
+    [proc_agent] = named_proc_agents_from_observed([_proc()])
     projectless_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="sase",
@@ -373,14 +373,14 @@ class _KillHost(MonitorStopActionFlowMixin):
         self.notifications.append((message, severity))
 
 
-def test_proc_shell_kill_dispatches_native_proc_operation(
+def test_named_proc_kill_dispatches_native_proc_operation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_projection_io(monkeypatch)
     host = _KillHost()
-    [agent] = proc_shell_agents_from_observed([_proc()])
+    [agent] = named_proc_agents_from_observed([_proc()])
 
-    host._do_kill_proc_shell(agent)
+    host._do_kill_named_proc(agent)
 
     assert host.notifications == []
     call = host.calls[0]

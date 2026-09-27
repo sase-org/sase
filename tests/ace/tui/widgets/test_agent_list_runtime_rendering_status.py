@@ -9,7 +9,7 @@ import pytest
 from sase.agent.status_buckets import FEEDBACK_STATUS
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
-from sase.gate_shell.status import gate_status_pair, gate_status_style
+from sase.gate_turn.status import gate_status_pair, gate_status_style
 
 from .agent_list_runtime_helpers import agent
 

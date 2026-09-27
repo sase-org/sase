@@ -24,7 +24,7 @@ from ..proc_observer import (
     DETAIL_LOG_LINES,
     ObservedProc,
     ProcLogLine,
-    is_monitor_shell_row,
+    is_monitor_turn_row,
 )
 from ..proc_subprocess import command_display
 from ..util.axe_log_renderer import render_axe_output
@@ -138,8 +138,8 @@ def _append_monitor_marker(
     prefix: str = "",
     suffix: str = "",
 ) -> None:
-    """Mark a ``sase monitor start`` proc shell with the canonical orange gear."""
-    if is_monitor_shell_row(task):
+    """Mark a ``sase monitor start`` named proc with the canonical orange gear."""
+    if is_monitor_turn_row(task):
         text.append(f"{prefix}{MONITOR_GLYPH}{suffix}", style=_MONITOR_GLYPH_STYLE)
 
 
@@ -160,11 +160,11 @@ def _resolved_agent_name(
 ) -> str | None:
     """Return the monitor row's member agent name from the rebuild's index.
 
-    Gated on ``is_monitor_shell_row`` rather than mapping membership alone,
+    Gated on ``is_monitor_turn_row`` rather than mapping membership alone,
     so a non-monitor row never shows a name even if the caller's index were
     ever built or keyed incorrectly.
     """
-    if not agent_names or not is_monitor_shell_row(task):
+    if not agent_names or not is_monitor_turn_row(task):
         return None
     return agent_names.get(task.proc_id)
 
@@ -174,11 +174,11 @@ def _resolved_status_chip(
 ) -> MonitorStatusChip | None:
     """Return the monitor row's status chip from the rebuild's index.
 
-    Gated on ``is_monitor_shell_row`` like ``_resolved_agent_name``, so a
+    Gated on ``is_monitor_turn_row`` like ``_resolved_agent_name``, so a
     non-monitor row never shows a chip even if the caller's index were ever
     built or keyed incorrectly.
     """
-    if not status_chips or not is_monitor_shell_row(task):
+    if not status_chips or not is_monitor_turn_row(task):
         return None
     return status_chips.get(task.proc_id)
 

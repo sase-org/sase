@@ -21,10 +21,10 @@ from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_session_members import (
-    NO_SHELL_LANES,
-    ShellLaneCounts,
+    NO_TURN_LANES,
+    TurnLaneCounts,
     is_sequential_agent_session_container,
-    shell_lane_counts,
+    turn_lane_counts,
 )
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent_panels import normalize_panel_key
@@ -57,7 +57,7 @@ from ._agent_list_styling import (
     _MONITOR_COUNT_GLYPH_STYLE,
     _MONITOR_GLYPH,
     _MONITOR_SETTLED_COUNT_GLYPH_STYLE,
-    _PROC_SHELL_ID_STYLE,
+    _NAMED_PROC_ID_STYLE,
 )
 
 
@@ -154,7 +154,7 @@ def format_agent_option(
     clan_counts: ClanStatusCounts | None = None,
     clan_unknown_wait_count: int = 0,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
-    shell_lanes: ShellLaneCounts | None = None,
+    turn_lanes: TurnLaneCounts | None = None,
     show_machine_chip: bool = False,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
@@ -228,9 +228,9 @@ def format_agent_option(
         agent
     )
     lanes = (
-        (shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES)
-        if shell_lanes is None
-        else shell_lanes
+        (turn_lane_counts(agent) if is_container_row else NO_TURN_LANES)
+        if turn_lanes is None
+        else turn_lanes
     )
     if lanes.monitor.running and is_container_row:
         text.append(" ")
@@ -276,8 +276,8 @@ def format_agent_option(
     if agent.is_clan_container:
         identity_name_style = _CLAN_NAME_STYLE
         presented_name = agent.display_name
-    elif agent.is_proc_shell:
-        identity_name_style = _PROC_SHELL_ID_STYLE
+    elif agent.is_named_proc:
+        identity_name_style = _NAMED_PROC_ID_STYLE
         presented_name = f"[{agent.proc_language}]" if agent.proc_language else None
     else:
         presented_name = agent.presented_agent_name or agent.agent_name
@@ -381,7 +381,7 @@ def cached_format_agent_option(
     is_container_row = agent.is_clan_container or is_sequential_agent_session_container(
         agent
     )
-    lanes = shell_lane_counts(agent) if is_container_row else NO_SHELL_LANES
+    lanes = turn_lane_counts(agent) if is_container_row else NO_TURN_LANES
     key = agent_render_key(
         agent,
         index,
@@ -403,7 +403,7 @@ def cached_format_agent_option(
         clan_counts=visible_clan_counts,
         clan_unknown_wait_count=clan_unknown_wait_count,
         unread_agent_ids=unread_agent_ids,
-        shell_lanes=lanes,
+        turn_lanes=lanes,
         show_machine_chip=show_machine_chip,
     )
     hit = cache.get_agent(key)
@@ -430,7 +430,7 @@ def cached_format_agent_option(
         clan_counts=visible_clan_counts,
         clan_unknown_wait_count=clan_unknown_wait_count,
         unread_agent_ids=unread_agent_ids,
-        shell_lanes=lanes,
+        turn_lanes=lanes,
         show_machine_chip=show_machine_chip,
     )
     cache.put_agent(key, parts)

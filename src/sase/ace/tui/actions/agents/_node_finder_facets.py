@@ -58,7 +58,7 @@ def _describe_plain_row(
     Exact fast path through :func:`describe_node_finder_row_from_facts`
     for ordinary running agents (no clan/proc/workflow-step/session shape
     and no monitor/gate/session-child role): the name, title, jumpable,
-    and kind branches collapse to these reads, and a running non-shell
+    and kind branches collapse to these reads, and a running non-turn
     row is always an agent entry. Any other shape uses the full batched
     describer; the differential test pins this against the single-row
     contract.
@@ -70,7 +70,7 @@ def _describe_plain_row(
         not is_pre_prompt_step,
         name,
         title,
-        "AGENT SHELL",
+        "AGENT TURN",
         styles["agent_entry"],
     )
 
@@ -98,8 +98,8 @@ def snapshot_all_facets(
     The row loop reuses the same facts plus one shared kind-style binding
     when calling the batched describer, instead of re-parsing suffixes per
     property per row. Every table is local to this snapshot; live owner
-    state is still read afresh on every open. The shell/child maps stay
-    sparse: ordinary running rows are never shells or child rows, so only
+    state is still read afresh on every open. The turn/child maps stay
+    sparse: ordinary running rows are never turns or child rows, so only
     other shapes populate them, and every consumer falls back to the same
     live read for a missing id.
     """
@@ -187,7 +187,7 @@ def snapshot_all_facets(
         else:
             is_monitor = False
             is_gate = False
-        is_proc = agent.is_proc_shell
+        is_proc = agent.is_named_proc
         is_wf_step = linkage is AgentChildLinkage.WORKFLOW_STEP
         is_session_child = linkage is AgentChildLinkage.AGENT_SESSION_MEMBER
         # ``is_agent_session_root_entry`` is ``not is_workflow_child``
@@ -243,8 +243,8 @@ def snapshot_all_facets(
                 agent.is_pre_prompt_step,
             )
             continue
-        # Only non-plain rows populate the shell/child maps: the plain
-        # branch above already proved its rows are never shells or child
+        # Only non-plain rows populate the turn/child maps: the plain
+        # branch above already proved its rows are never turns or child
         # rows, and every map consumer (the fold filter, the keep-all fast
         # path, and the row describer) falls back to the same live read
         # for a missing id.

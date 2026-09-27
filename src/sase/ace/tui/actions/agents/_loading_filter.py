@@ -388,10 +388,10 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
             "agents.finalize_agent_list",
             agents=len(getattr(self, "_agents", [])),
             proc_generation=int(getattr(self, "_proc_generation", 0)),
-            proc_shell_count=sum(
+            named_proc_count=sum(
                 1
                 for agent in getattr(self, "_agents_with_children", [])
-                if getattr(agent, "is_proc_shell", False)
+                if getattr(agent, "is_named_proc", False)
             ),
         ):
             finalize_agent_list(

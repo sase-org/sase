@@ -1,4 +1,4 @@
-"""Dismiss finished stand-alone proc-shell rows from the Agents tab."""
+"""Dismiss finished stand-alone named-proc rows from the Agents tab."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.actions.agents._marking_kill import AgentMarkedKillMixin
-from sase.ace.tui.actions.agents._proc_shell_dismiss import ProcShellDismissMixin
+from sase.ace.tui.actions.agents._named_proc_dismiss import NamedProcDismissMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -25,7 +25,7 @@ class _KillDispatchApp(AgentsMixin):
         self._agents_with_children = [agent]
         self._marked_agents = set()
         self._current_group_key = None
-        self._dismissed_proc_shells: set[str] = set()
+        self._dismissed_named_procs: set[str] = set()
         self._notifications: list[tuple[str, str]] = []
         self.pushed: list[tuple[object, Callable[[bool], None]]] = []
         self.dismissed_rows: list[list[Agent]] = []
@@ -40,7 +40,7 @@ class _KillDispatchApp(AgentsMixin):
     def _get_selected_agent(self) -> Agent | None:
         return self._agents[self.current_idx] if self._agents else None
 
-    def _dismiss_proc_shell_rows(self, agents: list[Agent]) -> None:
+    def _dismiss_named_proc_rows(self, agents: list[Agent]) -> None:
         self.dismissed_rows.append(list(agents))
 
     def _do_bulk_kill_agents(
@@ -62,7 +62,7 @@ class _KillDispatchApp(AgentsMixin):
 
 
 class _BulkDismissApp(
-    ProcShellDismissMixin, AgentDismissingMixin, AgentMarkedKillMixin
+    NamedProcDismissMixin, AgentDismissingMixin, AgentMarkedKillMixin
 ):
     def __init__(self, agents: list[Agent]) -> None:
         self.current_tab = "agents"
@@ -73,7 +73,7 @@ class _BulkDismissApp(
         self._marked_agent_order: list[tuple[AgentType, str, str | None]] = []
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
-        self._dismissed_proc_shells: set[str] = set()
+        self._dismissed_named_procs: set[str] = set()
         self._agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = {}
         self._dismiss_persistence_inflight: set[tuple[AgentType, str, str | None]] = (
             set()
@@ -117,7 +117,7 @@ class _BulkDismissApp(
         return None
 
 
-def _proc_shell(
+def _named_proc(
     *,
     proc_id: str = "abc123def456",
     status: str = "DONE",
@@ -125,7 +125,7 @@ def _proc_shell(
     label: str = "unit-1",
 ) -> Agent:
     return Agent(
-        agent_type=AgentType.PROC_SHELL,
+        agent_type=AgentType.NAMED_PROC,
         cl_name="sase",
         project_file="",
         status=status,
@@ -175,27 +175,27 @@ def _gate_agent(
     return agent
 
 
-def test_action_kill_agent_dismisses_terminal_proc_shell() -> None:
-    agent = _proc_shell()
+def test_action_kill_agent_dismisses_terminal_named_proc() -> None:
+    agent = _named_proc()
     app = _KillDispatchApp(agent)
 
     app.action_kill_agent()
 
     assert app.dismissed_rows == [[agent]]
     assert app.pushed == []
-    assert ("Proc shell has already finished", "warning") not in app._notifications
+    assert ("Named proc has already finished", "warning") not in app._notifications
 
 
-def test_action_kill_agent_on_running_proc_shell_confirms_kill() -> None:
-    agent = _proc_shell(status="RUNNING", proc_status="running")
+def test_action_kill_agent_on_running_named_proc_confirms_kill() -> None:
+    agent = _named_proc(status="RUNNING", proc_status="running")
     app = _KillDispatchApp(agent)
 
     app.action_kill_agent()
 
     assert app.dismissed_rows == []
     assert len(app.pushed) == 1
-    assert app.pushed[0][0].__class__.__name__ == "ConfirmKillProcShellModal"
-    assert ("Proc shell has already finished", "warning") not in app._notifications
+    assert app.pushed[0][0].__class__.__name__ == "ConfirmKillNamedProcModal"
+    assert ("Named proc has already finished", "warning") not in app._notifications
 
     app.pushed[0][1](True)
 
@@ -203,9 +203,9 @@ def test_action_kill_agent_on_running_proc_shell_confirms_kill() -> None:
     assert app.bulk_kill_calls == [([], [])]
 
 
-def test_dismiss_all_done_dismisses_agent_and_terminal_proc_shell() -> None:
+def test_dismiss_all_done_dismisses_agent_and_terminal_named_proc() -> None:
     done = _done_agent()
-    proc = _proc_shell()
+    proc = _named_proc()
     app = _BulkDismissApp([done, proc])
 
     with (
@@ -217,7 +217,7 @@ def test_dismiss_all_done_dismisses_agent_and_terminal_proc_shell() -> None:
         app._dismiss_all_done_agents_global()
 
     assert app.dismissed_agents == [[done]]
-    assert proc.proc_id in app._dismissed_proc_shells
+    assert proc.proc_id in app._dismissed_named_procs
     assert all(agent.identity != proc.identity for agent in app._agents)
     assert all(agent.identity != proc.identity for agent in app._agents_with_children)
     assert [agent.identity for agent in app._dismissed_agent_objects] == [done.identity]
@@ -225,9 +225,9 @@ def test_dismiss_all_done_dismisses_agent_and_terminal_proc_shell() -> None:
     delete_artifacts.assert_not_called()
 
 
-def test_marked_bulk_kill_dismisses_terminal_proc_shell() -> None:
+def test_marked_bulk_kill_dismisses_terminal_named_proc() -> None:
     done = _done_agent()
-    proc = _proc_shell()
+    proc = _named_proc()
     app = _BulkDismissApp([done, proc])
 
     with (
@@ -239,10 +239,10 @@ def test_marked_bulk_kill_dismisses_terminal_proc_shell() -> None:
         app._present_bulk_kill_modal([done, proc])
 
     assert app.bulk_killed == [([], [done], [], [])]
-    assert proc.proc_id in app._dismissed_proc_shells
+    assert proc.proc_id in app._dismissed_named_procs
     assert [agent.identity for agent in app._dismissed_agent_objects] == [done.identity]
     description = app.pushed[0].agent_description
-    assert "Dismiss 1 proc shell" in description
+    assert "Dismiss 1 named proc" in description
     save_bundle.assert_not_called()
     delete_artifacts.assert_not_called()
 
@@ -285,20 +285,20 @@ def test_marked_bulk_kill_mixed_batch_cancels_pending_gate() -> None:
     assert "Skipping" not in app.pushed[0].agent_description
 
 
-def test_marked_bulk_kill_kills_active_proc_shell() -> None:
-    running = _proc_shell(status="RUNNING", proc_status="running")
+def test_marked_bulk_kill_kills_active_named_proc() -> None:
+    running = _named_proc(status="RUNNING", proc_status="running")
     app = _BulkDismissApp([running])
 
     app._present_bulk_kill_modal([running])
 
     assert app.bulk_killed == [([], [], [running], [])]
     assert len(app.pushed) == 1
-    assert "Kill 1 running proc shell" in app.pushed[0].agent_description
+    assert "Kill 1 running named proc" in app.pushed[0].agent_description
     assert "Skipping" not in app.pushed[0].agent_description
     assert app._notifications == []
 
 
-class _ProcShellPanelApp(_BulkDismissApp):
+class _NamedProcPanelApp(_BulkDismissApp):
     """Bulk-dismiss app whose fast path succeeds and reports sticky retirement."""
 
     def __init__(self, agents: list[Agent], *, retired: set[str | None]) -> None:
@@ -322,22 +322,22 @@ class _ProcShellPanelApp(_BulkDismissApp):
         self.refresh_calls.append((list_changed, defer_detail))
 
 
-def test_dismissing_last_proc_shell_of_a_panel_resyncs_panel_widgets() -> None:
-    shell = _proc_shell()
-    app = _ProcShellPanelApp([shell], retired={None})
+def test_dismissing_last_named_proc_of_a_panel_resyncs_panel_widgets() -> None:
+    proc = _named_proc()
+    app = _NamedProcPanelApp([proc], retired={None})
 
-    app._dismiss_proc_shell_rows([shell])
+    app._dismiss_named_proc_rows([proc])
 
-    assert app.retire_calls == [{shell.identity}]
+    assert app.retire_calls == [{proc.identity}]
     assert app.refresh_calls == [(True, True)]
     assert app._agents == []
 
 
-def test_dismissing_a_proc_shell_that_keeps_its_panel_stays_on_fast_path() -> None:
-    shell = _proc_shell()
-    app = _ProcShellPanelApp([shell], retired=set())
+def test_dismissing_a_named_proc_that_keeps_its_panel_stays_on_fast_path() -> None:
+    proc = _named_proc()
+    app = _NamedProcPanelApp([proc], retired=set())
 
-    app._dismiss_proc_shell_rows([shell])
+    app._dismiss_named_proc_rows([proc])
 
-    assert app.retire_calls == [{shell.identity}]
+    assert app.retire_calls == [{proc.identity}]
     assert app.refresh_calls == [(False, True)]

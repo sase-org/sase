@@ -75,7 +75,7 @@ def request_gate_decision_refresh(
 ) -> None:
     """Refresh ACE surfaces after a gate decision becomes durable.
 
-    ``artifact_dirs`` are exact planner/shell rows resolved off the event loop
+    ``artifact_dirs`` are exact planner/turn rows resolved off the event loop
     by the receipt watcher; they route through the artifact-delta queue.
     """
     schedule_snapshot = getattr(app, "_schedule_notification_snapshot_refresh", None)
@@ -164,7 +164,7 @@ def gate_decision_exact_artifact_dirs(
     notification: Notification,
     agent: Agent | None,
 ) -> tuple[Path, ...]:
-    """Resolve the planner and gate-shell artifact dirs a decision touches.
+    """Resolve the planner and gate-turn artifact dirs a decision touches.
 
     Reads the filesystem, so the receipt watcher calls it on a worker thread.
     """
@@ -178,9 +178,9 @@ def gate_decision_exact_artifact_dirs(
         planner_dir = agent_artifact_dir(planner) if planner is not None else None
         if planner_dir is not None:
             dirs[str(planner_dir)] = planner_dir
-        shell_dir, _needs_fallback = accepted_gate_shell_artifact_dir(notification)
-        if shell_dir is not None:
-            dirs[str(shell_dir)] = shell_dir
+        turn_dir, _needs_fallback = accepted_gate_turn_artifact_dir(notification)
+        if turn_dir is not None:
+            dirs[str(turn_dir)] = turn_dir
     except Exception:
         return tuple(dirs.values())
     return tuple(dirs.values())
@@ -214,7 +214,7 @@ def prepare_disappeared_plan_notification_refresh(
 
     Returns ``(artifact_dirs, needs_broad_fallback)``. Duplicate notifications
     for one artifact are coalesced. Plan approvals preserve their historical
-    row-targeting behavior; other shell-backed gates refresh only after a
+    row-targeting behavior; other turn-backed gates refresh only after a
     durable decision/terminal marker is visible.
     """
     current_ids = {notification.id for notification in current_notifications}
@@ -232,7 +232,7 @@ def prepare_disappeared_plan_notification_refresh(
             artifact_dirs.add(artifact_dir)
             continue
 
-        artifact_dir, needs_fallback = accepted_gate_shell_artifact_dir(notification)
+        artifact_dir, needs_fallback = accepted_gate_turn_artifact_dir(notification)
         if artifact_dir is not None:
             artifact_dirs.add(artifact_dir)
         elif needs_fallback:
@@ -240,10 +240,10 @@ def prepare_disappeared_plan_notification_refresh(
     return tuple(sorted(artifact_dirs, key=str)), needs_broad_fallback
 
 
-def accepted_gate_shell_artifact_dir(
+def accepted_gate_turn_artifact_dir(
     notification: Notification,
 ) -> tuple[Path | None, bool]:
-    """Return an exact shell artifact dir for an accepted generic gate."""
+    """Return an exact turn artifact dir for an accepted generic gate."""
     try:
         from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
         from sase.notification_gates.durability import read_json_object

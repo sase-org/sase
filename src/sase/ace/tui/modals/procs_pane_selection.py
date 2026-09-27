@@ -28,7 +28,7 @@ from ..proc_gear_chips import (
 from ..proc_observer import (
     ObservedProc,
     ProcProjection,
-    is_monitor_shell_row,
+    is_monitor_turn_row,
     monitor_row_agent_name,
 )
 from ..util.selection import restore_selection_by_identity
@@ -52,11 +52,11 @@ def _resolve_monitor_agent_names(
 
     Resolution order per row: (1) the loaded Agent whose ``monitor_id``
     matches the row's ``proc_id``, using its already-presented name; (2) the
-    row's ``shell_name`` presented through the current identity snapshot; (3)
+    row's ``proc_name`` presented through the current identity snapshot; (3)
     no entry, so the row renders no name rather than a placeholder. Callers
     without ``_agents`` (e.g. the pane test harness) degrade to (2)/(3).
     """
-    monitor_ids = {task.proc_id for task in tasks if is_monitor_shell_row(task)}
+    monitor_ids = {task.proc_id for task in tasks if is_monitor_turn_row(task)}
     if not monitor_ids:
         return {}
     by_monitor_id: dict[str, Any] = {}
@@ -73,9 +73,9 @@ def _resolve_monitor_agent_names(
         if agent is not None and agent.presented_agent_name:
             names[task.proc_id] = agent.presented_agent_name
             continue
-        shell_name = monitor_row_agent_name(task)
-        if shell_name:
-            names[task.proc_id] = present_agent_name(shell_name, snapshot)
+        proc_name = monitor_row_agent_name(task)
+        if proc_name:
+            names[task.proc_id] = present_agent_name(proc_name, snapshot)
     return names
 
 
@@ -89,7 +89,7 @@ def _resolve_monitor_statuses(
     matching agent, or a matched agent with neither status label recorded,
     gets no entry, so the row degrades to exactly today's rendering.
     """
-    monitor_ids = {task.proc_id for task in tasks if is_monitor_shell_row(task)}
+    monitor_ids = {task.proc_id for task in tasks if is_monitor_turn_row(task)}
     if not monitor_ids:
         return {}
     by_monitor_id: dict[str, Any] = {}

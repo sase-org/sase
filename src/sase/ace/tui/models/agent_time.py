@@ -14,7 +14,7 @@ from sase.agent.status_buckets import APPROVED_PLAN_STATUSES
 from sase.core.time import local_now
 
 from ._agent_time_aggregate import (
-    aggregates_agent_session_shells as _aggregates_agent_session_shells,
+    aggregates_agent_session_turns as _aggregates_agent_session_turns,
     runtime_child_rows as _runtime_child_rows,
     runtime_interval as _runtime_interval,
 )
@@ -98,7 +98,7 @@ def compute_lowest_row_runtime(
 
     Each row contributes the same total its own row displays -- the aggregate
     across its descendants -- so a session row contributes the session total,
-    not the runtime of the shell currently executing inside it. A row whose
+    not the runtime of the turn currently executing inside it. A row whose
     aggregate is not live falls back to its own interval, so a live row is
     never dropped just because its descendants have not started.
     """
@@ -127,7 +127,7 @@ def runtime_suffix_ticks(
     agent: "Agent",
     _seen: set[int] | None = None,
     *,
-    _include_monitor_shells: bool | None = None,
+    _include_monitor_turns: bool | None = None,
 ) -> bool:
     """Return True when *agent* renders a runtime suffix that can tick."""
     if _seen is None:
@@ -137,19 +137,19 @@ def runtime_suffix_ticks(
         return False
     _seen.add(agent_id)
 
-    include_monitor_shells = (
-        _aggregates_agent_session_shells(agent)
-        if _include_monitor_shells is None
-        else _include_monitor_shells
+    include_monitor_turns = (
+        _aggregates_agent_session_turns(agent)
+        if _include_monitor_turns is None
+        else _include_monitor_turns
     )
 
     if not should_display_runtime_suffix(agent):
         return False
     for child in _runtime_child_rows(
-        agent, include_monitor_shells=include_monitor_shells
+        agent, include_monitor_turns=include_monitor_turns
     ):
         if runtime_suffix_ticks(
-            child, _seen, _include_monitor_shells=include_monitor_shells
+            child, _seen, _include_monitor_turns=include_monitor_turns
         ):
             return True
     if agent.stop_time is not None:
@@ -187,7 +187,7 @@ def row_runtime_or_wait_ticks(
     agent: "Agent",
     _seen: set[int] | None = None,
     *,
-    _include_monitor_shells: bool | None = None,
+    _include_monitor_turns: bool | None = None,
 ) -> bool:
     """Return True when any visible time text for *agent* can tick."""
     if _seen is None:
@@ -197,21 +197,21 @@ def row_runtime_or_wait_ticks(
         return False
     _seen.add(agent_id)
 
-    include_monitor_shells = (
-        _aggregates_agent_session_shells(agent)
-        if _include_monitor_shells is None
-        else _include_monitor_shells
+    include_monitor_turns = (
+        _aggregates_agent_session_turns(agent)
+        if _include_monitor_turns is None
+        else _include_monitor_turns
     )
 
-    if runtime_suffix_ticks(agent, _include_monitor_shells=include_monitor_shells):
+    if runtime_suffix_ticks(agent, _include_monitor_turns=include_monitor_turns):
         return True
     if wait_countdown_ticks(agent):
         return True
     for child in _runtime_child_rows(
-        agent, include_monitor_shells=include_monitor_shells
+        agent, include_monitor_turns=include_monitor_turns
     ):
         if row_runtime_or_wait_ticks(
-            child, _seen, _include_monitor_shells=include_monitor_shells
+            child, _seen, _include_monitor_turns=include_monitor_turns
         ):
             return True
     return False

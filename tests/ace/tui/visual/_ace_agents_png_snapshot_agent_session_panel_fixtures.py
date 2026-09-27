@@ -8,7 +8,7 @@ from pathlib import Path
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
-from sase.gate_shell.state import gate_member_status_bucket
+from sase.gate_turn.state import gate_member_status_bucket
 from sase.monitor_state import monitor_state_bucket
 
 _AGENT_SESSION_NAME = "visual-family"

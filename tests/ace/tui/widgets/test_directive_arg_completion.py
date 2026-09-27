@@ -97,8 +97,8 @@ def test_wait_arg_completion_filters_visible_agent_candidates() -> None:
     assert shared == ""
 
 
-def test_wait_arg_completion_omits_proc_shell_targets() -> None:
-    # `#fork` accepts a proc shell, but a `%wait` dependency resolves agent
+def test_wait_arg_completion_omits_named_proc_targets() -> None:
+    # `#fork` accepts a named proc, but a `%wait` dependency resolves agent
     # artifacts only, so completing one would never release.
     proc = AgentCompletionCandidate(
         name="abc123def456",
@@ -116,7 +116,7 @@ def test_wait_arg_completion_omits_proc_shell_targets() -> None:
 
     assert [candidate.insertion for candidate in candidates] == ["abc-coder"]
 
-    # The unfiltered builder backing ``#fork:`` still offers the proc shell.
+    # The unfiltered builder backing ``#fork:`` still offers the named proc.
     fork_candidates, _fork_shared = build_agent_arg_completion_candidates(
         "abc",
         [agent_candidate("abc-coder"), proc],

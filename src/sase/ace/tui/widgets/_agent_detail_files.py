@@ -52,7 +52,7 @@ def load_deck_file_view(
     if attempt_number is not None:
         file_panel.show_empty()
         return False
-    if agent.is_clan_container or agent.is_proc_shell:
+    if agent.is_clan_container or agent.is_named_proc:
         file_panel.show_empty()
         return False
     if agent.is_workflow_child and agent.step_type in ("bash", "python"):

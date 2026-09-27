@@ -31,7 +31,7 @@ from tests.ace.tui.owner_roster_fixture import (
     write_owner_roster_fixture,
 )
 
-# Rows whose identity is a bare owner record; nested shells are compared too.
+# Rows whose identity is a bare owner record; nested turns are compared too.
 _FACT_IDENTITIES = (
     "lane",
     "lane--plan",
@@ -71,8 +71,8 @@ _DIMENSIONS: dict[str, Callable[[Agent], object]] = {
     "clan_tribe": lambda a: a.clan_tribe,
     # proc ids are registry-backed on the owner side; only monitor/gate chips
     # are persisted in the artifact record.
-    "shell_ids": lambda a: (a.monitor_id, a.gate_id),
-    "shell_state": lambda a: (a.monitor_state, a.gate_state, a.gate_kind),
+    "turn_ids": lambda a: (a.monitor_id, a.gate_id),
+    "turn_state": lambda a: (a.monitor_state, a.gate_state, a.gate_kind),
     "run_start_time": lambda a: _minute(a.run_start_time),
     "stop_time": lambda a: _minute(a.stop_time),
 }
@@ -261,9 +261,9 @@ def test_tale_and_epic_agent_sessions_carry_rich_status_without_bare_plan_rows(
     assert remote["tale-fam"].status.startswith("TALE DONE")
     assert remote["epic-fam"].status.startswith("EPIC CREATED")
     for name in ("tale-fam--plan", "epic-fam--plan"):
-        shell = remote[name]
-        assert shell.parent_timestamp, f"{name} is an unparented row"
-        assert shell.gate_id is not None
+        turn = remote[name]
+        assert turn.parent_timestamp, f"{name} is an unparented row"
+        assert turn.gate_id is not None
 
 
 def test_active_and_waiting_agent_sessions_and_answered_question(
@@ -326,7 +326,7 @@ def _rendered(agent: Agent, now: Any) -> tuple[str, str]:
 
 
 @pytest.mark.parametrize("compact", [False, True], ids=["current", "compact-index"])
-def test_owner_and_catalog_render_equal_rows_and_nested_shell_counts(
+def test_owner_and_catalog_render_equal_rows_and_nested_turn_counts(
     fixture: OwnerRosterFixture, compact: bool
 ) -> None:
     from datetime import datetime

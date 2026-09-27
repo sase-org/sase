@@ -64,11 +64,11 @@ ACTION_PRODUCERS: tuple[ProcProducerSite, ...] = (
     site(
         "proc.kill",
         "src/sase/ace/tui/actions/agents/_monitor_stop_flow.py",
-        "_do_kill_proc_shell",
+        "_do_kill_named_proc",
         "direct_submit_durable",
         "proc.kill",
         "durable",
-        "MonitorStopActionFlowMixin._do_kill_proc_shell",
+        "MonitorStopActionFlowMixin._do_kill_named_proc",
         "sase proc kill",
         identifiers=("proc_id",),
         result_kind="proc.kill",

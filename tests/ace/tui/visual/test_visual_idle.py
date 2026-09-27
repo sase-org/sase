@@ -130,7 +130,7 @@ class _ChangingPage:
         del title, simplify
         self.export_count += 1
         # The first two frames appear stable, then a delayed layout/paint lands.
-        return "shell" if self.export_count < 3 else "complete"
+        return "turn" if self.export_count < 3 else "complete"
 
 
 class _StarvedPaintPage(_ChangingPage):

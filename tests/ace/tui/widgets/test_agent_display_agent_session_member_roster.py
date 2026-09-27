@@ -1,4 +1,4 @@
-"""Tests for the SESSION SHELLS roster on session-member detail panels."""
+"""Tests for the SESSION TURNS roster on session-member detail panels."""
 
 from __future__ import annotations
 
@@ -32,10 +32,10 @@ def test_member_panel_lists_only_sibling_and_publishes_jump_map(
         member_jump_map_publisher=published.append,
     )
 
-    assert_kind_header(header, "AGENT SHELL", "#FFD700")
-    assert header.plain.startswith("AGENT SHELL\nName:")
-    assert "SESSION\n" not in header.plain.split("SESSION SHELLS", 1)[0]
-    assert "▾ ❖ SESSION SHELLS · 1 · alpha" in header.plain
+    assert_kind_header(header, "AGENT TURN", "#FFD700")
+    assert header.plain.startswith("AGENT TURN\nName:")
+    assert "SESSION\n" not in header.plain.split("SESSION TURNS", 1)[0]
+    assert "▾ ❖ SESSION TURNS · 1 · alpha" in header.plain
     entries = agent_session_roster_entries(root, exclude=child)
     assert [entry.label for entry in entries] == ["--plan"]
     assert [entry.identity for entry in entries] == [root.identity]
@@ -123,13 +123,13 @@ def test_plan_workflow_agent_session_member_panels_list_each_other() -> None:
         member_jump_map_publisher=coder_published.append,
     )
 
-    assert "SESSION SHELLS" in planner_header.plain
+    assert "SESSION TURNS" in planner_header.plain
     assert "--code" in planner_header.plain
     assert [target.member_identity for target in planner_published[0].targets] == [
         coder.identity
     ]
 
-    assert "SESSION SHELLS" in coder_header.plain
+    assert "SESSION TURNS" in coder_header.plain
     assert "--plan" in coder_header.plain
     assert [target.member_identity for target in coder_published[0].targets] == [
         planner.identity
@@ -199,7 +199,7 @@ def test_three_member_agent_session_middle_member_lists_others_in_chain_order() 
         member_jump_map_publisher=published.append,
     )
 
-    assert "SESSION SHELLS" in header.plain
+    assert "SESSION TURNS" in header.plain
     jump_map = published[0]
     assert jump_map.container_identity == member1.identity
     assert [target.number for target in jump_map.targets] == ["0", "1"]
@@ -253,13 +253,13 @@ def test_agent_session_roster_labels_monitor_members() -> None:
         for entry in entries
     ] == [
         ("--0", "AGENT (0)", "DONE", "default", "Done"),
-        ("--mon", "⚙ MONITOR", "MONITORING", "just check", "Running"),
+        ("--mon", "⚙ MONITOR TURN", "MONITORING", "just check", "Running"),
     ]
     header, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.EXPANDED)
-    assert "SESSION SHELLS · 2\n" in header.plain
-    assert "⚙ MONITOR" in header.plain
+    assert "SESSION TURNS · 2\n" in header.plain
+    assert "⚙ MONITOR TURN" in header.plain
     assert "just check" in header.plain
-    assert "shell" not in header.plain.split("⚙ MONITOR", 1)[1].split("\n", 1)[0]
+    assert "shell" not in header.plain.split("⚙ MONITOR TURN", 1)[1].split("\n", 1)[0]
 
 
 def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_self() -> (
@@ -341,7 +341,7 @@ def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_
         "--mon",
         "--review",
     ]
-    assert entries[2].kind == "⚙ MONITOR"
+    assert entries[2].kind == "⚙ MONITOR TURN"
     assert entries[2].model == "just check-full --every-target"
     assert entries[2].effective_bucket == "Done"
 
@@ -355,7 +355,7 @@ def test_agent_session_roster_inserts_nested_monitor_after_starter_and_excludes_
         lane_fold_level=FoldLevel.EXPANDED,
         member_jump_map_publisher=published.append,
     )
-    assert "▾ ❖ SESSION SHELLS · 3 · alpha" in header.plain
+    assert "▾ ❖ SESSION TURNS · 3 · alpha" in header.plain
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         coder.identity,
@@ -445,7 +445,7 @@ def test_row_without_agent_session_container_renders_no_roster() -> None:
 
     header, _ = build_header_text(lone, cheap=True)
 
-    assert "SESSION SHELLS" not in header.plain
+    assert "SESSION TURNS" not in header.plain
 
 
 def test_container_panel_output_is_unchanged_by_member_roster_support(
@@ -462,7 +462,7 @@ def test_container_panel_output_is_unchanged_by_member_roster_support(
     )
 
     assert "Fold: 1/2\n" in header.plain
-    assert "▾ ❖ SESSION SHELLS · 2\n" in header.plain
+    assert "▾ ❖ SESSION TURNS · 2\n" in header.plain
     assert [target.member_identity for target in published[0].targets] == [
         root.identity,
         child.identity,

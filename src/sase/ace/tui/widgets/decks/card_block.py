@@ -1,7 +1,7 @@
 """Card blocks: an optional third level inside Agents deck cards.
 
 A card holds zero blocks or one or more trailing, contiguous, non-nesting
-blocks. The session Reply card will get one block per concrete sase shell;
+blocks. The session Reply card will get one block per concrete sase turn;
 until a builder emits blocks there is no visual change because both wrappers
 are transparent Rich containers.
 """

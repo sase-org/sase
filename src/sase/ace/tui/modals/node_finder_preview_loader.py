@@ -76,7 +76,7 @@ class NodeFinderPreviewCache:
 def tier1_source(row: NodeFinderRow, snapshot: NodeFinderSnapshot) -> Agent | None:
     """Return the artifact-backed agent represented by one Finder row.
 
-    Session containers use their newest regular agent-shell member.  The
+    Session containers use their newest regular agent-turn member.  The
     snapshot parameter keeps this API parallel with Tier 0 even though session
     membership is already represented on the container's loaded row.
     """
@@ -89,15 +89,15 @@ def tier1_source(row: NodeFinderRow, snapshot: NodeFinderSnapshot) -> Agent | No
         agent.is_clan_container
         or agent.is_monitor
         or agent.is_gate
-        or agent.is_proc_shell
+        or agent.is_named_proc
     ):
         return None
     if agent.is_agent_session_container_row:
-        shells = [member for member in agent.followup_agents if _is_agent_shell(member)]
-        if not shells:
+        turns = [member for member in agent.followup_agents if _is_agent_turn(member)]
+        if not turns:
             return None
-        return max(shells, key=_newest_shell_key)
-    return agent if _is_agent_shell(agent) else None
+        return max(turns, key=_newest_turn_key)
+    return agent if _is_agent_turn(agent) else None
 
 
 def load_node_finder_preview(agent: Agent) -> NodeFinderPreviewPayload:
@@ -144,11 +144,11 @@ def render_tier1(payload: NodeFinderPreviewPayload) -> Text:
     return text
 
 
-def _is_agent_shell(agent: Agent) -> bool:
+def _is_agent_turn(agent: Agent) -> bool:
     return agent.is_agent_entry
 
 
-def _newest_shell_key(agent: Agent) -> tuple[object, str]:
+def _newest_turn_key(agent: Agent) -> tuple[object, str]:
     return (
         agent.run_start_time or agent.start_time or 0,
         agent.presented_agent_name or agent.agent_name or "",

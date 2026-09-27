@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from sase.ace.tui.models.agent_session_members import (
-    ShellLaneCounts,
+    TurnLaneCounts,
     _GateLaneCounts,
     _MonitorLaneCounts,
     gate_row_is_settled,
-    shell_lane_counts,
+    turn_lane_counts,
 )
 
 from ._agent_session_members_helpers import _agent, _gate_member, _monitor_member
 
 
 def _gate_lane_counts(agent):
-    return shell_lane_counts(agent).gate
+    return turn_lane_counts(agent).gate
 
 
 def test_gate_row_is_settled_matches_lane_partition() -> None:
@@ -99,7 +99,7 @@ def test_gate_lane_counts_stop_time_without_state_counts_settled() -> None:
     assert _gate_lane_counts(root) == _GateLaneCounts(running=0, settled=1, failed=0)
 
 
-def test_shell_lane_counts_preserves_monitor_and_gate_partitions() -> None:
+def test_turn_lane_counts_preserves_monitor_and_gate_partitions() -> None:
     root = _agent("alpha--0", role="root")
     monitor = _monitor_member(
         "alpha--mon", root=root, monitor_id="m1", monitor_state="running"
@@ -114,9 +114,9 @@ def test_shell_lane_counts_preserves_monitor_and_gate_partitions() -> None:
     root.runtime_children = [monitor, gate]
     root.followup_agents = [monitor, gate]
 
-    counts = shell_lane_counts(root)
+    counts = turn_lane_counts(root)
 
-    assert counts == ShellLaneCounts(
+    assert counts == TurnLaneCounts(
         monitor=_MonitorLaneCounts(running=1, settled=0),
         gate=_GateLaneCounts(running=0, settled=0, failed=1),
     )

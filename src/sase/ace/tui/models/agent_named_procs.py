@@ -1,4 +1,4 @@
-"""Agents-tab projection for stand-alone xprompt proc shells."""
+"""Agents-tab projection for stand-alone xprompt named procs."""
 
 from __future__ import annotations
 
@@ -29,12 +29,12 @@ _PROC_COMMAND_TITLE_PREFIX = "❯ "
 _ELLIPSIS = "…"
 
 
-def proc_shell_agents_from_observed(
+def named_proc_agents_from_observed(
     rows: Sequence[ObservedProc],
     *,
     dismissed_proc_ids: Collection[str] = (),
 ) -> list[Agent]:
-    """Project observer-cached proc-shell rows into presentation-only Agent rows."""
+    """Project observer-cached named-proc rows into presentation-only Agent rows."""
     selected: dict[str, ObservedProc] = {}
     dismissed = set(dismissed_proc_ids)
     for row in rows:
@@ -46,21 +46,21 @@ def proc_shell_agents_from_observed(
     return [_observed_proc_to_agent(row) for row in selected.values()]
 
 
-def merge_proc_shell_agents(
+def merge_named_proc_agents(
     agents: Sequence[Agent],
-    proc_shells: Sequence[Agent],
+    named_procs: Sequence[Agent],
 ) -> list[Agent]:
-    """Return *agents* with the proc-shell projection replaced atomically."""
+    """Return *agents* with the named-proc projection replaced atomically."""
     return [
-        *(agent for agent in agents if not agent.is_proc_shell),
-        *proc_shells,
+        *(agent for agent in agents if not agent.is_named_proc),
+        *named_procs,
     ]
 
 
-def proc_shell_agent_signature(
+def named_proc_agent_signature(
     agents: Sequence[Agent],
 ) -> tuple[tuple[object, ...], ...]:
-    """Return a stable equality key for projected proc-shell row state."""
+    """Return a stable equality key for projected named-proc row state."""
     return tuple(
         (
             agent.identity,
@@ -103,7 +103,7 @@ def _observed_proc_to_agent(row: ObservedProc) -> Agent:
     project_key = row.project or row.cl_name or "proc"
     meta = row.xprompt_proc or {}
     label = _explicit_proc_label(row, meta)
-    shell_name = row.shell_name or short_proc_id(row.proc_id)
+    proc_name = row.proc_name or short_proc_id(row.proc_id)
     agent = Agent(
         agent_type=AgentType.NAMED_PROC,
         cl_name=project_key,
@@ -116,7 +116,7 @@ def _observed_proc_to_agent(row: ObservedProc) -> Agent:
         workspace_num=row.workspace_num,
         workspace_dir=row.cwd or None,
         raw_suffix=row.proc_id,
-        agent_name=shell_name,
+        agent_name=proc_name,
         output_path=row.log_path or None,
         monitor_command=" ".join(row.command or ()),
         monitor_label=label,
@@ -155,8 +155,8 @@ def _observed_proc_to_agent(row: ObservedProc) -> Agent:
     return agent
 
 
-def proc_shell_command_title(preview: str | None) -> str | None:
-    """Return the compact command title for an unlabeled proc shell."""
+def named_proc_command_title(preview: str | None) -> str | None:
+    """Return the compact command title for an unlabeled named proc."""
     if not preview:
         return None
     nonblank_lines = [line for line in preview.splitlines() if line.strip()]
@@ -195,11 +195,11 @@ def _explicit_proc_label(row: ObservedProc, meta: Mapping[str, Any]) -> str | No
     label = _string_meta(meta, "label")
     if label:
         return label
-    if row.shell_name:
-        return row.shell_name
+    if row.proc_name:
+        return row.proc_name
     logical_id = _string_meta(meta, "logical_id")
     if row.display_name and row.display_name != logical_id:
-        # Compatibility for proc-shell rows submitted before label provenance existed.
+        # Compatibility for named-proc rows submitted before label provenance existed.
         return row.display_name
     return None
 
@@ -242,9 +242,9 @@ def _observed_proc_language(
         value = _string_meta(code, "language") or _string_meta(code, "info_string")
         if value:
             return value
-    shell_kind = row.shell_kind or ""
-    if shell_kind:
-        return shell_kind
+    proc_role = row.proc_role or ""
+    if proc_role:
+        return proc_role
     command = " ".join(row.command or ()).casefold()
     if "python" in command:
         return "python"
@@ -338,8 +338,8 @@ def _bounded_json(value: Mapping[str, Any], max_chars: int) -> str:
 
 
 __all__ = [
-    "merge_proc_shell_agents",
-    "proc_shell_command_title",
-    "proc_shell_agent_signature",
-    "proc_shell_agents_from_observed",
+    "merge_named_proc_agents",
+    "named_proc_command_title",
+    "named_proc_agent_signature",
+    "named_proc_agents_from_observed",
 ]

@@ -441,7 +441,7 @@ class TreeNavigationMixin(NavigationMixinBase):
         (:func:`~sase.ace.relation_reveal.build_relation_reveal_query`)
         rather than a hard-coded ``ancestor:``/``sibling:`` token, and is
         wrapped in a :class:`~sase.ace.relation_reveal.RelationReveal` lens
-        so the shell can advertise a way back through the existing
+        so the turn can advertise a way back through the existing
         `prev_query` (``^``) history stack. Returns whether *target* is
         selected once the rewrite lands; a relation with no matching
         query-profile field, or a rewrite whose result still misses

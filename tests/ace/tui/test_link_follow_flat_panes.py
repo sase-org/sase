@@ -198,7 +198,7 @@ def _agents_stub(rows: tuple):
     )
 
 
-def test_agent_session_shell_context() -> None:
+def test_agent_session_turn_context() -> None:
     stub = _agents_stub(
         (
             make_agent_catalog_row("big--plan", project="alpha", agent_session="big"),

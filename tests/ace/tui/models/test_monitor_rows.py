@@ -34,8 +34,8 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentMetaWire,
     DoneMarkerWire,
-    AgentSessionShellMonitorWire,
-    AgentSessionShellWire,
+    AgentSessionTurnMonitorWire,
+    AgentSessionTurnWire,
     WorkflowStateWire,
 )
 from sase.core.paths import sase_projects_dir
@@ -57,13 +57,13 @@ def test_running_monitor_meta_projects_start_label_and_bucket() -> None:
         agent,
         AgentMetaWire(
             name="alpha--mon",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 id="m123",
                 state="running",
                 label="just check",
                 start_status="MONITORING",
-                monitor=AgentSessionShellMonitorWire(command="just check-full"),
+                monitor=AgentSessionTurnMonitorWire(command="just check-full"),
             ),
             run_started_at="2026-08-12T13:00:00Z",
             agent_session="alpha",
@@ -96,7 +96,7 @@ def test_running_monitor_meta_projects_detail_fields() -> None:
         agent,
         AgentMetaWire(
             name="alpha--mon",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 id="m123",
                 state="running",
@@ -116,7 +116,7 @@ def test_running_monitor_meta_projects_detail_fields() -> None:
                 followup_degraded_reason="workspace 0 fallback",
                 followup_prompt_path="/tmp/followup.md",
                 host_completion_status="finalizing",
-                monitor=AgentSessionShellMonitorWire(
+                monitor=AgentSessionTurnMonitorWire(
                     command="just check-full",
                     cwd="/home/bryan/sase",
                     idle_timeout_seconds=600.0,
@@ -176,7 +176,7 @@ def test_wire_monitor_starter_keeps_reference_without_monitor_row_semantics() ->
         agent,
         AgentMetaWire(
             name="alpha--0",
-            agent_session_turn=AgentSessionShellWire(kind="monitor", id="m123"),
+            agent_session_turn=AgentSessionTurnWire(kind="monitor", id="m123"),
             agent_session="alpha",
             agent_session_role="root",
             role_suffix="--0",
@@ -243,13 +243,13 @@ def test_terminal_monitor_done_projects_stop_label_and_exit_code() -> None:
                 timestamp="20260812090000",
                 agent_meta=AgentMetaWire(
                     name="alpha--mon",
-                    agent_session_turn=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionTurnWire(
                         kind="monitor",
                         id="m123",
                         state="failed",
                         label="just check",
                         stop_status="CHECKED",
-                        monitor=AgentSessionShellMonitorWire(
+                        monitor=AgentSessionTurnMonitorWire(
                             command="just check-full", exit_code=1
                         ),
                     ),
@@ -263,10 +263,10 @@ def test_terminal_monitor_done_projects_stop_label_and_exit_code() -> None:
                     outcome="monitored",
                     cl_name="monitor-row",
                     project_file="/tmp/.sase/projects/sase/sase.sase",
-                    agent_session_turn=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionTurnWire(
                         kind="monitor",
                         state="failed",
-                        monitor=AgentSessionShellMonitorWire(exit_code=1),
+                        monitor=AgentSessionTurnMonitorWire(exit_code=1),
                     ),
                     status_label="CHECKED",
                 ),
@@ -403,13 +403,13 @@ def test_running_monitor_workflow_row_still_projects_as_monitoring() -> None:
                 ),
                 agent_meta=AgentMetaWire(
                     name="alpha--mon",
-                    agent_session_turn=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionTurnWire(
                         kind="monitor",
                         id="m123",
                         state="running",
                         label="just check",
                         start_status="MONITORING",
-                        monitor=AgentSessionShellMonitorWire(command="just check-full"),
+                        monitor=AgentSessionTurnMonitorWire(command="just check-full"),
                     ),
                     agent_session="alpha",
                     agent_session_role="monitor",
@@ -439,14 +439,14 @@ def test_wire_monitor_meta_projects_custom_stop_status() -> None:
         agent,
         AgentMetaWire(
             name="alpha--mon",
-            agent_session_turn=AgentSessionShellWire(
+            agent_session_turn=AgentSessionTurnWire(
                 kind="monitor",
                 id="m123",
                 state="running",
                 label="just check",
                 start_status="TESTING",
                 stop_status="TESTED",
-                monitor=AgentSessionShellMonitorWire(command="just check-full"),
+                monitor=AgentSessionTurnMonitorWire(command="just check-full"),
             ),
             run_started_at="2026-08-12T13:00:00Z",
             agent_session="alpha",
@@ -538,7 +538,7 @@ def test_wire_done_only_monitor_row_projects_custom_stop_status() -> None:
                     outcome="monitored",
                     cl_name="monitor-row",
                     project_file="/tmp/.sase/projects/sase/sase.sase",
-                    agent_session_turn=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionTurnWire(
                         kind="monitor", state="completed"
                     ),
                     status_label="TESTED",
@@ -591,7 +591,7 @@ def test_load_all_agents_settled_monitor_projects_one_resolvable_row() -> None:
                 done=DoneMarkerWire(
                     outcome="monitored",
                     cl_name="sase-l3.1--mon",
-                    agent_session_turn=AgentSessionShellWire(
+                    agent_session_turn=AgentSessionTurnWire(
                         kind="monitor", state="completed"
                     ),
                     status_label="MONITORED",
