@@ -217,6 +217,12 @@ def invoke_agent(
             "finalizers",
             finalizer_plan.agent_meta_projection(),
         )
+        from sase.finalizers.status_summary import FinalizerStatusTracker
+
+        FinalizerStatusTracker(artifacts_dir).seal_planned(
+            plan_digest=finalizer_plan.plan.plan_digest,
+            instance_ids=list(finalizer_plan.selected_instances),
+        )
     model_override = result_directives.model
     model_alias_overrides = dict(result_directives.model_alias_overrides)
     if model_alias_overrides and artifacts_dir:

@@ -189,6 +189,15 @@ def ensure_finalizer_plan(artifacts_dir: str) -> FinalizerPlanWire:
                 "no-model host completion could not resolve a finalizer plan",
                 code="no_model_missing_plan",
             ) from None
+        try:
+            from sase.finalizers.status_summary import FinalizerStatusTracker
+
+            FinalizerStatusTracker(artifacts_dir).seal_planned(
+                plan_digest=resolved.plan.plan_digest,
+                instance_ids=list(resolved.selected_instances),
+            )
+        except Exception:
+            pass
         return resolved.plan
 
 
