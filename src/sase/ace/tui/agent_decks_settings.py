@@ -7,6 +7,9 @@ from typing import Any
 
 DEFAULT_SPREAD_MAX_SCREENS = 1.5
 DEFAULT_BLOCK_SPREAD_MAX_SCREENS = 1.5
+#: Seconds an op must run before its live tail renders in the FINAL deck.
+#: ``0`` renders immediately; fast ops go straight from ``▶`` to ``✓``.
+DEFAULT_FINAL_TAIL_DELAY_SECONDS = 5.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +18,7 @@ class AgentDecksSettings:
 
     spread_max_screens: float = DEFAULT_SPREAD_MAX_SCREENS
     block_spread_max_screens: float = DEFAULT_BLOCK_SPREAD_MAX_SCREENS
+    final_tail_delay_seconds: float = DEFAULT_FINAL_TAIL_DELAY_SECONDS
 
 
 DEFAULT_AGENT_DECKS_SETTINGS = AgentDecksSettings()
@@ -38,6 +42,10 @@ def parse_agent_decks_settings(ace_cfg: object) -> AgentDecksSettings:
             raw.get("block_spread_max_screens"),
             DEFAULT_BLOCK_SPREAD_MAX_SCREENS,
         ),
+        final_tail_delay_seconds=_coerce_seconds(
+            raw.get("final_tail_delay_seconds"),
+            DEFAULT_FINAL_TAIL_DELAY_SECONDS,
+        ),
     )
 
 
@@ -51,6 +59,23 @@ def _coerce_screens(
             return default
         return float(value)
     if isinstance(value, float):
+        if value < 0:
+            return default
+        return value
+    return default
+
+
+def _coerce_seconds(value: object, default: float) -> float:
+    """Coerce a non-negative seconds value; ``0`` means immediately."""
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        if value < 0:
+            return default
+        return float(value)
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            return default
         if value < 0:
             return default
         return value
@@ -72,6 +97,7 @@ def agent_decks_settings_for(widget: object) -> AgentDecksSettings:
 __all__ = [
     "DEFAULT_AGENT_DECKS_SETTINGS",
     "DEFAULT_BLOCK_SPREAD_MAX_SCREENS",
+    "DEFAULT_FINAL_TAIL_DELAY_SECONDS",
     "DEFAULT_SPREAD_MAX_SCREENS",
     "AgentDecksSettings",
     "agent_decks_settings_for",

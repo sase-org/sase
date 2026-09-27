@@ -107,16 +107,24 @@ def load_final_deck(
     subject: object | None,
     subject_identity: object | None,
     generation: int,
+    live_tail_delay: float | None = None,
+    live_now: float | None = None,
+    fresh: bool = False,
 ) -> FinalDeckLoadResult:
     """Collect, project and build one FINAL deck (worker body).
 
     A cache hit skips collection and projection but still refreshes the
-    ``generation`` so the caller can reject stale paints.
+    ``generation`` so the caller can reject stale paints. When
+    ``live_tail_delay`` is given, the followed newest run's active op
+    renders its gated in-card live tail (plan §3.7). The 1 Hz live tick
+    passes ``fresh=True`` to bypass the lookup: the cached document
+    freezes its elapsed header at collection time, so the tick always
+    rebuilds (the result is still stored for the drift path).
     """
     from .document import final_default_card
 
     signature = final_cache_key(targets)
-    cached = cached_final_result(subject_identity, signature)
+    cached = None if fresh else cached_final_result(subject_identity, signature)
     if cached is not None:
         return FinalDeckLoadResult(
             subject_identity=cached.subject_identity,
@@ -130,7 +138,13 @@ def load_final_deck(
             run_level_trouble=cached.run_level_trouble,
         )
     node_view = project_node_view(targets)
-    document = build_final_deck_document(node_view, subject=subject, digest=signature)
+    document = build_final_deck_document(
+        node_view,
+        subject=subject,
+        digest=signature,
+        live_tail_delay=live_tail_delay,
+        live_now=live_now,
+    )
     attention: str | None = None
     trouble = False
     status = ""

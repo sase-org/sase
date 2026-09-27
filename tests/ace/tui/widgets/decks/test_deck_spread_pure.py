@@ -10,6 +10,7 @@ from rich.text import Text
 from sase.ace.tui.agent_decks_settings import (
     DEFAULT_AGENT_DECKS_SETTINGS,
     DEFAULT_BLOCK_SPREAD_MAX_SCREENS,
+    DEFAULT_FINAL_TAIL_DELAY_SECONDS,
     AgentDecksSettings,
     agent_decks_settings_for,
     parse_agent_decks_settings,
@@ -79,6 +80,39 @@ def test_settings_parser() -> None:
             }
         }
     ) == AgentDecksSettings(spread_max_screens=2.5, block_spread_max_screens=0.5)
+    assert DEFAULT_FINAL_TAIL_DELAY_SECONDS == 5.0
+    assert parse_agent_decks_settings(
+        {"agent_decks": {"final_tail_delay_seconds": True}}
+    ) == (DEFAULT_AGENT_DECKS_SETTINGS)
+    assert (
+        parse_agent_decks_settings({"agent_decks": {"final_tail_delay_seconds": "5"}})
+        == DEFAULT_AGENT_DECKS_SETTINGS
+    )
+    assert (
+        parse_agent_decks_settings({"agent_decks": {"final_tail_delay_seconds": -1}})
+        == DEFAULT_AGENT_DECKS_SETTINGS
+    )
+    assert parse_agent_decks_settings(
+        {"agent_decks": {"final_tail_delay_seconds": 0}}
+    ) == AgentDecksSettings(
+        spread_max_screens=1.5,
+        block_spread_max_screens=1.5,
+        final_tail_delay_seconds=0.0,
+    )
+    assert parse_agent_decks_settings(
+        {"agent_decks": {"final_tail_delay_seconds": 2}}
+    ) == AgentDecksSettings(
+        spread_max_screens=1.5,
+        block_spread_max_screens=1.5,
+        final_tail_delay_seconds=2.0,
+    )
+    assert parse_agent_decks_settings(
+        {"agent_decks": {"final_tail_delay_seconds": 0.5}}
+    ) == AgentDecksSettings(
+        spread_max_screens=1.5,
+        block_spread_max_screens=1.5,
+        final_tail_delay_seconds=0.5,
+    )
 
 
 def test_settings_helper_fails_open() -> None:
@@ -233,15 +267,20 @@ def test_config_schema_agent_decks_parity() -> None:
     validator.validate({"ace": {"agent_decks": {"spread_max_screens": 0}}})
     validator.validate({"ace": {"agent_decks": {"block_spread_max_screens": 1.5}}})
     validator.validate({"ace": {"agent_decks": {"block_spread_max_screens": 0}}})
+    validator.validate({"ace": {"agent_decks": {"final_tail_delay_seconds": 5.0}}})
+    validator.validate({"ace": {"agent_decks": {"final_tail_delay_seconds": 0}}})
     assert default_config["ace"]["agent_decks"] == {
         "spread_max_screens": 1.5,
         "block_spread_max_screens": 1.5,
+        "final_tail_delay_seconds": 5.0,
     }
     assert agent_decks["additionalProperties"] is False
     assert agent_decks["properties"]["spread_max_screens"]["default"] == 1.5
     assert agent_decks["properties"]["spread_max_screens"]["minimum"] == 0
     assert agent_decks["properties"]["block_spread_max_screens"]["default"] == 1.5
     assert agent_decks["properties"]["block_spread_max_screens"]["minimum"] == 0
+    assert agent_decks["properties"]["final_tail_delay_seconds"]["default"] == 5.0
+    assert agent_decks["properties"]["final_tail_delay_seconds"]["minimum"] == 0
     for invalid in (
         {"spread_max_screens": "1.5"},
         {"spread_max_screens": -1},
@@ -249,6 +288,9 @@ def test_config_schema_agent_decks_parity() -> None:
         {"block_spread_max_screens": "1.5"},
         {"block_spread_max_screens": -1},
         {"block_spread_max_screens": True},
+        {"final_tail_delay_seconds": "5.0"},
+        {"final_tail_delay_seconds": -1},
+        {"final_tail_delay_seconds": True},
         {"unknown": True},
     ):
         with pytest.raises(ValidationError):

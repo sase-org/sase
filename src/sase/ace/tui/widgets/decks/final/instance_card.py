@@ -25,6 +25,14 @@ from sase.finalizers.view_vocabulary import (
     instance_style,
 )
 
+from .live import (
+    LiveFollowTarget,
+    LiveTailOptions,
+    build_live_tail_renderables,
+    live_options_for,
+    select_live_follow_target,
+)
+
 #: Default card width used for truncating long single-line values.
 INSTANCE_CARD_WIDTH = 120
 
@@ -236,9 +244,16 @@ def _operation_outcome(operation: Any) -> tuple[str, str | None]:
 
 
 def _build_operation_lines(
-    operation: Any, *, width: int = INSTANCE_CARD_WIDTH
+    operation: Any,
+    *,
+    width: int = INSTANCE_CARD_WIDTH,
+    live: LiveTailOptions | None = None,
 ) -> list[Text]:
-    """Return the lines for one operation plus its indented steps."""
+    """Return the lines for one operation plus its indented steps.
+
+    When ``live`` is given, the active op additionally renders its gated
+    in-card live tail (plan §3.7; builder lives in ``final.live``).
+    """
     lines: list[Text] = []
     glyph, color = _operation_outcome(operation)
     label = getattr(operation, "label", None) or getattr(operation, "op", "") or ""
@@ -282,6 +297,11 @@ def _build_operation_lines(
         lines.append(entry)
     if getattr(operation, "steps_truncated", False):
         lines.append(Text("    … steps truncated", style="dim"))
+    if live is not None:
+        try:
+            lines.extend(build_live_tail_renderables(operation, live, width=width))
+        except Exception:
+            pass
     return lines
 
 
@@ -436,7 +456,10 @@ def _attempt_number(attempt: Any, fallback: int) -> int:
 
 
 def _build_attempt_sections(
-    run_instance: Any, *, width: int = INSTANCE_CARD_WIDTH
+    run_instance: Any,
+    *,
+    width: int = INSTANCE_CARD_WIDTH,
+    live: LiveTailOptions | None = None,
 ) -> list[Text]:
     """Return attempt sections: expanded latest, one-line older attempts.
 
@@ -445,13 +468,17 @@ def _build_attempt_sections(
     attempt, which is the same slot) expands, every older attempt
     collapses to one summary line. A future fold store hooks in here and
     must never have an explicit user fold overridden by this default.
+
+    The live tail renders only inside the expanded latest attempt: older
+    attempts collapse to a header with no operation lines, so a tail can
+    never paint under a superseded attempt.
     """
     attempts = list(getattr(run_instance, "attempts", ()) or ())
     operations = list(getattr(run_instance, "operations", ()) or ())
     lines: list[Text] = []
     if not attempts:
         for operation in operations:
-            lines.extend(_build_operation_lines(operation, width=width))
+            lines.extend(_build_operation_lines(operation, width=width, live=live))
         return lines
     ordered = sorted(attempts, key=lambda item: _attempt_number(item, 0))
     *older, latest = ordered
@@ -475,19 +502,26 @@ def _build_attempt_sections(
         if operation not in scoped:
             scoped.append(operation)
     for operation in scoped:
-        lines.extend(_build_operation_lines(operation, width=width))
+        lines.extend(_build_operation_lines(operation, width=width, live=live))
     return lines
 
 
-def _run_appearances(node_item: Any, runs: Any) -> list[tuple[str | None, Any]]:
-    """Return ``(run_label, run_instance)`` pairs for one node instance."""
+def _run_appearances(
+    node_item: Any, runs: Any
+) -> list[tuple[str | None, str | None, Any]]:
+    """Return ``(run_label, run_id, run_instance)`` triples for one instance."""
     instance_id = str(getattr(node_item, "instance_id", "") or "")
-    pairs: list[tuple[str | None, Any]] = []
+    pairs: list[tuple[str | None, str | None, Any]] = []
     for run in runs or ():
         label = getattr(run, "label", None) or getattr(run, "run_id", None)
+        try:
+            run_id = getattr(run, "run_id", None)
+            run_id = str(run_id) if run_id else None
+        except Exception:
+            run_id = None
         for item in getattr(run, "instances", ()) or ():
             if str(getattr(item, "instance_id", "") or "") == instance_id:
-                pairs.append((str(label) if label else None, item))
+                pairs.append((str(label) if label else None, run_id, item))
     return pairs
 
 
@@ -496,6 +530,10 @@ def build_instance_run_lines(
     *,
     instance_id: str,
     width: int = INSTANCE_CARD_WIDTH,
+    live_delay_seconds: float | None = None,
+    live_now: float | None = None,
+    live_follow: LiveFollowTarget | None = None,
+    live_run_id: str | None = None,
 ) -> list[Text]:
     """Return one run's body lines for an instance card block (plan §4.17).
 
@@ -503,9 +541,20 @@ def build_instance_run_lines(
     diagnostics, terminal-state lines, and log/protocol hint lines for
     that run's appearance of the instance. The block header carries the
     run label, so no per-run separator is emitted here.
+
+    When ``live_delay_seconds`` is given, the active op additionally
+    renders its gated in-card live tail (plan §3.7); ``live_follow`` and
+    ``live_run_id`` scope it to the followed newest run and attempt.
     """
+    live = live_options_for(
+        live_delay_seconds,
+        now=live_now,
+        follow=live_follow,
+        run_id=live_run_id,
+        instance_id=instance_id,
+    )
     lines: list[Text] = []
-    lines.extend(_build_attempt_sections(run_item, width=width))
+    lines.extend(_build_attempt_sections(run_item, width=width, live=live))
     evidence = list(getattr(run_item, "evidence", ()) or ())
     headline = getattr(run_item, "headline", None)
     lines.extend(_build_evidence_lines(evidence, headline=headline, width=width))
@@ -538,7 +587,7 @@ def build_instance_preamble_lines(
     provider_ref = str(provider_ref) if provider_ref else None
     status = getattr(node_item, "status", None)
     pairs = _run_appearances(node_item, runs)
-    detail_items = [item for _, item in pairs]
+    detail_items = [item for _, _, item in pairs]
     attempt: Any = None
     max_attempts: Any = None
     warnings = 0
@@ -597,8 +646,14 @@ def build_instance_card_renderables(
     runs: Any,
     *,
     width: int = INSTANCE_CARD_WIDTH,
+    live_delay_seconds: float | None = None,
+    live_now: float | None = None,
 ) -> tuple[Any, ...]:
-    """Return the generic provider-neutral body for one instance card."""
+    """Return the generic provider-neutral body for one instance card.
+
+    When ``live_delay_seconds`` is given, the followed newest run's
+    active op renders its gated in-card live tail (plan §3.7).
+    """
     instance_id = str(getattr(node_item, "instance_id", "") or "")
     status = getattr(node_item, "status", None)
     pairs = _run_appearances(node_item, runs)
@@ -609,12 +664,26 @@ def build_instance_card_renderables(
         glyph, word, _ = _status_glyph_word(status)
         renderables.append(Text(f"  {glyph} {word}", style="dim"))
         return tuple(renderables)
+    try:
+        follow = (
+            select_live_follow_target(runs) if live_delay_seconds is not None else None
+        )
+    except Exception:
+        follow = None
     multi_run = len(pairs) > 1
-    for label, item in pairs:
+    for label, run_id, item in pairs:
         if multi_run and label:
             renderables.append(Text(f"  ── {label} ──", style="dim"))
         renderables.extend(
-            build_instance_run_lines(item, instance_id=instance_id, width=width)
+            build_instance_run_lines(
+                item,
+                instance_id=instance_id,
+                width=width,
+                live_delay_seconds=live_delay_seconds,
+                live_now=live_now,
+                live_follow=follow,
+                live_run_id=run_id,
+            )
         )
     renderables.append(Text(INSTANCE_EXPORT_HINT, style="dim"))
     return tuple(renderables)

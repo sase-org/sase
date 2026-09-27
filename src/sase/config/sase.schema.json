@@ -2238,6 +2238,12 @@
               "description": "A card shown alone renders its card blocks spread (all inline) when the card fits within this many panel viewport heights, and paged (one block at a time) otherwise. 0 means always one block per page.",
               "minimum": 0,
               "default": 1.5
+            },
+            "final_tail_delay_seconds": {
+              "type": "number",
+              "description": "Seconds a finalizer op must run before its live tail renders in the FINAL deck. 0 renders immediately.",
+              "minimum": 0,
+              "default": 5.0
             }
           }
         },

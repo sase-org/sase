@@ -26,6 +26,7 @@ from .instance_card import (
     build_instance_preamble_lines,
     build_instance_run_lines,
 )
+from .live import LiveFollowTarget, select_live_follow_target
 from .overview_card import (
     OVERVIEW_FOOTER,
     render_overview_ledger_lines,
@@ -134,17 +135,37 @@ def build_final_deck_document(
     *,
     subject: object | None,
     digest: str | None,
+    live_tail_delay: float | None = None,
+    live_now: float | None = None,
 ) -> MainDeckDocument:
-    """Build a FINAL deck document from the typed node view."""
+    """Build a FINAL deck document from the typed node view.
+
+    When ``live_tail_delay`` is given, the followed newest run's active
+    op renders its gated in-card live tail (plan §3.7).
+    """
     from ..card_part import CardPart
 
     if subject is None or node_view is None:
         return MainDeckDocument(cards=(), subject=None, partial=False, digest=digest)
     instances = list(getattr(node_view, "instances", ()) or ())
     runs = list(getattr(node_view, "runs", ()) or ())
+    follow: LiveFollowTarget | None = None
+    if live_tail_delay is not None:
+        try:
+            follow = select_live_follow_target(runs)
+        except Exception:
+            follow = None
     block_runs = _overview_block_runs(node_view)
     if len(block_runs) < 2:
-        return _build_flat_final_document(node_view, instances, runs, subject, digest)
+        return _build_flat_final_document(
+            node_view,
+            instances,
+            runs,
+            subject,
+            digest,
+            live_tail_delay=live_tail_delay,
+            live_now=live_now,
+        )
 
     overview = CardPart(
         FINAL_OVERVIEW_CARD_ID,
@@ -166,7 +187,12 @@ def build_final_deck_document(
         )
         pairs = _instance_block_pairs(item, block_runs)
         if not pairs:
-            body = build_instance_card_renderables(item, runs)
+            body = build_instance_card_renderables(
+                item,
+                runs,
+                live_delay_seconds=live_tail_delay,
+                live_now=live_now,
+            )
             cards.append(
                 CardPart(
                     final_instance_card_id(instance_id),
@@ -186,7 +212,14 @@ def build_final_deck_document(
                 *[  # type: ignore[arg-type]
                     _final_run_block(
                         run,
-                        build_instance_run_lines(run_item, instance_id=instance_id),
+                        build_instance_run_lines(
+                            run_item,
+                            instance_id=instance_id,
+                            live_delay_seconds=live_tail_delay,
+                            live_now=live_now,
+                            live_follow=follow,
+                            live_run_id=_run_id_of(run),
+                        ),
                     )
                     for run, run_item in pairs
                 ],
@@ -197,12 +230,24 @@ def build_final_deck_document(
     )
 
 
+def _run_id_of(run: Any) -> str | None:
+    """Return the run id string for follow-target matching, if any."""
+    try:
+        run_id = getattr(run, "run_id", None)
+    except Exception:
+        return None
+    return str(run_id) if run_id else None
+
+
 def _build_flat_final_document(
     node_view: Any,
     instances: list[Any],
     runs: list[Any],
     subject: object | None,
     digest: str | None,
+    *,
+    live_tail_delay: float | None = None,
+    live_now: float | None = None,
 ) -> MainDeckDocument:
     """Build a block-less FINAL deck document (fewer than two block runs)."""
     from ..card_part import CardPart
@@ -217,7 +262,12 @@ def _build_flat_final_document(
         instance_id = str(getattr(item, "instance_id", ""))
         status = getattr(item, "status", None)
         provider_ref = getattr(item, "provider_ref", None)
-        body = build_instance_card_renderables(item, runs)
+        body = build_instance_card_renderables(
+            item,
+            runs,
+            live_delay_seconds=live_tail_delay,
+            live_now=live_now,
+        )
         extra = instance_enrichments(
             str(provider_ref) if provider_ref else None, item, runs
         )
