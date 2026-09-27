@@ -127,9 +127,8 @@ def _decode_card_id(raw: Any) -> str | None:
 def _decode_preferred_cards(raw: Any) -> dict[DeckId, str]:
     """Decode the ``preferred_cards`` map, skipping unknown decks and bad ids.
 
-    Keys for decks outside the active cycle (for example a ``final`` deck
-    persisted while its flag is off) are kept so the preference survives
-    until that deck registers.
+    Keys for decks outside the active cycle are kept so the preference
+    survives until that deck registers.
     """
     cards: dict[DeckId, str] = {}
     if not isinstance(raw, dict):

@@ -24,7 +24,12 @@ class RenderMode(StrEnum):
     PAGED = "paged"
 
 
-DECK_CYCLE: tuple[DeckId, ...] = (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
+DECK_CYCLE: tuple[DeckId, ...] = (
+    DeckId.MAIN,
+    DeckId.FILES,
+    DeckId.TOOLS,
+    DeckId.FINAL,
+)
 
 
 class DeckLayout(StrEnum):

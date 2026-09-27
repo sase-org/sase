@@ -17,29 +17,29 @@ from sase.ace.tui.widgets.decks.spec import (
 
 def test_every_deck_id_has_exactly_one_spec() -> None:
     assert [s.deck_id for s in DECK_SPECS] == list(DeckId)
-    assert active_deck_cycle() == (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
+    assert active_deck_cycle() == (
+        DeckId.MAIN,
+        DeckId.FILES,
+        DeckId.TOOLS,
+        DeckId.FINAL,
+    )
     for deck in DeckId:
         assert deck_spec(deck).deck_id is deck
 
 
-def test_final_deck_spec_identity_and_flagged_cycle() -> None:
-    from sase.feature_flags import override_flags
-
+def test_final_deck_spec_identity_and_cycle() -> None:
     spec = deck_spec(DeckId.FINAL)
     assert spec.name == "FINAL"
     assert spec.glyph == "⊛"
     assert spec.picker_key == "n"
     assert spec.count_noun == ("finalizer", "finalizers")
     assert spec.fallback_accent == "#FF87D7"
-    with override_flags(ace_final_deck=True):
-        assert active_deck_cycle() == (
-            DeckId.MAIN,
-            DeckId.FILES,
-            DeckId.TOOLS,
-            DeckId.FINAL,
-        )
-    with override_flags(ace_final_deck=False):
-        assert active_deck_cycle() == (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
+    assert active_deck_cycle() == (
+        DeckId.MAIN,
+        DeckId.FILES,
+        DeckId.TOOLS,
+        DeckId.FINAL,
+    )
 
 
 def test_picker_keys_unique_and_unreserved() -> None:

@@ -36,6 +36,7 @@ def _availability() -> dict[DeckId, DeckAvailability]:
         DeckId.MAIN: DeckAvailability(True, 2),
         DeckId.FILES: DeckAvailability(True, 3),
         DeckId.TOOLS: DeckAvailability(False, 0),
+        DeckId.FINAL: DeckAvailability(False, 0),
     }
 
 
@@ -44,6 +45,7 @@ def _accents() -> dict[DeckId, str]:
         DeckId.MAIN: "#B48EAD",
         DeckId.FILES: "green",
         DeckId.TOOLS: "#87D7FF",
+        DeckId.FINAL: "#FF87D7",
     }
 
 
@@ -139,7 +141,7 @@ def test_picker_rows_order_badges_and_other_panel() -> None:
     )
     rows = build_deck_picker_rows(state)
     assert [row.deck for row in rows] == list(DECK_CYCLE)
-    assert [row.key for row in rows] == ["m", "f", "t"]
+    assert [row.key for row in rows] == ["m", "f", "t", "n"]
     current = [row for row in rows if row.is_current]
     assert len(current) == 1 and current[0].deck is DeckId.FILES
     by_deck = {row.deck: row for row in rows}

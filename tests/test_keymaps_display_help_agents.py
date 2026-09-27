@@ -196,7 +196,7 @@ def test_agents_help_lists_deck_picker_row() -> None:
     navigation = dict(sections["Navigation"])
 
     assert navigation["p"] == "Pick deck for focused panel (decks)"
-    assert navigation["p M/F/T"] == "Show deck in other panel (decks)"
+    assert navigation["p M/F/T/N"] == "Show deck in other panel (decks)"
 
 
 def test_agents_help_deck_other_panel_row_follows_pick_deck_binding() -> None:
@@ -207,7 +207,7 @@ def test_agents_help_deck_other_panel_row_follows_pick_deck_binding() -> None:
             )
         )["Navigation"]
     )
-    assert rebound["f12 M/F/T"] == "Show deck in other panel (decks)"
+    assert rebound["f12 M/F/T/N"] == "Show deck in other panel (decks)"
 
     unbound = dict(
         dict(

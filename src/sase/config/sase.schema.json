@@ -5395,11 +5395,6 @@
         "type": "boolean"
       },
       "properties": {
-        "ace_final_deck": {
-          "type": "boolean",
-          "description": "Rows show FINALIZING with \u229b chips, the identity header shows the finalizer activity chip, Reply ends with a \u229b FINAL receipt, and the FINAL deck is in the cycle/picker/subtitle.",
-          "default": false
-        },
         "ace_refresh_tokens": {
           "type": "boolean",
           "description": "Gate sase's TUI and proc refreshes on per-surface stat-only change tokens.",

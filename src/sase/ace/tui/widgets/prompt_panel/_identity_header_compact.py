@@ -209,11 +209,7 @@ def _activity_chip(agent: Agent) -> Text | None:
 
 
 def _finalizer_activity_chip(agent: Agent) -> Text | None:
-    """Return the ⊛ finalizing override while the beta flag is on (plan §3.5)."""
-    from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
-
-    if not final_deck_enabled():
-        return None
+    """Return the ⊛ finalizing override (plan §3.5)."""
     from sase.ace.tui.models.finalizer_row_state import finalizer_header_chip
 
     override = finalizer_header_chip(agent)

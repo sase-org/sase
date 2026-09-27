@@ -313,7 +313,7 @@ def test_subtitle_has_no_spread_tag() -> None:
         DeckId.MAIN, availability, status=None, width=80, accent_for=accent_for
     )
     assert "spread" not in plain.plain
-    assert plain.plain == "main 2 \u00b7 files 1 \u00b7 tools 0"
+    assert plain.plain == "main 2 \u00b7 files 1 \u00b7 tools 0 \u00b7 final"
     # Tight widths drop the switcher counts, never the status.
     tight = deck_subtitle(
         DeckId.MAIN,

@@ -1,10 +1,9 @@
 """Pure finalizer glance state over the in-memory ``Agent`` (plan §3.5).
 
-No I/O and no flag reads: call sites gate on ``final_deck_enabled()`` so
-flag-off rendering stays byte-identical to today. Buckets, ordering,
-filters, capacity, ``agent_row_is_in_flight`` and row actions are untouched
-(plan D11); only the ``RUNNING`` word overlay and the ``⊛`` chip are derived
-here.
+No I/O: the state derives from the agent's summary alone. Buckets,
+ordering, filters, capacity, ``agent_row_is_in_flight`` and row actions are
+untouched (plan D11); only the ``RUNNING`` word overlay and the ``⊛`` chip
+are derived here.
 """
 
 from __future__ import annotations

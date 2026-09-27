@@ -212,7 +212,7 @@ async def test_agents_p_capital_f_opens_files_below_and_keeps_focus() -> None:
             await page.press("p")
             await page.expect_modal("DeckPickerModal")
             assert _plain(page, "#deck-picker-other-hint") == (
-                "   M/F/T  open in a new bottom panel"
+                "   M/F/T/N  open in a new bottom panel"
             )
 
             await page.press("F")
@@ -245,7 +245,7 @@ async def test_agents_p_capital_t_in_left_right_split_fills_left_panel() -> None
             "Choose what the right panel shows"
         )
         assert _plain(page, "#deck-picker-other-hint") == (
-            "   M/F/T  show in the left panel"
+            "   M/F/T/N  show in the left panel"
         )
         assert left_deck is not DeckId.TOOLS
 
@@ -275,7 +275,7 @@ async def test_agents_p_capital_for_other_panels_deck_changes_nothing() -> None:
             await page.press("p")
             await page.expect_modal("DeckPickerModal")
             assert _plain(page, "#deck-picker-other-hint") == (
-                "   M/F/T  show in the bottom panel"
+                "   M/F/T/N  show in the bottom panel"
             )
             await page.press("F")
             await page.expect_no_modal()

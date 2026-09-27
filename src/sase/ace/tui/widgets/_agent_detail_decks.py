@@ -451,12 +451,6 @@ class AgentDetailDeckMixin:
             except Exception:
                 pass
         elif deck is DeckId.FINAL:
-            from .decks.final.flag import final_deck_enabled
-
-            if not final_deck_enabled():
-                log.warning("FINAL deck picked while its flag is off; showing Main")
-                self.show_deck(panel_index, DeckId.MAIN)
-                return
             try:
                 preferred = self._final_preferred_card(panel)
             except Exception:

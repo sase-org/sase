@@ -58,11 +58,7 @@ from ..models.finalizer_row_state import (
 
 
 def _glance_finalizer_state(agent: Agent) -> FinalizerRowState:
-    """Return the flag-gated glance state (empty while the beta is off)."""
-    from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
-
-    if not final_deck_enabled():
-        return FinalizerRowState()
+    """Return the glance state for one row (empty when no summary applies)."""
     if agent.is_agent_session_container_row:
         return session_finalizer_row_state(agent)
     return finalizer_row_state(agent)

@@ -45,7 +45,6 @@ from sase.ace.tui.widgets.decks.titles import (
     final_switcher_segment,
 )
 from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
-from sase.feature_flags import override_flags
 
 
 def _agent(*, status: str = "RUNNING", summary: dict | None = None) -> Agent:
@@ -127,7 +126,7 @@ def test_final_picker_key_is_n_and_free() -> None:
     assert "n" not in DECK_PICKER_RESERVED_KEYS
 
 
-def test_final_joins_picker_rows_only_with_flag() -> None:
+def test_final_joins_picker_rows() -> None:
     from sase.ace.tui.widgets.decks.picker import (
         DeckPickerState,
         build_deck_picker_rows,
@@ -148,24 +147,16 @@ def test_final_joins_picker_rows_only_with_flag() -> None:
         availability=availability,
         accents=accents,
     )
-    with override_flags(ace_final_deck=True):
-        rows = build_deck_picker_rows(state)
-        assert [row.deck for row in rows] == [
-            DeckId.MAIN,
-            DeckId.FILES,
-            DeckId.TOOLS,
-            DeckId.FINAL,
-        ]
-        final_row = rows[-1]
-        assert final_row.key == "n"
-        assert final_row.has_content is False
-    with override_flags(ace_final_deck=False):
-        rows = build_deck_picker_rows(state)
-        assert [row.deck for row in rows] == [
-            DeckId.MAIN,
-            DeckId.FILES,
-            DeckId.TOOLS,
-        ]
+    rows = build_deck_picker_rows(state)
+    assert [row.deck for row in rows] == [
+        DeckId.MAIN,
+        DeckId.FILES,
+        DeckId.TOOLS,
+        DeckId.FINAL,
+    ]
+    final_row = rows[-1]
+    assert final_row.key == "n"
+    assert final_row.has_content is False
 
 
 # -- Deck-view exclusions (cross-epic R1/R2) -----------------------------
@@ -340,7 +331,7 @@ def test_final_switcher_segment_colors() -> None:
     assert final_switcher_segment("bogus", None).plain == "final ⊛"
 
 
-def test_subtitle_shows_final_status_segment_with_flag() -> None:
+def test_subtitle_shows_final_status_segment() -> None:
     availability = {
         DeckId.MAIN: DeckAvailability(True, 1),
         DeckId.FILES: DeckAvailability(False, 0),
@@ -353,31 +344,16 @@ def test_subtitle_shows_final_status_segment_with_flag() -> None:
         DeckId.TOOLS: "#87D7FF",
         DeckId.FINAL: "#FF87D7",
     }
-    with override_flags(ace_final_deck=True):
-        rendered = deck_subtitle(
-            DeckId.MAIN,
-            availability,
-            status=None,
-            width=80,
-            accent_for=accents,
-            status_segments={DeckId.FINAL: final_switcher_segment("failed", "✗")},
-        )
-        assert "final ✗" in rendered.plain
-        assert "final 1" not in rendered.plain
-
-
-def test_subtitle_flag_off_parity() -> None:
-    availability = {
-        DeckId.MAIN: DeckAvailability(True, 1),
-        DeckId.FILES: DeckAvailability(False, 0),
-        DeckId.TOOLS: DeckAvailability(False, 0),
-    }
-    accents = {DeckId.MAIN: "red", DeckId.FILES: "green", DeckId.TOOLS: "#87D7FF"}
-    with override_flags(ace_final_deck=False):
-        rendered = deck_subtitle(
-            DeckId.MAIN, availability, status=None, width=80, accent_for=accents
-        )
-        assert "final" not in rendered.plain
+    rendered = deck_subtitle(
+        DeckId.MAIN,
+        availability,
+        status=None,
+        width=80,
+        accent_for=accents,
+        status_segments={DeckId.FINAL: final_switcher_segment("failed", "✗")},
+    )
+    assert "final ✗" in rendered.plain
+    assert "final 1" not in rendered.plain
 
 
 def test_final_title_uses_compact_rungs_over_four_tabs() -> None:
@@ -442,9 +418,8 @@ def test_final_view_rejects_stale_subject_and_generation() -> None:
 # -- Persistence -----------------------------------------------------------
 
 
-def test_final_panel_round_trips_with_flag_on(tmp_path) -> None:
+def test_final_panel_round_trips(tmp_path) -> None:
     from sase.ace.tui.models.agent_deck_persistence import (
-        _DeckPanelSnapshot,
         load_agents_deck_state,
         save_agents_deck_state,
     )
@@ -474,35 +449,28 @@ def test_final_panel_round_trips_with_flag_on(tmp_path) -> None:
         ),
         encoding="utf-8",
     )
-    with override_flags(ace_final_deck=True):
-        loaded = load_agents_deck_state(path)
-        assert loaded.panels[0].deck is DeckId.FINAL
-        assert loaded.panels[0].preferred_cards == {
-            DeckId.MAIN: "reply",
-            DeckId.FINAL: "instance:check",
-        }
-        save_agents_deck_state(loaded, path)
-        assert load_agents_deck_state(path) == loaded
-    with override_flags(ace_final_deck=False):
-        assert load_agents_deck_state(path).panels[0].deck is DeckId.MAIN
-        assert _DeckPanelSnapshot(deck=DeckId.MAIN).views == loaded.panels[0].views
+    loaded = load_agents_deck_state(path)
+    assert loaded.panels[0].deck is DeckId.FINAL
+    assert loaded.panels[0].preferred_cards == {
+        DeckId.MAIN: "reply",
+        DeckId.FINAL: "instance:check",
+    }
+    save_agents_deck_state(loaded, path)
+    assert load_agents_deck_state(path) == loaded
 
 
 # -- Receipt hint ------------------------------------------------------------
 
 
-def test_receipt_shows_open_hint_with_flag() -> None:
+def test_receipt_shows_open_hint() -> None:
     from sase.ace.tui.widgets.prompt_panel._agent_finalizer_receipt import (
         finalizer_receipt_text,
     )
 
     agent = _agent(summary=_SETTLED)
-    with override_flags(ace_final_deck=True):
-        receipt = finalizer_receipt_text(agent)
-        assert receipt is not None
-        assert "p n  open FINAL deck" in receipt.plain
-    with override_flags(ace_final_deck=False):
-        assert finalizer_receipt_text(agent) is None
+    receipt = finalizer_receipt_text(agent)
+    assert receipt is not None
+    assert "p n  open FINAL deck" in receipt.plain
 
 
 def test_instance_card_id_prefix_avoids_overview_collision() -> None:

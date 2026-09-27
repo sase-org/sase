@@ -31,11 +31,13 @@ def _modal(
             DeckId.MAIN: DeckAvailability(True, 2),
             DeckId.FILES: DeckAvailability(True, 3),
             DeckId.TOOLS: DeckAvailability(False, 0),
+            DeckId.FINAL: DeckAvailability(False, 0),
         },
         accents={
             DeckId.MAIN: "#B48EAD",
             DeckId.FILES: "green",
             DeckId.TOOLS: "#87D7FF",
+            DeckId.FINAL: "#FF87D7",
         },
     )
     return DeckPickerModal(
@@ -51,7 +53,12 @@ def _plain(modal: DeckPickerModal, selector: str) -> str:
 
 
 async def test_deck_picker_lowercase_picks_this_panel_capital_picks_other() -> None:
-    for letter, deck in (("m", DeckId.MAIN), ("f", DeckId.FILES), ("t", DeckId.TOOLS)):
+    for letter, deck in (
+        ("m", DeckId.MAIN),
+        ("f", DeckId.FILES),
+        ("t", DeckId.TOOLS),
+        ("n", DeckId.FINAL),
+    ):
         for key, other_panel in ((letter, False), (letter.upper(), True)):
             results: list[DeckPick | None] = []
             async with AcePage() as page:
@@ -70,7 +77,7 @@ async def test_deck_picker_capitals_swallowed_without_other_hint() -> None:
         page.app.push_screen(_modal(other_hint=None), results.append)
         await page.expect_modal("DeckPickerModal")
 
-        for key in ("F", "M", "T", "J", "K", "Q"):
+        for key in ("F", "M", "T", "N", "J", "K", "Q"):
             await page.press(key)
             await page.pause()
             assert page.state["modal"] == "DeckPickerModal"
@@ -100,7 +107,7 @@ async def test_deck_picker_other_hint_line() -> None:
         page.app.push_screen(modal, [].append)
         await page.expect_modal("DeckPickerModal")
         assert _plain(modal, "#deck-picker-other-hint") == (
-            "   M/F/T  open in a new bottom panel"
+            "   M/F/T/N  open in a new bottom panel"
         )
 
     async with AcePage() as page:
@@ -175,9 +182,9 @@ async def test_deck_picker_jk_wrap_and_enter() -> None:
         # Cursor starts on the current deck (Main, row 0).
         assert modal.query_one("#deck-picker-row-0").has_class("focused")
 
-        # `k` wraps from the first row to the last (Tools).
+        # `k` wraps from the first row to the last (FINAL).
         await page.press("k")
-        assert modal.query_one("#deck-picker-row-2").has_class("focused")
+        assert modal.query_one("#deck-picker-row-3").has_class("focused")
         # `j` wraps back to the first row.
         await page.press("j")
         assert modal.query_one("#deck-picker-row-0").has_class("focused")

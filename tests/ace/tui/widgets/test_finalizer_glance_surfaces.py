@@ -1,8 +1,7 @@
 """Glance-surface tests for phase glance-surfaces (epic sase-1b2, bead sase-1b2.8).
 
 Covers the shared vocabulary, pure row-state tables, the D10 session
-supersede rule, row/header rendering, and the Reply receipt with the
-``ace_final_deck`` flag on and off.
+supersede rule, row/header rendering, and the Reply receipt.
 """
 
 from __future__ import annotations
@@ -27,7 +26,6 @@ from sase.ace.tui.widgets.prompt_panel._agent_finalizer_receipt import (
 )
 from sase.agent.status_buckets import status_bucket_for_values
 from sase.core.agent_scan_wire_markers import finalizer_status_from_mapping
-from sase.feature_flags import override_flags
 from sase.finalizers.view_vocabulary import instance_style, run_phase_style
 
 
@@ -203,11 +201,10 @@ def _render_row(agent: Agent) -> str:
     return text.plain
 
 
-def test_row_renders_finalizing_word_in_running_bucket_flag_on() -> None:
+def test_row_renders_finalizing_word_in_running_bucket() -> None:
     agent = _agent(status="RUNNING", summary=_EXECUTING)
 
-    with override_flags(ace_final_deck=True):
-        plain = _render_row(agent)
+    plain = _render_row(agent)
 
     assert "(FINALIZING)" in plain
     assert "⊛ commit · just fix" in plain
@@ -216,16 +213,7 @@ def test_row_renders_finalizing_word_in_running_bucket_flag_on() -> None:
     assert status_bucket_for_values("RUNNING") == "Running"
 
 
-def test_row_flag_off_is_byte_identical_to_no_summary() -> None:
-    agent = _agent(status="RUNNING", summary=_EXECUTING)
-    bare = _agent(status="RUNNING", summary=None)
-
-    with override_flags(ace_final_deck=False):
-        assert _render_row(agent) == _render_row(bare)
-        assert "(RUNNING)" in _render_row(agent)
-
-
-def test_row_done_failure_chip_flag_on() -> None:
+def test_row_done_failure_chip() -> None:
     agent = _agent(
         status="FAILED",
         summary={
@@ -235,63 +223,56 @@ def test_row_done_failure_chip_flag_on() -> None:
         },
     )
 
-    with override_flags(ace_final_deck=True):
-        assert "⊛✗ check" in _render_row(agent)
+    assert "⊛✗ check" in _render_row(agent)
 
 
 def test_header_chip_finalizing_and_declaration() -> None:
-    with override_flags(ace_final_deck=True):
-        text, _style = finalizer_header_chip(
-            _agent(status="RUNNING", summary=_EXECUTING)
-        )
-        assert text == "⊛ finalizing · commit · just fix"
+    text, _style = finalizer_header_chip(_agent(status="RUNNING", summary=_EXECUTING))
+    assert text == "⊛ finalizing · commit · just fix"
 
-        declaring = dict(_EXECUTING, phase="declaring")
-        text, _style = finalizer_header_chip(
-            _agent(status="RUNNING", summary=declaring)
-        )
-        assert text == "⊛ declaration"
+    declaring = dict(_EXECUTING, phase="declaring")
+    text, _style = finalizer_header_chip(_agent(status="RUNNING", summary=declaring))
+    assert text == "⊛ declaration"
 
     assert finalizer_header_chip(_agent(summary=None)) is None
 
 
 def test_receipt_running_and_failed() -> None:
-    with override_flags(ace_final_deck=True):
-        receipt = finalizer_receipt_text(_agent(status="RUNNING", summary=_EXECUTING))
+    receipt = finalizer_receipt_text(_agent(status="RUNNING", summary=_EXECUTING))
 
-        assert isinstance(receipt, Text)
-        assert "⊛ FINAL" in receipt.plain
-        assert "commit" in receipt.plain
-        assert "just fix" in receipt.plain
+    assert isinstance(receipt, Text)
+    assert "⊛ FINAL" in receipt.plain
+    assert "commit" in receipt.plain
+    assert "just fix" in receipt.plain
 
-        failed = _agent(
-            status="FAILED",
-            summary={
-                "phase": "settled",
-                "status": "failed",
-                "started_at": 1727440000.0,
-                "instances": [
-                    {
-                        "id": "check",
-                        "status": "failed",
-                        "attempt": 2,
-                        "max_attempts": 2,
-                        "reason": "command_failed",
-                        "started_at": 1727440000.0,
-                        "finished_at": 1727440220.0,
-                    },
-                    {"id": "tasks", "status": "not_run"},
-                ],
-            },
-        )
-        receipt = finalizer_receipt_text(failed)
+    failed = _agent(
+        status="FAILED",
+        summary={
+            "phase": "settled",
+            "status": "failed",
+            "started_at": 1727440000.0,
+            "instances": [
+                {
+                    "id": "check",
+                    "status": "failed",
+                    "attempt": 2,
+                    "max_attempts": 2,
+                    "reason": "command_failed",
+                    "started_at": 1727440000.0,
+                    "finished_at": 1727440220.0,
+                },
+                {"id": "tasks", "status": "not_run"},
+            ],
+        },
+    )
+    receipt = finalizer_receipt_text(failed)
 
-        assert receipt is not None
-        assert "✗ check" in receipt.plain
-        assert "command_failed · attempt 2/2" in receipt.plain
-        assert "FAILED command_failed" in receipt.plain
-        assert "not run" in receipt.plain
-        assert format_compact_duration(220.0) in receipt.plain
+    assert receipt is not None
+    assert "✗ check" in receipt.plain
+    assert "command_failed · attempt 2/2" in receipt.plain
+    assert "FAILED command_failed" in receipt.plain
+    assert "not run" in receipt.plain
+    assert format_compact_duration(220.0) in receipt.plain
 
 
 def test_receipt_success_warnings_suffix() -> None:
@@ -312,12 +293,11 @@ def test_receipt_success_warnings_suffix() -> None:
         },
     )
 
-    with override_flags(ace_final_deck=True):
-        receipt = finalizer_receipt_text(agent)
+    receipt = finalizer_receipt_text(agent)
 
-        assert receipt is not None
-        assert "⚠2" in receipt.plain
-        assert "commit 8bb7e55" in receipt.plain
+    assert receipt is not None
+    assert "⚠2" in receipt.plain
+    assert "commit 8bb7e55" in receipt.plain
 
 
 def test_receipt_absent_for_skipped_planned_legacy_and_empty() -> None:
@@ -330,15 +310,7 @@ def test_receipt_absent_for_skipped_planned_legacy_and_empty() -> None:
     empty = _agent(summary={"phase": "settled", "status": "success", "instances": []})
     legacy = _agent(summary=None)
 
-    with override_flags(ace_final_deck=True):
-        assert finalizer_receipt_text(skipped) is None
-        assert finalizer_receipt_text(planned) is None
-        assert finalizer_receipt_text(empty) is None
-        assert finalizer_receipt_text(legacy) is None
-
-
-def test_receipt_flag_off_is_none() -> None:
-    agent = _agent(status="RUNNING", summary=_EXECUTING)
-
-    with override_flags(ace_final_deck=False):
-        assert finalizer_receipt_text(agent) is None
+    assert finalizer_receipt_text(skipped) is None
+    assert finalizer_receipt_text(planned) is None
+    assert finalizer_receipt_text(empty) is None
+    assert finalizer_receipt_text(legacy) is None

@@ -169,6 +169,34 @@ def test_duplicate_files_has_no_preferred_card() -> None:
     assert chosen.preferred_card is None
 
 
+def test_final_taken_only_on_positive_content() -> None:
+    content: dict[DeckId, bool | None] = {
+        DeckId.MAIN: True,
+        DeckId.FILES: False,
+        DeckId.TOOLS: False,
+        DeckId.FINAL: True,
+    }
+    chosen = choose_new_panel(
+        DeckId.MAIN, "context", {DeckId.MAIN}, content, ("context", "reply")
+    )
+    assert chosen.deck is DeckId.FINAL
+
+
+def test_final_unknown_or_empty_falls_back_to_duplicate() -> None:
+    for final_content in (None, False):
+        content: dict[DeckId, bool | None] = {
+            DeckId.MAIN: True,
+            DeckId.FILES: False,
+            DeckId.TOOLS: False,
+            DeckId.FINAL: final_content,
+        }
+        chosen = choose_new_panel(
+            DeckId.MAIN, "context", {DeckId.MAIN}, content, ("context", "reply")
+        )
+        assert chosen.deck is DeckId.MAIN
+        assert chosen.preferred_card == "reply"
+
+
 def test_ratio_steps_from_each_focused_side_and_clamp() -> None:
     top = DeckAreaState(
         panels=(DeckPanelState(DeckId.MAIN), DeckPanelState(DeckId.FILES)),

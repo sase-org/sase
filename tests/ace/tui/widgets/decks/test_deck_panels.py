@@ -270,11 +270,14 @@ async def test_cycle_focused_deck_wraps_and_reloads(tmp_path: Path) -> None:
         assert panel.deck is DeckId.TOOLS
         detail.cycle_focused_deck(1)
         await pilot.pause()
+        assert panel.deck is DeckId.FINAL
+        detail.cycle_focused_deck(1)
+        await pilot.pause()
         assert panel.deck is DeckId.MAIN
         assert panel.main_view.active_card_id == "context"
         detail.cycle_focused_deck(-1)
         await pilot.pause()
-        assert panel.deck is DeckId.TOOLS
+        assert panel.deck is DeckId.FINAL
 
 
 async def test_deck_palette_availability_gates() -> None:

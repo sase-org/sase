@@ -27,9 +27,11 @@ def choose_new_panel(
 
     Walk the active deck cycle forward from ``current_deck`` and pick the
     first deck that is not in ``shown`` and whose ``has_content`` entry is
-    not ``False``. Unknown (``None`` or missing) counts as content. When
-    none qualifies, duplicate ``current_deck`` on the card after
-    ``current_active_card``.
+    not ``False``. Unknown (``None`` or missing) counts as content, except
+    for FINAL, which a fresh split takes only on positive content — an
+    empty FINAL ("No finalizers for this agent") is never the triage
+    loop's second panel. When none qualifies, duplicate ``current_deck``
+    on the card after ``current_active_card``.
     """
     from .spec import active_deck_cycle
 
@@ -48,6 +50,8 @@ def choose_new_panel(
         except Exception:
             content = None
         if content is False:
+            continue
+        if candidate is DeckId.FINAL and content is not True:
             continue
         return DeckPanelState(deck=candidate)
     return new_panel_for_deck(current_deck, current_deck, current_active_card, card_ids)

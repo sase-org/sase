@@ -24,14 +24,16 @@ from sase.ace.tui.widgets.decks.model import (
 
 
 def test_deck_cycle_order() -> None:
-    assert DECK_CYCLE == (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
+    assert DECK_CYCLE == (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS, DeckId.FINAL)
 
 
 def test_cycle_deck_id_wraps_both_directions() -> None:
     assert cycle_deck_id(DeckId.MAIN, 1) is DeckId.FILES
     assert cycle_deck_id(DeckId.FILES, 1) is DeckId.TOOLS
-    assert cycle_deck_id(DeckId.TOOLS, 1) is DeckId.MAIN
-    assert cycle_deck_id(DeckId.MAIN, -1) is DeckId.TOOLS
+    assert cycle_deck_id(DeckId.TOOLS, 1) is DeckId.FINAL
+    assert cycle_deck_id(DeckId.FINAL, 1) is DeckId.MAIN
+    assert cycle_deck_id(DeckId.MAIN, -1) is DeckId.FINAL
+    assert cycle_deck_id(DeckId.FINAL, -1) is DeckId.TOOLS
     assert cycle_deck_id(DeckId.TOOLS, -1) is DeckId.FILES
 
 

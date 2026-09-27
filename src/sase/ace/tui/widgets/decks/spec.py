@@ -81,16 +81,8 @@ def deck_spec(deck: DeckId) -> DeckSpec:
 
 
 def active_deck_cycle() -> tuple[DeckId, ...]:
-    """Return the decks in cycle order (FINAL joins while its flag is on)."""
-    try:
-        from .final.flag import final_deck_enabled
-
-        flag_on = bool(final_deck_enabled())
-    except Exception:
-        flag_on = False
-    if flag_on:
-        return tuple(s.deck_id for s in DECK_SPECS)
-    return tuple(s.deck_id for s in DECK_SPECS if s.deck_id is not DeckId.FINAL)
+    """Return the decks in cycle order (Main, Files, Tools, FINAL)."""
+    return tuple(s.deck_id for s in DECK_SPECS)
 
 
 def coerce_known_deck(deck: DeckId, *, context: str) -> DeckId:

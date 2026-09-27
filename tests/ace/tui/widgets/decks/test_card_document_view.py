@@ -27,8 +27,8 @@ from sase.ace.tui.widgets.decks.separators import card_separator_for
 from sase.ace.tui.widgets.decks.view_policy import forced_block_mode, forced_deck_mode
 
 
-def test_card_document_decks_is_main_only() -> None:
-    assert CARD_DOCUMENT_DECKS == (DeckId.MAIN,)
+def test_card_document_decks_is_main_and_final() -> None:
+    assert CARD_DOCUMENT_DECKS == (DeckId.MAIN, DeckId.FINAL)
     assert is_card_document_deck(DeckId.MAIN)
     assert not is_card_document_deck(DeckId.FILES)
     assert not is_card_document_deck(DeckId.TOOLS)

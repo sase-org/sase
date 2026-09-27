@@ -1,4 +1,4 @@
-"""Feature-flag helper package for the ⊛ FINAL deck beta (epic sase-1b2)."""
+"""View package for the ⊛ FINAL deck (epic sase-1b2)."""
 
 from sase.ace.tui.widgets.decks.final.document import (
     FINAL_OVERVIEW_CARD_ID,
@@ -9,7 +9,6 @@ from sase.ace.tui.widgets.decks.final.document import (
     final_instance_card_id,
     final_instance_tab_title,
 )
-from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
 from sase.ace.tui.widgets.decks.final.loader import (
     FinalDeckLoadResult,
     cached_final_result,
@@ -32,7 +31,6 @@ __all__ = [
     "clear_final_cache",
     "decide_final_mode",
     "final_cache_key",
-    "final_deck_enabled",
     "final_default_card",
     "final_instance_card_id",
     "final_instance_tab_title",

@@ -136,15 +136,15 @@ def _subtitle(width: int, *, status: Text | None = None) -> str:
 
 
 def test_subtitle_has_no_spread_tag() -> None:
-    assert _subtitle(60) == "main 1 \u00b7 files 3 \u00b7 tools 2"
+    assert _subtitle(60) == "main 1 \u00b7 files 3 \u00b7 tools 2 \u00b7 final"
     assert "spread" not in _subtitle(60)
 
 
 def test_subtitle_drops_counts_before_slicing() -> None:
-    assert _subtitle(30) == "main 1 \u00b7 files 3 \u00b7 tools 2"
-    # Then the counts, so no label is ever cut mid-word.
-    assert _subtitle(25) == "main \u00b7 files \u00b7 tools"
-    assert _subtitle(21) == "main \u00b7 files \u00b7 tools"
+    assert _subtitle(30) == "main \u00b7 files \u00b7 tools \u00b7 final"
+    # Then bare labels slice when even they do not fit.
+    assert _subtitle(25) == "main \u00b7 files \u00b7 tools \u00b7 fi"
+    assert _subtitle(21) == "main \u00b7 files \u00b7 tools "
 
 
 def test_subtitle_slices_only_when_even_bare_labels_do_not_fit() -> None:
@@ -154,8 +154,8 @@ def test_subtitle_slices_only_when_even_bare_labels_do_not_fit() -> None:
 def test_subtitle_status_keeps_bare_switcher_before_dropping_it() -> None:
     status = Text("1-50 of 90")
     assert _subtitle(60, status=status).startswith("1-50 of 90  main 1")
-    bare = _subtitle(34, status=status)
-    assert bare == "1-50 of 90  main \u00b7 files \u00b7 tools"
+    bare = _subtitle(40, status=status)
+    assert bare == "1-50 of 90  main \u00b7 files \u00b7 tools \u00b7 final"
     assert _subtitle(15, status=status) == "1-50 of 90"
 
 

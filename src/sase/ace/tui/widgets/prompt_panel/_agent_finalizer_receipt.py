@@ -26,20 +26,6 @@ if TYPE_CHECKING:
 RECEIPT_LABEL = "FINAL"
 
 
-def _final_deck_available() -> bool:
-    """Whether the FINAL deck exists yet (plan 4.8 step 6).
-
-    ``final-deck-shell`` registered the deck, so the ``p n`` hint shows
-    while its beta flag is on.
-    """
-    from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
-
-    try:
-        return bool(final_deck_enabled())
-    except Exception:
-        return False
-
-
 def _started_at(agent: Agent) -> datetime | None:
     summary = agent.finalizer_status
     started = summary.started_at if summary is not None else None
@@ -111,13 +97,8 @@ def finalizer_receipt_text(phase: Agent) -> Text | None:
     """Return the ⊛ FINAL receipt for one shell's phase, or None.
 
     No receipt for handoff-skipped shells, zero selected instances, legacy
-    runs with no summary, or the ``planned`` phase (plan D8/D9). Flag-off
-    returns None so assembly sites render byte-identically to today.
+    runs with no summary, or the ``planned`` phase (plan D8/D9).
     """
-    from sase.ace.tui.widgets.decks.final.flag import final_deck_enabled
-
-    if not final_deck_enabled():
-        return None
     summary = phase.finalizer_status
     if summary is None:
         return None
@@ -168,7 +149,7 @@ def finalizer_receipt_text(phase: Agent) -> Text | None:
             )
         if status not in ("success",):
             trouble = True
-    if trouble and _final_deck_available():
+    if trouble:
         receipt.append("             p n  open FINAL deck\n", style="dim")
     if not receipt.plain.endswith("\n"):
         receipt.append("\n")
