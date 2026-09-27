@@ -6,9 +6,13 @@ from datetime import datetime
 
 import pytest
 
-from sase.agent.status_buckets import QUEUED_STATUS_COLOR
-from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_groups import GroupingMode, GroupRow
 from sase.core.time import local_now
+from sase.ace.tui.widgets._agent_list_render_banner import format_banner_option
+from sase.ace.tui.widgets._agent_list_render_rail import (
+    RAIL_BUCKET_GLYPHS,
+    RAIL_NEEDS_YOU_STYLE,
+)
 from sase.ace.tui.widgets._agent_list_styling import (
     _PATCH_BANNER_BAR_STYLE,
     _PATCH_BANNER_RULE_STYLE,
@@ -16,7 +20,6 @@ from sase.ace.tui.widgets._agent_list_styling import (
     _NAME_ROOT_BANNER_LABEL_STYLE,
     _PROJECT_BANNER_BAR_STYLE,
     _PROJECT_BANNER_RULE_STYLE,
-    _STATUS_BUCKET_GLYPHS,
 )
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -27,7 +30,7 @@ def _status_bucket_banner_labels(widget: AgentList) -> list[str]:
     labels: list[str] = []
     for option in widget._options:
         plain = option.prompt.plain  # type: ignore[union-attr]
-        for bucket, glyph in _STATUS_BUCKET_GLYPHS.items():
+        for bucket, (glyph, _style) in RAIL_BUCKET_GLYPHS.items():
             if plain.startswith(f"{glyph} {bucket}"):
                 labels.append(bucket)
                 break
@@ -196,8 +199,8 @@ def test_standard_mode_hides_starting_agent_rows(
     assert "visible-run" in rendered_text
 
 
-def test_by_status_stopped_banner_carries_status_glyph() -> None:
-    """``Stopped`` bucket leads with the ``▲`` status glyph."""
+def test_by_status_stopped_banner_carries_rail_glyph() -> None:
+    """``Stopped`` bucket leads with the rail ``?`` chip, not ``▲``."""
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="a", status="QUESTION")],
@@ -206,10 +209,14 @@ def test_by_status_stopped_banner_carries_status_glyph() -> None:
     )
     options = list(widget._options)
     plain = options[0].prompt.plain  # type: ignore[union-attr]
-    assert plain.startswith(f"{_STATUS_BUCKET_GLYPHS['Stopped']} Stopped")
+    glyph, _style = RAIL_BUCKET_GLYPHS["Stopped"]
+    assert glyph == "?"
+    assert plain.startswith(f"{glyph} Stopped")
+    spans = {s.style for s in options[0].prompt.spans}  # type: ignore[union-attr]
+    assert RAIL_NEEDS_YOU_STYLE in spans
 
 
-def test_by_status_running_banner_carries_status_glyph() -> None:
+def test_by_status_running_banner_carries_rail_glyph() -> None:
     widget = AgentList()
     widget.update_list(
         [make_agent(cl_name="a", status="RUNNING")],
@@ -218,7 +225,39 @@ def test_by_status_running_banner_carries_status_glyph() -> None:
     )
     options = list(widget._options)
     plain = options[0].prompt.plain  # type: ignore[union-attr]
-    assert plain.startswith(f"{_STATUS_BUCKET_GLYPHS['Running']} Running")
+    glyph, _style = RAIL_BUCKET_GLYPHS["Running"]
+    assert plain.startswith(f"{glyph} Running")
+
+
+def test_by_status_waiting_banner_carries_rail_glyph() -> None:
+    """``Waiting`` uses the rail ``◷``, not the banned ``⏳``."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(cl_name="a", status="WAITING")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    glyph, _style = RAIL_BUCKET_GLYPHS["Waiting"]
+    assert glyph == "◷"
+    assert plain.startswith(f"{glyph} Waiting")
+    assert "⏳" not in plain
+
+
+def test_by_status_queued_banner_carries_rail_glyph() -> None:
+    """``Queued`` uses the rail ``○``, not the old ``…``."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(cl_name="a", status="QUEUED")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_STATUS,
+    )
+    options = list(widget._options)
+    plain = options[0].prompt.plain  # type: ignore[union-attr]
+    glyph, _style = RAIL_BUCKET_GLYPHS["Queued"]
+    assert glyph == "○"
+    assert plain.startswith(f"{glyph} Queued")
 
 
 def test_by_date_mode_drops_patch_banner_even_when_cl_name_present() -> None:
@@ -260,8 +299,8 @@ def test_by_status_name_root_banner_uses_existing_palette() -> None:
     assert _NAME_ROOT_BANNER_BRANCH_STYLE in spans
 
 
-def test_by_machine_status_subgroup_banner_carries_status_glyph() -> None:
-    """BY_MACHINE L1 status banners render the middle-tier bar + status glyph."""
+def test_by_machine_status_subgroup_banner_carries_rail_glyph() -> None:
+    """BY_MACHINE L1 status banners render the middle-tier bar + rail glyph."""
     widget = AgentList()
     widget.update_list(
         [make_agent(status="RUNNING")],
@@ -270,14 +309,16 @@ def test_by_machine_status_subgroup_banner_carries_status_glyph() -> None:
     )
     options = list(widget._options)
     plain = options[1].prompt.plain  # type: ignore[union-attr]
-    assert f"▎ {_STATUS_BUCKET_GLYPHS['Running']} Running" in plain
+    glyph, glyph_style = RAIL_BUCKET_GLYPHS["Running"]
+    assert f"▎ {glyph} Running" in plain
     spans = {s.style for s in options[1].prompt.spans}  # type: ignore[union-attr]
+    assert glyph_style in spans
     assert _PATCH_BANNER_BAR_STYLE in spans
     assert _PATCH_BANNER_RULE_STYLE in spans
 
 
-def test_by_machine_status_subgroup_banner_queued_carries_accent_color() -> None:
-    """The Queued bucket's glyph (not the bar) carries the accent color."""
+def test_by_machine_status_subgroup_banner_queued_carries_rail_color() -> None:
+    """The Queued bucket's rail glyph (not the bar) carries the rail color."""
     widget = AgentList()
     widget.update_list(
         [make_agent(status="QUEUED")],
@@ -286,9 +327,11 @@ def test_by_machine_status_subgroup_banner_queued_carries_accent_color() -> None
     )
     options = list(widget._options)
     plain = options[1].prompt.plain  # type: ignore[union-attr]
-    assert f"▎ {_STATUS_BUCKET_GLYPHS['Queued']} Queued" in plain
+    glyph, glyph_style = RAIL_BUCKET_GLYPHS["Queued"]
+    assert glyph == "○"
+    assert f"▎ {glyph} Queued" in plain
     spans = {s.style for s in options[1].prompt.spans}  # type: ignore[union-attr]
-    assert f"bold {QUEUED_STATUS_COLOR}" in spans
+    assert glyph_style in spans
     # The bar itself keeps the normal middle-tier accent, not the Queued color.
     assert _PATCH_BANNER_BAR_STYLE in spans
 
@@ -307,6 +350,17 @@ def test_by_machine_status_subgroup_banner_always_middle_tier_with_no_children()
     options = list(widget._options)
     plain = options[1].prompt.plain  # type: ignore[union-attr]
     assert "▎" in plain
+
+
+def test_banner_width_math_uses_cell_widths() -> None:
+    """A double-width label pads the rule by cells, not characters."""
+    group = GroupRow(level=0, group_key=("日本語",), agent_indices=())
+    option = format_banner_option(
+        group, [], width=40, sequence=0, mode=GroupingMode.STANDARD
+    )
+    plain = option.prompt.plain  # type: ignore[union-attr]
+    # "▌ "(2 cells) + "日本語"(6 cells) + 1 gap = 9 used; pad = 40 - 9.
+    assert plain == "▌ 日本語 " + "━" * 31
 
 
 def test_standard_mode_banner_unchanged_after_phase_2() -> None:

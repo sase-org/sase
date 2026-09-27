@@ -5,9 +5,8 @@ group banners, plus a memoized wrapper backed by
 
 from typing import Literal
 
+from rich.cells import cell_len
 from textual.widgets.option_list import Option
-
-from sase.agent.status_buckets import QUEUED_STATUS_BUCKET, QUEUED_STATUS_COLOR
 
 from ..models.agent import Agent
 from ..models.agent_groups import (
@@ -19,6 +18,7 @@ from ..models.agent_groups import (
 )
 from ._agent_list_render_cache import AgentRenderCache, banner_render_key
 from ._agent_list_render_layout import render_tier_gutter
+from ._agent_list_render_rail import RAIL_BUCKET_GLYPHS
 from ._agent_list_styling import (
     _PATCH_BANNER_BAR_STYLE,
     _PATCH_BANNER_RULE_STYLE,
@@ -32,7 +32,6 @@ from ._agent_list_styling import (
     _PROJECT_BANNER_RULE_STYLE,
     _PROJECT_BAR_GLYPH,
     _PROJECT_RULE,
-    _STATUS_BUCKET_GLYPHS,
     _TIER_GUIDE_SEGMENT_WIDTH,
 )
 
@@ -67,14 +66,12 @@ def format_banner_option(
       accent + ``▎`` bar, light rule ``─``.
     - BY_DATE L0 (date bucket): bold sky-blue label + heavy rule, no
       project bar — the bucket name is the visual anchor.
-    - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
-      ``Stopped``) + bold sky-blue label + heavy rule.
-    - BY_MACHINE L1 (status subgroup): ``▎`` bar + status glyph (e.g.
-      ``▎ ▶ Running``) + label, light rule ``─`` — always the middle-tier
-      register, even when the subgroup has no name-root children.  The
-      ``Queued`` bucket's glyph (not the bar) carries the
-      ``QUEUED_STATUS_COLOR`` accent, mirroring the BY_STATUS L0 special
-      case.
+    - BY_STATUS L0 (status bucket): leading rail bucket glyph (``?`` for
+      ``Stopped``) in its rail style + bold sky-blue label + heavy rule.
+    - BY_MACHINE L1 (status subgroup): ``▎`` bar + rail bucket glyph (e.g.
+      ``▎ ▶ Running``) in its rail style + label, light rule ``─`` —
+      always the middle-tier register, even when the subgroup has no
+      name-root children.
     - L1/L2/L3 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
       label, dim-gray light rule ``─`` and chip.
 
@@ -108,16 +105,16 @@ def format_banner_option(
         rule_style = _PROJECT_BANNER_RULE_STYLE
     elif group.level == 0:
         # Bucket banner (BY_DATE / BY_STATUS): drop the project bar so the
-        # bucket name leads.  In BY_STATUS mode, prepend a status glyph
-        # that signals the bucket's semantics at a glance.
-        if mode is GroupingMode.BY_STATUS and label in _STATUS_BUCKET_GLYPHS:
-            prefix = f"{_STATUS_BUCKET_GLYPHS[label]} "
+        # bucket name leads.  In BY_STATUS mode, prepend the rail bucket
+        # glyph in its rail style so both densities share one language.
+        if mode is GroupingMode.BY_STATUS and label in RAIL_BUCKET_GLYPHS:
+            glyph, glyph_style = RAIL_BUCKET_GLYPHS[label]
+            prefix = f"{glyph} "
+            prefix_style = glyph_style
         else:
             prefix = ""
+            prefix_style = _PROJECT_BANNER_BAR_STYLE
         rule_char = _PROJECT_RULE
-        prefix_style = _PROJECT_BANNER_BAR_STYLE
-        if mode is GroupingMode.BY_STATUS and label == QUEUED_STATUS_BUCKET:
-            prefix_style = f"bold {QUEUED_STATUS_COLOR}"
         label_style = _PROJECT_BANNER_BAR_STYLE
         rule_style = _PROJECT_BANNER_RULE_STYLE
     elif is_middle_tier_banner:
@@ -133,22 +130,17 @@ def format_banner_option(
         label_style = _NAME_ROOT_BANNER_LABEL_STYLE
         rule_style = _NAME_ROOT_BANNER_BRANCH_STYLE
 
-    # Status subgroup banners (BY_MACHINE L1) insert the bucket's status
+    # Status subgroup banners (BY_MACHINE L1) insert the bucket's rail
     # glyph between the ``▎`` bar and the label, echoing the glyphs
-    # BY_STATUS L0 banners already use.  The Queued bucket keeps its accent
-    # color on just the glyph, not the whole bar+glyph prefix.
+    # BY_STATUS L0 banners already use.  Each glyph carries its own rail
+    # style; the bar keeps the middle-tier accent.
     prefix_segments: list[tuple[str, str]] = [(prefix, prefix_style)]
     if (
         group.level == 1
         and mode is GroupingMode.BY_MACHINE
-        and label in _STATUS_BUCKET_GLYPHS
+        and label in RAIL_BUCKET_GLYPHS
     ):
-        glyph = _STATUS_BUCKET_GLYPHS[label]
-        glyph_style = (
-            f"bold {QUEUED_STATUS_COLOR}"
-            if label == QUEUED_STATUS_BUCKET
-            else prefix_style
-        )
+        glyph, glyph_style = RAIL_BUCKET_GLYPHS[label]
         prefix_segments = [(prefix, prefix_style), (f"{glyph} ", glyph_style)]
         prefix = f"{prefix}{glyph} "
 
@@ -167,16 +159,18 @@ def format_banner_option(
     text.append(label, style=label_style)
     if chip:
         # ``<gutter><hint><prefix><label> <rule…>  <chip>``: 1-cell gap
-        # before the rule, 2-cell gap before the chip.
+        # before the rule, 2-cell gap before the chip.  Widths are terminal
+        # cells (``cell_len``), not Python characters, so double-width
+        # label or chip text still right-aligns the chip.
         used = (
             gutter_cells
             + hint_cells
             + mark_cells
-            + len(prefix)
-            + len(label)
+            + cell_len(prefix)
+            + cell_len(label)
             + 1
             + 2
-            + len(chip)
+            + cell_len(chip)
         )
         pad_len = max(2, width - used)
         text.append(
@@ -184,7 +178,14 @@ def format_banner_option(
             style=rule_style,
         )
     else:
-        used = gutter_cells + hint_cells + mark_cells + len(prefix) + len(label) + 1
+        used = (
+            gutter_cells
+            + hint_cells
+            + mark_cells
+            + cell_len(prefix)
+            + cell_len(label)
+            + 1
+        )
         pad_len = max(2, width - used)
         text.append(" " + rule_char * pad_len, style=rule_style)
 
